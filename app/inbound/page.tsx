@@ -598,11 +598,6 @@ useEffect(() => {
       );
     }
 
-
-
-
-
-
   //>>>>>>>>>>>>>>>>>>>>>> UI >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
   return (
     <AppLayout>
@@ -739,16 +734,16 @@ useEffect(() => {
               }
             }}
           >
+            <Tab icon="📋" iconPosition="start" label="Inbound List" />
             <Tab icon="📝" iconPosition="start" label="Single Entry" />
             <Tab icon="📤" iconPosition="start" label="Bulk Upload" />
-            <Tab icon="📊" iconPosition="start" label="Multi Entry" />
-            <Tab icon="📋" iconPosition="start" label="Inbound List" />
+            <Tab icon="📊" iconPosition="start" label="Multi Entry" />            
             <Tab icon="🗂️" iconPosition="start" label="Batch Manager" />
           </Tabs>
         </Paper>
 
         {/* TAB 0: SINGLE ENTRY */}
-        {tabValue === 0 && (            
+        {tabValue === 1 && (            
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '1fr 1fr' }, gap: 2 }}>
             <Box sx={{ 
               animation: 'slideInLeft 0.5s ease-out',
@@ -1106,7 +1101,7 @@ useEffect(() => {
         )}
 
         {/* TAB 1: BULK UPLOAD */}
-        {tabValue === 1 && (
+        {tabValue === 2 && (
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '1fr 1fr' }, gap: 1.5 }}>
             <Box sx={{
               animation: 'fadeIn 0.5s ease-out',
@@ -1359,8 +1354,8 @@ useEffect(() => {
         )}
 
 
-        {/* TAB 2: MULTI ENTRY ////////////////////////////////////////////////////////////////////////////////////////////////////////////////*/}
-        {tabValue === 2 && (
+  {/* TAB 2: MULTI ENTRY //*/}
+  {tabValue === 3 && (
   <Box sx={{
     display: 'flex',
     flexDirection: 'column',
@@ -1853,7 +1848,7 @@ useEffect(() => {
   
 
         {/* TAB 3: INBOUND LIST */}
-        {tabValue === 3 && (
+        {tabValue === 0 && (
           <Box sx={{ 
             display: 'flex', 
             flexDirection: 'column', 
