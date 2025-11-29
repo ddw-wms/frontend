@@ -30,32 +30,79 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
 
-    if (!username.trim() || !password.trim()) {
-      toast.error('Please enter username and password');
-      return;
-    }
 
-    setLoading(true);
-    try {
-      await login(username, password);
-      toast.success('✓ Login successful!', {
-        icon: '🎉',
-        duration: 2000,
-      });
+  // const handleLogin = async (e: React.FormEvent) => {
+  //   e.preventDefault();
+
+  //   if (!username.trim() || !password.trim()) {
+  //     toast.error('Please enter username and password');
+  //     return;
+  //   }
+
+  //   setLoading(true);
+  //   try {
+  //     await login(username, password);
+  //     toast.success('✓ Login successful!', {
+  //       icon: '🎉',
+  //       duration: 2000,
+  //     });
       
-      setTimeout(() => {
-        router.push('/dashboard');
-      }, 500);
-    } catch (error: any) {
-      const errorMsg = error.response?.data?.error || 'Login failed';
-      toast.error('✗ ' + errorMsg);
-      console.error('Login error:', error);
-    } finally {
-      setLoading(false);
-    }
+  //     setTimeout(() => {
+  //       router.push('/dashboard');
+  //     }, 500);
+  //   } catch (error: any) {
+  //     const errorMsg = error.response?.data?.error || 'Login failed';
+  //     toast.error('✗ ' + errorMsg);
+  //     console.error('Login error:', error);
+  //   } finally {
+  //     setLoading(false);
+  //   }
+  // };
+
+  const handleLogin = async (e: React.FormEvent) => {
+  e.preventDefault();
+
+  if (!username.trim() || !password.trim()) {
+    toast.error('Please enter username and password');
+    return;
+  }
+
+  setLoading(true);
+
+  // Timer: If login takes longer than 4 seconds → show wake-up message
+  const wakeUpTimer = setTimeout(() => {
+    toast.loading('⏳ Waking up the server... Render free plan may take 20–40 seconds', {
+      id: 'wake-msg',
+    });
+  }, 4000); // 4 seconds
+
+  try {
+    await login(username, password);
+
+    clearTimeout(wakeUpTimer);
+    toast.dismiss('wake-msg');
+
+    toast.success('✓ Login successful!', {
+      icon: '🎉',
+      duration: 1500,
+    });
+
+    setTimeout(() => {
+      router.push('/dashboard');
+    }, 500);
+
+  } catch (error: any) {
+    clearTimeout(wakeUpTimer);
+    toast.dismiss('wake-msg');
+
+    const errorMsg = error.response?.data?.error || 'Login failed';
+    toast.error('✗ ' + errorMsg);
+    console.error('Login error:', error);
+
+  } finally {
+    setLoading(false);
+  }
   };
 
   
