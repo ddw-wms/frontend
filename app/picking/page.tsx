@@ -378,17 +378,39 @@ export default function PickingPage() {
   };
 
   if (!activeWarehouse) {
-    return (
-      <AppLayout>
-        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '60vh' }}>
-          <Alert severity="warning" sx={{ maxWidth: 400 }}>
-            <Typography variant="h6">⚠️ No Warehouse Selected</Typography>
-            <Typography variant="body2">Please select a warehouse to continue</Typography>
-          </Alert>
-        </Box>
-      </AppLayout>
-    );
-  }
+      return (
+        <AppLayout>
+          <Box
+            sx={{
+              p: 6,
+              textAlign: 'center',
+              minHeight: '60vh',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexDirection: 'column',
+            }}
+          >
+            <Box
+              sx={{
+                p: 5,
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                borderRadius: 4,
+                color: 'white',
+                boxShadow: '0 20px 60px rgba(102, 126, 234, 0.4)',
+              }}
+            >
+              <Typography variant="h5" sx={{ fontWeight: 700, mb: 1 }}>
+                ⚠️ No active warehouse selected. 
+              </Typography>
+              <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                Please go to Settings → Warehouses to set one.
+              </Typography>
+            </Box>
+          </Box>
+        </AppLayout>
+      );
+    }
 
   return (
     <AppLayout>
@@ -885,4 +907,5 @@ export default function PickingPage() {
       </Box>
     </AppLayout>
   );
+
 }
