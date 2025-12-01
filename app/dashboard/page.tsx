@@ -1,33 +1,92 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import {
-  Box, Paper, Typography, Button, Table, TableBody, TableCell,
-  TableContainer, TableHead, TableRow, Dialog, DialogTitle,
-  DialogContent, DialogActions, TextField, MenuItem, Chip, Stack,
-  CircularProgress, Alert, IconButton, Card, Select, FormControl, InputLabel,
-  Tooltip, Pagination, Autocomplete, FormControlLabel, Checkbox
-} from '@mui/material';
+  Box,
+  Paper,
+  Container,
+  AppBar,
+  Toolbar,
+  Avatar,
+  Typography,
+  Button,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  MenuItem,
+  Chip,
+  Stack,
+  CircularProgress,
+  Alert,
+  IconButton,
+  Card,
+  Select,
+  FormControl,
+  InputLabel,
+  Tooltip,
+  Pagination,
+  Autocomplete,
+  FormControlLabel,
+  Checkbox,
+} from "@mui/material";
 import {
-  Download as DownloadIcon, Refresh as RefreshIcon, Visibility as VisibilityIcon,
-  FilterList as FilterIcon, Info as InfoIcon, Print as PrintIcon
-} from '@mui/icons-material';
-import { dashboardAPI } from '@/lib/api';
-import { useWarehouse } from '@/app/context/WarehouseContext';
-import { getStoredUser } from '@/lib/auth';
-import AppLayout from '@/components/AppLayout';
-import toast, { Toaster } from 'react-hot-toast';
-import * as XLSX from 'xlsx';
+  Logout as LogoutIcon,
+  Download as DownloadIcon,
+  Refresh as RefreshIcon,
+  Visibility as VisibilityIcon,
+  FilterList as FilterIcon,
+  Info as InfoIcon,
+  Print as PrintIcon,
+} from "@mui/icons-material";
+import { dashboardAPI } from "@/lib/api";
+import { useWarehouse } from "@/app/context/WarehouseContext";
+
+//import { getStoredUser } from '@/lib/auth';
+import { getStoredUser, logout } from "@/lib/auth";
+import AppLayout from "@/components/AppLayout";
+import toast, { Toaster } from "react-hot-toast";
+import * as XLSX from "xlsx";
+
+interface User {
+  id: number;
+  username: string;
+  fullName: string;
+  email: string;
+  role: string;
+  warehouseId?: number;
+}
 
 // ✅ Type Definitions
 interface InventoryItem {
   wsn: string;
+  wid?: string;
+  fsn?: string;
+  order_id?: string;
+  fkqc_remark?: string;
+  fk_grade?: string;
   product_title: string;
+  hsn_sac?: string;
+  igst_rate?: number;
+  fsp: number;
+  mrp: number;
+  invoice_date?: string;
+  fkt_link?: string;
+  wh_location?: string;
   brand: string;
   cms_vertical: string;
-  mrp: number;
-  fsp: number;
+  vrp?: number;
+  yield_value?: number;
+  p_type?: string;
+  p_size?: string;
   inbound_date: string;
   inbound_status: string;
   qc_date: string;
@@ -44,55 +103,114 @@ interface InventoryItem {
   [key: string]: any;
 }
 
-// Column configuration
+// ✅ ISSUE #1: ALL COLUMNS FROM MASTER DATA
 const ALL_COLUMNS = [
-  'wsn', 'product_title', 'brand', 'cms_vertical', 'mrp', 'fsp',
-  'inbound_date', 'inbound_status', 'qc_date', 'qc_status', 'qc_grade',
-  'picking_date', 'picking_status', 'outbound_date', 'outbound_status', 'vehicle_no',
-  'warehouse_location', 'rack_no', 'current_stage'
+  "wsn",
+  "wid",
+  "fsn",
+  "order_id",
+  "fkqc_remark",
+  "fk_grade",
+  "product_title",
+  "hsn_sac",
+  "igst_rate",
+  "fsp",
+  "mrp",
+  "invoice_date",
+  "fkt_link",
+  "wh_location",
+  "brand",
+  "cms_vertical",
+  "vrp",
+  "yield_value",
+  "p_type",
+  "p_size",
+  "inbound_date",
+  "inbound_status",
+  "qc_date",
+  "qc_status",
+  "qc_grade",
+  "picking_date",
+  "picking_status",
+  "outbound_date",
+  "outbound_status",
+  "vehicle_no",
+  "warehouse_location",
+  "rack_no",
+  "current_stage",
 ];
 
+// ✅ ISSUE #2: DEFAULT COLUMNS IN SAME ORDER
 const DEFAULT_VISIBLE_COLUMNS = [
-  'wsn', 'product_title', 'brand', 'cms_vertical', 'fsp', 'mrp',
-  'inbound_status', 'qc_status', 'picking_status', 'outbound_status', 'current_stage'
+  "wsn",
+  "product_title",
+  "brand",
+  "cms_vertical",
+  "fsp",
+  "mrp",
+  "inbound_status",
+  "qc_status",
+  "picking_status",
+  "outbound_status",
+  "current_stage",
 ];
 
 // Pipeline stages
 const PIPELINE_STAGES = [
-  { value: 'all', label: 'All Items' },
-  { value: 'INBOUND_RECEIVED', label: 'Inbound Received' },
-  { value: 'QC_PENDING', label: 'QC Pending' },
-  { value: 'QC_PASSED', label: 'QC Passed' },
-  { value: 'QC_FAILED', label: 'QC Failed' },
-  { value: 'PICKING_PENDING', label: 'Picking Pending' },
-  { value: 'PICKING_COMPLETED', label: 'Picking Completed' },
-  { value: 'OUTBOUND_READY', label: 'Outbound Ready' },
-  { value: 'OUTBOUND_DISPATCHED', label: 'Outbound Dispatched' }
+  { value: "all", label: "All Items" },
+  { value: "INBOUND_RECEIVED", label: "Inbound Received" },
+  { value: "QC_PENDING", label: "QC Pending" },
+  { value: "QC_PASSED", label: "QC Passed" },
+  { value: "QC_FAILED", label: "QC Failed" },
+  { value: "PICKING_PENDING", label: "Picking Pending" },
+  { value: "PICKING_COMPLETED", label: "Picking Completed" },
+  { value: "OUTBOUND_READY", label: "Outbound Ready" },
+  { value: "OUTBOUND_DISPATCHED", label: "Outbound Dispatched" },
 ];
 
 export default function DashboardPage() {
   const router = useRouter();
   const { activeWarehouse } = useWarehouse();
-  const [user, setUser] = useState<any>(null);
+  //const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
+
+  useEffect(() => {
+    const storedUser = getStoredUser();
+    if (storedUser) {
+      setUser(storedUser);
+    }
+  }, []);
+
+  const handleLogout = () => {
+    logout();
+    toast.success("Logged out successfully");
+    router.push("/login");
+  };
+
+  const handleCardClick = (path: string) => {
+    router.push(path);
+  };
 
   // Data state
   const [inventoryData, setInventoryData] = useState<InventoryItem[]>([]);
   const [filteredData, setFilteredData] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // Filter state
-  const [searchWSN, setSearchWSN] = useState('');
-  const [stageFilter, setStageFilter] = useState('all');
-  const [brandFilter, setBrandFilter] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
-  const [visibleColumns, setVisibleColumns] = useState<string[]>(DEFAULT_VISIBLE_COLUMNS);
+  // ✅ ISSUE #2 & #5: LOAD FROM LOCALSTORAGE ON MOUNT
+  const [visibleColumns, setVisibleColumns] = useState<string[]>([]);
   const [columnDialogOpen, setColumnDialogOpen] = useState(false);
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
 
-  // Pagination
+  // Filter state
+  const [searchWSN, setSearchWSN] = useState("");
+  const [stageFilter, setStageFilter] = useState("all");
+  const [brandFilter, setBrandFilter] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+
+  // ✅ ISSUE #5: PAGINATION - SAVE LIMIT
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(25);
   const [total, setTotal] = useState(0);
@@ -109,18 +227,18 @@ export default function DashboardPage() {
     pickingPending: 0,
     pickingCompleted: 0,
     outboundReady: 0,
-    outboundDispatched: 0
+    outboundDispatched: 0,
   });
 
   // ✅ Export Dialog State
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
   const [exportFilters, setExportFilters] = useState({
-    dateFrom: '',
-    dateTo: '',
-    stage: 'all',
-    brand: '',
-    category: '',
-    searchText: ''
+    dateFrom: "",
+    dateTo: "",
+    stage: "all",
+    brand: "",
+    category: "",
+    searchText: "",
   });
   const [exportLoading, setExportLoading] = useState(false);
 
@@ -128,11 +246,43 @@ export default function DashboardPage() {
   useEffect(() => {
     const storedUser = getStoredUser();
     if (!storedUser) {
-      router.push('/login');
+      router.push("/login");
       return;
     }
     setUser(storedUser);
   }, [router]);
+
+  // ✅ ISSUE #2: LOAD COLUMNS AND LIMIT FROM LOCALSTORAGE
+  useEffect(() => {
+    const savedColumns = localStorage.getItem("dashboardColumns");
+    const savedLimit = localStorage.getItem("dashboardLimit");
+
+    if (savedColumns) {
+      try {
+        setVisibleColumns(JSON.parse(savedColumns));
+      } catch {
+        setVisibleColumns(DEFAULT_VISIBLE_COLUMNS);
+      }
+    } else {
+      setVisibleColumns(DEFAULT_VISIBLE_COLUMNS);
+    }
+
+    if (savedLimit) {
+      setLimit(Number(savedLimit));
+    }
+  }, []);
+
+  // ✅ ISSUE #2: SAVE COLUMNS TO LOCALSTORAGE WHEN CHANGED
+  useEffect(() => {
+    if (visibleColumns.length > 0) {
+      localStorage.setItem("dashboardColumns", JSON.stringify(visibleColumns));
+    }
+  }, [visibleColumns]);
+
+  // ✅ ISSUE #5: SAVE LIMIT TO LOCALSTORAGE
+  useEffect(() => {
+    localStorage.setItem("dashboardLimit", String(limit));
+  }, [limit]);
 
   useEffect(() => {
     if (activeWarehouse) {
@@ -151,7 +301,15 @@ export default function DashboardPage() {
   // Apply filters
   useEffect(() => {
     applyFilters();
-  }, [inventoryData, searchWSN, stageFilter, brandFilter, categoryFilter, dateFrom, dateTo]);
+  }, [
+    inventoryData,
+    searchWSN,
+    stageFilter,
+    brandFilter,
+    categoryFilter,
+    dateFrom,
+    dateTo,
+  ]);
 
   const loadInventoryData = async () => {
     setLoading(true);
@@ -159,7 +317,7 @@ export default function DashboardPage() {
       const response = await dashboardAPI.getInventoryPipeline({
         warehouseId: activeWarehouse?.id,
         page,
-        limit
+        limit,
       });
 
       setInventoryData((response.data?.data || []) as InventoryItem[]);
@@ -185,8 +343,8 @@ export default function DashboardPage() {
       setBrands(uniqueBrands);
       setCategories(uniqueCategories);
     } catch (error: any) {
-      console.error('Load inventory error:', error);
-      toast.error('Failed to load inventory data');
+      console.error("Load inventory error:", error);
+      toast.error("Failed to load inventory data");
     } finally {
       setLoading(false);
     }
@@ -194,10 +352,12 @@ export default function DashboardPage() {
 
   const loadMetrics = async () => {
     try {
-      const response = await dashboardAPI.getInventoryMetrics(activeWarehouse?.id);
+      const response = await dashboardAPI.getInventoryMetrics(
+        activeWarehouse?.id
+      );
       setMetrics(response.data || {});
     } catch (error) {
-      console.error('Load metrics error:', error);
+      console.error("Load metrics error:", error);
     }
   };
 
@@ -206,108 +366,126 @@ export default function DashboardPage() {
 
     // WSN search
     if (searchWSN) {
-      filtered = filtered.filter(item =>
-        item.wsn?.toLowerCase().includes(searchWSN.toLowerCase()) ||
-        item.product_title?.toLowerCase().includes(searchWSN.toLowerCase())
+      filtered = filtered.filter(
+        (item) =>
+          item.wsn?.toLowerCase().includes(searchWSN.toLowerCase()) ||
+          item.product_title?.toLowerCase().includes(searchWSN.toLowerCase())
       );
     }
 
     // Stage filter
-    if (stageFilter !== 'all') {
-      filtered = filtered.filter(item => item.current_stage === stageFilter);
+    if (stageFilter !== "all") {
+      filtered = filtered.filter((item) => item.current_stage === stageFilter);
     }
 
     // Brand filter
     if (brandFilter) {
-      filtered = filtered.filter(item =>
-        item.brand?.toLowerCase() === brandFilter.toLowerCase()
+      filtered = filtered.filter(
+        (item) => item.brand?.toLowerCase() === brandFilter.toLowerCase()
       );
     }
 
     // Category filter
     if (categoryFilter) {
-      filtered = filtered.filter(item =>
-        item.cms_vertical?.toLowerCase() === categoryFilter.toLowerCase()
+      filtered = filtered.filter(
+        (item) =>
+          item.cms_vertical?.toLowerCase() === categoryFilter.toLowerCase()
       );
     }
 
-    // Date range filter
+    // ✅ ISSUE #4: DATE FILTER - FIXED
     if (dateFrom) {
-      filtered = filtered.filter(item =>
-        item.inbound_date && new Date(item.inbound_date) >= new Date(dateFrom)
-      );
+      filtered = filtered.filter((item) => {
+        if (!item.inbound_date) return false;
+        try {
+          return (
+            new Date(item.inbound_date).toDateString() >=
+            new Date(dateFrom).toDateString()
+          );
+        } catch {
+          return false;
+        }
+      });
     }
 
     if (dateTo) {
-      filtered = filtered.filter(item =>
-        item.inbound_date && new Date(item.inbound_date) <= new Date(dateTo)
-      );
+      filtered = filtered.filter((item) => {
+        if (!item.inbound_date) return false;
+        try {
+          return (
+            new Date(item.inbound_date).toDateString() <=
+            new Date(dateTo).toDateString()
+          );
+        } catch {
+          return false;
+        }
+      });
     }
 
     setFilteredData(filtered);
   };
 
   const getStageColor = (stage: string) => {
-    if (stage?.includes('INBOUND')) return 'primary';
-    if (stage?.includes('QC_PENDING')) return 'warning';
-    if (stage?.includes('QC_PASSED')) return 'success';
-    if (stage?.includes('QC_FAILED')) return 'error';
-    if (stage?.includes('PICKING')) return 'info';
-    if (stage?.includes('OUTBOUND')) return 'success';
-    return 'default';
+    if (stage?.includes("INBOUND")) return "primary";
+    if (stage?.includes("QC_PENDING")) return "warning";
+    if (stage?.includes("QC_PASSED")) return "success";
+    if (stage?.includes("QC_FAILED")) return "error";
+    if (stage?.includes("PICKING")) return "info";
+    if (stage?.includes("OUTBOUND")) return "success";
+    return "default";
   };
 
   const getStatusColor = (status: string) => {
-    if (!status) return '#999';
-    if (status === 'PENDING') return '#ff9800';
-    if (status === 'Pending') return '#ff9800';
-    if (status === 'COMPLETED' || status === 'PASSED') return '#4caf50';
-    if (status === 'FAILED') return '#f44336';
-    if (status === 'ok') return '#4caf50';
-    return '#2196f3';
+    if (!status) return "#999";
+    if (status === "PENDING") return "#ff9800";
+    if (status === "Pending") return "#ff9800";
+    if (status === "COMPLETED" || status === "PASSED") return "#4caf50";
+    if (status === "FAILED") return "#f44336";
+    if (status === "ok") return "#4caf50";
+    return "#2196f3";
   };
 
   // ✅ NEW: Excel Export with Formatting
   const formatExcelSheet = (ws: any, data: any[]) => {
     // Column widths
     const columnWidths = [
-      15, 12, 12, 12, 30, 15, 15, 12, 12, 15, 15, 12, 15, 12, 12, 15,
-      15, 15, 12, 15, 15, 12, 15, 15, 15, 15, 15, 15, 15, 15, 18, 15, 20
+      15, 12, 12, 12, 30, 15, 15, 12, 12, 15, 15, 12, 15, 12, 12, 15, 15, 15,
+      12, 15, 15, 12, 15, 15, 15, 15, 15, 15, 15, 15, 18, 15, 20,
     ];
-    ws['!cols'] = columnWidths.map(w => ({ wch: w }));
+    ws["!cols"] = columnWidths.map((w) => ({ wch: w }));
 
     // Freeze header row
-    ws['!freeze'] = { xSplit: 0, ySplit: 1 };
+    ws["!freeze"] = { xSplit: 0, ySplit: 1 };
 
     // Format header row (row 1)
     const headerStyle = {
-      font: { bold: true, color: { rgb: 'FFFFFF' } },
-      fill: { fgColor: { rgb: 'F59E0B' } },
-      alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+      font: { bold: true, color: { rgb: "FFFFFF" } },
+      fill: { fgColor: { rgb: "F59E0B" } },
+      alignment: { horizontal: "center", vertical: "center", wrapText: true },
       border: {
-        top: { style: 'thin' },
-        bottom: { style: 'thin' },
-        left: { style: 'thin' },
-        right: { style: 'thin' }
-      }
+        top: { style: "thin" },
+        bottom: { style: "thin" },
+        left: { style: "thin" },
+        right: { style: "thin" },
+      },
     };
 
     // Apply header style to all header cells
     const headers = Object.keys(data[0] || {});
     headers.forEach((header, idx) => {
-      const cell = ws[XLSX.utils.encode_col(idx) + '1'];
+      const cell = ws[XLSX.utils.encode_col(idx) + "1"];
       if (cell) cell.s = headerStyle;
     });
 
     // Format data cells with borders and alternating colors
     const dataStyle = {
       border: {
-        top: { style: 'thin', color: { rgb: 'E5E7EB' } },
-        bottom: { style: 'thin', color: { rgb: 'E5E7EB' } },
-        left: { style: 'thin', color: { rgb: 'E5E7EB' } },
-        right: { style: 'thin', color: { rgb: 'E5E7EB' } }
+        top: { style: "thin", color: { rgb: "E5E7EB" } },
+        bottom: { style: "thin", color: { rgb: "E5E7EB" } },
+        left: { style: "thin", color: { rgb: "E5E7EB" } },
+        right: { style: "thin", color: { rgb: "E5E7EB" } },
       },
-      alignment: { horizontal: 'left', vertical: 'top', wrapText: true }
+      alignment: { horizontal: "left", vertical: "top", wrapText: true },
     };
 
     const rowCount = data.length + 1;
@@ -317,9 +495,10 @@ export default function DashboardPage() {
         if (ws[cellRef]) {
           ws[cellRef].s = {
             ...dataStyle,
-            fill: row % 2 === 0
-              ? { fgColor: { rgb: 'F9FAFB' } }
-              : { fgColor: { rgb: 'FFFFFF' } }
+            fill:
+              row % 2 === 0
+                ? { fgColor: { rgb: "F9FAFB" } }
+                : { fgColor: { rgb: "FFFFFF" } },
           };
         }
       });
@@ -332,377 +511,509 @@ export default function DashboardPage() {
     try {
       // Build query params
       const params = new URLSearchParams();
-      params.append('warehouseId', activeWarehouse?.id);
-      if (exportFilters.dateFrom) params.append('dateFrom', exportFilters.dateFrom);
-      if (exportFilters.dateTo) params.append('dateTo', exportFilters.dateTo);
-      if (exportFilters.stage && exportFilters.stage !== 'all') params.append('stage', exportFilters.stage);
-      if (exportFilters.brand) params.append('brand', exportFilters.brand);
-      if (exportFilters.category) params.append('category', exportFilters.category);
-      if (exportFilters.searchText) params.append('searchText', exportFilters.searchText);
+      params.append("warehouseId", activeWarehouse?.id);
+      if (exportFilters.dateFrom)
+        params.append("dateFrom", exportFilters.dateFrom);
+      if (exportFilters.dateTo) params.append("dateTo", exportFilters.dateTo);
+      if (exportFilters.stage && exportFilters.stage !== "all")
+        params.append("stage", exportFilters.stage);
+      if (exportFilters.brand) params.append("brand", exportFilters.brand);
+      if (exportFilters.category)
+        params.append("category", exportFilters.category);
+      if (exportFilters.searchText)
+        params.append("searchText", exportFilters.searchText);
 
       // Fetch export data
-      const response = await dashboardAPI.getInventoryDataForExport(params.toString());
+      const response = await dashboardAPI.getInventoryDataForExport(
+        params.toString()
+      );
 
       if (response.data?.data && response.data.data.length > 0) {
         // Format data for Excel with ALL columns
         const formattedData = response.data.data.map((row: any) => ({
-          'WSN': row.wsn,
-          'Product ID': row.wid || '',
-          'FSN': row.fsn || '',
-          'Order ID': row.order_id || '',
-          'Product Title': row.product_title,
-          'Brand': row.brand,
-          'Category': row.cms_vertical,
-          'FSP': row.fsp,
-          'MRP': row.mrp,
-          'Inbound Date': row.inbound_date ? new Date(row.inbound_date).toLocaleDateString() : '-',
-          'Vehicle No': row.vehicle_no,
-          'Rack No': row.rack_no,
-          'Location': row.wh_location,
-          'HSN/SAC': row.hsn_sac,
-          'IGST Rate': row.igst_rate,
-          'Invoice Date': row.invoice_date ? new Date(row.invoice_date).toLocaleDateString() : '-',
-          'Product Type': row.p_type,
-          'Size': row.p_size,
-          'VRP': row.vrp,
-          'Yield Value': row.yield_value,
+          WSN: row.wsn,
+          WID: row.wid || "",
+          FSN: row.fsn || "",
+          "Order ID": row.order_id || "",
+          "Product Title": row.product_title,
+          Brand: row.brand,
+          Category: row.cms_vertical,
+          FSP: row.fsp,
+          MRP: row.mrp,
+          "Inbound Date": row.inbound_date
+            ? new Date(row.inbound_date).toLocaleDateString()
+            : "-",
+          "Vehicle No": row.vehicle_no,
+          "Rack No": row.rack_no,
+          "FK WH Location": row.wh_location,
+          "FK QC Remark": row.fkqc_remark,
+          "HSN/SAC": row.hsn_sac,
+          "IGST Rate": row.igst_rate,
+          "Invoice Date": row.invoice_date
+            ? new Date(row.invoice_date).toLocaleDateString()
+            : "-",
+          "Product Type": row.p_type,
+          "Product Size": row.p_size,
+          VRP: row.vrp,
+          "Yield Value": row.yield_value,
           // QC Details
-          'QC Date': row.qc_date,
-          'QC By': row.qc_by,
-          'QC Grade': row.qc_grade,
-          'QC Remarks': row.qc_remarks,
-          'FK QC Remark': row.fkqc_remark,
+          "QC Date": row.qc_date,
+          "QC By": row.qc_by,
+          "QC Grade": row.qc_grade,
+          "QC Remarks": row.qc_remarks,
           // Picking Details
-          'Picking Date': row.picking_date,
-          'Customer Name': row.customer_name,
-          'Picking Remarks': row.picking_remarks,
+          "Picking Date": row.picking_date,
+          "Picked for Customer Name": row.customer_name,
+          "Picking Remarks": row.picking_remarks,
           // Outbound Details
-          'Dispatch Date': row.dispatch_date,
-          'Dispatch Vehicle': row.dispatch_vehicle,
-          'Dispatch Remarks': row.dispatch_remarks,
+          "Dispatch Date": row.dispatch_date,
+          "Dispatch Vehicle": row.dispatch_vehicle,
+          "Dispatch Remarks": row.dispatch_remarks,
           // Status
-          'Current Status': row.current_status,
-          'Batch ID': row.batch_id,
-          'Created At': new Date(row.created_at).toLocaleString(),
-          'Created By': row.created_by
+          "Current Status": row.current_status,
+          "Batch ID": row.batch_id,
+          "Created At": new Date(row.created_at).toLocaleString(),
+          "Created By": row.created_by,
         }));
 
         // Create Excel workbook
         const ws = XLSX.utils.json_to_sheet(formattedData);
         const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, 'Inventory');
+        XLSX.utils.book_append_sheet(wb, ws, "Inventory");
 
         // Format Excel sheet
         formatExcelSheet(ws, formattedData);
 
         // Add Summary Sheet
         const summaryData = [
-          { 'Metric': 'Total Records', 'Count': formattedData.length },
-          { 'Metric': 'Inbound', 'Count': formattedData.filter((r: any) => r['Current Status'] === 'INBOUND').length },
-          { 'Metric': 'QC Done', 'Count': formattedData.filter((r: any) => r['Current Status'] === 'QC_DONE').length },
-          { 'Metric': 'Picked', 'Count': formattedData.filter((r: any) => r['Current Status'] === 'PICKED').length },
-          { 'Metric': 'Dispatched', 'Count': formattedData.filter((r: any) => r['Current Status'] === 'DISPATCHED').length }
+          { Metric: "Total Records", Count: formattedData.length },
+          {
+            Metric: "Inbound",
+            Count: formattedData.filter(
+              (r: any) => r["Current Status"] === "INBOUND"
+            ).length,
+          },
+          {
+            Metric: "QC Done",
+            Count: formattedData.filter(
+              (r: any) => r["Current Status"] === "QC_DONE"
+            ).length,
+          },
+          {
+            Metric: "Picked",
+            Count: formattedData.filter(
+              (r: any) => r["Current Status"] === "PICKED"
+            ).length,
+          },
+          {
+            Metric: "Dispatched",
+            Count: formattedData.filter(
+              (r: any) => r["Current Status"] === "DISPATCHED"
+            ).length,
+          },
         ];
 
         const wsSummary = XLSX.utils.json_to_sheet(summaryData);
-        wsSummary['!cols'] = [{ wch: 20 }, { wch: 12 }];
-        XLSX.utils.book_append_sheet(wb, wsSummary, 'Summary');
+        wsSummary["!cols"] = [{ wch: 20 }, { wch: 12 }];
+        XLSX.utils.book_append_sheet(wb, wsSummary, "Summary");
 
         // Generate filename with filters
-        const filename = `Inventory_${activeWarehouse?.name}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+        const filename = `Inventory_${activeWarehouse?.name}_${new Date()
+          .toISOString()
+          .slice(0, 10)}.xlsx`;
         XLSX.writeFile(wb, filename);
 
         toast.success(`✓ Exported ${formattedData.length} records to Excel`);
         setExportDialogOpen(false);
       } else {
-        toast.error('No data to export with selected filters');
+        toast.error("No data to export with selected filters");
       }
     } catch (error) {
-      console.error('Export error:', error);
-      toast.error('Failed to export data');
+      console.error("Export error:", error);
+      toast.error("Failed to export data");
     } finally {
       setExportLoading(false);
     }
   };
 
+  // ✅ ISSUE #2: KEEP COLUMN ORDER - DON'T REORDER
   const toggleColumn = (column: string) => {
     if (visibleColumns.includes(column)) {
       if (visibleColumns.length === 1) {
-        toast.error('At least one column must be visible');
+        toast.error("At least one column must be visible");
         return;
       }
-      setVisibleColumns(visibleColumns.filter(c => c !== column));
+      setVisibleColumns(visibleColumns.filter((c) => c !== column));
     } else {
-      setVisibleColumns([...visibleColumns, column]);
+      // ADD IN SAME ORDER AS ALL_COLUMNS, NOT AT END
+      const newColumns = ALL_COLUMNS.filter(
+        (col) => visibleColumns.includes(col) || col === column
+      );
+      setVisibleColumns(newColumns);
     }
   };
 
   const resetFilters = () => {
-    setSearchWSN('');
-    setStageFilter('all');
-    setBrandFilter('');
-    setCategoryFilter('');
-    setDateFrom('');
-    setDateTo('');
+    setSearchWSN("");
+    setStageFilter("all");
+    setBrandFilter("");
+    setCategoryFilter("");
+    setDateFrom("");
+    setDateTo("");
     setPage(1);
   };
 
   if (!activeWarehouse) {
-      return (
-        <AppLayout>
+    return (
+      <AppLayout>
+        <Box
+          sx={{
+            p: 6,
+            textAlign: "center",
+            minHeight: "60vh",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flexDirection: "column",
+          }}
+        >
           <Box
             sx={{
-              p: 6,
-              textAlign: 'center',
-              minHeight: '60vh',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexDirection: 'column',
+              p: 5,
+              background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+              borderRadius: 4,
+              color: "white",
+              boxShadow: "0 20px 60px rgba(102, 126, 234, 0.4)",
             }}
           >
-            <Box
-              sx={{
-                p: 5,
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                borderRadius: 4,
-                color: 'white',
-                boxShadow: '0 20px 60px rgba(102, 126, 234, 0.4)',
-              }}
-            >
-              <Typography variant="h5" sx={{ fontWeight: 700, mb: 1 }}>
-                ⚠️ No active warehouse selected. 
-              </Typography>
-              <Typography variant="body2" sx={{ opacity: 0.9 }}>
-                Please go to Settings → Warehouses to set one.
-              </Typography>
-            </Box>
+            <Typography variant="h5" sx={{ fontWeight: 700, mb: 1 }}>
+              ⚠️ No active warehouse selected.
+            </Typography>
+            <Typography variant="body2" sx={{ opacity: 0.9 }}>
+              Please go to Settings → Warehouses to set one.
+            </Typography>
           </Box>
-        </AppLayout>
-      );
-    }
+        </Box>
+      </AppLayout>
+    );
+  }
 
+  {
+    /* ============================ Dashboard UI ============================ */
+  }
   return (
     <AppLayout>
       <Toaster position="top-right" />
-      <Box sx={{ p: { xs: 2, sm: 3 } }}>
-        {/* HEADER */}
-        <Paper
-          elevation={0}
+      {/* ============================ HEADER (Sticky) ============================ */}
+      <Box
+        sx={{
+          position: "sticky",
+          top: 0,
+          zIndex: 50,
+          background: "white",
+          borderBottom: "1px solid #e5e7eb",
+        }}
+      >
+        {/* Top Bar */}
+        <Box
           sx={{
-            p: 3,
-            mb: 3,
-            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-            color: 'white',
-            borderRadius: 3,
-            boxShadow: '0 10px 40px rgba(102, 126, 234, 0.3)'
+            display: "flex",
+            background: "linear-gradient(135deg,#6366f1,#7c3aed)",
+            color: "white",
+            justifyContent: "space-between",
+            alignItems: "center",
+            px: 2,
+            py: 1,
           }}
         >
-          <Typography variant="h4" sx={{ fontWeight: 700, mb: 1 }}>
-            📊 Divine Inventory Managment
+          <Typography variant="h6" sx={{ fontWeight: 700 }}>
+            📊 Dashboard
           </Typography>
-          <Stack direction="row" spacing={2} alignItems="center">
-            <Typography variant="body2" sx={{ opacity: 0.9 }}>
-              {activeWarehouse?.name}
-            </Typography>
-            <Typography variant="body2" sx={{ opacity: 0.9 }}>
-              • {user?.full_name || user?.username}
-            </Typography>
-          </Stack>
-        </Paper>
 
-        {/* METRICS CARDS - COMPACT */}
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', sm: 'repeat(5, 1fr)' }, gap: 2, mb: 3 }}>
+          <Stack direction="row" spacing={2} alignItems="center">
+            <Box
+              sx={{ textAlign: "right", display: { xs: "none", sm: "block" } }}
+            >
+              <Typography sx={{ fontWeight: 600 }}>
+                👋 Welcome back_ {user?.fullName}, {user?.role?.toUpperCase()}
+              </Typography>
+            </Box>
+
+            <Button
+              variant="outlined"
+              color="error"
+              size="small"
+              startIcon={<LogoutIcon />}
+              onClick={handleLogout}
+            >
+              LOGOUT
+            </Button>
+          </Stack>
+        </Box>
+
+        {/* ============ METRICS RIBBON CENTERED ============ */}
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "center",
+            gap: 2,
+            flexWrap: "wrap",
+            p: 1,
+            background: "#f9fafb",
+          }}
+        >
           {[
-            { label: 'Total Items', value: metrics.total, color: '#667eea' },
-            { label: 'Inbound', value: metrics.inbound, color: '#3b82f6' },
-            { label: 'QC Done', value: metrics.qcPassed, color: '#10b981' },
-            { label: 'Picking Done', value: metrics.pickingCompleted, color: '#f59e0b' },
-            { label: 'Dispatched', value: metrics.outboundDispatched, color: '#ef4444' }
-          ].map((metric, idx) => (
-            <Card key={idx} sx={{ p: 2, textAlign: 'center', border: `3px solid ${metric.color}` }}>
-              <Typography variant="h5" sx={{ fontWeight: 700, color: metric.color }}>
-                {metric.value}
+            { label: "Master Data", value: metrics.total, color: "#6366f1" },
+            { label: "Inbound", value: metrics.inbound, color: "#3b82f6" },
+            { label: "QC", value: metrics.qcPassed, color: "#10b981" },
+            {
+              label: "Picking",
+              value: metrics.pickingCompleted,
+              color: "#f59e0b",
+            },
+            {
+              label: "Dispatch",
+              value: metrics.outboundDispatched,
+              color: "#ef4444",
+            },
+          ].map((m, i) => (
+            <Card
+              key={i}
+              sx={{
+                p: 1,
+                width: 200,
+                textAlign: "center",
+                borderRadius: 2,
+                border: `2px solid ${m.color}`,
+              }}
+            >
+              <Typography sx={{ fontWeight: 700, color: m.color }}>
+                {m.value}
               </Typography>
-              <Typography variant="caption" sx={{ color: '#666' }}>
-                {metric.label}
-              </Typography>
+              <Typography variant="caption">{m.label}</Typography>
             </Card>
           ))}
         </Box>
+      </Box>
 
-        {/* FILTERS - COMPACT */}
-        <Paper elevation={2} sx={{ p: 2, mb: 3, borderRadius: 2 }}>
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} flexWrap="wrap">
-            <TextField
-              label="Search (WSN/Product)"
-              size="small"
-              value={searchWSN}
-              onChange={(e) => setSearchWSN(e.target.value)}
-              sx={{ minWidth: 130 }}
-            />
+      {/* ============================ FILTER BAR (Sticky) ============================ */}
+      <Box
+        sx={{
+          position: "sticky",
+          zIndex: 40,
+          background: "white",
+          px: 1,
+          py: 1,
+          borderBottom: "1px solid #e5e7eb",
+        }}
+      >
+        <Stack
+          direction={{ xs: "column", sm: "row" }}
+          spacing={1}
+          alignItems="center"
+          flexWrap="wrap"
+        >
+          <TextField
+            size="small"
+            label="Search"
+            value={searchWSN}
+            onChange={(e) => setSearchWSN(e.target.value)}
+            sx={{ minWidth: 140 }}
+          />
 
-            <FormControl sx={{ minWidth: 120 }} size="small">
-              <InputLabel>Stage</InputLabel>
-              <Select
-                value={stageFilter}
-                onChange={(e) => setStageFilter(e.target.value)}
-                label="Stage"
-              >
-                {PIPELINE_STAGES.map(stage => (
-                  <MenuItem key={stage.value} value={stage.value}>
-                    {stage.label}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-
-            <FormControl sx={{ minWidth: 120 }} size="small">
-              <InputLabel>Brand</InputLabel>
-              <Select
-                value={brandFilter}
-                onChange={(e) => setBrandFilter(e.target.value)}
-                label="Brand"
-              >
-                <MenuItem value="">All</MenuItem>
-                {brands.map(brand => (
-                  <MenuItem key={brand} value={brand}>
-                    {brand}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-
-            <FormControl sx={{ minWidth: 120 }} size="small">
-              <InputLabel>Category</InputLabel>
-              <Select
-                value={categoryFilter}
-                onChange={(e) => setCategoryFilter(e.target.value)}
-                label="Category"
-              >
-                <MenuItem value="">All</MenuItem>
-                {categories.map(cat => (
-                  <MenuItem key={cat} value={cat}>
-                    {cat}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-
-            <TextField
-              label="From"
-              type="date"
-              size="small"
-              value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
-              InputLabelProps={{ shrink: true }}
-              sx={{ minWidth: 110 }}
-            />
-
-            <TextField
-              label="To"
-              type="date"
-              size="small"
-              value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
-              InputLabelProps={{ shrink: true }}
-              sx={{ minWidth: 110 }}
-            />
-
-            <Button
-              size="small"
-              variant="outlined"
-              onClick={resetFilters}
-              sx={{ borderRadius: 1 }}
+          <FormControl size="small" sx={{ minWidth: 130 }}>
+            <InputLabel>Stage</InputLabel>
+            <Select
+              value={stageFilter}
+              label="Stage"
+              onChange={(e) => setStageFilter(e.target.value)}
             >
-              Reset
-            </Button>
+              {PIPELINE_STAGES.map((s) => (
+                <MenuItem key={s.value} value={s.value}>
+                  {s.label}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
 
-            <IconButton
-              onClick={() => setColumnDialogOpen(true)}
-              size="small"
-              sx={{ bgcolor: '#e5e7eb', '&:hover': { bgcolor: '#d1d5db' } }}
+          <FormControl size="small" sx={{ minWidth: 110 }}>
+            <InputLabel>Brand</InputLabel>
+            <Select
+              value={brandFilter}
+              label="Brand"
+              onChange={(e) => setBrandFilter(e.target.value)}
             >
-              <VisibilityIcon />
-            </IconButton>
+              <MenuItem value="">All</MenuItem>
+              {brands.map((b) => (
+                <MenuItem key={b} value={b}>
+                  {b}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
 
-            <Button
-              variant="contained"
-              startIcon={<DownloadIcon />}
-              onClick={() => setExportDialogOpen(true)}
-              size="small"
-              sx={{ borderRadius: 1, background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)' }}
+          <FormControl size="small" sx={{ minWidth: 110 }}>
+            <InputLabel>Category</InputLabel>
+            <Select
+              value={categoryFilter}
+              label="Category"
+              onChange={(e) => setCategoryFilter(e.target.value)}
             >
-              Export
-            </Button>
+              <MenuItem value="">All</MenuItem>
+              {categories.map((c) => (
+                <MenuItem key={c} value={c}>
+                  {c}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
 
-            <Button
-              size="small"
-              variant="outlined"
-              startIcon={<RefreshIcon />}
-              onClick={() => {
-                loadInventoryData();
-                loadMetrics();
-                toast.success('✓ Data refreshed');
-              }}
-            >
-              Refresh
-            </Button>
-          </Stack>
-        </Paper>
+          <TextField
+            size="small"
+            type="date"
+            label="From"
+            value={dateFrom}
+            InputLabelProps={{ shrink: true }}
+            onChange={(e) => setDateFrom(e.target.value)}
+          />
 
-        {/* TABLE - COMPACT & DENSE */}
-        <Paper elevation={3} sx={{ borderRadius: 3, overflow: 'hidden' }}>
-          <TableContainer sx={{ maxHeight: 'calc(100vh - 500px)' }}>
+          <TextField
+            size="small"
+            type="date"
+            label="To"
+            value={dateTo}
+            InputLabelProps={{ shrink: true }}
+            onChange={(e) => setDateTo(e.target.value)}
+          />
+
+          <Button size="small" variant="outlined" onClick={resetFilters}>
+            Reset
+          </Button>
+
+          <IconButton size="small" onClick={() => setColumnDialogOpen(true)}>
+            <VisibilityIcon />
+          </IconButton>
+
+          <Button
+            size="small"
+            variant="contained"
+            startIcon={<DownloadIcon />}
+            onClick={() => setExportDialogOpen(true)}
+          >
+            Export
+          </Button>
+
+          <Button
+            size="small"
+            variant="outlined"
+            startIcon={<RefreshIcon />}
+            onClick={() => {
+              loadInventoryData();
+              loadMetrics();
+              toast.success("✓ Refreshed");
+            }}
+          >
+            Refresh
+          </Button>
+        </Stack>
+      </Box>
+
+      {/* ============================ TABLE AREA (Scrollable) ============================ */}
+      <Box
+        sx={{
+          height: "calc(100vh - 270px)",
+          overflowY: "auto",
+          px: 1,
+          pt: 1,
+        }}
+      >
+        <Paper sx={{ overflow: "hidden" }}>
+          <TableContainer sx={{ maxHeight: "100%" }}>
             <Table stickyHeader size="small">
               <TableHead>
-                <TableRow sx={{ bgcolor: '#f5f5f5' }}>
+                <TableRow sx={{ bgcolor: "#f5f5f5" }}>
                   {visibleColumns.map((col) => (
-                    <TableCell key={col} sx={{ fontWeight: 700, fontSize: '0.75rem' }}>
-                      {col.replace(/_/g, ' ').toUpperCase()}
+                    <TableCell
+                      key={col}
+                      sx={{
+                        fontWeight: 700,
+                        fontSize: "0.75rem",
+                        whiteSpace: "nowrap",
+                        minWidth: 100,
+                      }}
+                    >
+                      {col.replace(/_/g, " ").toUpperCase()}
                     </TableCell>
                   ))}
-                  <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem' }}>Action</TableCell>
+                  <TableCell
+                    sx={{
+                      fontWeight: 700,
+                      fontSize: "0.75rem",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    Action
+                  </TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={visibleColumns.length + 1} align="center" sx={{ py: 4 }}>
+                    <TableCell
+                      colSpan={visibleColumns.length + 1}
+                      align="center"
+                      sx={{ py: 4 }}
+                    >
                       <CircularProgress size={30} />
                     </TableCell>
                   </TableRow>
                 ) : filteredData.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={visibleColumns.length + 1} align="center" sx={{ py: 4 }}>
+                    <TableCell
+                      colSpan={visibleColumns.length + 1}
+                      align="center"
+                      sx={{ py: 4 }}
+                    >
                       <Typography variant="h6">📭 No items found</Typography>
                     </TableCell>
                   </TableRow>
                 ) : (
                   filteredData.map((item: InventoryItem, index: number) => (
-                    <TableRow key={index} sx={{ '&:hover': { bgcolor: '#f9fafb' } }}>
+                    <TableRow
+                      key={index}
+                      sx={{
+                        "&:nth-of-type(even)": { bgcolor: "#f9fafb" },
+                        "&:hover": { bgcolor: "#f0f0f0" },
+                      }}
+                    >
                       {visibleColumns.map((col) => {
-                        let cellValue = item[col] || '-';
+                        let cellValue = item[col] || "-";
 
-                        if (col.includes('status')) {
+                        if (col.includes("status")) {
                           return (
-                            <TableCell key={col} sx={{ fontSize: '0.75rem' }}>
+                            <TableCell
+                              key={col}
+                              sx={{ fontSize: "0.75rem", whiteSpace: "nowrap" }}
+                            >
                               <Chip
                                 label={cellValue}
                                 size="small"
                                 sx={{
                                   bgcolor: getStatusColor(cellValue),
-                                  color: 'white',
-                                  fontSize: '0.7rem'
+                                  color: "white",
+                                  fontSize: "0.7rem",
                                 }}
                               />
                             </TableCell>
                           );
                         }
 
-                        if (col === 'current_stage') {
+                        if (col === "current_stage") {
                           return (
-                            <TableCell key={col} sx={{ fontSize: '0.75rem' }}>
+                            <TableCell
+                              key={col}
+                              sx={{ fontSize: "0.75rem", whiteSpace: "nowrap" }}
+                            >
                               <Chip
                                 label={cellValue}
                                 color={getStageColor(cellValue) as any}
@@ -714,19 +1025,32 @@ export default function DashboardPage() {
                         }
 
                         return (
-                          <TableCell key={col} sx={{ fontSize: '0.75rem' }}>
-                            {cellValue}
+                          <TableCell
+                            key={col}
+                            sx={{
+                              fontSize: "0.75rem",
+                              whiteSpace: "nowrap",
+                              maxWidth: 200,
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                            }}
+                          >
+                            <Tooltip title={String(cellValue)}>
+                              <span>{String(cellValue).substring(0, 30)}</span>
+                            </Tooltip>
                           </TableCell>
                         );
                       })}
-                      <TableCell sx={{ textAlign: 'center' }}>
+                      <TableCell
+                        sx={{ textAlign: "center", whiteSpace: "nowrap" }}
+                      >
                         <IconButton
                           size="small"
                           onClick={() => {
                             setSelectedItem(item);
                             setDetailsDialogOpen(true);
                           }}
-                          sx={{ color: '#667eea', p: 0.5 }}
+                          sx={{ color: "#667eea", p: 0.5 }}
                         >
                           <FilterIcon fontSize="small" />
                         </IconButton>
@@ -738,18 +1062,30 @@ export default function DashboardPage() {
             </Table>
           </TableContainer>
 
-          {/* PAGINATION - COMPACT */}
-          <Box sx={{ p: 2, borderTop: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}>
+          {/* ===================== PAGINATION STICKY ===================== */}
+          <Box
+            sx={{
+              position: "fixed",
+              bottom: 0,
+              right: 15,
+              borderTop: "1px solid #ddd",
+              p: -1,
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              zIndex: 100,
+            }}
+          >
+            {/* Per Page */}
             <Stack direction="row" spacing={1} alignItems="center">
               <Typography variant="body2">Per page:</Typography>
               <Select
+                size="small"
                 value={limit}
                 onChange={(e) => {
                   setLimit(Number(e.target.value));
                   setPage(1);
                 }}
-                size="small"
-                sx={{ fontSize: '0.85rem' }}
               >
                 <MenuItem value={10}>10</MenuItem>
                 <MenuItem value={25}>25</MenuItem>
@@ -758,198 +1094,292 @@ export default function DashboardPage() {
               </Select>
             </Stack>
 
+            {/* Display info */}
             <Typography variant="body2">
-              {((page - 1) * limit) + 1} - {Math.min(page * limit, total)} of {total}
+              {(page - 1) * limit + 1} – {Math.min(page * limit, total)} of{" "}
+              {total}
             </Typography>
 
             <Pagination
               page={page}
-              onChange={(_, value) => setPage(value)}
               count={Math.ceil(total / limit)}
+              onChange={(_, v) => setPage(v)}
               size="small"
-              sx={{ '& .MuiPaginationItem-root': { fontSize: '0.75rem' } }}
             />
           </Box>
         </Paper>
-
-        {/* ✅ EXPORT DIALOG */}
-        <Dialog open={exportDialogOpen} onClose={() => setExportDialogOpen(false)} maxWidth="sm" fullWidth>
-          <DialogTitle sx={{ fontWeight: 700, bgcolor: '#10b981', color: 'white' }}>
-            📊 Export Inventory Data
-          </DialogTitle>
-
-          <DialogContent sx={{ pt: 3 }}>
-            <Stack spacing={2}>
-
-              {/* Date Range */}
-              <Box>
-                <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
-                  📅 Date Range
-                </Typography>
-                <Stack direction="row" spacing={1}>
-                  <TextField
-                    label="From Date"
-                    type="date"
-                    size="small"
-                    InputLabelProps={{ shrink: true }}
-                    value={exportFilters.dateFrom}
-                    onChange={(e) => setExportFilters({ ...exportFilters, dateFrom: e.target.value })}
-                    fullWidth
-                  />
-                  <TextField
-                    label="To Date"
-                    type="date"
-                    size="small"
-                    InputLabelProps={{ shrink: true }}
-                    value={exportFilters.dateTo}
-                    onChange={(e) => setExportFilters({ ...exportFilters, dateTo: e.target.value })}
-                    fullWidth
-                  />
-                </Stack>
-              </Box>
-
-              {/* Stage Filter */}
-              <Box>
-                <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
-                  📦 Current Stage
-                </Typography>
-                <Select
-                  value={exportFilters.stage}
-                  onChange={(e) => setExportFilters({ ...exportFilters, stage: e.target.value })}
-                  size="small"
-                  fullWidth
-                >
-                  <MenuItem value="all">All Stages</MenuItem>
-                  <MenuItem value="inbound">Inbound Only</MenuItem>
-                  <MenuItem value="qc">QC Done</MenuItem>
-                  <MenuItem value="picking">Picked</MenuItem>
-                  <MenuItem value="outbound">Dispatched</MenuItem>
-                </Select>
-              </Box>
-
-              {/* Brand Filter */}
-              <Box>
-                <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
-                  🏷️ Brand
-                </Typography>
-                <Autocomplete
-                  options={brands}
-                  value={exportFilters.brand || null}
-                  onChange={(_, val) => setExportFilters({ ...exportFilters, brand: val || '' })}
-                  renderInput={(params) => <TextField {...params} placeholder="Select brand" size="small" />}
-                  fullWidth
-                />
-              </Box>
-
-              {/* Category Filter */}
-              <Box>
-                <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
-                  🏪 Category
-                </Typography>
-                <Autocomplete
-                  options={categories}
-                  value={exportFilters.category || null}
-                  onChange={(_, val) => setExportFilters({ ...exportFilters, category: val || '' })}
-                  renderInput={(params) => <TextField {...params} placeholder="Select category" size="small" />}
-                  fullWidth
-                />
-              </Box>
-
-              {/* Search */}
-              <Box>
-                <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
-                  🔍 Search (WSN or Product)
-                </Typography>
-                <TextField
-                  placeholder="Enter WSN or product name..."
-                  size="small"
-                  value={exportFilters.searchText}
-                  onChange={(e) => setExportFilters({ ...exportFilters, searchText: e.target.value })}
-                  fullWidth
-                />
-              </Box>
-
-              {/* Info Box */}
-              <Alert severity="info" icon={<InfoIcon />}>
-                <Typography variant="body2">
-                  <strong>Export includes:</strong> All product details from Inbound, QC, Picking, and Outbound with professional Excel formatting
-                </Typography>
-              </Alert>
-            </Stack>
-          </DialogContent>
-
-          <DialogActions sx={{ p: 2 }}>
-            <Button onClick={() => setExportDialogOpen(false)}>Cancel</Button>
-            <Button
-              variant="contained"
-              startIcon={exportLoading ? <CircularProgress size={20} color="inherit" /> : <DownloadIcon />}
-              onClick={handleExportWithFilters}
-              disabled={exportLoading}
-              sx={{ background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)' }}
-            >
-              {exportLoading ? 'Exporting...' : 'Export to Excel'}
-            </Button>
-          </DialogActions>
-        </Dialog>
-
-        {/* DETAILS DIALOG */}
-        <Dialog open={detailsDialogOpen} onClose={() => setDetailsDialogOpen(false)} maxWidth="sm" fullWidth>
-          <DialogTitle>Item - {selectedItem?.wsn}</DialogTitle>
-          <DialogContent>
-            <Stack spacing={2} sx={{ mt: 2 }}>
-              <Box>
-                <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>Product</Typography>
-                <Typography variant="body2">{selectedItem?.product_title}</Typography>
-              </Box>
-              <Box>
-                <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>Brand / Category</Typography>
-                <Typography variant="body2">{selectedItem?.brand} / {selectedItem?.cms_vertical}</Typography>
-              </Box>
-              <Box>
-                <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>Price</Typography>
-                <Typography variant="body2">FSP: ₹{selectedItem?.fsp} | MRP: ₹{selectedItem?.mrp}</Typography>
-              </Box>
-              <Box>
-                <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>Pipeline</Typography>
-                <Typography variant="body2">Inbound: {selectedItem?.inbound_status} | QC: {selectedItem?.qc_status} | Picking: {selectedItem?.picking_status} | Outbound: {selectedItem?.outbound_status}</Typography>
-              </Box>
-              <Box>
-                <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>Current Stage</Typography>
-                <Chip label={selectedItem?.current_stage} color="primary" size="small" />
-              </Box>
-            </Stack>
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setDetailsDialogOpen(false)} size="small">Close</Button>
-          </DialogActions>
-        </Dialog>
-
-        {/* COLUMN SETTINGS DIALOG */}
-        <Dialog open={columnDialogOpen} onClose={() => setColumnDialogOpen(false)} maxWidth="sm" fullWidth>
-          <DialogTitle>Column Settings</DialogTitle>
-          <DialogContent>
-            <Stack spacing={1} sx={{ mt: 2 }}>
-              {ALL_COLUMNS.map((col) => (
-                <FormControlLabel
-                  key={col}
-                  control={
-                    <Checkbox
-                      checked={visibleColumns.includes(col)}
-                      onChange={() => toggleColumn(col)}
-                    />
-                  }
-                  label={col.replace(/_/g, ' ').toUpperCase()}
-                />
-              ))}
-            </Stack>
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setColumnDialogOpen(false)} size="small">Close</Button>
-            <Button onClick={() => setVisibleColumns(DEFAULT_VISIBLE_COLUMNS)} variant="outlined" size="small">Reset</Button>
-          </DialogActions>
-        </Dialog>
       </Box>
+
+      {/* ✅ EXPORT DIALOG */}
+      <Dialog
+        open={exportDialogOpen}
+        onClose={() => setExportDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle
+          sx={{ fontWeight: 700, bgcolor: "#10b981", color: "white" }}
+        >
+          📊 Export Inventory Data
+        </DialogTitle>
+
+        <DialogContent sx={{ pt: 3 }}>
+          <Stack spacing={2}>
+            {/* Date Range */}
+            <Box>
+              <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
+                📅 Date Range
+              </Typography>
+              <Stack direction="row" spacing={1}>
+                <TextField
+                  label="From Date"
+                  type="date"
+                  size="small"
+                  InputLabelProps={{ shrink: true }}
+                  value={exportFilters.dateFrom}
+                  onChange={(e) =>
+                    setExportFilters({
+                      ...exportFilters,
+                      dateFrom: e.target.value,
+                    })
+                  }
+                  fullWidth
+                />
+                <TextField
+                  label="To Date"
+                  type="date"
+                  size="small"
+                  InputLabelProps={{ shrink: true }}
+                  value={exportFilters.dateTo}
+                  onChange={(e) =>
+                    setExportFilters({
+                      ...exportFilters,
+                      dateTo: e.target.value,
+                    })
+                  }
+                  fullWidth
+                />
+              </Stack>
+            </Box>
+
+            {/* Stage Filter */}
+            <Box>
+              <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
+                📦 Current Stage
+              </Typography>
+              <Select
+                value={exportFilters.stage}
+                onChange={(e) =>
+                  setExportFilters({ ...exportFilters, stage: e.target.value })
+                }
+                size="small"
+                fullWidth
+              >
+                <MenuItem value="all">All Stages</MenuItem>
+                <MenuItem value="inbound">Inbound Only</MenuItem>
+                <MenuItem value="qc">QC Done</MenuItem>
+                <MenuItem value="picking">Picked</MenuItem>
+                <MenuItem value="outbound">Dispatched</MenuItem>
+              </Select>
+            </Box>
+
+            {/* Brand Filter */}
+            <Box>
+              <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
+                🏷️ Brand
+              </Typography>
+              <Autocomplete
+                options={brands}
+                value={exportFilters.brand || null}
+                onChange={(_, val) =>
+                  setExportFilters({ ...exportFilters, brand: val || "" })
+                }
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    placeholder="Select brand"
+                    size="small"
+                  />
+                )}
+                fullWidth
+              />
+            </Box>
+
+            {/* Category Filter */}
+            <Box>
+              <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
+                🏪 Category
+              </Typography>
+              <Autocomplete
+                options={categories}
+                value={exportFilters.category || null}
+                onChange={(_, val) =>
+                  setExportFilters({ ...exportFilters, category: val || "" })
+                }
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    placeholder="Select category"
+                    size="small"
+                  />
+                )}
+                fullWidth
+              />
+            </Box>
+
+            {/* Search */}
+            <Box>
+              <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
+                🔍 Search (WSN or Product)
+              </Typography>
+              <TextField
+                placeholder="Enter WSN or product name..."
+                size="small"
+                value={exportFilters.searchText}
+                onChange={(e) =>
+                  setExportFilters({
+                    ...exportFilters,
+                    searchText: e.target.value,
+                  })
+                }
+                fullWidth
+              />
+            </Box>
+
+            {/* Info Box */}
+            <Alert severity="info" icon={<InfoIcon />}>
+              <Typography variant="body2">
+                <strong>Export includes:</strong> All product details from
+                Inbound, QC, Picking, and Outbound with professional Excel
+                formatting
+              </Typography>
+            </Alert>
+          </Stack>
+        </DialogContent>
+
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={() => setExportDialogOpen(false)}>Cancel</Button>
+          <Button
+            variant="contained"
+            startIcon={
+              exportLoading ? (
+                <CircularProgress size={20} color="inherit" />
+              ) : (
+                <DownloadIcon />
+              )
+            }
+            onClick={handleExportWithFilters}
+            disabled={exportLoading}
+            sx={{
+              background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
+            }}
+          >
+            {exportLoading ? "Exporting..." : "Export to Excel"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* DETAILS DIALOG */}
+      <Dialog
+        open={detailsDialogOpen}
+        onClose={() => setDetailsDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Item - {selectedItem?.wsn}</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ mt: 2 }}>
+            <Box>
+              <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                Product
+              </Typography>
+              <Typography variant="body2">
+                {selectedItem?.product_title}
+              </Typography>
+            </Box>
+            <Box>
+              <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                Brand / Category
+              </Typography>
+              <Typography variant="body2">
+                {selectedItem?.brand} / {selectedItem?.cms_vertical}
+              </Typography>
+            </Box>
+            <Box>
+              <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                Price
+              </Typography>
+              <Typography variant="body2">
+                FSP: ₹{selectedItem?.fsp} | MRP: ₹{selectedItem?.mrp}
+              </Typography>
+            </Box>
+            <Box>
+              <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                Pipeline
+              </Typography>
+              <Typography variant="body2">
+                Inbound: {selectedItem?.inbound_status} | QC:{" "}
+                {selectedItem?.qc_status} | Picking:{" "}
+                {selectedItem?.picking_status} | Outbound:{" "}
+                {selectedItem?.outbound_status}
+              </Typography>
+            </Box>
+            <Box>
+              <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                Current Stage
+              </Typography>
+              <Chip
+                label={selectedItem?.current_stage}
+                color="primary"
+                size="small"
+              />
+            </Box>
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDetailsDialogOpen(false)} size="small">
+            Close
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* COLUMN SETTINGS DIALOG */}
+      <Dialog
+        open={columnDialogOpen}
+        onClose={() => setColumnDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Column Settings</DialogTitle>
+        <DialogContent>
+          <Stack spacing={1} sx={{ mt: 2 }}>
+            {ALL_COLUMNS.map((col) => (
+              <FormControlLabel
+                key={col}
+                control={
+                  <Checkbox
+                    checked={visibleColumns.includes(col)}
+                    onChange={() => toggleColumn(col)}
+                  />
+                }
+                label={col.replace(/_/g, " ").toUpperCase()}
+              />
+            ))}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setColumnDialogOpen(false)} size="small">
+            Close
+          </Button>
+          <Button
+            onClick={() => setVisibleColumns(DEFAULT_VISIBLE_COLUMNS)}
+            variant="outlined"
+            size="small"
+          >
+            Reset
+          </Button>
+        </DialogActions>
+      </Dialog>
     </AppLayout>
   );
-
 }
