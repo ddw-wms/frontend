@@ -42,6 +42,7 @@ import {
   Logout as LogoutIcon,
   Download as DownloadIcon,
   Refresh as RefreshIcon,
+  Settings as SettingsIcon,
   Visibility as VisibilityIcon,
   FilterList as FilterIcon,
   Info as InfoIcon,
@@ -50,7 +51,6 @@ import {
 import { dashboardAPI } from "@/lib/api";
 import { useWarehouse } from "@/app/context/WarehouseContext";
 
-//import { getStoredUser } from '@/lib/auth';
 import { getStoredUser, logout } from "@/lib/auth";
 import AppLayout from "@/components/AppLayout";
 import toast, { Toaster } from "react-hot-toast";
@@ -65,7 +65,6 @@ interface User {
   warehouseId?: number;
 }
 
-// ✅ Type Definitions
 interface InventoryItem {
   wsn: string;
   wid?: string;
@@ -103,7 +102,6 @@ interface InventoryItem {
   [key: string]: any;
 }
 
-// ✅ ISSUE #1: ALL COLUMNS FROM MASTER DATA
 const ALL_COLUMNS = [
   "wsn",
   "wid",
@@ -140,7 +138,6 @@ const ALL_COLUMNS = [
   "current_stage",
 ];
 
-// ✅ ISSUE #2: DEFAULT COLUMNS IN SAME ORDER
 const DEFAULT_VISIBLE_COLUMNS = [
   "wsn",
   "product_title",
@@ -155,7 +152,6 @@ const DEFAULT_VISIBLE_COLUMNS = [
   "current_stage",
 ];
 
-// Pipeline stages
 const PIPELINE_STAGES = [
   { value: "all", label: "All Items" },
   { value: "INBOUND_RECEIVED", label: "Inbound Received" },
@@ -171,7 +167,6 @@ const PIPELINE_STAGES = [
 export default function DashboardPage() {
   const router = useRouter();
   const { activeWarehouse } = useWarehouse();
-  //const [user, setUser] = useState<any>(null);
   const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
@@ -187,22 +182,14 @@ export default function DashboardPage() {
     router.push("/login");
   };
 
-  const handleCardClick = (path: string) => {
-    router.push(path);
-  };
-
-  // Data state
   const [inventoryData, setInventoryData] = useState<InventoryItem[]>([]);
   const [filteredData, setFilteredData] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(false);
-
-  // ✅ ISSUE #2 & #5: LOAD FROM LOCALSTORAGE ON MOUNT
   const [visibleColumns, setVisibleColumns] = useState<string[]>([]);
   const [columnDialogOpen, setColumnDialogOpen] = useState(false);
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
 
-  // Filter state
   const [searchWSN, setSearchWSN] = useState("");
   const [stageFilter, setStageFilter] = useState("all");
   const [brandFilter, setBrandFilter] = useState("");
@@ -210,14 +197,12 @@ export default function DashboardPage() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
 
-  // ✅ ISSUE #5: PAGINATION - SAVE LIMIT
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(25);
   const [total, setTotal] = useState(0);
   const [categories, setCategories] = useState<string[]>([]);
   const [brands, setBrands] = useState<string[]>([]);
 
-  // Metrics
   const [metrics, setMetrics] = useState({
     total: 0,
     inbound: 0,
@@ -230,7 +215,6 @@ export default function DashboardPage() {
     outboundDispatched: 0,
   });
 
-  // ✅ Export Dialog State
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
   const [exportFilters, setExportFilters] = useState({
     dateFrom: "",
@@ -242,7 +226,6 @@ export default function DashboardPage() {
   });
   const [exportLoading, setExportLoading] = useState(false);
 
-  // Auth check
   useEffect(() => {
     const storedUser = getStoredUser();
     if (!storedUser) {
@@ -252,7 +235,6 @@ export default function DashboardPage() {
     setUser(storedUser);
   }, [router]);
 
-  // ✅ ISSUE #2: LOAD COLUMNS AND LIMIT FROM LOCALSTORAGE
   useEffect(() => {
     const savedColumns = localStorage.getItem("dashboardColumns");
     const savedLimit = localStorage.getItem("dashboardLimit");
@@ -272,14 +254,12 @@ export default function DashboardPage() {
     }
   }, []);
 
-  // ✅ ISSUE #2: SAVE COLUMNS TO LOCALSTORAGE WHEN CHANGED
   useEffect(() => {
     if (visibleColumns.length > 0) {
       localStorage.setItem("dashboardColumns", JSON.stringify(visibleColumns));
     }
   }, [visibleColumns]);
 
-  // ✅ ISSUE #5: SAVE LIMIT TO LOCALSTORAGE
   useEffect(() => {
     localStorage.setItem("dashboardLimit", String(limit));
   }, [limit]);
@@ -289,7 +269,6 @@ export default function DashboardPage() {
       loadInventoryData();
       loadMetrics();
 
-      // Auto-refresh metrics every 5 seconds
       const interval = setInterval(() => {
         loadMetrics();
       }, 5000);
@@ -298,7 +277,6 @@ export default function DashboardPage() {
     }
   }, [activeWarehouse, page, limit]);
 
-  // Apply filters
   useEffect(() => {
     applyFilters();
   }, [
@@ -319,11 +297,9 @@ export default function DashboardPage() {
         page,
         limit,
       });
-
       setInventoryData((response.data?.data || []) as InventoryItem[]);
       setTotal(response.data?.pagination?.total || 0);
 
-      // Extract unique brands and categories from data
       const uniqueBrands = Array.from(
         new Set(
           (response.data?.data || [])
@@ -364,7 +340,6 @@ export default function DashboardPage() {
   const applyFilters = () => {
     let filtered = [...inventoryData];
 
-    // WSN search
     if (searchWSN) {
       filtered = filtered.filter(
         (item) =>
@@ -373,19 +348,16 @@ export default function DashboardPage() {
       );
     }
 
-    // Stage filter
     if (stageFilter !== "all") {
       filtered = filtered.filter((item) => item.current_stage === stageFilter);
     }
 
-    // Brand filter
     if (brandFilter) {
       filtered = filtered.filter(
         (item) => item.brand?.toLowerCase() === brandFilter.toLowerCase()
       );
     }
 
-    // Category filter
     if (categoryFilter) {
       filtered = filtered.filter(
         (item) =>
@@ -393,7 +365,6 @@ export default function DashboardPage() {
       );
     }
 
-    // ✅ ISSUE #4: DATE FILTER - FIXED
     if (dateFrom) {
       filtered = filtered.filter((item) => {
         if (!item.inbound_date) return false;
@@ -445,19 +416,15 @@ export default function DashboardPage() {
     return "#2196f3";
   };
 
-  // ✅ NEW: Excel Export with Formatting
   const formatExcelSheet = (ws: any, data: any[]) => {
-    // Column widths
     const columnWidths = [
       15, 12, 12, 12, 30, 15, 15, 12, 12, 15, 15, 12, 15, 12, 12, 15, 15, 15,
       12, 15, 15, 12, 15, 15, 15, 15, 15, 15, 15, 15, 18, 15, 20,
     ];
     ws["!cols"] = columnWidths.map((w) => ({ wch: w }));
 
-    // Freeze header row
     ws["!freeze"] = { xSplit: 0, ySplit: 1 };
 
-    // Format header row (row 1)
     const headerStyle = {
       font: { bold: true, color: { rgb: "FFFFFF" } },
       fill: { fgColor: { rgb: "F59E0B" } },
@@ -470,14 +437,12 @@ export default function DashboardPage() {
       },
     };
 
-    // Apply header style to all header cells
     const headers = Object.keys(data[0] || {});
     headers.forEach((header, idx) => {
       const cell = ws[XLSX.utils.encode_col(idx) + "1"];
       if (cell) cell.s = headerStyle;
     });
 
-    // Format data cells with borders and alternating colors
     const dataStyle = {
       border: {
         top: { style: "thin", color: { rgb: "E5E7EB" } },
@@ -505,11 +470,9 @@ export default function DashboardPage() {
     }
   };
 
-  // ✅ NEW: Handle Export with Filters
   const handleExportWithFilters = async () => {
     setExportLoading(true);
     try {
-      // Build query params
       const params = new URLSearchParams();
       params.append("warehouseId", activeWarehouse?.id);
       if (exportFilters.dateFrom)
@@ -523,13 +486,11 @@ export default function DashboardPage() {
       if (exportFilters.searchText)
         params.append("searchText", exportFilters.searchText);
 
-      // Fetch export data
       const response = await dashboardAPI.getInventoryDataForExport(
         params.toString()
       );
 
       if (response.data?.data && response.data.data.length > 0) {
-        // Format data for Excel with ALL columns
         const formattedData = response.data.data.map((row: any) => ({
           WSN: row.wsn,
           WID: row.wid || "",
@@ -556,35 +517,28 @@ export default function DashboardPage() {
           "Product Size": row.p_size,
           VRP: row.vrp,
           "Yield Value": row.yield_value,
-          // QC Details
           "QC Date": row.qc_date,
           "QC By": row.qc_by,
           "QC Grade": row.qc_grade,
           "QC Remarks": row.qc_remarks,
-          // Picking Details
           "Picking Date": row.picking_date,
           "Picked for Customer Name": row.customer_name,
           "Picking Remarks": row.picking_remarks,
-          // Outbound Details
           "Dispatch Date": row.dispatch_date,
           "Dispatch Vehicle": row.dispatch_vehicle,
           "Dispatch Remarks": row.dispatch_remarks,
-          // Status
           "Current Status": row.current_status,
           "Batch ID": row.batch_id,
           "Created At": new Date(row.created_at).toLocaleString(),
           "Created By": row.created_by,
         }));
 
-        // Create Excel workbook
         const ws = XLSX.utils.json_to_sheet(formattedData);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "Inventory");
 
-        // Format Excel sheet
         formatExcelSheet(ws, formattedData);
 
-        // Add Summary Sheet
         const summaryData = [
           { Metric: "Total Records", Count: formattedData.length },
           {
@@ -617,7 +571,6 @@ export default function DashboardPage() {
         wsSummary["!cols"] = [{ wch: 20 }, { wch: 12 }];
         XLSX.utils.book_append_sheet(wb, wsSummary, "Summary");
 
-        // Generate filename with filters
         const filename = `Inventory_${activeWarehouse?.name}_${new Date()
           .toISOString()
           .slice(0, 10)}.xlsx`;
@@ -636,7 +589,6 @@ export default function DashboardPage() {
     }
   };
 
-  // ✅ ISSUE #2: KEEP COLUMN ORDER - DON'T REORDER
   const toggleColumn = (column: string) => {
     if (visibleColumns.includes(column)) {
       if (visibleColumns.length === 1) {
@@ -645,7 +597,6 @@ export default function DashboardPage() {
       }
       setVisibleColumns(visibleColumns.filter((c) => c !== column));
     } else {
-      // ADD IN SAME ORDER AS ALL_COLUMNS, NOT AT END
       const newColumns = ALL_COLUMNS.filter(
         (col) => visibleColumns.includes(col) || col === column
       );
@@ -697,69 +648,72 @@ export default function DashboardPage() {
       </AppLayout>
     );
   }
-
-  {
-    /* ============================ Dashboard UI ============================ */
-  }
+  //////////////////////////// UI ///////////////////////////////
   return (
     <AppLayout>
       <Toaster position="top-right" />
-      {/* ============================ HEADER (Sticky) ============================ */}
+
+      {/* WRAPPER - ENTIRE CONTENT AREA (FLEX COLUMN) */}
       <Box
         sx={{
-          position: "sticky",
-          top: 0,
-          zIndex: 50,
-          background: "white",
-          borderBottom: "1px solid #e5e7eb",
+          display: "flex",
+          flexDirection: "column",
+          flex: 1,
+          overflow: "hidden",
+          height: "100%",
         }}
       >
-        {/* Top Bar */}
+        {/* ================= HEADER ================= */}
         <Box
           sx={{
-            display: "flex",
-            background: "linear-gradient(135deg,#6366f1,#7c3aed)",
-            color: "white",
-            justifyContent: "space-between",
-            alignItems: "center",
+            bgcolor: "white",
+            borderBottom: "1px solid #e5e7eb",
             px: 2,
             py: 1,
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            flexShrink: 0,
           }}
         >
           <Typography variant="h6" sx={{ fontWeight: 700 }}>
             📊 Dashboard
           </Typography>
 
-          <Stack direction="row" spacing={2} alignItems="center">
-            <Box
-              sx={{ textAlign: "right", display: { xs: "none", sm: "block" } }}
-            >
-              <Typography sx={{ fontWeight: 600 }}>
-                👋 Welcome back_ {user?.fullName}, {user?.role?.toUpperCase()}
-              </Typography>
-            </Box>
-
-            <Button
-              variant="outlined"
-              color="error"
-              size="small"
-              startIcon={<LogoutIcon />}
-              onClick={handleLogout}
-            >
-              LOGOUT
-            </Button>
-          </Stack>
+          <Button
+            variant="outlined"
+            color="error"
+            size="small"
+            startIcon={<LogoutIcon />}
+            onClick={handleLogout}
+          >
+            LOGOUT
+          </Button>
         </Box>
 
-        {/* ============ METRICS RIBBON CENTERED ============ */}
+        {/* ================= WELCOME BAR ================= */}
         <Box
           sx={{
-            display: "flex",
-            justifyContent: "center",
-            gap: 2,
-            flexWrap: "wrap",
-            p: 1,
-            background: "#f9fafb",
+            background: "linear-gradient(90deg,#6366f1,#7c3aed)",
+            color: "white",
+            px: 2,
+            py: 1,
+            flexShrink: 0,
+          }}
+        >
+          <Typography sx={{ fontWeight: 600 }}>
+            👋 Welcome back, {user?.fullName} ({user?.role})
+          </Typography>
+        </Box>
+
+        {/* ================= METRICS GRID ================= */}
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: { xs: "1fr 1fr", sm: "repeat(5, 1fr)" },
+            gap: 1.5,
+            p: 1.5,
+            flexShrink: 0,
           }}
         >
           {[
@@ -776,15 +730,14 @@ export default function DashboardPage() {
               value: metrics.outboundDispatched,
               color: "#ef4444",
             },
-          ].map((m, i) => (
+          ].map((m, index) => (
             <Card
-              key={i}
+              key={index}
               sx={{
-                p: 1,
-                width: 200,
+                p: 1.5,
                 textAlign: "center",
-                borderRadius: 2,
                 border: `2px solid ${m.color}`,
+                borderRadius: 2,
               }}
             >
               <Typography sx={{ fontWeight: 700, color: m.color }}>
@@ -794,38 +747,33 @@ export default function DashboardPage() {
             </Card>
           ))}
         </Box>
-      </Box>
 
-      {/* ============================ FILTER BAR (Sticky) ============================ */}
-      <Box
-        sx={{
-          position: "sticky",
-          zIndex: 40,
-          background: "white",
-          px: 1,
-          py: 1,
-          borderBottom: "1px solid #e5e7eb",
-        }}
-      >
-        <Stack
-          direction={{ xs: "column", sm: "row" }}
-          spacing={1}
-          alignItems="center"
-          flexWrap="wrap"
+        {/* ================= FILTER BAR ================= */}
+        <Box
+          sx={{
+            background: "white",
+            whiteSpace: "nowrap",
+            overflowX: "auto",
+            px: 1,
+            py: 1.5,
+            display: "flex",
+            gap: 1,
+            flexShrink: 0,
+          }}
         >
           <TextField
             size="small"
-            label="Search"
+            placeholder="Search"
             value={searchWSN}
             onChange={(e) => setSearchWSN(e.target.value)}
             sx={{ minWidth: 140 }}
           />
 
-          <FormControl size="small" sx={{ minWidth: 130 }}>
+          <FormControl size="small" sx={{ minWidth: 120 }}>
             <InputLabel>Stage</InputLabel>
             <Select
-              value={stageFilter}
               label="Stage"
+              value={stageFilter}
               onChange={(e) => setStageFilter(e.target.value)}
             >
               {PIPELINE_STAGES.map((s) => (
@@ -836,11 +784,11 @@ export default function DashboardPage() {
             </Select>
           </FormControl>
 
-          <FormControl size="small" sx={{ minWidth: 110 }}>
+          <FormControl size="small" sx={{ minWidth: 120 }}>
             <InputLabel>Brand</InputLabel>
             <Select
-              value={brandFilter}
               label="Brand"
+              value={brandFilter}
               onChange={(e) => setBrandFilter(e.target.value)}
             >
               <MenuItem value="">All</MenuItem>
@@ -852,11 +800,11 @@ export default function DashboardPage() {
             </Select>
           </FormControl>
 
-          <FormControl size="small" sx={{ minWidth: 110 }}>
+          <FormControl size="small" sx={{ minWidth: 120 }}>
             <InputLabel>Category</InputLabel>
             <Select
-              value={categoryFilter}
               label="Category"
+              value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
             >
               <MenuItem value="">All</MenuItem>
@@ -868,35 +816,27 @@ export default function DashboardPage() {
             </Select>
           </FormControl>
 
-          <TextField
-            size="small"
-            type="date"
-            label="From"
-            value={dateFrom}
-            InputLabelProps={{ shrink: true }}
-            onChange={(e) => setDateFrom(e.target.value)}
-          />
-
-          <TextField
-            size="small"
-            type="date"
-            label="To"
-            value={dateTo}
-            InputLabelProps={{ shrink: true }}
-            onChange={(e) => setDateTo(e.target.value)}
-          />
-
-          <Button size="small" variant="outlined" onClick={resetFilters}>
+          <Button variant="outlined" size="small" onClick={resetFilters}>
             Reset
           </Button>
 
-          <IconButton size="small" onClick={() => setColumnDialogOpen(true)}>
-            <VisibilityIcon />
-          </IconButton>
-
           <Button
             size="small"
+            startIcon={<SettingsIcon sx={{ fontSize: 12 }} />}
+            variant="outlined"
+            onClick={() => setColumnDialogOpen(true)}
+            sx={{
+              fontSize: "0.7rem",
+              borderRadius: 1,
+              fontWeight: 700,
+            }}
+          >
+            Columns
+          </Button>
+
+          <Button
             variant="contained"
+            size="small"
             startIcon={<DownloadIcon />}
             onClick={() => setExportDialogOpen(true)}
           >
@@ -904,213 +844,231 @@ export default function DashboardPage() {
           </Button>
 
           <Button
-            size="small"
             variant="outlined"
+            size="small"
             startIcon={<RefreshIcon />}
             onClick={() => {
               loadInventoryData();
               loadMetrics();
-              toast.success("✓ Refreshed");
             }}
           >
             Refresh
           </Button>
-        </Stack>
-      </Box>
+        </Box>
 
-      {/* ============================ TABLE AREA (Scrollable) ============================ */}
-      <Box
-        sx={{
-          height: "calc(100vh - 270px)",
-          overflowY: "auto",
-          px: 1,
-          pt: 1,
-        }}
-      >
-        <Paper sx={{ overflow: "hidden" }}>
-          <TableContainer sx={{ maxHeight: "100%" }}>
-            <Table stickyHeader size="small">
-              <TableHead>
-                <TableRow sx={{ bgcolor: "#f5f5f5" }}>
-                  {visibleColumns.map((col) => (
+        {/* ================= TABLE AREA (SCROLLABLE) ================= */}
+        <Box
+          sx={{
+            flex: 1,
+            display: "flex",
+            flexDirection: "column",
+            overflow: "hidden",
+            px: 1,
+          }}
+        >
+          <Paper
+            sx={{
+              flex: 1,
+              display: "flex",
+              flexDirection: "column",
+              overflow: "hidden",
+            }}
+          >
+            {/* Table Container - ONLY THIS SCROLLS */}
+            <TableContainer
+              sx={{
+                flex: 1,
+                overflowY: "auto",
+              }}
+            >
+              <Table stickyHeader size="small">
+                <TableHead>
+                  <TableRow sx={{ bgcolor: "#f5f5f5" }}>
+                    {visibleColumns.map((col) => (
+                      <TableCell
+                        key={col}
+                        sx={{
+                          fontWeight: 700,
+                          fontSize: "0.75rem",
+                          whiteSpace: "nowrap",
+                          minWidth: 100,
+                        }}
+                      >
+                        {col.replace(/_/g, " ").toUpperCase()}
+                      </TableCell>
+                    ))}
                     <TableCell
-                      key={col}
                       sx={{
                         fontWeight: 700,
                         fontSize: "0.75rem",
                         whiteSpace: "nowrap",
-                        minWidth: 100,
                       }}
                     >
-                      {col.replace(/_/g, " ").toUpperCase()}
-                    </TableCell>
-                  ))}
-                  <TableCell
-                    sx={{
-                      fontWeight: 700,
-                      fontSize: "0.75rem",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    Action
-                  </TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {loading ? (
-                  <TableRow>
-                    <TableCell
-                      colSpan={visibleColumns.length + 1}
-                      align="center"
-                      sx={{ py: 4 }}
-                    >
-                      <CircularProgress size={30} />
+                      Action
                     </TableCell>
                   </TableRow>
-                ) : filteredData.length === 0 ? (
-                  <TableRow>
-                    <TableCell
-                      colSpan={visibleColumns.length + 1}
-                      align="center"
-                      sx={{ py: 4 }}
-                    >
-                      <Typography variant="h6">📭 No items found</Typography>
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filteredData.map((item: InventoryItem, index: number) => (
-                    <TableRow
-                      key={index}
-                      sx={{
-                        "&:nth-of-type(even)": { bgcolor: "#f9fafb" },
-                        "&:hover": { bgcolor: "#f0f0f0" },
-                      }}
-                    >
-                      {visibleColumns.map((col) => {
-                        let cellValue = item[col] || "-";
-
-                        if (col.includes("status")) {
-                          return (
-                            <TableCell
-                              key={col}
-                              sx={{ fontSize: "0.75rem", whiteSpace: "nowrap" }}
-                            >
-                              <Chip
-                                label={cellValue}
-                                size="small"
-                                sx={{
-                                  bgcolor: getStatusColor(cellValue),
-                                  color: "white",
-                                  fontSize: "0.7rem",
-                                }}
-                              />
-                            </TableCell>
-                          );
-                        }
-
-                        if (col === "current_stage") {
-                          return (
-                            <TableCell
-                              key={col}
-                              sx={{ fontSize: "0.75rem", whiteSpace: "nowrap" }}
-                            >
-                              <Chip
-                                label={cellValue}
-                                color={getStageColor(cellValue) as any}
-                                size="small"
-                                variant="outlined"
-                              />
-                            </TableCell>
-                          );
-                        }
-
-                        return (
-                          <TableCell
-                            key={col}
-                            sx={{
-                              fontSize: "0.75rem",
-                              whiteSpace: "nowrap",
-                              maxWidth: 200,
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                            }}
-                          >
-                            <Tooltip title={String(cellValue)}>
-                              <span>{String(cellValue).substring(0, 30)}</span>
-                            </Tooltip>
-                          </TableCell>
-                        );
-                      })}
+                </TableHead>
+                <TableBody>
+                  {loading ? (
+                    <TableRow>
                       <TableCell
-                        sx={{ textAlign: "center", whiteSpace: "nowrap" }}
+                        colSpan={visibleColumns.length + 1}
+                        align="center"
+                        sx={{ py: 4 }}
                       >
-                        <IconButton
-                          size="small"
-                          onClick={() => {
-                            setSelectedItem(item);
-                            setDetailsDialogOpen(true);
-                          }}
-                          sx={{ color: "#667eea", p: 0.5 }}
-                        >
-                          <FilterIcon fontSize="small" />
-                        </IconButton>
+                        <CircularProgress size={30} />
                       </TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </TableContainer>
+                  ) : filteredData.length === 0 ? (
+                    <TableRow>
+                      <TableCell
+                        colSpan={visibleColumns.length + 1}
+                        align="center"
+                        sx={{ py: 4 }}
+                      >
+                        <Typography variant="h6">📭 No items found</Typography>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredData.map((item: InventoryItem, index: number) => (
+                      <TableRow
+                        key={index}
+                        sx={{
+                          "&:nth-of-type(even)": { bgcolor: "#f9fafb" },
+                          "&:hover": { bgcolor: "#f0f0f0" },
+                        }}
+                      >
+                        {visibleColumns.map((col) => {
+                          let cellValue = item[col] || "-";
 
-          {/* ===================== PAGINATION STICKY ===================== */}
-          <Box
-            sx={{
-              position: "fixed",
-              bottom: 0,
-              right: 15,
-              borderTop: "1px solid #ddd",
-              p: -1,
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              zIndex: 100,
-            }}
-          >
-            {/* Per Page */}
-            <Stack direction="row" spacing={1} alignItems="center">
-              <Typography variant="body2">Per page:</Typography>
-              <Select
+                          if (col.includes("status")) {
+                            return (
+                              <TableCell
+                                key={col}
+                                sx={{
+                                  fontSize: "0.75rem",
+                                  whiteSpace: "nowrap",
+                                }}
+                              >
+                                <Chip
+                                  label={cellValue}
+                                  size="small"
+                                  sx={{
+                                    bgcolor: getStatusColor(cellValue),
+                                    color: "white",
+                                    fontSize: "0.7rem",
+                                  }}
+                                />
+                              </TableCell>
+                            );
+                          }
+
+                          if (col === "current_stage") {
+                            return (
+                              <TableCell
+                                key={col}
+                                sx={{
+                                  fontSize: "0.75rem",
+                                  whiteSpace: "nowrap",
+                                }}
+                              >
+                                <Chip
+                                  label={cellValue}
+                                  color={getStageColor(cellValue) as any}
+                                  size="small"
+                                  variant="outlined"
+                                />
+                              </TableCell>
+                            );
+                          }
+
+                          return (
+                            <TableCell
+                              key={col}
+                              sx={{
+                                fontSize: "0.75rem",
+                                whiteSpace: "nowrap",
+                                maxWidth: 200,
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                              }}
+                            >
+                              <Tooltip title={String(cellValue)}>
+                                <span>
+                                  {String(cellValue).substring(0, 30)}
+                                </span>
+                              </Tooltip>
+                            </TableCell>
+                          );
+                        })}
+                        <TableCell
+                          sx={{ textAlign: "center", whiteSpace: "nowrap" }}
+                        >
+                          <IconButton
+                            size="small"
+                            onClick={() => {
+                              setSelectedItem(item);
+                              setDetailsDialogOpen(true);
+                            }}
+                            sx={{ color: "#667eea", p: 0.5 }}
+                          >
+                            <FilterIcon fontSize="small" />
+                          </IconButton>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
+
+            {/* ================= PAGINATION (FIXED AT BOTTOM) ================= */}
+            <Box
+              sx={{
+                px: 2,
+                py: 1,
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                borderTop: "1px solid #ddd",
+                bgcolor: "white",
+                flexShrink: 0,
+              }}
+            >
+              <Stack direction="row" spacing={1} alignItems="center">
+                <Typography>Per page:</Typography>
+                <Select
+                  size="small"
+                  value={limit}
+                  onChange={(e) => {
+                    setLimit(Number(e.target.value));
+                    setPage(1);
+                  }}
+                >
+                  <MenuItem value={10}>10</MenuItem>
+                  <MenuItem value={25}>25</MenuItem>
+                  <MenuItem value={50}>50</MenuItem>
+                  <MenuItem value={100}>100</MenuItem>
+                </Select>
+              </Stack>
+
+              <Typography>
+                {(page - 1) * limit + 1} – {Math.min(page * limit, total)} of{" "}
+                {total}
+              </Typography>
+
+              <Pagination
+                page={page}
+                count={Math.ceil(total / limit)}
                 size="small"
-                value={limit}
-                onChange={(e) => {
-                  setLimit(Number(e.target.value));
-                  setPage(1);
-                }}
-              >
-                <MenuItem value={10}>10</MenuItem>
-                <MenuItem value={25}>25</MenuItem>
-                <MenuItem value={50}>50</MenuItem>
-                <MenuItem value={100}>100</MenuItem>
-              </Select>
-            </Stack>
-
-            {/* Display info */}
-            <Typography variant="body2">
-              {(page - 1) * limit + 1} – {Math.min(page * limit, total)} of{" "}
-              {total}
-            </Typography>
-
-            <Pagination
-              page={page}
-              count={Math.ceil(total / limit)}
-              onChange={(_, v) => setPage(v)}
-              size="small"
-            />
-          </Box>
-        </Paper>
+                onChange={(_, v) => setPage(v)}
+              />
+            </Box>
+          </Paper>
+        </Box>
       </Box>
 
-      {/* ✅ EXPORT DIALOG */}
+      {/* EXPORT DIALOG */}
       <Dialog
         open={exportDialogOpen}
         onClose={() => setExportDialogOpen(false)}
@@ -1125,7 +1083,6 @@ export default function DashboardPage() {
 
         <DialogContent sx={{ pt: 3 }}>
           <Stack spacing={2}>
-            {/* Date Range */}
             <Box>
               <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
                 📅 Date Range
@@ -1162,7 +1119,6 @@ export default function DashboardPage() {
               </Stack>
             </Box>
 
-            {/* Stage Filter */}
             <Box>
               <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
                 📦 Current Stage
@@ -1183,7 +1139,6 @@ export default function DashboardPage() {
               </Select>
             </Box>
 
-            {/* Brand Filter */}
             <Box>
               <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
                 🏷️ Brand
@@ -1205,7 +1160,6 @@ export default function DashboardPage() {
               />
             </Box>
 
-            {/* Category Filter */}
             <Box>
               <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
                 🏪 Category
@@ -1227,7 +1181,6 @@ export default function DashboardPage() {
               />
             </Box>
 
-            {/* Search */}
             <Box>
               <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
                 🔍 Search (WSN or Product)
@@ -1246,7 +1199,6 @@ export default function DashboardPage() {
               />
             </Box>
 
-            {/* Info Box */}
             <Alert severity="info" icon={<InfoIcon />}>
               <Typography variant="body2">
                 <strong>Export includes:</strong> All product details from
@@ -1320,37 +1272,21 @@ export default function DashboardPage() {
               <Typography variant="body2">
                 Inbound: {selectedItem?.inbound_status} | QC:{" "}
                 {selectedItem?.qc_status} | Picking:{" "}
-                {selectedItem?.picking_status} | Outbound:{" "}
-                {selectedItem?.outbound_status}
+                {selectedItem?.picking_status}
               </Typography>
-            </Box>
-            <Box>
-              <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-                Current Stage
-              </Typography>
-              <Chip
-                label={selectedItem?.current_stage}
-                color="primary"
-                size="small"
-              />
             </Box>
           </Stack>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDetailsDialogOpen(false)} size="small">
-            Close
-          </Button>
-        </DialogActions>
       </Dialog>
 
-      {/* COLUMN SETTINGS DIALOG */}
+      {/* COLUMNS DIALOG */}
       <Dialog
         open={columnDialogOpen}
         onClose={() => setColumnDialogOpen(false)}
         maxWidth="sm"
         fullWidth
       >
-        <DialogTitle>Column Settings</DialogTitle>
+        <DialogTitle>Select Visible Columns</DialogTitle>
         <DialogContent>
           <Stack spacing={1} sx={{ mt: 2 }}>
             {ALL_COLUMNS.map((col) => (
@@ -1362,22 +1298,13 @@ export default function DashboardPage() {
                     onChange={() => toggleColumn(col)}
                   />
                 }
-                label={col.replace(/_/g, " ").toUpperCase()}
+                label={col.replace(/_/g, " ")}
               />
             ))}
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setColumnDialogOpen(false)} size="small">
-            Close
-          </Button>
-          <Button
-            onClick={() => setVisibleColumns(DEFAULT_VISIBLE_COLUMNS)}
-            variant="outlined"
-            size="small"
-          >
-            Reset
-          </Button>
+          <Button onClick={() => setColumnDialogOpen(false)}>Close</Button>
         </DialogActions>
       </Dialog>
     </AppLayout>
