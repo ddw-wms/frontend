@@ -769,14 +769,17 @@ export default function DashboardPage() {
         <Box
           sx={{
             background: "white",
-            whiteSpace: "nowrap",
-            overflowX: "auto",
-            px: { xs: 0.5, md: 1 },
-            py: { xs: 1, md: 1.5 },
-            display: "flex",
-            gap: { xs: 0.7, md: 1.2 },
-            flexShrink: 0,
+            px: 1,
+            py: 1.5,
+            display: "grid",
+            gridTemplateColumns: {
+              xs: "repeat(2, 1fr)", // Mobile: 2 columns layout
+              sm: "repeat(3, 1fr)", // Tablets
+              md: "repeat(8, auto)", // Desktop: inline row
+            },
+            gap: 1,
             alignItems: "center",
+            flexShrink: 0,
           }}
         >
           {/* Search */}
@@ -785,14 +788,11 @@ export default function DashboardPage() {
             placeholder="Search"
             value={searchWSN}
             onChange={(e) => setSearchWSN(e.target.value)}
-            sx={{ minWidth: { xs: 90, sm: 120, md: 140 } }}
+            fullWidth
           />
 
           {/* Stage */}
-          <FormControl
-            size="small"
-            sx={{ minWidth: { xs: 80, sm: 110, md: 120 } }}
-          >
+          <FormControl size="small" fullWidth>
             <InputLabel>Stage</InputLabel>
             <Select
               label="Stage"
@@ -808,10 +808,7 @@ export default function DashboardPage() {
           </FormControl>
 
           {/* Brand */}
-          <FormControl
-            size="small"
-            sx={{ minWidth: { xs: 80, sm: 110, md: 120 } }}
-          >
+          <FormControl size="small" fullWidth>
             <InputLabel>Brand</InputLabel>
             <Select
               label="Brand"
@@ -828,10 +825,7 @@ export default function DashboardPage() {
           </FormControl>
 
           {/* Category */}
-          <FormControl
-            size="small"
-            sx={{ minWidth: { xs: 80, sm: 110, md: 120 } }}
-          >
+          <FormControl size="small" fullWidth>
             <InputLabel>Category</InputLabel>
             <Select
               label="Category"
@@ -847,15 +841,14 @@ export default function DashboardPage() {
             </Select>
           </FormControl>
 
-          {/* Reset button */}
+          {/* Reset */}
           <Button
             variant="outlined"
             size="small"
             onClick={resetFilters}
             sx={{
-              fontSize: { xs: "0.65rem", md: "0.75rem" },
-              px: { xs: 1, md: 2 },
-              whiteSpace: "nowrap",
+              fontSize: "0.7rem",
+              width: { xs: "100%", md: "auto" },
             }}
           >
             Reset
@@ -868,11 +861,10 @@ export default function DashboardPage() {
             variant="outlined"
             onClick={() => setColumnDialogOpen(true)}
             sx={{
-              fontSize: { xs: "0.65rem", md: "0.75rem" },
-              px: { xs: 1, md: 2 },
-              fontWeight: 700,
+              fontSize: "0.7rem",
+              fontWeight: 600,
               borderRadius: 1,
-              whiteSpace: "nowrap",
+              width: { xs: "100%", md: "auto" },
             }}
           >
             Columns
@@ -885,9 +877,8 @@ export default function DashboardPage() {
             startIcon={<DownloadIcon />}
             onClick={() => setExportDialogOpen(true)}
             sx={{
-              fontSize: { xs: "0.65rem", md: "0.75rem" },
-              px: { xs: 1, md: 2 },
-              whiteSpace: "nowrap",
+              fontSize: "0.7rem",
+              width: { xs: "100%", md: "auto" },
             }}
           >
             Export
@@ -903,9 +894,8 @@ export default function DashboardPage() {
               loadMetrics();
             }}
             sx={{
-              fontSize: { xs: "0.65rem", md: "0.75rem" },
-              px: { xs: 1, md: 2 },
-              whiteSpace: "nowrap",
+              fontSize: "0.7rem",
+              width: { xs: "100%", md: "auto" },
             }}
           >
             Refresh
