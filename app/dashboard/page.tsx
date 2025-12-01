@@ -771,22 +771,28 @@ export default function DashboardPage() {
             background: "white",
             whiteSpace: "nowrap",
             overflowX: "auto",
-            px: 1,
-            py: 1.5,
+            px: { xs: 0.5, md: 1 },
+            py: { xs: 1, md: 1.5 },
             display: "flex",
-            gap: 1,
+            gap: { xs: 0.7, md: 1.2 },
             flexShrink: 0,
+            alignItems: "center",
           }}
         >
+          {/* Search */}
           <TextField
             size="small"
             placeholder="Search"
             value={searchWSN}
             onChange={(e) => setSearchWSN(e.target.value)}
-            sx={{ minWidth: 140 }}
+            sx={{ minWidth: { xs: 90, sm: 120, md: 140 } }}
           />
 
-          <FormControl size="small" sx={{ minWidth: 120 }}>
+          {/* Stage */}
+          <FormControl
+            size="small"
+            sx={{ minWidth: { xs: 80, sm: 110, md: 120 } }}
+          >
             <InputLabel>Stage</InputLabel>
             <Select
               label="Stage"
@@ -801,7 +807,11 @@ export default function DashboardPage() {
             </Select>
           </FormControl>
 
-          <FormControl size="small" sx={{ minWidth: 120 }}>
+          {/* Brand */}
+          <FormControl
+            size="small"
+            sx={{ minWidth: { xs: 80, sm: 110, md: 120 } }}
+          >
             <InputLabel>Brand</InputLabel>
             <Select
               label="Brand"
@@ -817,7 +827,11 @@ export default function DashboardPage() {
             </Select>
           </FormControl>
 
-          <FormControl size="small" sx={{ minWidth: 120 }}>
+          {/* Category */}
+          <FormControl
+            size="small"
+            sx={{ minWidth: { xs: 80, sm: 110, md: 120 } }}
+          >
             <InputLabel>Category</InputLabel>
             <Select
               label="Category"
@@ -833,33 +847,53 @@ export default function DashboardPage() {
             </Select>
           </FormControl>
 
-          <Button variant="outlined" size="small" onClick={resetFilters}>
+          {/* Reset button */}
+          <Button
+            variant="outlined"
+            size="small"
+            onClick={resetFilters}
+            sx={{
+              fontSize: { xs: "0.65rem", md: "0.75rem" },
+              px: { xs: 1, md: 2 },
+              whiteSpace: "nowrap",
+            }}
+          >
             Reset
           </Button>
 
+          {/* Columns */}
           <Button
             size="small"
             startIcon={<SettingsIcon sx={{ fontSize: 12 }} />}
             variant="outlined"
             onClick={() => setColumnDialogOpen(true)}
             sx={{
-              fontSize: "0.7rem",
-              borderRadius: 1,
+              fontSize: { xs: "0.65rem", md: "0.75rem" },
+              px: { xs: 1, md: 2 },
               fontWeight: 700,
+              borderRadius: 1,
+              whiteSpace: "nowrap",
             }}
           >
             Columns
           </Button>
 
+          {/* Export */}
           <Button
             variant="contained"
             size="small"
             startIcon={<DownloadIcon />}
             onClick={() => setExportDialogOpen(true)}
+            sx={{
+              fontSize: { xs: "0.65rem", md: "0.75rem" },
+              px: { xs: 1, md: 2 },
+              whiteSpace: "nowrap",
+            }}
           >
             Export
           </Button>
 
+          {/* Refresh */}
           <Button
             variant="outlined"
             size="small"
@@ -867,6 +901,11 @@ export default function DashboardPage() {
             onClick={() => {
               loadInventoryData();
               loadMetrics();
+            }}
+            sx={{
+              fontSize: { xs: "0.65rem", md: "0.75rem" },
+              px: { xs: 1, md: 2 },
+              whiteSpace: "nowrap",
             }}
           >
             Refresh
