@@ -773,9 +773,9 @@ export default function DashboardPage() {
             py: 1.5,
             display: "grid",
             gridTemplateColumns: {
-              xs: "repeat(2, 1fr)", // Mobile: 2 columns layout
-              sm: "repeat(3, 1fr)", // Tablets
-              md: "repeat(8, auto)", // Desktop: inline row
+              xs: "repeat(2, 1fr)", // Mobile
+              sm: "repeat(3, 1fr)", // Tablet
+              md: "repeat(8, auto)", // Desktop inline
             },
             gap: 1,
             alignItems: "center",
@@ -792,56 +792,71 @@ export default function DashboardPage() {
           />
 
           {/* Stage */}
-          <FormControl size="small" fullWidth>
-            <InputLabel>Stage</InputLabel>
-            <Select
-              label="Stage"
-              value={stageFilter}
-              onChange={(e) => setStageFilter(e.target.value)}
-            >
-              {PIPELINE_STAGES.map((s) => (
-                <MenuItem key={s.value} value={s.value}>
-                  {s.label}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+          <TextField
+            select
+            size="small"
+            label="Stage"
+            value={stageFilter}
+            onChange={(e) => setStageFilter(e.target.value)}
+            fullWidth
+            SelectProps={{
+              MenuProps: {
+                PaperProps: { style: { maxHeight: 300 } },
+              },
+            }}
+          >
+            {PIPELINE_STAGES.map((s) => (
+              <MenuItem key={s.value} value={s.value}>
+                {s.label}
+              </MenuItem>
+            ))}
+          </TextField>
 
           {/* Brand */}
-          <FormControl size="small" fullWidth>
-            <InputLabel>Brand</InputLabel>
-            <Select
-              label="Brand"
-              value={brandFilter}
-              onChange={(e) => setBrandFilter(e.target.value)}
-            >
-              <MenuItem value="">All</MenuItem>
-              {brands.map((b) => (
-                <MenuItem key={b} value={b}>
-                  {b}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+          <TextField
+            select
+            size="small"
+            label="Brand"
+            value={brandFilter}
+            onChange={(e) => setBrandFilter(e.target.value)}
+            fullWidth
+            SelectProps={{
+              MenuProps: {
+                PaperProps: { style: { maxHeight: 300 } },
+              },
+            }}
+          >
+            <MenuItem value="">All</MenuItem>
+            {brands.map((b) => (
+              <MenuItem key={b} value={b}>
+                {b}
+              </MenuItem>
+            ))}
+          </TextField>
 
           {/* Category */}
-          <FormControl size="small" fullWidth>
-            <InputLabel>Category</InputLabel>
-            <Select
-              label="Category"
-              value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value)}
-            >
-              <MenuItem value="">All</MenuItem>
-              {categories.map((c) => (
-                <MenuItem key={c} value={c}>
-                  {c}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+          <TextField
+            select
+            size="small"
+            label="Category"
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value)}
+            fullWidth
+            SelectProps={{
+              MenuProps: {
+                PaperProps: { style: { maxHeight: 300 } },
+              },
+            }}
+          >
+            <MenuItem value="">All</MenuItem>
+            {categories.map((c) => (
+              <MenuItem key={c} value={c}>
+                {c}
+              </MenuItem>
+            ))}
+          </TextField>
 
-          {/* Reset */}
+          {/* Reset Button */}
           <Button
             variant="outlined"
             size="small"
@@ -854,7 +869,7 @@ export default function DashboardPage() {
             Reset
           </Button>
 
-          {/* Columns */}
+          {/* Columns Button */}
           <Button
             size="small"
             startIcon={<SettingsIcon sx={{ fontSize: 12 }} />}
@@ -870,7 +885,7 @@ export default function DashboardPage() {
             Columns
           </Button>
 
-          {/* Export */}
+          {/* Export Button */}
           <Button
             variant="contained"
             size="small"
@@ -1067,22 +1082,29 @@ export default function DashboardPage() {
                 </TableBody>
               </Table>
             </TableContainer>
-
-            {/* ================= PAGINATION (FIXED AT BOTTOM) ================= */}
+            {/* ================= PAGINATION (RESPONSIVE) ================= */}
+            {/* ================= PAGINATION (ALWAYS ONE ROW) ================= */}
             <Box
               sx={{
                 px: 2,
                 py: 1,
                 display: "flex",
-                justifyContent: "space-between",
                 alignItems: "center",
+                justifyContent: "space-between",
                 borderTop: "1px solid #ddd",
                 bgcolor: "white",
                 flexShrink: 0,
+                overflowX: "auto", // << REQUIRED FOR MOBILE
+                whiteSpace: "nowrap", // << FORCE SINGLE ROW
+                gap: 2, // spacing between 3 items
               }}
             >
+              {/* Per Page */}
               <Stack direction="row" spacing={1} alignItems="center">
-                <Typography>Per page:</Typography>
+                <Typography sx={{ fontSize: "0.85rem", whiteSpace: "nowrap" }}>
+                  Per page:
+                </Typography>
+
                 <Select
                   size="small"
                   value={limit}
@@ -1090,6 +1112,7 @@ export default function DashboardPage() {
                     setLimit(Number(e.target.value));
                     setPage(1);
                   }}
+                  sx={{ minWidth: 70 }}
                 >
                   <MenuItem value={10}>10</MenuItem>
                   <MenuItem value={25}>25</MenuItem>
@@ -1098,16 +1121,26 @@ export default function DashboardPage() {
                 </Select>
               </Stack>
 
-              <Typography>
+              {/* Count */}
+              <Typography
+                sx={{
+                  fontSize: "0.85rem",
+                  whiteSpace: "nowrap",
+                }}
+              >
                 {(page - 1) * limit + 1} – {Math.min(page * limit, total)} of{" "}
                 {total}
               </Typography>
 
+              {/* Pagination */}
               <Pagination
                 page={page}
                 count={Math.ceil(total / limit)}
                 size="small"
                 onChange={(_, v) => setPage(v)}
+                sx={{
+                  whiteSpace: "nowrap",
+                }}
               />
             </Box>
           </Paper>
