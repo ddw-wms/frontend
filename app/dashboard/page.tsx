@@ -1082,8 +1082,7 @@ export default function DashboardPage() {
                 </TableBody>
               </Table>
             </TableContainer>
-            {/* ================= PAGINATION (RESPONSIVE) ================= */}
-            {/* ================= PAGINATION (ALWAYS ONE ROW) ================= */}
+            {/* ================= PAGINATION (ALWAYS ONE ROW + MOBILE COMPACT) ================= */}
             <Box
               sx={{
                 px: 2,
@@ -1094,9 +1093,9 @@ export default function DashboardPage() {
                 borderTop: "1px solid #ddd",
                 bgcolor: "white",
                 flexShrink: 0,
-                overflowX: "auto", // << REQUIRED FOR MOBILE
-                whiteSpace: "nowrap", // << FORCE SINGLE ROW
-                gap: 2, // spacing between 3 items
+                overflowX: "auto",
+                whiteSpace: "nowrap",
+                gap: 2,
               }}
             >
               {/* Per Page */}
@@ -1132,16 +1131,39 @@ export default function DashboardPage() {
                 {total}
               </Typography>
 
-              {/* Pagination */}
-              <Pagination
-                page={page}
-                count={Math.ceil(total / limit)}
-                size="small"
-                onChange={(_, v) => setPage(v)}
-                sx={{
-                  whiteSpace: "nowrap",
-                }}
-              />
+              {/* Pagination (Responsive) */}
+              {typeof window !== "undefined" && window.innerWidth < 500 ? (
+                // MOBILE COMPACT PAGINATION
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <Button
+                    size="small"
+                    disabled={page === 1}
+                    onClick={() => setPage(page - 1)}
+                  >
+                    Prev
+                  </Button>
+
+                  <Typography sx={{ fontSize: "0.85rem", fontWeight: 600 }}>
+                    {page} / {Math.ceil(total / limit)}
+                  </Typography>
+
+                  <Button
+                    size="small"
+                    disabled={page === Math.ceil(total / limit)}
+                    onClick={() => setPage(page + 1)}
+                  >
+                    Next
+                  </Button>
+                </Stack>
+              ) : (
+                // DESKTOP FULL PAGINATION
+                <Pagination
+                  page={page}
+                  count={Math.ceil(total / limit)}
+                  size="small"
+                  onChange={(_, v) => setPage(v)}
+                />
+              )}
             </Box>
           </Paper>
         </Box>
