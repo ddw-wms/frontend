@@ -174,54 +174,6 @@ export const qcAPI = {
 };
 
 
-// // Picking API
-// export const pickingAPI = {
-//   // Get source data by WSN (from QC or Inbound)
-//   getSourceByWSN: (wsn: string, warehouseId: number) =>
-//     api.get('/picking/source-by-wsn', {
-//       params: { wsn, warehouseId }
-//     }),
-
-  
-
-//   // Multi picking entry
-//   multiEntry: (entries: any[], warehouseId: number) =>
-//     api.post('/picking/multi', { entries, warehouse_id: warehouseId }),  
-
-//   // Get picking list
-//   getAll: (page: number, limit: number, filters?: any) =>
-//     api.get('/picking/list', {
-//       params: {
-//         page,
-//         limit,
-//         warehouseId: filters?.warehouseId,
-//         search: filters?.search,
-//         source: filters?.source,
-//         customer: filters?.customer
-//       }
-//     }),
-
-//   // Get customers
-//   getCustomers: (warehouseId: number) =>
-//     api.get('/picking/customers', {
-//       params: { warehouseId }
-//     }),
-
-//   // Check WSN exists
-//   checkWSNExists: (wsn: string, warehouseId: number) =>
-//     api.get('/picking/check-wsn', {
-//       params: { wsn, warehouseId }
-//     }),
-
-//   // Get all existing WSNs in picking
-//   getAllPickingWSNs: (warehouseId: number) =>
-//     api.get('/picking/existing-wsns', {
-//       params: { warehouseId }
-//     })
-// };
-
-
-
 
 // ====== CUSTOMER API ======
 export const customerAPI = {
@@ -356,52 +308,11 @@ export const pickingAPI = {
 };
 
 
-// // ====== DASHBOARD API ==================================================
-// export const dashboardAPI = {
-//   // Get inventory pipeline with all stages
-//   getInventoryPipeline: (params: {
-//     warehouseId: number;
-//     page?: number;
-//     limit?: number;
-//     search?: string;
-//     stage?: string;
-//     brand?: string;
-//     dateFrom?: string;
-//     dateTo?: string;
-//   }) =>
-//     api.get('/dashboard/inventory-pipeline', { params }),
-
-//   // Get inventory metrics
-//   getInventoryMetrics: (warehouseId: number) =>
-//     api.get('/dashboard/inventory-metrics', {
-//       params: { warehouseId }
-//     }),
-
-//   // Get activity logs
-//   getActivityLogs: (params: {
-//     warehouseId: number;
-//     page?: number;
-//     limit?: number;
-//   }) =>
-//     api.get('/dashboard/activity-logs', { params })
-// };
-
-
-
 // ====== DASHBOARD API ======
 export const dashboardAPI = {
   // Get inventory pipeline with all stages
-  getInventoryPipeline: (params: {
-    warehouseId: number;
-    page?: number;
-    limit?: number;
-    search?: string;
-    stage?: string;
-    brand?: string;
-    dateFrom?: string;
-    dateTo?: string;
-  }) =>
-    api.get('/dashboard/inventory-pipeline', { params }),
+  getInventoryPipeline: (params: any, config: any = {}) =>
+    api.get('/dashboard/inventory-pipeline', { params, ...config }),
 
   // Get inventory metrics
   getInventoryMetrics: (warehouseId: number) =>
@@ -417,10 +328,11 @@ export const dashboardAPI = {
   }) =>
     api.get('/dashboard/activity-logs', { params }),
 
-  // ✅ NEW: Get data for export with complete details
+  // ✅ FIXED: Get data for export with complete details
   getInventoryDataForExport: (queryString: string) =>
     api.get(`/dashboard/export-data?${queryString}`)
 };
+
 
 
 export default api;
