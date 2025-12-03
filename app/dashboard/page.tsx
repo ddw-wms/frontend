@@ -1,6 +1,8 @@
+// File Path = warehouse-frontend\app\dashboard\page.tsx
 "use client";
 
-import { useState, useEffect } from "react";
+//import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
   Box,
@@ -55,6 +57,7 @@ import { getStoredUser, logout } from "@/lib/auth";
 import AppLayout from "@/components/AppLayout";
 import toast, { Toaster } from "react-hot-toast";
 import * as XLSX from "xlsx";
+import { inboundAPI } from "@/lib/api";
 
 interface User {
   id: number;
@@ -169,13 +172,6 @@ export default function DashboardPage() {
   const { activeWarehouse } = useWarehouse();
   const [user, setUser] = useState<User | null>(null);
 
-  useEffect(() => {
-    const storedUser = getStoredUser();
-    if (storedUser) {
-      setUser(storedUser);
-    }
-  }, []);
-
   const handleLogout = () => {
     logout();
     toast.success("Logged out successfully");
@@ -203,6 +199,13 @@ export default function DashboardPage() {
   const [categories, setCategories] = useState<string[]>([]);
   const [brands, setBrands] = useState<string[]>([]);
 
+  const [searchDebounced, setSearchDebounced] = useState(searchWSN);
+  const [filteredBrands, setFilteredBrands] = useState<string[]>([]);
+  const [filteredCategories, setFilteredCategories] = useState<string[]>([]);
+
+  const [loadingFilteredOptions, setLoadingFilteredOptions] = useState(false);
+
+
   const [metrics, setMetrics] = useState({
     total: 0,
     inbound: 0,
@@ -225,6 +228,11 @@ export default function DashboardPage() {
     searchText: "",
   });
   const [exportLoading, setExportLoading] = useState(false);
+
+  useEffect(() => {
+    const id = setTimeout(() => setSearchDebounced(searchWSN), 350);
+    return () => clearTimeout(id);
+  }, [searchWSN]);
 
   useEffect(() => {
     const storedUser = getStoredUser();
@@ -267,57 +275,124 @@ export default function DashboardPage() {
   useEffect(() => {
     if (activeWarehouse) {
       loadInventoryData();
+      loadFilterOptions();
       loadMetrics();
-
-      const interval = setInterval(() => {
-        loadMetrics();
-      }, 5000);
-
+      const interval = setInterval(() => loadMetrics(), 5000);
       return () => clearInterval(interval);
     }
-  }, [activeWarehouse, page, limit]);
+  }, [activeWarehouse, page, limit, searchDebounced, stageFilter, brandFilter, categoryFilter, dateFrom, dateTo]);
 
   useEffect(() => {
-    applyFilters();
-  }, [
-    inventoryData,
-    searchWSN,
-    stageFilter,
-    brandFilter,
-    categoryFilter,
-    dateFrom,
-    dateTo,
-  ]);
+    setFilteredData(inventoryData);
+  }, [inventoryData]);
 
-  const loadInventoryData = async () => {
-    setLoading(true);
-    try {
-      const response = await dashboardAPI.getInventoryPipeline({
-        warehouseId: activeWarehouse?.id,
-        page,
-        limit,
-      });
-      setInventoryData((response.data?.data || []) as InventoryItem[]);
-      setTotal(response.data?.pagination?.total || 0);
+  // useEffect(() => {
+  //   if (categoryFilter) {
+  //     getFilteredBrands().then(setFilteredBrands);
+  //   } else {
+  //     setFilteredBrands(brands);
+  //   }
+  // }, [categoryFilter, brands]);
 
-      const uniqueBrands = Array.from(
+  const memoizedFilteredBrands = useMemo(() => {
+    if (!categoryFilter || inventoryData.length === 0) {
+      return brands;
+    }
+
+    return Array.from(
+      new Set(
+        inventoryData
+          .map((item: any) => item.brand)
+          .filter(Boolean)
+      )
+    ) as string[];
+  }, [categoryFilter, inventoryData, brands]);
+
+
+  // useEffect(() => {
+  //   if (brandFilter) {
+  //     getFilteredCategories().then(setFilteredCategories);
+  //   } else {
+  //     setFilteredCategories(categories);
+  //   }
+  // }, [brandFilter, categories]);
+
+  // ✅ NEW:
+  useEffect(() => {
+    if (!brandFilter) {
+      setFilteredCategories(categories);
+      setLoadingFilteredOptions(false);
+      return;
+    }
+
+    setLoadingFilteredOptions(true);
+    getFilteredCategories()
+      .then(setFilteredCategories)
+      .finally(() => setLoadingFilteredOptions(false));
+  }, [brandFilter, categories]);
+
+
+
+  // When category changes, update filtered brands
+  useEffect(() => {
+    if (categoryFilter && inventoryData.length > 0) {
+      // Get unique brands from current inventory data for selected category
+      const filtered = Array.from(
         new Set(
-          (response.data?.data || [])
+          inventoryData
             .map((item: any) => item.brand)
             .filter(Boolean)
         )
       ) as string[];
+      setFilteredBrands(filtered.sort());
+    } else {
+      setFilteredBrands(brands);
+    }
+  }, [categoryFilter, inventoryData, brands]);
 
-      const uniqueCategories = Array.from(
+  // When brand changes, update filtered categories
+  useEffect(() => {
+    if (brandFilter && inventoryData.length > 0) {
+      // Get unique categories from current inventory data for selected brand
+      const filtered = Array.from(
         new Set(
-          (response.data?.data || [])
+          inventoryData
             .map((item: any) => item.cms_vertical)
             .filter(Boolean)
         )
       ) as string[];
+      setFilteredCategories(filtered.sort());
+    } else {
+      setFilteredCategories(categories);
+    }
+  }, [brandFilter, inventoryData, categories]);
 
-      setBrands(uniqueBrands);
-      setCategories(uniqueCategories);
+
+
+  const loadInventoryData = async () => {
+    setLoading(true);
+    try {
+      const params: any = {
+        warehouseId: activeWarehouse?.id,
+        page,
+        limit,
+      };
+
+      // Only include filters when present
+      if (searchDebounced) params.search = searchDebounced;
+      if (stageFilter && stageFilter !== "all") params.stage = stageFilter;
+      if (brandFilter) params.brand = brandFilter;
+      if (categoryFilter) params.category = categoryFilter;
+      if (dateFrom) params.dateFrom = dateFrom;
+      if (dateTo) params.dateTo = dateTo;
+
+      const response = await dashboardAPI.getInventoryPipeline(params);
+      // backend returns paginated data + pagination meta
+      const rows = (response.data?.data || []) as InventoryItem[];
+      setInventoryData(rows);
+      setFilteredData(rows); // server already applied filters so show directly
+      setTotal(response.data?.pagination?.total || 0);
+
     } catch (error: any) {
       console.error("Load inventory error:", error);
       toast.error("Failed to load inventory data");
@@ -325,6 +400,82 @@ export default function DashboardPage() {
       setLoading(false);
     }
   };
+
+  const loadFilterOptions = async () => {
+    try {
+      const [bResp, cResp] = await Promise.all([
+        inboundAPI.getBrands(activeWarehouse?.id),
+        inboundAPI.getCategories(activeWarehouse?.id),
+      ]);
+      // Extract data correctly
+      const brandsData = Array.isArray(bResp?.data) ? bResp.data : bResp?.data?.data || [];
+      const categoriesData = Array.isArray(cResp?.data) ? cResp.data : cResp?.data?.data || [];
+
+      setBrands(brandsData);
+      setCategories(categoriesData);
+    } catch (err) {
+      console.warn("Could not load full filter options:", err);
+      // On error, just leave empty - no fallback to page data
+      setBrands([]);
+      setCategories([]);
+    }
+  };
+
+  // 🔥 GET FILTERED BRANDS - only for selected category
+  const getFilteredBrands = async () => {
+    if (!categoryFilter) {
+      // No category selected, show all brands
+      return brands;
+    }
+    try {
+      // Get inbound data filtered by selected category
+      const response = await dashboardAPI.getInventoryPipeline({
+        warehouseId: activeWarehouse?.id,
+        category: categoryFilter,
+        page: 1,
+        limit: 10000, // Get all records for this category
+      });
+
+      const items = response.data?.data || [];
+      const uniqueBrands = Array.from(
+        new Set(items.map((item: any) => item.brand).filter(Boolean))
+      ) as string[];
+
+      return uniqueBrands;
+    } catch (err) {
+      console.error("Error getting filtered brands:", err);
+      return brands; // Fallback to all brands
+    }
+  };
+
+  // 🔥 GET FILTERED CATEGORIES - only for selected brand
+  const getFilteredCategories = async () => {
+    if (!brandFilter) {
+      // No brand selected, show all categories
+      return categories;
+    }
+    try {
+      // Get inbound data filtered by selected brand
+      const response = await dashboardAPI.getInventoryPipeline({
+        warehouseId: activeWarehouse?.id,
+        brand: brandFilter,
+        page: 1,
+        limit: 10000, // Get all records for this brand
+      });
+
+      const items = response.data?.data || [];
+      const uniqueCategories = Array.from(
+        new Set(items.map((item: any) => item.cms_vertical).filter(Boolean))
+      ) as string[];
+
+      return uniqueCategories;
+    } catch (err) {
+      console.error("Error getting filtered categories:", err);
+      return categories; // Fallback to all categories
+    }
+  };
+
+
 
   const loadMetrics = async () => {
     try {
@@ -338,62 +489,8 @@ export default function DashboardPage() {
   };
 
   const applyFilters = () => {
-    let filtered = [...inventoryData];
-
-    if (searchWSN) {
-      filtered = filtered.filter(
-        (item) =>
-          item.wsn?.toLowerCase().includes(searchWSN.toLowerCase()) ||
-          item.product_title?.toLowerCase().includes(searchWSN.toLowerCase())
-      );
-    }
-
-    if (stageFilter !== "all") {
-      filtered = filtered.filter((item) => item.current_stage === stageFilter);
-    }
-
-    if (brandFilter) {
-      filtered = filtered.filter(
-        (item) => item.brand?.toLowerCase() === brandFilter.toLowerCase()
-      );
-    }
-
-    if (categoryFilter) {
-      filtered = filtered.filter(
-        (item) =>
-          item.cms_vertical?.toLowerCase() === categoryFilter.toLowerCase()
-      );
-    }
-
-    if (dateFrom) {
-      filtered = filtered.filter((item) => {
-        if (!item.inbound_date) return false;
-        try {
-          return (
-            new Date(item.inbound_date).toDateString() >=
-            new Date(dateFrom).toDateString()
-          );
-        } catch {
-          return false;
-        }
-      });
-    }
-
-    if (dateTo) {
-      filtered = filtered.filter((item) => {
-        if (!item.inbound_date) return false;
-        try {
-          return (
-            new Date(item.inbound_date).toDateString() <=
-            new Date(dateTo).toDateString()
-          );
-        } catch {
-          return false;
-        }
-      });
-    }
-
-    setFilteredData(filtered);
+    // server already returned filtered data; just ensure filteredData mirrors inventoryData
+    setFilteredData(inventoryData);
   };
 
   const getStageColor = (stage: string) => {
@@ -474,17 +571,23 @@ export default function DashboardPage() {
     setExportLoading(true);
     try {
       const params = new URLSearchParams();
-      params.append("warehouseId", activeWarehouse?.id);
+      if (activeWarehouse?.id) params.append("warehouseId", String(activeWarehouse.id));
+
       if (exportFilters.dateFrom)
         params.append("dateFrom", exportFilters.dateFrom);
       if (exportFilters.dateTo) params.append("dateTo", exportFilters.dateTo);
-      if (exportFilters.stage && exportFilters.stage !== "all")
-        params.append("stage", exportFilters.stage);
+
+      if (exportFilters.stage && exportFilters.stage !== "all") {
+        const mapped = mapExportStageToBackend(exportFilters.stage);
+        if (mapped) params.append("stage", mapped);
+      }
+
       if (exportFilters.brand) params.append("brand", exportFilters.brand);
+
       if (exportFilters.category)
         params.append("category", exportFilters.category);
       if (exportFilters.searchText)
-        params.append("searchText", exportFilters.searchText);
+        params.append("search", exportFilters.searchText);
 
       const response = await dashboardAPI.getInventoryDataForExport(
         params.toString()
@@ -586,6 +689,21 @@ export default function DashboardPage() {
       toast.error("Failed to export data");
     } finally {
       setExportLoading(false);
+    }
+  };
+
+  const mapExportStageToBackend = (s: string) => {
+    switch (s) {
+      case "inbound":
+        return "INBOUND_RECEIVED"; // or whatever backend expects
+      case "qc":
+        return "QC_PASSED"; // or "QC_PENDING" depending on desired export
+      case "picking":
+        return "PICKING_COMPLETED";
+      case "outbound":
+        return "OUTBOUND_DISPATCHED";
+      default:
+        return ""; // empty -> don't include
     }
   };
 
@@ -787,7 +905,11 @@ export default function DashboardPage() {
             size="small"
             placeholder="Search"
             value={searchWSN}
-            onChange={(e) => setSearchWSN(e.target.value)}
+            onChange={(e) => {
+              setSearchWSN(e.target.value);
+              setPage(1);
+            }}
+
             fullWidth
           />
 
@@ -797,7 +919,11 @@ export default function DashboardPage() {
             size="small"
             label="Stage"
             value={stageFilter}
-            onChange={(e) => setStageFilter(e.target.value)}
+            onChange={(e) => {
+              setStageFilter(e.target.value);
+              setPage(1);
+            }}
+
             fullWidth
             SelectProps={{
               MenuProps: {
@@ -818,7 +944,10 @@ export default function DashboardPage() {
             size="small"
             label="Brand"
             value={brandFilter}
-            onChange={(e) => setBrandFilter(e.target.value)}
+            onChange={(e) => {
+              setBrandFilter(e.target.value);
+              setPage(1);
+            }}
             fullWidth
             SelectProps={{
               MenuProps: {
@@ -827,20 +956,31 @@ export default function DashboardPage() {
             }}
           >
             <MenuItem value="">All</MenuItem>
-            {brands.map((b) => (
+            {/* {(categoryFilter ? filteredBrands : brands).map((b) => (
+              <MenuItem key={b} value={b}>
+                {b}
+              </MenuItem>
+            ))} */}
+
+            {(categoryFilter ? memoizedFilteredBrands : brands).map((b) => (
               <MenuItem key={b} value={b}>
                 {b}
               </MenuItem>
             ))}
           </TextField>
 
+
           {/* Category */}
           <TextField
             select
+            disabled={loadingFilteredOptions}  // ← ADD THIS LINE
             size="small"
             label="Category"
             value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
+            onChange={(e) => {
+              setCategoryFilter(e.target.value);
+              setPage(1);
+            }}
             fullWidth
             SelectProps={{
               MenuProps: {
@@ -849,12 +989,13 @@ export default function DashboardPage() {
             }}
           >
             <MenuItem value="">All</MenuItem>
-            {categories.map((c) => (
+            {(brandFilter ? filteredCategories : categories).map((c) => (
               <MenuItem key={c} value={c}>
                 {c}
               </MenuItem>
             ))}
           </TextField>
+
 
           {/* Reset Button */}
           <Button
@@ -864,6 +1005,13 @@ export default function DashboardPage() {
             sx={{
               fontSize: "0.7rem",
               width: { xs: "100%", md: "auto" },
+              borderColor: "blue",
+              color: "blue",
+              "&:hover": {
+                backgroundColor: "#42a5f5",
+                color: "white",
+                borderColor: "blue"
+              }
             }}
           >
             Reset
@@ -880,6 +1028,13 @@ export default function DashboardPage() {
               fontWeight: 600,
               borderRadius: 1,
               width: { xs: "100%", md: "auto" },
+              borderColor: "blue",
+              color: "blue",
+              "&:hover": {
+                backgroundColor: "#42a5f5",
+                color: "white",
+                borderColor: "blue"
+              }
             }}
           >
             Columns
@@ -887,15 +1042,21 @@ export default function DashboardPage() {
 
           {/* Export Button */}
           <Button
-            variant="contained"
+            variant="outlined"
             size="small"
             startIcon={<DownloadIcon />}
             onClick={() => setExportDialogOpen(true)}
             sx={{
               fontSize: "0.7rem",
               width: { xs: "100%", md: "auto" },
-            }}
-          >
+              borderColor: "blue",
+              color: "blue",
+              "&:hover": {
+                backgroundColor: "#42a5f5",
+                color: "white",
+                borderColor: "blue"
+              }
+            }}>
             Export
           </Button>
 
@@ -911,6 +1072,13 @@ export default function DashboardPage() {
             sx={{
               fontSize: "0.7rem",
               width: { xs: "100%", md: "auto" },
+              borderColor: "blue",
+              color: "blue",
+              "&:hover": {
+                backgroundColor: "#42a5f5",
+                color: "white",
+                borderColor: "blue"
+              }
             }}
           >
             Refresh
