@@ -1018,6 +1018,7 @@ export default function DashboardPage() {
               {filtersOpen ? "Hide Filters" : "Show Filters"}
             </Button>
           </Box>
+
           {/* BODY: collapsible on mobile, always visible on desktop */}
           <Box
             sx={{
@@ -1156,12 +1157,18 @@ export default function DashboardPage() {
                 </TextField>
               </Box>
 
-              {/* RIGHT: Buttons - compact, no extra gap */}
+              {/* RIGHT: Buttons - responsive 2x2 on mobile */}
               <Box
                 sx={{
-                  display: "flex",
-                  flexDirection: { xs: "column", md: "row" },
+                  display: "grid",
+                  gridTemplateColumns: {
+                    xs: "repeat(2, 1fr)", // mobile: 2 columns x 2 rows
+                    md: "repeat(4, auto)", // desktop: 4 buttons in a row
+                  },
                   gap: 1,
+                  width: { xs: "100%", md: "auto" },
+                  justifyContent: { xs: "stretch", md: "flex-end" },
+                  alignItems: "center",
                 }}
               >
                 <Button
@@ -1173,11 +1180,12 @@ export default function DashboardPage() {
                     px: 2,
                     fontSize: "0.75rem",
                     fontWeight: 600,
-                    width: { xs: "100%", md: "auto" },
+                    width: "100%",
                   }}
                 >
                   RESET
                 </Button>
+
                 <Button
                   size="small"
                   startIcon={<SettingsIcon sx={{ fontSize: 14 }} />}
@@ -1188,11 +1196,12 @@ export default function DashboardPage() {
                     px: 2,
                     fontSize: "0.75rem",
                     fontWeight: 600,
-                    width: { xs: "100%", md: "auto" },
+                    width: "100%",
                   }}
                 >
                   COLUMNS
                 </Button>
+
                 <Button
                   variant="outlined"
                   size="small"
@@ -1203,11 +1212,12 @@ export default function DashboardPage() {
                     px: 2,
                     fontSize: "0.75rem",
                     fontWeight: 600,
-                    width: { xs: "100%", md: "auto" },
+                    width: "100%",
                   }}
                 >
                   EXPORT
                 </Button>
+
                 <Button
                   variant="outlined"
                   size="small"
@@ -1221,12 +1231,13 @@ export default function DashboardPage() {
                     px: 2,
                     fontSize: "0.75rem",
                     fontWeight: 600,
-                    width: { xs: "100%", md: "auto" },
+                    width: "100%",
                   }}
                 >
                   REFRESH
                 </Button>
               </Box>
+
             </Box>
           </Box>
         </Box>
@@ -1726,4 +1737,3 @@ export default function DashboardPage() {
     </AppLayout>
   );
 }
-
