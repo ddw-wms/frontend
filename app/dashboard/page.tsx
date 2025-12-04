@@ -204,6 +204,8 @@ export default function DashboardPage() {
   const [filteredCategories, setFilteredCategories] = useState<string[]>([]);
 
   const [loadingFilteredOptions, setLoadingFilteredOptions] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+
 
 
   const [metrics, setMetrics] = useState({
@@ -937,22 +939,17 @@ export default function DashboardPage() {
             py: 1.5,
             display: "flex",
             flexDirection: "column",
-            gap: 1.5,
+            gap: 1,
             flexShrink: 0,
           }}
         >
-          {/* ROW 1: Search + Date Filters */}
+          {/* TOP ROW: Search + Dates (desktop) + Filters toggle (mobile) */}
           <Box
             sx={{
-              display: "grid",
-              gridTemplateColumns: {
-                xs: "1fr",              // Mobile: 1 column
-                sm: "1fr",              // Tablet: 1 column
-                md: "1.5fr 1fr 1fr",    // Desktop: Search (wider) + 2 dates
-                lg: "2fr 1fr 1fr",      // Large: even wider search
-              },
-              gap: 1.5,
-              alignItems: "flex-start",
+              display: "flex",
+              flexDirection: { xs: "row", md: "row" },
+              gap: 1,
+              alignItems: "center",
             }}
           >
             {/* Search */}
@@ -965,265 +962,275 @@ export default function DashboardPage() {
                 setPage(1);
               }}
               fullWidth
-              sx={{
-                "& .MuiOutlinedInput-root": {
-                  height: 40,
-                },
-              }}
+              sx={{ "& .MuiOutlinedInput-root": { height: 40 } }}
             />
 
-            {/* From Date */}
-            <TextField
-              label="From Date"
-              type="date"
-              size="small"
-              variant="outlined"
-              InputLabelProps={{ shrink: true }}
-              value={dateFrom || ""}
-              onChange={(e) => {
-                setDateFrom(e.target.value);
-                setPage(1);
-              }}
-              fullWidth
+            {/* Desktop dates */}
+            <Box
               sx={{
-                "& .MuiOutlinedInput-root": {
-                  height: 40,
-                  fontSize: "0.875rem",
-                },
-                "& .MuiOutlinedInput-input": {
-                  padding: "8px 12px",
-                },
-                "& .MuiInputBase-input::-webkit-calendar-picker-indicator": {
-                  cursor: "pointer",
-                  filter: "invert(0.8)",
-                },
+                display: { xs: "none", md: "flex" },
+                gap: 1,
               }}
-            />
+            >
+              <TextField
+                label="From Date"
+                type="date"
+                size="small"
+                variant="outlined"
+                InputLabelProps={{ shrink: true }}
+                value={dateFrom || ""}
+                onChange={(e) => {
+                  setDateFrom(e.target.value);
+                  setPage(1);
+                }}
+                sx={{ "& .MuiOutlinedInput-root": { height: 40, fontSize: "0.875rem" } }}
+              />
+              <TextField
+                label="To Date"
+                type="date"
+                size="small"
+                variant="outlined"
+                InputLabelProps={{ shrink: true }}
+                value={dateTo || ""}
+                onChange={(e) => {
+                  setDateTo(e.target.value);
+                  setPage(1);
+                }}
+                sx={{ "& .MuiOutlinedInput-root": { height: 40, fontSize: "0.875rem" } }}
+              />
+            </Box>
 
-            {/* To Date */}
-            <TextField
-              label="To Date"
-              type="date"
-              size="small"
+            {/* Mobile filters toggle */}
+            <Button
               variant="outlined"
-              InputLabelProps={{ shrink: true }}
-              value={dateTo || ""}
-              onChange={(e) => {
-                setDateTo(e.target.value);
-                setPage(1);
-              }}
-              fullWidth
+              size="small"
+              onClick={() => setFiltersOpen((v) => !v)}
               sx={{
-                "& .MuiOutlinedInput-root": {
-                  height: 40,
-                  fontSize: "0.875rem",
-                },
-                "& .MuiOutlinedInput-input": {
-                  padding: "8px 12px",
-                },
-                "& .MuiInputBase-input::-webkit-calendar-picker-indicator": {
-                  cursor: "pointer",
-                  filter: "invert(0.8)",
-                },
+                display: { xs: "inline-flex", md: "none" },
+                height: 40,
+                fontSize: "0.75rem",
+                fontWeight: 600,
+                ml: 1,
+                whiteSpace: "nowrap",
               }}
-            />
+            >
+              {filtersOpen ? "Hide Filters" : "Show Filters"}
+            </Button>
           </Box>
 
-          {/* ROW 2: Filters + Buttons */}
+          {/* BODY: collapsible on mobile, always visible on desktop */}
           <Box
             sx={{
-              display: "grid",
-              gridTemplateColumns: {
-                xs: "1fr",                                    // Mobile: 1 column
-                sm: "repeat(2, 1fr)",                         // Tablet: 2 columns
-                md: "repeat(3, 1fr) auto auto auto auto",     // Desktop: 3 inputs + 4 buttons
-                lg: "repeat(3, 1fr) auto auto auto auto",     // Large: same
-              },
-              gap: 1.5,
-              alignItems: "center",
+              display: { xs: filtersOpen ? "block" : "none", md: "block" },
+              mt: { xs: 1, md: 0.5 },
             }}
           >
-            {/* Stage */}
-            <TextField
-              select
-              size="small"
-              label="Stage"
-              value={stageFilter}
-              onChange={(e) => {
-                setStageFilter(e.target.value);
-                setPage(1);
-              }}
-              fullWidth
-              SelectProps={{
-                MenuProps: {
-                  PaperProps: { style: { maxHeight: 300 } },
-                },
-              }}
+            {/* Dates on mobile */}
+            <Box
               sx={{
-                "& .MuiOutlinedInput-root": {
-                  height: 40,
-                },
+                display: { xs: "flex", md: "none" },
+                flexDirection: "row",
+                gap: 1,
+                mb: 1,
               }}
             >
-              {PIPELINE_STAGES.map((s) => (
-                <MenuItem key={s.value} value={s.value}>
-                  {s.label}
-                </MenuItem>
-              ))}
-            </TextField>
+              <TextField
+                label="From Date"
+                type="date"
+                size="small"
+                variant="outlined"
+                InputLabelProps={{ shrink: true }}
+                value={dateFrom || ""}
+                onChange={(e) => {
+                  setDateFrom(e.target.value);
+                  setPage(1);
+                }}
+                sx={{ flex: 1 }}
+              />
+              <TextField
+                label="To Date"
+                type="date"
+                size="small"
+                variant="outlined"
+                InputLabelProps={{ shrink: true }}
+                value={dateTo || ""}
+                onChange={(e) => {
+                  setDateTo(e.target.value);
+                  setPage(1);
+                }}
+                sx={{ flex: 1 }}
+              />
+            </Box>
 
-            {/* Brand */}
-            <TextField
-              select
-              size="small"
-              label="Brand"
-              value={brandFilter}
-              onChange={(e) => {
-                setBrandFilter(e.target.value);
-                setPage(1);
-              }}
-              fullWidth
-              SelectProps={{
-                MenuProps: {
-                  PaperProps: { style: { maxHeight: 300 } },
-                },
-              }}
+            {/* MAIN ROW: filters + buttons, no empty space */}
+            <Box
               sx={{
-                "& .MuiOutlinedInput-root": {
-                  height: 40,
-                },
+                display: "flex",
+                flexDirection: { xs: "column", md: "row" },
+                gap: 1,
+                alignItems: { xs: "stretch", md: "center" },
+                justifyContent: "space-between",
               }}
             >
-              <MenuItem value="">All</MenuItem>
-              {(categoryFilter ? memoizedFilteredBrands : brands).map((b) => (
-                <MenuItem key={b} value={b}>
-                  {b}
-                </MenuItem>
-              ))}
-            </TextField>
+              {/* LEFT: Stage / Brand / Category - tightly packed */}
+              <Box
+                sx={{
+                  display: "flex",
+                  flexDirection: "row",
+                  gap: 1,
+                  flexGrow: 1,
+                }}
+              >
+                <TextField
+                  select
+                  size="small"
+                  label="Stage"
+                  value={stageFilter}
+                  onChange={(e) => {
+                    setStageFilter(e.target.value);
+                    setPage(1);
+                  }}
+                  fullWidth
+                  SelectProps={{
+                    MenuProps: {
+                      PaperProps: { style: { maxHeight: 300 } },
+                    },
+                  }}
+                  sx={{ "& .MuiOutlinedInput-root": { height: 40 } }}
+                >
+                  {PIPELINE_STAGES.map((s) => (
+                    <MenuItem key={s.value} value={s.value}>
+                      {s.label}
+                    </MenuItem>
+                  ))}
+                </TextField>
 
-            {/* Category */}
-            <TextField
-              select
-              disabled={loadingFilteredOptions}
-              size="small"
-              label="Category"
-              value={categoryFilter}
-              onChange={(e) => {
-                setCategoryFilter(e.target.value);
-                setPage(1);
-              }}
-              fullWidth
-              SelectProps={{
-                MenuProps: {
-                  PaperProps: { style: { maxHeight: 300 } },
-                },
-              }}
-              sx={{
-                "& .MuiOutlinedInput-root": {
-                  height: 40,
-                },
-              }}
-            >
-              <MenuItem value="">All</MenuItem>
-              {(brandFilter ? filteredCategories : categories).map((c) => (
-                <MenuItem key={c} value={c}>
-                  {c}
-                </MenuItem>
-              ))}
-            </TextField>
+                <TextField
+                  select
+                  size="small"
+                  label="Brand"
+                  value={brandFilter}
+                  onChange={(e) => {
+                    setBrandFilter(e.target.value);
+                    setPage(1);
+                  }}
+                  fullWidth
+                  SelectProps={{
+                    MenuProps: {
+                      PaperProps: { style: { maxHeight: 300 } },
+                    },
+                  }}
+                  sx={{ "& .MuiOutlinedInput-root": { height: 40 } }}
+                >
+                  <MenuItem value="">All</MenuItem>
+                  {(categoryFilter ? memoizedFilteredBrands : brands).map((b) => (
+                    <MenuItem key={b} value={b}>
+                      {b}
+                    </MenuItem>
+                  ))}
+                </TextField>
 
-            {/* Reset Button */}
-            <Button
-              variant="outlined"
-              size="small"
-              onClick={resetFilters}
-              sx={{
-                height: 40,
-                minWidth: 80,
-                fontSize: "0.75rem",
-                fontWeight: 600,
-                borderColor: "var(--color-primary)",
-                color: "var(--color-primary)",
-                "&:hover": {
-                  backgroundColor: "var(--color-bg-1)",
-                  borderColor: "var(--color-primary)",
-                },
-              }}
-            >
-              RESET
-            </Button>
+                <TextField
+                  select
+                  size="small"
+                  label="Category"
+                  value={categoryFilter}
+                  onChange={(e) => {
+                    setCategoryFilter(e.target.value);
+                    setPage(1);
+                  }}
+                  fullWidth
+                  SelectProps={{
+                    MenuProps: {
+                      PaperProps: { style: { maxHeight: 300 } },
+                    },
+                  }}
+                  sx={{ "& .MuiOutlinedInput-root": { height: 40 } }}
+                >
+                  <MenuItem value="">All</MenuItem>
+                  {(brandFilter ? filteredCategories : categories).map((c) => (
+                    <MenuItem key={c} value={c}>
+                      {c}
+                    </MenuItem>
+                  ))}
+                </TextField>
+              </Box>
 
-            {/* Columns Button */}
-            <Button
-              size="small"
-              startIcon={<SettingsIcon sx={{ fontSize: 14 }} />}
-              variant="outlined"
-              onClick={() => setColumnDialogOpen(true)}
-              sx={{
-                height: 40,
-                minWidth: 95,
-                fontSize: "0.75rem",
-                fontWeight: 600,
-                borderColor: "var(--color-primary)",
-                color: "var(--color-primary)",
-                "&:hover": {
-                  backgroundColor: "var(--color-bg-1)",
-                  borderColor: "var(--color-primary)",
-                },
-              }}
-            >
-              COLUMNS
-            </Button>
-
-            {/* Export Button */}
-            <Button
-              variant="outlined"
-              size="small"
-              startIcon={<DownloadIcon sx={{ fontSize: 14 }} />}
-              onClick={() => setExportDialogOpen(true)}
-              sx={{
-                height: 40,
-                minWidth: 85,
-                fontSize: "0.75rem",
-                fontWeight: 600,
-                borderColor: "var(--color-primary)",
-                color: "var(--color-primary)",
-                "&:hover": {
-                  backgroundColor: "var(--color-bg-1)",
-                  borderColor: "var(--color-primary)",
-                },
-              }}
-            >
-              EXPORT
-            </Button>
-
-            {/* Refresh Button */}
-            <Button
-              variant="outlined"
-              size="small"
-              startIcon={<RefreshIcon sx={{ fontSize: 14 }} />}
-              onClick={() => {
-                loadInventoryData();
-                loadMetrics();
-              }}
-              sx={{
-                height: 40,
-                minWidth: 90,
-                fontSize: "0.75rem",
-                fontWeight: 600,
-                borderColor: "var(--color-primary)",
-                color: "var(--color-primary)",
-                "&:hover": {
-                  backgroundColor: "var(--color-bg-1)",
-                  borderColor: "var(--color-primary)",
-                },
-              }}
-            >
-              REFRESH
-            </Button>
+              {/* RIGHT: Buttons - compact, no extra gap */}
+              <Box
+                sx={{
+                  display: "flex",
+                  flexDirection: { xs: "column", md: "row" },
+                  gap: 1,
+                }}
+              >
+                <Button
+                  variant="outlined"
+                  size="small"
+                  onClick={resetFilters}
+                  sx={{
+                    height: 40,
+                    px: 2,
+                    fontSize: "0.75rem",
+                    fontWeight: 600,
+                    width: { xs: "100%", md: "auto" },
+                  }}
+                >
+                  RESET
+                </Button>
+                <Button
+                  size="small"
+                  startIcon={<SettingsIcon sx={{ fontSize: 14 }} />}
+                  variant="outlined"
+                  onClick={() => setColumnDialogOpen(true)}
+                  sx={{
+                    height: 40,
+                    px: 2,
+                    fontSize: "0.75rem",
+                    fontWeight: 600,
+                    width: { xs: "100%", md: "auto" },
+                  }}
+                >
+                  COLUMNS
+                </Button>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  startIcon={<DownloadIcon sx={{ fontSize: 14 }} />}
+                  onClick={() => setExportDialogOpen(true)}
+                  sx={{
+                    height: 40,
+                    px: 2,
+                    fontSize: "0.75rem",
+                    fontWeight: 600,
+                    width: { xs: "100%", md: "auto" },
+                  }}
+                >
+                  EXPORT
+                </Button>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  startIcon={<RefreshIcon sx={{ fontSize: 14 }} />}
+                  onClick={() => {
+                    loadInventoryData();
+                    loadMetrics();
+                  }}
+                  sx={{
+                    height: 40,
+                    px: 2,
+                    fontSize: "0.75rem",
+                    fontWeight: 600,
+                    width: { xs: "100%", md: "auto" },
+                  }}
+                >
+                  REFRESH
+                </Button>
+              </Box>
+            </Box>
           </Box>
         </Box>
+
 
         {/* ================= TABLE AREA (SCROLLABLE) ================= */}
         <Box
