@@ -567,6 +567,35 @@ export default function DashboardPage() {
     }
   };
 
+  // const handleExportWithFilters = async () => {
+  //   setExportLoading(true);
+  //   try {
+  //     const params = new URLSearchParams();
+  //     if (activeWarehouse?.id) params.append("warehouseId", String(activeWarehouse.id));
+
+  //     if (exportFilters.dateFrom)
+  //       params.append("dateFrom", exportFilters.dateFrom);
+  //     if (exportFilters.dateTo) params.append("dateTo", exportFilters.dateTo);
+
+  //     if (exportFilters.stage && exportFilters.stage !== "all") {
+  //       const mapped = mapExportStageToBackend(exportFilters.stage);
+  //       if (mapped) params.append("stage", mapped);
+  //     }
+
+  //     if (exportFilters.brand) params.append("brand", exportFilters.brand);
+
+  //     if (exportFilters.category)
+  //       params.append("category", exportFilters.category);
+  //     if (exportFilters.searchText)
+  //       params.append("search", exportFilters.searchText);
+
+  //     const response = await dashboardAPI.getInventoryDataForExport(
+  //       params.toString()
+  //     );
+
+  //     if (response.data?.data && response.data.data.length > 0) {
+
+
   const handleExportWithFilters = async () => {
     setExportLoading(true);
     try {
@@ -583,17 +612,31 @@ export default function DashboardPage() {
       }
 
       if (exportFilters.brand) params.append("brand", exportFilters.brand);
-
       if (exportFilters.category)
         params.append("category", exportFilters.category);
       if (exportFilters.searchText)
         params.append("search", exportFilters.searchText);
 
+      // 🔍 DEBUG: Log exact params being sent
+      console.log("📤 Export API Params:", {
+        warehouseId: activeWarehouse?.id,
+        dateFrom: exportFilters.dateFrom,
+        dateTo: exportFilters.dateTo,
+        stage: exportFilters.stage,
+        brand: exportFilters.brand,
+        category: exportFilters.category,
+        searchText: exportFilters.searchText,
+        paramsString: params.toString(),
+      });
+
       const response = await dashboardAPI.getInventoryDataForExport(
         params.toString()
       );
 
-      if (response.data?.data && response.data.data.length > 0) {
+      console.log("📥 Export API Response:", response.data);
+
+      if (response.data?.data && response.data.data.length > 0) {      ////////////////////////////
+
         const formattedData = response.data.data.map((row: any) => ({
           WSN: row.wsn,
           WID: row.wid || "",
@@ -784,10 +827,13 @@ export default function DashboardPage() {
         {/* ================= HEADER ================= */}
         <Box
           sx={{
-            bgcolor: "white",
-            borderBottom: "1px solid #e5e7eb",
+            //bgcolor: "white",
+            background: "linear-gradient(90deg,#6366f1,#7c3aed)",
+            //borderBottom: "1px solid #e5e7eb",
+            color: "white",
             px: 2,
-            py: 1,
+            py: 0.5,
+            mb: -1.5,
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
@@ -819,7 +865,7 @@ export default function DashboardPage() {
             flexShrink: 0,
           }}
         >
-          <Typography sx={{ fontWeight: 600 }}>
+          <Typography sx={{ fontWeight: 600, fontSize: 13 }}>
             👋 Welcome back, {user?.fullName} ({user?.role})
           </Typography>
         </Box>
@@ -887,202 +933,296 @@ export default function DashboardPage() {
         <Box
           sx={{
             background: "white",
-            px: 1,
+            px: 2,
             py: 1.5,
-            display: "grid",
-            gridTemplateColumns: {
-              xs: "repeat(2, 1fr)", // Mobile
-              sm: "repeat(3, 1fr)", // Tablet
-              md: "repeat(8, auto)", // Desktop inline
-            },
-            gap: 1,
-            alignItems: "center",
+            display: "flex",
+            flexDirection: "column",
+            gap: 1.5,
             flexShrink: 0,
           }}
         >
-          {/* Search */}
-          <TextField
-            size="small"
-            placeholder="Search"
-            value={searchWSN}
-            onChange={(e) => {
-              setSearchWSN(e.target.value);
-              setPage(1);
-            }}
-
-            fullWidth
-          />
-
-          {/* Stage */}
-          <TextField
-            select
-            size="small"
-            label="Stage"
-            value={stageFilter}
-            onChange={(e) => {
-              setStageFilter(e.target.value);
-              setPage(1);
-            }}
-
-            fullWidth
-            SelectProps={{
-              MenuProps: {
-                PaperProps: { style: { maxHeight: 300 } },
+          {/* ROW 1: Search + Date Filters */}
+          <Box
+            sx={{
+              display: "grid",
+              gridTemplateColumns: {
+                xs: "1fr",              // Mobile: 1 column
+                sm: "1fr",              // Tablet: 1 column
+                md: "1.5fr 1fr 1fr",    // Desktop: Search (wider) + 2 dates
+                lg: "2fr 1fr 1fr",      // Large: even wider search
               },
+              gap: 1.5,
+              alignItems: "flex-start",
             }}
           >
-            {PIPELINE_STAGES.map((s) => (
-              <MenuItem key={s.value} value={s.value}>
-                {s.label}
-              </MenuItem>
-            ))}
-          </TextField>
+            {/* Search */}
+            <TextField
+              size="small"
+              placeholder="Search WSN or Product"
+              value={searchWSN}
+              onChange={(e) => {
+                setSearchWSN(e.target.value);
+                setPage(1);
+              }}
+              fullWidth
+              sx={{
+                "& .MuiOutlinedInput-root": {
+                  height: 40,
+                },
+              }}
+            />
 
-          {/* Brand */}
-          <TextField
-            select
-            size="small"
-            label="Brand"
-            value={brandFilter}
-            onChange={(e) => {
-              setBrandFilter(e.target.value);
-              setPage(1);
-            }}
-            fullWidth
-            SelectProps={{
-              MenuProps: {
-                PaperProps: { style: { maxHeight: 300 } },
+            {/* From Date */}
+            <TextField
+              label="From Date"
+              type="date"
+              size="small"
+              variant="outlined"
+              InputLabelProps={{ shrink: true }}
+              value={dateFrom || ""}
+              onChange={(e) => {
+                setDateFrom(e.target.value);
+                setPage(1);
+              }}
+              fullWidth
+              sx={{
+                "& .MuiOutlinedInput-root": {
+                  height: 40,
+                  fontSize: "0.875rem",
+                },
+                "& .MuiOutlinedInput-input": {
+                  padding: "8px 12px",
+                },
+                "& .MuiInputBase-input::-webkit-calendar-picker-indicator": {
+                  cursor: "pointer",
+                  filter: "invert(0.8)",
+                },
+              }}
+            />
+
+            {/* To Date */}
+            <TextField
+              label="To Date"
+              type="date"
+              size="small"
+              variant="outlined"
+              InputLabelProps={{ shrink: true }}
+              value={dateTo || ""}
+              onChange={(e) => {
+                setDateTo(e.target.value);
+                setPage(1);
+              }}
+              fullWidth
+              sx={{
+                "& .MuiOutlinedInput-root": {
+                  height: 40,
+                  fontSize: "0.875rem",
+                },
+                "& .MuiOutlinedInput-input": {
+                  padding: "8px 12px",
+                },
+                "& .MuiInputBase-input::-webkit-calendar-picker-indicator": {
+                  cursor: "pointer",
+                  filter: "invert(0.8)",
+                },
+              }}
+            />
+          </Box>
+
+          {/* ROW 2: Filters + Buttons */}
+          <Box
+            sx={{
+              display: "grid",
+              gridTemplateColumns: {
+                xs: "1fr",                                    // Mobile: 1 column
+                sm: "repeat(2, 1fr)",                         // Tablet: 2 columns
+                md: "repeat(3, 1fr) auto auto auto auto",     // Desktop: 3 inputs + 4 buttons
+                lg: "repeat(3, 1fr) auto auto auto auto",     // Large: same
               },
+              gap: 1.5,
+              alignItems: "center",
             }}
           >
-            <MenuItem value="">All</MenuItem>
-            {/* {(categoryFilter ? filteredBrands : brands).map((b) => (
-              <MenuItem key={b} value={b}>
-                {b}
-              </MenuItem>
-            ))} */}
+            {/* Stage */}
+            <TextField
+              select
+              size="small"
+              label="Stage"
+              value={stageFilter}
+              onChange={(e) => {
+                setStageFilter(e.target.value);
+                setPage(1);
+              }}
+              fullWidth
+              SelectProps={{
+                MenuProps: {
+                  PaperProps: { style: { maxHeight: 300 } },
+                },
+              }}
+              sx={{
+                "& .MuiOutlinedInput-root": {
+                  height: 40,
+                },
+              }}
+            >
+              {PIPELINE_STAGES.map((s) => (
+                <MenuItem key={s.value} value={s.value}>
+                  {s.label}
+                </MenuItem>
+              ))}
+            </TextField>
 
-            {(categoryFilter ? memoizedFilteredBrands : brands).map((b) => (
-              <MenuItem key={b} value={b}>
-                {b}
-              </MenuItem>
-            ))}
-          </TextField>
+            {/* Brand */}
+            <TextField
+              select
+              size="small"
+              label="Brand"
+              value={brandFilter}
+              onChange={(e) => {
+                setBrandFilter(e.target.value);
+                setPage(1);
+              }}
+              fullWidth
+              SelectProps={{
+                MenuProps: {
+                  PaperProps: { style: { maxHeight: 300 } },
+                },
+              }}
+              sx={{
+                "& .MuiOutlinedInput-root": {
+                  height: 40,
+                },
+              }}
+            >
+              <MenuItem value="">All</MenuItem>
+              {(categoryFilter ? memoizedFilteredBrands : brands).map((b) => (
+                <MenuItem key={b} value={b}>
+                  {b}
+                </MenuItem>
+              ))}
+            </TextField>
 
+            {/* Category */}
+            <TextField
+              select
+              disabled={loadingFilteredOptions}
+              size="small"
+              label="Category"
+              value={categoryFilter}
+              onChange={(e) => {
+                setCategoryFilter(e.target.value);
+                setPage(1);
+              }}
+              fullWidth
+              SelectProps={{
+                MenuProps: {
+                  PaperProps: { style: { maxHeight: 300 } },
+                },
+              }}
+              sx={{
+                "& .MuiOutlinedInput-root": {
+                  height: 40,
+                },
+              }}
+            >
+              <MenuItem value="">All</MenuItem>
+              {(brandFilter ? filteredCategories : categories).map((c) => (
+                <MenuItem key={c} value={c}>
+                  {c}
+                </MenuItem>
+              ))}
+            </TextField>
 
-          {/* Category */}
-          <TextField
-            select
-            disabled={loadingFilteredOptions}  // ← ADD THIS LINE
-            size="small"
-            label="Category"
-            value={categoryFilter}
-            onChange={(e) => {
-              setCategoryFilter(e.target.value);
-              setPage(1);
-            }}
-            fullWidth
-            SelectProps={{
-              MenuProps: {
-                PaperProps: { style: { maxHeight: 300 } },
-              },
-            }}
-          >
-            <MenuItem value="">All</MenuItem>
-            {(brandFilter ? filteredCategories : categories).map((c) => (
-              <MenuItem key={c} value={c}>
-                {c}
-              </MenuItem>
-            ))}
-          </TextField>
+            {/* Reset Button */}
+            <Button
+              variant="outlined"
+              size="small"
+              onClick={resetFilters}
+              sx={{
+                height: 40,
+                minWidth: 80,
+                fontSize: "0.75rem",
+                fontWeight: 600,
+                borderColor: "var(--color-primary)",
+                color: "var(--color-primary)",
+                "&:hover": {
+                  backgroundColor: "var(--color-bg-1)",
+                  borderColor: "var(--color-primary)",
+                },
+              }}
+            >
+              RESET
+            </Button>
 
+            {/* Columns Button */}
+            <Button
+              size="small"
+              startIcon={<SettingsIcon sx={{ fontSize: 14 }} />}
+              variant="outlined"
+              onClick={() => setColumnDialogOpen(true)}
+              sx={{
+                height: 40,
+                minWidth: 95,
+                fontSize: "0.75rem",
+                fontWeight: 600,
+                borderColor: "var(--color-primary)",
+                color: "var(--color-primary)",
+                "&:hover": {
+                  backgroundColor: "var(--color-bg-1)",
+                  borderColor: "var(--color-primary)",
+                },
+              }}
+            >
+              COLUMNS
+            </Button>
 
-          {/* Reset Button */}
-          <Button
-            variant="outlined"
-            size="small"
-            onClick={resetFilters}
-            sx={{
-              fontSize: "0.7rem",
-              width: { xs: "100%", md: "auto" },
-              borderColor: "blue",
-              color: "blue",
-              "&:hover": {
-                backgroundColor: "#42a5f5",
-                color: "white",
-                borderColor: "blue"
-              }
-            }}
-          >
-            Reset
-          </Button>
+            {/* Export Button */}
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={<DownloadIcon sx={{ fontSize: 14 }} />}
+              onClick={() => setExportDialogOpen(true)}
+              sx={{
+                height: 40,
+                minWidth: 85,
+                fontSize: "0.75rem",
+                fontWeight: 600,
+                borderColor: "var(--color-primary)",
+                color: "var(--color-primary)",
+                "&:hover": {
+                  backgroundColor: "var(--color-bg-1)",
+                  borderColor: "var(--color-primary)",
+                },
+              }}
+            >
+              EXPORT
+            </Button>
 
-          {/* Columns Button */}
-          <Button
-            size="small"
-            startIcon={<SettingsIcon sx={{ fontSize: 12 }} />}
-            variant="outlined"
-            onClick={() => setColumnDialogOpen(true)}
-            sx={{
-              fontSize: "0.7rem",
-              fontWeight: 600,
-              borderRadius: 1,
-              width: { xs: "100%", md: "auto" },
-              borderColor: "blue",
-              color: "blue",
-              "&:hover": {
-                backgroundColor: "#42a5f5",
-                color: "white",
-                borderColor: "blue"
-              }
-            }}
-          >
-            Columns
-          </Button>
-
-          {/* Export Button */}
-          <Button
-            variant="outlined"
-            size="small"
-            startIcon={<DownloadIcon />}
-            onClick={() => setExportDialogOpen(true)}
-            sx={{
-              fontSize: "0.7rem",
-              width: { xs: "100%", md: "auto" },
-              borderColor: "blue",
-              color: "blue",
-              "&:hover": {
-                backgroundColor: "#42a5f5",
-                color: "white",
-                borderColor: "blue"
-              }
-            }}>
-            Export
-          </Button>
-
-          {/* Refresh */}
-          <Button
-            variant="outlined"
-            size="small"
-            startIcon={<RefreshIcon />}
-            onClick={() => {
-              loadInventoryData();
-              loadMetrics();
-            }}
-            sx={{
-              fontSize: "0.7rem",
-              width: { xs: "100%", md: "auto" },
-              borderColor: "blue",
-              color: "blue",
-              "&:hover": {
-                backgroundColor: "#42a5f5",
-                color: "white",
-                borderColor: "blue"
-              }
-            }}
-          >
-            Refresh
-          </Button>
+            {/* Refresh Button */}
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={<RefreshIcon sx={{ fontSize: 14 }} />}
+              onClick={() => {
+                loadInventoryData();
+                loadMetrics();
+              }}
+              sx={{
+                height: 40,
+                minWidth: 90,
+                fontSize: "0.75rem",
+                fontWeight: 600,
+                borderColor: "var(--color-primary)",
+                color: "var(--color-primary)",
+                "&:hover": {
+                  backgroundColor: "var(--color-bg-1)",
+                  borderColor: "var(--color-primary)",
+                },
+              }}
+            >
+              REFRESH
+            </Button>
+          </Box>
         </Box>
 
         {/* ================= TABLE AREA (SCROLLABLE) ================= */}
