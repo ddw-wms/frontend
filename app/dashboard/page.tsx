@@ -1008,16 +1008,16 @@ export default function DashboardPage() {
               sx={{
                 display: { xs: "inline-flex", md: "none" },
                 height: 40,
-                fontSize: "0.75rem",
+                width: 120,
+                fontSize: "0.60rem",
                 fontWeight: 600,
-                ml: 1,
+                ml: 0.5,
                 whiteSpace: "nowrap",
               }}
             >
               {filtersOpen ? "Hide Filters" : "Show Filters"}
             </Button>
           </Box>
-
           {/* BODY: collapsible on mobile, always visible on desktop */}
           <Box
             sx={{
@@ -1726,3 +1726,4 @@ export default function DashboardPage() {
     </AppLayout>
   );
 }
+
