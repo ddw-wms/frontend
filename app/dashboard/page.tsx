@@ -52,12 +52,19 @@ import {
 } from "@mui/icons-material";
 import { dashboardAPI } from "@/lib/api";
 import { useWarehouse } from "@/app/context/WarehouseContext";
-
 import { getStoredUser, logout } from "@/lib/auth";
 import AppLayout from "@/components/AppLayout";
 import toast, { Toaster } from "react-hot-toast";
 import * as XLSX from "xlsx";
 import { inboundAPI } from "@/lib/api";
+
+import {
+  DashboardRounded,
+  LoginRounded,
+  CheckCircleRounded,
+  LocalShippingRounded,
+  SendRounded,
+} from "@mui/icons-material";
 
 interface User {
   id: number;
@@ -171,6 +178,7 @@ export default function DashboardPage() {
   const router = useRouter();
   const { activeWarehouse } = useWarehouse();
   const [user, setUser] = useState<User | null>(null);
+  const [warehouseChecked, setWarehouseChecked] = useState(false);
 
   const handleLogout = () => {
     logout();
@@ -282,6 +290,7 @@ export default function DashboardPage() {
       const interval = setInterval(() => loadMetrics(), 5000);
       return () => clearInterval(interval);
     }
+    setWarehouseChecked(true);
   }, [activeWarehouse, page, limit, searchDebounced, stageFilter, brandFilter, categoryFilter, dateFrom, dateTo]);
 
   useEffect(() => {
@@ -777,45 +786,12 @@ export default function DashboardPage() {
     setPage(1);
   };
 
-  if (!activeWarehouse) {
-    return (
-      <AppLayout>
-        <Box
-          sx={{
-            p: 6,
-            textAlign: "center",
-            minHeight: "60vh",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            flexDirection: "column",
-          }}
-        >
-          <Box
-            sx={{
-              p: 5,
-              background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-              borderRadius: 4,
-              color: "white",
-              boxShadow: "0 20px 60px rgba(102, 126, 234, 0.4)",
-            }}
-          >
-            <Typography variant="h5" sx={{ fontWeight: 700, mb: 1 }}>
-              ⚠️ No active warehouse selected.
-            </Typography>
-            <Typography variant="body2" sx={{ opacity: 0.9 }}>
-              Please go to Settings → Warehouses to set one.
-            </Typography>
-          </Box>
-        </Box>
-      </AppLayout>
-    );
-  }
+
+
   //////////////////////////// UI ///////////////////////////////
   return (
     <AppLayout>
       <Toaster position="top-right" />
-
       {/* WRAPPER - ENTIRE CONTENT AREA (FLEX COLUMN) */}
       <Box
         sx={{
@@ -867,13 +843,34 @@ export default function DashboardPage() {
             flexShrink: 0,
           }}
         >
-          <Typography sx={{ fontWeight: 600, fontSize: 13 }}>
+          <Typography
+            component="div"
+            sx={{
+              fontWeight: 600,
+              fontSize: 13,
+              display: "flex",
+              alignItems: "center",
+              gap: 1,
+            }}
+          >
             👋 Welcome back, {user?.fullName} ({user?.role})
+
+            <Chip
+              label={activeWarehouse?.name}
+              size="small"
+              sx={{
+                bgcolor: "rgba(255,255,255,0.2)",
+                color: "yellow",
+                fontWeight: 600,
+                height: "18px",
+                fontSize: "0.55rem",
+              }}
+            />
           </Typography>
         </Box>
 
         {/* ================= METRICS GRID ================= */}
-        <Box
+        {/* <Box
           sx={{
             display: "grid",
             gridTemplateColumns: {
@@ -889,24 +886,17 @@ export default function DashboardPage() {
             { label: "Master Data", value: metrics.total, color: "#6366f1" },
             { label: "Inbound", value: metrics.inbound, color: "#3b82f6" },
             { label: "QC", value: metrics.qcPassed, color: "#10b981" },
-            {
-              label: "Picking",
-              value: metrics.pickingCompleted,
-              color: "#f59e0b",
-            },
-            {
-              label: "Dispatch",
-              value: metrics.outboundDispatched,
-              color: "#ef4444",
-            },
+            { label: "Picking", value: metrics.pickingCompleted, color: "#f59e0b", },
+            { label: "Dispatch", value: metrics.outboundDispatched, color: "#ef4444", },
           ].map((m, index) => (
             <Card
               key={index}
               sx={{
                 p: { xs: 0.5, md: 1.5 }, // mobile: small padding
                 textAlign: "center",
-                border: `2px solid ${m.color}`,
-                borderRadius: 1.5,
+                border: `3px solid ${m.color}`,
+                borderRadius: 2.5,
+                // backgroundColor: m.color,
                 minWidth: { xs: 55, md: "auto" }, // mobile me chhota width
               }}
             >
@@ -929,7 +919,98 @@ export default function DashboardPage() {
               </Typography>
             </Card>
           ))}
+        </Box> */}
+
+
+        {/* ================= IMPROVED 3D METRICS GRID WITH ICONS ================= */}
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: {
+              xs: "repeat(5, 1fr)",
+              sm: "repeat(5, 1fr)",
+              md: "repeat(5, 1fr)",
+            },
+            gap: 2,
+            p: 1,
+          }}
+        >
+          {[
+            { label: "Master Data", value: metrics.total, color: "#6366f1", icon: <DashboardRounded /> },
+            { label: "Inbound", value: metrics.inbound, color: "#3b82f6", icon: <LoginRounded /> },
+            { label: "QC", value: metrics.qcPassed, color: "#10b981", icon: <CheckCircleRounded /> },
+            { label: "Picking", value: metrics.pickingCompleted, color: "#f59e0b", icon: <LocalShippingRounded /> },
+            { label: "Dispatch", value: metrics.outboundDispatched, color: "#ef4444", icon: <SendRounded /> },
+          ].map((m, index) => (
+
+            <Card
+              key={index}
+              sx={{
+                p: { xs: 0.8, md: 1.4 },
+                height: { xs: 70, md: 105 },             // perfect compact height
+                textAlign: "center",
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "center",
+                borderRadius: 3,
+
+                background: `linear-gradient(135deg, ${m.color}33, ${m.color}AA)`,
+                color: "#ffffff",
+
+                boxShadow:
+                  "0 4px 12px rgba(0,0,0,0.15), inset 0 1px 2px rgba(255,255,255,0.2)",
+
+                transition: "all 0.25s ease",
+
+                "&:hover": {
+                  transform: "translateY(-3px)",
+                  boxShadow:
+                    "0 8px 18px rgba(0,0,0,0.25), inset 0 1px 2px rgba(255,255,255,0.25)",
+                },
+              }}
+            >
+              {/* ICON */}
+              <Box
+                sx={{
+                  display: "flex",
+                  justifyContent: "center",
+                  mb: 0.3,
+                  "& svg": {
+                    fontSize: { xs: "1rem", md: "1.6rem" },
+                    opacity: 0.95,
+                  },
+                }}
+              >
+                {m.icon}
+              </Box>
+
+              {/* VALUE */}
+              <Typography
+                sx={{
+                  fontWeight: 800,
+                  fontSize: { xs: "1rem", md: "1.4rem" },
+                  lineHeight: 1,
+                }}
+              >
+                {m.value}
+              </Typography>
+
+              {/* LABEL */}
+              <Typography
+                sx={{
+                  fontSize: { xs: "0.6rem", md: "0.8rem" },
+                  opacity: 0.95,
+                  mt: 0.2,
+                  fontWeight: 500,
+                }}
+              >
+                {m.label}
+              </Typography>
+            </Card>
+
+          ))}
         </Box>
+
 
         {/* ================= FILTER BAR ================= */}
         <Box
@@ -1314,6 +1395,38 @@ export default function DashboardPage() {
                         sx={{ py: 4 }}
                       >
                         <Typography variant="h6">📭 No items found</Typography>
+                        {/* YEH NAYA PART */}
+                        {!activeWarehouse && (
+                          <Box
+                            sx={{
+                              p: 6,
+                              textAlign: 'center',
+                              minHeight: '40vh',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              flexDirection: 'column',
+                            }}
+                          >
+                            <Box
+                              sx={{
+                                p: 5,
+                                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                                borderRadius: 4,
+                                color: 'white',
+                                boxShadow: '0 20px 60px rgba(102, 126, 234, 0.4)',
+                              }}
+                            >
+                              <Typography variant="h5" sx={{ fontWeight: 700, mb: 1 }}>
+                                No active warehouse selected.
+                              </Typography>
+                              <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                                Please go to Settings &gt; Warehouses to set one.
+                              </Typography>
+                            </Box>
+                          </Box>
+                        )}
+
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -1408,6 +1521,7 @@ export default function DashboardPage() {
                 </TableBody>
               </Table>
             </TableContainer>
+
             {/* ================= PAGINATION (ALWAYS ONE ROW + MOBILE COMPACT) ================= */}
             <Box
               sx={{
