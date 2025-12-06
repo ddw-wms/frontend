@@ -870,7 +870,7 @@ export default function DashboardPage() {
         </Box>
 
         {/* ================= METRICS GRID ================= */}
-        {/* <Box
+        <Box
           sx={{
             display: "grid",
             gridTemplateColumns: {
@@ -918,96 +918,6 @@ export default function DashboardPage() {
                 {m.label}
               </Typography>
             </Card>
-          ))}
-        </Box> */}
-
-
-        {/* ================= IMPROVED 3D METRICS GRID WITH ICONS ================= */}
-        <Box
-          sx={{
-            display: "grid",
-            gridTemplateColumns: {
-              xs: "repeat(5, 1fr)",
-              sm: "repeat(5, 1fr)",
-              md: "repeat(5, 1fr)",
-            },
-            gap: 2,
-            p: 1,
-          }}
-        >
-          {[
-            { label: "Master Data", value: metrics.total, color: "#6366f1", icon: <DashboardRounded /> },
-            { label: "Inbound", value: metrics.inbound, color: "#3b82f6", icon: <LoginRounded /> },
-            { label: "QC", value: metrics.qcPassed, color: "#10b981", icon: <CheckCircleRounded /> },
-            { label: "Picking", value: metrics.pickingCompleted, color: "#f59e0b", icon: <LocalShippingRounded /> },
-            { label: "Dispatch", value: metrics.outboundDispatched, color: "#ef4444", icon: <SendRounded /> },
-          ].map((m, index) => (
-
-            <Card
-              key={index}
-              sx={{
-                p: { xs: 0.8, md: 1.4 },
-                height: { xs: 70, md: 105 },             // perfect compact height
-                textAlign: "center",
-                display: "flex",
-                flexDirection: "column",
-                justifyContent: "center",
-                borderRadius: 3,
-
-                background: `linear-gradient(135deg, ${m.color}33, ${m.color}AA)`,
-                color: "#ffffff",
-
-                boxShadow:
-                  "0 4px 12px rgba(0,0,0,0.15), inset 0 1px 2px rgba(255,255,255,0.2)",
-
-                transition: "all 0.25s ease",
-
-                "&:hover": {
-                  transform: "translateY(-3px)",
-                  boxShadow:
-                    "0 8px 18px rgba(0,0,0,0.25), inset 0 1px 2px rgba(255,255,255,0.25)",
-                },
-              }}
-            >
-              {/* ICON */}
-              <Box
-                sx={{
-                  display: "flex",
-                  justifyContent: "center",
-                  mb: 0.3,
-                  "& svg": {
-                    fontSize: { xs: "1rem", md: "1.6rem" },
-                    opacity: 0.95,
-                  },
-                }}
-              >
-                {m.icon}
-              </Box>
-
-              {/* VALUE */}
-              <Typography
-                sx={{
-                  fontWeight: 800,
-                  fontSize: { xs: "1rem", md: "1.4rem" },
-                  lineHeight: 1,
-                }}
-              >
-                {m.value}
-              </Typography>
-
-              {/* LABEL */}
-              <Typography
-                sx={{
-                  fontSize: { xs: "0.6rem", md: "0.8rem" },
-                  opacity: 0.95,
-                  mt: 0.2,
-                  fontWeight: 500,
-                }}
-              >
-                {m.label}
-              </Typography>
-            </Card>
-
           ))}
         </Box>
 
@@ -1851,3 +1761,4 @@ export default function DashboardPage() {
     </AppLayout>
   );
 }
+
