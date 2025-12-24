@@ -1737,7 +1737,7 @@ export default function OutboundPage() {
                                 suppressRowClickSelection={true}
                                 suppressMovableColumns={true}
                                 rowBuffer={5}
-                                theme="legacy"
+                                //theme="legacy"
                                 containerStyle={{ height: '100%', width: '100%' }}
                                 className="ag-theme-quartz"
                             />
@@ -1899,3 +1899,4 @@ export default function OutboundPage() {
         </AppLayout>
     );
 }
+
