@@ -1005,7 +1005,7 @@ export default function PickingPage() {
                 suppressRowClickSelection={true}
                 suppressMovableColumns={true}
                 rowBuffer={5}
-                theme="legacy"
+                //theme="legacy"
                 className="ag-theme-quartz"
                 containerStyle={{ height: '100%', width: '100%' }}
 
@@ -1308,3 +1308,4 @@ export default function PickingPage() {
     </AppLayout>
   );
 }
+
