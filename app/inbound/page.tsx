@@ -1631,7 +1631,7 @@ export default function InboundPage() {
             >
               <div style={{ height: '100%', width: '100%' }} className="ag-theme-quartz">
                 <AgGridReact
-                  theme="legacy"
+                 // theme="legacy"
                   rowData={multiRows}
                   columnDefs={columnDefs}
                   rowHeight={26}
@@ -1952,4 +1952,5 @@ export default function InboundPage() {
       </Box>
     </AppLayout>
   );
+
 }
