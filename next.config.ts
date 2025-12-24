@@ -11,7 +11,7 @@ const nextConfig: NextConfig = {
   },
 
   // Faster builds with SWC
-  swcMinify: true,
+  //swcMinify: true,
 
   // Optimize images
   images: {
