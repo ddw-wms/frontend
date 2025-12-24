@@ -1643,7 +1643,7 @@ export default function QCPage() {
                   suppressRowClickSelection={true}
                   suppressMovableColumns={true}
                   rowBuffer={5}
-                  theme="legacy"
+                  //theme="legacy"
                   className="ag-theme-quartz"
                   containerStyle={{ height: '100%', width: '100%' }}
                   onCellValueChanged={(event: any) => {
@@ -2057,4 +2057,5 @@ export default function QCPage() {
       </Box>
     </AppLayout >
   );
+
 }
