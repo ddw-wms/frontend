@@ -310,13 +310,6 @@ export default function DashboardPage() {
     setFilteredData(inventoryData);
   }, [inventoryData]);
 
-  // useEffect(() => {
-  //   if (categoryFilter) {
-  //     getFilteredBrands().then(setFilteredBrands);
-  //   } else {
-  //     setFilteredBrands(brands);
-  //   }
-  // }, [categoryFilter, brands]);
 
   const memoizedFilteredBrands = useMemo(() => {
     if (!categoryFilter || inventoryData.length === 0) {
@@ -333,14 +326,6 @@ export default function DashboardPage() {
   }, [categoryFilter, inventoryData, brands]);
 
 
-  // useEffect(() => {
-  //   if (brandFilter) {
-  //     getFilteredCategories().then(setFilteredCategories);
-  //   } else {
-  //     setFilteredCategories(categories);
-  //   }
-  // }, [brandFilter, categories]);
-
   // ✅ NEW:
   useEffect(() => {
     if (!brandFilter) {
@@ -354,7 +339,6 @@ export default function DashboardPage() {
       .then(setFilteredCategories)
       .finally(() => setLoadingFilteredOptions(false));
   }, [brandFilter, categories]);
-
 
 
   // When category changes, update filtered brands
@@ -395,6 +379,15 @@ export default function DashboardPage() {
 
   const loadInventoryData = async () => {
     setLoading(true);
+
+    // ⏳ wake-up timer (ONLY for slow server)
+    const wakeUpTimer = setTimeout(() => {
+      toast.loading(
+        "⏳ Waking up the server... Render free plan may take 20–40 seconds",
+        { id: "wake-msg" }
+      );
+    }, 4000);
+
     try {
       const params: any = {
         warehouseId: activeWarehouse?.id,
@@ -422,6 +415,9 @@ export default function DashboardPage() {
       console.error("Load inventory error:", error);
       toast.error("Failed to load inventory data");
     } finally {
+      setLoading(false);
+      clearTimeout(wakeUpTimer);   // ⛔ timer stop
+      toast.dismiss("wake-msg");  // ⛔ toast remove
       setLoading(false);
     }
   };
