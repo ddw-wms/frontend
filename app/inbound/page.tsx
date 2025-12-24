@@ -363,7 +363,8 @@ export default function InboundPage() {
     if (!singleWSN.trim()) return;
 
     try {
-      const response = await inboundAPI.getMasterDataByWSN(singleWSN);
+      const wsnUpper = singleWSN.trim().toUpperCase();
+      const response = await inboundAPI.getMasterDataByWSN(wsnUpper);
       setMasterData(response.data);
       setDuplicateWSN(null);
     } catch (error: any) {
@@ -621,7 +622,8 @@ export default function InboundPage() {
       if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
       debounceTimerRef.current = setTimeout(async () => {
         try {
-          const response = await inboundAPI.getMasterDataByWSN(value);
+          const wsnUpper = value.trim().toUpperCase();
+          const response = await inboundAPI.getMasterDataByWSN(wsnUpper);
           const masterInfo = response.data;
 
           setMultiRows(prevRows => {
@@ -633,7 +635,7 @@ export default function InboundPage() {
           });
 
           // Auto-print if no duplicates
-          const wsn = value.trim().toUpperCase();
+          const wsn = wsnUpper;
           const isGridDup = gridDuplicateWSNs.has(wsn);
           const isCrossWh = crossWarehouseWSNs.has(wsn);
 
@@ -1631,7 +1633,7 @@ export default function InboundPage() {
             >
               <div style={{ height: '100%', width: '100%' }} className="ag-theme-quartz">
                 <AgGridReact
-                 // theme="legacy"
+                  //theme="legacy"
                   rowData={multiRows}
                   columnDefs={columnDefs}
                   rowHeight={26}
@@ -1733,7 +1735,8 @@ export default function InboundPage() {
                       if (newValue?.trim()) {
                         setTimeout(async () => {
                           try {
-                            const response = await inboundAPI.getMasterDataByWSN(newValue);
+                            const wsnUpper = newValue.trim().toUpperCase();
+                            const response = await inboundAPI.getMasterDataByWSN(wsnUpper);
                             const masterInfo = response.data;
                             setMultiRows((prevRows) => {
                               const updatedRows = [...prevRows];
@@ -1746,7 +1749,7 @@ export default function InboundPage() {
                             });
 
                             // 🖨️ AUTO-PRINT label for valid WSN
-                            console.log('🖨️ Attempting to print label for:', newValue);
+                            console.log('🖨️ Attempting to print label for:', wsnUpper);
                             try {
                               const printPayload = {
                                 wsn: newValue,
@@ -1952,5 +1955,4 @@ export default function InboundPage() {
       </Box>
     </AppLayout>
   );
-
 }
