@@ -1,0 +1,963 @@
+// File Path = warehouse-frontend\app\picking\page.tsx
+'use client';
+
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useRouter } from 'next/navigation';
+import {
+  Box, Paper, Typography, Button, Table, TableBody, TableCell,
+  TableContainer, TableHead, TableRow, Dialog, DialogTitle,
+  DialogContent, DialogActions, TextField, MenuItem, Chip, Stack, Tab, Tabs,
+  CircularProgress, Alert, IconButton, Autocomplete, Checkbox, FormControlLabel,
+  Card, CardContent, LinearProgress, Divider
+} from '@mui/material';
+import {
+  Add as AddIcon, Download as DownloadIcon, Settings as SettingsIcon,
+  CheckCircle as CheckIcon, Delete as DeleteIcon, Refresh as RefreshIcon, Visibility as VisibilityIcon
+} from '@mui/icons-material';
+import { pickingAPI } from '@/lib/api';
+import { useWarehouse } from '@/app/context/WarehouseContext';
+import { getStoredUser } from '@/lib/auth';
+import AppLayout from '@/components/AppLayout';
+import toast, { Toaster } from 'react-hot-toast';
+import * as XLSX from 'xlsx';
+import { AgGridReact } from 'ag-grid-react';
+import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
+import 'ag-grid-community/styles/ag-grid.css';
+import 'ag-grid-community/styles/ag-theme-quartz.css';
+
+// Register AG Grid modules ONCE
+ModuleRegistry.registerModules([AllCommunityModule]);
+
+// Format date helper
+const formatDate = (dateStr?: string) => {
+  if (!dateStr) return '-';
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return '-';
+  const day = String(d.getDate()).padStart(2, '0');
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const mon = months[d.getMonth()];
+  const yy = String(d.getFullYear()).slice(-2);
+  return `${day}-${mon}-${yy}`;
+};
+
+// ALL MASTER DATA COLUMNS
+const ALL_MASTER_COLUMNS = [
+  'wid', 'fsn', 'order_id', 'product_title', 'brand', 'mrp', 'fsp',
+  'hsn_sac', 'igst_rate', 'cms_vertical', 'fkt_link', 'p_type', 'p_size',
+  'vrp', 'yield_value', 'wh_location', 'fkqc_remark', 'fk_grade'
+];
+
+// DEFAULT VISIBLE COLUMNS FOR MULTI ENTRY
+const DEFAULT_MULTI_COLUMNS = [
+  'wsn', 'picking_remarks', 'product_title', 'brand', 'cms_vertical',
+  'fsp', 'mrp', 'rack_no'
+];
+
+// EDITABLE COLUMNS IN MULTI ENTRY
+const EDITABLE_COLUMNS = ['wsn', 'picking_remarks'];
+
+// DEFAULT VISIBLE COLUMNS FOR PICKING LIST
+const ALL_LIST_COLUMNS = [
+  'wsn', 'product_title', 'brand', 'cms_vertical', 'fsp', 'mrp',
+  'rack_no', 'batch_id', 'source', 'picking_date', 'customer_name',
+  'picker_name', 'created_user_name', 'created_at'
+];
+
+const DEFAULT_LIST_COLUMNS = [
+  'wsn', 'product_title', 'brand', 'cms_vertical', 'fsp', 'mrp',
+  'rack_no', 'batch_id', 'source', 'picking_date', 'customer_name'
+];
+
+export default function PickingPage() {
+  const router = useRouter();
+  const { activeWarehouse } = useWarehouse();
+  const [user, setUser] = useState<any>(null);
+
+  // Tab state
+  const [tabValue, setTabValue] = useState(0);
+
+  // Multi Entry Header state
+  const [pickingDate, setPickingDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [selectedCustomer, setSelectedCustomer] = useState<string>('');
+  const [customers, setCustomers] = useState<string[]>([]);
+
+  // Multi Entry state with AG Grid
+  const generateEmptyRows = (count: number) => {
+    return Array.from({ length: count }, () => ({
+      wsn: '',
+      picking_date: new Date().toISOString().split('T')[0],
+      picking_remarks: '',
+      product_title: '',
+      brand: '',
+      cms_vertical: '',
+      fsp: '',
+      mrp: '',
+      rack_no: '',
+      wid: '',
+      fsn: '',
+      source: ''
+    }));
+  };
+
+  const [multiRows, setMultiRows] = useState<any[]>(generateEmptyRows(10));
+  const [existingWSNs, setExistingWSNs] = useState<string[]>([]);
+  const [multiLoading, setMultiLoading] = useState(false);
+  const [visibleColumns, setVisibleColumns] = useState<string[]>(DEFAULT_MULTI_COLUMNS);
+  const [columnSettingsOpen, setColumnSettingsOpen] = useState(false);
+  const [gridDuplicateWSNs, setGridDuplicateWSNs] = useState<Set<string>>(new Set());
+  const [crossWarehouseWSNs, setCrossWarehouseWSNs] = useState<Set<string>>(new Set());
+  const [existingPickingWSNs, setExistingPickingWSNs] = useState(new Set());
+
+  // Picking List state
+  const [pickingList, setPickingList] = useState<any[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(50);
+  const [loading, setLoading] = useState(false);
+  const [searchFilter, setSearchFilter] = useState('');
+  const [brandFilter, setBrandFilter] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('');
+  const [sourceFilter, setSourceFilter] = useState('');
+
+  type ColumnConfig = {
+    key: string;
+    visible: boolean;
+  };
+
+  const DEFAULT_LIST_COLUMNS_CONFIG: ColumnConfig[] = DEFAULT_LIST_COLUMNS.map(col => ({
+    key: col,
+    visible: true,
+  }));
+
+  const [listColumns, setListColumns] = useState<ColumnConfig[]>(DEFAULT_LIST_COLUMNS_CONFIG);
+  const [listColumnSettingsOpen, setListColumnSettingsOpen] = useState(false);
+
+  // Batch Management state
+  const [batches, setBatches] = useState<any[]>([]);
+  const [batchLoading, setBatchLoading] = useState(false);
+
+  // Auth check
+  useEffect(() => {
+    const storedUser = getStoredUser();
+    if (!storedUser) {
+      router.push('/login');
+      return;
+    }
+    setUser(storedUser);
+  }, [router]);
+
+
+
+  // Fetch all existing picked WSNs on mount
+  useEffect(() => {
+    async function fetchExistingWSNs() {
+      try {
+        const res = await pickingAPI.getExistingWSNs(activeWarehouse?.id);
+        setExistingPickingWSNs(new Set(res.data));
+      } catch (error) {
+        console.error('Failed to fetch existing picking WSNs', error);
+      }
+    }
+    if (activeWarehouse) {
+      fetchExistingWSNs();
+    }
+  }, [activeWarehouse]);
+
+  // Load existing WSNs and customers on mount
+  useEffect(() => {
+    if (activeWarehouse) {
+      loadCustomers();
+    }
+  }, [activeWarehouse]);
+
+  // Load picking list when filters change
+  useEffect(() => {
+    if (activeWarehouse && tabValue === 0) {
+      loadPickingList();
+    }
+  }, [activeWarehouse, tabValue, page, limit, searchFilter, brandFilter, categoryFilter, sourceFilter]);
+
+  // Load batches when batch tab opens
+  useEffect(() => {
+    if (activeWarehouse && tabValue === 2) {
+      loadBatches();
+    }
+  }, [activeWarehouse, tabValue]);
+
+  // Load list columns from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem('picking_list_columns');
+    if (saved) {
+      setListColumns(JSON.parse(saved));
+    } else {
+      setListColumns(DEFAULT_LIST_COLUMNS_CONFIG);
+    }
+  }, []);
+
+  // Load customers from customers table
+  const loadCustomers = async () => {
+    try {
+      const response = await pickingAPI.getCustomers(activeWarehouse?.id);
+      if (Array.isArray(response.data)) {
+        setCustomers(response.data);
+      } else {
+        setCustomers([]);
+      }
+    } catch (error) {
+      console.error('Load customers error:', error);
+      toast.error('Failed to load customers');
+      setCustomers([]);
+    }
+  };
+
+  // Check for duplicates in grid
+  const checkDuplicates = useCallback((rows: any[]) => {
+    const gridDup = new Set<string>();
+    const crossWh = new Set<string>();
+    const wsnCounts = new Map<string, number>();
+
+    rows.forEach((row) => {
+      const wsn = row.wsn?.trim()?.toUpperCase();
+      if (!wsn) return;
+
+      // Grid duplicate counting
+      wsnCounts.set(wsn, (wsnCounts.get(wsn) || 0) + 1);
+      if (wsnCounts.get(wsn)! > 1) {
+        gridDup.add(wsn);
+      }
+
+      // Check if already picked (any warehouse)
+      if (existingPickingWSNs.has(wsn)) {
+        crossWh.add(wsn);
+      }
+    });
+
+    setGridDuplicateWSNs(gridDup);
+    setCrossWarehouseWSNs(crossWh);
+  }, [existingPickingWSNs]);
+
+  // Navigate to next cell in AG Grid
+  const navigateToNextCell = useCallback((params: any) => {
+    const { previousCellPosition, nextCellPosition, key } = params;
+
+    if (key === 'Enter') {
+      const currentCol = previousCellPosition.column.getColId();
+      const currentRow = previousCellPosition.rowIndex;
+
+      if (currentCol === visibleColumns[visibleColumns.length - 1]) {
+        // Last column → move to first column of next row
+        return {
+          rowIndex: currentRow + 1,
+          column: params.api.getColumns()![0],
+        };
+      } else {
+        // Same row, next column
+        const colIndex = visibleColumns.indexOf(currentCol);
+        const nextColId = visibleColumns[colIndex + 1];
+        const nextCol = params.api.getColumns()!.find((c: any) => c.getColId() === nextColId);
+        return {
+          rowIndex: currentRow,
+          column: nextCol,
+        };
+      }
+    }
+
+    return nextCellPosition;
+  }, [visibleColumns]);
+
+  // Add new rows
+  const addMultiRow = () => {
+    setMultiRows([...multiRows, ...generateEmptyRows(10)]);
+  };
+
+  const add30Rows = () => {
+    setMultiRows([...multiRows, ...generateEmptyRows(30)]);
+  };
+
+  // Submit multi entry
+  const handleMultiSubmit = async () => {
+    const validRows = multiRows.filter(r => r.wsn?.trim());
+
+    if (validRows.length === 0) {
+      toast.error('At least 1 WSN required');
+      return;
+    }
+
+    if (!pickingDate) {
+      toast.error('Please select picking date');
+      return;
+    }
+
+    if (!selectedCustomer) {
+      toast.error('Please select customer');
+      return;
+    }
+
+    const fixedRows = validRows.map(row => ({
+      ...row,
+      picking_date: pickingDate,
+      customer_name: selectedCustomer,
+      picker_name: user?.full_name || user?.username,
+      created_by: user?.id,
+      created_user_name: user?.full_name || user?.username
+    }));
+
+    setMultiLoading(true);
+    try {
+      const response = await pickingAPI.multiEntry(fixedRows, activeWarehouse?.id);
+      toast.success(`✓ ${response.data?.successCount || 0} entries created`);
+
+      // Reset rows
+      setMultiRows(generateEmptyRows(10));
+      setGridDuplicateWSNs(new Set());
+      setCrossWarehouseWSNs(new Set());
+
+      // Reload data
+      const res = await pickingAPI.getExistingWSNs(activeWarehouse?.id);
+      setExistingPickingWSNs(new Set(res.data));
+      loadPickingList();
+      loadBatches();
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || 'Submission failed');
+    } finally {
+      setMultiLoading(false);
+    }
+  };
+
+  // Calculate status counts for Multi Entry
+  const statusCounts = useMemo(() => {
+    let ready = 0;
+    let duplicate = 0;
+    let cross = 0;
+
+    multiRows.forEach(row => {
+      if (!row.wsn?.trim()) return;
+
+      const wsn = row.wsn.trim().toUpperCase();
+
+      if (crossWarehouseWSNs.has(wsn)) cross++;
+      else if (gridDuplicateWSNs.has(wsn)) duplicate++;
+      else ready++;
+    });
+
+    return { ready, duplicate, cross };
+  }, [multiRows, gridDuplicateWSNs, crossWarehouseWSNs]);
+
+  // Load picking list
+  const loadPickingList = async () => {
+    setLoading(true);
+    try {
+      const response = await pickingAPI.getList({
+        page,
+        limit,
+        warehouseId: activeWarehouse?.id,
+        search: searchFilter,
+        brand: brandFilter,
+        category: categoryFilter,
+        source: sourceFilter
+      });
+
+      setPickingList(response.data.data || []);
+      setTotal(response.data.pagination?.total || 0);
+    } catch (error) {
+      console.error('Load picking list error:', error);
+      toast.error('Failed to load picking list');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Load batches
+  const loadBatches = async () => {
+    setBatchLoading(true);
+    try {
+      const response = await pickingAPI.getBatches(activeWarehouse?.id);
+      setBatches(response.data || []);
+    } catch (error) {
+      console.error('Load batches error:', error);
+      toast.error('Failed to load batches');
+    } finally {
+      setBatchLoading(false);
+    }
+  };
+
+  // Delete batch
+  const handleDeleteBatch = async (batchId: string) => {
+    if (window.confirm(`Delete batch ${batchId}?`)) {
+      try {
+        await pickingAPI.deleteBatch(batchId);
+        toast.success('✓ Batch deleted successfully');
+        loadBatches();
+      } catch (error: any) {
+        toast.error(error.response?.data?.error || 'Failed to delete batch');
+      }
+    }
+  };
+
+  // Export to Excel
+  const handleExport = () => {
+    const exportData = pickingList.map((item: any) => ({
+      WSN: item.wsn,
+      'Product Title': item.product_title,
+      Brand: item.brand,
+      Category: item.cms_vertical,
+      FSP: item.fsp,
+      MRP: item.mrp,
+      'Rack No': item.rack_no,
+      'Batch ID': item.batch_id,
+      Source: item.source,
+      'Picking Date': formatDate(item.picking_date),
+      Customer: item.customer_name,
+      Picker: item.picker_name,
+      'Created By': item.created_user_name,
+      'Created At': formatDate(item.created_at)
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Picking List');
+    const filename = `Picking_${new Date().toISOString().split('T')[0]}.xlsx`;
+    XLSX.writeFile(wb, filename);
+    toast.success(`✓ Exported ${exportData.length} records`);
+  };
+
+  // Handle list column toggle
+  const handleListColumnToggle = (key: string) => {
+    const updated = listColumns.map(col =>
+      col.key === key ? { ...col, visible: !col.visible } : col
+    );
+    setListColumns(updated);
+    localStorage.setItem('picking_list_columns', JSON.stringify(updated));
+  };
+
+  // Column widths for AG Grid
+  const COLUMN_WIDTHS: Record<string, any> = {
+    wsn: { width: 80 },
+    picking_remarks: { flex: 1, minWidth: 120 },
+    product_title: { flex: 2, minWidth: 220 },
+    brand: { width: 90 },
+    cms_vertical: { width: 100 },
+    mrp: { width: 40 },
+    fsp: { width: 40 },
+    rack_no: { width: 80 },
+  };
+
+  if (!activeWarehouse) {
+    return <AppLayout>⚠️ No warehouse selected</AppLayout>;
+  }
+
+  return (
+    <AppLayout>
+      <Toaster position="top-right" toastOptions={{
+        duration: 3000,
+        style: {
+          background: '#363636',
+          color: '#fff',
+          borderRadius: '10px',
+          padding: '16px',
+          fontWeight: 600
+        },
+        success: { iconTheme: { primary: '#10b981', secondary: '#fff' } },
+        error: { iconTheme: { primary: '#ef4444', secondary: '#fff' } }
+      }} />
+
+      <Box sx={{
+        p: { xs: 0.8, md: 1 },
+        background: 'linear-gradient(135deg, #f0f4f8 0%, #d9e2ec 100%)',
+        minHeight: '100vh',
+        width: '100%'
+      }}>
+        {/* HEADER */}
+        <Box sx={{
+          mb: 0.8,
+          p: 0.8,
+          background: 'linear-gradient(135deg, #f59e0b 0%, #ea580c 100%)',
+          borderRadius: 1,
+          boxShadow: '0 8px 24px rgba(245, 158, 11, 0.25)'
+        }}>
+          <Box sx={{ position: 'relative', zIndex: 1 }}>
+            <Typography variant="h6" sx={{ fontWeight: 700, color: 'white', mb: 0.2, fontSize: '0.85rem' }}>
+              📦 Picking Management
+            </Typography>
+            <Stack direction="row" spacing={2} alignItems="center">
+              <Chip label={activeWarehouse.name} size="small" sx={{
+                bgcolor: 'rgba(255,255,255,0.2)',
+                color: 'white',
+                fontWeight: 600,
+                height: '18px',
+                fontSize: '0.65rem'
+              }} />
+              <Chip label={user?.full_name} size="small" sx={{
+                bgcolor: 'rgba(255,255,255,0.2)',
+                color: 'white',
+                fontWeight: 500,
+                height: '18px',
+                fontSize: '0.65rem'
+              }} />
+            </Stack>
+          </Box>
+        </Box>
+
+        {/* TABS */}
+        <Paper sx={{
+          mb: 0.5,
+          borderRadius: 1,
+          overflow: 'hidden',
+          boxShadow: '0 1px 4px rgba(0,0,0,0.05)',
+          background: 'rgba(255, 255, 255, 0.95)'
+        }}>
+          <Tabs
+            value={tabValue}
+            onChange={(_, v) => setTabValue(v)}
+            variant="scrollable"
+            scrollButtons="auto"
+            sx={{
+              '& .MuiTabs-indicator': {
+                height: 3,
+                background: 'linear-gradient(90deg, #f59e0b 0%, #ea580c 100%)',
+                borderRadius: '2px 2px 0 0'
+              },
+              '& .MuiTab-root': {
+                fontWeight: 600,
+                fontSize: '0.7rem',
+                textTransform: 'none',
+                minHeight: 32,
+                py: 0.5
+              }
+            }}
+          >
+            <Tab label="Picking List" />
+            <Tab label="Multi Picking" />
+            <Tab label="Batch Manager" />
+          </Tabs>
+        </Paper>
+                  }}
+        renderInput={(params) => (
+          <TextField
+            {...params}
+            label="Customer Name"
+            placeholder="Type to search or select..."
+            size="small"
+            sx={{
+              minWidth: 300,
+              '& .MuiOutlinedInput-root': {
+                borderRadius: 1,
+                fontSize: '0.85rem'
+              }
+            }}
+          />
+        )}
+        noOptionsText="No customers found"
+        loadingText="Loading..."
+        sx={{
+          minWidth: 300,
+          '& .MuiAutocomplete-paper': {
+            maxHeight: '300px'
+          }
+        }}
+                />
+        <IconButton
+          onClick={() => setMultiColumnDialogOpen(true)}
+          sx={{
+            bgcolor: '#e5e7eb',
+            '&:hover': { bgcolor: '#d1d5db' },
+            ml: 'auto !important'
+          }}
+        >
+          <VisibilityIcon />
+        </IconButton>
+      </Stack>
+    </Paper>
+
+            {/* GRID */ }
+  <Paper elevation={3} sx={{ borderRadius: 3, overflow: 'hidden' }}>
+    <Box sx={{ p: 2, bgcolor: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
+      <Stack direction="row" spacing={2}>
+        <Button
+          variant="contained"
+          startIcon={<AddIcon />}
+          onClick={addMultiRow}
+          sx={{
+            borderRadius: 2,
+            fontWeight: 700,
+            background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+            boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)'
+          }}
+        >
+          +1 Row
+        </Button>
+        <Button
+          variant="outlined"
+          onClick={add10Rows}
+          sx={{ borderRadius: 2, fontWeight: 600 }}
+        >
+          +10 Rows
+        </Button>
+        <Button
+          variant="contained"
+          startIcon={multiLoading ? <CircularProgress size={20} color="inherit" /> : <CheckIcon />}
+          onClick={handleMultiSubmit}
+          disabled={multiLoading}
+          sx={{
+            borderRadius: 2,
+            fontWeight: 700,
+            ml: 'auto !important',
+            background: 'linear-gradient(135deg, #f59e0b 0%, #ea580c 100%)',
+            boxShadow: '0 4px 12px rgba(245, 158, 11, 0.3)'
+          }}
+        >
+          {multiLoading ? 'Submitting...' : 'Submit All'}
+        </Button>
+      </Stack>
+    </Box>
+
+    {/* EXCEL-LIKE GRID */}
+    <TableContainer sx={{ maxHeight: 'calc(100vh - 450px)', overflow: 'auto' }}>
+      <Table
+        size="small"
+        sx={{
+          borderCollapse: 'collapse',
+          '& td, & th': {
+            border: '1px solid #d1d5db',
+            p: 0,
+            height: 28,
+            lineHeight: '28px'
+          }
+        }}
+      >
+        <TableHead>
+          <TableRow>
+            <TableCell sx={{ fontWeight: 700, fontSize: '11px', bgcolor: '#f3f4f6', width: 40, textAlign: 'center', position: 'sticky', left: 0, zIndex: 2 }}>#</TableCell>
+            {multiVisibleColumns.map((col, colIndex) => (
+              <TableCell
+                key={col}
+                sx={{
+                  fontWeight: 700,
+                  fontSize: '11px',
+                  bgcolor: '#f3f4f6',
+                  minWidth: 100,
+                  textAlign: 'center',
+                  position: colIndex === 0 ? 'sticky' : 'relative',
+                  left: colIndex === 0 ? 40 : 'auto',
+                  zIndex: colIndex === 0 ? 2 : 1
+                }}
+              >
+                {col.replace(/_/g, ' ').toUpperCase()}
+              </TableCell>
+            ))}
+            <TableCell sx={{ fontWeight: 700, fontSize: '11px', bgcolor: '#f3f4f6', width: 40, textAlign: 'center' }}>Del</TableCell>
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {multiRows.map((row, index) => {
+            const isDuplicate = row.duplicate || row.error;
+            return (
+              <TableRow key={index}>
+                <TableCell sx={{ fontSize: '11px', textAlign: 'center', bgcolor: '#fafafa', position: 'sticky', left: 0, zIndex: 1 }}>
+                  {index + 1}
+                </TableCell>
+                {multiVisibleColumns.map((col, colIndex) => (
+                  <TableCell
+                    key={col}
+                    sx={{
+                      p: 0,
+                      position: colIndex === 0 ? 'sticky' : 'relative',
+                      left: colIndex === 0 ? 40 : 'auto',
+                      zIndex: colIndex === 0 ? 1 : 0,
+                      bgcolor: col === 'wsn' && isDuplicate ? '#fee2e2' : colIndex === 0 ? '#ffffff' : 'transparent'
+                    }}
+                  >
+                    {col === 'wsn' ? (
+                      <input
+                        ref={(el) => {
+                          if (el) {
+                            wsnInputRefs.current[index] = el;
+                          }
+                        }}
+                        value={row.wsn || ''}
+                        onChange={(e) => updateMultiRow(index, 'wsn', e.target.value)}
+                        onKeyDown={(e) => handleWSNKeyDown(e, index)}
+                        style={{
+                          width: '100%',
+                          height: '28px',
+                          border: 'none',
+                          outline: 'none',
+                          padding: '0 6px',
+                          fontSize: '11px',
+                          fontFamily: 'Consolas, Monaco, monospace',
+                          backgroundColor: isDuplicate ? '#fee2e2' : '#ffffff',
+                          color: isDuplicate ? '#dc2626' : '#000000'
+                        }}
+                      />
+                    ) : (
+                      <input
+                        value={row[col] || ''}
+                        onChange={(e) => updateMultiRow(index, col, e.target.value)}
+                        style={{
+                          width: '100%',
+                          height: '28px',
+                          border: 'none',
+                          outline: 'none',
+                          padding: '0 6px',
+                          fontSize: '11px',
+                          fontFamily: 'Consolas, Monaco, monospace',
+                          backgroundColor: '#ffffff'
+                        }}
+                      />
+                    )}
+                  </TableCell>
+                ))}
+                <TableCell sx={{ textAlign: 'center', p: 0 }}>
+                  <IconButton
+                    size="small"
+                    onClick={() => deleteMultiRow(index)}
+                    sx={{ color: '#ef4444', p: 0, minWidth: 28, height: 28 }}
+                  >
+                    <DeleteIcon sx={{ fontSize: 16 }} />
+                  </IconButton>
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
+    </TableContainer>
+  </Paper>
+
+  {/* COLUMN SETTINGS DIALOG */ }
+  <Dialog open={multiColumnDialogOpen} onClose={() => setMultiColumnDialogOpen(false)} maxWidth="sm" fullWidth>
+    <DialogTitle>Column Settings</DialogTitle>
+    <DialogContent>
+      <Stack spacing={1}>
+        {ALL_COLUMNS.map((col) => (
+          <FormControlLabel
+            key={col}
+            control={
+              <Checkbox
+                checked={multiVisibleColumns.includes(col)}
+                onChange={() => toggleMultiColumn(col)}
+              />
+            }
+            label={col.replace(/_/g, ' ').toUpperCase()}
+          />
+        ))}
+      </Stack>
+    </DialogContent>
+    <DialogActions>
+      <Button onClick={() => setMultiColumnDialogOpen(false)}>Close</Button>
+      <Button onClick={() => setMultiVisibleColumns(DEFAULT_MULTI_COLUMNS)} variant="outlined">Reset</Button>
+    </DialogActions>
+  </Dialog>
+          </Box >
+        )
+}
+
+{/* TAB 1: PICKING LIST */ }
+{
+  tabValue === 0 && (
+    <Box>
+      <Paper elevation={2} sx={{ p: 2, mb: 2, borderRadius: 2 }}>
+        <Stack direction="row" spacing={2} flexWrap="wrap">
+          <TextField
+            label="Search"
+            size="small"
+            value={searchFilter}
+            onChange={(e) => setSearchFilter(e.target.value)}
+            sx={{ minWidth: 200 }}
+          />
+          <TextField
+            label="Brand"
+            size="small"
+            value={brandFilter}
+            onChange={(e) => setBrandFilter(e.target.value)}
+            sx={{ minWidth: 150 }}
+          />
+          <TextField
+            label="Category"
+            size="small"
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value)}
+            sx={{ minWidth: 150 }}
+          />
+          <TextField
+            label="Source"
+            size="small"
+            select
+            value={sourceFilter}
+            onChange={(e) => setSourceFilter(e.target.value)}
+            sx={{ minWidth: 150 }}
+          >
+            <MenuItem value="">All</MenuItem>
+            <MenuItem value="QC">QC</MenuItem>
+            <MenuItem value="INBOUND">INBOUND</MenuItem>
+            <MenuItem value="MASTER">MASTER</MenuItem>
+          </TextField>
+          <Button
+            variant="outlined"
+            startIcon={<RefreshIcon />}
+            onClick={() => {
+              setSearchFilter('');
+              setBrandFilter('');
+              setCategoryFilter('');
+              setSourceFilter('');
+            }}
+            sx={{ borderRadius: 2 }}
+          >
+            Reset
+          </Button>
+          <IconButton
+            onClick={() => setListColumnDialogOpen(true)}
+            sx={{ bgcolor: '#e5e7eb', '&:hover': { bgcolor: '#d1d5db' } }}
+          >
+            <VisibilityIcon />
+          </IconButton>
+          <Button
+            variant="contained"
+            startIcon={<DownloadIcon />}
+            onClick={handleExport}
+            sx={{
+              ml: 'auto !important',
+              borderRadius: 2,
+              background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
+            }}
+          >
+            Export
+          </Button>
+        </Stack>
+      </Paper>
+
+      <Paper elevation={3} sx={{ borderRadius: 3, overflow: 'hidden' }}>
+        <TableContainer sx={{ maxHeight: 'calc(100vh - 400px)' }}>
+          <Table stickyHeader size="small">
+            <TableHead>
+              <TableRow>
+                {listVisibleColumns.map((col) => (
+                  <TableCell key={col} sx={{ fontWeight: 700, fontSize: '0.75rem', bgcolor: '#f5f5f5' }}>
+                    {col.replace(/_/g, ' ').toUpperCase()}
+                  </TableCell>
+                ))}
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={listVisibleColumns.length} align="center" sx={{ py: 4 }}>
+                    <CircularProgress size={30} />
+                  </TableCell>
+                </TableRow>
+              ) : pickingList.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={listVisibleColumns.length} align="center" sx={{ py: 4 }}>
+                    <Typography variant="h6">📭 No picking records found</Typography>
+                  </TableCell>
+                </TableRow>
+              ) : (
+                pickingList.map((row, index) => (
+                  <TableRow key={index} sx={{ '&:hover': { bgcolor: '#f9fafb' } }}>
+                    {listVisibleColumns.map((col) => (
+                      <TableCell key={col} sx={{ fontSize: '0.75rem' }}>
+                        {col === 'batch_id' || col === 'source' ? (
+                          <Chip label={row[col]} size="small" color={col === 'source' ? 'primary' : 'default'} />
+                        ) : (
+                          row[col] || '-'
+                        )}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
+
+        <Box sx={{ p: 2, borderTop: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between' }}>
+          <Typography variant="body2">
+            Showing {((page - 1) * limit) + 1} to {Math.min(page * limit, total)} of {total}
+          </Typography>
+          <Stack direction="row" spacing={1}>
+            <Button size="small" onClick={() => setPage(page - 1)} disabled={page === 1}>Previous</Button>
+            <Button size="small" onClick={() => setPage(page + 1)} disabled={page * limit >= total}>Next</Button>
+          </Stack>
+        </Box>
+      </Paper>
+
+      <Dialog open={listColumnDialogOpen} onClose={() => setListColumnDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Column Settings</DialogTitle>
+        <DialogContent>
+          <Stack spacing={1}>
+            {[...ALL_COLUMNS, 'batch_id', 'source', 'picking_date', 'customer_name'].map((col) => (
+              <FormControlLabel
+                key={col}
+                control={<Checkbox checked={listVisibleColumns.includes(col)} onChange={() => toggleListColumn(col)} />}
+                label={col.replace(/_/g, ' ').toUpperCase()}
+              />
+            ))}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setListColumnDialogOpen(false)}>Close</Button>
+          <Button onClick={() => setListVisibleColumns(DEFAULT_LIST_COLUMNS)} variant="outlined">Reset</Button>
+        </DialogActions>
+      </Dialog>
+    </Box>
+  )
+}
+
+{/* TAB 2: BATCH MANAGEMENT */ }
+{
+  tabValue === 2 && (
+    <Paper elevation={3} sx={{ borderRadius: 3, overflow: 'hidden' }}>
+      <Box sx={{ p: 2, bgcolor: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
+        <Typography variant="h6" sx={{ fontWeight: 700 }}>Batch Management</Typography>
+      </Box>
+      <TableContainer>
+        <Table>
+          <TableHead>
+            <TableRow sx={{ bgcolor: '#f5f5f5' }}>
+              <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem' }}>Batch ID</TableCell>
+              <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem' }}>Item Count</TableCell>
+              <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem' }}>Created At</TableCell>
+              <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem', textAlign: 'center' }}>Actions</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {batchLoading ? (
+              <TableRow>
+                <TableCell colSpan={4} align="center" sx={{ py: 4 }}>
+                  <CircularProgress size={30} />
+                </TableCell>
+              </TableRow>
+            ) : batches.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={4} align="center" sx={{ py: 4 }}>
+                  <Typography variant="h6">📭 No batches found</Typography>
+                </TableCell>
+              </TableRow>
+            ) : (
+              batches.map((batch) => (
+                <TableRow key={batch.batch_id} sx={{ '&:hover': { bgcolor: '#f9fafb' } }}>
+                  <TableCell sx={{ fontSize: '0.8rem', fontWeight: 600 }}>{batch.batch_id}</TableCell>
+                  <TableCell sx={{ fontSize: '0.8rem' }}>{batch.count}</TableCell>
+                  <TableCell sx={{ fontSize: '0.8rem' }}>{new Date(batch.created_at).toLocaleString()}</TableCell>
+                  <TableCell sx={{ textAlign: 'center' }}>
+                    <IconButton
+                      size="small"
+                      onClick={() => handleDeleteBatch(batch.batch_id)}
+                      sx={{ color: '#ef4444', '&:hover': { bgcolor: 'rgba(239, 68, 68, 0.1)' } }}
+                    >
+                      <DeleteIcon fontSize="small" />
+                    </IconButton>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </TableContainer>
+    </Paper>
+  )
+}
+      </Box >
+    </AppLayout >
+  );
+}
