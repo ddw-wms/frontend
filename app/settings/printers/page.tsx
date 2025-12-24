@@ -433,30 +433,39 @@ export default function PrinterSettingsPage() {
                       />
                     )}
                   </Box>
-                  <Box sx={{ flex: { xs: '1 1 100%', sm: '1 1 45%' }, textAlign: { xs: 'left', sm: 'right' } }}>
-                    <Stack
-                      direction={{ xs: 'column', sm: 'row' }}
-                      spacing={1}
-                      justifyContent={{ xs: 'flex-start', sm: 'flex-end' }}
-                    >
-                      <Button
-                        variant="outlined"
-                        size="small"
-                        startIcon={<RefreshIcon />}
-                        onClick={() => checkAgentStatus(settings.agentPort)}
-                        fullWidth={{ xs: true, sm: false }}
-                      >
-                        Refresh Status
-                      </Button>
-                      <Chip
-                        icon={<NetworkCheckIcon />}
-                        label={`Port: ${settings.agentPort}`}
-                        size="small"
-                        variant="outlined"
-                        sx={{ width: { xs: '100%', sm: 'auto' } }}
-                      />
-                    </Stack>
-                  </Box>
+                 <Box
+  sx={{
+    flex: { xs: '1 1 100%', sm: '1 1 45%' },
+    textAlign: { xs: 'left', sm: 'right' },
+  }}
+>
+  <Stack
+    direction={{ xs: 'column', sm: 'row' }}
+    spacing={1}
+    justifyContent={{ xs: 'flex-start', sm: 'flex-end' }}
+  >
+    <Button
+      variant="outlined"
+      size="small"
+      startIcon={<RefreshIcon />}
+      onClick={() => checkAgentStatus(settings.agentPort)}
+      sx={{
+        width: { xs: '100%', sm: 'auto' },
+      }}
+    >
+      Refresh Status
+    </Button>
+
+    <Chip
+      icon={<NetworkCheckIcon />}
+      label={`Port: ${settings.agentPort}`}
+      size="small"
+      variant="outlined"
+      sx={{ width: { xs: '100%', sm: 'auto' } }}
+    />
+  </Stack>
+</Box>
+
                 </Box>
               </CardContent>
             </Card>
@@ -1144,6 +1153,7 @@ export default function PrinterSettingsPage() {
     </AppLayout>
   );
 }
+
 
 
 
