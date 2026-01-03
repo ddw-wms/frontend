@@ -59,11 +59,11 @@ import AppLayout from '@/components/AppLayout';
 import toast, { Toaster } from 'react-hot-toast';
 import * as XLSX from 'xlsx';
 import { AgGridReact } from 'ag-grid-react';
-import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
+import { ModuleRegistry, AllCommunityModule, ClientSideRowModelModule } from 'ag-grid-community';
 import 'ag-grid-community/styles/ag-theme-quartz.css';
 
-// Register AG Grid modules ONCE
-ModuleRegistry.registerModules([AllCommunityModule]);
+// Register AG Grid modules ONCE (include ClientSideRowModel for client-side features)
+ModuleRegistry.registerModules([AllCommunityModule, ClientSideRowModelModule]);
 
 const formatDate = (dateStr?: string) => {
     if (!dateStr) return '-';
@@ -263,6 +263,8 @@ export default function OutboundPage() {
     const [limit, setLimit] = useState(100);
     const [total, setTotal] = useState(0);
     const [searchFilter, setSearchFilter] = useState('');
+    const [searchDebounced, setSearchDebounced] = useState('');
+    const searchDebounceRef = useRef<NodeJS.Timeout | null>(null);
     const [sourceFilter, setSourceFilter] = useState('');
     const [customerFilter, setCustomerFilter] = useState('');
     const [startDateFilter, setStartDateFilter] = useState('');
@@ -270,9 +272,20 @@ export default function OutboundPage() {
     const [batchFilter, setBatchFilter] = useState('');
     const [brandFilter, setBrandFilter] = useState('');
     const [categoryFilter, setCategoryFilter] = useState('');
+
+    // Smooth loading helpers (prevent blinking overlay)
+    const currentLoadIdRef = useRef(0);
+    const outboundAbortControllerRef = useRef<AbortController | null>(null);
+    const overlayTimerRef = useRef<NodeJS.Timeout | null>(null);
+    const overlayShownRef = useRef(false);
+    const overlayStartRef = useRef<number | null>(null);
+    const SHOW_OVERLAY_DELAY = 150; // ms
+    const MIN_LOADING_MS = 350; // ms
+    const [topLoading, setTopLoading] = useState(false);
     const [customers, setCustomers] = useState<string[]>([]);
     const [brands, setBrands] = useState<string[]>([]);
     const [categories, setCategories] = useState<string[]>([]);
+    const [sources, setSources] = useState<string[]>([]);
     const [listColumns, setListColumns] = useState(() => {
         if (typeof window !== 'undefined') {
             const saved = localStorage.getItem('outboundListColumns');
@@ -457,10 +470,29 @@ export default function OutboundPage() {
     };
 
     useEffect(() => {
-        if (activeWarehouse && tabValue === 0) {
+        if (searchDebounceRef.current) {
+            clearTimeout(searchDebounceRef.current);
+            searchDebounceRef.current = null;
+        }
+        // Debounce typing to avoid spamming requests and avoid UI flicker
+        searchDebounceRef.current = setTimeout(() => {
+            setSearchDebounced(searchFilter);
+        }, 220);
+
+        return () => {
+            if (searchDebounceRef.current) {
+                clearTimeout(searchDebounceRef.current);
+                searchDebounceRef.current = null;
+            }
+        };
+    }, [searchFilter]);
+
+    // Trigger outbound list load when debounced search or other filters change
+    useEffect(() => {
+        if (activeWarehouse) {
             loadOutboundList();
         }
-    }, [activeWarehouse, page, limit, searchFilter, sourceFilter, customerFilter, startDateFilter, endDateFilter, batchFilter, brandFilter, categoryFilter]);
+    }, [activeWarehouse, page, limit, searchDebounced, sourceFilter, customerFilter, startDateFilter, endDateFilter, batchFilter, brandFilter, categoryFilter]);
 
     // ====== LOAD EXISTING OUTBOUND WSNs ======
     const loadExistingWSNs = async () => {
@@ -1080,14 +1112,43 @@ export default function OutboundPage() {
     const loadOutboundList = async (opts: { buttonRefresh?: boolean } = { buttonRefresh: false }) => {
         if (!activeWarehouse) return;
 
+        // Use request id to ignore stale responses
+        currentLoadIdRef.current += 1;
+        const loadId = currentLoadIdRef.current;
+
         const { buttonRefresh } = opts;
         if (buttonRefresh) setRefreshing(true);
-        else setListLoading(true);
+
+        // If we have no data yet, show full loader; otherwise show a delayed overlay to avoid flicker
+        if (!listData || listData.length === 0) {
+            setListLoading(true);
+        } else {
+            if (overlayTimerRef.current) clearTimeout(overlayTimerRef.current);
+            overlayShownRef.current = false;
+            overlayStartRef.current = null;
+            overlayTimerRef.current = setTimeout(() => {
+                try {
+                    setTopLoading(true);
+                    overlayShownRef.current = true;
+                    overlayStartRef.current = Date.now();
+                    try { gridRef.current?.api?.showLoadingOverlay(); } catch { }
+                } catch (err) { }
+                overlayTimerRef.current = null;
+            }, SHOW_OVERLAY_DELAY);
+        }
+
+        // Cancel any previous in-flight request
+        if (outboundAbortControllerRef.current) {
+            try { outboundAbortControllerRef.current.abort(); } catch { }
+            outboundAbortControllerRef.current = null;
+        }
+        const controller = new AbortController();
+        outboundAbortControllerRef.current = controller;
 
         try {
             const res = await outboundAPI.getList(page, limit, {
                 warehouseId: activeWarehouse.id,
-                search: searchFilter,
+                search: searchDebounced,
                 source: sourceFilter,
                 customer: customerFilter,
                 startDate: startDateFilter,
@@ -1095,38 +1156,123 @@ export default function OutboundPage() {
                 batchId: batchFilter,
                 brand: brandFilter,
                 category: categoryFilter,
-            });
+            }, { signal: controller.signal });
 
-            setListData(res.data.data || []);
-            setTotal(res.data.total || 0);
+            // Only apply if this is the latest request
+            if (loadId === currentLoadIdRef.current) {
+                const data = res.data.data || [];
+                setListData(data);
+                setTotal(res.data.total || 0);
 
-            // Calculate stats
-            const data = res.data.data || [];
-            const pickingCount = data.filter((d: any) => d.source === 'PICKING').length;
-            const qcCount = data.filter((d: any) => d.source === 'QC').length;
-            const inboundCount = data.filter((d: any) => d.source === 'INBOUND').length;
+                // Populate customers filter from outbound-specific endpoint so filter shows only customers present in outbound data
+                let uniqCusts: string[] = [];
+                try {
+                    const custRes = await outboundAPI.getCustomers(activeWarehouse.id);
+                    if (Array.isArray(custRes.data) && custRes.data.length > 0) {
+                        uniqCusts = custRes.data;
+                    }
+                } catch (err) {
+                    // ignore and fallback
+                }
 
-            setStats({
-                picking: pickingCount,
-                qc: qcCount,
-                inbound: inboundCount,
-                total: data.length,
-            });
+                if (uniqCusts.length === 0) {
+                    const names: string[] = data.map((d: any) => String(d.customer_name || '')).filter((n: string) => n !== '');
+                    uniqCusts = Array.from(new Set(names)).sort();
+                }
 
-            if (buttonRefresh) {
-                setRefreshSuccess(true);
-                toast.success('List refreshed');
-                setTimeout(() => setRefreshSuccess(false), 1800);
+                setCustomers(uniqCusts);
+
+                // Populate source options from outbound endpoint (preferred) or dedupe from data
+                let uniqSources: string[] = [];
+                try {
+                    const sRes = await outboundAPI.getSources(activeWarehouse.id);
+                    if (Array.isArray(sRes.data) && sRes.data.length > 0) uniqSources = sRes.data;
+                } catch (err) {
+                    // ignore and fallback to data
+                }
+
+                if (uniqSources.length === 0) {
+                    const srcs: string[] = data.map((d: any) => String(d.source || '')).filter((s: string) => s !== '');
+                    uniqSources = Array.from(new Set(srcs)).sort();
+                }
+
+                setSources(uniqSources);
+
+                // Load batches in background so batch dropdowns are available for filters/export
+                loadBatches();
+
+                // Reset any customer/source-related filters if they are not in the current outbound lists
+                if (customerFilter && !uniqCusts.includes(customerFilter)) {
+                    setCustomerFilter('');
+                }
+                if (exportCustomer && !uniqCusts.includes(exportCustomer)) {
+                    setExportCustomer('');
+                }
+                if (sourceFilter && !uniqSources.includes(sourceFilter)) {
+                    setSourceFilter('');
+                }
+                if (exportSource && !uniqSources.includes(exportSource)) {
+                    setExportSource('');
+                }
+
+                // Calculate stats
+                const pickingCount = data.filter((d: any) => d.source === 'PICKING').length;
+                const qcCount = data.filter((d: any) => d.source === 'QC').length;
+                const inboundCount = data.filter((d: any) => d.source === 'INBOUND').length;
+
+                setStats({
+                    picking: pickingCount,
+                    qc: qcCount,
+                    inbound: inboundCount,
+                    total: data.length,
+                });
+
+                if (buttonRefresh) {
+                    setRefreshSuccess(true);
+                    toast.success('List refreshed');
+                    setTimeout(() => setRefreshSuccess(false), 1800);
+                }
             }
         } catch (err: any) {
+            // ignore aborts
+            if (err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED' || err?.name === 'AbortError') {
+                return;
+            }
+
             console.error('Load outbound list error:', err);
             if (buttonRefresh) toast.error(err.response?.data?.error || 'Failed to refresh outbound list');
             else toast.error(err.response?.data?.error || 'Failed to load outbound list');
-            setListData([]);
-            setTotal(0);
+
+            // Only clear data if this is the latest request
+            if (loadId === currentLoadIdRef.current) {
+                setListData([]);
+                setTotal(0);
+            }
         } finally {
-            if (buttonRefresh) setRefreshing(false);
-            else setListLoading(false);
+            // Only clear loading/overlays when this is the latest request
+            if (loadId === currentLoadIdRef.current) {
+                if (overlayShownRef.current && overlayStartRef.current) {
+                    const elapsed = Date.now() - overlayStartRef.current;
+                    if (elapsed < MIN_LOADING_MS) {
+                        await new Promise(res => setTimeout(res, MIN_LOADING_MS - elapsed));
+                    }
+                    try { gridRef.current?.api?.hideOverlay(); } catch { }
+                    overlayShownRef.current = false;
+                    overlayStartRef.current = null;
+                    try { setTopLoading(false); } catch { }
+                } else {
+                    // overlay never shown, clear pending timer
+                    if (overlayTimerRef.current) {
+                        clearTimeout(overlayTimerRef.current);
+                        overlayTimerRef.current = null;
+                    }
+                }
+
+                if (buttonRefresh) setRefreshing(false);
+                else setListLoading(false);
+
+                outboundAbortControllerRef.current = null;
+            }
         }
     };
 
@@ -1188,13 +1334,40 @@ export default function OutboundPage() {
         setBatchLoading(true);
         try {
             const res = await outboundAPI.getBatches(activeWarehouse.id);
-            setBatches(res.data || []);
+            const bs = res.data || [];
+            setBatches(bs);
+
+            // If a previously selected export batch is no longer available, clear it
+            if (exportBatchId && !bs.find((b: any) => b.batch_id === exportBatchId)) {
+                setExportBatchId('');
+            }
+
+            // If the active list filter batch is no longer available, clear it and reset page
+            if (batchFilter && !bs.find((b: any) => b.batch_id === batchFilter)) {
+                setBatchFilter('');
+                setPage(1);
+            }
         } catch (err: any) {
             toast.error('Failed to load batches');
         } finally {
             setBatchLoading(false);
         }
     };
+
+    // Load batches when export dialog is opened so export dropdown has values
+    useEffect(() => {
+        if (exportDialogOpen && activeWarehouse) {
+            loadBatches();
+        }
+    }, [exportDialogOpen, activeWarehouse]);
+
+    // Apply AG Grid quick filter when search input changes for instant UI filtering (mirrors Dashboard behaviour)
+    useEffect(() => {
+        const api = gridRef.current;
+        if (api && typeof api.setQuickFilter === 'function') {
+            api.setQuickFilter(searchFilter || '');
+        }
+    }, [searchFilter, listData]);
 
     const handleDeleteBatch = async (batchId: string) => {
         if (!confirm(`Delete batch ${batchId}?`)) return;
@@ -1268,6 +1441,69 @@ export default function OutboundPage() {
         [gridDuplicateWSNs, crossWarehouseWSNs]
     );
 
+    // ✅ LIST GRID COLUMN DEFINITIONS (AG GRID)
+    const listColumnDefs = useMemo(() => {
+        const sr = {
+            headerName: 'SR.NO',
+            field: '__sr',
+            valueGetter: (params: any) => params.node ? params.node.rowIndex + 1 + (page - 1) * limit : undefined,
+            width: 80,
+            cellStyle: { fontWeight: 700, textAlign: 'center', backgroundColor: '#fafafa' },
+            suppressMovable: true,
+            sortable: false,
+            filter: false,
+        };
+
+        const cols = listColumns.map((col: string) => {
+            // Dates
+            if (col.includes('date')) {
+                return {
+                    field: col,
+                    headerName: col.replace(/_/g, ' ').toUpperCase(),
+                    filter: 'agDateColumnFilter',
+                    valueFormatter: (p: any) => formatDate(p.value),
+                    tooltipField: col,
+                    width: col === 'dispatch_date' ? 140 : 150,
+                };
+            }
+
+            // Source chip
+            if (col === 'source') {
+                return {
+                    field: col,
+                    headerName: 'SOURCE',
+                    cellRenderer: (p: any) => {
+                        if (!p.value) return '-';
+                        return (
+                            <Chip label={p.value} size="small" color={p.value === 'PICKING' ? 'primary' : p.value === 'QC' ? 'success' : 'warning'} sx={{ height: 20, fontSize: '0.7rem', fontWeight: 600 }} />
+                        );
+                    },
+                    width: 120,
+                };
+            }
+
+            // Default
+            return {
+                field: col,
+                headerName: col.replace(/_/g, ' ').toUpperCase(),
+                filter: 'agTextColumnFilter',
+                tooltipField: col,
+                width: col === 'wsn' ? 180 : 150,
+            };
+        });
+
+        return [sr, ...cols];
+    }, [listColumns, page, limit]);
+
+    const listDefaultColDef = useMemo(() => ({
+        sortable: true,
+        filter: true,
+        floatingFilter: false,
+        resizable: true,
+        suppressMenu: false,
+        minWidth: 100,
+    }), []);
+
     if (!user) {
         return <CircularProgress />;
     }
@@ -1316,6 +1552,11 @@ export default function OutboundPage() {
                         <Tab label="Batch Management" />
                     </Tabs>
                 </Paper>
+
+                {/* Top-loading animation (subtle) - matches Dashboard */}
+                <Box sx={{ width: '100%', opacity: topLoading ? 1 : 0, transition: 'opacity 220ms ease-in-out' }}>
+                    <LinearProgress color="primary" sx={{ height: 3, mb: 0.5 }} />
+                </Box>
 
                 {/* TAB 0: OUTBOUND LIST */}
                 {tabValue === 0 && (
@@ -1382,9 +1623,9 @@ export default function OutboundPage() {
                                                     <TextField label="To Date" type="date" size="small" InputLabelProps={{ shrink: true }} value={endDateFilter} onChange={(e) => { setEndDateFilter(e.target.value); setPage(1); }} sx={{ '& .MuiOutlinedInput-root': { height: 36 } }} />
                                                     <TextField select size="small" label="Source" value={sourceFilter} onChange={(e) => { setSourceFilter(e.target.value); setPage(1); }} sx={{ '& .MuiOutlinedInput-root': { height: 36 } }}>
                                                         <MenuItem value="">All</MenuItem>
-                                                        <MenuItem value="PICKING">PICKING</MenuItem>
-                                                        <MenuItem value="QC">QC</MenuItem>
-                                                        <MenuItem value="INBOUND">INBOUND</MenuItem>
+                                                        {sources.map((s) => (
+                                                            <MenuItem key={s} value={s}>{s}</MenuItem>
+                                                        ))}
                                                     </TextField>
                                                     <Autocomplete
                                                         freeSolo
@@ -1420,7 +1661,12 @@ export default function OutboundPage() {
                                                         ))}
                                                     </TextField>
 
-                                                    <TextField size="small" label="Batch ID" value={batchFilter} onChange={(e) => { setBatchFilter(e.target.value); setPage(1); }} sx={{ '& .MuiOutlinedInput-root': { height: 36 } }} />
+                                                    <TextField select size="small" label="Batch ID" value={batchFilter} onChange={(e) => { setBatchFilter(e.target.value); setPage(1); }} sx={{ '& .MuiOutlinedInput-root': { height: 36 } }}>
+                                                        <MenuItem value="">All</MenuItem>
+                                                        {batches.map((b: any) => (
+                                                            <MenuItem key={b.batch_id} value={b.batch_id}>{b.batch_id} {b.count ? `(${b.count})` : null}</MenuItem>
+                                                        ))}
+                                                    </TextField>
 
                                                     <Stack direction="row" spacing={0.5} justifyContent="flex-end" sx={{ width: '100%' }}>
                                                         <Button size="small" variant="outlined" onClick={handleListReset} sx={{ height: 36, fontSize: '0.7rem', fontWeight: 600 }}>RESET</Button>
@@ -1491,9 +1737,9 @@ export default function OutboundPage() {
                                                         }}
                                                     >
                                                         <MenuItem value="">All</MenuItem>
-                                                        <MenuItem value="PICKING">PICKING</MenuItem>
-                                                        <MenuItem value="QC">QC</MenuItem>
-                                                        <MenuItem value="INBOUND">INBOUND</MenuItem>
+                                                        {sources.map((s) => (
+                                                            <MenuItem key={s} value={s}>{s}</MenuItem>
+                                                        ))}
                                                     </TextField>
 
                                                     {/* ROW 2: Customer, Brand, Category */}
@@ -1644,50 +1890,33 @@ export default function OutboundPage() {
                         </Box>
 
 
-                        {/* TABLE - HORIZONTAL SCROLL */}
-                        <Box sx={{ flex: 1, overflow: 'auto', minHeight: 0, border: '1px solid #d1d5db', position: 'relative' }}>
-                            <TableContainer component={Paper} sx={{ borderRadius: 0, boxShadow: 'none', border: 'none', background: '#ffffff', height: '100%' }}>
-                                <Table stickyHeader size="small" sx={{ '& .MuiTableCell-root': { borderRight: '1px solid #d1d5db', padding: '6px 10px', fontSize: '0.75rem', minWidth: 120 } }}>
-                                    <TableHead>
-                                        <TableRow sx={{ background: '#e5e7eb' }}>
-                                            {listColumns.map((col: string, idx: any) => (
-                                                <TableCell key={`header_${idx}_${col}`} sx={{ color: '#1f2937', fontWeight: 700, background: '#e5e7eb', fontSize: '0.75rem', textTransform: 'uppercase', py: 0.8, whiteSpace: 'nowrap' }}>
-                                                    {col.replace(/_/g, ' ')}
-                                                </TableCell>
-                                            ))}
-                                        </TableRow>
-                                    </TableHead>
-                                    <TableBody>
-                                        {listLoading ? (
-                                            <TableRow>
-                                                <TableCell colSpan={listColumns.length} align="center" sx={{ py: 8 }}>
-                                                    <CircularProgress size={50} />
-                                                </TableCell>
-                                            </TableRow>
-                                        ) : listData.length === 0 ? (
-                                            <TableRow>
-                                                <TableCell colSpan={listColumns.length} align="center" sx={{ py: 8 }}>
-                                                    <Typography sx={{ fontWeight: 700, color: '#94a3b8' }}>📭 No data found</Typography>
-                                                </TableCell>
-                                            </TableRow>
-                                        ) : (
-                                            listData.map((item, idx) => (
-                                                <TableRow key={`row_${item.id || idx}`} sx={{ bgcolor: idx % 2 === 0 ? '#ffffff' : '#f9fafb', '&:hover': { bgcolor: '#f0f0f0' } }}>
-                                                    {listColumns.map((col: string, colIdx: any) => (
-                                                        <TableCell key={`cell_${idx}_${colIdx}_${col}`} sx={{ fontWeight: 500, fontSize: '0.75rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                                            {col.includes('date')
-                                                                ? formatDate(item[col])
-                                                                : col === 'source'
-                                                                    ? <Chip label={item[col]} size="small" color={item[col] === 'PICKING' ? 'primary' : item[col] === 'QC' ? 'success' : 'warning'} sx={{ height: 20, fontSize: '0.7rem', fontWeight: 600 }} />
-                                                                    : (item[col] ? String(item[col]).substring(0, 50) : '-')}
-                                                        </TableCell>
-                                                    ))}
-                                                </TableRow>
-                                            ))
-                                        )}
-                                    </TableBody>
-                                </Table>
-                            </TableContainer>
+                        {/* TABLE - AG GRID */}
+                        <Box sx={{ flex: 1, minHeight: 0, border: '1px solid #d1d5db', position: 'relative' }}>
+                            {listLoading ? (
+                                <Box sx={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <CircularProgress size={50} />
+                                </Box>
+                            ) : listData.length === 0 ? (
+                                <Box sx={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <Typography sx={{ fontWeight: 700, color: '#94a3b8' }}>📭 No data found</Typography>
+                                </Box>
+                            ) : (
+                                <Box sx={{ height: '100%', width: '100%' }}>
+                                    <div className="ag-theme-quartz" style={{ height: '100%', width: '100%' }}>
+                                        <AgGridReact
+                                            ref={gridRef}
+                                            rowData={listData}
+                                            columnDefs={listColumnDefs}
+                                            defaultColDef={listDefaultColDef}
+                                            rowSelection="single"
+                                            suppressRowClickSelection={true}
+                                            animateRows={true}
+                                            onGridReady={(params: any) => { gridRef.current = params.api; columnApiRef.current = params.columnApi; try { params.api.sizeColumnsToFit(); } catch (e) { /* ignore */ } }}
+                                            pagination={false}
+                                        />
+                                    </div>
+                                </Box>
+                            )}
                         </Box>
 
                         {/* PAGINATION */}
@@ -1798,12 +2027,18 @@ export default function OutboundPage() {
                                         noOptionsText={customers.length === 0 ? "No customers available" : "No matching customers"}
                                     />
                                     <TextField
+                                        select
                                         label="Batch ID"
                                         value={exportBatchId}
                                         onChange={(e) => setExportBatchId(e.target.value)}
                                         fullWidth
                                         size="small"
-                                    />
+                                    >
+                                        <MenuItem value="">All Batches</MenuItem>
+                                        {batches.map((b: any) => (
+                                            <MenuItem key={b.batch_id} value={b.batch_id}>{b.batch_id} {b.count ? `(${b.count})` : null}</MenuItem>
+                                        ))}
+                                    </TextField>
                                     <TextField
                                         select
                                         label="Source"
@@ -1813,9 +2048,9 @@ export default function OutboundPage() {
                                         size="small"
                                     >
                                         <MenuItem value="">All Sources</MenuItem>
-                                        <MenuItem value="PICKING">PICKING</MenuItem>
-                                        <MenuItem value="QC">QC</MenuItem>
-                                        <MenuItem value="INBOUND">INBOUND</MenuItem>
+                                        {sources.map((s) => (
+                                            <MenuItem key={s} value={s}>{s}</MenuItem>
+                                        ))}
                                     </TextField>
                                     <Typography variant="caption" color="text.secondary">
                                         Leave empty to use current list filters

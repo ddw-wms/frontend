@@ -9,7 +9,7 @@ interface PrintPayload {
     copies?: number;
 }
 
-const AGENT_URL = 'http://127.0.0.1:9100';
+const AGENT_URL = process.env.NEXT_PUBLIC_PRINT_AGENT_URL || 'http://127.0.0.1:9100';
 const TIMEOUT_MS = 65000; // 65 seconds - allows backend 60s + buffer
 
 // ==================== CHECK AGENT HEALTH ====================

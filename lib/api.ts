@@ -331,7 +331,7 @@ export const outboundAPI = {
       headers: { 'Content-Type': 'multipart/form-data' }
     }),
 
-  // Get outbound list with filters
+  // Get outbound list with filters (accepts optional axios config, e.g., { signal })
   getList: (page: number, limit: number, params: {
     page?: number;
     limit?: number;
@@ -344,7 +344,7 @@ export const outboundAPI = {
     batchId?: string;
     brand?: string;
     category?: string;
-  }) => api.get('outbound/list', { params }),
+  }, config?: any) => api.get('outbound/list', { params, ...(config || {}) }),
 
   // Get customers list for dropdown
   getCustomers: (warehouseId: number) =>
@@ -378,7 +378,10 @@ export const outboundAPI = {
 
   // Get categories for filter dropdown
   getCategories: (warehouseId?: number) =>
-    api.get('outbound/categories', { params: { warehouse_id: warehouseId } })
+    api.get('outbound/categories', { params: { warehouse_id: warehouseId } }),
+  // Get available sources for outbound filter (distinct values from outbound table)
+  getSources: (warehouseId?: number) =>
+    api.get('outbound/sources', { params: { warehouse_id: warehouseId } }),
 };
 
 // ==========================PICKING API ==============================
