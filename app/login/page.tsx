@@ -30,8 +30,8 @@ import { login } from '@/lib/auth';
 
 export default function LoginPage() {
   const router = useRouter();
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  const [username, setUsername] = useState('admin'); // Default for demo
+  const [password, setPassword] = useState('admin123'); // Default for demo
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);

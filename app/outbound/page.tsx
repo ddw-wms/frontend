@@ -51,7 +51,7 @@ import {
     ExpandMore as ExpandMoreIcon,
     FilterList as FilterListIcon,
 } from '@mui/icons-material';
-import { outboundAPI } from '@/lib/api';
+import { outboundAPI, customerAPI } from '@/lib/api';
 import { useWarehouse } from '@/app/context/WarehouseContext';
 import { getStoredUser } from '@/lib/auth';
 import { useRoleGuard } from '@/hooks/useRoleGuard';
@@ -60,7 +60,6 @@ import toast, { Toaster } from 'react-hot-toast';
 import * as XLSX from 'xlsx';
 import { AgGridReact } from 'ag-grid-react';
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
-import 'ag-grid-community/styles/ag-grid.css';
 import 'ag-grid-community/styles/ag-theme-quartz.css';
 
 // Register AG Grid modules ONCE
@@ -183,6 +182,7 @@ export default function OutboundPage() {
     const [user, setUser] = useState<any>(null);
     const [tabValue, setTabValue] = useState(0);
     const gridRef = useRef<any>(null);
+    const columnApiRef = useRef<any>(null);
     const wsnInputRef = useRef<HTMLInputElement>(null);
     const wsnFetchTimerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -384,6 +384,21 @@ export default function OutboundPage() {
         localStorage.setItem('outboundListColumns', JSON.stringify(cols));
     };
 
+    // Auto-size columns whenever Multi Entry tab opens, visibleColumns changes, or rows change
+    useEffect(() => {
+        if (tabValue !== 3) return;
+        const colApi = columnApiRef.current;
+        if (!colApi) return;
+
+        setTimeout(() => {
+            try {
+                const allCols = colApi.getAllColumns().map((c: any) => c.getId());
+                colApi.autoSizeColumns(allCols, false);
+            } catch (err) {
+                gridRef.current?.api.sizeColumnsToFit();
+            }
+        }, 80);
+    }, [tabValue, visibleColumns, multiRows.length]);
     // ====== LOAD DATA ON TAB CHANGE ======
     useEffect(() => {
         if (activeWarehouse) {
@@ -462,16 +477,15 @@ export default function OutboundPage() {
     // ====== LOAD CUSTOMERS ======
     const loadCustomers = async () => {
         try {
-            console.log('Loading customers for warehouse:', activeWarehouse?.id);
-            const response = await outboundAPI.getCustomers(activeWarehouse?.id);
-            console.log('Customers API response:', response.data);
+            // Use master customers table for dropdown (like Picking page)
+            const response = await customerAPI.getNames(activeWarehouse?.id);
             if (Array.isArray(response.data)) {
                 setCustomers(response.data);
                 if (response.data.length === 0) {
-                    console.warn('No customers found. Please add customers first.');
+                    console.warn('No customers found for this warehouse. Please add customers first.');
                 }
             } else {
-                console.error('Invalid response format:', response.data);
+                console.error('Invalid response format from customerAPI:', response.data);
                 setCustomers([]);
             }
         } catch (error: any) {
@@ -2443,7 +2457,6 @@ export default function OutboundPage() {
                         }}>
                             <AgGridReact
                                 ref={gridRef}
-                                theme="legacy"
                                 rowData={multiRows}
                                 columnDefs={columnDefs}
                                 rowHeight={26}
@@ -2460,6 +2473,40 @@ export default function OutboundPage() {
                                 suppressMovableColumns={true}
                                 rowBuffer={5}
                                 containerStyle={{ height: '100%', width: '100%' }}
+                                onGridReady={(params: any) => {
+                                    columnApiRef.current = params.columnApi;
+                                    // Small delay to make sure columns registered
+                                    setTimeout(() => {
+                                        const colApi = columnApiRef.current;
+                                        if (!colApi) return;
+                                        try {
+                                            const allCols = colApi.getAllColumns().map((c: any) => c.getId());
+                                            colApi.autoSizeColumns(allCols, false);
+                                        } catch (err) {
+                                            params.api.sizeColumnsToFit();
+                                        }
+                                    }, 50);
+                                }}
+                                onFirstDataRendered={() => {
+                                    const colApi = columnApiRef.current;
+                                    if (!colApi) return;
+                                    try {
+                                        const allCols = colApi.getAllColumns().map((c: any) => c.getId());
+                                        colApi.autoSizeColumns(allCols, false);
+                                    } catch (err) {
+                                        gridRef.current?.api.sizeColumnsToFit();
+                                    }
+                                }}
+                                onGridSizeChanged={() => {
+                                    const colApi = columnApiRef.current;
+                                    if (!colApi) return;
+                                    try {
+                                        const allCols = colApi.getAllColumns().map((c: any) => c.getId());
+                                        colApi.autoSizeColumns(allCols, false);
+                                    } catch (err) {
+                                        gridRef.current?.api.sizeColumnsToFit();
+                                    }
+                                }}
                                 className="ag-theme-quartz"
                             />
                         </Box>

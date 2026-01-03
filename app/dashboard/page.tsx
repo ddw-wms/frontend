@@ -2,23 +2,15 @@
 "use client";
 
 //import { useState, useEffect } from "react";
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
   Box,
   Paper,
-  Container,
   AppBar,
   Toolbar,
-  Avatar,
   Typography,
   Button,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -33,14 +25,15 @@ import {
   IconButton,
   Card,
   Select,
-  FormControl,
-  InputLabel,
   Tooltip,
   Pagination,
   Autocomplete,
   FormControlLabel,
   Checkbox,
   Collapse,
+  useTheme,
+  useMediaQuery,
+  LinearProgress,
 } from "@mui/material";
 import {
   Logout as LogoutIcon,
@@ -48,20 +41,19 @@ import {
   Refresh as RefreshIcon,
   Settings as SettingsIcon,
   FilterList as FilterIcon,
-  Visibility as VisibilityIcon,
   Info as InfoIcon,
-  Print as PrintIcon,
   Tune as TuneIcon,
+  RestartAlt as RestartAltIcon,
+  Close as CloseIcon,
   InventoryRounded,
 } from "@mui/icons-material";
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import { dashboardAPI, inventoryAPI } from "@/lib/api";
+import { dashboardAPI, inventoryAPI, inboundAPI, pickingAPI, outboundAPI } from "@/lib/api";
 import { useWarehouse } from "@/app/context/WarehouseContext";
 import { getStoredUser, logout } from "@/lib/auth";
 import AppLayout from "@/components/AppLayout";
 import toast, { Toaster } from "react-hot-toast";
 import * as XLSX from "xlsx";
-import { inboundAPI } from "@/lib/api";
 
 import { AgGridReact } from 'ag-grid-react';
 import { ModuleRegistry, AllCommunityModule, ClientSideRowModelModule } from 'ag-grid-community';
@@ -174,6 +166,22 @@ const DEFAULT_VISIBLE_COLUMNS = [
   "current_stage",
 ];
 
+// Column width configuration - adjust per column. Use numbers for fixed widths (px) or flex for flexible columns.
+// You can add mobile overrides using a `mobile` key; otherwise the helper will scale widths on small screens.
+const COLUMN_WIDTHS: Record<string, any> = {
+  wsn: { width: 110, minWidth: 90 },
+  product_title: { width: 350, minWidth: 280 },
+  brand: { width: 110 },
+  cms_vertical: { width: 120 },
+  fsp: { width: 100, minWidth: 80 },
+  mrp: { width: 100, minWidth: 80 },
+  inbound_status: { width: 120 },
+  qc_status: { width: 120 },
+  picking_status: { width: 110 },
+  outbound_status: { width: 110 },
+  current_stage: { width: 140 },
+};
+
 const PIPELINE_STAGES = [
   { value: "all", label: "All Items" },
   { value: "inbound", label: "Inbound" },
@@ -185,8 +193,9 @@ const PIPELINE_STAGES = [
 export default function DashboardPage() {
   const router = useRouter();
   const { activeWarehouse } = useWarehouse();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [user, setUser] = useState<User | null>(null);
-  const [warehouseChecked, setWarehouseChecked] = useState(false);
 
   const handleLogout = () => {
     logout();
@@ -199,16 +208,31 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(false);
   const [visibleColumns, setVisibleColumns] = useState<string[]>([]);
   const gridRef = useRef<any>(null);
+  const columnApiRef = useRef<any>(null);
   const [columnDefs, setColumnDefs] = useState<any[]>([]);
+  const [pickingWSNs, setPickingWSNs] = useState<Set<string>>(new Set());
+  const [outboundWSNs, setOutboundWSNs] = useState<Set<string>>(new Set());
+
+  // Smooth loading helpers (avoid blinking): debounce, abort controller, delayed overlay
+  const currentLoadIdRef = useRef(0);
+  const inventoryAbortControllerRef = useRef<AbortController | null>(null);
+  const overlayTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const overlayShownRef = useRef(false);
+  const overlayStartRef = useRef<number | null>(null);
+  const SHOW_OVERLAY_DELAY = 150; // ms
+  const MIN_LOADING_MS = 350; // ms - ensure overlay visible long enough to avoid flicker
+  const [topLoading, setTopLoading] = useState(false);
+  const inventoryLoadDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  const [initialLoad, setInitialLoad] = useState<boolean>(true);
 
   const [enableSorting, setEnableSorting] = useState<boolean>(() => {
-    try { return localStorage.getItem('dashboard_enableSorting') !== 'false'; } catch (e) { return true; }
+    try { return localStorage.getItem('dashboard_enableSorting') !== 'false'; } catch { return true; }
   });
   const [enableColumnFilters, setEnableColumnFilters] = useState<boolean>(() => {
-    try { return localStorage.getItem('dashboard_enableColumnFilters') !== 'false'; } catch (e) { return true; }
+    try { return localStorage.getItem('dashboard_enableColumnFilters') !== 'false'; } catch { return true; }
   });
   const [enableColumnResize, setEnableColumnResize] = useState<boolean>(() => {
-    try { return localStorage.getItem('dashboard_enableColumnResize') !== 'false'; } catch (e) { return true; }
+    try { return localStorage.getItem('dashboard_enableColumnResize') !== 'false'; } catch { return true; }
   });
 
   const defaultColDef = useMemo(() => ({
@@ -216,6 +240,7 @@ export default function DashboardPage() {
     resizable: !!enableColumnResize,
     filter: !!enableColumnFilters,
     minWidth: 100,
+    flex: 1, // allow columns to flex and fill available width
     tooltipComponentParams: { color: '#ececec' },
   }), [enableSorting, enableColumnFilters, enableColumnResize]);
   const [columnDialogOpen, setColumnDialogOpen] = useState(false);
@@ -232,7 +257,7 @@ export default function DashboardPage() {
       if (s !== null) setEnableSorting(s === 'true');
       if (f !== null) setEnableColumnFilters(f === 'true');
       if (r !== null) setEnableColumnResize(r === 'true');
-    } catch (e) { /* ignore */ }
+    } catch { /* ignore */ }
   }, []);
 
   useEffect(() => {
@@ -240,7 +265,7 @@ export default function DashboardPage() {
       localStorage.setItem('dashboard_enableSorting', String(enableSorting));
       localStorage.setItem('dashboard_enableColumnFilters', String(enableColumnFilters));
       localStorage.setItem('dashboard_enableColumnResize', String(enableColumnResize));
-    } catch (e) { }
+    } catch { }
   }, [enableSorting, enableColumnFilters, enableColumnResize]);
 
   const formatGridDate = (raw: any) => {
@@ -253,73 +278,117 @@ export default function DashboardPage() {
     return `${dd}-${mm}-${yyyy}`;
   };
 
+  const getColumnSizing = useCallback((col: string) => {
+    const sizing = COLUMN_WIDTHS[col];
+    if (!sizing) return {};
+    // if explicit mobile override present, use it when on mobile
+    if (isMobile && sizing.mobile) return { ...sizing.mobile, ...(sizing.mobile.width ? { suppressSizeToFit: true } : {}) };
+
+    if (isMobile) {
+      // scale fixed widths down for mobile; keep flex/minWidth when present
+      const r: any = {};
+      if (sizing.flex) r.flex = sizing.flex;
+      if (sizing.width) {
+        r.width = Math.max(70, Math.round(sizing.width * 0.7));
+        r.suppressSizeToFit = true;
+      }
+      if (sizing.minWidth) r.minWidth = Math.max(70, Math.round(sizing.minWidth * 0.7));
+      if (sizing.maxWidth) r.maxWidth = Math.round(sizing.maxWidth * 0.8);
+      return r;
+    }
+
+    // Desktop / default
+    const r: any = { ...sizing };
+    if (sizing.width && !sizing.flex) r.suppressSizeToFit = true;
+    return r;
+  }, [isMobile]);
+
   useEffect(() => {
     const defs: any = visibleColumns.map((col) => {
       const headerName = col.replace(/_/g, ' ').toUpperCase();
-      if (col.includes('status')) {
-        return {
-          field: col,
-          headerName,
-          sortable: enableSorting,
-          filter: enableColumnFilters ? 'agTextColumnFilter' : undefined,
-          resizable: enableColumnResize,
-          cellRenderer: (p: any) => (
-            <Chip
-              label={p.value || '-'}
-              size="small"
-              sx={{
-                bgcolor: getStatusColor(p.value),
-                color: 'white',
-                fontSize: '0.7rem',
-              }}
-            />
-          ),
-          width: 120,
-          suppressMenu: true,
-        };
-      }
-
-      if (col === 'current_stage') {
-        return {
-          field: col,
-          headerName,
-          sortable: enableSorting,
-          filter: enableColumnFilters ? 'agTextColumnFilter' : undefined,
-          resizable: enableColumnResize,
-          cellRenderer: (p: any) => (
-            <Chip
-              label={p.value || '-'}
-              color={getStageColor(p.value) as any}
-              size="small"
-              variant="outlined"
-            />
-          ),
-          width: 140,
-          suppressMenu: true,
-        };
-      }
-
-      if (col.includes('date') || col === 'invoice_date') {
-        return {
-          field: col,
-          headerName,
-          sortable: enableSorting,
-          filter: enableColumnFilters ? 'agDateColumnFilter' : undefined,
-          resizable: enableColumnResize,
-          valueFormatter: (p: any) => formatGridDate(p.value),
-          tooltipField: col,
-          width: 150,
-        };
-      }
-
-      return {
+      const base: any = {
         field: col,
         headerName,
         sortable: enableSorting,
-        filter: enableColumnFilters ? 'agTextColumnFilter' : undefined,
         resizable: enableColumnResize,
+      };
+
+      // Status-like columns (use chips)
+      if (col.includes('status')) {
+        return {
+          ...base,
+          filter: enableColumnFilters ? 'agTextColumnFilter' : undefined,
+          cellRenderer: (p: any) => {
+            // Special-case: if this is the picking or outbound status column and the WSN exists in the
+            // corresponding list, show DONE regardless of the raw value (handles cases where QC remark
+            // or other text was being shown).
+            const wsn = p.data?.wsn;
+            if (col === 'picking_status' && wsn && pickingWSNs.has(wsn)) {
+              return (
+                <Chip label="DONE" size="small" sx={{ bgcolor: getStatusColor('DONE'), color: 'white', fontSize: '0.6rem' }} />
+              );
+            }
+            if (col === 'outbound_status' && wsn && outboundWSNs.has(wsn)) {
+              return (
+                <Chip label="DONE" size="small" sx={{ bgcolor: getStatusColor('DONE'), color: 'white', fontSize: '0.7rem' }} />
+              );
+            }
+
+            const raw = p.value;
+            if (!raw) return (
+              <Chip label="-" size="small" sx={{ bgcolor: '#999', color: 'white', fontSize: '0.7rem' }} />
+            );
+            const s = String(raw).toLowerCase();
+            const normalized = s.includes('pend')
+              ? 'PENDING'
+              : (s.includes('done') || s.includes('pass') || s.includes('complete') || s.includes('ok'))
+                ? 'DONE'
+                : String(raw).toUpperCase();
+            return (
+              <Chip
+                label={normalized}
+                size="small"
+                sx={{ bgcolor: getStatusColor(normalized), color: 'white', fontSize: '0.7rem' }}
+              />
+            );
+          },
+          suppressMenu: true,
+          ...getColumnSizing(col),
+        };
+      }
+
+      // Current stage special renderer
+      if (col === 'current_stage') {
+        return {
+          ...base,
+          filter: enableColumnFilters ? 'agTextColumnFilter' : undefined,
+          cellRenderer: (p: any) => (
+            <Chip label={p.value || '-'} color={getStageColor(p.value) as any} size="small" variant="outlined" />
+          ),
+          suppressMenu: true,
+          ...getColumnSizing(col),
+        };
+      }
+
+      // Dates formatting
+      if (col.includes('date') || col === 'invoice_date') {
+        return {
+          ...base,
+          filter: enableColumnFilters ? 'agDateColumnFilter' : undefined,
+          valueFormatter: (p: any) => formatGridDate(p.value),
+          tooltipField: col,
+          ...getColumnSizing(col),
+        };
+      }
+
+      // Default text column (apply sizing if present)
+      const sizing = getColumnSizing(col);
+      return {
+        ...base,
+        filter: enableColumnFilters ? 'agTextColumnFilter' : undefined,
         tooltipField: col,
-        minWidth: 150,
+        ...sizing,
+        minWidth: sizing?.minWidth || 150,
       };
     });
 
@@ -340,18 +409,18 @@ export default function DashboardPage() {
         </IconButton>
       ),
       width: 90,
-      pinned: 'right',
       suppressMenu: true,
       resizable: enableColumnResize,
       sortable: false,
     });
 
     setColumnDefs(defs);
-  }, [visibleColumns, enableSorting, enableColumnFilters, enableColumnResize]);
+  }, [visibleColumns, enableSorting, enableColumnFilters, enableColumnResize, pickingWSNs, outboundWSNs, getColumnSizing]);
 
 
 
   const [searchWSN, setSearchWSN] = useState("");
+
   const [stageFilter, setStageFilter] = useState("all");
   const [availableOnly, setAvailableOnly] = useState(false);
   const [brandFilter, setBrandFilter] = useState("");
@@ -360,33 +429,34 @@ export default function DashboardPage() {
   const [dateTo, setDateTo] = useState("");
 
   const [page, setPage] = useState(1);
-  const [limit, setLimit] = useState(25);
+  const [limit, setLimit] = useState(50);
   const [total, setTotal] = useState(0);
   const [categories, setCategories] = useState<string[]>([]);
   const [brands, setBrands] = useState<string[]>([]);
 
   const [searchDebounced, setSearchDebounced] = useState(searchWSN);
-  const [filteredBrands, setFilteredBrands] = useState<string[]>([]);
   const [filteredCategories, setFilteredCategories] = useState<string[]>([]);
   // fallbackRows removed; grid now always displays server-provided data via `filteredData` (pagination handled by server)
-
-  const [loadingFilteredOptions, setLoadingFilteredOptions] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState<boolean>(() => {
     try {
       const saved = localStorage.getItem('dashboardFiltersOpen');
       if (saved !== null) return saved === 'true';
-    } catch (e) {
+    } catch {
       // ignore
     }
     return false;
   });
+  // Mobile full-screen filter modal state (Flipkart/Myntra style)
+  const [mobileActionsOpen, setMobileActionsOpen] = useState(false);
+  // Actions overflow menu on mobile (used for compact action access)
+
 
   const toggleFilters = () => {
     setFiltersOpen((prev) => {
       const next = !prev;
       try {
         localStorage.setItem('dashboardFiltersOpen', next ? 'true' : 'false');
-      } catch (e) { }
+      } catch { }
       return next;
     });
   };
@@ -422,7 +492,7 @@ export default function DashboardPage() {
     outboundDispatched: number;
   }
 
-  const initialMetrics: Metrics = {
+  const initialMetrics = useMemo<Metrics>(() => ({
     total: 0,
     inbound: 0,
     qcPending: 0,
@@ -434,7 +504,7 @@ export default function DashboardPage() {
     pickingCompleted: 0,
     outboundReady: 0,
     outboundDispatched: 0,
-  };
+  }), []);
 
   const [metrics, setMetrics] = useState<Metrics>(initialMetrics);
 
@@ -501,29 +571,334 @@ export default function DashboardPage() {
     localStorage.setItem("dashboardLimit", String(limit));
   }, [limit]);
 
+  // If user has not set a preference for filters, default to collapsed on mobile and expanded on desktop
+  useEffect(() => {
+    try {
+      const savedFilters = localStorage.getItem('dashboardFiltersOpen');
+      // Default to collapsed when user has not set a preference
+      if (savedFilters === null) {
+        setFiltersOpen(false);
+      }
+    } catch { /* ignore */ }
+  }, [isMobile]);
+
+  const loadInventoryData = useCallback(async () => {
+    // Use request id to ignore stale responses
+    currentLoadIdRef.current += 1;
+    const loadId = currentLoadIdRef.current;
+
+    // If we already have rows visible, avoid replacing the whole area with the full-screen spinner:
+    // show a delayed overlay on the grid instead to avoid blinking for fast loads.
+    if (!filteredData || filteredData.length === 0) {
+      setLoading(true);
+    } else {
+      // start delayed overlay timer
+      if (overlayTimerRef.current) clearTimeout(overlayTimerRef.current);
+      overlayShownRef.current = false;
+      overlayStartRef.current = null;
+      overlayTimerRef.current = setTimeout(() => {
+        try {
+          setTopLoading(true);
+          overlayShownRef.current = true;
+          overlayStartRef.current = Date.now();
+          try { gridRef.current?.api?.showLoadingOverlay(); } catch { }
+        } catch (err) { }
+        overlayTimerRef.current = null;
+      }, SHOW_OVERLAY_DELAY);
+    }
+
+    const wakeUpTimer = setTimeout(() => {
+      toast.loading(
+        "⏳ Waking up the server... Render free plan may take 20–40 seconds",
+        { id: "wake-msg" }
+      );
+    }, 4000);
+
+    // Cancel any previous in-flight request
+    if (inventoryAbortControllerRef.current) {
+      try { inventoryAbortControllerRef.current.abort(); } catch { }
+      inventoryAbortControllerRef.current = null;
+    }
+    const controller = new AbortController();
+    inventoryAbortControllerRef.current = controller;
+
+    try {
+      const params: any = {
+        warehouseId: activeWarehouse?.id,
+        page,
+        limit,
+      };
+
+      // Only include filters when present
+      if (searchDebounced) params.search = searchDebounced;
+      if (stageFilter && stageFilter !== "all") params.stage = stageFilter;
+      if (availableOnly) params.availableOnly = true;
+      if (brandFilter) params.brand = brandFilter;
+      if (categoryFilter) params.category = categoryFilter;
+      if (dateFrom) params.dateFrom = dateFrom;
+      if (dateTo) params.dateTo = dateTo;
+
+      const response = await dashboardAPI.getInventoryPipeline(params, { signal: controller.signal });
+      // backend returns paginated data + pagination meta
+      const rows = (response.data?.data || []) as InventoryItem[];
+
+      // Only apply if this is latest request
+      if (loadId === currentLoadIdRef.current) {
+        setInventoryData(rows);
+        setFilteredData(rows); // server already applied filters so show directly
+        setTotal(response.data?.pagination?.total || 0);
+
+        // Update grid rows immediately if grid API supports it
+        if (gridRef.current && typeof (gridRef.current as any).setRowData === 'function') {
+          try {
+            (gridRef.current as any).setRowData(rows);
+          } catch { /* ignore */ }
+        }
+      }
+
+    } catch (error: any) {
+      // ignore aborts
+      if (error?.name === 'CanceledError' || error?.code === 'ERR_CANCELED' || error?.name === 'AbortError') {
+        // aborted or canceled - nothing to show
+        return;
+      }
+      console.error("Load inventory error:", error);
+      toast.error("Failed to load inventory data");
+    } finally {
+      clearTimeout(wakeUpTimer);   // ⛔ timer stop
+      toast.dismiss("wake-msg");  // ⛔ toast remove
+
+      // Only clear loading/overlays when this is the latest request
+      if (loadId === currentLoadIdRef.current) {
+        if (overlayShownRef.current && overlayStartRef.current) {
+          const elapsed = Date.now() - overlayStartRef.current;
+          if (elapsed < MIN_LOADING_MS) {
+            await new Promise(res => setTimeout(res, MIN_LOADING_MS - elapsed));
+          }
+          try { gridRef.current?.api?.hideOverlay(); } catch { }
+          overlayShownRef.current = false;
+          overlayStartRef.current = null;
+          try { setTopLoading(false); } catch { }
+        } else {
+          // overlay never shown, clear pending timer
+          if (overlayTimerRef.current) {
+            clearTimeout(overlayTimerRef.current);
+            overlayTimerRef.current = null;
+          }
+        }
+
+        if (!filteredData || filteredData.length === 0) setLoading(false);
+
+        // Mark that initial load has finished so we no longer show the pre-load placeholder
+        if (initialLoad) setInitialLoad(false);
+
+        inventoryAbortControllerRef.current = null;
+      }
+    }
+  }, [activeWarehouse?.id, page, limit, searchDebounced, stageFilter, availableOnly, brandFilter, categoryFilter, dateFrom, dateTo]);
+
+  const loadFilterOptions = useCallback(async () => {
+    try {
+      const [bResp, cResp] = await Promise.all([
+        inboundAPI.getBrands(activeWarehouse?.id),
+        inboundAPI.getCategories(activeWarehouse?.id),
+      ]);
+      // Extract data correctly
+      const brandsData = Array.isArray(bResp?.data) ? bResp.data : bResp?.data?.data || [];
+      const categoriesData = Array.isArray(cResp?.data) ? cResp.data : cResp?.data?.data || [];
+
+      setBrands(brandsData);
+      setCategories(categoriesData);
+    } catch (err) {
+      console.warn("Could not load full filter options:", err);
+      // On error, just leave empty - no fallback to page data
+      setBrands([]);
+      setCategories([]);
+    }
+  }, [activeWarehouse?.id]);
+
+  // 🔥 GET FILTERED CATEGORIES - only for selected brand
+  const getFilteredCategories = useCallback(async () => {
+    if (!brandFilter) {
+      // No brand selected, show all categories
+      return categories;
+    }
+    try {
+      // Get inbound data filtered by selected brand
+      const response = await dashboardAPI.getInventoryPipeline({
+        warehouseId: activeWarehouse?.id,
+        brand: brandFilter,
+        page: 1,
+        limit: 10000, // Get all records for this brand
+      });
+
+      const items = response.data?.data || [];
+      const uniqueCategories = Array.from(
+        new Set(items.map((item: any) => item.cms_vertical).filter(Boolean))
+      ) as string[];
+
+      return uniqueCategories;
+    } catch {
+      console.error("Error getting filtered categories:");
+      return categories; // Fallback to all categories
+    }
+  }, [activeWarehouse?.id, brandFilter, categories]);
+
+  const loadMetrics = useCallback(async () => {
+    try {
+      const response = await dashboardAPI.getInventoryMetrics(
+        activeWarehouse?.id
+      );
+      setMetrics(response.data || initialMetrics);
+    } catch (error) {
+      console.error("Load metrics error:", error);
+    }
+  }, [activeWarehouse?.id, initialMetrics]);
+
+  const loadInventorySummary = useCallback(async () => {
+    try {
+      if (!activeWarehouse?.id) return;
+      const response = await inventoryAPI.getSummary(activeWarehouse.id);
+      setInventorySummary(response.data || {
+        available_stock: 0,
+        qc_pending: 0,
+        ready_for_dispatch: 0,
+        dispatched_items: 0,
+      });
+    } catch (error) {
+      console.error("Load inventory summary error:", error);
+    }
+  }, [activeWarehouse?.id]);
+
+  // Load lists of WSNs that are present in Picking and Outbound lists so we can render DONE correctly
+  const loadExistingStageWSNs = useCallback(async () => {
+    try {
+      if (!activeWarehouse?.id) {
+        setPickingWSNs(new Set());
+        setOutboundWSNs(new Set());
+        return;
+      }
+
+      const [pResp, oResp] = await Promise.all([
+        pickingAPI.getExistingWSNs(activeWarehouse.id),
+        outboundAPI.getExistingWSNs(activeWarehouse.id),
+      ]);
+
+      const pList = Array.isArray(pResp?.data) ? pResp.data : pResp?.data?.data || [];
+      const oList = Array.isArray(oResp?.data) ? oResp.data : oResp?.data?.data || [];
+
+      setPickingWSNs(new Set(pList.map((x: any) => (x?.wsn ?? x))));
+      setOutboundWSNs(new Set(oList.map((x: any) => (x?.wsn ?? x))));
+    } catch (err) {
+      console.warn("Could not load existing stage WSNs:", err);
+      setPickingWSNs(new Set());
+      setOutboundWSNs(new Set());
+    }
+  }, [activeWarehouse?.id]);
+
   useEffect(() => {
     if (activeWarehouse) {
-      // Filters for dropdowns
+      // Initial loads
       loadFilterOptions();
-      // Metrics always loaded via interval
       loadMetrics();
       loadInventorySummary();
+      // Load existing WSN lists for picking & outbound so status can reflect DONE
+      loadExistingStageWSNs();
 
-      // Always fetch current page from server (paginated)
-      loadInventoryData();
+      // Debounce inventory loads to avoid flicker on rapid filter changes
+      if (inventoryLoadDebounceRef.current) clearTimeout(inventoryLoadDebounceRef.current);
+      inventoryLoadDebounceRef.current = setTimeout(() => {
+        loadInventoryData();
+        inventoryLoadDebounceRef.current = null;
+      }, 350);
 
       const interval = setInterval(() => {
         loadMetrics();
         loadInventorySummary();
+        // refresh existing stage WSNs periodically as well
+        loadExistingStageWSNs();
       }, 5000);
-      return () => clearInterval(interval);
+      return () => {
+        clearInterval(interval);
+        if (inventoryLoadDebounceRef.current) {
+          clearTimeout(inventoryLoadDebounceRef.current);
+          inventoryLoadDebounceRef.current = null;
+        }
+      };
     }
-    setWarehouseChecked(true);
-  }, [activeWarehouse, page, limit, searchDebounced, stageFilter, availableOnly, brandFilter, categoryFilter, dateFrom, dateTo]);
+  }, [activeWarehouse, page, limit, searchDebounced, stageFilter, availableOnly, brandFilter, categoryFilter, dateFrom, dateTo, loadFilterOptions, loadMetrics, loadInventorySummary, loadExistingStageWSNs, loadInventoryData]);
 
   useEffect(() => {
     setFilteredData(inventoryData);
   }, [inventoryData]);
+
+  // Sync AG Grid overlays with data/loading state to avoid full re-renders and flicker
+  useEffect(() => {
+    const api = gridRef.current?.api;
+    if (!api) return;
+    if (!loading) {
+      if (!filteredData || filteredData.length === 0) api.showNoRowsOverlay();
+      else api.hideOverlay();
+    }
+  }, [loading, filteredData]);
+
+  // Cleanup timers/aborters on unmount
+  useEffect(() => {
+    return () => {
+      if (inventoryLoadDebounceRef.current) {
+        clearTimeout(inventoryLoadDebounceRef.current);
+        inventoryLoadDebounceRef.current = null;
+      }
+      if (overlayTimerRef.current) {
+        clearTimeout(overlayTimerRef.current);
+        overlayTimerRef.current = null;
+      }
+      if (inventoryAbortControllerRef.current) {
+        try { inventoryAbortControllerRef.current.abort(); } catch { }
+        inventoryAbortControllerRef.current = null;
+      }
+    };
+  }, []);
+
+  // Content-based auto-sizing: auto-size columns to their content, then fallback to sizeColumnsToFit if there's extra space
+  useEffect(() => {
+    const autoSize = () => {
+      try {
+        const colApi = columnApiRef.current;
+        const api = gridRef.current;
+        if (!colApi || !api) return;
+        const allCols = (colApi.getAllColumns && colApi.getAllColumns()) ? colApi.getAllColumns().map((c: any) => c.getColId()) : [];
+        if (!allCols || allCols.length === 0) return;
+        colApi.autoSizeColumns(allCols, false);
+
+        // If total column width is less than grid width, stretch to fit
+        let total = 0;
+        for (const id of allCols) {
+          const col = colApi.getColumn(id);
+          total += col?.getActualWidth ? col.getActualWidth() : 0;
+        }
+        const dims = api.getSize ? api.getSize() : (api.gridPanel && api.gridPanel.getBodyClientRect && api.gridPanel.getBodyClientRect());
+        const gridW = dims?.width || 0;
+        if (gridW && total < gridW) {
+          api.sizeColumnsToFit();
+        }
+      } catch { /* ignore */ }
+    };
+
+    const t = setTimeout(autoSize, 50);
+    let r: any;
+    const onResize = () => {
+      clearTimeout(r);
+      r = setTimeout(autoSize, 150);
+    };
+
+    window.addEventListener('resize', onResize);
+    return () => {
+      clearTimeout(t);
+      clearTimeout(r);
+      window.removeEventListener('resize', onResize);
+    };
+  }, [filteredData, columnDefs]);
 
 
   const memoizedFilteredBrands = useMemo(() => {
@@ -547,33 +922,16 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!brandFilter) {
       setFilteredCategories(categories);
-      setLoadingFilteredOptions(false);
       return;
     }
 
-    setLoadingFilteredOptions(true);
     getFilteredCategories()
       .then(setFilteredCategories)
-      .finally(() => setLoadingFilteredOptions(false));
-  }, [brandFilter, categories]);
+      .catch(() => setFilteredCategories(categories));
+  }, [brandFilter, categories, getFilteredCategories]);
 
 
-  // When category changes, update filtered brands
-  useEffect(() => {
-    if (categoryFilter && inventoryData.length > 0) {
-      // Get unique brands from current inventory data for selected category
-      const filtered = Array.from(
-        new Set(
-          inventoryData
-            .map((item: any) => item.brand)
-            .filter(Boolean)
-        )
-      ) as string[];
-      setFilteredBrands(filtered.sort());
-    } else {
-      setFilteredBrands(brands);
-    }
-  }, [categoryFilter, inventoryData, brands]);
+
 
   // When brand changes, update filtered categories
   useEffect(() => {
@@ -594,165 +952,9 @@ export default function DashboardPage() {
 
 
 
-  const loadInventoryData = async () => {
-    setLoading(true);
-
-    // ⏳ wake-up timer (ONLY for slow server)
-    const wakeUpTimer = setTimeout(() => {
-      toast.loading(
-        "⏳ Waking up the server... Render free plan may take 20–40 seconds",
-        { id: "wake-msg" }
-      );
-    }, 4000);
-
-    try {
-      const params: any = {
-        warehouseId: activeWarehouse?.id,
-        page,
-        limit,
-      };
-
-      // Only include filters when present
-      if (searchDebounced) params.search = searchDebounced;
-      if (stageFilter && stageFilter !== "all") params.stage = stageFilter;
-      if (availableOnly) params.availableOnly = true;
-      if (brandFilter) params.brand = brandFilter;
-      if (categoryFilter) params.category = categoryFilter;
-      if (dateFrom) params.dateFrom = dateFrom;
-      if (dateTo) params.dateTo = dateTo;
-
-      const response = await dashboardAPI.getInventoryPipeline(params);
-      // backend returns paginated data + pagination meta
-      const rows = (response.data?.data || []) as InventoryItem[];
-      setInventoryData(rows);
-      setFilteredData(rows); // server already applied filters so show directly
-      setTotal(response.data?.pagination?.total || 0);
-
-      // Update grid rows immediately if grid API supports it
-      if (gridRef.current && typeof (gridRef.current as any).setRowData === 'function') {
-        try {
-          (gridRef.current as any).setRowData(rows);
-        } catch (e) {
-          // ignore
-        }
-      }
-
-    } catch (error: any) {
-      console.error("Load inventory error:", error);
-      toast.error("Failed to load inventory data");
-    } finally {
-      clearTimeout(wakeUpTimer);   // ⛔ timer stop
-      toast.dismiss("wake-msg");  // ⛔ toast remove
-      setLoading(false);
-    }
-  };
-
-  const loadFilterOptions = async () => {
-    try {
-      const [bResp, cResp] = await Promise.all([
-        inboundAPI.getBrands(activeWarehouse?.id),
-        inboundAPI.getCategories(activeWarehouse?.id),
-      ]);
-      // Extract data correctly
-      const brandsData = Array.isArray(bResp?.data) ? bResp.data : bResp?.data?.data || [];
-      const categoriesData = Array.isArray(cResp?.data) ? cResp.data : cResp?.data?.data || [];
-
-      setBrands(brandsData);
-      setCategories(categoriesData);
-    } catch (err) {
-      console.warn("Could not load full filter options:", err);
-      // On error, just leave empty - no fallback to page data
-      setBrands([]);
-      setCategories([]);
-    }
-  };
-
-  // 🔥 GET FILTERED BRANDS - only for selected category
-  const getFilteredBrands = async () => {
-    if (!categoryFilter) {
-      // No category selected, show all brands
-      return brands;
-    }
-    try {
-      // Get inbound data filtered by selected category
-      const response = await dashboardAPI.getInventoryPipeline({
-        warehouseId: activeWarehouse?.id,
-        category: categoryFilter,
-        page: 1,
-        limit: 10000, // Get all records for this category
-      });
-
-      const items = response.data?.data || [];
-      const uniqueBrands = Array.from(
-        new Set(items.map((item: any) => item.brand).filter(Boolean))
-      ) as string[];
-
-      return uniqueBrands;
-    } catch (err) {
-      console.error("Error getting filtered brands:", err);
-      return brands; // Fallback to all brands
-    }
-  };
-
-  // 🔥 GET FILTERED CATEGORIES - only for selected brand
-  const getFilteredCategories = async () => {
-    if (!brandFilter) {
-      // No brand selected, show all categories
-      return categories;
-    }
-    try {
-      // Get inbound data filtered by selected brand
-      const response = await dashboardAPI.getInventoryPipeline({
-        warehouseId: activeWarehouse?.id,
-        brand: brandFilter,
-        page: 1,
-        limit: 10000, // Get all records for this brand
-      });
-
-      const items = response.data?.data || [];
-      const uniqueCategories = Array.from(
-        new Set(items.map((item: any) => item.cms_vertical).filter(Boolean))
-      ) as string[];
-
-      return uniqueCategories;
-    } catch (err) {
-      console.error("Error getting filtered categories:", err);
-      return categories; // Fallback to all categories
-    }
-  };
 
 
 
-  const loadMetrics = async () => {
-    try {
-      const response = await dashboardAPI.getInventoryMetrics(
-        activeWarehouse?.id
-      );
-      setMetrics(response.data || initialMetrics);
-    } catch (error) {
-      console.error("Load metrics error:", error);
-    }
-  };
-
-  const loadInventorySummary = async () => {
-    try {
-      if (!activeWarehouse?.id) return;
-      const response = await inventoryAPI.getSummary(activeWarehouse.id);
-      setInventorySummary(response.data || {
-        available_stock: 0,
-        qc_pending: 0,
-        ready_for_dispatch: 0,
-        dispatched_items: 0,
-      });
-    } catch (error) {
-      console.error("Load inventory summary error:", error);
-    }
-  };
-
-  const applyFilters = () => {
-    // server already returned filtered data; just ensure filteredData mirrors inventoryData
-    setFilteredData(inventoryData);
-  };
 
   const getStageColor = (stage: string) => {
     if (stage?.includes("INBOUND")) return "primary";
@@ -766,11 +968,11 @@ export default function DashboardPage() {
 
   const getStatusColor = (status: string) => {
     if (!status) return "#999";
-    if (status === "PENDING") return "#ff9800";
-    if (status === "Pending") return "#ff9800";
-    if (status === "COMPLETED" || status === "PASSED") return "#4caf50";
-    if (status === "FAILED") return "#f44336";
-    if (status === "ok") return "#4caf50";
+    const s = String(status).toUpperCase();
+    if (s === "PENDING") return "#ff9800";
+    if (s === "COMPLETED" || s === "PASSED" || s === "DONE") return "#4caf50";
+    if (s === "FAILED") return "#f44336";
+    if (s === "OK") return "#4caf50";
     return "#2196f3";
   };
 
@@ -1073,6 +1275,7 @@ export default function DashboardPage() {
             overflowX: "visible",
           }}
         >
+
           {[
             { label: "Master Data", value: metrics.total, color: "#6366f1", icon: <DashboardRounded /> },
             { label: "Available", value: inventorySummary.available_stock, color: "#6366f1", icon: <InventoryRounded /> },
@@ -1151,11 +1354,11 @@ export default function DashboardPage() {
         <Box
           sx={{
             background: "white",
-            px: 2,
-            py: 1.5,
+            px: { xs: 1, md: 2 },
+            py: { xs: 1, md: 1.5 },
             display: "flex",
             flexDirection: "column",
-            gap: 1,
+            gap: { xs: 0.75, md: 1 },
             flexShrink: 0,
           }}
         >
@@ -1164,22 +1367,38 @@ export default function DashboardPage() {
             sx={{
               display: "flex",
               flexDirection: { xs: "row", md: "row" },
-              gap: 1,
+              gap: { xs: 0.5, md: 1 },
               alignItems: "center",
             }}
           >
-            {/* Search */}
-            <TextField
-              size="small"
-              placeholder="Search WSN or Product"
-              value={searchWSN}
-              onChange={(e) => {
-                setSearchWSN(e.target.value);
-                setPage(1);
-              }}
-              fullWidth
-              sx={{ "& .MuiOutlinedInput-root": { height: 40 } }}
-            />
+            {/* Search + Mobile Actions */}
+            <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', width: '100%' }}>
+              <TextField
+                size="small"
+                placeholder="Search WSN or Product"
+                value={searchWSN}
+                onChange={(e) => {
+                  setSearchWSN(e.target.value);
+                  setPage(1);
+                }}
+                fullWidth
+                sx={{ "& .MuiOutlinedInput-root": { height: 40 } }}
+              />
+
+              {/* Mobile Actions button: opens a full-screen dialog with filters + actions */}
+              <Button
+                variant="contained"
+                color="primary"
+                startIcon={<TuneIcon />}
+                sx={{
+                  display: { xs: 'inline-flex', md: 'none' },
+                  size: 'small', height: 40, px: 2.5, textTransform: 'none'
+                }}
+                onClick={() => setMobileActionsOpen(true)}
+              >
+                Actions
+              </Button>
+            </Box>
 
             {/* Desktop dates */}
             <Box
@@ -1216,13 +1435,13 @@ export default function DashboardPage() {
               />
             </Box>
 
-            {/* Filters toggle (desktop + mobile) */}
+            {/* Filters toggle (desktop only) */}
             <Button
               variant="outlined"
               size="small"
               onClick={toggleFilters}
               sx={{
-                display: "inline-flex",
+                display: { xs: 'none', md: 'inline-flex' },
                 height: 40,
                 minWidth: 120,
                 fontSize: "0.60rem",
@@ -1267,7 +1486,7 @@ export default function DashboardPage() {
           </Box>
 
           {/* BODY: collapsible */}
-          <Collapse in={filtersOpen} timeout="auto">
+          <Collapse in={filtersOpen} timeout="auto" sx={{ display: { xs: 'none', md: 'block' } }}>
             <Box sx={{ mt: { xs: 1, md: 0.5 } }}>
               {/* Dates on mobile */}
               <Box
@@ -1339,12 +1558,12 @@ export default function DashboardPage() {
                   justifyContent: "space-between",
                 }}
               >
-                {/* LEFT: Stage / Brand / Category - tightly packed */}
+                {/* LEFT: Stage / Brand / Category - tightly packed (stack on mobile) */}
                 <Box
                   sx={{
                     display: "flex",
-                    flexDirection: "row",
-                    gap: 1,
+                    flexDirection: { xs: 'column', md: 'row' },
+                    gap: { xs: 0.5, md: 1 },
                     flexGrow: 1,
                   }}
                 >
@@ -1363,7 +1582,7 @@ export default function DashboardPage() {
                         PaperProps: { style: { maxHeight: 300 } },
                       },
                     }}
-                    sx={{ "& .MuiOutlinedInput-root": { height: 40 } }}
+                    sx={{ "& .MuiOutlinedInput-root": { height: { xs: 36, md: 40 }, fontSize: { xs: '0.85rem', md: '0.95rem' } } }}
                   >
                     {PIPELINE_STAGES.map((s) => (
                       <MenuItem key={s.value} value={s.value}>
@@ -1387,7 +1606,7 @@ export default function DashboardPage() {
                         PaperProps: { style: { maxHeight: 300 } },
                       },
                     }}
-                    sx={{ "& .MuiOutlinedInput-root": { height: 40 } }}
+                    sx={{ "& .MuiOutlinedInput-root": { height: { xs: 36, md: 40 }, fontSize: { xs: '0.85rem', md: '0.95rem' } } }}
                   >
                     <MenuItem value="">All</MenuItem>
                     {(categoryFilter ? memoizedFilteredBrands : brands).map((b) => (
@@ -1412,7 +1631,7 @@ export default function DashboardPage() {
                         PaperProps: { style: { maxHeight: 300 } },
                       },
                     }}
-                    sx={{ "& .MuiOutlinedInput-root": { height: 40 } }}
+                    sx={{ "& .MuiOutlinedInput-root": { height: { xs: 36, md: 40 }, fontSize: { xs: '0.85rem', md: '0.95rem' } } }}
                   >
                     <MenuItem value="">All</MenuItem>
                     {(brandFilter ? filteredCategories : categories).map((c) => (
@@ -1428,23 +1647,25 @@ export default function DashboardPage() {
                   sx={{
                     display: "grid",
                     gridTemplateColumns: {
-                      xs: "repeat(5, 1fr)", // mobile: tighter fit for 5 buttons
-                      md: "repeat(5, auto)", // desktop: 5 buttons in a row
+                      xs: "repeat(6, 1fr)", // mobile: tighter fit for 6 items
+                      md: "repeat(6, auto)", // desktop: 6 items in a row (includes Available Only)
                     },
                     gap: { xs: 0.5, md: 1 },
                     width: { xs: "100%", md: "auto" },
                     justifyContent: { xs: "stretch", md: "flex-end" },
                     alignItems: "center",
+                    overflowX: { xs: 'auto', md: 'visible' }
                   }}
                 >
                   <Button
                     variant="outlined"
                     size="small"
+                    startIcon={<RestartAltIcon sx={{ fontSize: 14 }} />}
                     onClick={resetFilters}
                     sx={{
-                      height: 40,
+                      height: { xs: 34, md: 40 },
                       px: 1,
-                      fontSize: "0.65rem",
+                      fontSize: { xs: '0.62rem', md: '0.65rem' },
                       fontWeight: 600,
                       width: "100%",
                     }}
@@ -1458,9 +1679,9 @@ export default function DashboardPage() {
                     variant="outlined"
                     onClick={() => setColumnDialogOpen(true)}
                     sx={{
-                      height: 40,
+                      height: { xs: 34, md: 40 },
                       px: 1,
-                      fontSize: "0.65rem",
+                      fontSize: { xs: '0.62rem', md: '0.65rem' },
                       fontWeight: 600,
                       width: "100%",
                     }}
@@ -1474,9 +1695,9 @@ export default function DashboardPage() {
                     variant="outlined"
                     onClick={() => setGridSettingsOpen(true)}
                     sx={{
-                      height: 36,
+                      height: { xs: 32, md: 36 },
                       px: 0.6,
-                      fontSize: "0.62rem",
+                      fontSize: { xs: '0.6rem', md: '0.62rem' },
                       fontWeight: 600,
                       width: "100%",
                     }}
@@ -1503,9 +1724,9 @@ export default function DashboardPage() {
                       setExportDialogOpen(true);
                     }}
                     sx={{
-                      height: 40,
+                      height: { xs: 34, md: 40 },
                       px: 1,
-                      fontSize: "0.65rem  ",
+                      fontSize: { xs: '0.62rem', md: '0.65rem' },
                       fontWeight: 600,
                       width: "100%",
                     }}
@@ -1522,9 +1743,9 @@ export default function DashboardPage() {
                       loadMetrics();
                     }}
                     sx={{
-                      height: 40,
+                      height: { xs: 34, md: 40 },
                       px: 1,
-                      fontSize: "0.65rem",
+                      fontSize: { xs: '0.62rem', md: '0.65rem' },
                       fontWeight: 600,
                       width: "100%",
                     }}
@@ -1532,7 +1753,8 @@ export default function DashboardPage() {
                     REFRESH
                   </Button>
 
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  {/* Available Only - inline in the button grid so it stays on same row */}
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', pl: { xs: 0, md: 1 } }}>
                     <FormControlLabel
                       control={
                         <Checkbox
@@ -1551,18 +1773,18 @@ export default function DashboardPage() {
                             '&.Mui-checked': {
                               color: "#1976d2",
                             },
+                            transform: { xs: 'scale(0.9)', md: 'scale(1)' },
+                            mr: { xs: 0.4, md: 0.8 }
                           }}
                         />
                       }
                       label={
-                        <Typography sx={{ fontSize: "0.75rem", fontWeight: 600, color: "#424242" }}>
+                        <Typography sx={{ fontSize: { xs: '0.6rem', md: '0.75rem' }, fontWeight: 600, color: "#424242" }}>
                           Available Only
                         </Typography>
                       }
-                      sx={{ mr: 0, display: { xs: 'none', md: 'flex' } }}
+                      sx={{ mr: 0 }}
                     />
-
-
                   </Box>
 
                 </Box>
@@ -1581,6 +1803,7 @@ export default function DashboardPage() {
             flexDirection: "column",
             overflow: "hidden",
             px: 1,
+            pb: { xs: 10, md: 2 }, // reserve space for mobile action bar
           }}
         >
           <Paper
@@ -1593,7 +1816,7 @@ export default function DashboardPage() {
           >
             {/* Table Container - AG Grid */}
             <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-              {loading ? (
+              {((initialLoad || loading) && (!filteredData || filteredData.length === 0)) ? (
                 <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <CircularProgress size={30} />
                 </Box>
@@ -1641,8 +1864,15 @@ export default function DashboardPage() {
                   '& .ag-cell-focus': { border: '2px solid #2563eb !important', boxSizing: 'border-box' },
                   '& .ag-cell-range-selected': { backgroundColor: '#dbeafe !important' },
                   '& .ag-row-hover': { backgroundColor: '#e5f3ff !important' },
+
+                  // AG Grid header styles
+                  '& .ag-header': { background: 'linear-gradient(135deg, #f0f8ff 0%, #e6f7ff 100%) !important' },
+                  '& .ag-header-row': { height: 44 },
+                  '& .ag-header-cell': { background: 'transparent', color: '#08306b', fontWeight: 700, borderBottom: '1px solid rgba(0,0,0,0.06)' },
+                  '& .ag-header-cell-label': { color: '#08306b' },
                 }}>
                   <div className="ag-theme-quartz" style={{ height: '100%', width: '100%' }}>
+                    {topLoading && <LinearProgress color="primary" sx={{ height: 3, mb: 0.5 }} />}
                     <AgGridReact
                       ref={gridRef}
                       rowData={filteredData}
@@ -1653,22 +1883,29 @@ export default function DashboardPage() {
                       getRowId={(params: any) => params.data?.wsn || params.data?.wid || String(params.rowIndex)}
                       onGridReady={(params: any) => {
                         gridRef.current = params.api;
-                        try { params.api.sizeColumnsToFit(); } catch (e) { /* ignore */ }
+                        columnApiRef.current = params.columnApi;
+                        try {
+                          const colApi = params.columnApi;
+                          const allCols = colApi.getAllColumns()?.map((c: any) => c.getColId()) || [];
+                          if (allCols.length > 0) {
+                            colApi.autoSizeColumns(allCols, false);
+                          }
+                        } catch { /* ignore */ }
+                        try { params.api.sizeColumnsToFit(); } catch { /* ignore */ }
                       }}
                       animateRows={false}
                       rowBuffer={1}
-                      rowHeight={26}
+                      rowHeight={36}
                     />
                   </div>
                 </Box>
               )}
             </Box>
-
             {/* ================= PAGINATION (ALWAYS ONE ROW + MOBILE COMPACT) ================= */}
             <Box
               sx={{
                 px: 2,
-                py: 1,
+                py: 0.5,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
@@ -1677,12 +1914,12 @@ export default function DashboardPage() {
                 flexShrink: 0,
                 overflowX: "auto",
                 whiteSpace: "nowrap",
-                gap: 2,
+                gap: 1,
               }}
             >
               {/* Per Page */}
               <Stack direction="row" spacing={1} alignItems="center">
-                <Typography sx={{ fontSize: "0.85rem", whiteSpace: "nowrap" }}>
+                <Typography sx={{ fontSize: "0.78rem", whiteSpace: "nowrap" }}>
                   Per page:
                 </Typography>
 
@@ -1695,17 +1932,17 @@ export default function DashboardPage() {
                   }}
                   sx={{ minWidth: 70 }}
                 >
-                  <MenuItem value={10}>10</MenuItem>
-                  <MenuItem value={25}>25</MenuItem>
                   <MenuItem value={50}>50</MenuItem>
                   <MenuItem value={100}>100</MenuItem>
+                  <MenuItem value={500}>500</MenuItem>
+                  <MenuItem value={1000}>1000</MenuItem>
                 </Select>
               </Stack>
 
               {/* Count */}
               <Typography
                 sx={{
-                  fontSize: "0.85rem",
+                  fontSize: "0.78rem",
                   whiteSpace: "nowrap",
                 }}
               >
@@ -1750,6 +1987,68 @@ export default function DashboardPage() {
           </Paper>
         </Box>
       </Box>
+
+      {/* Mobile sticky action bar hidden (actions moved to Actions dialog) */}
+      <Box sx={{ display: { xs: 'none', md: 'none' } }} />
+
+      {/* MOBILE ACTIONS DIALOG (Filters + Actions combined) */}
+      <Dialog fullScreen open={mobileActionsOpen} onClose={() => setMobileActionsOpen(false)} TransitionProps={{}}>
+        <AppBar position="sticky" elevation={1} sx={{ bgcolor: 'background.paper', color: 'text.primary' }}>
+          <Toolbar>
+            <IconButton edge="start" color="inherit" onClick={() => setMobileActionsOpen(false)} aria-label="close">
+              <CloseIcon />
+            </IconButton>
+            <Typography sx={{ ml: 2, flex: 1, fontWeight: 700 }}>Filters & Actions</Typography>
+            <Button color="primary" onClick={() => setMobileActionsOpen(false)}>Close</Button>
+          </Toolbar>
+        </AppBar>
+
+        <DialogContent sx={{ p: 2 }}>
+          <Stack spacing={2}>
+            <Box>
+              <TextField fullWidth placeholder="Search WSN or Product" value={searchWSN} onChange={(e) => setSearchWSN(e.target.value)} size="small" sx={{ '& .MuiOutlinedInput-root': { height: 40 } }} />
+            </Box>
+
+            <Box display="flex" gap={1} flexDirection="column">
+              <TextField select size="small" label="Stage" value={stageFilter} onChange={(e) => setStageFilter(e.target.value)} fullWidth SelectProps={{ MenuProps: { PaperProps: { style: { maxHeight: 300 } } } }} sx={{ '& .MuiOutlinedInput-root': { height: 40 } }}>
+                {PIPELINE_STAGES.map((s) => <MenuItem key={s.value} value={s.value}>{s.label}</MenuItem>)}
+              </TextField>
+
+              <TextField select size="small" label="Brand" value={brandFilter} onChange={(e) => setBrandFilter(e.target.value)} fullWidth SelectProps={{ MenuProps: { PaperProps: { style: { maxHeight: 300 } } } }} sx={{ '& .MuiOutlinedInput-root': { height: 40 } }}>
+                <MenuItem value="">All</MenuItem>
+                {(categoryFilter ? memoizedFilteredBrands : brands).map((b) => (<MenuItem key={b} value={b}>{b}</MenuItem>))}
+              </TextField>
+
+              <TextField select size="small" label="Category" value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} fullWidth SelectProps={{ MenuProps: { PaperProps: { style: { maxHeight: 300 } } } }} sx={{ '& .MuiOutlinedInput-root': { height: 40 } }}>
+                <MenuItem value="">All</MenuItem>
+                {(brandFilter ? filteredCategories : categories).map((c) => (<MenuItem key={c} value={c}>{c}</MenuItem>))}
+              </TextField>
+
+              <Box display="flex" gap={1} alignItems="center">
+                <TextField label="From Date" type="date" size="small" variant="outlined" InputLabelProps={{ shrink: true }} value={dateFrom || ''} onChange={(e) => setDateFrom(e.target.value)} sx={{ flex: 1, '& .MuiOutlinedInput-root': { height: 40 } }} />
+                <TextField label="To Date" type="date" size="small" variant="outlined" InputLabelProps={{ shrink: true }} value={dateTo || ''} onChange={(e) => setDateTo(e.target.value)} sx={{ flex: 1, '& .MuiOutlinedInput-root': { height: 40 } }} />
+              </Box>
+
+              <FormControlLabel control={<Checkbox checked={availableOnly} onChange={(e) => setAvailableOnly(e.target.checked)} />} label={<Typography sx={{ fontSize: '0.9rem', fontWeight: 700 }}>Available Only</Typography>} />
+
+              {/* Action buttons */}
+              <Box sx={{ display: 'grid', gap: 1, mt: 1, flexWrap: 'wrap', columnCount: 2, gridTemplateColumns: 'repeat(2, 1fr)' }}>
+                <Button variant="outlined" sx={{ width: 170 }} startIcon={<RestartAltIcon />} onClick={resetFilters}>Reset</Button>
+                <Button variant="outlined" sx={{ width: 170 }} startIcon={<DownloadIcon />} onClick={() => { setExportFilters({ dateFrom, dateTo, stage: stageFilter || 'all', brand: brandFilter, category: categoryFilter, availableOnly: availableOnly ? 'available' : 'all' }); setExportDialogOpen(true); }}>Export</Button>
+
+                <Button variant="outlined" sx={{ width: 170 }} startIcon={<SettingsIcon />} onClick={() => setColumnDialogOpen(true)}>Columns</Button>
+                <Button variant="outlined" sx={{ width: 170 }} startIcon={<TuneIcon />} onClick={() => setGridSettingsOpen(true)}>Grid</Button>
+              </Box>
+
+            </Box>
+          </Stack>
+        </DialogContent>
+
+        <Box sx={{ position: 'sticky', bottom: 0, left: 0, right: 0, bgcolor: 'background.paper', p: 1, borderTop: '1px solid #e0e0e0', display: 'flex', gap: 1 }}>
+          <Button fullWidth variant="outlined" onClick={() => { setDateFrom(''); setDateTo(''); setStageFilter('all'); setBrandFilter(''); setCategoryFilter(''); setAvailableOnly(false); }}>Reset</Button>
+          <Button fullWidth variant="contained" onClick={() => { setPage(1); setMobileActionsOpen(false); }}>Apply</Button>
+        </Box>
+      </Dialog>
 
       {/* EXPORT DIALOG */}
       <Dialog
@@ -2129,6 +2428,6 @@ export default function DashboardPage() {
         </DialogActions>
       </Dialog>
 
-    </AppLayout>
+    </AppLayout >
   );
 }

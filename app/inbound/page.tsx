@@ -8,8 +8,8 @@ import {
   TableContainer, TableHead, TableRow, Dialog, DialogTitle,
   DialogContent, DialogActions, TextField, MenuItem, Chip, Stack, Tab, Tabs,
   CircularProgress, Alert, Card, CardContent, LinearProgress, Divider,
-  Select, FormControl, InputLabel, Checkbox, FormControlLabel,
-  Collapse, IconButton, useMediaQuery, useTheme // Add these
+  Select, FormControl, InputLabel, InputAdornment, Checkbox, FormControlLabel,
+  Collapse, IconButton, AppBar, Toolbar, useMediaQuery, useTheme // Add these
 } from '@mui/material';
 
 import {
@@ -18,7 +18,9 @@ import {
   Delete as DeleteIcon, Refresh as RefreshIcon,
   CheckCircle,
   ExpandMore as ExpandMoreIcon, // Add this
-  FilterList as FilterListIcon // Add this
+  FilterList as FilterListIcon, // Add this
+  Close as CloseIcon,
+  Tune as TuneIcon,
 } from '@mui/icons-material';
 
 import { inboundAPI } from '@/lib/api';
@@ -29,7 +31,6 @@ import toast, { Toaster } from 'react-hot-toast';
 import * as XLSX from 'xlsx';
 import Tooltip from '@mui/material/Tooltip';
 import { AgGridReact } from 'ag-grid-react';
-import 'ag-grid-community/styles/ag-grid.css';
 import 'ag-grid-community/styles/ag-theme-quartz.css';
 import { printLabel, isAgentRunning } from '@/lib/printAgent';
 import { useRoleGuard, checkRole } from '@/hooks/useRoleGuard';
@@ -79,6 +80,8 @@ export default function InboundPage() {
   const [user, setUser] = useState<any>(null);
   const [tabValue, setTabValue] = useState(0);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const gridRef = useRef<any>(null);
+  const columnApiRef = useRef<any>(null);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [agentReady, setAgentReady] = useState(false);
 
@@ -88,6 +91,8 @@ export default function InboundPage() {
   const isTablet = useMediaQuery(theme.breakpoints.between('sm', 'md'));
   // Keep filters collapsed by default for a cleaner list view
   const [filtersExpanded, setFiltersExpanded] = useState(false);
+  // Mobile full-screen Actions dialog (filters + actions)
+  const [mobileActionsOpen, setMobileActionsOpen] = useState(false);
 
 
   // ====== SINGLE ENTRY STATE ======
@@ -151,6 +156,21 @@ export default function InboundPage() {
   const [limit, setLimit] = useState(100);
   const [total, setTotal] = useState(0);
   const [searchFilter, setSearchFilter] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+  const searchDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  const listLoadDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  const currentLoadIdRef = useRef(0);
+  const listAbortControllerRef = useRef<AbortController | null>(null);
+  const [topLoading, setTopLoading] = useState(false);
+  // Overlay delay/visibility helpers to avoid flicker
+  const overlayTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const overlayShownRef = useRef(false);
+  const overlayStartRef = useRef<number | null>(null);
+  const SHOW_OVERLAY_DELAY = 150; // ms - show overlay only if load lasts longer than this
+  const [searchPending, setSearchPending] = useState(false);
+
+  // Minimum time (ms) to show loading overlay to avoid flicker
+  const MIN_LOADING_MS = 350;
   const [brandFilter, setBrandFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [dateFromFilter, setDateFromFilter] = useState('');
@@ -204,7 +224,6 @@ export default function InboundPage() {
   const [exportEndDate, setExportEndDate] = useState('');
   const [exportBatchIds, setExportBatchIds] = useState<string[]>([]);
   const [existingInboundWSNs, setExistingInboundWSNs] = useState(new Set());
-
 
   // Grid settings with localStorage
   const [gridSettings, setGridSettings] = useState({
@@ -354,6 +373,240 @@ export default function InboundPage() {
     //toast.success('✓ List columns saved');
   };
 
+  // Date formatter (stable) — moved before column defs to avoid "used before declaration" errors
+  const formatInboundDate = useCallback((dateStr?: string) => {
+    if (!dateStr) return '-';
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return '-';
+
+    const day = String(d.getDate()).padStart(2, '0');
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const mon = months[d.getMonth()];
+    const yy = String(d.getFullYear()).slice(-2);
+    return `${day}-${mon}-${yy}`;   // 01-Dec-25
+  }, []);
+
+  // -------- AG Grid helpers for Inbound List (keeps behavior same as table) --------
+  const inboundColumnDefs = useMemo(() => {
+    const srCol = {
+      headerName: 'SR.NO',
+      field: '__sr',
+      valueGetter: (params: any) => (params.node ? params.node.rowIndex + 1 : undefined),
+      width: 80,
+      suppressMovable: true,
+      sortable: false,
+      filter: false,
+    };
+
+    const cols = listColumns.map((col: string) => {
+      const isDate = col.includes('date');
+      const headerName = col.replace(/_/g, ' ').toUpperCase();
+      const base: any = {
+        field: col,
+        headerName,
+        minWidth: col === 'product_title' ? 240 : col === 'brand' ? 140 : 120,
+        flex: col === 'product_title' ? 1.5 : 1,
+      };
+      if (isDate) base.valueFormatter = (params: any) => formatInboundDate(params.value);
+      return base;
+    });
+
+    return [srCol, ...cols];
+  }, [listColumns, formatInboundDate]);
+
+  const inboundDefaultColDef = useMemo(() => ({
+    sortable: gridSettings.sortable,
+    filter: gridSettings.filter,
+    resizable: gridSettings.resizable,
+    editable: gridSettings.editable,
+    suppressMovable: true,
+  }), [gridSettings]);
+
+  // Autosize / overlays when data or loading state changes
+  useEffect(() => {
+    // We avoid showing the loading overlay directly here to prevent flicker.
+    // However, when not loading we still need to show NoRows overlay if appropriate.
+    const api = gridRef.current?.api;
+    if (!api) return;
+
+    if (!listLoading) {
+      if (!listData || listData.length === 0) api.showNoRowsOverlay();
+      else api.hideOverlay();
+    }
+  }, [listLoading, listData]);
+
+  useEffect(() => {
+    if (tabValue !== 0) return;
+    const colApi = columnApiRef.current;
+    if (!colApi) return;
+
+    setTimeout(() => {
+      try {
+        const allCols = colApi.getAllColumns().map((c: any) => c.getId());
+        colApi.autoSizeColumns(allCols, false);
+      } catch (err) {
+        gridRef.current?.api.sizeColumnsToFit();
+      }
+    }, 80);
+  }, [tabValue, listColumns, listData.length]);
+
+  // ====== INBOUND LIST & helper loaders ======
+  const loadInboundList = useCallback(async ({ buttonRefresh = false } = {}) => {
+    const t0 = Date.now();
+
+    // Mark this request id so we can ignore stale responses
+    currentLoadIdRef.current += 1;
+    const loadId = currentLoadIdRef.current;
+
+    if (buttonRefresh) {
+      setRefreshing(true);
+      setRefreshSuccess(false);
+    } else {
+      setListLoading(true);
+      // Start a delayed overlay timer to avoid flicker for fast responses
+      if (overlayTimerRef.current) {
+        clearTimeout(overlayTimerRef.current);
+        overlayTimerRef.current = null;
+      }
+      overlayShownRef.current = false;
+      overlayStartRef.current = null;
+      overlayTimerRef.current = setTimeout(() => {
+        try {
+          setTopLoading(true);
+          overlayShownRef.current = true;
+          overlayStartRef.current = Date.now();
+        } catch (err) { }
+        overlayTimerRef.current = null;
+      }, SHOW_OVERLAY_DELAY);
+    }
+
+    try {
+      // Cancel previous in-flight load to avoid out-of-order responses and flicker
+      if (listAbortControllerRef.current) {
+        try { listAbortControllerRef.current.abort(); } catch (err) { }
+        listAbortControllerRef.current = null;
+      }
+
+      const controller = new AbortController();
+      listAbortControllerRef.current = controller;
+
+      const response = await inboundAPI.getAll(page, limit, {
+        warehouseId: activeWarehouse?.id,
+        search: searchFilter,
+        brand: brandFilter,
+        category: categoryFilter,
+        dateFrom: dateFromFilter,
+        dateTo: dateToFilter
+      }, { signal: controller.signal });
+
+      // Only apply if this is the latest load
+      if (loadId === currentLoadIdRef.current) {
+        setListData(response.data.data);
+        setTotal(response.data.total);
+
+        if (buttonRefresh) {
+          toast.success('✓ List refreshed');
+          setRefreshSuccess(true);
+          setTimeout(() => setRefreshSuccess(false), 1800);
+        }
+      } else {
+        // stale response, ignore
+        return;
+      }
+    } catch (error: any) {
+      // Ignore aborted requests
+      if (error?.code === 'ERR_CANCELED') {
+        return;
+      }
+
+      // Only show errors for latest request
+      if (loadId === currentLoadIdRef.current) {
+        console.error('Load error:', error);
+        const status = error?.response?.status;
+        const msg = error?.response?.data?.error || 'Failed to load list';
+        if (status === 401) {
+          toast.error('Not authenticated — redirecting to login');
+          if (typeof window !== 'undefined') {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+          }
+          router.push('/login');
+        } else {
+          if (buttonRefresh) toast.error(msg);
+          else toast.error(msg);
+        }
+      }
+    } finally {
+      // Only clear the loading state if this is the last issued request
+      if (loadId === currentLoadIdRef.current) {
+        // If overlay was shown, ensure it stays visible for MIN_LOADING_MS since it appeared
+        if (overlayShownRef.current && overlayStartRef.current) {
+          const overlayElapsed = Date.now() - overlayStartRef.current;
+          if (overlayElapsed < MIN_LOADING_MS) {
+            await new Promise(res => setTimeout(res, MIN_LOADING_MS - overlayElapsed));
+          }
+
+          try { setTopLoading(false); } catch (err) { }
+          overlayShownRef.current = false;
+          overlayStartRef.current = null;
+        } else {
+          // Overlay never shown, cancel pending timer
+          if (overlayTimerRef.current) {
+            clearTimeout(overlayTimerRef.current);
+            overlayTimerRef.current = null;
+          }
+        }
+
+        if (buttonRefresh) setRefreshing(false);
+        else setListLoading(false);
+
+        // cleanup controller
+        listAbortControllerRef.current = null;
+      }
+    }
+  }, [activeWarehouse?.id, page, limit, searchFilter, brandFilter, categoryFilter, dateFromFilter, dateToFilter, router]);
+
+  const loadBrands = useCallback(async () => {
+    try {
+      const response = await inboundAPI.getBrands(activeWarehouse?.id);
+      setBrands(response.data || []);
+    } catch (error) {
+      console.log('Brands error');
+      setBrands([]);
+    }
+  }, [activeWarehouse?.id]);
+
+  const loadCategories = useCallback(async () => {
+    try {
+      const response = await inboundAPI.getCategories(activeWarehouse?.id);
+      setCategories(response.data || []);
+    } catch (error) {
+      console.log('Categories error');
+      setCategories([]);
+    }
+  }, [activeWarehouse?.id]);
+
+  const loadBatches = useCallback(async () => {
+    setBatchLoading(true);
+    try {
+      const response = await inboundAPI.getBatches(activeWarehouse?.id?.toString());
+      setBatches(response.data);
+    } catch (error) {
+      console.error('Batches error');
+    } finally {
+      setBatchLoading(false);
+    }
+  }, [activeWarehouse?.id]);
+
+  const loadRacks = useCallback(async () => {
+    try {
+      const response = await inboundAPI.getWarehouseRacks(activeWarehouse?.id);
+      setRacks(response.data);
+    } catch (error) {
+      console.error('Failed to load racks');
+    }
+  }, [activeWarehouse?.id]);
+
   // ====== LOAD DATA ON TAB CHANGE ======
   useEffect(() => {
     if (activeWarehouse && (tabValue === 0 || tabValue === 1)) {
@@ -363,23 +616,27 @@ export default function InboundPage() {
       loadCategories();
       if (tabValue === 0) loadInboundList();
     }
-  }, [activeWarehouse, tabValue]);
+  }, [activeWarehouse, tabValue, loadRacks, loadBatches, loadBrands, loadCategories, loadInboundList]);
 
   useEffect(() => {
     if (activeWarehouse && tabValue === 0) {
-      loadInboundList();
+      // Debounce list loads when filters/search/page change to avoid rapid overlay flicker
+      if (listLoadDebounceRef.current) clearTimeout(listLoadDebounceRef.current);
+      listLoadDebounceRef.current = setTimeout(() => {
+        loadInboundList();
+        listLoadDebounceRef.current = null;
+      }, 350);
     }
-  }, [activeWarehouse, page, limit, searchFilter, brandFilter, categoryFilter, dateFromFilter, dateToFilter]);
 
-  // ====== RACK MANAGEMENT ======
-  const loadRacks = async () => {
-    try {
-      const response = await inboundAPI.getWarehouseRacks(activeWarehouse?.id);
-      setRacks(response.data);
-    } catch (error) {
-      console.error('Failed to load racks');
-    }
-  };
+    return () => {
+      if (listLoadDebounceRef.current) {
+        clearTimeout(listLoadDebounceRef.current);
+        listLoadDebounceRef.current = null;
+      }
+    };
+  }, [activeWarehouse, tabValue, page, limit, searchFilter, brandFilter, categoryFilter, dateFromFilter, dateToFilter, loadInboundList]);
+
+
 
   // ====== GET PRINTING SETTINGS ======
   const getPrintingSettings = async () => {
@@ -457,10 +714,25 @@ export default function InboundPage() {
         clearTimeout(debounceTimerRef.current);
         debounceTimerRef.current = null;
       }
-      // ✅ Add this
       if (wsnFetchTimerRef.current) {
         clearTimeout(wsnFetchTimerRef.current);
         wsnFetchTimerRef.current = null;
+      }
+      if (searchDebounceRef.current) {
+        clearTimeout(searchDebounceRef.current);
+        searchDebounceRef.current = null;
+      }
+      if (listLoadDebounceRef.current) {
+        clearTimeout(listLoadDebounceRef.current);
+        listLoadDebounceRef.current = null;
+      }
+      if (overlayTimerRef.current) {
+        clearTimeout(overlayTimerRef.current);
+        overlayTimerRef.current = null;
+      }
+      if (listAbortControllerRef.current) {
+        try { listAbortControllerRef.current.abort(); } catch (err) { }
+        listAbortControllerRef.current = null;
       }
     };
   }, []);
@@ -924,73 +1196,7 @@ export default function InboundPage() {
     }
   };
 
-  // ====== INBOUND LIST FUNCTIONS ======
-  const loadInboundList = async ({ buttonRefresh = false } = {}) => {
-    if (buttonRefresh) {
-      setRefreshing(true);
-      setRefreshSuccess(false);
-    } else {
-      setListLoading(true);
-    }
 
-    try {
-      const response = await inboundAPI.getAll(page, limit, {
-        warehouseId: activeWarehouse?.id,
-        search: searchFilter,
-        brand: brandFilter,
-        category: categoryFilter,
-        dateFrom: dateFromFilter,
-        dateTo: dateToFilter
-      });
-      setListData(response.data.data);
-      setTotal(response.data.total);
-
-      if (buttonRefresh) {
-        toast.success('✓ List refreshed');
-        setRefreshSuccess(true);
-        setTimeout(() => setRefreshSuccess(false), 1800);
-      }
-    } catch (error: any) {
-      console.error('Load error:', error);
-      const status = error?.response?.status;
-      const msg = error?.response?.data?.error || 'Failed to load list';
-      if (status === 401) {
-        toast.error('Not authenticated — redirecting to login');
-        if (typeof window !== 'undefined') {
-          localStorage.removeItem('token');
-          localStorage.removeItem('user');
-        }
-        router.push('/login');
-      } else {
-        if (buttonRefresh) toast.error(msg);
-        else toast.error(msg);
-      }
-    } finally {
-      if (buttonRefresh) setRefreshing(false);
-      else setListLoading(false);
-    }
-  };
-
-
-  const loadBrands = async () => {
-    try {
-      const response = await inboundAPI.getBrands(activeWarehouse?.id);
-      setBrands(response.data || []);
-    } catch (error) {
-      console.log('Brands error');
-      setBrands([]);
-    }
-  };
-
-  const loadCategories = async () => {
-    try {
-      const response = await inboundAPI.getCategories(activeWarehouse?.id);
-      setCategories(response.data || []);
-    } catch (error) {
-      console.log('Categories error');
-      setCategories([]);
-    }
-  };
 
   const exportToExcel = () => {
     setExportDialogOpen(true);
@@ -1069,31 +1275,9 @@ export default function InboundPage() {
     }
   };
 
-  const formatInboundDate = (dateStr?: string) => {
-    if (!dateStr) return '-';
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return '-';
-
-    const day = String(d.getDate()).padStart(2, '0');
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const mon = months[d.getMonth()];
-    const yy = String(d.getFullYear()).slice(-2);
-    return `${day}-${mon}-${yy}`;   // 01-Dec-25
-  };
 
 
-  // ====== BATCH MANAGEMENT ======
-  const loadBatches = async () => {
-    setBatchLoading(true);
-    try {
-      const response = await inboundAPI.getBatches(activeWarehouse?.id?.toString());
-      setBatches(response.data);
-    } catch (error) {
-      console.error('Batches error');
-    } finally {
-      setBatchLoading(false);
-    }
-  };
+
 
   const deleteBatch = async (batchId: string) => {
     if (!confirm('Delete batch?')) return;
@@ -1108,7 +1292,7 @@ export default function InboundPage() {
     }
   };
 
-  const COLUMN_WIDTHS: Record<string, any> = {
+  const COLUMN_WIDTHS: Record<string, any> = useMemo(() => ({
     wsn: { width: 60 },
     product_serial_number: { width: 160 },
     rack_no: { width: 30 },
@@ -1136,7 +1320,7 @@ export default function InboundPage() {
     inbound_date: { width: 110 },
     fkt_link: { Width: 50 },
     fkqc_remark: { flex: 1, minWidth: 180 },
-  };
+  }), []);
 
 
   // ✅  - MULTI ENTRY - COLUMN DEFS
@@ -1249,7 +1433,7 @@ export default function InboundPage() {
       })
     ];
   },
-    [visibleColumns, racks, gridDuplicateWSNs, crossWarehouseWSNs]
+    [visibleColumns, racks, gridDuplicateWSNs, crossWarehouseWSNs, COLUMN_WIDTHS]
   );
 
   const [confirmOpen, setConfirmOpen] = React.useState(false);
@@ -1495,8 +1679,28 @@ export default function InboundPage() {
                       fullWidth
                       size="small"
                       placeholder="🔍 Search by WSN, Product Title, or any field..."
-                      value={searchFilter}
-                      onChange={(e) => { setSearchFilter(e.target.value); setPage(1); }}
+                      value={searchInput}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setSearchInput(v);
+
+                        // indicate a pending search for the spinner
+                        setSearchPending(true);
+
+                        if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+                        searchDebounceRef.current = setTimeout(() => {
+                          setSearchPending(false);
+                          setSearchFilter(v);
+                          setPage(1);
+                        }, MIN_LOADING_MS);
+                      }}
+                      InputProps={{
+                        endAdornment: (searchPending || listLoading) ? (
+                          <InputAdornment position="end">
+                            <CircularProgress size={16} />
+                          </InputAdornment>
+                        ) : undefined
+                      }}
                       sx={{
                         flex: 1,
                         '& .MuiOutlinedInput-root': {
@@ -1525,10 +1729,25 @@ export default function InboundPage() {
                       }}
                     />
 
+                    {/* Mobile Actions button: opens a full-screen dialog with filters + actions (mobile only) */}
+                    <Button
+                      variant="contained"
+                      color="primary"
+                      startIcon={<TuneIcon />}
+                      sx={{
+                        display: { xs: 'inline-flex', md: 'none' },
+                        size: 'small', height: 38, px: 2.5, textTransform: 'none'
+                      }}
+                      onClick={() => setMobileActionsOpen(true)}
+                    >
+                      Actions
+                    </Button>
+
                     <Button
                       variant="outlined"
                       onClick={() => setFiltersExpanded(!filtersExpanded)}
                       sx={{
+                        display: { xs: 'none', md: 'inline-flex' },
                         minWidth: { xs: 42, sm: 115 },
                         height: 38,
                         borderWidth: 2,
@@ -1738,27 +1957,52 @@ export default function InboundPage() {
                             >
                               🔄 RESET
                             </Button>
-                            <Button
-                              fullWidth
-                              size="small"
-                              startIcon={<SettingsIcon sx={{ fontSize: '0.9rem' }} />}
-                              variant="outlined"
-                              onClick={() => setListColumnSettingsOpen(true)}
-                              sx={{
-                                height: 34,
-                                fontSize: '0.72rem',
-                                fontWeight: 700,
-                                borderWidth: 2,
-                                borderColor: '#667eea',
-                                color: '#667eea',
-                                '&:hover': {
+                            <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                              <Button
+                                fullWidth
+                                size="small"
+                                startIcon={<SettingsIcon sx={{ fontSize: '0.9rem' }} />}
+                                variant="outlined"
+                                onClick={() => setListColumnSettingsOpen(true)}
+                                sx={{
+                                  height: 34,
+                                  fontSize: '0.72rem',
+                                  fontWeight: 700,
                                   borderWidth: 2,
-                                  bgcolor: 'rgba(102, 126, 234, 0.1)'
-                                }
-                              }}
-                            >
-                              COLUMNS
-                            </Button>
+                                  borderColor: '#667eea',
+                                  color: '#667eea',
+                                  '&:hover': {
+                                    borderWidth: 2,
+                                    bgcolor: 'rgba(102, 126, 234, 0.1)'
+                                  }
+                                }}
+                              >
+                                COLUMNS
+                              </Button>
+
+                              <Button
+                                type="button"
+                                fullWidth
+                                size="small"
+                                startIcon={<SettingsIcon sx={{ fontSize: '0.9rem' }} />}
+                                variant="outlined"
+                                onClick={(e) => { e.stopPropagation(); setGridSettingsOpen(true); }}
+                                sx={{
+                                  height: 34,
+                                  fontSize: '0.72rem',
+                                  fontWeight: 700,
+                                  borderWidth: 2,
+                                  borderColor: '#94a3b8',
+                                  color: '#475569',
+                                  '&:hover': {
+                                    borderWidth: 2,
+                                    bgcolor: '#f8fafc'
+                                  }
+                                }}
+                              >
+                                GRID
+                              </Button>
+                            </Stack>
                             <Button
                               fullWidth
                               size="small"
@@ -1806,133 +2050,142 @@ export default function InboundPage() {
                       </CardContent>
                     </Card>
                   </Collapse>
+
+                  {/* MOBILE ACTIONS DIALOG (Filters + Actions combined - mobile only) */}
+                  <Dialog fullScreen open={mobileActionsOpen} onClose={() => setMobileActionsOpen(false)} TransitionProps={{}}>
+                    <AppBar position="sticky" elevation={1} sx={{ bgcolor: 'background.paper', color: 'text.primary' }}>
+                      <Toolbar>
+                        <IconButton edge="start" color="inherit" onClick={() => setMobileActionsOpen(false)} aria-label="close">
+                          <CloseIcon />
+                        </IconButton>
+                        <Typography sx={{ ml: 2, flex: 1, fontWeight: 700 }}>Filters & Actions</Typography>
+                        <Button color="primary" onClick={() => setMobileActionsOpen(false)}>Close</Button>
+                      </Toolbar>
+                    </AppBar>
+
+                    <DialogContent sx={{ p: 2 }}>
+                      <Stack spacing={2}>
+                        <Box display="flex" gap={1} flexDirection="column">
+                          <FormControl size="small">
+                            <InputLabel>Brand</InputLabel>
+                            <Select value={brandFilter} onChange={(e) => { setBrandFilter(e.target.value); setPage(1); }} fullWidth>
+                              <MenuItem value="">All</MenuItem>
+                              {(categoryFilter ? filteredBrands : brands).map((b) => (
+                                <MenuItem key={b} value={b}>{b}</MenuItem>
+                              ))}
+                            </Select>
+                          </FormControl>
+
+                          <FormControl size="small">
+                            <InputLabel>Category</InputLabel>
+                            <Select value={categoryFilter} onChange={(e) => { setCategoryFilter(e.target.value); setPage(1); }} fullWidth>
+                              <MenuItem value="">All</MenuItem>
+                              {(brandFilter ? filteredCategories : categories).map((c) => (
+                                <MenuItem key={c} value={c}>{c}</MenuItem>
+                              ))}
+                            </Select>
+                          </FormControl>
+
+                          <Box display="flex" gap={1} alignItems="center">
+                            <TextField label="From Date" type="date" size="small" InputLabelProps={{ shrink: true }} value={dateFromFilter} onChange={(e) => setDateFromFilter(e.target.value)} sx={{ flex: 1 }} />
+                            <TextField label="To Date" type="date" size="small" InputLabelProps={{ shrink: true }} value={dateToFilter} onChange={(e) => setDateToFilter(e.target.value)} sx={{ flex: 1 }} />
+                          </Box>
+
+                          <Box sx={{ display: 'grid', gap: 1, mt: 1, gridTemplateColumns: 'repeat(2, 1fr)' }}>
+                            <Button variant="outlined" onClick={() => { setBrandFilter(''); setCategoryFilter(''); setDateFromFilter(''); setDateToFilter(''); setPage(1); }}>Reset</Button>
+                            <Button variant="outlined" onClick={() => { setListColumnSettingsOpen(true); }}>Columns</Button>
+                            <Button variant="outlined" onClick={() => { setGridSettingsOpen(true); }}>Grid</Button>
+                            <Button variant="outlined" onClick={() => { setExportDialogOpen(true); }}>Export</Button>
+                          </Box>
+
+                        </Box>
+                      </Stack>
+                    </DialogContent>
+
+                    <Box sx={{ position: 'sticky', bottom: 0, left: 0, right: 0, bgcolor: 'background.paper', p: 1, borderTop: '1px solid #e0e0e0', display: 'flex', gap: 1 }}>
+                      <Button fullWidth variant="outlined" onClick={() => { setBrandFilter(''); setCategoryFilter(''); setDateFromFilter(''); setDateToFilter(''); }}>Reset</Button>
+                      <Button fullWidth variant="contained" onClick={() => { setPage(1); setMobileActionsOpen(false); }}>Apply</Button>
+                    </Box>
+                  </Dialog>
+
                 </Box>
 
-                {/* TABLE - HORIZONTAL SCROLL */}
-                <Box sx={{
+                {/* TABLE (AG GRID) - HORIZONTAL SCROLL: Replaced Table with AG Grid to improve column sizing and interactions while keeping filters/export/pagination unchanged */}
+                <Box className="ag-theme-quartz" sx={{
+                  position: 'relative',
                   flex: 1,
-                  overflow: 'auto',
+                  overflow: 'hidden',
                   minHeight: 0,
                   border: '2px solid #e2e8f0',
                   borderRadius: 1.5,
                   boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
-                  '&::-webkit-scrollbar': {
-                    height: 8,
-                    width: 8
-                  },
-                  '&::-webkit-scrollbar-thumb': {
-                    backgroundColor: '#cbd5e1',
-                    borderRadius: 4,
-                    '&:hover': {
-                      backgroundColor: '#94a3b8'
-                    }
-                  },
-                  '&::-webkit-scrollbar-track': {
-                    backgroundColor: '#f1f5f9',
-                    borderRadius: 4
-                  }
+                  '& .ag-header': { background: 'linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%)', borderBottom: '1px solid #e5e7eb' },
+                  '& .ag-header-cell': { backgroundColor: 'transparent', color: '#1e293b', fontWeight: 800, fontSize: '0.75rem', borderRight: '1px solid #e5e7eb' },
+                  '& .ag-cell': { borderRight: '1px solid #f1f5f9' }
                 }}>
-                  <TableContainer
-                    component={Paper}
-                    sx={{
-                      borderRadius: 0,
-                      boxShadow: 'none',
-                      border: 'none',
-                      background: '#ffffff',
-                      height: '100%'
-                    }}
-                  >
-                    <Table
-                      stickyHeader
-                      size="small"
-                      sx={{
-                        '& .MuiTableCell-root': {
-                          borderRight: '1px solid #e2e8f0',
-                          padding: { xs: '4px 8px', sm: '6px 10px' },
-                          fontSize: { xs: '0.72rem', sm: '0.78rem' },
-                          minWidth: { xs: 85, sm: 100 },
-                          whiteSpace: 'nowrap'
+
+                  {/* Top subtle loading bar to avoid flashing overlays */}
+                  <Box sx={{ position: 'absolute', top: 0, left: 0, right: 0, height: 4, zIndex: 20, pointerEvents: 'none', display: 'flex', alignItems: 'center' }}>
+                    <Box sx={{ width: '100%', opacity: topLoading ? 1 : 0, transition: 'opacity 220ms ease-in-out' }}>
+                      <LinearProgress color="primary" sx={{ height: 4, borderRadius: 2 }} />
+                    </Box>
+                  </Box>
+
+                  <AgGridReact
+                    ref={gridRef}
+                    rowData={listData}
+                    columnDefs={inboundColumnDefs}
+                    defaultColDef={inboundDefaultColDef}
+                    onGridReady={(params: any) => {
+                      columnApiRef.current = params.columnApi;
+
+                      // initial autosize/fit
+                      setTimeout(() => {
+                        try {
+                          const allCols = columnApiRef.current.getAllColumns().map((c: any) => c.getId());
+                          columnApiRef.current.autoSizeColumns(allCols, false);
+                        } catch (err) {
+                          params.api.sizeColumnsToFit();
                         }
-                      }}
-                    >
-                      <TableHead>
-                        <TableRow sx={{ background: 'linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%)' }}>
-                          {listColumns.map((col: string, idx: any) => (
-                            <TableCell
-                              key={`header_${idx}_${col}`}
-                              sx={{
-                                color: '#1e293b',
-                                fontWeight: 800,
-                                background: 'linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%)',
-                                fontSize: { xs: '0.68rem', sm: '0.75rem' },
-                                textTransform: 'uppercase',
-                                py: { xs: 0.75, sm: 1 },
-                                position: 'sticky',
-                                top: 0,
-                                zIndex: 10
-                              }}
-                            >
-                              {col.replace(/_/g, ' ')}
-                            </TableCell>
-                          ))}
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {listLoading ? (
-                          <TableRow>
-                            <TableCell colSpan={listColumns.length} align="center" sx={{ py: { xs: 5, sm: 8 } }}>
-                              <CircularProgress size={isMobile ? 35 : 50} sx={{ color: '#667eea' }} />
-                              <Typography sx={{ mt: 1.5, fontWeight: 600, color: '#64748b', fontSize: '0.85rem' }}>
-                                Loading data...
-                              </Typography>
-                            </TableCell>
-                          </TableRow>
-                        ) : listData.length === 0 ? (
-                          <TableRow>
-                            <TableCell colSpan={listColumns.length} align="center" sx={{ py: { xs: 5, sm: 8 } }}>
-                              <Typography sx={{ fontWeight: 700, color: '#94a3b8', fontSize: { xs: '0.85rem', sm: '1rem' } }}>
-                                🔭 No data found
-                              </Typography>
-                              <Typography variant="caption" sx={{ color: '#cbd5e1', mt: 0.5, fontSize: '0.7rem' }}>
-                                Try adjusting your filters
-                              </Typography>
-                            </TableCell>
-                          </TableRow>
-                        ) : (
-                          listData.map((item, idx) => (
-                            <TableRow
-                              key={`row_${item.id || idx}`}
-                              sx={{
-                                bgcolor: idx % 2 === 0 ? '#ffffff' : '#f8fafc',
-                                transition: 'all 0.2s',
-                                '&:hover': {
-                                  bgcolor: '#f1f5f9',
-                                  transform: 'scale(1.001)',
-                                  boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
-                                }
-                              }}
-                            >
-                              {listColumns.map((col: string, colIdx: any) => (
-                                <TableCell
-                                  key={`cell_${idx}_${colIdx}_${col}`}
-                                  sx={{
-                                    fontWeight: 500,
-                                    fontSize: { xs: '0.72rem', sm: '0.78rem' },
-                                    color: '#334155'
-                                  }}
-                                >
-                                  {col === 'inbound_date'
-                                    ? formatInboundDate(item.inbound_date)
-                                    : (item[col] ? String(item[col]).substring(0, 50) : '-')}
-                                </TableCell>
-                              ))}
-                            </TableRow>
-                          ))
-                        )}
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
+
+                        if (listLoading) {
+                          params.api.showLoadingOverlay();
+                        } else if (!listData || listData.length === 0) {
+                          params.api.showNoRowsOverlay();
+                        } else {
+                          params.api.hideOverlay();
+                        }
+                      }, 60);
+                    }}
+                    onFirstDataRendered={() => {
+                      const colApi = columnApiRef.current;
+                      if (!colApi) return;
+                      try {
+                        const allCols = colApi.getAllColumns().map((c: any) => c.getId());
+                        colApi.autoSizeColumns(allCols, false);
+                      } catch (err) {
+                        gridRef.current?.api.sizeColumnsToFit();
+                      }
+                    }}
+                    onGridSizeChanged={() => {
+                      const colApi = columnApiRef.current;
+                      if (!colApi) return;
+                      try {
+                        const allCols = colApi.getAllColumns().map((c: any) => c.getId());
+                        colApi.autoSizeColumns(allCols, false);
+                      } catch (err) {
+                        gridRef.current?.api.sizeColumnsToFit();
+                      }
+                    }}
+                    animateRows={true}
+                    suppressRowClickSelection={true}
+                    rowSelection="single"
+                    containerStyle={{ height: '100%', width: '100%' }}
+                    overlayNoRowsTemplate={'<span style="padding:14px; font-weight:700; color:#94a3b8">🔭 No data found<br/><small style="color:#cbd5e1">Try adjusting filters</small></span>'}
+                    overlayLoadingTemplate={'<span style="padding:12px; font-weight:700; color:#667eea">Loading data...</span>'}
+                  />
                 </Box>
+
 
                 {/* PAGINATION - STICKY AT BOTTOM */}
                 <Box sx={{
@@ -1979,6 +2232,19 @@ export default function InboundPage() {
                   </Typography>
 
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 0.5, sm: 0.75 } }}>
+                    <FormControl size="small" sx={{ minWidth: 100 }}>
+                      <Select
+                        value={limit}
+                        onChange={(e) => { setLimit(Number(e.target.value)); setPage(1); }}
+                        sx={{ height: 34, fontSize: '0.75rem' }}
+                      >
+                        <MenuItem value={50}>50 / page</MenuItem>
+                        <MenuItem value={100}>100 / page</MenuItem>
+                        <MenuItem value={500}>500 / page</MenuItem>
+                        <MenuItem value={1000}>1000 / page</MenuItem>
+                      </Select>
+                    </FormControl>
+
                     <Button
                       size="small"
                       variant="outlined"
@@ -2311,9 +2577,21 @@ export default function InboundPage() {
                       background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                       color: 'white',
                       py: 2.5,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 2
                     }}
                   >
                     ⚙️ List Columns
+                    <Button
+                      type="button"
+                      size="small"
+                      variant="outlined"
+                      onClick={(e) => { e.stopPropagation(); setGridSettingsOpen(true); }}
+                      sx={{ ml: 'auto', height: 30, borderColor: '#94a3b8', color: '#fff', bgcolor: 'rgba(255,255,255,0.08)', borderWidth: 1 }}
+                    >
+                      Grid Settings
+                    </Button>
                   </DialogTitle>
                   <DialogContent sx={{ py: 3, maxHeight: 500, overflow: 'auto' }}>
                     <Stack spacing={1.5}>
@@ -2414,1559 +2692,1570 @@ export default function InboundPage() {
                   </DialogActions>
                 </Dialog>
 
+                {/* GRID SETTINGS DIALOG (moved out of tabs so it can open from any tab) */}
+                <Dialog
+                  open={gridSettingsOpen}
+                  onClose={() => setGridSettingsOpen(false)}
+                  maxWidth="xs"
+                  fullWidth
+                  PaperProps={{
+                    sx: {
+                      borderRadius: 2,
+                      boxShadow: '0 8px 32px rgba(0,0,0,0.15)'
+                    }
+                  }}
+                >
+                  <DialogTitle sx={{
+                    background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                    color: 'white',
+                    fontWeight: 800,
+                    fontSize: '1.1rem',
+                    py: 1.5
+                  }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <SettingsIcon />
+                      Grid Settings
+                    </Box>
+                  </DialogTitle>
+
+                  <DialogContent sx={{ mt: 2, pb: 1 }}>
+                    <Stack spacing={2.5}>
+                      <Alert severity="info" sx={{ fontSize: '0.8rem', py: 0.5 }}>
+                        Settings auto-save and persist after reload 💾
+                      </Alert>
+
+                      {/* SORTABLE */}
+                      <Box>
+                        <FormControlLabel
+                          control={
+                            <Checkbox
+                              checked={gridSettings.sortable}
+                              onChange={(e) => updateGridSettings({ ...gridSettings, sortable: e.target.checked })}
+                              sx={{
+                                '&.Mui-checked': { color: '#f59e0b' }
+                              }}
+                            />
+                          }
+                          label={
+                            <Box>
+                              <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#1e293b' }}>
+                                ⬆️ Enable Sorting
+                              </Typography>
+                              <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem' }}>
+                                Click column headers to sort ascending/descending
+                              </Typography>
+                            </Box>
+                          }
+                        />
+                      </Box>
+
+                      <Divider sx={{ my: 0.5 }} />
+
+                      {/* FILTER */}
+                      <Box>
+                        <FormControlLabel
+                          control={
+                            <Checkbox
+                              checked={gridSettings.filter}
+                              onChange={(e) => updateGridSettings({ ...gridSettings, filter: e.target.checked })}
+                              sx={{
+                                '&.Mui-checked': { color: '#f59e0b' }
+                              }}
+                            />
+                          }
+                          label={
+                            <Box>
+                              <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#1e293b' }}>
+                                🔍 Enable Column Filters
+                              </Typography>
+                              <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem' }}>
+                                Filter menu icon in column headers
+                              </Typography>
+                            </Box>
+                          }
+                        />
+                      </Box>
+
+                      <Divider sx={{ my: 0.5 }} />
+
+                      {/* RESIZABLE */}
+                      <Box>
+                        <FormControlLabel
+                          control={
+                            <Checkbox
+                              checked={gridSettings.resizable}
+                              onChange={(e) => updateGridSettings({ ...gridSettings, resizable: e.target.checked })}
+                              sx={{
+                                '&.Mui-checked': { color: '#f59e0b' }
+                              }}
+                            />
+                          }
+                          label={
+                            <Box>
+                              <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#1e293b' }}>
+                                ↔️ Enable Column Resize
+                              </Typography>
+                              <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem' }}>
+                                Drag column borders to adjust width
+                              </Typography>
+                            </Box>
+                          }
+                        />
+                      </Box>
+
+                      <Divider sx={{ my: 0.5 }} />
+
+                      {/* EDITABLE */}
+                      <Box>
+                        <FormControlLabel
+                          control={
+                            <Checkbox
+                              checked={gridSettings.editable}
+                              onChange={(e) => updateGridSettings({ ...gridSettings, editable: e.target.checked })}
+                              sx={{
+                                '&.Mui-checked': { color: '#f59e0b' }
+                              }}
+                            />
+                          }
+                          label={
+                            <Box>
+                              <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#1e293b' }}>
+                                ✏️ Enable Cell Editing
+                              </Typography>
+                              <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem' }}>
+                                Double-click or press Enter to edit cells
+                              </Typography>
+                            </Box>
+                          }
+                        />
+                      </Box>
+                    </Stack>
+                  </DialogContent>
+
+                  <DialogActions sx={{ p: 2, background: '#fef3c7', gap: 1 }}>
+                    <Button
+                      onClick={() => {
+                        const defaultSettings = {
+                          sortable: true,
+                          filter: true,
+                          resizable: true,
+                          editable: true,
+                        };
+                        updateGridSettings(defaultSettings);
+                        toast.success('Settings reset to default');
+                      }}
+                      sx={{
+                        fontWeight: 700,
+                        color: '#78716c',
+                        '&:hover': {
+                          bgcolor: 'rgba(120, 113, 108, 0.1)'
+                        }
+                      }}
+                    >
+                      🔄 Reset All
+                    </Button>
+                    <Box sx={{ flex: 1 }} />
+                    <Button
+                      variant="contained"
+                      onClick={() => setGridSettingsOpen(false)}
+                      sx={{
+                        background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                        fontWeight: 700,
+                        boxShadow: '0 4px 12px rgba(245, 158, 11, 0.3)',
+                        '&:hover': {
+                          background: 'linear-gradient(135deg, #d97706 0%, #b45309 100)',
+                        }
+                      }}
+                    >
+                      Close
+                    </Button>
+                  </DialogActions>
+                </Dialog>
+
+
               </Box>
             )
             }
-          </Paper>
+          </Paper >
 
           {/* TAB 1: SINGLE ENTRY */}
-          {tabValue === 1 && (
-            <Box sx={{
-              display: 'grid',
-              gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' },
-              gap: { xs: 1.5, sm: 2, lg: 2.5 },
-              p: { xs: 1, sm: 1.5, md: 2 },
-              height: '100%',
-              overflow: 'auto'
-            }}>
-              {/* Entry Form Card */}
-              <Card sx={{
-                borderRadius: { xs: 2, sm: 2.5 },
-                boxShadow: { xs: '0 2px 8px rgba(0,0,0,0.1)', sm: '0 4px 16px rgba(0,0,0,0.08)' },
-                height: { xs: 'auto', lg: 'fit-content' },
-                maxHeight: { xs: '70vh', lg: 'none' },
-                overflow: { xs: 'auto', lg: 'visible' }
+          {
+            tabValue === 1 && (
+              <Box sx={{
+                display: 'grid',
+                gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' },
+                gap: { xs: 1.5, sm: 2, lg: 2.5 },
+                p: { xs: 1, sm: 1.5, md: 2 },
+                height: '100%',
+                overflow: 'auto'
               }}>
-                <CardContent sx={{ p: { xs: 1.2, sm: 1.5, md: 2 } }}>
-                  <Typography
-                    variant="subtitle1"
-                    sx={{
-                      fontWeight: 700,
-                      mb: { xs: 1, sm: 1.5 },
-                      color: '#1a237e',
-                      fontSize: { xs: '0.85rem', sm: '0.9rem', md: '0.95rem' }
-                    }}
-                  >
-                    📝 Entry Form
-                  </Typography>
-
-                  <Stack spacing={{ xs: 1, sm: 1.2, md: 1.5 }}>
-                    <TextField
-                      fullWidth
-                      size="small"
-                      label="WSN *"
-                      value={singleWSN}
-                      onChange={(e) => {
-                        const value = e.target.value.toUpperCase();
-                        setSingleWSN(value);
-
-                        if (wsnFetchTimerRef.current) {
-                          clearTimeout(wsnFetchTimerRef.current);
-                        }
-
-                        if (value.length === 8) {
-                          wsnFetchTimerRef.current = setTimeout(() => {
-                            autoFetchMasterData(value);
-                          }, 300);
-                        } else if (value.length < 8) {
-                          setMasterData(null);
-                        }
-                      }}
-                      onBlur={handleWSNBlur}
-                      placeholder="Enter 8-char WSN"
-                      inputProps={{ maxLength: 8 }}
-                      disabled={singleLoading}
+                {/* Entry Form Card */}
+                <Card sx={{
+                  borderRadius: { xs: 2, sm: 2.5 },
+                  boxShadow: { xs: '0 2px 8px rgba(0,0,0,0.1)', sm: '0 4px 16px rgba(0,0,0,0.08)' },
+                  height: { xs: 'auto', lg: 'fit-content' },
+                  maxHeight: { xs: '70vh', lg: 'none' },
+                  overflow: { xs: 'auto', lg: 'visible' }
+                }}>
+                  <CardContent sx={{ p: { xs: 1.2, sm: 1.5, md: 2 } }}>
+                    <Typography
+                      variant="subtitle1"
                       sx={{
-                        '& .MuiInputBase-input': {
-                          fontSize: { xs: '0.85rem', sm: '0.875rem' }
-                        }
+                        fontWeight: 700,
+                        mb: { xs: 1, sm: 1.5 },
+                        color: '#1a237e',
+                        fontSize: { xs: '0.85rem', sm: '0.9rem', md: '0.95rem' }
                       }}
-                    />
+                    >
+                      📝 Entry Form
+                    </Typography>
 
-                    <TextField
-                      fullWidth
-                      size="small"
-                      label="Inbound Date"
-                      type="date"
-                      InputLabelProps={{ shrink: true }}
-                      value={singleForm.inbound_date}
-                      onChange={(e) => setSingleForm({ ...singleForm, inbound_date: e.target.value })}
-                      sx={{
-                        '& .MuiInputBase-input': {
-                          fontSize: { xs: '0.85rem', sm: '0.875rem' }
-                        }
-                      }}
-                    />
+                    <Stack spacing={{ xs: 1, sm: 1.2, md: 1.5 }}>
+                      <TextField
+                        fullWidth
+                        size="small"
+                        label="WSN *"
+                        value={singleWSN}
+                        onChange={(e) => {
+                          const value = e.target.value.toUpperCase();
+                          setSingleWSN(value);
 
-                    <TextField
-                      fullWidth
-                      size="small"
-                      label="Vehicle Number"
-                      value={singleForm.vehicle_no}
-                      onChange={(e) => setSingleForm({ ...singleForm, vehicle_no: e.target.value })}
-                      placeholder="Vehicle plate"
-                      sx={{
-                        '& .MuiInputBase-input': {
-                          fontSize: { xs: '0.85rem', sm: '0.875rem' }
-                        }
-                      }}
-                    />
+                          if (wsnFetchTimerRef.current) {
+                            clearTimeout(wsnFetchTimerRef.current);
+                          }
 
-                    <FormControl fullWidth size="small">
-                      <InputLabel sx={{ fontSize: { xs: '0.85rem', sm: '0.875rem' } }}>
-                        Rack Number
-                      </InputLabel>
-                      <Select
-                        value={singleForm.rack_no}
-                        onChange={(e) => setSingleForm({ ...singleForm, rack_no: e.target.value })}
-                        label="Rack Number"
+                          if (value.length === 8) {
+                            wsnFetchTimerRef.current = setTimeout(() => {
+                              autoFetchMasterData(value);
+                            }, 300);
+                          } else if (value.length < 8) {
+                            setMasterData(null);
+                          }
+                        }}
+                        onBlur={handleWSNBlur}
+                        placeholder="Enter 8-char WSN"
+                        inputProps={{ maxLength: 8 }}
+                        disabled={singleLoading}
                         sx={{
-                          '& .MuiSelect-select': {
+                          '& .MuiInputBase-input': {
                             fontSize: { xs: '0.85rem', sm: '0.875rem' }
                           }
                         }}
-                      >
-                        <MenuItem value="">Select Rack</MenuItem>
-                        {racks.map(r => (
-                          <MenuItem key={r.id} value={r.rack_name} sx={{ fontSize: { xs: '0.85rem', sm: '0.875rem' } }}>
-                            {r.rack_name} - {r.location}
-                          </MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
+                      />
 
-                    <TextField
-                      fullWidth
-                      size="small"
-                      label="Product Serial Number"
-                      value={singleForm.product_serial_number}
-                      onChange={(e) => setSingleForm({ ...singleForm, product_serial_number: e.target.value })}
-                      sx={{
-                        '& .MuiInputBase-input': {
-                          fontSize: { xs: '0.85rem', sm: '0.875rem' }
-                        }
-                      }}
-                    />
+                      <TextField
+                        fullWidth
+                        size="small"
+                        label="Inbound Date"
+                        type="date"
+                        InputLabelProps={{ shrink: true }}
+                        value={singleForm.inbound_date}
+                        onChange={(e) => setSingleForm({ ...singleForm, inbound_date: e.target.value })}
+                        sx={{
+                          '& .MuiInputBase-input': {
+                            fontSize: { xs: '0.85rem', sm: '0.875rem' }
+                          }
+                        }}
+                      />
 
-                    <TextField
-                      fullWidth
-                      size="small"
-                      multiline
-                      rows={3}
-                      label="Unload Remarks"
-                      value={singleForm.unload_remarks}
-                      onChange={(e) => setSingleForm({ ...singleForm, unload_remarks: e.target.value })}
-                      sx={{
-                        '& .MuiInputBase-input': {
-                          fontSize: { xs: '0.85rem', sm: '0.875rem' }
-                        }
-                      }}
-                    />
+                      <TextField
+                        fullWidth
+                        size="small"
+                        label="Vehicle Number"
+                        value={singleForm.vehicle_no}
+                        onChange={(e) => setSingleForm({ ...singleForm, vehicle_no: e.target.value })}
+                        placeholder="Vehicle plate"
+                        sx={{
+                          '& .MuiInputBase-input': {
+                            fontSize: { xs: '0.85rem', sm: '0.875rem' }
+                          }
+                        }}
+                      />
 
-                    {duplicateWSN ? (
-                      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                      <FormControl fullWidth size="small">
+                        <InputLabel sx={{ fontSize: { xs: '0.85rem', sm: '0.875rem' } }}>
+                          Rack Number
+                        </InputLabel>
+                        <Select
+                          value={singleForm.rack_no}
+                          onChange={(e) => setSingleForm({ ...singleForm, rack_no: e.target.value })}
+                          label="Rack Number"
+                          sx={{
+                            '& .MuiSelect-select': {
+                              fontSize: { xs: '0.85rem', sm: '0.875rem' }
+                            }
+                          }}
+                        >
+                          <MenuItem value="">Select Rack</MenuItem>
+                          {racks.map(r => (
+                            <MenuItem key={r.id} value={r.rack_name} sx={{ fontSize: { xs: '0.85rem', sm: '0.875rem' } }}>
+                              {r.rack_name} - {r.location}
+                            </MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+
+                      <TextField
+                        fullWidth
+                        size="small"
+                        label="Product Serial Number"
+                        value={singleForm.product_serial_number}
+                        onChange={(e) => setSingleForm({ ...singleForm, product_serial_number: e.target.value })}
+                        sx={{
+                          '& .MuiInputBase-input': {
+                            fontSize: { xs: '0.85rem', sm: '0.875rem' }
+                          }
+                        }}
+                      />
+
+                      <TextField
+                        fullWidth
+                        size="small"
+                        multiline
+                        rows={3}
+                        label="Unload Remarks"
+                        value={singleForm.unload_remarks}
+                        onChange={(e) => setSingleForm({ ...singleForm, unload_remarks: e.target.value })}
+                        sx={{
+                          '& .MuiInputBase-input': {
+                            fontSize: { xs: '0.85rem', sm: '0.875rem' }
+                          }
+                        }}
+                      />
+
+                      {duplicateWSN ? (
+                        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                          <Button
+                            fullWidth
+                            variant="contained"
+                            size="small"
+                            onClick={handleUpdateDuplicate}
+                            disabled={singleLoading}
+                            sx={{
+                              background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                              py: { xs: 0.9, sm: 0.8 },
+                              fontSize: { xs: '0.75rem', sm: '0.8rem' },
+                              fontWeight: 700
+                            }}
+                          >
+                            🔄 Update
+                          </Button>
+                          <Button
+                            fullWidth
+                            variant="outlined"
+                            size="small"
+                            onClick={() => { setSingleWSN(''); setDuplicateWSN(null); }}
+                            sx={{
+                              py: { xs: 0.9, sm: 0.8 },
+                              fontSize: { xs: '0.75rem', sm: '0.8rem' },
+                              fontWeight: 700
+                            }}
+                          >
+                            Clear
+                          </Button>
+                        </Stack>
+                      ) : (
                         <Button
                           fullWidth
                           variant="contained"
                           size="small"
-                          onClick={handleUpdateDuplicate}
+                          onClick={handleSingleSubmit}
                           disabled={singleLoading}
                           sx={{
-                            background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                             py: { xs: 0.9, sm: 0.8 },
                             fontSize: { xs: '0.75rem', sm: '0.8rem' },
                             fontWeight: 700
                           }}
                         >
-                          🔄 Update
+                          ✓ Add Entry
                         </Button>
-                        <Button
-                          fullWidth
-                          variant="outlined"
-                          size="small"
-                          onClick={() => { setSingleWSN(''); setDuplicateWSN(null); }}
-                          sx={{
-                            py: { xs: 0.9, sm: 0.8 },
-                            fontSize: { xs: '0.75rem', sm: '0.8rem' },
-                            fontWeight: 700
-                          }}
-                        >
-                          Clear
-                        </Button>
-                      </Stack>
-                    ) : (
-                      <Button
-                        fullWidth
-                        variant="contained"
-                        size="small"
-                        onClick={handleSingleSubmit}
-                        disabled={singleLoading}
-                        sx={{
-                          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                          py: { xs: 0.9, sm: 0.8 },
-                          fontSize: { xs: '0.75rem', sm: '0.8rem' },
-                          fontWeight: 700
-                        }}
-                      >
-                        ✓ Add Entry
-                      </Button>
-                    )}
-                  </Stack>
-                </CardContent>
-              </Card>
-
-              {/* Master Data Card */}
-              {masterData && (
-                <Card sx={{
-                  borderRadius: { xs: 2, sm: 2.5, md: 3 },
-                  background: 'linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%)',
-                  border: '2px solid #10b981',
-                  order: { xs: -1, lg: 0 }, // Show master data above form on mobile
-                  height: { xs: 'auto', lg: 'fit-content' },
-                  maxHeight: { xs: '50vh', lg: 'none' },
-                  overflow: { xs: 'auto', lg: 'visible' }
-                }}>
-                  <CardContent sx={{ p: { xs: 1.2, sm: 1.5, md: 2 } }}>
-                    <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: { xs: 1, sm: 1.5 } }}>
-                      <CheckCircle sx={{ color: '#10b981', fontSize: { xs: 24, sm: 26, md: 28 } }} />
-                      <Typography
-                        variant="subtitle1"
-                        sx={{
-                          fontWeight: 700,
-                          color: '#065f46',
-                          fontSize: { xs: '0.85rem', sm: '0.9rem', md: '0.95rem' }
-                        }}
-                      >
-                        Master Data Found
-                      </Typography>
-                    </Stack>
-
-                    <Divider sx={{ mb: { xs: 1, sm: 1.5 }, borderColor: 'rgba(5, 150, 105, 0.3)' }} />
-
-                    <Stack spacing={{ xs: 1, sm: 1.2, md: 1.5 }}>
-                      {/* FSN */}
-                      <Box>
-                        <Typography
-                          variant="caption"
-                          sx={{
-                            color: '#065f46',
-                            fontWeight: 700,
-                            fontSize: { xs: '0.65rem', sm: '0.7rem' },
-                            textTransform: 'uppercase',
-                            letterSpacing: 0.5,
-                            display: 'block',
-                            mb: 0.3
-                          }}
-                        >
-                          FSN
-                        </Typography>
-                        <Typography sx={{
-                          fontWeight: 700,
-                          color: '#047857',
-                          fontSize: { xs: '0.85rem', sm: '0.9rem', md: '1rem' },
-                          wordBreak: 'break-all'
-                        }}>
-                          {masterData.fsn || 'N/A'}
-                        </Typography>
-                      </Box>
-
-                      {/* Product */}
-                      <Box>
-                        <Typography
-                          variant="caption"
-                          sx={{
-                            color: '#065f46',
-                            fontWeight: 700,
-                            fontSize: { xs: '0.65rem', sm: '0.7rem' },
-                            textTransform: 'uppercase',
-                            display: 'block',
-                            mb: 0.3
-                          }}
-                        >
-                          PRODUCT
-                        </Typography>
-                        <Typography sx={{
-                          fontWeight: 600,
-                          color: '#047857',
-                          fontSize: { xs: '0.75rem', sm: '0.8rem', md: '0.85rem' },
-                          lineHeight: 1.4
-                        }}>
-                          {masterData.product_title || 'N/A'}
-                        </Typography>
-                      </Box>
-
-                      {/* Brand & Category */}
-                      <Box sx={{
-                        display: 'grid',
-                        gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' },
-                        gap: { xs: 1, sm: 1.5 }
-                      }}>
-                        <Box>
-                          <Typography
-                            variant="caption"
-                            sx={{
-                              color: '#065f46',
-                              fontWeight: 700,
-                              fontSize: { xs: '0.65rem', sm: '0.7rem' },
-                              display: 'block',
-                              mb: 0.3
-                            }}
-                          >
-                            BRAND
-                          </Typography>
-                          <Typography sx={{
-                            fontWeight: 700,
-                            color: '#047857',
-                            fontSize: { xs: '0.8rem', sm: '0.85rem', md: '0.9rem' }
-                          }}>
-                            {masterData.brand || 'N/A'}
-                          </Typography>
-                        </Box>
-                        <Box>
-                          <Typography
-                            variant="caption"
-                            sx={{
-                              color: '#065f46',
-                              fontWeight: 700,
-                              fontSize: { xs: '0.65rem', sm: '0.7rem' },
-                              display: 'block',
-                              mb: 0.3
-                            }}
-                          >
-                            CATEGORY
-                          </Typography>
-                          <Typography sx={{
-                            fontWeight: 700,
-                            color: '#047857',
-                            fontSize: { xs: '0.8rem', sm: '0.85rem', md: '0.9rem' }
-                          }}>
-                            {masterData.cms_vertical || 'N/A'}
-                          </Typography>
-                        </Box>
-                      </Box>
-
-                      {/* MRP & FSP */}
-                      <Box sx={{
-                        display: 'grid',
-                        gridTemplateColumns: '1fr 1fr',
-                        gap: { xs: 1, sm: 1.5 },
-                        p: { xs: 1, sm: 1.2 },
-                        background: 'rgba(255, 255, 255, 0.5)',
-                        borderRadius: 1
-                      }}>
-                        <Box>
-                          <Typography
-                            variant="caption"
-                            sx={{
-                              color: '#065f46',
-                              fontWeight: 700,
-                              fontSize: { xs: '0.65rem', sm: '0.7rem' },
-                              display: 'block',
-                              mb: 0.3
-                            }}
-                          >
-                            MRP
-                          </Typography>
-                          <Typography sx={{
-                            fontWeight: 700,
-                            color: '#047857',
-                            fontSize: { xs: '0.95rem', sm: '1rem', md: '1.1rem' }
-                          }}>
-                            ₹{masterData.mrp || 'N/A'}
-                          </Typography>
-                        </Box>
-                        <Box>
-                          <Typography
-                            variant="caption"
-                            sx={{
-                              color: '#065f46',
-                              fontWeight: 700,
-                              fontSize: { xs: '0.65rem', sm: '0.7rem' },
-                              display: 'block',
-                              mb: 0.3
-                            }}
-                          >
-                            FSP
-                          </Typography>
-                          <Typography sx={{
-                            fontWeight: 700,
-                            color: '#047857',
-                            fontSize: { xs: '0.95rem', sm: '1rem', md: '1.1rem' }
-                          }}>
-                            ₹{masterData.fsp || 'N/A'}
-                          </Typography>
-                        </Box>
-                      </Box>
-
-                      {/* Product Link */}
-                      {masterData.fkt_link && (
-                        <Box sx={{
-                          p: { xs: 0.8, sm: 1 },
-                          background: 'rgba(255, 255, 255, 0.6)',
-                          borderRadius: 1,
-                          border: '1px dashed #10b981'
-                        }}>
-                          <Typography
-                            variant="caption"
-                            sx={{
-                              color: '#065f46',
-                              fontWeight: 700,
-                              fontSize: { xs: '0.65rem', sm: '0.7rem' },
-                              display: 'block',
-                              mb: 0.5
-                            }}
-                          >
-                            PRODUCT LINK
-                          </Typography>
-                          <a
-                            href={masterData.fkt_link}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            style={{
-                              color: '#0284c7',
-                              fontWeight: 600,
-                              textDecoration: 'underline',
-                              cursor: 'pointer',
-                              fontSize: 'clamp(0.75rem, 2vw, 0.85rem)',
-                              wordBreak: 'break-word'
-                            }}
-                          >
-                            View on Flipkart →
-                          </a>
-                        </Box>
                       )}
                     </Stack>
                   </CardContent>
                 </Card>
-              )}
-            </Box>
-          )}
+
+                {/* Master Data Card */}
+                {masterData && (
+                  <Card sx={{
+                    borderRadius: { xs: 2, sm: 2.5, md: 3 },
+                    background: 'linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%)',
+                    border: '2px solid #10b981',
+                    order: { xs: -1, lg: 0 }, // Show master data above form on mobile
+                    height: { xs: 'auto', lg: 'fit-content' },
+                    maxHeight: { xs: '50vh', lg: 'none' },
+                    overflow: { xs: 'auto', lg: 'visible' }
+                  }}>
+                    <CardContent sx={{ p: { xs: 1.2, sm: 1.5, md: 2 } }}>
+                      <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: { xs: 1, sm: 1.5 } }}>
+                        <CheckCircle sx={{ color: '#10b981', fontSize: { xs: 24, sm: 26, md: 28 } }} />
+                        <Typography
+                          variant="subtitle1"
+                          sx={{
+                            fontWeight: 700,
+                            color: '#065f46',
+                            fontSize: { xs: '0.85rem', sm: '0.9rem', md: '0.95rem' }
+                          }}
+                        >
+                          Master Data Found
+                        </Typography>
+                      </Stack>
+
+                      <Divider sx={{ mb: { xs: 1, sm: 1.5 }, borderColor: 'rgba(5, 150, 105, 0.3)' }} />
+
+                      <Stack spacing={{ xs: 1, sm: 1.2, md: 1.5 }}>
+                        {/* FSN */}
+                        <Box>
+                          <Typography
+                            variant="caption"
+                            sx={{
+                              color: '#065f46',
+                              fontWeight: 700,
+                              fontSize: { xs: '0.65rem', sm: '0.7rem' },
+                              textTransform: 'uppercase',
+                              letterSpacing: 0.5,
+                              display: 'block',
+                              mb: 0.3
+                            }}
+                          >
+                            FSN
+                          </Typography>
+                          <Typography sx={{
+                            fontWeight: 700,
+                            color: '#047857',
+                            fontSize: { xs: '0.85rem', sm: '0.9rem', md: '1rem' },
+                            wordBreak: 'break-all'
+                          }}>
+                            {masterData.fsn || 'N/A'}
+                          </Typography>
+                        </Box>
+
+                        {/* Product */}
+                        <Box>
+                          <Typography
+                            variant="caption"
+                            sx={{
+                              color: '#065f46',
+                              fontWeight: 700,
+                              fontSize: { xs: '0.65rem', sm: '0.7rem' },
+                              textTransform: 'uppercase',
+                              display: 'block',
+                              mb: 0.3
+                            }}
+                          >
+                            PRODUCT
+                          </Typography>
+                          <Typography sx={{
+                            fontWeight: 600,
+                            color: '#047857',
+                            fontSize: { xs: '0.75rem', sm: '0.8rem', md: '0.85rem' },
+                            lineHeight: 1.4
+                          }}>
+                            {masterData.product_title || 'N/A'}
+                          </Typography>
+                        </Box>
+
+                        {/* Brand & Category */}
+                        <Box sx={{
+                          display: 'grid',
+                          gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' },
+                          gap: { xs: 1, sm: 1.5 }
+                        }}>
+                          <Box>
+                            <Typography
+                              variant="caption"
+                              sx={{
+                                color: '#065f46',
+                                fontWeight: 700,
+                                fontSize: { xs: '0.65rem', sm: '0.7rem' },
+                                display: 'block',
+                                mb: 0.3
+                              }}
+                            >
+                              BRAND
+                            </Typography>
+                            <Typography sx={{
+                              fontWeight: 700,
+                              color: '#047857',
+                              fontSize: { xs: '0.8rem', sm: '0.85rem', md: '0.9rem' }
+                            }}>
+                              {masterData.brand || 'N/A'}
+                            </Typography>
+                          </Box>
+                          <Box>
+                            <Typography
+                              variant="caption"
+                              sx={{
+                                color: '#065f46',
+                                fontWeight: 700,
+                                fontSize: { xs: '0.65rem', sm: '0.7rem' },
+                                display: 'block',
+                                mb: 0.3
+                              }}
+                            >
+                              CATEGORY
+                            </Typography>
+                            <Typography sx={{
+                              fontWeight: 700,
+                              color: '#047857',
+                              fontSize: { xs: '0.8rem', sm: '0.85rem', md: '0.9rem' }
+                            }}>
+                              {masterData.cms_vertical || 'N/A'}
+                            </Typography>
+                          </Box>
+                        </Box>
+
+                        {/* MRP & FSP */}
+                        <Box sx={{
+                          display: 'grid',
+                          gridTemplateColumns: '1fr 1fr',
+                          gap: { xs: 1, sm: 1.5 },
+                          p: { xs: 1, sm: 1.2 },
+                          background: 'rgba(255, 255, 255, 0.5)',
+                          borderRadius: 1
+                        }}>
+                          <Box>
+                            <Typography
+                              variant="caption"
+                              sx={{
+                                color: '#065f46',
+                                fontWeight: 700,
+                                fontSize: { xs: '0.65rem', sm: '0.7rem' },
+                                display: 'block',
+                                mb: 0.3
+                              }}
+                            >
+                              MRP
+                            </Typography>
+                            <Typography sx={{
+                              fontWeight: 700,
+                              color: '#047857',
+                              fontSize: { xs: '0.95rem', sm: '1rem', md: '1.1rem' }
+                            }}>
+                              ₹{masterData.mrp || 'N/A'}
+                            </Typography>
+                          </Box>
+                          <Box>
+                            <Typography
+                              variant="caption"
+                              sx={{
+                                color: '#065f46',
+                                fontWeight: 700,
+                                fontSize: { xs: '0.65rem', sm: '0.7rem' },
+                                display: 'block',
+                                mb: 0.3
+                              }}
+                            >
+                              FSP
+                            </Typography>
+                            <Typography sx={{
+                              fontWeight: 700,
+                              color: '#047857',
+                              fontSize: { xs: '0.95rem', sm: '1rem', md: '1.1rem' }
+                            }}>
+                              ₹{masterData.fsp || 'N/A'}
+                            </Typography>
+                          </Box>
+                        </Box>
+
+                        {/* Product Link */}
+                        {masterData.fkt_link && (
+                          <Box sx={{
+                            p: { xs: 0.8, sm: 1 },
+                            background: 'rgba(255, 255, 255, 0.6)',
+                            borderRadius: 1,
+                            border: '1px dashed #10b981'
+                          }}>
+                            <Typography
+                              variant="caption"
+                              sx={{
+                                color: '#065f46',
+                                fontWeight: 700,
+                                fontSize: { xs: '0.65rem', sm: '0.7rem' },
+                                display: 'block',
+                                mb: 0.5
+                              }}
+                            >
+                              PRODUCT LINK
+                            </Typography>
+                            <a
+                              href={masterData.fkt_link}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{
+                                color: '#0284c7',
+                                fontWeight: 600,
+                                textDecoration: 'underline',
+                                cursor: 'pointer',
+                                fontSize: 'clamp(0.75rem, 2vw, 0.85rem)',
+                                wordBreak: 'break-word'
+                              }}
+                            >
+                              View on Flipkart →
+                            </a>
+                          </Box>
+                        )}
+                      </Stack>
+                    </CardContent>
+                  </Card>
+                )}
+              </Box>
+            )
+          }
 
 
 
           {/* TAB 2: BULK UPLOAD */}
-          {tabValue === 2 && (
-            <Box
-              sx={{
-                display: 'flex',
-                flexDirection: 'column',
-                height: '100%',
-                p: { xs: 1, sm: 1.5, md: 2 },
-                overflow: 'auto',
-              }}
-            >
-              <Card sx={{ borderRadius: 1.5, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-                <CardContent sx={{ p: 2 }}>
-                  <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 2, color: '#1a237e' }}>📤 Bulk Upload</Typography>
-                  <Stack spacing={2}>
-                    <Button
-                      variant="outlined"
-                      startIcon={<DownloadIcon />}
-                      onClick={() => setConfirmOpen(true)}
-                      sx={{ py: 1.5 }}
-                    >
-                      Download Template
-                    </Button>
-
-                    {/* Confirmation Dialog for Download */}
-                    <Dialog
-                      open={confirmOpen}
-                      onClose={() => setConfirmOpen(false)}
-                      maxWidth="xs"
-                      fullWidth
-                    >
-                      <DialogTitle sx={{ fontWeight: 700, color: '#1a237e' }}>
-                        Confirm Download
-                      </DialogTitle>
-
-                      <DialogContent>
-                        <Typography sx={{ color: '#334155', mb: 2 }}>
-                          Would you like to proceed with downloading the template?
-                        </Typography>
-                      </DialogContent>
-
-                      <DialogActions sx={{ p: 2 }}>
-                        <Button onClick={() => setConfirmOpen(false)}>Cancel</Button>
-                        <Button
-                          variant="contained"
-                          onClick={handleConfirmDownload}
-                          sx={{
-                            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
-                          }}
-                        >
-                          Yes, Download
-                        </Button>
-                      </DialogActions>
-                    </Dialog>
-
-                    <Box sx={{ border: '2px dashed #667eea', borderRadius: 2, p: 3, textAlign: 'center', cursor: 'pointer', background: 'rgba(102, 126, 234, 0.05)', transition: 'all 0.3s', '&:hover': { background: 'rgba(102, 126, 234, 0.1)', borderColor: '#764ba2' } }}>
-                      <input type="file" accept=".xlsx,.xls" onChange={(e) => setBulkFile(e.target.files?.[0] || null)} style={{ display: 'none' }} id="bulk-file" />
-                      <label htmlFor="bulk-file" style={{ cursor: 'pointer', display: 'block' }}>
-                        <UploadIcon sx={{ fontSize: 40, color: '#667eea', mb: 1 }} />
-                        <Typography sx={{ fontWeight: 700 }}>Click to upload file</Typography>
-                        <Typography variant="caption" sx={{ color: '#94a3b8' }}>{bulkFile?.name || 'No file selected'}</Typography>
-                      </label>
-                    </Box>
-
-                    <Button variant="contained" onClick={handleBulkUpload} disabled={bulkLoading || !bulkFile} sx={{ py: 1.5, background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
-                      {bulkLoading ? <CircularProgress size={20} sx={{ mr: 1 }} /> : <UploadIcon sx={{ mr: 1 }} />}
-                      Upload
-                    </Button>
-                  </Stack>
-                </CardContent>
-              </Card>
-
-              {bulkCurrentBatch && (
-                <Card sx={{ background: 'linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)', border: '2px solid #3b82f6' }}>
-                  <CardContent>
+          {
+            tabValue === 2 && (
+              <Box
+                sx={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  height: '100%',
+                  p: { xs: 1, sm: 1.5, md: 2 },
+                  overflow: 'auto',
+                }}
+              >
+                <Card sx={{ borderRadius: 1.5, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+                  <CardContent sx={{ p: 2 }}>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 2, color: '#1a237e' }}>📤 Bulk Upload</Typography>
                     <Stack spacing={2}>
-                      <Box>
-                        <Typography variant="caption" sx={{ fontWeight: 700, color: '#1e40af' }}>BATCH ID</Typography>
-                        <Typography sx={{ fontWeight: 700, color: '#1e3a8a' }}>{bulkCurrentBatch.id}</Typography>
+                      <Button
+                        variant="outlined"
+                        startIcon={<DownloadIcon />}
+                        onClick={() => setConfirmOpen(true)}
+                        sx={{ py: 1.5 }}
+                      >
+                        Download Template
+                      </Button>
+
+                      {/* Confirmation Dialog for Download */}
+                      <Dialog
+                        open={confirmOpen}
+                        onClose={() => setConfirmOpen(false)}
+                        maxWidth="xs"
+                        fullWidth
+                      >
+                        <DialogTitle sx={{ fontWeight: 700, color: '#1a237e' }}>
+                          Confirm Download
+                        </DialogTitle>
+
+                        <DialogContent>
+                          <Typography sx={{ color: '#334155', mb: 2 }}>
+                            Would you like to proceed with downloading the template?
+                          </Typography>
+                        </DialogContent>
+
+                        <DialogActions sx={{ p: 2 }}>
+                          <Button onClick={() => setConfirmOpen(false)}>Cancel</Button>
+                          <Button
+                            variant="contained"
+                            onClick={handleConfirmDownload}
+                            sx={{
+                              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+                            }}
+                          >
+                            Yes, Download
+                          </Button>
+                        </DialogActions>
+                      </Dialog>
+
+                      <Box sx={{ border: '2px dashed #667eea', borderRadius: 2, p: 3, textAlign: 'center', cursor: 'pointer', background: 'rgba(102, 126, 234, 0.05)', transition: 'all 0.3s', '&:hover': { background: 'rgba(102, 126, 234, 0.1)', borderColor: '#764ba2' } }}>
+                        <input type="file" accept=".xlsx,.xls" onChange={(e) => setBulkFile(e.target.files?.[0] || null)} style={{ display: 'none' }} id="bulk-file" />
+                        <label htmlFor="bulk-file" style={{ cursor: 'pointer', display: 'block' }}>
+                          <UploadIcon sx={{ fontSize: 40, color: '#667eea', mb: 1 }} />
+                          <Typography sx={{ fontWeight: 700 }}>Click to upload file</Typography>
+                          <Typography variant="caption" sx={{ color: '#94a3b8' }}>{bulkFile?.name || 'No file selected'}</Typography>
+                        </label>
                       </Box>
-                      <Box>
-                        <Typography variant="caption" sx={{ fontWeight: 700, color: '#1e40af' }}>TOTAL ROWS</Typography>
-                        <Typography sx={{ fontWeight: 700, color: '#1e3a8a' }}>{bulkCurrentBatch.total}</Typography>
-                      </Box>
-                      <LinearProgress variant="determinate" value={50} sx={{ height: 8, borderRadius: 4 }} />
-                      <Typography variant="caption" sx={{ color: '#1e40af', fontWeight: 600 }}>Processing...</Typography>
+
+                      <Button variant="contained" onClick={handleBulkUpload} disabled={bulkLoading || !bulkFile} sx={{ py: 1.5, background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
+                        {bulkLoading ? <CircularProgress size={20} sx={{ mr: 1 }} /> : <UploadIcon sx={{ mr: 1 }} />}
+                        Upload
+                      </Button>
                     </Stack>
                   </CardContent>
                 </Card>
-              )}
 
-              {bulkErrors.length > 0 && (
-                <Dialog open={bulkErrorsOpen} onClose={() => setBulkErrorsOpen(false)} maxWidth="md" fullWidth>
-                  <DialogTitle>❌ Upload Errors</DialogTitle>
-                  <DialogContent sx={{ maxHeight: 400, overflow: 'auto' }}>
-                    {bulkErrors.map((err, idx) => (
-                      <Alert key={idx} severity="error" sx={{ mb: 1 }}>
-                        Row {err.row}: {err.message}
-                      </Alert>
-                    ))}
-                  </DialogContent>
-                </Dialog>
-              )}
-            </Box>
-          )}
+                {bulkCurrentBatch && (
+                  <Card sx={{ background: 'linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)', border: '2px solid #3b82f6' }}>
+                    <CardContent>
+                      <Stack spacing={2}>
+                        <Box>
+                          <Typography variant="caption" sx={{ fontWeight: 700, color: '#1e40af' }}>BATCH ID</Typography>
+                          <Typography sx={{ fontWeight: 700, color: '#1e3a8a' }}>{bulkCurrentBatch.id}</Typography>
+                        </Box>
+                        <Box>
+                          <Typography variant="caption" sx={{ fontWeight: 700, color: '#1e40af' }}>TOTAL ROWS</Typography>
+                          <Typography sx={{ fontWeight: 700, color: '#1e3a8a' }}>{bulkCurrentBatch.total}</Typography>
+                        </Box>
+                        <LinearProgress variant="determinate" value={50} sx={{ height: 8, borderRadius: 4 }} />
+                        <Typography variant="caption" sx={{ color: '#1e40af', fontWeight: 600 }}>Processing...</Typography>
+                      </Stack>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {bulkErrors.length > 0 && (
+                  <Dialog open={bulkErrorsOpen} onClose={() => setBulkErrorsOpen(false)} maxWidth="md" fullWidth>
+                    <DialogTitle>❌ Upload Errors</DialogTitle>
+                    <DialogContent sx={{ maxHeight: 400, overflow: 'auto' }}>
+                      {bulkErrors.map((err, idx) => (
+                        <Alert key={idx} severity="error" sx={{ mb: 1 }}>
+                          Row {err.row}: {err.message}
+                        </Alert>
+                      ))}
+                    </DialogContent>
+                  </Dialog>
+                )}
+              </Box>
+            )
+          }
 
 
           {/* TAB 3: MULTI ENTRY */}
-          {tabValue === 3 && (
-            <Box sx={{
-              display: 'flex',
-              flexDirection: 'column',
-              height: '100%', overflow: 'hidden',
-              p: { xs: 1, sm: 1, md: 1 }
-            }}>
-              {/* CONTROLS */}
-              <Card
-                sx={{
-                  borderRadius: 1.5,
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
-                  flexShrink: 0, // Don't shrink this card
-                  mb: { xs: 1, sm: 1.5 } // Add bottom margin for spacing
-                }}
-              >
-                <CardContent sx={{ p: { xs: 1, sm: 1.5 }, '&:last-child': { pb: { xs: 1, sm: 1.5 } } }}>
-                  {/* DESKTOP: Side by side layout */}
-                  <Box sx={{ display: { xs: 'none', md: 'block' } }}>
-                    <Stack
-                      direction="row"
-                      spacing={2}
-                      sx={{
-                        alignItems: 'center',
-                        width: '100%'
-                      }}
-                    >
-                      {/* LEFT: Date and Vehicle */}
+          {
+            tabValue === 3 && (
+              <Box sx={{
+                display: 'flex',
+                flexDirection: 'column',
+                height: '100%', overflow: 'hidden',
+                p: { xs: 1, sm: 1, md: 1 }
+              }}>
+                {/* CONTROLS */}
+                <Card
+                  sx={{
+                    borderRadius: 1.5,
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+                    flexShrink: 0, // Don't shrink this card
+                    mb: { xs: 1, sm: 1.5 } // Add bottom margin for spacing
+                  }}
+                >
+                  <CardContent sx={{ p: { xs: 1, sm: 1.5 }, '&:last-child': { pb: { xs: 1, sm: 1.5 } } }}>
+                    {/* DESKTOP: Side by side layout */}
+                    <Box sx={{ display: { xs: 'none', md: 'block' } }}>
                       <Stack
                         direction="row"
-                        spacing={1}
-                        sx={{
-                          flex: '0 0 auto',
-                          minWidth: 340
-                        }}
-                      >
-                        <TextField
-                          size="small"
-                          label="Common Date"
-                          type="date"
-                          InputLabelProps={{ shrink: true }}
-                          value={commonDate}
-                          onChange={(e) => setCommonDate(e.target.value)}
-                          sx={{
-                            flex: 1,
-                            '& .MuiInputBase-root': { height: 36 }
-                          }}
-                        />
-                        <TextField
-                          size="small"
-                          label="Vehicle"
-                          value={commonVehicle}
-                          onChange={(e) => setCommonVehicle(e.target.value)}
-                          sx={{
-                            flex: 1,
-                            '& .MuiInputBase-root': { height: 36 }
-                          }}
-                          placeholder="Auto-fill"
-                        />
-                      </Stack>
-
-                      {/* RIGHT: Status Chips + Action Buttons */}
-                      <Stack
-                        direction="row"
-                        spacing={1.5}
-                        sx={{
-                          flexWrap: 'wrap',
-                          alignItems: 'center',
-                          justifyContent: 'flex-end',
-                          flex: 1,
-                          gap: 0
-                        }}
-                      >
-
-                        {/* Action Buttons */}
-                        <Stack direction="row" spacing={0.75} sx={{ flexShrink: 0 }}>
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            onClick={() => setColumnSettingsOpen(true)}
-                            sx={{
-                              fontSize: '0.7rem',
-                              fontWeight: 700,
-                              minWidth: 75,
-                              height: 32,
-                              px: 1.5,
-                              borderColor: '#667eea',
-                              color: '#667eea',
-                              '&:hover': {
-                                borderColor: '#667eea',
-                                bgcolor: 'rgba(102, 126, 234, 0.08)'
-                              }
-                            }}
-                          >
-                            COLUMNS
-                          </Button>
-                          <Button
-                            size="small"
-                            variant="contained"
-                            onClick={add30Rows}
-                            sx={{
-                              fontSize: '0.7rem',
-                              fontWeight: 700,
-                              minWidth: 85,
-                              height: 32,
-                              px: 1.5,
-                              background: '#ec4899',
-                              '&:hover': { background: '#db2777' }
-                            }}
-                          >
-                            + 30 ROWS
-                          </Button>
-
-                          {/* ✅ NEW: Grid Settings Button */}
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            startIcon={<SettingsIcon sx={{ fontSize: '0.85rem' }} />}
-                            onClick={() => setGridSettingsOpen(true)}
-                            sx={{
-                              fontSize: '0.7rem',
-                              fontWeight: 700,
-                              borderWidth: 2,
-                              borderColor: '#f59e0b',
-                              color: '#f59e0b',
-                              '&:hover': {
-                                borderWidth: 2,
-                                bgcolor: 'rgba(245, 158, 11, 0.1)'
-                              }
-                            }}
-                          >
-                            Grid
-                          </Button>
-
-
-                        </Stack>
-                      </Stack>
-                    </Stack>
-                  </Box>
-
-                  {/* MOBILE: Two rows layout */}
-                  <Box sx={{ display: { xs: 'block', md: 'none' } }}>
-                    <Stack
-                      spacing={1.5}
-                      sx={{
-                        width: '100%'
-                      }}
-                    >
-                      {/* ROW 1: Date and Vehicle */}
-                      <Stack
-                        direction="row"
-                        spacing={1}
-                        sx={{
-                          width: '100%',
-                          alignItems: 'center'
-                        }}
-                      >
-                        <TextField
-                          size="small"
-                          label="Common Date"
-                          type="date"
-                          InputLabelProps={{ shrink: true }}
-                          value={commonDate}
-                          onChange={(e) => setCommonDate(e.target.value)}
-                          sx={{
-                            flex: 1,
-                            '& .MuiInputBase-root': { height: 36 }
-                          }}
-                        />
-                        <TextField
-                          size="small"
-                          label="Vehicle"
-                          value={commonVehicle}
-                          onChange={(e) => setCommonVehicle(e.target.value)}
-                          sx={{
-                            flex: 1,
-                            '& .MuiInputBase-root': { height: 36 }
-                          }}
-                          placeholder="Auto-fill"
-                        />
-                      </Stack>
-
-                      {/* ROW 2: Status Chips + Action Buttons */}
-                      <Stack
-                        direction="row"
-                        spacing={0.25}
+                        spacing={2}
                         sx={{
                           alignItems: 'center',
-                          justifyContent: 'space-between',
                           width: '100%'
                         }}
                       >
-
-                        {/* Action Buttons */}
-                        <Stack direction="row" spacing={1.50} sx={{ flexShrink: 0 }}>
-                          <Button
+                        {/* LEFT: Date and Vehicle */}
+                        <Stack
+                          direction="row"
+                          spacing={1}
+                          sx={{
+                            flex: '0 0 auto',
+                            minWidth: 340
+                          }}
+                        >
+                          <TextField
                             size="small"
-                            variant="outlined"
-                            onClick={() => setColumnSettingsOpen(true)}
+                            label="Common Date"
+                            type="date"
+                            InputLabelProps={{ shrink: true }}
+                            value={commonDate}
+                            onChange={(e) => setCommonDate(e.target.value)}
                             sx={{
-                              fontSize: '0.6rem',
-                              fontWeight: 700,
-                              width: 105,
-                              height: 28,
-                              px: 0.75,
-                              borderColor: '#667eea',
-                              color: '#667eea',
-                              '&:hover': {
-                                borderColor: '#667eea',
-                                bgcolor: 'rgba(102, 126, 234, 0.08)'
-                              }
+                              flex: 1,
+                              '& .MuiInputBase-root': { height: 36 }
                             }}
-                          >
-                            <SettingsIcon sx={{ fontSize: '0.85rem' }} /> COLUMNS
-                          </Button>
-                          <Button
+                          />
+                          <TextField
                             size="small"
-                            variant="outlined"
-                            onClick={add30Rows}
+                            label="Vehicle"
+                            value={commonVehicle}
+                            onChange={(e) => setCommonVehicle(e.target.value)}
                             sx={{
-                              fontSize: '0.6rem',
-                              fontWeight: 700,
-                              width: 105,
-                              height: 28,
-                              px: 0.75,
-                              borderColor: '#667eea',
-                              color: '#667eea',
-                              '&:hover': {
-                                borderColor: '#667eea',
-                                bgcolor: 'rgba(102, 126, 234, 0.08)'
-                              }
+                              flex: 1,
+                              '& .MuiInputBase-root': { height: 36 }
                             }}
+                            placeholder="Auto-fill"
+                          />
+                        </Stack>
 
-                          >
-                            + 30 ROWS
-                          </Button>
-                          {/* ✅ NEW: Grid Settings Button */}
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            onClick={() => setGridSettingsOpen(true)}
-                            sx={{
-                              fontSize: '0.6rem',
-                              fontWeight: 700,
-                              width: 105,
-                              height: 28,
-                              px: 0.75,
-                              borderColor: '#667eea',
-                              color: '#667eea',
-                              '&:hover': {
+                        {/* RIGHT: Status Chips + Action Buttons */}
+                        <Stack
+                          direction="row"
+                          spacing={1.5}
+                          sx={{
+                            flexWrap: 'wrap',
+                            alignItems: 'center',
+                            justifyContent: 'flex-end',
+                            flex: 1,
+                            gap: 0
+                          }}
+                        >
+
+                          {/* Action Buttons */}
+                          <Stack direction="row" spacing={0.75} sx={{ flexShrink: 0 }}>
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              onClick={() => setColumnSettingsOpen(true)}
+                              sx={{
+                                fontSize: '0.7rem',
+                                fontWeight: 700,
+                                minWidth: 75,
+                                height: 32,
+                                px: 1.5,
                                 borderColor: '#667eea',
-                                bgcolor: 'rgba(102, 126, 234, 0.08)'
-                              }
-                            }}
-                          >
-                            <SettingsIcon sx={{ fontSize: '0.85rem' }} /> Grid
-                          </Button>
+                                color: '#667eea',
+                                '&:hover': {
+                                  borderColor: '#667eea',
+                                  bgcolor: 'rgba(102, 126, 234, 0.08)'
+                                }
+                              }}
+                            >
+                              COLUMNS
+                            </Button>
+                            <Button
+                              size="small"
+                              variant="contained"
+                              onClick={add30Rows}
+                              sx={{
+                                fontSize: '0.7rem',
+                                fontWeight: 700,
+                                minWidth: 85,
+                                height: 32,
+                                px: 1.5,
+                                background: '#ec4899',
+                                '&:hover': { background: '#db2777' }
+                              }}
+                            >
+                              + 30 ROWS
+                            </Button>
 
+                            {/* ✅ NEW: Grid Settings Button */}
+                            <Button
+                              type="button"
+                              size="small"
+                              variant="outlined"
+                              startIcon={<SettingsIcon sx={{ fontSize: '0.85rem' }} />}
+                              onClick={(e) => { e.stopPropagation(); setGridSettingsOpen(true); }}
+                              sx={{
+                                fontSize: '0.7rem',
+                                fontWeight: 700,
+                                borderWidth: 2,
+                                borderColor: '#f59e0b',
+                                color: '#f59e0b',
+                                '&:hover': {
+                                  borderWidth: 2,
+                                  bgcolor: 'rgba(245, 158, 11, 0.1)'
+                                }
+                              }}
+                            >
+                              Grid
+                            </Button>
+                          </Stack>
                         </Stack>
                       </Stack>
-                    </Stack>
-                  </Box>
-                </CardContent>
-              </Card>
+                    </Box>
 
-              {/* ERROR ALERTS */}
-              {crossWarehouseWSNs.size > 0 && (
-                <Alert severity="error" sx={{ mb: 0.75, fontWeight: 700, mx: { xs: 0.5, sm: 1 }, flexShrink: 0 }}>
-                  Some WSNs are already inbound in another warehouse. Remove them.
-                </Alert>
-              )}
-              {gridDuplicateWSNs.size > 0 && (
-                <Alert severity="warning" sx={{ mb: 0.75, fontWeight: 700, mx: { xs: 0.5, sm: 1 }, flexShrink: 0 }}>
-                  Duplicate WSNs found inside the grid.
-                </Alert>
-              )}
+                    {/* MOBILE: Two rows layout */}
+                    <Box sx={{ display: { xs: 'block', md: 'none' } }}>
+                      <Stack
+                        spacing={1.5}
+                        sx={{
+                          width: '100%'
+                        }}
+                      >
+                        {/* ROW 1: Date and Vehicle */}
+                        <Stack
+                          direction="row"
+                          spacing={1}
+                          sx={{
+                            width: '100%',
+                            alignItems: 'center'
+                          }}
+                        >
+                          <TextField
+                            size="small"
+                            label="Common Date"
+                            type="date"
+                            InputLabelProps={{ shrink: true }}
+                            value={commonDate}
+                            onChange={(e) => setCommonDate(e.target.value)}
+                            sx={{
+                              flex: 1,
+                              '& .MuiInputBase-root': { height: 36 }
+                            }}
+                          />
+                          <TextField
+                            size="small"
+                            label="Vehicle"
+                            value={commonVehicle}
+                            onChange={(e) => setCommonVehicle(e.target.value)}
+                            sx={{
+                              flex: 1,
+                              '& .MuiInputBase-root': { height: 36 }
+                            }}
+                            placeholder="Auto-fill"
+                          />
+                        </Stack>
+
+                        {/* ROW 2: Status Chips + Action Buttons */}
+                        <Stack
+                          direction="row"
+                          spacing={0.25}
+                          sx={{
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            width: '100%'
+                          }}
+                        >
+
+                          {/* Action Buttons */}
+                          <Stack direction="row" spacing={1.50} sx={{ flexShrink: 0 }}>
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              onClick={() => setColumnSettingsOpen(true)}
+                              sx={{
+                                fontSize: '0.6rem',
+                                fontWeight: 700,
+                                width: 105,
+                                height: 28,
+                                px: 0.75,
+                                borderColor: '#667eea',
+                                color: '#667eea',
+                                '&:hover': {
+                                  borderColor: '#667eea',
+                                  bgcolor: 'rgba(102, 126, 234, 0.08)'
+                                }
+                              }}
+                            >
+                              <SettingsIcon sx={{ fontSize: '0.85rem' }} /> COLUMNS
+                            </Button>
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              onClick={add30Rows}
+                              sx={{
+                                fontSize: '0.6rem',
+                                fontWeight: 700,
+                                width: 105,
+                                height: 28,
+                                px: 0.75,
+                                borderColor: '#667eea',
+                                color: '#667eea',
+                                '&:hover': {
+                                  borderColor: '#667eea',
+                                  bgcolor: 'rgba(102, 126, 234, 0.08)'
+                                }
+                              }}
+
+                            >
+                              + 30 ROWS
+                            </Button>
+                            {/* ✅ NEW: Grid Settings Button */}
+                            <Button
+                              type="button"
+                              size="small"
+                              variant="outlined"
+                              onClick={(e) => { e.stopPropagation(); setGridSettingsOpen(true); }}
+                              sx={{
+                                fontSize: '0.6rem',
+                                fontWeight: 700,
+                                width: 105,
+                                height: 28,
+                                px: 0.75,
+                                borderColor: '#667eea',
+                                color: '#667eea',
+                                '&:hover': {
+                                  borderColor: '#667eea',
+                                  bgcolor: 'rgba(102, 126, 234, 0.08)'
+                                }
+                              }}
+                            >
+                              <SettingsIcon sx={{ fontSize: '0.85rem' }} /> Grid
+                            </Button>
+
+                          </Stack>
+                        </Stack>
+                      </Stack>
+                    </Box>
+                  </CardContent>
+                </Card>
+
+                {/* ERROR ALERTS */}
+                {crossWarehouseWSNs.size > 0 && (
+                  <Alert severity="error" sx={{ mb: 0.75, fontWeight: 700, mx: { xs: 0.5, sm: 1 }, flexShrink: 0 }}>
+                    Some WSNs are already inbound in another warehouse. Remove them.
+                  </Alert>
+                )}
+                {gridDuplicateWSNs.size > 0 && (
+                  <Alert severity="warning" sx={{ mb: 0.75, fontWeight: 700, mx: { xs: 0.5, sm: 1 }, flexShrink: 0 }}>
+                    Duplicate WSNs found inside the grid.
+                  </Alert>
+                )}
 
 
-              {/* AG GRID */}
-              <Box
-                sx={{
-                  flex: 1,
-                  minHeight: 300,
-                  border: '1px solid #cbd5e1',
-                  borderRadius: 1,
-                  overflow: 'hidden',
-                  '& .ag-root-wrapper': { borderRadius: 0, height: '100%' },
-
-                  // Excel-style header
-                  '& .ag-header': {
-                    borderBottom: '1px solid #cbd5e1',
-                  },
-                  '& .ag-header-cell': {
-                    backgroundColor: '#e5e7eb',
-                    color: '#111827',
-                    fontWeight: 700,
-                    borderRight: '1px solid #d1d5db',
-                    fontSize: '11px',
-                    padding: '0 4px',
-                  },
-
-                  // Excel-style cells
-                  '& .ag-cell': {
-                    borderRight: '1px solid #e5e7eb',
-                    borderBottom: '1px solid #e5e7eb',
-                    fontSize: '11px',
-                    padding: '1px 4px',
-                    display: 'flex',
-                    alignItems: 'center',
-
+                {/* AG GRID */}
+                <Box
+                  sx={{
+                    flex: 1,
+                    minHeight: 300,
+                    border: '1px solid #cbd5e1',
+                    borderRadius: 1,
                     overflow: 'hidden',
-                    whiteSpace: 'nowrap',
-                    textOverflow: 'ellipsis',
-                  },
+                    '& .ag-root-wrapper': { borderRadius: 0, height: '100%' },
+
+                    // Excel-style header
+                    '& .ag-header': {
+                      borderBottom: '1px solid #cbd5e1',
+                    },
+                    '& .ag-header-cell': {
+                      backgroundColor: '#e5e7eb',
+                      color: '#111827',
+                      fontWeight: 700,
+                      borderRight: '1px solid #d1d5db',
+                      fontSize: '11px',
+                      padding: '0 4px',
+                    },
+
+                    // Excel-style cells
+                    '& .ag-cell': {
+                      borderRight: '1px solid #e5e7eb',
+                      borderBottom: '1px solid #e5e7eb',
+                      fontSize: '11px',
+                      padding: '1px 4px',
+                      display: 'flex',
+                      alignItems: 'center',
+
+                      overflow: 'hidden',
+                      whiteSpace: 'nowrap',
+                      textOverflow: 'ellipsis',
+                    },
 
 
-                  // Compact rows
-                  // Compact rows (popup visible)
-                  '& .ag-row': {
-                    height: 26,
-                    overflow: 'visible',   // ⭐ REQUIRED
-                  },
+                    // Compact rows
+                    // Compact rows (popup visible)
+                    '& .ag-row': {
+                      height: 26,
+                      overflow: 'visible',   // ⭐ REQUIRED
+                    },
 
-                  '& .ag-row-even': { backgroundColor: '#ffffff' },
-                  '& .ag-row-odd': { backgroundColor: '#f9fafb' },
+                    '& .ag-row-even': { backgroundColor: '#ffffff' },
+                    '& .ag-row-odd': { backgroundColor: '#f9fafb' },
 
-                  // Active (focused) cell – Excel जैसी नीली border
-                  '& .ag-cell-focus': {
-                    border: '2px solid #2563eb !important',
-                    boxSizing: 'border-box',
-                  },
+                    // Active (focused) cell – Excel जैसी नीली border
+                    '& .ag-cell-focus': {
+                      border: '2px solid #2563eb !important',
+                      boxSizing: 'border-box',
+                    },
 
-                  // Range selection (drag / shift select) – हल्का blue background
-                  '& .ag-cell-range-selected': {
-                    backgroundColor: '#dbeafe !important',
-                  },
-                  '& .ag-cell-range-single-cell': {
-                    backgroundColor: '#eff6ff !important',
-                  },
+                    // Range selection (drag / shift select) – हल्का blue background
+                    '& .ag-cell-range-selected': {
+                      backgroundColor: '#dbeafe !important',
+                    },
+                    '& .ag-cell-range-single-cell': {
+                      backgroundColor: '#eff6ff !important',
+                    },
 
-                  // Hover like selected Excel row
-                  '& .ag-row-hover': {
-                    backgroundColor: '#e5f3ff !important',
-                  },
-                  '& .ag-row-focus': {
-                    outline: '1 px solid #60a5fa',
-                  },
-                }}
-              >
-                <div style={{ height: '100%', width: '100%' }} className="ag-theme-quartz">
-                  <AgGridReact
-                    //theme="legacy"
-                    rowData={multiRows}
-                    columnDefs={columnDefs}
-                    rowHeight={26}
-                    suppressNoRowsOverlay={false}
-                    overlayNoRowsTemplate='<span style="padding: 20px; font-size: 14px; color: #666;">Click on any cell to start entering data</span>'
+                    // Hover like selected Excel row
+                    '& .ag-row-hover': {
+                      backgroundColor: '#e5f3ff !important',
+                    },
+                    '& .ag-row-focus': {
+                      outline: '1 px solid #60a5fa',
+                    },
+                  }}
+                >
+                  <div style={{ height: '100%', width: '100%' }} className="ag-theme-quartz">
+                    <AgGridReact
+                      //theme="legacy"
+                      rowData={multiRows}
+                      columnDefs={columnDefs}
+                      rowHeight={36}
+                      suppressNoRowsOverlay={false}
+                      overlayNoRowsTemplate='<span style="padding: 20px; font-size: 14px; color: #666;">Click on any cell to start entering data</span>'
 
-                    defaultColDef={{
-                      sortable: gridSettings.sortable,  // ✅ Dynamic
-                      filter: gridSettings.filter,      // ✅ Dynamic
-                      resizable: gridSettings.resizable, // ✅ Dynamic
-                      editable: (params) => {
-                        // ✅ Check grid settings first
-                        if (!gridSettings.editable) return false;
+                      defaultColDef={{
+                        sortable: gridSettings.sortable,  // ✅ Dynamic
+                        filter: gridSettings.filter,      // ✅ Dynamic
+                        resizable: gridSettings.resizable, // ✅ Dynamic
+                        editable: (params) => {
+                          // ✅ Check grid settings first
+                          if (!gridSettings.editable) return false;
 
-                        const field = params.colDef.field as string;
-                        const wsn = params.data?.wsn?.trim()?.toUpperCase();
-
-
-                        if (!wsn) return EDITABLE_COLUMNS.includes(field);
-
-                        // 🔴 Cross warehouse → nothing editable
-                        if (crossWarehouseWSNs.has(wsn)) return false;
-
-                        // 🟡 Duplicate → only WSN editable
-                        if (gridDuplicateWSNs.has(wsn)) {
-                          return field === 'wsn';
-                        }
-
-                        return EDITABLE_COLUMNS.includes(field);
-                      },
-                    }}
-
-                    // keyboard navigation
-                    stopEditingWhenCellsLoseFocus={true}
-                    enterNavigatesVertically={true}
-                    enterNavigatesVerticallyAfterEdit={true}
-                    navigateToNextCell={navigateToNextCell}
-                    ensureDomOrder={true}
-                    suppressRowClickSelection={true}
-                    suppressMovableColumns={true}
-                    rowBuffer={5}
-                    onCellValueChanged={(event: any) => {
-                      const { colDef, newValue, rowIndex } = event;
-                      const field = colDef?.field;
-                      if (!field) return;
-
-                      const newRows = [...multiRows];
-
-                      // WSN clear -> master clear
-                      if (field === 'wsn' && (!newValue || newValue.trim() === '')) {
-                        newRows[rowIndex] = { ...newRows[rowIndex], [field]: newValue };
-                        ALL_MASTER_COLUMNS.forEach((col) => {
-                          newRows[rowIndex][col] = null;
-                        });
-                        setMultiRows(newRows);
-                        checkDuplicates(newRows);
-                        return;
-                      }
-
-                      newRows[rowIndex] = { ...newRows[rowIndex], [field]: newValue };
-                      setMultiRows(newRows);
-
-                      if (field === 'wsn') {
-                        // Calculate duplicates immediately for instant feedback (don't wait on checkDuplicates)
-                        const wsn = newValue?.trim()?.toUpperCase();
-
-                        const immediateCounts = new Map<string, number>();
-                        newRows.forEach((r: any) => {
-                          const rv = r.wsn?.trim()?.toUpperCase();
-                          if (rv) immediateCounts.set(rv, (immediateCounts.get(rv) || 0) + 1);
-                        });
-
-                        const isGridDuplicateImmediate = (immediateCounts.get(wsn) || 0) > 1;
+                          const field = params.colDef.field as string;
+                          const wsn = params.data?.wsn?.trim()?.toUpperCase();
 
 
+                          if (!wsn) return EDITABLE_COLUMNS.includes(field);
 
-                        // 🟡 Grid duplicate → clear cell + toast (match QC behaviour)
-                        if (isGridDuplicateImmediate) {
-                          toast(`Duplicate WSN in grid: ${wsn}`, {
-                            duration: 2500,
-                            style: {
-                              background: '#ffffff',
-                              color: '#d97706',
-                              border: '2px solid #f59e0b',
-                              borderRadius: '8px',
-                              padding: '12px 16px',
-                              fontWeight: 600,
-                              fontSize: '14px',
-                            },
-                            icon: '⚠️',
-                          });
+                          // 🔴 Cross warehouse → nothing editable
+                          if (crossWarehouseWSNs.has(wsn)) return false;
 
-                          // Clear the cell and master columns like QC
-                          newRows[rowIndex].wsn = '';
+                          // 🟡 Duplicate → only WSN editable
+                          if (gridDuplicateWSNs.has(wsn)) {
+                            return field === 'wsn';
+                          }
+
+                          return EDITABLE_COLUMNS.includes(field);
+                        },
+                      }}
+
+                      // keyboard navigation
+                      stopEditingWhenCellsLoseFocus={true}
+                      enterNavigatesVertically={true}
+                      enterNavigatesVerticallyAfterEdit={true}
+                      navigateToNextCell={navigateToNextCell}
+                      ensureDomOrder={true}
+                      suppressRowClickSelection={true}
+                      suppressMovableColumns={true}
+                      rowBuffer={5}
+                      onCellValueChanged={(event: any) => {
+                        const { colDef, newValue, rowIndex } = event;
+                        const field = colDef?.field;
+                        if (!field) return;
+
+                        const newRows = [...multiRows];
+
+                        // WSN clear -> master clear
+                        if (field === 'wsn' && (!newValue || newValue.trim() === '')) {
+                          newRows[rowIndex] = { ...newRows[rowIndex], [field]: newValue };
                           ALL_MASTER_COLUMNS.forEach((col) => {
                             newRows[rowIndex][col] = null;
                           });
                           setMultiRows(newRows);
                           checkDuplicates(newRows);
-                          checkDuplicates(newRows);
-
-                          // Re-focus same cell for quick correction
-                          setTimeout(() => {
-                            event.api.startEditingCell({
-                              rowIndex: rowIndex,
-                              colKey: 'wsn',
-                            });
-                          }, 100);
-
                           return;
                         }
 
-                        // ➕ Last row → auto add new row
-                        if (rowIndex === event.api.getDisplayedRowCount() - 1) {
-                          addMultiRow();
-                        }
+                        newRows[rowIndex] = { ...newRows[rowIndex], [field]: newValue };
+                        setMultiRows(newRows);
 
-                        // If there's a WSN value, first perform a quick remote check to figure out ownership
-                        if (newValue?.trim()) {
-                          // Run the ownership check immediately (no delay) so we can clear bad WSNs early
-                          setTimeout(async () => {
-                            try {
-                              const wsnCheck = newValue.trim().toUpperCase();
-                              const ownerResp = await inboundAPI.getAll(1, 1, { search: wsnCheck });
-                              const ownerItem = ownerResp?.data?.data?.[0] || ownerResp?.data?.[0] || null;
+                        if (field === 'wsn') {
+                          // Calculate duplicates immediately for instant feedback (don't wait on checkDuplicates)
+                          const wsn = newValue?.trim()?.toUpperCase();
 
-                              if (ownerItem) {
-                                const ownerWarehouseId = ownerItem.warehouse_id ?? ownerItem.warehouseId ?? ownerItem.warehouseid ?? null;
+                          const immediateCounts = new Map<string, number>();
+                          newRows.forEach((r: any) => {
+                            const rv = r.wsn?.trim()?.toUpperCase();
+                            if (rv) immediateCounts.set(rv, (immediateCounts.get(rv) || 0) + 1);
+                          });
 
-                                if (ownerWarehouseId && ownerWarehouseId !== activeWarehouse?.id) {
-                                  // Cross-warehouse → error and clear
-                                  toast.error(`WSN ${wsnCheck} already inbound in another warehouse`, {
-                                    duration: 3000,
-                                    style: {
-                                      background: '#ffffff',
-                                      color: '#dc2626',
-                                      border: '2px solid #dc2626',
-                                      borderRadius: '8px',
-                                      padding: '12px 16px',
-                                      fontWeight: 600,
-                                      fontSize: '14px',
-                                    },
-                                    icon: '🚫',
-                                  });
+                          const isGridDuplicateImmediate = (immediateCounts.get(wsn) || 0) > 1;
 
-                                  newRows[rowIndex].wsn = '';
-                                  ALL_MASTER_COLUMNS.forEach((col) => {
-                                    newRows[rowIndex][col] = null;
-                                  });
-                                  setMultiRows(newRows);
-                                  await checkDuplicates(newRows);
 
-                                  setTimeout(() => {
-                                    event.api.startEditingCell({ rowIndex: rowIndex, colKey: 'wsn' });
-                                  }, 100);
 
-                                  return;
-                                }
+                          // 🟡 Grid duplicate → clear cell + toast (match QC behaviour)
+                          if (isGridDuplicateImmediate) {
+                            toast(`Duplicate WSN in grid: ${wsn}`, {
+                              duration: 2500,
+                              style: {
+                                background: '#ffffff',
+                                color: '#d97706',
+                                border: '2px solid #f59e0b',
+                                borderRadius: '8px',
+                                padding: '12px 16px',
+                                fontWeight: 600,
+                                fontSize: '14px',
+                              },
+                              icon: '⚠️',
+                            });
 
-                                if (ownerWarehouseId && ownerWarehouseId === activeWarehouse?.id) {
-                                  // Same-warehouse duplicate → warn + clear (match QC behavior)
-                                  toast(`WSN ${wsnCheck} already inbound in this warehouse`, {
-                                    duration: 2500,
-                                    style: {
-                                      background: '#ffffff',
-                                      color: '#d97706',
-                                      border: '2px solid #f59e0b',
-                                      borderRadius: '8px',
-                                      padding: '12px 16px',
-                                      fontWeight: 600,
-                                      fontSize: '14px',
-                                    },
-                                    icon: '⚠️',
-                                  });
+                            // Clear the cell and master columns like QC
+                            newRows[rowIndex].wsn = '';
+                            ALL_MASTER_COLUMNS.forEach((col) => {
+                              newRows[rowIndex][col] = null;
+                            });
+                            setMultiRows(newRows);
+                            checkDuplicates(newRows);
+                            checkDuplicates(newRows);
 
-                                  newRows[rowIndex].wsn = '';
-                                  ALL_MASTER_COLUMNS.forEach((col) => {
-                                    newRows[rowIndex][col] = null;
-                                  });
-                                  setMultiRows(newRows);
-                                  await checkDuplicates(newRows);
-
-                                  setTimeout(() => {
-                                    event.api.startEditingCell({ rowIndex: rowIndex, colKey: 'wsn' });
-                                  }, 100);
-
-                                  return;
-                                }
-                              }
-                            } catch (err) {
-                              // ignore remote lookup errors and continue to master data fetch
-                            }
-                          }, 0);
-
-                          // Continue with the regular master-data fetch (delayed)
-                          setTimeout(async () => {
-                            try {
-                              const wsnUpper = newValue.trim().toUpperCase();
-
-                              // GUARD: if the cell was cleared (duplicate or owner) skip master data fetch
-                              if (!newRows[rowIndex].wsn || newRows[rowIndex].wsn.trim().toUpperCase() !== wsnUpper) {
-                                return;
-                              }
-
-                              const response = await inboundAPI.getMasterDataByWSN(wsnUpper);
-                              const masterInfo = response.data;
-                              setMultiRows((prevRows) => {
-                                const updatedRows = [...prevRows];
-                                updatedRows[rowIndex] = { ...updatedRows[rowIndex] };
-                                ALL_MASTER_COLUMNS.forEach((masterCol) => {
-                                  updatedRows[rowIndex][masterCol] =
-                                    masterInfo[masterCol] || null;
-                                });
-                                return updatedRows;
+                            // Re-focus same cell for quick correction
+                            setTimeout(() => {
+                              event.api.startEditingCell({
+                                rowIndex: rowIndex,
+                                colKey: 'wsn',
                               });
+                            }, 100);
 
-                              // 🖨️ AUTO-PRINT label for valid WSN
-                              console.log('🖨️ Attempting to print label for:', wsnUpper);
+                            return;
+                          }
+
+                          // ➕ Last row → auto add new row
+                          if (rowIndex === event.api.getDisplayedRowCount() - 1) {
+                            addMultiRow();
+                          }
+
+                          // If there's a WSN value, first perform a quick remote check to figure out ownership
+                          if (newValue?.trim()) {
+                            // Run the ownership check immediately (no delay) so we can clear bad WSNs early
+                            setTimeout(async () => {
                               try {
-                                const printPayload = {
-                                  wsn: newValue,
-                                  fsn: masterInfo.fsn || '',
-                                  product_title: masterInfo.product_title || '',
-                                  brand: masterInfo.brand || '',
-                                  mrp: masterInfo.mrp || '',
-                                  fsp: masterInfo.fsp || '',
-                                  copies: 1,
-                                };
-                                console.log('📋 Print payload:', printPayload);
+                                const wsnCheck = newValue.trim().toUpperCase();
+                                const ownerResp = await inboundAPI.getAll(1, 1, { search: wsnCheck });
+                                const ownerItem = ownerResp?.data?.data?.[0] || ownerResp?.data?.[0] || null;
 
-                                const printSuccess = await printLabel(printPayload);
-                                console.log('📊 Print result:', printSuccess);
+                                if (ownerItem) {
+                                  const ownerWarehouseId = ownerItem.warehouse_id ?? ownerItem.warehouseId ?? ownerItem.warehouseid ?? null;
 
-                                if (printSuccess) {
-                                  console.log(`✅ Label printed for WSN: ${newValue}`);
-                                  toast.success(`🖨️ Label printed: ${newValue}`, { duration: 2000 });
+                                  if (ownerWarehouseId && ownerWarehouseId !== activeWarehouse?.id) {
+                                    // Cross-warehouse → error and clear
+                                    toast.error(`WSN ${wsnCheck} already inbound in another warehouse`, {
+                                      duration: 3000,
+                                      style: {
+                                        background: '#ffffff',
+                                        color: '#dc2626',
+                                        border: '2px solid #dc2626',
+                                        borderRadius: '8px',
+                                        padding: '12px 16px',
+                                        fontWeight: 600,
+                                        fontSize: '14px',
+                                      },
+                                      icon: '🚫',
+                                    });
+
+                                    newRows[rowIndex].wsn = '';
+                                    ALL_MASTER_COLUMNS.forEach((col) => {
+                                      newRows[rowIndex][col] = null;
+                                    });
+                                    setMultiRows(newRows);
+                                    await checkDuplicates(newRows);
+
+                                    setTimeout(() => {
+                                      event.api.startEditingCell({ rowIndex: rowIndex, colKey: 'wsn' });
+                                    }, 100);
+
+                                    return;
+                                  }
+
+                                  if (ownerWarehouseId && ownerWarehouseId === activeWarehouse?.id) {
+                                    // Same-warehouse duplicate → warn + clear (match QC behavior)
+                                    toast(`WSN ${wsnCheck} already inbound in this warehouse`, {
+                                      duration: 2500,
+                                      style: {
+                                        background: '#ffffff',
+                                        color: '#d97706',
+                                        border: '2px solid #f59e0b',
+                                        borderRadius: '8px',
+                                        padding: '12px 16px',
+                                        fontWeight: 600,
+                                        fontSize: '14px',
+                                      },
+                                      icon: '⚠️',
+                                    });
+
+                                    newRows[rowIndex].wsn = '';
+                                    ALL_MASTER_COLUMNS.forEach((col) => {
+                                      newRows[rowIndex][col] = null;
+                                    });
+                                    setMultiRows(newRows);
+                                    await checkDuplicates(newRows);
+
+                                    setTimeout(() => {
+                                      event.api.startEditingCell({ rowIndex: rowIndex, colKey: 'wsn' });
+                                    }, 100);
+
+                                    return;
+                                  }
                                 }
-                                // If printSuccess is false, printing is disabled or agent not running
-                                // Check console logs to determine reason - no toast needed
-                              } catch (printError: any) {
-                                console.error('❌ Print error:', printError);
-                                console.error('❌ Print error stack:', printError.stack);
-                                toast.error(`Print error: ${printError.message}`, { duration: 3000 });
+                              } catch (err) {
+                                // ignore remote lookup errors and continue to master data fetch
                               }
-                            } catch (error) {
-                              console.log('WSN not found');
-                            }
-                          }, 500);
+                            }, 0);
+
+                            // Continue with the regular master-data fetch (delayed)
+                            setTimeout(async () => {
+                              try {
+                                const wsnUpper = newValue.trim().toUpperCase();
+
+                                // GUARD: if the cell was cleared (duplicate or owner) skip master data fetch
+                                if (!newRows[rowIndex].wsn || newRows[rowIndex].wsn.trim().toUpperCase() !== wsnUpper) {
+                                  return;
+                                }
+
+                                const response = await inboundAPI.getMasterDataByWSN(wsnUpper);
+                                const masterInfo = response.data;
+                                setMultiRows((prevRows) => {
+                                  const updatedRows = [...prevRows];
+                                  updatedRows[rowIndex] = { ...updatedRows[rowIndex] };
+                                  ALL_MASTER_COLUMNS.forEach((masterCol) => {
+                                    updatedRows[rowIndex][masterCol] =
+                                      masterInfo[masterCol] || null;
+                                  });
+                                  return updatedRows;
+                                });
+
+                                // 🖨️ AUTO-PRINT label for valid WSN
+                                console.log('🖨️ Attempting to print label for:', wsnUpper);
+                                try {
+                                  const printPayload = {
+                                    wsn: newValue,
+                                    fsn: masterInfo.fsn || '',
+                                    product_title: masterInfo.product_title || '',
+                                    brand: masterInfo.brand || '',
+                                    mrp: masterInfo.mrp || '',
+                                    fsp: masterInfo.fsp || '',
+                                    copies: 1,
+                                  };
+                                  console.log('📋 Print payload:', printPayload);
+
+                                  const printSuccess = await printLabel(printPayload);
+                                  console.log('📊 Print result:', printSuccess);
+
+                                  if (printSuccess) {
+                                    console.log(`✅ Label printed for WSN: ${newValue}`);
+                                    toast.success(`🖨️ Label printed: ${newValue}`, { duration: 2000 });
+                                  }
+                                  // If printSuccess is false, printing is disabled or agent not running
+                                  // Check console logs to determine reason - no toast needed
+                                } catch (printError: any) {
+                                  console.error('❌ Print error:', printError);
+                                  console.error('❌ Print error stack:', printError.stack);
+                                  toast.error(`Print error: ${printError.message}`, { duration: 3000 });
+                                }
+                              } catch (error) {
+                                console.log('WSN not found');
+                              }
+                            }, 500);
+                          }
                         }
-                      }
-                    }}
-                  />
-                </div>
-              </Box>
+                      }}
+                    />
+                  </div>
+                </Box>
 
-              {/* ======================== GRID SETTINGS DIALOG ======================== */}
-              <Dialog
-                open={gridSettingsOpen}
-                onClose={() => setGridSettingsOpen(false)}
-                maxWidth="xs"
-                fullWidth
-                PaperProps={{
-                  sx: {
-                    borderRadius: 2,
-                    boxShadow: '0 8px 32px rgba(0,0,0,0.15)'
-                  }
-                }}
-              >
-                <DialogTitle sx={{
-                  background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
-                  color: 'white',
-                  fontWeight: 800,
-                  fontSize: '1.1rem',
-                  py: 1.5
-                }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <SettingsIcon />
-                    Grid Settings
-                  </Box>
-                </DialogTitle>
 
-                <DialogContent sx={{ mt: 2, pb: 1 }}>
-                  <Stack spacing={2.5}>
-                    <Alert severity="info" sx={{ fontSize: '0.8rem', py: 0.5 }}>
-                      Settings auto-save and persist after reload 💾
-                    </Alert>
 
-                    {/* SORTABLE */}
-                    <Box>
-                      <FormControlLabel
-                        control={
-                          <Checkbox
-                            checked={gridSettings.sortable}
-                            onChange={(e) => updateGridSettings({ ...gridSettings, sortable: e.target.checked })}
-                            sx={{
-                              '&.Mui-checked': { color: '#f59e0b' }
-                            }}
-                          />
-                        }
-                        label={
-                          <Box>
-                            <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#1e293b' }}>
-                              ⬆️ Enable Sorting
-                            </Typography>
-                            <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem' }}>
-                              Click column headers to sort ascending/descending
-                            </Typography>
-                          </Box>
-                        }
-                      />
-                    </Box>
-
-                    <Divider sx={{ my: 0.5 }} />
-
-                    {/* FILTER */}
-                    <Box>
-                      <FormControlLabel
-                        control={
-                          <Checkbox
-                            checked={gridSettings.filter}
-                            onChange={(e) => updateGridSettings({ ...gridSettings, filter: e.target.checked })}
-                            sx={{
-                              '&.Mui-checked': { color: '#f59e0b' }
-                            }}
-                          />
-                        }
-                        label={
-                          <Box>
-                            <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#1e293b' }}>
-                              🔍 Enable Column Filters
-                            </Typography>
-                            <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem' }}>
-                              Filter menu icon in column headers
-                            </Typography>
-                          </Box>
-                        }
-                      />
-                    </Box>
-
-                    <Divider sx={{ my: 0.5 }} />
-
-                    {/* RESIZABLE */}
-                    <Box>
-                      <FormControlLabel
-                        control={
-                          <Checkbox
-                            checked={gridSettings.resizable}
-                            onChange={(e) => updateGridSettings({ ...gridSettings, resizable: e.target.checked })}
-                            sx={{
-                              '&.Mui-checked': { color: '#f59e0b' }
-                            }}
-                          />
-                        }
-                        label={
-                          <Box>
-                            <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#1e293b' }}>
-                              ↔️ Enable Column Resize
-                            </Typography>
-                            <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem' }}>
-                              Drag column borders to adjust width
-                            </Typography>
-                          </Box>
-                        }
-                      />
-                    </Box>
-
-                    <Divider sx={{ my: 0.5 }} />
-
-                    {/* EDITABLE */}
-                    <Box>
-                      <FormControlLabel
-                        control={
-                          <Checkbox
-                            checked={gridSettings.editable}
-                            onChange={(e) => updateGridSettings({ ...gridSettings, editable: e.target.checked })}
-                            sx={{
-                              '&.Mui-checked': { color: '#f59e0b' }
-                            }}
-                          />
-                        }
-                        label={
-                          <Box>
-                            <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#1e293b' }}>
-                              ✏️ Enable Cell Editing
-                            </Typography>
-                            <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem' }}>
-                              Double-click or press Enter to edit cells
-                            </Typography>
-                          </Box>
-                        }
-                      />
-                    </Box>
-                  </Stack>
-                </DialogContent>
-
-                <DialogActions sx={{ p: 2, background: '#fef3c7', gap: 1 }}>
-                  <Button
-                    onClick={() => {
-                      const defaultSettings = {
-                        sortable: true,
-                        filter: true,
-                        resizable: true,
-                        editable: true,
-                      };
-                      updateGridSettings(defaultSettings);
-                      toast.success('Settings reset to default');
-                    }}
-                    sx={{
-                      fontWeight: 700,
-                      color: '#78716c',
-                      '&:hover': {
-                        bgcolor: 'rgba(120, 113, 108, 0.1)'
-                      }
-                    }}
-                  >
-                    🔄 Reset All
-                  </Button>
-                  <Box sx={{ flex: 1 }} />
-                  <Button
-                    variant="contained"
-                    onClick={() => setGridSettingsOpen(false)}
-                    sx={{
-                      background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
-                      fontWeight: 700,
-                      boxShadow: '0 4px 12px rgba(245, 158, 11, 0.3)',
-                      '&:hover': {
-                        background: 'linear-gradient(135deg, #d97706 0%, #b45309 100)',
-                      }
-                    }}
-                  >
-                    Done
-                  </Button>
-                </DialogActions>
-              </Dialog>
-
-              {/* SUBMIT BUTTON */}
-              <Button fullWidth variant="contained" size="medium" onClick={handleMultiSubmit} disabled={
-                multiLoading ||
-                gridDuplicateWSNs.size > 0 ||
-                crossWarehouseWSNs.size > 0
-              }
-                sx={{
-                  py: 1,
-                  borderRadius: 1.5,
-                  fontWeight: 800,
-                  fontSize: '0.8rem',
-                  background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                  boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
-                  flexShrink: 0,
-                  mt: 1
-                }}>
-                ✓ SUBMIT ALL ({multiRows.filter(r => r.wsn?.trim()).length} rows)
-              </Button>
-
-              {/* MULTI ENTRY TAB: COLUMN SETTINGS DIALOG */}
-              <Dialog
-                open={columnSettingsOpen}
-                onClose={() => setColumnSettingsOpen(false)}
-                maxWidth="sm"
-                fullWidth
-                PaperProps={{ sx: { borderRadius: 2 } }}
-              >
-                <DialogTitle
+                {/* SUBMIT BUTTON */}
+                <Button fullWidth variant="contained" size="medium" onClick={handleMultiSubmit} disabled={
+                  multiLoading ||
+                  gridDuplicateWSNs.size > 0 ||
+                  crossWarehouseWSNs.size > 0
+                }
                   sx={{
+                    py: 1,
+                    borderRadius: 1.5,
                     fontWeight: 800,
-                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                    color: 'white',
-                    py: 2,
-                  }}
+                    fontSize: '0.8rem',
+                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                    boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
+                    flexShrink: 0,
+                    mt: 1
+                  }}>
+                  ✓ SUBMIT ALL ({multiRows.filter(r => r.wsn?.trim()).length} rows)
+                </Button>
+
+                {/* MULTI ENTRY TAB: COLUMN SETTINGS DIALOG */}
+                <Dialog
+                  open={columnSettingsOpen}
+                  onClose={() => setColumnSettingsOpen(false)}
+                  maxWidth="sm"
+                  fullWidth
+                  PaperProps={{ sx: { borderRadius: 2 } }}
                 >
-                  ⚙️ Columns View Settings
-                </DialogTitle>
-                <DialogContent sx={{ py: 3, maxHeight: 600, overflow: 'auto' }}>
-                  <Typography
-                    variant="subtitle2"
+                  <DialogTitle
                     sx={{
-                      mb: 2,
                       fontWeight: 800,
-                      color: '#667eea',
-                      textTransform: 'uppercase',
-                      fontSize: '0.75rem',
+                      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                      color: 'white',
+                      py: 2,
                     }}
                   >
-                    Editable Fields
-                  </Typography>
-                  <Stack spacing={1} sx={{ mb: 3 }}>
-                    {EDITABLE_COLUMNS.map((col, idx) => (
-                      <FormControlLabel
-                        key={`col_${idx}_${col}`}
-                        control={
-                          <Checkbox
-                            checked={visibleColumns.includes(col)}
-                            onChange={(e) => {
-                              let next = visibleColumns;
+                    ⚙️ Columns View Settings
+                  </DialogTitle>
+                  <DialogContent sx={{ py: 3, maxHeight: 600, overflow: 'auto' }}>
+                    <Typography
+                      variant="subtitle2"
+                      sx={{
+                        mb: 2,
+                        fontWeight: 800,
+                        color: '#667eea',
+                        textTransform: 'uppercase',
+                        fontSize: '0.75rem',
+                      }}
+                    >
+                      Editable Fields
+                    </Typography>
+                    <Stack spacing={1} sx={{ mb: 3 }}>
+                      {EDITABLE_COLUMNS.map((col, idx) => (
+                        <FormControlLabel
+                          key={`col_${idx}_${col}`}
+                          control={
+                            <Checkbox
+                              checked={visibleColumns.includes(col)}
+                              onChange={(e) => {
+                                let next = visibleColumns;
 
-                              if (e.target.checked) {
-                                next = [...visibleColumns, col];
-                              } else {
-                                next = visibleColumns.filter((c) => c !== col);
-                              }
+                                if (e.target.checked) {
+                                  next = [...visibleColumns, col];
+                                } else {
+                                  next = visibleColumns.filter((c) => c !== col);
+                                }
 
-                              const ordered = [...EDITABLE_COLUMNS, ...ALL_MASTER_COLUMNS].filter(
-                                (c) => next.includes(c),
-                              );
+                                const ordered = [...EDITABLE_COLUMNS, ...ALL_MASTER_COLUMNS].filter(
+                                  (c) => next.includes(c),
+                                );
 
-                              saveColumnSettings(ordered);
-                            }}
-                          />
-                        }
-                        label={col.replace(/_/g, ' ').toUpperCase()}
-                      />
-                    ))}
-                  </Stack>
+                                saveColumnSettings(ordered);
+                              }}
+                            />
+                          }
+                          label={col.replace(/_/g, ' ').toUpperCase()}
+                        />
+                      ))}
+                    </Stack>
 
-                  <Divider sx={{ my: 2 }} />
-                  <Typography
-                    variant="subtitle2"
-                    sx={{
-                      mb: 2,
-                      fontWeight: 800,
-                      color: '#764ba2',
-                      textTransform: 'uppercase',
-                      fontSize: '0.75rem',
-                    }}
-                  >
-                    Read-Only Master Data
-                  </Typography>
-                  <Stack spacing={1}>
-                    {ALL_MASTER_COLUMNS.filter(
-                      (col) => !EDITABLE_COLUMNS.includes(col),
-                    ).map((col, idx) => (
-                      <FormControlLabel
-                        key={`master_${idx}_${col}`}
-                        control={
-                          <Checkbox
-                            checked={visibleColumns.includes(col)}
-                            onChange={(e) => {
-                              let next = visibleColumns;
+                    <Divider sx={{ my: 2 }} />
+                    <Typography
+                      variant="subtitle2"
+                      sx={{
+                        mb: 2,
+                        fontWeight: 800,
+                        color: '#764ba2',
+                        textTransform: 'uppercase',
+                        fontSize: '0.75rem',
+                      }}
+                    >
+                      Read-Only Master Data
+                    </Typography>
+                    <Stack spacing={1}>
+                      {ALL_MASTER_COLUMNS.filter(
+                        (col) => !EDITABLE_COLUMNS.includes(col),
+                      ).map((col, idx) => (
+                        <FormControlLabel
+                          key={`master_${idx}_${col}`}
+                          control={
+                            <Checkbox
+                              checked={visibleColumns.includes(col)}
+                              onChange={(e) => {
+                                let next = visibleColumns;
 
-                              if (e.target.checked) {
-                                next = [...visibleColumns, col];
-                              } else {
-                                next = visibleColumns.filter((c) => c !== col);
-                              }
+                                if (e.target.checked) {
+                                  next = [...visibleColumns, col];
+                                } else {
+                                  next = visibleColumns.filter((c) => c !== col);
+                                }
 
-                              const ordered = [...EDITABLE_COLUMNS, ...ALL_MASTER_COLUMNS].filter(
-                                (c) => next.includes(c),
-                              );
+                                const ordered = [...EDITABLE_COLUMNS, ...ALL_MASTER_COLUMNS].filter(
+                                  (c) => next.includes(c),
+                                );
 
-                              saveColumnSettings(ordered);
-                            }}
-                          />
-                        }
-                        label={col.replace(/_/g, ' ').toUpperCase()}
-                      />
-                    ))}
-                  </Stack>
-                </DialogContent>
-                <DialogActions sx={{ p: 2, background: '#f9fafb' }}>
-                  <Button onClick={() => setColumnSettingsOpen(false)} sx={{ fontWeight: 700 }}>
-                    Close
-                  </Button>
-                  <Button
-                    variant="contained"
-                    onClick={() => setColumnSettingsOpen(false)}
-                    sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', fontWeight: 700 }}
-                  >
-                    Done
-                  </Button>
-                </DialogActions>
-              </Dialog>
-            </Box>
-          )}
+                                saveColumnSettings(ordered);
+                              }}
+                            />
+                          }
+                          label={col.replace(/_/g, ' ').toUpperCase()}
+                        />
+                      ))}
+                    </Stack>
+                  </DialogContent>
+                  <DialogActions sx={{ p: 2, background: '#f9fafb' }}>
+                    <Button onClick={() => setColumnSettingsOpen(false)} sx={{ fontWeight: 700 }}>
+                      Close
+                    </Button>
+                    <Button
+                      variant="contained"
+                      onClick={() => setColumnSettingsOpen(false)}
+                      sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', fontWeight: 700 }}
+                    >
+                      Done
+                    </Button>
+                  </DialogActions>
+                </Dialog>
+              </Box>
+            )
+          }
 
           {/* TAB 4: BATCH MANAGER */}
-          {tabValue === 4 && (
-            <Box
-              sx={{
-                display: 'flex',
-                flexDirection: 'column',
-                height: '100%',
-                p: { xs: 1, sm: 1.5, md: 2 },
-                overflow: 'auto',
-              }}
-            >
-              <Card sx={{ borderRadius: 1.5 }}>
-                <CardContent>
-                  <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
-                    <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                      Batch Manager
-                    </Typography>
-                    <Button
-                      size="small"
-                      startIcon={<RefreshIcon />}
-                      onClick={loadBatches}
-                      variant="outlined"
-                    >
-                      Refresh
-                    </Button>
-                  </Stack>
+          {
+            tabValue === 4 && (
+              <Box
+                sx={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  height: '100%',
+                  p: { xs: 1, sm: 1.5, md: 2 },
+                  overflow: 'auto',
+                }}
+              >
+                <Card sx={{ borderRadius: 1.5 }}>
+                  <CardContent>
+                    <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+                      <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                        Batch Manager
+                      </Typography>
+                      <Button
+                        size="small"
+                        startIcon={<RefreshIcon />}
+                        onClick={loadBatches}
+                        variant="outlined"
+                      >
+                        Refresh
+                      </Button>
+                    </Stack>
 
-                  {batchLoading ? (
-                    <Box sx={{ textAlign: 'center', py: 4 }}>
-                      <CircularProgress />
-                    </Box>
-                  ) : batches.length === 0 ? (
-                    <Alert severity="info">No batches found</Alert>
-                  ) : (
-                    <TableContainer>
-                      <Table>
-                        <TableHead>
-                          <TableRow sx={{ bgcolor: '#f3f4f6' }}>
-                            <TableCell sx={{ fontWeight: 700 }}>Batch ID</TableCell>
-                            <TableCell sx={{ fontWeight: 700 }}>Count</TableCell>
-                            <TableCell sx={{ fontWeight: 700 }}>Last Updated</TableCell>
-                            <TableCell sx={{ fontWeight: 700 }}>Action</TableCell>
-                          </TableRow>
-                        </TableHead>
-                        <TableBody>
-                          {batches.map((batch, idx) => (
-                            <TableRow key={idx} sx={{ '&:hover': { bgcolor: '#f9fafb' } }}>
-                              <TableCell sx={{ fontFamily: 'monospace', fontWeight: 600 }}>
-                                {batch.batch_id}
-                              </TableCell>
-                              <TableCell>
-                                <Chip
-                                  label={`${batch.count} items`}
-                                  size="small"
-                                  sx={{ bgcolor: '#dbeafe', color: '#1e40af' }}
-                                />
-                              </TableCell>
-                              <TableCell>
-                                {new Date(batch.last_updated).toLocaleString('en-IN', {
-                                  day: '2-digit',
-                                  month: 'short',
-                                  year: 'numeric',
-                                  hour: '2-digit',
-                                  minute: '2-digit'
-                                })}
-                              </TableCell>
-                              <TableCell>
-                                <Button
-                                  size="small"
-                                  color="error"
-                                  variant="outlined"
-                                  startIcon={<DeleteIcon />}
-                                  onClick={() => deleteBatch(batch.batch_id)}
-                                >
-                                  Delete
-                                </Button>
-                              </TableCell>
+                    {batchLoading ? (
+                      <Box sx={{ textAlign: 'center', py: 4 }}>
+                        <CircularProgress />
+                      </Box>
+                    ) : batches.length === 0 ? (
+                      <Alert severity="info">No batches found</Alert>
+                    ) : (
+                      <TableContainer>
+                        <Table>
+                          <TableHead>
+                            <TableRow sx={{ bgcolor: '#f3f4f6' }}>
+                              <TableCell sx={{ fontWeight: 700 }}>Batch ID</TableCell>
+                              <TableCell sx={{ fontWeight: 700 }}>Count</TableCell>
+                              <TableCell sx={{ fontWeight: 700 }}>Last Updated</TableCell>
+                              <TableCell sx={{ fontWeight: 700 }}>Action</TableCell>
                             </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </TableContainer>
-                  )}
-                </CardContent>
-              </Card>
-            </Box>
-          )}
-        </Box>
-      </Box>
+                          </TableHead>
+                          <TableBody>
+                            {batches.map((batch, idx) => (
+                              <TableRow key={idx} sx={{ '&:hover': { bgcolor: '#f9fafb' } }}>
+                                <TableCell sx={{ fontFamily: 'monospace', fontWeight: 600 }}>
+                                  {batch.batch_id}
+                                </TableCell>
+                                <TableCell>
+                                  <Chip
+                                    label={`${batch.count} items`}
+                                    size="small"
+                                    sx={{ bgcolor: '#dbeafe', color: '#1e40af' }}
+                                  />
+                                </TableCell>
+                                <TableCell>
+                                  {new Date(batch.last_updated).toLocaleString('en-IN', {
+                                    day: '2-digit',
+                                    month: 'short',
+                                    year: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                  })}
+                                </TableCell>
+                                <TableCell>
+                                  <Button
+                                    size="small"
+                                    color="error"
+                                    variant="outlined"
+                                    startIcon={<DeleteIcon />}
+                                    onClick={() => deleteBatch(batch.batch_id)}
+                                  >
+                                    Delete
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
+                    )}
+                  </CardContent>
+                </Card>
+              </Box>
+            )
+          }
+        </Box >
+      </Box >
     </AppLayout >
   );
 }

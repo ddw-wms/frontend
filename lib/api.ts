@@ -1,5 +1,5 @@
 // File Path = warehouse-frontend\lib\api.ts
-import axios, { AxiosInstance } from 'axios';
+import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
 
 //const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 const API_URL = `${process.env.NEXT_PUBLIC_API_URL}/api`;
@@ -149,7 +149,7 @@ export const inboundAPI = {
     api.get('inbound/brands', { params: { warehouse_id: warehouseId } }),
   getCategories: (warehouseId?: number) =>
     api.get('inbound/categories', { params: { warehouse_id: warehouseId } }),
-  getAll: (page: number, limit: number, filters?: any) =>
+  getAll: (page: number, limit: number, filters?: any, config?: AxiosRequestConfig) =>
     api.get('inbound', {
       params: {
         page,
@@ -162,6 +162,7 @@ export const inboundAPI = {
         dateTo: filters?.dateTo,
         batchId: filters?.batchId
       },
+      ...(config || {})
     }),
 
   getPrinterSettings: () => api.get('printer-settings'),

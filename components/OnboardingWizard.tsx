@@ -53,9 +53,9 @@ export default function OnboardingWizard({ open, onComplete }: OnboardingWizardP
     // Access WarehouseContext to set active warehouse immediately
     const { setActiveWarehouse } = useWarehouse();
 
-    // Make dialog responsive: use full screen on small devices
+    // Detect small screens so we can make the dialog compact on mobile
     const theme = useTheme();
-    const fullScreen = useMediaQuery(theme.breakpoints.down('sm'));
+    const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
     useEffect(() => {
         if (open) {
@@ -85,7 +85,8 @@ export default function OnboardingWizard({ open, onComplete }: OnboardingWizardP
 
     const checkPrintAgent = async () => {
         try {
-            const response = await fetch('http://localhost:9100/status');
+            const AGENT_URL = process.env.NEXT_PUBLIC_PRINT_AGENT_URL || 'http://127.0.0.1:9100';
+            const response = await fetch(`${AGENT_URL}/status`);
             if (response.ok) {
                 setPrintAgentConnected(true);
             }
@@ -156,12 +157,12 @@ export default function OnboardingWizard({ open, onComplete }: OnboardingWizardP
             case 0:
                 // Step 1: Select Warehouse
                 return (
-                    <Box sx={{ textAlign: 'center', py: { xs: 2, md: 4 }, px: { xs: 1, md: 0 } }}>
-                        <WarehouseIcon sx={{ fontSize: { xs: 48, md: 80 }, color: 'primary.main', mb: 2 }} />
-                        <Typography variant="h4" gutterBottom sx={{ fontSize: { xs: '1.25rem', md: '2rem' }, mb: 1 }}>
+                    <Box sx={{ textAlign: 'center', py: { xs: 1.5, md: 4 }, px: { xs: 1, md: 0 } }}>
+                        <WarehouseIcon sx={{ fontSize: { xs: 36, md: 80 }, color: 'primary.main', mb: 1, mx: 'auto' }} />
+                        <Typography variant="h4" gutterBottom sx={{ fontSize: { xs: '1.4rem', md: '2rem' }, mb: 0.75 }}>
                             Welcome to Divine WMS! 🎉
                         </Typography>
-                        <Typography variant="body1" color="text.secondary" sx={{ mb: { xs: 2, md: 4 }, fontSize: { xs: '0.9rem', md: '1rem' } }}>
+                        <Typography variant="body1" color="text.secondary" sx={{ mb: { xs: 1.5, md: 4 }, fontSize: { xs: '0.85rem', md: '1rem' } }}>
                             Let's get you set up in just a few steps
                         </Typography>
 
@@ -196,8 +197,8 @@ export default function OnboardingWizard({ open, onComplete }: OnboardingWizardP
             case 1:
                 // Step 2: Configure Printer
                 return (
-                    <Box sx={{ textAlign: 'center', py: { xs: 2, md: 4 }, px: { xs: 1, md: 0 } }}>
-                        <PrintIcon sx={{ fontSize: { xs: 48, md: 80 }, color: 'primary.main', mb: 2 }} />
+                    <Box sx={{ textAlign: 'center', py: { xs: 1.5, md: 4 }, px: { xs: 1, md: 0 } }}>
+                        <PrintIcon sx={{ fontSize: { xs: 36, md: 80 }, color: 'primary.main', mb: 1, mx: 'auto' }} />
                         <Typography variant="h4" gutterBottom sx={{ fontSize: { xs: '1.25rem', md: '2rem' }, mb: 1 }}>
                             Set Up Print Agent
                         </Typography>
@@ -265,8 +266,8 @@ export default function OnboardingWizard({ open, onComplete }: OnboardingWizardP
             case 2:
                 // Step 3: Ready to Start
                 return (
-                    <Box sx={{ textAlign: 'center', py: { xs: 2, md: 4 }, px: { xs: 1, md: 0 } }}>
-                        <RocketLaunchIcon sx={{ fontSize: { xs: 48, md: 80 }, color: 'primary.main', mb: 2 }} />
+                    <Box sx={{ textAlign: 'center', py: { xs: 1.5, md: 4 }, px: { xs: 1, md: 0 } }}>
+                        <RocketLaunchIcon sx={{ fontSize: { xs: 36, md: 80 }, color: 'primary.main', mb: 1, mx: 'auto' }} />
                         <Typography variant="h4" gutterBottom sx={{ fontSize: { xs: '1.25rem', md: '2rem' }, mb: 1 }}>
                             You're All Set! 🚀
                         </Typography>
@@ -274,9 +275,9 @@ export default function OnboardingWizard({ open, onComplete }: OnboardingWizardP
                             Your workspace is configured and ready to use
                         </Typography>
 
-                        <Card sx={{ maxWidth: 600, mx: 'auto', mb: 3 }}>
-                            <CardContent>
-                                <Typography variant="h6" gutterBottom>
+                        <Card sx={{ width: '100%', maxWidth: { xs: '100%', md: 600 }, mx: 'auto', mb: 2, boxSizing: 'border-box', px: { xs: 0.5, md: 0 } }}>
+                            <CardContent sx={{ py: { xs: 1, md: 2 }, px: { xs: 1, md: 2 } }}>
+                                <Typography variant="h6" gutterBottom sx={{ fontSize: { xs: '1rem', md: '1.125rem' } }}>
                                     Quick Guide:
                                 </Typography>
                                 <Stack spacing={2} sx={{ textAlign: 'left', mt: 2 }}>
@@ -314,7 +315,7 @@ export default function OnboardingWizard({ open, onComplete }: OnboardingWizardP
                             </CardContent>
                         </Card>
 
-                        <Alert severity="success" sx={{ maxWidth: 600, mx: 'auto', mt: 3 }}>
+                        <Alert severity="success" sx={{ maxWidth: { xs: '100%', md: 600 }, mx: 'auto', mt: 3 }}>
                             💡 <strong>Tip:</strong> Visit Settings → Master Data to configure brands, categories, and customer information
                         </Alert>
                     </Box>
@@ -331,50 +332,62 @@ export default function OnboardingWizard({ open, onComplete }: OnboardingWizardP
             maxWidth="md"
             fullWidth
             disableEscapeKeyDown
-            fullScreen={fullScreen}
             PaperProps={{
+                elevation: 24,
                 sx: {
-                    minHeight: fullScreen ? 'auto' : '600px',
-                    p: fullScreen ? 2 : 3,
-                    mx: fullScreen ? 1 : undefined,
-                    borderRadius: fullScreen ? 1 : 2,
+                    width: { xs: 320, sm: 520, md: 720 },
+                    maxWidth: '100%',
+                    maxHeight: { xs: '60vh', md: undefined },
+                    p: { xs: 0.5, md: 3 },
+                    mx: 'auto',
+                    borderRadius: 3,
+                    overflowX: 'hidden',
+                    overflowY: 'visible',
+                    boxSizing: 'border-box',
                 },
             }}
         >
-            <DialogContent>
-                <Box sx={{ width: '100%', py: 2 }}>
-                    <Stepper activeStep={activeStep} sx={{ mb: fullScreen ? 2 : 4 }}>
-                        {steps.map((label) => (
-                            <Step key={label}>
-                                <StepLabel>{label}</StepLabel>
-                            </Step>
-                        ))}
-                    </Stepper>
+            <DialogContent sx={{ px: { xs: 0.5, md: 3 }, py: { xs: 0.5, md: 2 } }}>
+                <Box sx={{ width: '100%', py: 0.5, maxHeight: isMobile ? '55vh' : undefined, overflowY: isMobile ? 'auto' : undefined, overflowX: 'hidden', boxSizing: 'border-box' }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'center', mb: 0.5 }}>
+                        <Stepper activeStep={activeStep} sx={{ mb: 2, display: 'flex', flexWrap: 'wrap', gap: 0.25, justifyContent: 'center' }}>
+                            {steps.map((label) => (
+                                <Step key={label} sx={{ '& .MuiStepLabel-label': { fontSize: { xs: '0.65rem', md: '0.9rem' } }, px: 0.25 }}>
+                                    <StepLabel>{label}</StepLabel>
+                                </Step>
+                            ))}
+                        </Stepper>
+                    </Box>
 
                     <Box sx={{ minHeight: { xs: 'auto', md: '400px' } }}>
                         {renderStepContent(activeStep)}
                     </Box>
 
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 4 }}>
-                        <Button
-                            disabled={activeStep === 0}
-                            onClick={handleBack}
-                            startIcon={<ArrowBackIcon />}
-                        >
-                            Back
-                        </Button>
+                    <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2, gap: 0.5, flexWrap: 'wrap' }}>
+                        <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap' }}>
+                            <Button
+                                disabled={activeStep === 0}
+                                onClick={handleBack}
+                                startIcon={<ArrowBackIcon />}
+                                size="small"
+                                sx={{ minWidth: 78, mx: 0.25, px: 1 }}
+                            >
+                                Back
+                            </Button>
 
-                        <Box sx={{ display: 'flex', gap: 2 }}>
                             {activeStep === 1 && (
-                                <Button onClick={handleSkip}>
+                                <Button onClick={handleSkip} size="small" sx={{ minWidth: 78, mx: 0.25, px: 1 }}>
                                     Skip for Now
                                 </Button>
                             )}
+
                             <Button
                                 variant="contained"
                                 onClick={handleNext}
                                 endIcon={activeStep === steps.length - 1 ? <CheckCircleIcon /> : <ArrowForwardIcon />}
                                 disabled={activeStep === 0 && !selectedWarehouse}
+                                size="small"
+                                sx={{ minWidth: 78, mx: 0.25, px: 1 }}
                             >
                                 {activeStep === steps.length - 1 ? 'Get Started' : 'Next'}
                             </Button>

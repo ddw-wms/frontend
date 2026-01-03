@@ -61,7 +61,6 @@ import toast, { Toaster } from 'react-hot-toast';
 import * as XLSX from 'xlsx';
 import { AgGridReact } from 'ag-grid-react';
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
-import 'ag-grid-community/styles/ag-grid.css';
 import 'ag-grid-community/styles/ag-theme-quartz.css';
 import { debounce } from 'lodash';
 import { Tooltip } from '@mui/material';
@@ -2687,11 +2686,14 @@ export default function QCPage() {
           {tabValue === 3 && (() => {
             // Column definitions for AG Grid
             const columnDefs = visibleColumns.map((field: string) => {
-              const widthConfig = COLUMN_WIDTHS[field];
+              // Normalize the field (remove underscores and lowercase) to match COLUMN_WIDTHS / ALL_MASTER_COLUMNS keys
+              const key = String(field).replace(/_/g, '').toLowerCase();
+              const widthConfig = COLUMN_WIDTHS[key] || {};
 
               const baseColDef: any = {
                 field,
-                headerName: field === 'sno' ? 'S.No' : field.replace(/([A-Z])/g, ' $1').toUpperCase(),
+                // prettier header for underscore-field names
+                headerName: field === 'sno' ? 'S.No' : String(field).replace(/_/g, ' ').toUpperCase(),
                 ...widthConfig,
                 cellStyle: (params: any) => {
                   const styles: any = {};
@@ -2704,8 +2706,8 @@ export default function QCPage() {
                     styles.textAlign = 'center';
                   }
 
-                  // Master data columns get gray background
-                  if (ALL_MASTER_COLUMNS.includes(field)) {
+                  // Master data columns get gray background (use normalized key)
+                  if (ALL_MASTER_COLUMNS.includes(key)) {
                     styles.backgroundColor = '#f5f5f5';
                   }
                   return styles;
@@ -2728,13 +2730,13 @@ export default function QCPage() {
                 };
               }
 
-              // Special handling for specific columns
-              if (field === 'qc_grade') {
+              // Special handling for specific columns (use normalized key)
+              if (key === 'qcgrade' || field === 'qc_grade') {
                 baseColDef.cellEditor = 'agSelectCellEditor';
                 baseColDef.cellEditorParams = {
                   values: ['', ...QC_GRADES],
                 };
-              } else if (field === 'rack_no') {
+              } else if (key === 'rackno' || field === 'rack_no') {
                 baseColDef.cellEditor = 'agSelectCellEditor';
                 baseColDef.cellEditorParams = {
                   values: ['', ...racks.map((r) => r.rack_name)],
@@ -2742,7 +2744,7 @@ export default function QCPage() {
               }
 
               // Read-only for master data columns
-              if (ALL_MASTER_COLUMNS.includes(field)) {
+              if (ALL_MASTER_COLUMNS.includes(key)) {
                 baseColDef.editable = false;
               }
 
@@ -3042,7 +3044,6 @@ export default function QCPage() {
                   }}
                 >
                   <AgGridReact
-                    theme="legacy"
                     rowData={multiRows}
                     columnDefs={columnDefs}
                     rowHeight={26}

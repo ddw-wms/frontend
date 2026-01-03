@@ -23,7 +23,6 @@ import toast, { Toaster } from 'react-hot-toast';
 import * as XLSX from 'xlsx';
 import { AgGridReact } from 'ag-grid-react';
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
-import 'ag-grid-community/styles/ag-grid.css';
 import 'ag-grid-community/styles/ag-theme-quartz.css';
 import { useRoleGuard } from '@/hooks/useRoleGuard';
 
@@ -100,6 +99,7 @@ export default function PickingPage() {
   const { activeWarehouse } = useWarehouse();
   const [user, setUser] = useState<any>(null);
   const gridRef = useRef<any>(null);
+  const columnApiRef = useRef<any>(null);
 
 
   // Tab state
@@ -209,6 +209,30 @@ export default function PickingPage() {
       // ignore
     }
   }, [visibleColumns]);
+
+  // When switching to Multi Picking tab, auto-size columns so layout looks correct
+  useEffect(() => {
+    if (tabValue !== 1) return;
+    const t = setTimeout(() => {
+      try {
+        const colApi = columnApiRef.current;
+        const api = gridRef.current;
+        if (!colApi || !api) return;
+        const allCols = colApi.getAllColumns ? colApi.getAllColumns().map((c: any) => c.getColId()) : [];
+        if (!allCols || allCols.length === 0) return;
+        colApi.autoSizeColumns(allCols, false);
+        let total = 0;
+        for (const id of allCols) {
+          const col = colApi.getColumn(id);
+          total += col?.getActualWidth ? col.getActualWidth() : 0;
+        }
+        const dims = api.getSize ? api.getSize() : (api.gridPanel && api.gridPanel.getBodyClientRect && api.gridPanel.getBodyClientRect());
+        const gridW = dims?.width || 0;
+        if (gridW && total < gridW) api.sizeColumnsToFit();
+      } catch { /* ignore */ }
+    }, 50);
+    return () => clearTimeout(t);
+  }, [tabValue, visibleColumns, multiRows]);
   const [columnSettingsOpen, setColumnSettingsOpen] = useState(false);
   const [gridDuplicateWSNs, setGridDuplicateWSNs] = useState<Set<string>>(new Set());
   const [crossWarehouseWSNs, setCrossWarehouseWSNs] = useState<Set<string>>(new Set());
@@ -1299,8 +1323,32 @@ export default function PickingPage() {
               }}
             >
               <AgGridReact
-                theme="legacy"
                 ref={gridRef}
+                onGridReady={(params: any) => {
+                  gridRef.current = params.api;
+                  columnApiRef.current = params.columnApi;
+                  // small delay to allow rendering then autosize
+                  setTimeout(() => {
+                    try {
+                      const colApi = columnApiRef.current;
+                      if (!colApi) return;
+                      const allCols = colApi.getAllColumns ? colApi.getAllColumns().map((c: any) => c.getColId()) : [];
+                      if (allCols.length > 0) {
+                        colApi.autoSizeColumns(allCols, false);
+                        // if total width less than grid, stretch
+                        const api = gridRef.current;
+                        let total = 0;
+                        for (const id of allCols) {
+                          const col = colApi.getColumn(id);
+                          total += col?.getActualWidth ? col.getActualWidth() : 0;
+                        }
+                        const dims = api.getSize ? api.getSize() : (api.gridPanel && api.gridPanel.getBodyClientRect && api.gridPanel.getBodyClientRect());
+                        const gridW = dims?.width || 0;
+                        if (gridW && total < gridW) api.sizeColumnsToFit();
+                      }
+                    } catch { /* ignore */ }
+                  }, 50);
+                }}
                 rowData={multiRows}
                 columnDefs={columnDefs}
                 rowHeight={26}
@@ -1330,6 +1378,43 @@ export default function PickingPage() {
                 //theme="legacy"
                 className="ag-theme-quartz"
                 containerStyle={{ height: '100%', width: '100%' }}
+                onGridSizeChanged={() => {
+                  try {
+                    const colApi = columnApiRef.current;
+                    const api = gridRef.current;
+                    if (!colApi || !api) return;
+                    const allCols = colApi.getAllColumns ? colApi.getAllColumns().map((c: any) => c.getColId()) : [];
+                    if (!allCols || allCols.length === 0) return;
+                    colApi.autoSizeColumns(allCols, false);
+                    let total = 0;
+                    for (const id of allCols) {
+                      const col = colApi.getColumn(id);
+                      total += col?.getActualWidth ? col.getActualWidth() : 0;
+                    }
+                    const dims = api.getSize ? api.getSize() : (api.gridPanel && api.gridPanel.getBodyClientRect && api.gridPanel.getBodyClientRect());
+                    const gridW = dims?.width || 0;
+                    if (gridW && total < gridW) api.sizeColumnsToFit();
+                  } catch { /* ignore */ }
+                }}
+                onFirstDataRendered={() => {
+                  // ensure columns fit on first render
+                  try {
+                    const colApi = columnApiRef.current;
+                    const api = gridRef.current;
+                    if (!colApi || !api) return;
+                    const allCols = colApi.getAllColumns ? colApi.getAllColumns().map((c: any) => c.getColId()) : [];
+                    if (allCols.length === 0) return;
+                    colApi.autoSizeColumns(allCols, false);
+                    let total = 0;
+                    for (const id of allCols) {
+                      const col = colApi.getColumn(id);
+                      total += col?.getActualWidth ? col.getActualWidth() : 0;
+                    }
+                    const dims = api.getSize ? api.getSize() : (api.gridPanel && api.gridPanel.getBodyClientRect && api.gridPanel.getBodyClientRect());
+                    const gridW = dims?.width || 0;
+                    if (gridW && total < gridW) api.sizeColumnsToFit();
+                  } catch { /* ignore */ }
+                }}
 
                 onCellEditingStopped={async (event: any) => {
                   const field = event.colDef?.field;
