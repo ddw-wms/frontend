@@ -49,7 +49,7 @@
 
 'use client';
 import { ReactNode } from 'react';
-import { Box, CssBaseline } from '@mui/material';
+import { Box, CssBaseline, useTheme, useMediaQuery } from '@mui/material';
 import Sidebar from './Sidebar';
 
 interface AppLayoutProps {
@@ -57,6 +57,9 @@ interface AppLayoutProps {
 }
 
 export default function AppLayout({ children }: AppLayoutProps) {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+
   return (
     <Box sx={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
       <CssBaseline />
@@ -70,10 +73,16 @@ export default function AppLayout({ children }: AppLayoutProps) {
         sx={{
           flexGrow: 1,
           minHeight: 0,
+          height: '100vh',
           overflowY: 'auto',
+          overflowX: 'hidden',
           display: 'flex',
           flexDirection: 'column',
+          bgcolor: 'background.default',
           WebkitOverflowScrolling: 'touch',
+          // Add proper spacing for mobile menu button
+          pl: isMobile ? 0 : 0,
+          pt: isMobile ? 0 : 0,
         }}
       >
         {children}

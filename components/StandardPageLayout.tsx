@@ -1,8 +1,8 @@
 // File: components/StandardPageLayout.tsx
 // Standardized page layout component for consistency across all pages
 import React from 'react';
-import { Box, Paper, Stack, TextField, Button, CircularProgress, Typography, InputAdornment } from '@mui/material';
-import { Search as SearchIcon } from '@mui/icons-material';
+import { Box, Paper, Stack, TextField, Button, CircularProgress, Typography, InputAdornment, useTheme, useMediaQuery, Collapse } from '@mui/material';
+import { Search as SearchIcon, FilterList as FilterListIcon } from '@mui/icons-material';
 
 export interface FilterField {
     id: string;
@@ -36,36 +36,75 @@ export const StandardPageLayout: React.FC<StandardPageLayoutProps> = ({
     actionButtons,
     loading = false,
 }) => {
+    const theme = useTheme();
+    const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+    const isTablet = useMediaQuery(theme.breakpoints.down('md'));
+
     return (
-        <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', height: '100%' }}>
             {/* Header with Title */}
-            <Paper elevation={0} sx={{ p: { xs: 1, sm: 1.5 }, bgcolor: '#f5f5f5', borderBottom: '1px solid #e0e0e0' }}>
-                <Typography variant="h6" sx={{ fontSize: '1.1rem', fontWeight: 600, color: '#1565c0' }}>
+            <Paper
+                elevation={0}
+                sx={{
+                    p: { xs: 1.5, sm: 2, md: 2.5 },
+                    bgcolor: 'background.paper',
+                    borderBottom: '2px solid',
+                    borderColor: 'primary.main',
+                    position: 'sticky',
+                    top: 0,
+                    zIndex: 10,
+                }}
+            >
+                <Typography
+                    variant={isMobile ? 'h6' : 'h5'}
+                    sx={{
+                        fontWeight: 700,
+                        color: 'primary.main',
+                        letterSpacing: '-0.02em'
+                    }}
+                >
                     {title}
                 </Typography>
             </Paper>
 
             {/* Quick Search + Action Buttons Row */}
-            <Paper elevation={0} sx={{ p: { xs: 0.5, sm: 0.75 }, borderBottom: '2px solid #e0e0e0', bgcolor: '#fafafa' }}>
-                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={0.5} alignItems={{ xs: 'stretch', sm: 'center' }} sx={{ gap: 0.5 }}>
+            <Paper
+                elevation={0}
+                sx={{
+                    p: { xs: 1, sm: 1.5 },
+                    borderBottom: '1px solid',
+                    borderColor: 'divider',
+                    bgcolor: 'grey.50',
+                }}
+            >
+                <Stack
+                    direction={{ xs: 'column', sm: 'row' }}
+                    spacing={{ xs: 1, sm: 1.5 }}
+                    alignItems={{ xs: 'stretch', sm: 'center' }}
+                >
                     {/* Search Field */}
                     {onSearchChange && (
                         <TextField
                             size="small"
-                            placeholder="🔍 Search..."
+                            placeholder="Search..."
                             value={searchValue}
                             onChange={(e) => onSearchChange(e.target.value)}
+                            fullWidth={isMobile}
                             sx={{
-                                flex: { xs: 1, sm: 1 },
-                                minWidth: { xs: '100%', sm: '250px' },
-                                '& .MuiInputBase-root': { height: 32 },
-                                '& .MuiOutlinedInput-root': {
-                                    borderRadius: 0.5,
-                                    fontSize: '0.85rem',
-                                    '&:hover fieldset': { borderColor: '#1976d2' }
-                                }
+                                minWidth: { xs: '100%', sm: '280px', md: '350px' },
+                                maxWidth: { sm: '400px' },
+                                '& .MuiInputBase-root': {
+                                    height: { xs: 40, sm: 42 },
+                                    bgcolor: 'background.paper',
+                                },
                             }}
-                            InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" sx={{ color: '#1976d2' }} /></InputAdornment> }}
+                            InputProps={{
+                                startAdornment: (
+                                    <InputAdornment position="start">
+                                        <SearchIcon fontSize="small" color="primary" />
+                                    </InputAdornment>
+                                )
+                            }}
                         />
                     )}
 
@@ -73,18 +112,27 @@ export const StandardPageLayout: React.FC<StandardPageLayoutProps> = ({
                     <Box sx={{ flex: 1, display: { xs: 'none', sm: 'block' } }} />
 
                     {/* Action Buttons */}
-                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={0.4} alignItems={{ xs: 'stretch', sm: 'center' }} sx={{ gap: 0.4 }}>
+                    <Stack
+                        direction={{ xs: 'column', sm: 'row' }}
+                        spacing={{ xs: 1, sm: 1 }}
+                        alignItems={{ xs: 'stretch', sm: 'center' }}
+                    >
                         {actionButtons}
 
                         {/* Toggle Advanced Filters Button */}
                         {onToggleFilters && (
                             <Button
-                                size="small"
+                                size={isMobile ? 'medium' : 'small'}
                                 variant={showAdvancedFilters ? "contained" : "outlined"}
                                 onClick={onToggleFilters}
-                                sx={{ height: 32, fontSize: '0.8rem', whiteSpace: 'nowrap', padding: '4px 12px' }}
+                                startIcon={<FilterListIcon />}
+                                fullWidth={isMobile}
+                                sx={{
+                                    minHeight: { xs: 40, sm: 36 },
+                                    whiteSpace: 'nowrap',
+                                }}
                             >
-                                {showAdvancedFilters ? '⬆ Filters' : '⬇ Filters'}
+                                {showAdvancedFilters ? 'Hide Filters' : 'Show Filters'}
                             </Button>
                         )}
                     </Stack>
@@ -92,11 +140,21 @@ export const StandardPageLayout: React.FC<StandardPageLayoutProps> = ({
             </Paper>
 
             {/* Advanced Filters - Collapsible */}
-            {showAdvancedFilters && advancedFilters && (
-                <Paper elevation={0} sx={{ p: { xs: 0.5, sm: 0.75 }, borderBottom: '1px solid #e0e0e0', bgcolor: '#f9f9f9' }}>
-                    {advancedFilters}
-                </Paper>
-            )}
+            <Collapse in={showAdvancedFilters} timeout="auto">
+                {advancedFilters && (
+                    <Paper
+                        elevation={0}
+                        sx={{
+                            p: { xs: 1.5, sm: 2 },
+                            borderBottom: '1px solid',
+                            borderColor: 'divider',
+                            bgcolor: 'grey.100',
+                        }}
+                    >
+                        {advancedFilters}
+                    </Paper>
+                )}
+            </Collapse>
 
             {/* Content Area */}
             <Box sx={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', position: 'relative' }}>

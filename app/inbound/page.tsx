@@ -27,6 +27,7 @@ import { inboundAPI } from '@/lib/api';
 import { useWarehouse } from '@/app/context/WarehouseContext';
 import { getStoredUser } from '@/lib/auth';
 import AppLayout from '@/components/AppLayout';
+import { StandardPageHeader, StandardTabs } from '@/components';
 import toast, { Toaster } from 'react-hot-toast';
 import * as XLSX from 'xlsx';
 import Tooltip from '@mui/material/Tooltip';
@@ -1474,170 +1475,22 @@ export default function InboundPage() {
       }}>
 
         {/* ==================== HEADER SECTION ==================== */}
-        <Box sx={{
-          //position: 'relative', // allow header to scroll away; tabs will be sticky instead
-          //zIndex: 80,
-          mb: 1,
-          p: { xs: 1, sm: 1.25 },
-          background: 'linear-gradient(  135deg, #0f2027 0%, #203a43 50%, #2c5364 100%  )',
-          borderRadius: 1.5,
-          boxShadow: '0 8px 30px rgba(102, 126, 234, 0.25)',
-        }}>
-          <Box sx={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: { xs: 0.75, sm: 1 }
-          }}>
-            {/* LEFT: Icon + Title */}
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 0.75, sm: 1.25 } }}>
-              <Box sx={{
-                p: { xs: 0.4, sm: 0.7 },
-                bgcolor: 'rgba(255,255,255,0.2)',
-                borderRadius: 1.5,
-                backdropFilter: 'blur(10px)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}>
-                <Typography sx={{ fontSize: { xs: '1rem', sm: '1.5rem' }, lineHeight: 1 }}>📦</Typography>
-              </Box>
-              <Box>
-                <Typography variant="h4" sx={{
-                  fontWeight: 650,
-                  color: 'white',
-                  fontSize: { xs: '0.85rem', sm: '1rem', md: '1.3rem' },
-                  lineHeight: 1.1,
-                  textShadow: '0 2px 4px rgba(0,0,0,0.1)'
-                }}>
-                  Inbound Management
-                </Typography>
-                <Typography variant="caption" sx={{
-                  color: 'rgba(255,255,255,0.9)',
-                  fontSize: { xs: isMobile ? '0.5rem' : '0.2rem', sm: '0.7rem' },
-                  fontWeight: 500,
-                  lineHeight: 1.2,
-                  display: 'block',
-                  mt: 0.25
-                }}>
-                  Manage inbound operations
-                </Typography>
-              </Box>
-            </Box>
-
-            {/* RIGHT: Warehouse + User Chips */}
-            <Stack direction="row" spacing={{ xs: 0.5, sm: 0.75 }} alignItems="center">
-              <Chip
-                label={activeWarehouse.name}
-                size="small"
-                sx={{
-                  bgcolor: 'rgba(255,255,255,0.2)',
-                  color: 'white',
-                  fontWeight: 700,
-                  height: { xs: 20, sm: 24 },
-                  fontSize: { xs: isMobile ? '0.42rem' : '0.2rem', sm: '0.72rem' },
-                  border: '1.5px solid rgba(255,255,255,0.3)',
-                  backdropFilter: 'blur(10px)',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                  '& .MuiChip-label': { px: { xs: 0.75, sm: 1 } }
-                }}
-              />
-              <Chip
-                label={user?.full_name}
-                size="small"
-                avatar={<Box sx={{
-                  bgcolor: 'rgba(255,255,255,0.3)',
-                  width: { xs: 14, sm: 16 },
-                  height: { xs: 14, sm: 16 },
-                  borderRadius: '50%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: { xs: '0.55rem', sm: '0.6rem' }
-                }}>👤</Box>}
-                sx={{
-                  bgcolor: 'rgba(255,255,255,0.2)',
-                  color: 'white',
-                  fontWeight: 600,
-                  height: { xs: 20, sm: 24 },
-                  fontSize: { xs: '0.62rem', sm: '0.72rem' },
-                  border: '1.5px solid rgba(255,255,255,0.3)',
-                  backdropFilter: 'blur(10px)',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                  '& .MuiChip-label': { px: { xs: 0.75, sm: 1 } },
-                  '& .MuiChip-avatar': {
-                    width: { xs: 14, sm: 16 },
-                    height: { xs: 14, sm: 16 },
-                    ml: { xs: 0.5, sm: 0.75 }
-                  }
-                }}
-              />
-            </Stack>
-          </Box>
-        </Box>
+        <StandardPageHeader
+          title="Inbound Management"
+          subtitle="Manage inbound operations"
+          icon="📦"
+          warehouseName={activeWarehouse?.name}
+          userName={user?.full_name}
+        />
 
 
         {/* ==================== TABS SECTION ==================== */}
-        <Paper
-          sx={{
-            position: 'sticky',
-            top: 0, // stick to top when scrolling
-            zIndex: 110,
-            mb: 1,
-            borderRadius: 2,
-            overflow: 'visible', // Changed from 'hidden'
-            boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-            background: 'white',
-          }}
-        >
-          <Tabs
-            value={tabValue}
-            onChange={(event, newValue) => {
-              setTabValue(newValue);
-            }}
-            variant="scrollable"
-            scrollButtons="auto"
-            TabIndicatorProps={{
-              style: {
-                height: 3,
-                background: 'linear-gradient(90deg, #667eea 0%, #764ba2 100%)',
-                borderRadius: '3px 3px 0 0',
-              },
-            }}
-            sx={{
-              minHeight: 48,
-              '.MuiTab-root': {
-                fontWeight: 600,
-                fontSize: { xs: '0.75rem', sm: '0.82rem' },
-                textTransform: 'none',
-                minHeight: 48,
-                py: 1.25,
-                minWidth: { xs: 'auto', sm: 110 },
-                px: { xs: 2, sm: 2.5 },
-                color: '#64748b',
-                transition: 'all 0.2s',
-              },
-              '.Mui-selected': {
-                color: '#667eea !important',
-                fontWeight: '700 !important',
-              },
-              '.MuiTab-root:hover': {
-                bgcolor: 'rgba(102, 126, 234, 0.05)',
-              },
-              '.MuiTabs-indicator': {
-                display: 'flex',
-                justifyContent: 'center',
-                backgroundColor: 'transparent',
-              },
-            }}
-          >
-            <Tab label="Inbound List" />
-            <Tab label="Single Entry" />
-            <Tab label="Bulk Upload" />
-            <Tab label="Multi Entry" />
-            <Tab label="Batch Manager" />
-          </Tabs>
-        </Paper>
+        <StandardTabs
+          value={tabValue}
+          onChange={(event, newValue) => setTabValue(newValue)}
+          tabs={['Inbound List', 'Single Entry', 'Bulk Upload', 'Multi Entry', 'Batch Manager']}
+          color="#667eea"
+        />
 
         {/* ✅ NEW: Scrollable Content Wrapper */}
         <Box sx={{

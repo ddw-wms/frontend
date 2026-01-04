@@ -61,6 +61,7 @@ import { useWarehouse } from '@/app/context/WarehouseContext';
 import { getStoredUser } from '@/lib/auth';
 import { useRoleGuard } from '@/hooks/useRoleGuard';
 import AppLayout from '@/components/AppLayout';
+import { StandardPageHeader, StandardTabs } from '@/components';
 import toast, { Toaster } from 'react-hot-toast';
 import * as XLSX from 'xlsx';
 import { AgGridReact } from 'ag-grid-react';
@@ -1702,26 +1703,21 @@ export default function OutboundPage() {
                 background: 'linear-gradient(135deg, #f0f4f8 0%, #d9e2ec 100%)', minHeight: '100vh', width: '100%'
             }}>
                 {/* HEADER */}
-                <Box sx={{ mb: 0.8, p: 0.8, background: 'linear-gradient(  135deg, #0f2027 0%, #203a43 50%, #2c5364 100%  )', borderRadius: 1.5, boxShadow: '0 8px 24px rgba(102, 126, 234, 0.25)' }}>
-                    <Box sx={{ position: 'relative', zIndex: 1 }}>
-                        <Typography variant="h6" sx={{ fontWeight: 700, color: 'white', mb: 0.2, fontSize: '0.85rem' }}>📦 Outbound Management</Typography>
-                        <Stack direction="row" spacing={2} alignItems="center">
-                            <Chip label={activeWarehouse.name} size="small" sx={{ bgcolor: 'rgba(255,255,255,0.2)', color: 'white', fontWeight: 600, height: '18px', fontSize: '0.65rem' }} />
-                            <Chip label={user?.full_name} size="small" sx={{ bgcolor: 'rgba(255,255,255,0.2)', color: 'white', fontWeight: 500, height: '18px', fontSize: '0.65rem' }} />
-                        </Stack>
-                    </Box>
-                </Box>
+                <StandardPageHeader
+                    title="Outbound Management"
+                    subtitle="Dispatch and track outgoing shipments"
+                    icon="🚚"
+                    warehouseName={activeWarehouse?.name}
+                    userName={user?.full_name}
+                />
 
                 {/* TABS */}
-                <Paper sx={{ mb: 0.5, borderRadius: 1, overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.05)', background: 'rgba(255, 255, 255, 0.95)' }}>
-                    <Tabs value={tabValue} onChange={(e, v) => setTabValue(v)} variant="scrollable" scrollButtons="auto" sx={{ '& .MuiTabs-indicator': { height: 3, background: 'linear-gradient(90deg, #667eea 0%, #764ba2 100%)', borderRadius: '2px 2px 0 0' }, '& .MuiTab-root': { fontWeight: 600, fontSize: '0.7rem', textTransform: 'none', minHeight: 32, py: 0.5 } }}>
-                        <Tab label="Outbound List" />
-                        <Tab label="Single Entry" />
-                        <Tab label="Bulk Upload" />
-                        <Tab label="Multi Entry" />
-                        <Tab label="Batch Management" />
-                    </Tabs>
-                </Paper>
+                <StandardTabs
+                    value={tabValue}
+                    onChange={(e, v) => setTabValue(v)}
+                    tabs={['Outbound List', 'Single Entry', 'Bulk Upload', 'Multi Entry', 'Batch Management']}
+                    color="#667eea"
+                />
 
 
 

@@ -209,7 +209,7 @@ export const qcAPI = {
     return api.get(`/qc/pending-inbound?${params.toString()}`);
   },
 
-  getList: (page: number, limit: number, filters?: any) => {
+  getList: (page: number, limit: number, filters?: any, config?: any) => {
     const params = new URLSearchParams();
     params.append('page', page.toString());
     params.append('limit', limit.toString());
@@ -221,7 +221,7 @@ export const qcAPI = {
     if (filters?.category) params.append('category', filters.category);
     if (filters?.dateFrom) params.append('dateFrom', filters.dateFrom);
     if (filters?.dateTo) params.append('dateTo', filters.dateTo);
-    return api.get(`/qc/list?${params.toString()}`);
+    return api.get(`/qc/list?${params.toString()}`, config);
   },
 
   createEntry: (data: any) =>

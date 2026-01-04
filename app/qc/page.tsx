@@ -56,17 +56,18 @@ import { qcAPI } from '@/lib/api';
 import { useWarehouse } from '@/app/context/WarehouseContext';
 import { getStoredUser } from '@/lib/auth';
 import AppLayout from '@/components/AppLayout';
+import { StandardPageHeader, StandardTabs } from '@/components';
 import { useRoleGuard } from '@/hooks/useRoleGuard';
 import toast, { Toaster } from 'react-hot-toast';
 import * as XLSX from 'xlsx';
 import { AgGridReact } from 'ag-grid-react';
-import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
+import { ModuleRegistry, AllCommunityModule, ClientSideRowModelModule } from 'ag-grid-community';
 import 'ag-grid-community/styles/ag-theme-quartz.css';
 import { debounce } from 'lodash';
 import { Tooltip } from '@mui/material';
 
-// Register AG Grid modules ONCE
-ModuleRegistry.registerModules([AllCommunityModule]);
+// Register AG Grid modules ONCE (include ClientSideRowModel for client-side features)
+ModuleRegistry.registerModules([AllCommunityModule, ClientSideRowModelModule]);
 
 let QC_GRADES = ['A', 'B', 'C', 'D'];
 const QC_STATUSES = ['Pending', 'Done', 'Pass', 'Fail', 'Hold'];
@@ -208,9 +209,14 @@ export default function QCPage() {
   const [user, setUser] = useState<any>(null);
   const [tabValue, setTabValue] = useState(0);
 
+  // AG Grid refs
+  const gridRef = useRef<any>(null);
+  const columnApiRef = useRef<any>(null);
+
   // QC LIST STATE
   const [qcList, setQcList] = useState<QCItem[]>([]);
   const [listLoading, setListLoading] = useState(false);
+  const [isFetching, setIsFetching] = useState(false);
   // Local refresh button state (non-blocking)
   const [refreshing, setRefreshing] = useState(false);
   const [refreshSuccess, setRefreshSuccess] = useState(false);
@@ -225,6 +231,19 @@ export default function QCPage() {
   const [dateFromFilter, setDateFromFilter] = useState('');
   const [dateToFilter, setDateToFilter] = useState('');
   const [filtersExpanded, setFiltersExpanded] = useState(false);
+
+  // Smooth loading helpers (prevent blinking overlay)
+  const currentLoadIdRef = useRef(0);
+  const qcAbortControllerRef = useRef<AbortController | null>(null);
+  const overlayTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const overlayShownRef = useRef(false);
+  const overlayStartRef = useRef<number | null>(null);
+  const emptyTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const SHOW_OVERLAY_DELAY = 150; // ms
+  const MIN_LOADING_MS = 350; // ms
+  const EMPTY_CONFIRM_DELAY = 400; // ms - delay before clearing rows when server returns empty
+  const [topLoading, setTopLoading] = useState(false);
+  const previousDataRef = useRef<QCItem[] | null>(null);
 
   // Whether any filter is active (shows green dot on Filters button)
   const filtersActive = Boolean(
@@ -250,6 +269,18 @@ export default function QCPage() {
   const [listColumns, setListColumns] = useState<ColumnConfig[]>([]);
 
   const [listColumnSettingsOpen, setListColumnSettingsOpen] = useState(false);
+
+  // Grid Settings (persisted)
+  const [enableSorting, setEnableSorting] = useState<boolean>(() => {
+    try { return localStorage.getItem('qc_enableSorting') !== 'false'; } catch { return true; }
+  });
+  const [enableColumnFilters, setEnableColumnFilters] = useState<boolean>(() => {
+    try { return localStorage.getItem('qc_enableColumnFilters') !== 'false'; } catch { return true; }
+  });
+  const [enableColumnResize, setEnableColumnResize] = useState<boolean>(() => {
+    try { return localStorage.getItem('qc_enableColumnResize') !== 'false'; } catch { return true; }
+  });
+  const [gridSettingsOpen, setGridSettingsOpen] = useState(false);
 
   // SINGLE ENTRY STATE
   const [singleWSN, setSingleWSN] = useState('');
@@ -361,8 +392,6 @@ export default function QCPage() {
     editable: true,
   });
 
-  const [gridSettingsOpen, setGridSettingsOpen] = useState(false);
-
   // ✅ LOAD Grid Settings from localStorage on mount
   useEffect(() => {
     const savedSettings = localStorage.getItem('qc_grid_settings');
@@ -436,6 +465,20 @@ export default function QCPage() {
   const [exportEndDate, setExportEndDate] = useState('');
   const [exportStatus, setExportStatus] = useState('');
   const [exportGrade, setExportGrade] = useState('');
+  const [mobileActionsOpen, setMobileActionsOpen] = useState(false);
+
+  // Persist grid settings to localStorage
+  useEffect(() => {
+    try { localStorage.setItem('qc_enableSorting', String(enableSorting)); } catch { }
+  }, [enableSorting]);
+
+  useEffect(() => {
+    try { localStorage.setItem('qc_enableColumnFilters', String(enableColumnFilters)); } catch { }
+  }, [enableColumnFilters]);
+
+  useEffect(() => {
+    try { localStorage.setItem('qc_enableColumnResize', String(enableColumnResize)); } catch { }
+  }, [enableColumnResize]);
 
 
   // AUTH CHECK
@@ -678,20 +721,137 @@ export default function QCPage() {
     localStorage.setItem('qc_list_columns', JSON.stringify(updated));
   };
 
+  // ✅ LIST GRID COLUMN DEFINITIONS (AG GRID)
+  const listColumnDefs = useMemo(() => {
+    const sr = {
+      headerName: 'SR.NO',
+      field: '__sr',
+      valueGetter: (params: any) => params.node ? params.node.rowIndex + 1 + (page - 1) * limit : undefined,
+      width: 80,
+      cellStyle: { fontWeight: 700, textAlign: 'center', backgroundColor: '#fafafa' },
+      suppressMovable: true,
+      sortable: false,
+      filter: false,
+    };
+
+    const visibleKeys = listColumns.filter(c => c.visible).map(c => c.key);
+
+    const cols = visibleKeys.map((col: string) => {
+      // Dates
+      if (col.includes('date')) {
+        return {
+          field: col,
+          headerName: col.replace(/_/g, ' ').toUpperCase(),
+          filter: enableColumnFilters ? 'agDateColumnFilter' : undefined,
+          valueFormatter: (p: any) => formatDate(p.value),
+          tooltipField: col,
+          width: 140,
+        };
+      }
+
+      // Status chip
+      if (col === 'qc_status') {
+        return {
+          field: col,
+          headerName: 'QC STATUS',
+          cellRenderer: (p: any) => {
+            if (!p.value) return '-';
+            const color = p.value === 'Pass' ? 'success' : p.value === 'Fail' ? 'error' : p.value === 'Done' ? 'info' : 'warning';
+            return (
+              `<div style="display: inline-block; padding: 2px 8px; border-radius: 12px; background: ${color === 'success' ? '#d1fae5' : color === 'error' ? '#fee2e2' : color === 'info' ? '#dbeafe' : '#fef3c7'}; color: ${color === 'success' ? '#065f46' : color === 'error' ? '#991b1b' : color === 'info' ? '#1e40af' : '#92400e'}; font-size: 0.7rem; font-weight: 600;">${p.value}</div>`
+            );
+          },
+          width: 120,
+        };
+      }
+
+      // Grade chip
+      if (col === 'qc_grade') {
+        return {
+          field: col,
+          headerName: 'QC GRADE',
+          cellRenderer: (p: any) => {
+            if (!p.value) return '-';
+            return (
+              `<div style="display: inline-block; padding: 2px 8px; border-radius: 12px; background: #e0e7ff; color: #3730a3; font-size: 0.7rem; font-weight: 700;">${p.value}</div>`
+            );
+          },
+          width: 120,
+        };
+      }
+
+      // Default
+      return {
+        field: col,
+        headerName: col.replace(/_/g, ' ').toUpperCase(),
+        filter: enableColumnFilters ? 'agTextColumnFilter' : undefined,
+        tooltipField: col,
+        width: col === 'wsn' ? 180 : col === 'product_title' ? 250 : 150,
+      };
+    });
+
+    return [sr, ...cols];
+  }, [listColumns, page, limit, enableColumnFilters, enableSorting, enableColumnResize]);
+
+  const listDefaultColDef = useMemo(() => ({
+    sortable: !!enableSorting,
+    resizable: !!enableColumnResize,
+    filter: !!enableColumnFilters,
+    suppressMenu: false,
+    minWidth: 100,
+  }), [enableSorting, enableColumnFilters, enableColumnResize]);
+
   // LOAD FUNCTIONS
   const loadQCList = async ({ buttonRefresh = false } = {}) => {
+    if (!activeWarehouse) return;
+
+    // Use request id to ignore stale responses
+    currentLoadIdRef.current += 1;
+    const loadId = currentLoadIdRef.current;
+
     if (buttonRefresh) {
       setRefreshing(true);
       setRefreshSuccess(false);
-    } else {
-      setListLoading(true);
     }
 
+    // If we have no data yet, show full loader; otherwise show a delayed overlay to avoid flicker
+    if (!qcList || qcList.length === 0) {
+      setListLoading(true);
+    } else {
+      if (overlayTimerRef.current) clearTimeout(overlayTimerRef.current);
+      overlayShownRef.current = false;
+      overlayStartRef.current = null;
+      overlayTimerRef.current = setTimeout(() => {
+        try {
+          setTopLoading(true);
+          overlayShownRef.current = true;
+          overlayStartRef.current = Date.now();
+          try { gridRef.current?.api?.hideOverlay(); } catch { }
+        } catch (err) { }
+        overlayTimerRef.current = null;
+      }, SHOW_OVERLAY_DELAY);
+    }
+
+    // Mark fetching in-progress
+    setIsFetching(true);
+
+    // Cancel any previous in-flight request & pending empty timers
+    if (qcAbortControllerRef.current) {
+      try { qcAbortControllerRef.current.abort(); } catch { }
+      qcAbortControllerRef.current = null;
+    }
+    if (emptyTimerRef.current) {
+      clearTimeout(emptyTimerRef.current);
+      emptyTimerRef.current = null;
+    }
+    const controller = new AbortController();
+    qcAbortControllerRef.current = controller;
+
     try {
-      console.log('📡 API Call with search:', searchFilter); // ADD THIS DEBUG
+      console.log('📡 API Call with search:', searchFilter);
       const response = await qcAPI.getList(page, limit, {
         warehouseId: activeWarehouse?.id,
-        search: searchFilter,  // ✅ VERIFY THIS LINE EXISTS
+        search: searchFilter,
         qcStatus: statusFilter,
         qc_grade: gradeFilter,
         brand: brandFilter,
@@ -699,20 +859,110 @@ export default function QCPage() {
         dateFrom: dateFromFilter,
         dateTo: dateToFilter,
       });
-      setQcList(response.data?.data || []);
-      setTotal(response.data?.total || 0);
 
-      if (buttonRefresh) {
-        toast.success('✓ List refreshed');
-        setRefreshSuccess(true);
-        setTimeout(() => setRefreshSuccess(false), 1800);
+      // Only apply if this is the latest request
+      if (loadId === currentLoadIdRef.current) {
+        const data = response.data?.data || [];
+        setTotal(response.data?.total || 0);
+
+        // Clear any pending empty timers (we are about to handle the new response)
+        if (emptyTimerRef.current) {
+          clearTimeout(emptyTimerRef.current);
+          emptyTimerRef.current = null;
+        }
+
+        if (data.length === 0) {
+          // Empty response → delayed clear to avoid flicker
+          emptyTimerRef.current = setTimeout(() => {
+            if (loadId === currentLoadIdRef.current) {
+              setQcList([]);
+              previousDataRef.current = [];
+            }
+            emptyTimerRef.current = null;
+          }, EMPTY_CONFIRM_DELAY);
+        } else {
+          // Non-empty response: flash animation & update
+          if (gridRef.current && gridRef.current.api) {
+            const api = gridRef.current.api;
+            try {
+              // Flash animation logic (prevent blinking)
+              if (previousDataRef.current && previousDataRef.current.length > 0) {
+                const prevMap = new Map(previousDataRef.current.map((r: any) => [r.id || r.wsn, r]));
+                const currMap = new Map(data.map((r: any) => [r.id || r.wsn, r]));
+
+                api.forEachNode((rowNode: any) => {
+                  const rowId = rowNode.data?.id || rowNode.data?.wsn;
+                  const prev = prevMap.get(rowId);
+                  const curr = currMap.get(rowId);
+
+                  if (prev && curr && JSON.stringify(prev) !== JSON.stringify(curr)) {
+                    try {
+                      api.flashCells({ rowNodes: [rowNode], flashDelay: 100, fadeDelay: 400 });
+                    } catch (e) { }
+                  }
+                });
+              }
+
+              setQcList(data);
+              previousDataRef.current = data;
+            } catch (err) {
+              setQcList(data);
+              previousDataRef.current = data;
+            }
+          } else {
+            setQcList(data);
+            previousDataRef.current = data;
+          }
+        }
+
+        if (buttonRefresh) {
+          toast.success('✓ List refreshed');
+          setRefreshSuccess(true);
+          setTimeout(() => setRefreshSuccess(false), 1800);
+        }
+
+        // Ensure minimum loading time for smooth UX
+        if (overlayShownRef.current && overlayStartRef.current) {
+          const elapsed = Date.now() - overlayStartRef.current;
+          if (elapsed < MIN_LOADING_MS) {
+            await new Promise(res => setTimeout(res, MIN_LOADING_MS - elapsed));
+          }
+        }
+
+        // Clear overlay
+        if (overlayTimerRef.current) {
+          clearTimeout(overlayTimerRef.current);
+          overlayTimerRef.current = null;
+        }
+        try { setTopLoading(false); } catch { }
       }
-    } catch (error) {
-      if (buttonRefresh) toast.error('Failed to refresh QC list');
-      else toast.error('Failed to load QC list');
+    } catch (error: any) {
+      if (loadId === currentLoadIdRef.current) {
+        // Clear overlay on error
+        if (overlayTimerRef.current) {
+          clearTimeout(overlayTimerRef.current);
+          overlayTimerRef.current = null;
+        }
+        try { setTopLoading(false); } catch { }
+        setIsFetching(false);
+
+        // Only set empty if we have no previous data
+        if (!previousDataRef.current || (Array.isArray(previousDataRef.current) && previousDataRef.current.length === 0)) {
+          setQcList([]);
+        }
+
+        if (error.name !== 'CanceledError' && error.name !== 'AbortError') {
+          console.error('Load QC list error:', error);
+          if (buttonRefresh) toast.error('Failed to refresh QC list');
+          else toast.error('Failed to load QC list');
+        }
+      }
     } finally {
-      if (buttonRefresh) setRefreshing(false);
-      else setListLoading(false);
+      if (loadId === currentLoadIdRef.current) {
+        setIsFetching(false);
+        if (buttonRefresh) setRefreshing(false);
+        setListLoading(false);
+      }
     }
   };
 
@@ -1139,172 +1389,22 @@ export default function QCPage() {
         overflowX: 'hidden'
       }}>
         {/* ==================== HEADER SECTION ==================== */}
-        <Box sx={{
-          position: 'sticky',
-          top: 0,
-          zIndex: 100,
-          mb: 1,
-          p: { xs: 1, sm: 1.25 },
-          background: 'linear-gradient(  135deg, #0f2027 0%, #203a43 50%, #2c5364 100%  )',
-          borderRadius: 2,
-          boxShadow: '0 8px 30px rgba(102, 126, 234, 0.25)',
-        }}>
-          <Box sx={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: { xs: 0.75, sm: 1 }
-          }}>
-            {/* LEFT: Icon + Title */}
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 0.75, sm: 1.25 } }}>
-              <Box sx={{
-                p: { xs: 0.4, sm: 0.7 },
-                bgcolor: 'rgba(255,255,255,0.2)',
-                borderRadius: 1.5,
-                backdropFilter: 'blur(10px)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}>
-                <Typography sx={{ fontSize: { xs: '1rem', sm: '1.5rem' }, lineHeight: 1 }}>✅</Typography>
-              </Box>
-              <Box>
-                <Typography variant="h4" sx={{
-                  fontWeight: 650,
-                  color: 'white',
-                  fontSize: { xs: '0.85rem', sm: '1rem', md: '1.3rem' },
-                  lineHeight: 1.1,
-                  textShadow: '0 2px 4px rgba(0,0,0,0.1)'
-                }}>
-                  QC Management
-                </Typography>
-                <Typography variant="caption" sx={{
-                  color: 'rgba(255,255,255,0.9)',
-                  fontSize: { xs: isMobile ? '0.5rem' : '0.2rem', sm: '0.7rem' },
-                  fontWeight: 500,
-                  lineHeight: 1.2,
-                  display: 'block',
-                  mt: 0.25
-                }}>
-                  Quality control operations
-                </Typography>
-              </Box>
-            </Box>
-
-            {/* RIGHT: Warehouse + User Chips */}
-            <Stack direction="row" spacing={{ xs: 0.5, sm: 0.75 }} alignItems="center">
-              <Chip
-                label={activeWarehouse.name}
-                size="small"
-                sx={{
-                  bgcolor: 'rgba(255,255,255,0.2)',
-                  color: 'white',
-                  fontWeight: 700,
-                  height: { xs: 20, sm: 24 },
-                  fontSize: { xs: isMobile ? '0.42rem' : '0.2rem', sm: '0.72rem' },
-                  border: '1.5px solid rgba(255,255,255,0.3)',
-                  backdropFilter: 'blur(10px)',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                  '& .MuiChip-label': { px: { xs: 0.75, sm: 1 } }
-                }}
-              />
-              <Chip
-                label={user?.full_name}
-                size="small"
-                avatar={<Box sx={{
-                  bgcolor: 'rgba(255,255,255,0.3)',
-                  width: { xs: 14, sm: 16 },
-                  height: { xs: 14, sm: 16 },
-                  borderRadius: '50%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: { xs: '0.55rem', sm: '0.6rem' }
-                }}>👤</Box>}
-                sx={{
-                  bgcolor: 'rgba(255,255,255,0.2)',
-                  color: 'white',
-                  fontWeight: 600,
-                  height: { xs: 20, sm: 24 },
-                  fontSize: { xs: '0.62rem', sm: '0.72rem' },
-                  border: '1.5px solid rgba(255,255,255,0.3)',
-                  backdropFilter: 'blur(10px)',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                  '& .MuiChip-label': { px: { xs: 0.75, sm: 1 } },
-                  '& .MuiChip-avatar': {
-                    width: { xs: 14, sm: 16 },
-                    height: { xs: 14, sm: 16 },
-                    ml: { xs: 0.5, sm: 0.75 }
-                  }
-                }}
-              />
-            </Stack>
-          </Box>
-        </Box>
+        <StandardPageHeader
+          title="QC Management"
+          subtitle="Quality control operations"
+          icon="✅"
+          warehouseName={activeWarehouse?.name}
+          userName={user?.full_name}
+        />
 
 
         {/* ==================== TABS SECTION ==================== */}
-        <Paper
-          sx={{
-            position: 'sticky',
-            top: 38,
-            zIndex: 90,
-            mb: 1,
-            borderRadius: 2,
-            overflow: 'visible', // Changed from 'hidden'
-            boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-            background: 'white',
-          }}
-        >
-          <Tabs
-            value={tabValue}
-            onChange={(event, newValue) => {
-              setTabValue(newValue);
-            }}
-            variant="scrollable"
-            scrollButtons="auto"
-            TabIndicatorProps={{
-              style: {
-                height: 3,
-                background: 'linear-gradient(90deg, #667eea 0%, #764ba2 100%)',
-                borderRadius: '3px 3px 0 0',
-              },
-            }}
-            sx={{
-              minHeight: 48,
-              '.MuiTab-root': {
-                fontWeight: 600,
-                fontSize: { xs: '0.75rem', sm: '0.82rem' },
-                textTransform: 'none',
-                minHeight: 48,
-                py: 1.25,
-                minWidth: { xs: 'auto', sm: 110 },
-                px: { xs: 2, sm: 2.5 },
-                color: '#64748b',
-                transition: 'all 0.2s',
-              },
-              '.Mui-selected': {
-                color: '#667eea !important',
-                fontWeight: '700 !important',
-              },
-              '.MuiTab-root:hover': {
-                bgcolor: 'rgba(102, 126, 234, 0.05)',
-              },
-              '.MuiTabs-indicator': {
-                display: 'flex',
-                justifyContent: 'center',
-                backgroundColor: 'transparent',
-              },
-            }}
-          >
-            <Tab label="QC List" />
-            <Tab label="Single QC" />
-            <Tab label="Bulk Upload" />
-            <Tab label="Multi QC" />
-            <Tab label="Batch Manager" />
-          </Tabs>
-        </Paper>
-
+        <StandardTabs
+          value={tabValue}
+          onChange={(event, newValue) => setTabValue(newValue)}
+          tabs={['QC List', 'Single QC', 'Multi QC', 'Batches']}
+          color="#667eea"
+        />
 
         {/* ==================== MAIN CONTENT AREA ==================== */}
         <Paper
@@ -1383,63 +1483,115 @@ export default function QCPage() {
                     }}
                   />
 
-                  <Button
-                    variant="outlined"
-                    onClick={() => setFiltersExpanded(!filtersExpanded)}
-                    sx={{
-                      minWidth: { xs: 42, sm: 115 },
-                      height: 38,
-                      borderWidth: 2,
-                      borderColor: filtersExpanded ? '#667eea' : '#cbd5e1',
-                      bgcolor: filtersExpanded ? 'rgba(102, 126, 234, 0.1)' : 'white',
-                      color: filtersExpanded ? '#667eea' : '#64748b',
-                      fontWeight: 700,
-                      fontSize: { xs: '0.7rem', sm: '0.78rem' },
-                      borderRadius: 1.5,
-                      boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
-                      transition: 'all 0.2s',
-                      px: { xs: 1, sm: 1.5 },
-                      '&:hover': {
+                  {!isMobile ? (
+                    <Button
+                      variant="outlined"
+                      onClick={() => setFiltersExpanded(!filtersExpanded)}
+                      sx={{
+                        minWidth: { xs: 42, sm: 115 },
+                        height: 38,
                         borderWidth: 2,
-                        borderColor: '#667eea',
-                        bgcolor: 'rgba(102, 126, 234, 0.15)',
-                        boxShadow: '0 4px 12px rgba(102, 126, 234, 0.2)'
-                      },
-                      position: 'relative'
-                    }}
-                  >
-                    <FilterListIcon sx={{
-                      fontSize: { xs: '1.1rem', sm: '1.15rem' },
-                      mr: { xs: 0, sm: 0.4 }
-                    }} />
+                        borderColor: filtersExpanded ? '#667eea' : '#cbd5e1',
+                        bgcolor: filtersExpanded ? 'rgba(102, 126, 234, 0.1)' : 'white',
+                        color: filtersExpanded ? '#667eea' : '#64748b',
+                        fontWeight: 700,
+                        fontSize: { xs: '0.7rem', sm: '0.78rem' },
+                        borderRadius: 1.5,
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+                        transition: 'all 0.2s',
+                        px: { xs: 1, sm: 1.5 },
+                        '&:hover': {
+                          borderWidth: 2,
+                          borderColor: '#667eea',
+                          bgcolor: 'rgba(102, 126, 234, 0.15)',
+                          boxShadow: '0 4px 12px rgba(102, 126, 234, 0.2)'
+                        },
+                        position: 'relative'
+                      }}
+                    >
+                      <FilterListIcon sx={{
+                        fontSize: { xs: '1.1rem', sm: '1.15rem' },
+                        mr: { xs: 0, sm: 0.4 }
+                      }} />
 
-                    <Box component="span" sx={{ mr: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Box component="span">{filtersExpanded ? "Hide Filters" : "Show Filters"}</Box>
-                      {filtersActive && (
-                        <Tooltip title="Filters active">
-                          <Box sx={{
-                            position: 'absolute',
-                            top: -5,
-                            right: -5,
-                            width: 14,
-                            height: 14,
-                            borderRadius: '50%',
-                            bgcolor: '#10b981',
-                            border: '2px solid white',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center'
-                          }}>
-                            <Typography sx={{ fontSize: '0.5rem', fontWeight: 800, color: 'white' }}>
-                              ●
-                            </Typography>
-                          </Box>
-                        </Tooltip>
-                      )}
-                    </Box>
+                      <Box component="span" sx={{ mr: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Box component="span">{filtersExpanded ? "Hide Filters" : "Show Filters"}</Box>
+                        {filtersActive && (
+                          <Tooltip title="Filters active">
+                            <Box sx={{
+                              position: 'absolute',
+                              top: -5,
+                              right: -5,
+                              width: 14,
+                              height: 14,
+                              borderRadius: '50%',
+                              bgcolor: '#10b981',
+                              border: '2px solid white',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center'
+                            }}>
+                              <Typography sx={{ fontSize: '0.5rem', fontWeight: 800, color: 'white' }}>
+                                ●
+                              </Typography>
+                            </Box>
+                          </Tooltip>
+                        )}
+                      </Box>
 
-                    <ExpandMoreIcon sx={{ transform: filtersExpanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 200ms" }} />
-                  </Button>
+                      <ExpandMoreIcon sx={{ transform: filtersExpanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 200ms" }} />
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="outlined"
+                      onClick={() => setMobileActionsOpen(true)}
+                      sx={{
+                        minWidth: 42,
+                        height: 38,
+                        borderWidth: 2,
+                        borderColor: '#cbd5e1',
+                        bgcolor: 'white',
+                        color: '#64748b',
+                        fontWeight: 700,
+                        fontSize: '0.82rem',
+                        borderRadius: 1.5,
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+                        '&:hover': {
+                          borderWidth: 2,
+                          borderColor: '#667eea',
+                          bgcolor: 'rgba(102, 126, 234, 0.08)'
+                        },
+                        position: 'relative'
+                      }}
+                    >
+                      <FilterListIcon sx={{ fontSize: '1.15rem' }} />
+
+                      <Box component="span" sx={{ ml: 0.6, display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Box component="span">Actions</Box>
+                        {filtersActive && (
+                          <Tooltip title="Filters active">
+                            <Box sx={{
+                              position: 'absolute',
+                              top: -5,
+                              right: -5,
+                              width: 14,
+                              height: 14,
+                              borderRadius: '50%',
+                              bgcolor: '#10b981',
+                              border: '2px solid white',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center'
+                            }}>
+                              <Typography sx={{ fontSize: '0.5rem', fontWeight: 800, color: 'white' }}>
+                                ●
+                              </Typography>
+                            </Box>
+                          </Tooltip>
+                        )}
+                      </Box>
+                    </Button>
+                  )}
                 </Stack>
 
                 {/* Collapsible Filter Content */}
@@ -1577,7 +1729,7 @@ export default function QCPage() {
                         {/* ROW 2: Action Buttons */}
                         <Box sx={{
                           display: 'grid',
-                          gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(4, 1fr)' },
+                          gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(5, 1fr)' },
                           gap: 1
                         }}>
                           <Button
@@ -1634,6 +1786,27 @@ export default function QCPage() {
                           <Button
                             fullWidth
                             size="small"
+                            startIcon={<SettingsIcon sx={{ fontSize: '0.9rem' }} />}
+                            variant="outlined"
+                            onClick={() => setGridSettingsOpen(true)}
+                            sx={{
+                              height: 34,
+                              fontSize: '0.72rem',
+                              fontWeight: 700,
+                              borderWidth: 2,
+                              borderColor: '#f59e0b',
+                              color: '#f59e0b',
+                              '&:hover': {
+                                borderWidth: 2,
+                                bgcolor: 'rgba(245, 158, 11, 0.1)'
+                              }
+                            }}
+                          >
+                            GRID
+                          </Button>
+                          <Button
+                            fullWidth
+                            size="small"
                             startIcon={<DownloadIcon sx={{ fontSize: '0.9rem' }} />}
                             variant="contained"
                             onClick={() => setExportDialogOpen(true)}
@@ -1680,136 +1853,328 @@ export default function QCPage() {
                 </Collapse>
               </Box>
 
-              {/* TABLE - HORIZONTAL SCROLL */}
-              <Box sx={{
-                flex: 1,
-                overflow: 'auto',
-                minHeight: 0,
-                border: '2px solid #e2e8f0',
-                borderRadius: 1.5,
-                boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
-                '&::-webkit-scrollbar': {
-                  height: 8,
-                  width: 8
-                },
-                '&::-webkit-scrollbar-thumb': {
-                  backgroundColor: '#cbd5e1',
-                  borderRadius: 4,
-                  '&:hover': {
-                    backgroundColor: '#94a3b8'
-                  }
-                },
-                '&::-webkit-scrollbar-track': {
-                  backgroundColor: '#f1f5f9',
-                  borderRadius: 4
-                }
-              }}>
-                <TableContainer
-                  component={Paper}
-                  sx={{
-                    borderRadius: 0,
-                    boxShadow: 'none',
-                    border: 'none',
-                    background: '#ffffff',
-                    height: '100%'
-                  }}
-                >
-                  <Table
-                    stickyHeader
-                    size="small"
-                    sx={{
-                      '& .MuiTableCell-root': {
-                        borderRight: '1px solid #e2e8f0',
-                        padding: { xs: '4px 8px', sm: '6px 10px' },
-                        fontSize: { xs: '0.72rem', sm: '0.78rem' },
-                        minWidth: { xs: 85, sm: 100 },
-                        whiteSpace: 'nowrap'
-                      }
-                    }}
-                  >
-                    <TableHead>
-                      <TableRow sx={{ background: 'linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%)' }}>
-                        {listColumns
-                          .filter(c => c.visible)
-                          .map(c => (
-                            <TableCell
-                              key={`header_${c.key}`}
+              {/* MOBILE ACTIONS DIALOG */}
+              <Dialog
+                open={mobileActionsOpen}
+                onClose={() => setMobileActionsOpen(false)}
+                fullScreen
+                PaperProps={{ sx: { borderRadius: 0 } }}
+              >
+                <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Box sx={{ fontWeight: 800, fontSize: '1rem' }}>Actions</Box>
+                  <IconButton onClick={() => setMobileActionsOpen(false)}>
+                    <CloseIcon />
+                  </IconButton>
+                </DialogTitle>
+
+                <DialogContent>
+                  <Card sx={{
+                    borderRadius: 1.5,
+                    boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+                    background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
+                    border: '1px solid #e2e8f0',
+                    position: 'relative',
+                    zIndex: 95
+                  }}>
+                    <CardContent sx={{ p: 1.25, '&:last-child': { pb: 1.25 } }}>
+                      <Stack spacing={1}>
+                        <Box sx={{
+                          display: 'grid',
+                          gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', md: 'repeat(6, 1fr)' },
+                          gap: 1
+                        }}>
+                          <TextField
+                            label="From Date"
+                            type="date"
+                            size="small"
+                            InputLabelProps={{ shrink: true }}
+                            value={dateFromFilter}
+                            onChange={(e) => { setDateFromFilter(e.target.value); setPage(1); }}
+                            sx={{
+                              '& .MuiOutlinedInput-root': {
+                                height: 36,
+                                fontSize: '0.8rem',
+                                bgcolor: 'white',
+                                '&:hover fieldset': { borderColor: '#667eea' },
+                                '&.Mui-focused fieldset': { borderColor: '#667eea' }
+                              },
+                              '& .MuiInputLabel-root': {
+                                fontSize: '0.75rem'
+                              }
+                            }}
+                          />
+                          <TextField
+                            label="To Date"
+                            type="date"
+                            size="small"
+                            InputLabelProps={{ shrink: true }}
+                            value={dateToFilter}
+                            onChange={(e) => { setDateToFilter(e.target.value); setPage(1); }}
+                            sx={{
+                              '& .MuiOutlinedInput-root': {
+                                height: 36,
+                                fontSize: '0.8rem',
+                                bgcolor: 'white',
+                                '&:hover fieldset': { borderColor: '#667eea' },
+                                '&.Mui-focused fieldset': { borderColor: '#667eea' }
+                              },
+                              '& .MuiInputLabel-root': {
+                                fontSize: '0.75rem'
+                              }
+                            }}
+                          />
+                          <FormControl size="small">
+                            <InputLabel sx={{ fontSize: '0.75rem' }}>Status</InputLabel>
+                            <Select
+                              value={statusFilter}
+                              label="Status"
+                              onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
                               sx={{
-                                color: '#1e293b',
-                                fontWeight: 800,
-                                background: 'linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%)',
-                                fontSize: { xs: '0.68rem', sm: '0.75rem' },
-                                textTransform: 'uppercase',
-                                py: { xs: 0.75, sm: 1 },
-                                position: 'sticky',
-                                top: 0,
-                                zIndex: 10
+                                height: 36,
+                                fontSize: '0.8rem',
+                                bgcolor: 'white',
+                                '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#667eea' },
+                                '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#667eea' }
                               }}
                             >
-                              {c.key.replace(/_/g, ' ')}
-                            </TableCell>
-                          ))}
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {listLoading ? (
-                        <TableRow>
-                          <TableCell colSpan={listColumns.filter(c => c.visible).length} align="center" sx={{ py: { xs: 5, sm: 8 } }}>
-                            <CircularProgress size={isMobile ? 35 : 50} sx={{ color: '#667eea' }} />
-                            <Typography sx={{ mt: 1.5, fontWeight: 600, color: '#64748b', fontSize: '0.85rem' }}>
-                              Loading data...
-                            </Typography>
-                          </TableCell>
-                        </TableRow>
-                      ) : qcList.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={listColumns.filter(c => c.visible).length} align="center" sx={{ py: { xs: 5, sm: 8 } }}>
-                            <Typography sx={{ fontWeight: 700, color: '#94a3b8', fontSize: { xs: '0.85rem', sm: '1rem' } }}>
-                              🔭 No data found
-                            </Typography>
-                            <Typography variant="caption" sx={{ color: '#cbd5e1', mt: 0.5, fontSize: '0.7rem' }}>
-                              Try adjusting your filters
-                            </Typography>
-                          </TableCell>
-                        </TableRow>
-                      ) : (
-                        qcList.map((item: any, idx) => (
-                          <TableRow
-                            key={item.id}
+                              <MenuItem value="">All Status</MenuItem>
+                              {QC_STATUSES.map(s => <MenuItem key={s} value={s} sx={{ fontSize: '0.8rem' }}>{s}</MenuItem>)}
+                            </Select>
+                          </FormControl>
+                          <FormControl size="small">
+                            <InputLabel sx={{ fontSize: '0.75rem' }}>Grade</InputLabel>
+                            <Select
+                              value={gradeFilter}
+                              label="Grade"
+                              onChange={(e) => { setGradeFilter(e.target.value); setPage(1); }}
+                              sx={{
+                                height: 36,
+                                fontSize: '0.8rem',
+                                bgcolor: 'white',
+                                '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#667eea' },
+                                '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#667eea' }
+                              }}
+                            >
+                              <MenuItem value="">All Grades</MenuItem>
+                              {QC_GRADES.map(g => <MenuItem key={g} value={g} sx={{ fontSize: '0.8rem' }}>{g}</MenuItem>)}
+                            </Select>
+                          </FormControl>
+                          <FormControl size="small">
+                            <InputLabel sx={{ fontSize: '0.75rem' }}>Brand</InputLabel>
+                            <Select
+                              value={brandFilter}
+                              label="Brand"
+                              onChange={(e) => { setBrandFilter(e.target.value); setPage(1); }}
+                              sx={{
+                                height: 36,
+                                fontSize: '0.8rem',
+                                bgcolor: 'white',
+                                '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#667eea' },
+                                '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#667eea' }
+                              }}
+                            >
+                              <MenuItem value="">All Brands</MenuItem>
+                              {brands.map(b => <MenuItem key={b} value={b}>{b}</MenuItem>)}
+                            </Select>
+                          </FormControl>
+                          <FormControl size="small">
+                            <InputLabel sx={{ fontSize: '0.75rem' }}>Category</InputLabel>
+                            <Select
+                              value={categoryFilter}
+                              label="Category"
+                              onChange={(e) => { setCategoryFilter(e.target.value); setPage(1); }}
+                              sx={{
+                                height: 36,
+                                fontSize: '0.8rem',
+                                bgcolor: 'white',
+                                '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#667eea' },
+                                '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#667eea' }
+                              }}
+                            >
+                              <MenuItem value="">All Categories</MenuItem>
+                              {categories.map(c => <MenuItem key={c} value={c}>{c}</MenuItem>)}
+                            </Select>
+                          </FormControl>
+                        </Box>
+
+                        <Box sx={{
+                          display: 'grid',
+                          gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(5, 1fr)' },
+                          gap: 1
+                        }}>
+                          <Button
+                            fullWidth
+                            size="small"
+                            variant="outlined"
+                            onClick={() => {
+                              setSearchFilter('');
+                              setStatusFilter('');
+                              setGradeFilter('');
+                              setBrandFilter('');
+                              setCategoryFilter('');
+                              setDateFromFilter('');
+                              setDateToFilter('');
+                              setPage(1);
+                            }}
                             sx={{
-                              bgcolor: idx % 2 === 0 ? '#ffffff' : '#f8fafc',
-                              transition: 'all 0.2s',
+                              height: 34,
+                              fontSize: '0.72rem',
+                              fontWeight: 700,
+                              borderWidth: 2,
+                              borderColor: '#94a3b8',
+                              color: '#64748b',
                               '&:hover': {
-                                bgcolor: '#f1f5f9',
-                                transform: 'scale(1.001)',
-                                boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
+                                borderWidth: 2,
+                                borderColor: '#64748b',
+                                bgcolor: '#f8fafc'
                               }
                             }}
                           >
-                            {listColumns
-                              .filter(c => c.visible)
-                              .map(c => (
-                                <TableCell
-                                  key={`cell_${idx}_${c.key}`}
-                                  sx={{
-                                    fontWeight: 500,
-                                    fontSize: { xs: '0.72rem', sm: '0.78rem' },
-                                    color: '#334155'
-                                  }}
-                                >
-                                  {c.key === 'qc_date'
-                                    ? formatDate(item.qc_date)
-                                    : c.key === 'inbound_date'
-                                      ? formatDate(item.inbound_date)
-                                      : (item[c.key] ? String(item[c.key]).substring(0, 50) : '-')}
-                                </TableCell>
-                              ))}
-                          </TableRow>
-                        ))
-                      )}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
+                            🔄 RESET
+                          </Button>
+                          <Button
+                            fullWidth
+                            size="small"
+                            startIcon={<SettingsIcon sx={{ fontSize: '0.9rem' }} />}
+                            variant="outlined"
+                            onClick={() => { setListColumnSettingsOpen(true); setMobileActionsOpen(false); }}
+                            sx={{
+                              height: 34,
+                              fontSize: '0.72rem',
+                              fontWeight: 700,
+                              borderWidth: 2,
+                              borderColor: '#667eea',
+                              color: '#667eea',
+                              '&:hover': {
+                                borderWidth: 2,
+                                bgcolor: 'rgba(102, 126, 234, 0.1)'
+                              }
+                            }}
+                          >
+                            COLUMNS
+                          </Button>
+                          <Button
+                            fullWidth
+                            size="small"
+                            startIcon={<SettingsIcon sx={{ fontSize: '0.9rem' }} />}
+                            variant="outlined"
+                            onClick={() => { setGridSettingsOpen(true); setMobileActionsOpen(false); }}
+                            sx={{
+                              height: 34,
+                              fontSize: '0.72rem',
+                              fontWeight: 700,
+                              borderWidth: 2,
+                              borderColor: '#f59e0b',
+                              color: '#f59e0b',
+                              '&:hover': {
+                                borderWidth: 2,
+                                bgcolor: 'rgba(245, 158, 11, 0.1)'
+                              }
+                            }}
+                          >
+                            GRID
+                          </Button>
+                          <Button
+                            fullWidth
+                            size="small"
+                            startIcon={<DownloadIcon sx={{ fontSize: '0.9rem' }} />}
+                            variant="contained"
+                            onClick={() => { setExportDialogOpen(true); setMobileActionsOpen(false); }}
+                            sx={{
+                              height: 34,
+                              fontSize: '0.72rem',
+                              fontWeight: 700,
+                              background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                              boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
+                              '&:hover': {
+                                background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+                                boxShadow: '0 6px 16px rgba(16, 185, 129, 0.4)'
+                              }
+                            }}
+                          >
+                            EXPORT
+                          </Button>
+                          <Button
+                            fullWidth
+                            size="small"
+                            startIcon={refreshing ? <CircularProgress size={14} /> : refreshSuccess ? <CheckCircle sx={{ color: '#10b981' }} /> : <RefreshIcon sx={{ fontSize: '0.9rem' }} />}
+                            variant="outlined"
+                            onClick={() => { loadQCList({ buttonRefresh: true }); setMobileActionsOpen(false); }}
+                            disabled={refreshing}
+                            sx={{
+                              height: 34,
+                              fontSize: '0.72rem',
+                              fontWeight: 700,
+                              borderWidth: 2,
+                              borderColor: '#3b82f6',
+                              color: '#3b82f6',
+                              '&:hover': {
+                                borderWidth: 2,
+                                bgcolor: 'rgba(59, 130, 246, 0.1)'
+                              }
+                            }}
+                          >
+                            {refreshing ? 'Refreshing...' : refreshSuccess ? 'Refreshed' : 'REFRESH'}
+                          </Button>
+                        </Box>
+                      </Stack>
+                    </CardContent>
+                  </Card>
+                </DialogContent>
+
+                <Box sx={{ position: 'sticky', bottom: 0, left: 0, right: 0, bgcolor: 'background.paper', p: 1, borderTop: '1px solid #e0e0e0', display: 'flex', gap: 1 }}>
+                  <Button fullWidth variant="outlined" onClick={() => {
+                    setSearchFilter('');
+                    setStatusFilter('');
+                    setGradeFilter('');
+                    setBrandFilter('');
+                    setCategoryFilter('');
+                    setDateFromFilter('');
+                    setDateToFilter('');
+                    setPage(1);
+                  }}>Reset</Button>
+                  <Button fullWidth variant="contained" onClick={() => { setPage(1); setMobileActionsOpen(false); loadQCList(); }}>Apply</Button>
+                </Box>
+              </Dialog>
+
+              {/* TABLE - AG GRID (always render grid so header remains visible) */}
+              <Box sx={{ flex: 1, minHeight: 0, border: '1px solid #d1d5db', position: 'relative' }}>
+                <Box sx={{ height: '100%', width: '100%' }}>
+                  <div className="ag-theme-quartz" style={{ height: '100%', width: '100%', position: 'relative', transition: 'opacity 200ms ease-in-out', opacity: topLoading ? 0.65 : 1 }}>
+                    {/* Top-loading animation placed above the grid header to match Dashboard */}
+                    {topLoading && <LinearProgress color="primary" sx={{ height: 3, mb: 0.5 }} />}
+
+                    <AgGridReact
+                      ref={gridRef}
+                      rowData={qcList}
+                      columnDefs={listColumnDefs}
+                      defaultColDef={listDefaultColDef}
+                      rowSelection="single"
+                      suppressRowClickSelection={true}
+                      animateRows={false}
+                      gridOptions={{ getRowId: (params: any) => params.data?.id || params.data?.wsn || String(params.rowIndex), suppressRowTransform: true }}
+                      onGridReady={(params: any) => { gridRef.current = params.api; columnApiRef.current = params.columnApi; try { params.api.sizeColumnsToFit(); } catch (e) { /* ignore */ } }}
+                      pagination={false}
+                    />
+
+                    {/* Full centered spinner overlay when loading and no previous data */}
+                    {(isFetching || listLoading) && (!previousDataRef.current || previousDataRef.current.length === 0) && (
+                      <Box sx={{ position: 'absolute', top: 48, bottom: 48, left: 0, right: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'rgba(255,255,255,0.8)', zIndex: 1200 }}>
+                        <Box sx={{ textAlign: 'center' }}>
+                          <CircularProgress size={56} />
+                          <Typography sx={{ mt: 1, fontWeight: 700, color: '#64748b' }}>Loading results...</Typography>
+                        </Box>
+                      </Box>
+                    )}
+
+                    {/* Subtle overlay with small spinner when loading but previous rows exist */}
+                    {(isFetching || listLoading) && previousDataRef.current && previousDataRef.current.length > 0 && (
+                      <Box sx={{ position: 'absolute', top: 48, bottom: 48, left: 0, right: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'rgba(255,255,255,0.24)', zIndex: 1100 }}>
+                        <CircularProgress size={36} />
+                      </Box>
+                    )}
+                  </div>
+                </Box>
               </Box>
 
               {/* PAGINATION - STICKY AT BOTTOM */}
@@ -1935,6 +2300,133 @@ export default function QCPage() {
               </Box>
             </Box>
           )}
+
+          {/* GRID SETTINGS DIALOG (QC) */}
+          <Dialog
+            open={gridSettingsOpen}
+            onClose={() => setGridSettingsOpen(false)}
+            maxWidth="xs"
+            fullWidth
+            PaperProps={{ sx: { borderRadius: 2, boxShadow: '0 8px 32px rgba(0,0,0,0.12)' } }}
+          >
+            <DialogTitle sx={{
+              background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+              color: 'white',
+              fontWeight: 800,
+              fontSize: '1.1rem',
+              py: 1.5
+            }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <SettingsIcon />
+                Grid Settings
+              </Box>
+            </DialogTitle>
+
+            <DialogContent sx={{ mt: 2, pb: 1 }}>
+              <Stack spacing={2.5}>
+                <Alert severity="info" sx={{ fontSize: '0.8rem', py: 0.5 }}>
+                  Settings auto-save and persist after reload 💾
+                </Alert>
+
+                {/* SORTABLE */}
+                <Box>
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={enableSorting}
+                        onChange={(e) => setEnableSorting(e.target.checked)}
+                        sx={{ '&.Mui-checked': { color: '#f59e0b' } }}
+                      />
+                    }
+                    label={
+                      <Box>
+                        <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#1e293b' }}>
+                          ⬆️ Enable Sorting
+                        </Typography>
+                        <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem' }}>
+                          Click column headers to sort ascending/descending
+                        </Typography>
+                      </Box>
+                    }
+                  />
+                </Box>
+
+                <Divider sx={{ my: 0.5 }} />
+
+                {/* FILTER */}
+                <Box>
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={enableColumnFilters}
+                        onChange={(e) => setEnableColumnFilters(e.target.checked)}
+                        sx={{ '&.Mui-checked': { color: '#f59e0b' } }}
+                      />
+                    }
+                    label={
+                      <Box>
+                        <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#1e293b' }}>
+                          🔍 Enable Column Filters
+                        </Typography>
+                        <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem' }}>
+                          Filter menu icon in column headers
+                        </Typography>
+                      </Box>
+                    }
+                  />
+                </Box>
+
+                <Divider sx={{ my: 0.5 }} />
+
+                {/* RESIZABLE */}
+                <Box>
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={enableColumnResize}
+                        onChange={(e) => setEnableColumnResize(e.target.checked)}
+                        sx={{ '&.Mui-checked': { color: '#f59e0b' } }}
+                      />
+                    }
+                    label={
+                      <Box>
+                        <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#1e293b' }}>
+                          ↔️ Enable Column Resize
+                        </Typography>
+                        <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem' }}>
+                          Drag column borders to adjust width
+                        </Typography>
+                      </Box>
+                    }
+                  />
+                </Box>
+
+              </Stack>
+            </DialogContent>
+
+            <DialogActions sx={{ p: 2, background: '#fef3c7', gap: 1 }}>
+              <Button
+                onClick={() => {
+                  setEnableSorting(true);
+                  setEnableColumnFilters(true);
+                  setEnableColumnResize(true);
+                  toast.success('Settings reset to default');
+                }}
+                sx={{
+                  fontWeight: 700,
+                  color: '#78716c',
+                  '&:hover': { bgcolor: 'rgba(120, 113, 108, 0.1)' }
+                }}
+              >
+                Reset
+              </Button>
+
+              <Box sx={{ flex: 1 }} />
+
+              <Button onClick={() => setGridSettingsOpen(false)} sx={{ fontWeight: 700 }}>Close</Button>
+              <Button onClick={() => setGridSettingsOpen(false)} variant="contained" sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: '#fff' }}>Done</Button>
+            </DialogActions>
+          </Dialog>
 
           {/* ========== TAB 1: SINGLE QC ========== */}
           {tabValue === 1 && (
@@ -3863,7 +4355,7 @@ export default function QCPage() {
             <Button onClick={() => setListColumnSettingsOpen(false)}>Done</Button>
           </DialogActions>
         </Dialog>
-      </Box>
-    </AppLayout>
+      </Box >
+    </AppLayout >
   );
 }

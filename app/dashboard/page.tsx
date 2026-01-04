@@ -52,6 +52,7 @@ import { dashboardAPI, inventoryAPI, inboundAPI, pickingAPI, outboundAPI } from 
 import { useWarehouse } from "@/app/context/WarehouseContext";
 import { getStoredUser, logout } from "@/lib/auth";
 import AppLayout from "@/components/AppLayout";
+import { StandardPageHeader } from '@/components';
 import toast, { Toaster } from "react-hot-toast";
 import * as XLSX from "xlsx";
 
@@ -1196,71 +1197,13 @@ export default function DashboardPage() {
         }}
       >
         {/* ================= HEADER ================= */}
-        <Box
-          sx={{
-            //bgcolor: "white",
-            background: "linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%)",
-            //borderBottom: "1px solid #e5e7eb",
-            color: "white",
-            px: 2,
-            py: 0.5,
-            mb: -1.5,
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            flexShrink: 0,
-          }}
-        >
-          <Typography variant="h6" sx={{ fontWeight: 700 }}>
-            📊 Dashboard
-          </Typography>
-
-          <Button
-            variant="outlined"
-            color="error"
-            size="small"
-            startIcon={<LogoutIcon />}
-            onClick={handleLogout}
-          >
-            LOGOUT
-          </Button>
-        </Box>
-
-        {/* ================= WELCOME BAR ================= */}
-        <Box
-          sx={{
-            background: "linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%)",
-            color: "white",
-            px: 2,
-            py: 1,
-            flexShrink: 0,
-          }}
-        >
-          <Typography
-            component="div"
-            sx={{
-              fontWeight: 600,
-              fontSize: 13,
-              display: "flex",
-              alignItems: "center",
-              gap: 1,
-            }}
-          >
-            👋 Welcome back, {user?.fullName} ({user?.role})
-
-            <Chip
-              label={activeWarehouse?.name}
-              size="small"
-              sx={{
-                bgcolor: "rgba(255,255,255,0.2)",
-                color: "yellow",
-                fontWeight: 600,
-                height: "18px",
-                fontSize: "0.55rem",
-              }}
-            />
-          </Typography>
-        </Box>
+        <StandardPageHeader
+          title="Dashboard"
+          subtitle="Track all warehouse operations"
+          icon="📊"
+          warehouseName={activeWarehouse?.name}
+          userName={user?.fullName}
+        />
 
         {/* =================  METRICS GRID WITH ICONS ================= */}
         <Box
@@ -1864,12 +1807,6 @@ export default function DashboardPage() {
                   '& .ag-cell-focus': { border: '2px solid #2563eb !important', boxSizing: 'border-box' },
                   '& .ag-cell-range-selected': { backgroundColor: '#dbeafe !important' },
                   '& .ag-row-hover': { backgroundColor: '#e5f3ff !important' },
-
-                  // AG Grid header styles
-                  '& .ag-header': { background: 'linear-gradient(135deg, #f0f8ff 0%, #e6f7ff 100%) !important' },
-                  '& .ag-header-row': { height: 44 },
-                  '& .ag-header-cell': { background: 'transparent', color: '#08306b', fontWeight: 700, borderBottom: '1px solid rgba(0,0,0,0.06)' },
-                  '& .ag-header-cell-label': { color: '#08306b' },
                 }}>
                   <div className="ag-theme-quartz" style={{ height: '100%', width: '100%' }}>
                     {topLoading && <LinearProgress color="primary" sx={{ height: 3, mb: 0.5 }} />}
