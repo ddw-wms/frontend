@@ -39,6 +39,9 @@ import {
     Tooltip,
     useMediaQuery,
     useTheme,
+    AppBar,
+    Toolbar,
+    IconButton,
 } from '@mui/material';
 import {
     Download as DownloadIcon,
@@ -50,6 +53,8 @@ import {
     Upload as UploadIcon,
     ExpandMore as ExpandMoreIcon,
     FilterList as FilterListIcon,
+    Tune as TuneIcon,
+    Close as CloseIcon,
 } from '@mui/icons-material';
 import { outboundAPI, customerAPI } from '@/lib/api';
 import { useWarehouse } from '@/app/context/WarehouseContext';
@@ -257,6 +262,7 @@ export default function OutboundPage() {
     // ====== OUTBOUND LIST STATE ======
     const [listData, setListData] = useState<OutboundItem[]>([]);
     const [listLoading, setListLoading] = useState(false);
+    const [isFetching, setIsFetching] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
     const [refreshSuccess, setRefreshSuccess] = useState(false);
     const [page, setPage] = useState(1);
@@ -273,15 +279,34 @@ export default function OutboundPage() {
     const [brandFilter, setBrandFilter] = useState('');
     const [categoryFilter, setCategoryFilter] = useState('');
 
+    // Grid Settings (persisted)
+    const [enableSorting, setEnableSorting] = useState<boolean>(() => {
+        try { return localStorage.getItem('outbound_enableSorting') !== 'false'; } catch { return true; }
+    });
+    const [enableColumnFilters, setEnableColumnFilters] = useState<boolean>(() => {
+        try { return localStorage.getItem('outbound_enableColumnFilters') !== 'false'; } catch { return true; }
+    });
+    const [enableColumnResize, setEnableColumnResize] = useState<boolean>(() => {
+        try { return localStorage.getItem('outbound_enableColumnResize') !== 'false'; } catch { return true; }
+    });
+    const [gridSettingsOpen, setGridSettingsOpen] = useState(false);
+    const [mobileActionsOpen, setMobileActionsOpen] = useState(false);
+
+    // Open mobile actions handler
+    const openMobileActions = () => { setMobileActionsOpen(true); };
+
     // Smooth loading helpers (prevent blinking overlay)
     const currentLoadIdRef = useRef(0);
     const outboundAbortControllerRef = useRef<AbortController | null>(null);
     const overlayTimerRef = useRef<NodeJS.Timeout | null>(null);
     const overlayShownRef = useRef(false);
     const overlayStartRef = useRef<number | null>(null);
+    const emptyTimerRef = useRef<NodeJS.Timeout | null>(null);
     const SHOW_OVERLAY_DELAY = 150; // ms
     const MIN_LOADING_MS = 350; // ms
+    const EMPTY_CONFIRM_DELAY = 400; // ms - delay before clearing rows when server returns empty
     const [topLoading, setTopLoading] = useState(false);
+    const previousDataRef = useRef<OutboundItem[] | null>(null);
     const [customers, setCustomers] = useState<string[]>([]);
     const [brands, setBrands] = useState<string[]>([]);
     const [categories, setCategories] = useState<string[]>([]);
@@ -1131,16 +1156,25 @@ export default function OutboundPage() {
                     setTopLoading(true);
                     overlayShownRef.current = true;
                     overlayStartRef.current = Date.now();
-                    try { gridRef.current?.api?.showLoadingOverlay(); } catch { }
+                    // We intentionally avoid AG Grid's built-in loading overlay to prevent "Loading..." text
+                    // and rely on our custom spinner overlays for consistency.
+                    try { gridRef.current?.api?.hideOverlay(); } catch { }
                 } catch (err) { }
                 overlayTimerRef.current = null;
             }, SHOW_OVERLAY_DELAY);
         }
 
-        // Cancel any previous in-flight request
+        // Mark fetching in-progress
+        setIsFetching(true);
+
+        // Cancel any previous in-flight request & pending empty timers
         if (outboundAbortControllerRef.current) {
             try { outboundAbortControllerRef.current.abort(); } catch { }
             outboundAbortControllerRef.current = null;
+        }
+        if (emptyTimerRef.current) {
+            clearTimeout(emptyTimerRef.current);
+            emptyTimerRef.current = null;
         }
         const controller = new AbortController();
         outboundAbortControllerRef.current = controller;
@@ -1161,10 +1195,75 @@ export default function OutboundPage() {
             // Only apply if this is the latest request
             if (loadId === currentLoadIdRef.current) {
                 const data = res.data.data || [];
-                setListData(data);
                 setTotal(res.data.total || 0);
 
-                // Populate customers filter from outbound-specific endpoint so filter shows only customers present in outbound data
+                // Clear any pending empty timers (we are about to handle the new response)
+                if (emptyTimerRef.current) {
+                    clearTimeout(emptyTimerRef.current);
+                    emptyTimerRef.current = null;
+                }
+
+                // If server returned rows, update immediately and keep them as previousData
+                if (data.length > 0) {
+                    // Use a delta update to avoid re-rendering the entire grid and causing blink
+                    try {
+                        const api = gridRef.current?.api;
+                        const getId = (row: any) => row?.wsn || row?.wid || row?.id || String(row?.__tempIndex || Math.random());
+
+                        if (api && previousDataRef.current && previousDataRef.current.length > 0) {
+                            const prevMap = new Map(previousDataRef.current.map((r: any) => [getId(r), r]));
+                            const newMap = new Map(data.map((r: any) => [getId(r), r]));
+
+                            const toRemove: any[] = [];
+                            const toAdd: any[] = [];
+                            const toUpdate: any[] = [];
+
+                            prevMap.forEach((row: any, id: any) => {
+                                if (!newMap.has(id)) toRemove.push(row);
+                            });
+
+                            newMap.forEach((row: any, id: any) => {
+                                if (!prevMap.has(id)) toAdd.push(row);
+                                else {
+                                    const prevRow = prevMap.get(id);
+                                    // shallow compare - update if changed
+                                    if (JSON.stringify(prevRow) !== JSON.stringify(row)) toUpdate.push(row);
+                                }
+                            });
+
+                            if (toRemove.length || toAdd.length || toUpdate.length) {
+                                try { api.applyTransaction({ remove: toRemove, add: toAdd, update: toUpdate }); } catch (e) { api.setRowData(data); }
+                            }
+                        } else {
+                            // no previous data - set directly
+                            if (api && typeof (api as any).setRowData === 'function') (api as any).setRowData(data);
+                        }
+
+                        setListData(data);
+                        previousDataRef.current = data;
+                    } catch (err) {
+                        // fallback
+                        setListData(data);
+                        previousDataRef.current = data;
+                        try { gridRef.current?.api?.setRowData(data); } catch { }
+                    }
+                } else {
+                    // Server returned zero rows - delay clearing previous rows to avoid flicker
+                    emptyTimerRef.current = setTimeout(() => {
+                        // Only clear if still the latest request
+                        if (loadId === currentLoadIdRef.current) {
+                            setListData([]);
+                            previousDataRef.current = [];
+                            try {
+                                if (gridRef.current && typeof (gridRef.current as any).setRowData === 'function') {
+                                    (gridRef.current as any).setRowData([]);
+                                }
+                            } catch (err) { /* ignore */ }
+                        }
+                        emptyTimerRef.current = null;
+                    }, EMPTY_CONFIRM_DELAY);
+                }
+
                 let uniqCusts: string[] = [];
                 try {
                     const custRes = await outboundAPI.getCustomers(activeWarehouse.id);
@@ -1234,8 +1333,21 @@ export default function OutboundPage() {
                 }
             }
         } catch (err: any) {
-            // ignore aborts
+            // Handle aborts: clear overlay/timer and return without clearing data
             if (err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED' || err?.name === 'AbortError') {
+                // Abort: clear timers, hide overlays, and clear fetching flag for the latest request
+                if (overlayTimerRef.current) {
+                    clearTimeout(overlayTimerRef.current);
+                    overlayTimerRef.current = null;
+                }
+                if (overlayShownRef.current) {
+                    try { gridRef.current?.api?.hideOverlay(); } catch { }
+                    overlayShownRef.current = false;
+                    overlayStartRef.current = null;
+                    try { setTopLoading(false); } catch { }
+                }
+                setIsFetching(false);
+                outboundAbortControllerRef.current = null;
                 return;
             }
 
@@ -1243,11 +1355,7 @@ export default function OutboundPage() {
             if (buttonRefresh) toast.error(err.response?.data?.error || 'Failed to refresh outbound list');
             else toast.error(err.response?.data?.error || 'Failed to load outbound list');
 
-            // Only clear data if this is the latest request
-            if (loadId === currentLoadIdRef.current) {
-                setListData([]);
-                setTotal(0);
-            }
+            // Do not clear existing list data on error to avoid blinking; keep previous rows visible
         } finally {
             // Only clear loading/overlays when this is the latest request
             if (loadId === currentLoadIdRef.current) {
@@ -1268,9 +1376,25 @@ export default function OutboundPage() {
                     }
                 }
 
-                if (buttonRefresh) setRefreshing(false);
-                else setListLoading(false);
+                // If we have no previous data and listData is empty (and there is no pending empty timer), show full spinner; else keep previous rows visible
+                if (!previousDataRef.current || (Array.isArray(previousDataRef.current) && previousDataRef.current.length === 0)) {
+                    if (!emptyTimerRef.current) {
+                        // No previous data - normal behavior
+                        if (buttonRefresh) setRefreshing(false);
+                        else setListLoading(false);
+                    } else {
+                        // If an empty timer is pending, keep showing old rows until it resolves; ensure we don't show full spinner
+                        if (buttonRefresh) setRefreshing(false);
+                        else setListLoading(false);
+                    }
+                } else {
+                    // We have previous data - keep it visible, don't show full-screen spinner
+                    if (buttonRefresh) setRefreshing(false);
+                    else setListLoading(false);
+                }
 
+                // Clear fetching flag for latest request
+                setIsFetching(false);
                 outboundAbortControllerRef.current = null;
             }
         }
@@ -1361,12 +1485,59 @@ export default function OutboundPage() {
         }
     }, [exportDialogOpen, activeWarehouse]);
 
+    // Grid settings persisted
+    useEffect(() => {
+        try {
+            const s = localStorage.getItem('outbound_enableSorting');
+            const f = localStorage.getItem('outbound_enableColumnFilters');
+            const r = localStorage.getItem('outbound_enableColumnResize');
+            if (s !== null) setEnableSorting(s === 'true');
+            if (f !== null) setEnableColumnFilters(f === 'true');
+            if (r !== null) setEnableColumnResize(r === 'true');
+        } catch { /* ignore */ }
+    }, []);
+
+
+
+    useEffect(() => {
+        try {
+            localStorage.setItem('outbound_enableSorting', String(enableSorting));
+            localStorage.setItem('outbound_enableColumnFilters', String(enableColumnFilters));
+            localStorage.setItem('outbound_enableColumnResize', String(enableColumnResize));
+        } catch { }
+    }, [enableSorting, enableColumnFilters, enableColumnResize]);
+
+    // Ensure AG Grid shows the correct overlay while fetching or when empty
+    useEffect(() => {
+        const api = gridRef.current;
+        if (!api) return;
+
+        // While fetching, ensure AG Grid overlays are hidden — we use custom spinners instead
+        if (isFetching) {
+            try { api.hideOverlay(); } catch { }
+            return;
+        }
+
+        if (!isFetching && !listLoading && listData.length === 0) {
+            try { api.showNoRowsOverlay(); } catch { }
+        } else {
+            try { api.hideOverlay(); } catch { }
+        }
+    }, [listData, listLoading, isFetching]);
+
     // Apply AG Grid quick filter when search input changes for instant UI filtering (mirrors Dashboard behaviour)
     useEffect(() => {
         const api = gridRef.current;
-        if (api && typeof api.setQuickFilter === 'function') {
-            api.setQuickFilter(searchFilter || '');
+        if (!api || typeof api.setQuickFilter !== 'function') return;
+
+        // If a server request is in-flight keep previous rows visible (avoid local filtering that can blank the grid)
+        if (isFetching) {
+            // Keep AG Grid overlays hidden while we show our custom spinner
+            try { api.hideOverlay(); } catch { }
+            return;
         }
+
+        api.setQuickFilter(searchFilter || '');
     }, [searchFilter, listData]);
 
     const handleDeleteBatch = async (batchId: string) => {
@@ -1460,7 +1631,7 @@ export default function OutboundPage() {
                 return {
                     field: col,
                     headerName: col.replace(/_/g, ' ').toUpperCase(),
-                    filter: 'agDateColumnFilter',
+                    filter: enableColumnFilters ? 'agDateColumnFilter' : undefined,
                     valueFormatter: (p: any) => formatDate(p.value),
                     tooltipField: col,
                     width: col === 'dispatch_date' ? 140 : 150,
@@ -1486,23 +1657,22 @@ export default function OutboundPage() {
             return {
                 field: col,
                 headerName: col.replace(/_/g, ' ').toUpperCase(),
-                filter: 'agTextColumnFilter',
+                filter: enableColumnFilters ? 'agTextColumnFilter' : undefined,
                 tooltipField: col,
                 width: col === 'wsn' ? 180 : 150,
             };
         });
 
         return [sr, ...cols];
-    }, [listColumns, page, limit]);
+    }, [listColumns, page, limit, enableColumnFilters, enableSorting, enableColumnResize]);
 
     const listDefaultColDef = useMemo(() => ({
-        sortable: true,
-        filter: true,
-        floatingFilter: false,
-        resizable: true,
+        sortable: !!enableSorting,
+        resizable: !!enableColumnResize,
+        filter: !!enableColumnFilters,
         suppressMenu: false,
         minWidth: 100,
-    }), []);
+    }), [enableSorting, enableColumnFilters, enableColumnResize]);
 
     if (!user) {
         return <CircularProgress />;
@@ -1553,10 +1723,7 @@ export default function OutboundPage() {
                     </Tabs>
                 </Paper>
 
-                {/* Top-loading animation (subtle) - matches Dashboard */}
-                <Box sx={{ width: '100%', opacity: topLoading ? 1 : 0, transition: 'opacity 220ms ease-in-out' }}>
-                    <LinearProgress color="primary" sx={{ height: 3, mb: 0.5 }} />
-                </Box>
+
 
                 {/* TAB 0: OUTBOUND LIST */}
                 {tabValue === 0 && (
@@ -1564,13 +1731,27 @@ export default function OutboundPage() {
                         {/* SEARCH + FILTERS TOGGLE */}
                         <Box sx={{ mb: 0.5 }}>
                             <Stack direction={{ xs: 'row', md: 'row' }} spacing={1} alignItems="center" sx={{ mb: 1 }}>
-                                <TextField size="small" placeholder="🔍 Search by WSN, Product or Customer" value={searchFilter} onChange={(e) => { setSearchFilter(e.target.value); setPage(1); }} sx={{ flex: 1, minWidth: 0, '& .MuiOutlinedInput-root': { height: 36 } }} />
+                                <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', width: '100%' }}>
+                                    <TextField size="small" placeholder="🔍 Search by WSN, Product or Customer" value={searchFilter} onChange={(e) => { setSearchFilter(e.target.value); setPage(1); }} sx={{ flex: 1, minWidth: 0, '& .MuiOutlinedInput-root': { height: 36 } }} />
+
+                                    {/* Mobile Actions button - opens full-screen filters/actions dialog */}
+                                    <Button
+                                        variant="contained"
+                                        color="primary"
+                                        startIcon={<TuneIcon />}
+                                        sx={{ display: { xs: 'inline-flex', md: 'none' }, size: 'small', height: 36, px: 2, textTransform: 'none' }}
+                                        onClick={openMobileActions}
+                                    >
+                                        Actions
+                                    </Button>
+                                </Box>
 
                                 <Button
                                     variant="outlined"
                                     onClick={() => setFiltersExpanded(!filtersExpanded)}
                                     sx={{
-                                        minWidth: { xs: 42, md: 120 },
+                                        display: { xs: 'none', md: 'inline-flex' },
+                                        minWidth: { md: 120 },
                                         height: 36,
 
                                         borderWidth: 2,
@@ -1671,6 +1852,7 @@ export default function OutboundPage() {
                                                     <Stack direction="row" spacing={0.5} justifyContent="flex-end" sx={{ width: '100%' }}>
                                                         <Button size="small" variant="outlined" onClick={handleListReset} sx={{ height: 36, fontSize: '0.7rem', fontWeight: 600 }}>RESET</Button>
                                                         <Button size="small" startIcon={<SettingsIcon sx={{ fontSize: 14 }} />} variant="outlined" onClick={() => setListColumnSettingsOpen(true)} sx={{ height: 36, fontSize: '0.7rem', fontWeight: 600 }}>COLS</Button>
+                                                        <Button size="small" startIcon={<SettingsIcon sx={{ fontSize: 14 }} />} variant="outlined" onClick={() => setGridSettingsOpen(true)} sx={{ height: 36, fontSize: '0.7rem', fontWeight: 600 }}>GRID</Button>
                                                         <Button size="small" startIcon={<DownloadIcon sx={{ fontSize: 14 }} />} variant="contained" onClick={() => setExportDialogOpen(true)} sx={{ height: 36, fontSize: '0.7rem', fontWeight: 600, background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)' }}>EXPORT</Button>
                                                         <Button
                                                             size="small"
@@ -1890,33 +2072,44 @@ export default function OutboundPage() {
                         </Box>
 
 
-                        {/* TABLE - AG GRID */}
+                        {/* TABLE - AG GRID (always render grid so header remains visible) */}
                         <Box sx={{ flex: 1, minHeight: 0, border: '1px solid #d1d5db', position: 'relative' }}>
-                            {listLoading ? (
-                                <Box sx={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                    <CircularProgress size={50} />
-                                </Box>
-                            ) : listData.length === 0 ? (
-                                <Box sx={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                    <Typography sx={{ fontWeight: 700, color: '#94a3b8' }}>📭 No data found</Typography>
-                                </Box>
-                            ) : (
-                                <Box sx={{ height: '100%', width: '100%' }}>
-                                    <div className="ag-theme-quartz" style={{ height: '100%', width: '100%' }}>
-                                        <AgGridReact
-                                            ref={gridRef}
-                                            rowData={listData}
-                                            columnDefs={listColumnDefs}
-                                            defaultColDef={listDefaultColDef}
-                                            rowSelection="single"
-                                            suppressRowClickSelection={true}
-                                            animateRows={true}
-                                            onGridReady={(params: any) => { gridRef.current = params.api; columnApiRef.current = params.columnApi; try { params.api.sizeColumnsToFit(); } catch (e) { /* ignore */ } }}
-                                            pagination={false}
-                                        />
-                                    </div>
-                                </Box>
-                            )}
+                            <Box sx={{ height: '100%', width: '100%' }}>
+                                <div className="ag-theme-quartz" style={{ height: '100%', width: '100%', position: 'relative', transition: 'opacity 200ms ease-in-out', opacity: topLoading ? 0.65 : 1 }}>
+                                    {/* Top-loading animation placed above the grid header to match Dashboard */}
+                                    {topLoading && <LinearProgress color="primary" sx={{ height: 3, mb: 0.5 }} />}
+
+                                    <AgGridReact
+                                        ref={gridRef}
+                                        rowData={listData}
+                                        columnDefs={listColumnDefs}
+                                        defaultColDef={listDefaultColDef}
+                                        rowSelection="single"
+                                        suppressRowClickSelection={true}
+                                        animateRows={false}
+                                        gridOptions={{ getRowId: (params: any) => params.data?.wsn || params.data?.wid || params.data?.id || String(params.rowIndex), suppressRowTransform: true }}
+                                        onGridReady={(params: any) => { gridRef.current = params.api; columnApiRef.current = params.columnApi; try { params.api.sizeColumnsToFit(); } catch (e) { /* ignore */ } }}
+                                        pagination={false}
+                                    />
+
+                                    {/* Full centered spinner overlay when loading and no previous data */}
+                                    {(isFetching || listLoading) && (!previousDataRef.current || previousDataRef.current.length === 0) && (
+                                        <Box sx={{ position: 'absolute', top: 48, bottom: 48, left: 0, right: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'rgba(255,255,255,0.8)', zIndex: 1200 }}>
+                                            <Box sx={{ textAlign: 'center' }}>
+                                                <CircularProgress size={56} />
+                                                <Typography sx={{ mt: 1, fontWeight: 700, color: '#64748b' }}>Loading results...</Typography>
+                                            </Box>
+                                        </Box>
+                                    )}
+
+                                    {/* Subtle overlay with small spinner when loading but previous rows exist */}
+                                    {(isFetching || listLoading) && previousDataRef.current && previousDataRef.current.length > 0 && (
+                                        <Box sx={{ position: 'absolute', top: 48, bottom: 48, left: 0, right: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'rgba(255,255,255,0.24)', zIndex: 1100 }}>
+                                            <CircularProgress size={36} />
+                                        </Box>
+                                    )}
+                                </div>
+                            </Box>
                         </Box>
 
                         {/* PAGINATION */}
@@ -2066,6 +2259,209 @@ export default function OutboundPage() {
                         </Dialog>
                     </Box>
                 )}
+
+                {/* MOBILE ACTIONS DIALOG (Filters + Actions for mobile) */}
+                <Dialog fullScreen open={mobileActionsOpen} onClose={() => setMobileActionsOpen(false)} TransitionProps={{}}>
+                    <AppBar position="sticky" elevation={1} sx={{ bgcolor: 'background.paper', color: 'text.primary' }}>
+                        <Toolbar>
+                            <IconButton edge="start" color="inherit" onClick={() => setMobileActionsOpen(false)} aria-label="close">
+                                <CloseIcon />
+                            </IconButton>
+                            <Typography sx={{ ml: 2, flex: 1, fontWeight: 700 }}>Filters & Actions</Typography>
+                            <Button color="primary" onClick={() => setMobileActionsOpen(false)}>Close</Button>
+                        </Toolbar>
+                    </AppBar>
+
+                    <DialogContent sx={{ p: 2 }}>
+                        <Stack spacing={2}>
+                            <Box display="flex" gap={1} flexDirection="column">
+                                <TextField select size="small" label="Source" value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value)} fullWidth SelectProps={{ MenuProps: { PaperProps: { style: { maxHeight: 300 } } } }} sx={{ '& .MuiOutlinedInput-root': { height: 40 } }}>
+                                    <MenuItem value="">All</MenuItem>
+                                    {sources.map((s) => (<MenuItem key={s} value={s}>{s}</MenuItem>))}
+                                </TextField>
+
+                                <Autocomplete
+                                    freeSolo
+                                    options={customers}
+                                    value={customerFilter}
+                                    onChange={(event, newValue) => setCustomerFilter(newValue || '')}
+                                    onInputChange={(event, newInputValue) => setCustomerFilter(newInputValue)}
+                                    renderInput={(params) => (
+                                        <TextField
+                                            {...params}
+                                            label="Customer"
+                                            size="small"
+                                            sx={{ '& .MuiOutlinedInput-root': { height: 40 } }}
+                                        />
+                                    )}
+                                    noOptionsText={customers.length === 0 ? "No customers available" : "No matching customers"}
+                                />
+
+                                <TextField select size="small" label="Brand" value={brandFilter} onChange={(e) => setBrandFilter(e.target.value)} fullWidth SelectProps={{ MenuProps: { PaperProps: { style: { maxHeight: 300 } } } }} sx={{ '& .MuiOutlinedInput-root': { height: 40 } }}>
+                                    <MenuItem value="">All Brands</MenuItem>
+                                    {(filteredBrands.length > 0 ? filteredBrands : brands).map((b) => (<MenuItem key={b} value={b}>{b}</MenuItem>))}
+                                </TextField>
+
+                                <TextField select size="small" label="Category" value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} fullWidth SelectProps={{ MenuProps: { PaperProps: { style: { maxHeight: 300 } } } }} sx={{ '& .MuiOutlinedInput-root': { height: 40 } }}>
+                                    <MenuItem value="">All Categories</MenuItem>
+                                    {(filteredCategories.length > 0 ? filteredCategories : categories).map((c) => (<MenuItem key={c} value={c}>{c}</MenuItem>))}
+                                </TextField>
+
+                                <Box display="flex" gap={1}>
+                                    <TextField label="From Date" type="date" size="small" variant="outlined" InputLabelProps={{ shrink: true }} value={startDateFilter || ''} onChange={(e) => setStartDateFilter(e.target.value)} sx={{ flex: 1, '& .MuiOutlinedInput-root': { height: 40 } }} />
+                                    <TextField label="To Date" type="date" size="small" variant="outlined" InputLabelProps={{ shrink: true }} value={endDateFilter || ''} onChange={(e) => setEndDateFilter(e.target.value)} sx={{ flex: 1, '& .MuiOutlinedInput-root': { height: 40 } }} />
+                                </Box>
+
+                                <TextField select size="small" label="Batch ID" value={batchFilter} onChange={(e) => setBatchFilter(e.target.value)} fullWidth SelectProps={{ MenuProps: { PaperProps: { style: { maxHeight: 300 } } } }} sx={{ '& .MuiOutlinedInput-root': { height: 40 } }}>
+                                    <MenuItem value="">All</MenuItem>
+                                    {batches.map((b: any) => (<MenuItem key={b.batch_id} value={b.batch_id}>{b.batch_id} {b.count ? `(${b.count})` : null}</MenuItem>))}
+                                </TextField>
+
+                                {/* Action buttons */}
+                                <Box sx={{ display: 'grid', gap: 1, mt: 1, gridTemplateColumns: 'repeat(2, 1fr)' }}>
+                                    <Button variant="outlined" sx={{ width: 170 }} onClick={() => { handleListReset(); }}>Reset</Button>
+                                    <Button variant="outlined" sx={{ width: 170 }} startIcon={<DownloadIcon />} onClick={() => { setExportStartDate(startDateFilter); setExportEndDate(endDateFilter); setExportCustomer(customerFilter); setExportBatchId(batchFilter); setExportSource(sourceFilter); setExportDialogOpen(true); }}>Export</Button>
+
+                                    <Button variant="outlined" sx={{ width: 170 }} startIcon={<SettingsIcon />} onClick={() => setListColumnSettingsOpen(true)}>Columns</Button>
+                                    <Button variant="outlined" sx={{ width: 170 }} startIcon={<TuneIcon />} onClick={() => setGridSettingsOpen(true)}>Grid</Button>
+                                </Box>
+
+                            </Box>
+                        </Stack>
+                    </DialogContent>
+
+                    <Box sx={{ position: 'sticky', bottom: 0, left: 0, right: 0, bgcolor: 'background.paper', p: 1, borderTop: '1px solid #e0e0e0', display: 'flex', gap: 1 }}>
+                        <Button fullWidth variant="outlined" onClick={() => { handleListReset(); }}>Reset</Button>
+                        <Button fullWidth variant="contained" onClick={() => { setPage(1); setMobileActionsOpen(false); }}>Apply</Button>
+                    </Box>
+                </Dialog>
+
+                {/* GRID SETTINGS DIALOG (Outbound) */}
+                <Dialog
+                    open={gridSettingsOpen}
+                    onClose={() => setGridSettingsOpen(false)}
+                    maxWidth="xs"
+                    fullWidth
+                    PaperProps={{ sx: { borderRadius: 2, boxShadow: '0 8px 32px rgba(0,0,0,0.12)' } }}
+                >
+                    <DialogTitle sx={{
+                        background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                        color: 'white',
+                        fontWeight: 800,
+                        fontSize: '1.1rem',
+                        py: 1.5
+                    }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <SettingsIcon />
+                            Grid Settings
+                        </Box>
+                    </DialogTitle>
+
+                    <DialogContent sx={{ mt: 2, pb: 1 }}>
+                        <Stack spacing={2.5}>
+                            <Alert severity="info" sx={{ fontSize: '0.8rem', py: 0.5 }}>
+                                Settings auto-save and persist after reload 💾
+                            </Alert>
+
+                            {/* SORTABLE */}
+                            <Box>
+                                <FormControlLabel
+                                    control={
+                                        <Checkbox
+                                            checked={enableSorting}
+                                            onChange={(e) => setEnableSorting(e.target.checked)}
+                                            sx={{ '&.Mui-checked': { color: '#f59e0b' } }}
+                                        />
+                                    }
+                                    label={
+                                        <Box>
+                                            <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#1e293b' }}>
+                                                ⬆️ Enable Sorting
+                                            </Typography>
+                                            <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem' }}>
+                                                Click column headers to sort ascending/descending
+                                            </Typography>
+                                        </Box>
+                                    }
+                                />
+                            </Box>
+
+                            <Divider sx={{ my: 0.5 }} />
+
+                            {/* FILTER */}
+                            <Box>
+                                <FormControlLabel
+                                    control={
+                                        <Checkbox
+                                            checked={enableColumnFilters}
+                                            onChange={(e) => setEnableColumnFilters(e.target.checked)}
+                                            sx={{ '&.Mui-checked': { color: '#f59e0b' } }}
+                                        />
+                                    }
+                                    label={
+                                        <Box>
+                                            <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#1e293b' }}>
+                                                🔍 Enable Column Filters
+                                            </Typography>
+                                            <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem' }}>
+                                                Filter menu icon in column headers
+                                            </Typography>
+                                        </Box>
+                                    }
+                                />
+                            </Box>
+
+                            <Divider sx={{ my: 0.5 }} />
+
+                            {/* RESIZABLE */}
+                            <Box>
+                                <FormControlLabel
+                                    control={
+                                        <Checkbox
+                                            checked={enableColumnResize}
+                                            onChange={(e) => setEnableColumnResize(e.target.checked)}
+                                            sx={{ '&.Mui-checked': { color: '#f59e0b' } }}
+                                        />
+                                    }
+                                    label={
+                                        <Box>
+                                            <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#1e293b' }}>
+                                                ↔️ Enable Column Resize
+                                            </Typography>
+                                            <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem' }}>
+                                                Drag column borders to adjust width
+                                            </Typography>
+                                        </Box>
+                                    }
+                                />
+                            </Box>
+
+                        </Stack>
+                    </DialogContent>
+
+                    <DialogActions sx={{ p: 2, background: '#fef3c7', gap: 1 }}>
+                        <Button
+                            onClick={() => {
+                                setEnableSorting(true);
+                                setEnableColumnFilters(true);
+                                setEnableColumnResize(true);
+                                toast.success('Settings reset to default');
+                            }}
+                            sx={{
+                                fontWeight: 700,
+                                color: '#78716c',
+                                '&:hover': { bgcolor: 'rgba(120, 113, 108, 0.1)' }
+                            }}
+                        >
+                            Reset
+                        </Button>
+
+                        <Box sx={{ flex: 1 }} />
+
+                        <Button onClick={() => setGridSettingsOpen(false)} sx={{ fontWeight: 700 }}>Close</Button>
+                        <Button onClick={() => setGridSettingsOpen(false)} variant="contained" sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: '#fff' }}>Done</Button>
+                    </DialogActions>
+                </Dialog>
 
                 {/* ====== TAB 1: SINGLE ENTRY ====== */}
                 {tabValue === 1 && (
