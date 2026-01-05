@@ -197,18 +197,18 @@ export default function OnboardingWizard({ open, onComplete }: OnboardingWizardP
             case 1:
                 // Step 2: Configure Printer
                 return (
-                    <Box sx={{ textAlign: 'center', py: { xs: 1.5, md: 4 }, px: { xs: 1, md: 0 } }}>
-                        <PrintIcon sx={{ fontSize: { xs: 36, md: 80 }, color: 'primary.main', mb: 1, mx: 'auto' }} />
-                        <Typography variant="h4" gutterBottom sx={{ fontSize: { xs: '1.25rem', md: '2rem' }, mb: 1 }}>
+                    <Box sx={{ textAlign: 'center', py: { xs: 0.5, md: 4 }, px: { xs: 1, md: 0 }, pb: { xs: 2, md: 0 } }}>
+                        <PrintIcon sx={{ fontSize: { xs: 28, md: 80 }, color: 'primary.main', mb: { xs: 0.5, md: 1 }, mx: 'auto' }} />
+                        <Typography variant="h4" gutterBottom sx={{ fontSize: { xs: '1rem', md: '2rem' }, mb: { xs: 0.5, md: 1 } }}>
                             Set Up Print Agent
                         </Typography>
-                        <Typography variant="body1" color="text.secondary" sx={{ mb: { xs: 2, md: 4 }, fontSize: { xs: '0.9rem', md: '1rem' } }}>
+                        <Typography variant="body1" color="text.secondary" sx={{ mb: { xs: 1.5, md: 4 }, fontSize: { xs: '0.75rem', md: '1rem' } }}>
                             Print Agent enables automatic label printing for your warehouse operations
                         </Typography>
 
-                        <Card sx={{ maxWidth: { xs: '100%', md: 500 }, mx: 'auto', mb: 3 }}>
-                            <CardContent>
-                                <Stack spacing={2}>                                    {printAgentConnected ? (
+                        <Card sx={{ maxWidth: { xs: '100%', md: 500 }, mx: 'auto', mb: { xs: 1, md: 3 } }}>
+                            <CardContent sx={{ py: { xs: 1.5, md: 2 }, px: { xs: 1.5, md: 2 } }}>
+                                <Stack spacing={{ xs: 1.5, md: 2 }}>                                    {printAgentConnected ? (
                                     <>
                                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, justifyContent: 'center' }}>
                                             <CheckCircleIcon color="success" />
@@ -226,12 +226,12 @@ export default function OnboardingWizard({ open, onComplete }: OnboardingWizardP
                                             Print Agent is not installed or not running
                                         </Alert>
 
-                                        <Typography variant="subtitle2" align="left">
+                                        <Typography variant="subtitle2" align="left" sx={{ fontSize: { xs: '0.75rem', md: '0.875rem' } }}>
                                             Quick Setup:
                                         </Typography>
 
-                                        <Box sx={{ textAlign: 'left', pl: 2 }}>
-                                            <Typography variant="body2" component="div">
+                                        <Box sx={{ textAlign: 'left', pl: { xs: 1.5, md: 2 } }}>
+                                            <Typography variant="body2" component="div" sx={{ fontSize: { xs: '0.7rem', md: '0.875rem' }, lineHeight: { xs: 1.4, md: 1.5 } }}>
                                                 1. Download the Print Agent installer
                                                 <br />
                                                 2. Run the downloaded file
@@ -247,12 +247,13 @@ export default function OnboardingWizard({ open, onComplete }: OnboardingWizardP
                                             startIcon={<DownloadIcon />}
                                             onClick={downloadPrintAgent}
                                             fullWidth
-                                            sx={{ mt: 2 }}
+                                            size="small"
+                                            sx={{ mt: { xs: 1, md: 2 }, height: { xs: 34, md: 42 } }}
                                         >
                                             Download Print Agent
                                         </Button>
 
-                                        <Typography variant="caption" color="text.secondary">
+                                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: { xs: '0.65rem', md: '0.75rem' } }}>
                                             Optional: You can set this up later from Settings → Printers
                                         </Typography>
                                     </>
@@ -266,48 +267,48 @@ export default function OnboardingWizard({ open, onComplete }: OnboardingWizardP
             case 2:
                 // Step 3: Ready to Start
                 return (
-                    <Box sx={{ textAlign: 'center', py: { xs: 1.5, md: 4 }, px: { xs: 1, md: 0 } }}>
-                        <RocketLaunchIcon sx={{ fontSize: { xs: 36, md: 80 }, color: 'primary.main', mb: 1, mx: 'auto' }} />
-                        <Typography variant="h4" gutterBottom sx={{ fontSize: { xs: '1.25rem', md: '2rem' }, mb: 1 }}>
+                    <Box sx={{ textAlign: 'center', py: { xs: 0.5, md: 4 }, px: { xs: 1, md: 0 }, pb: { xs: 2, md: 0 } }}>
+                        <RocketLaunchIcon sx={{ fontSize: { xs: 28, md: 80 }, color: 'primary.main', mb: { xs: 0.5, md: 1 }, mx: 'auto' }} />
+                        <Typography variant="h4" gutterBottom sx={{ fontSize: { xs: '1rem', md: '2rem' }, mb: { xs: 0.5, md: 1 } }}>
                             You're All Set! 🚀
                         </Typography>
-                        <Typography variant="body1" color="text.secondary" sx={{ mb: { xs: 2, md: 4 }, fontSize: { xs: '0.9rem', md: '1rem' } }}>
+                        <Typography variant="body1" color="text.secondary" sx={{ mb: { xs: 1.5, md: 4 }, fontSize: { xs: '0.75rem', md: '1rem' } }}>
                             Your workspace is configured and ready to use
                         </Typography>
 
-                        <Card sx={{ width: '100%', maxWidth: { xs: '100%', md: 600 }, mx: 'auto', mb: 2, boxSizing: 'border-box', px: { xs: 0.5, md: 0 } }}>
+                        <Card sx={{ width: '100%', maxWidth: { xs: '100%', md: 600 }, mx: 'auto', mb: { xs: 1, md: 2 }, boxSizing: 'border-box', px: { xs: 0.5, md: 0 } }}>
                             <CardContent sx={{ py: { xs: 1, md: 2 }, px: { xs: 1, md: 2 } }}>
-                                <Typography variant="h6" gutterBottom sx={{ fontSize: { xs: '1rem', md: '1.125rem' } }}>
+                                <Typography variant="h6" gutterBottom sx={{ fontSize: { xs: '0.9rem', md: '1.125rem' }, mb: { xs: 1, md: 1.5 } }}>
                                     Quick Guide:
                                 </Typography>
-                                <Stack spacing={2} sx={{ textAlign: 'left', mt: 2 }}>
-                                    <Box sx={{ display: 'flex', gap: 2 }}>
-                                        <Chip label="1" color="primary" size="small" />
-                                        <Typography variant="body2">
+                                <Stack spacing={{ xs: 1.2, md: 2 }} sx={{ textAlign: 'left', mt: { xs: 0.5, md: 2 } }}>
+                                    <Box sx={{ display: 'flex', gap: { xs: 1.5, md: 2 }, alignItems: 'flex-start' }}>
+                                        <Chip label="1" color="primary" size="small" sx={{ minWidth: { xs: 22, md: 28 } }} />
+                                        <Typography variant="body2" sx={{ fontSize: { xs: '0.7rem', md: '0.875rem' }, lineHeight: 1.4 }}>
                                             <strong>Inbound:</strong> Receive and process incoming inventory with WSN tracking
                                         </Typography>
                                     </Box>
-                                    <Box sx={{ display: 'flex', gap: 2 }}>
-                                        <Chip label="2" color="primary" size="small" />
-                                        <Typography variant="body2">
+                                    <Box sx={{ display: 'flex', gap: { xs: 1.5, md: 2 }, alignItems: 'flex-start' }}>
+                                        <Chip label="2" color="primary" size="small" sx={{ minWidth: { xs: 22, md: 28 } }} />
+                                        <Typography variant="body2" sx={{ fontSize: { xs: '0.7rem', md: '0.875rem' }, lineHeight: 1.4 }}>
                                             <strong>Processing:</strong> Organize items, assign racks, and perform quality checks
                                         </Typography>
                                     </Box>
-                                    <Box sx={{ display: 'flex', gap: 2 }}>
-                                        <Chip label="3" color="primary" size="small" />
-                                        <Typography variant="body2">
+                                    <Box sx={{ display: 'flex', gap: { xs: 1.5, md: 2 }, alignItems: 'flex-start' }}>
+                                        <Chip label="3" color="primary" size="small" sx={{ minWidth: { xs: 22, md: 28 } }} />
+                                        <Typography variant="body2" sx={{ fontSize: { xs: '0.7rem', md: '0.875rem' }, lineHeight: 1.4 }}>
                                             <strong>Picking:</strong> Create pick lists and manage order fulfillment
                                         </Typography>
                                     </Box>
-                                    <Box sx={{ display: 'flex', gap: 2 }}>
-                                        <Chip label="4" color="primary" size="small" />
-                                        <Typography variant="body2">
+                                    <Box sx={{ display: 'flex', gap: { xs: 1.5, md: 2 }, alignItems: 'flex-start' }}>
+                                        <Chip label="4" color="primary" size="small" sx={{ minWidth: { xs: 22, md: 28 } }} />
+                                        <Typography variant="body2" sx={{ fontSize: { xs: '0.7rem', md: '0.875rem' }, lineHeight: 1.4 }}>
                                             <strong>Outbound:</strong> Prepare and ship orders to customers
                                         </Typography>
                                     </Box>
-                                    <Box sx={{ display: 'flex', gap: 2 }}>
-                                        <Chip label="5" color="primary" size="small" />
-                                        <Typography variant="body2">
+                                    <Box sx={{ display: 'flex', gap: { xs: 1.5, md: 2 }, alignItems: 'flex-start' }}>
+                                        <Chip label="5" color="primary" size="small" sx={{ minWidth: { xs: 22, md: 28 } }} />
+                                        <Typography variant="body2" sx={{ fontSize: { xs: '0.7rem', md: '0.875rem' }, lineHeight: 1.4 }}>
                                             <strong>Dashboard:</strong> Monitor real-time metrics and warehouse performance
                                         </Typography>
                                     </Box>
@@ -315,8 +316,10 @@ export default function OnboardingWizard({ open, onComplete }: OnboardingWizardP
                             </CardContent>
                         </Card>
 
-                        <Alert severity="success" sx={{ maxWidth: { xs: '100%', md: 600 }, mx: 'auto', mt: 3 }}>
-                            💡 <strong>Tip:</strong> Visit Settings → Master Data to configure brands, categories, and customer information
+                        <Alert severity="success" sx={{ maxWidth: { xs: '100%', md: 600 }, mx: 'auto', mt: { xs: 1, md: 3 }, py: { xs: 0.5, md: 1 } }}>
+                            <Typography sx={{ fontSize: { xs: '0.7rem', md: '0.875rem' } }}>
+                                💡 <strong>Tip:</strong> Visit Settings → Master Data to configure brands, categories, and customer information
+                            </Typography>
                         </Alert>
                     </Box>
                 );
@@ -332,69 +335,199 @@ export default function OnboardingWizard({ open, onComplete }: OnboardingWizardP
             maxWidth="md"
             fullWidth
             disableEscapeKeyDown
+            scroll="paper"
             PaperProps={{
                 elevation: 24,
                 sx: {
-                    width: { xs: 320, sm: 520, md: 720 },
-                    maxWidth: '100%',
-                    maxHeight: { xs: '60vh', md: undefined },
-                    p: { xs: 0.5, md: 3 },
-                    mx: 'auto',
-                    borderRadius: 3,
-                    overflowX: 'hidden',
-                    overflowY: 'visible',
-                    boxSizing: 'border-box',
+                    borderRadius: 4,
+                    overflow: 'hidden',
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    p: 0.5,
+                    maxHeight: '90vh',
+                    m: 2,
                 },
             }}
         >
-            <DialogContent sx={{ px: { xs: 0.5, md: 3 }, py: { xs: 0.5, md: 2 } }}>
-                <Box sx={{ width: '100%', py: 0.5, maxHeight: isMobile ? '55vh' : undefined, overflowY: isMobile ? 'auto' : undefined, overflowX: 'hidden', boxSizing: 'border-box' }}>
-                    <Box sx={{ display: 'flex', justifyContent: 'center', mb: 0.5 }}>
-                        <Stepper activeStep={activeStep} sx={{ mb: 2, display: 'flex', flexWrap: 'wrap', gap: 0.25, justifyContent: 'center' }}>
+            <Box sx={{
+                background: 'white',
+                borderRadius: 3.5,
+                display: 'flex',
+                flexDirection: 'column',
+                maxHeight: 'calc(90vh - 4px)',
+            }}>
+                {/* Header */}
+                <Box sx={{
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    px: { xs: 2, md: 3 },
+                    py: { xs: 1.5, md: 2 },
+                    color: 'white',
+                    flexShrink: 0
+                }}>
+                    <Typography variant="h4" sx={{
+                        fontWeight: 800,
+                        fontSize: { xs: '1.15rem', md: '1.5rem' },
+                        textAlign: 'center',
+                        textShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                    }}>
+                        Welcome to Divine WMS
+                    </Typography>
+                    <Typography sx={{
+                        textAlign: 'center',
+                        fontSize: { xs: '0.75rem', md: '0.875rem' },
+                        mt: 0.5,
+                        opacity: 0.95
+                    }}>
+                        Let's set up your warehouse in 3 simple steps
+                    </Typography>
+                </Box>
+
+                <DialogContent sx={{
+                    px: { xs: 2, md: 3 },
+                    py: { xs: 2, md: 2.5 },
+                    overflow: 'auto',
+                    '&::-webkit-scrollbar': {
+                        width: '8px',
+                    },
+                    '&::-webkit-scrollbar-track': {
+                        background: '#f1f1f1',
+                        borderRadius: '4px',
+                    },
+                    '&::-webkit-scrollbar-thumb': {
+                        background: '#888',
+                        borderRadius: '4px',
+                        '&:hover': {
+                            background: '#555',
+                        },
+                    },
+                }}>
+                    {/* Stepper */}
+                    <Box sx={{
+                        display: 'flex',
+                        justifyContent: 'center',
+                        mb: { xs: 2, md: 2.5 }
+                    }}>
+                        <Stepper
+                            activeStep={activeStep}
+                            alternativeLabel
+                            sx={{
+                                width: '100%',
+                                maxWidth: 600,
+                                '& .MuiStepLabel-label': {
+                                    fontSize: { xs: '0.65rem', md: '0.8rem' },
+                                    fontWeight: 600,
+                                    mt: 0.5
+                                },
+                                '& .MuiStepIcon-root': {
+                                    fontSize: { xs: '1.15rem', md: '1.5rem' },
+                                    '&.Mui-active': {
+                                        color: '#667eea',
+                                    },
+                                    '&.Mui-completed': {
+                                        color: '#10b981',
+                                    }
+                                }
+                            }}
+                        >
                             {steps.map((label) => (
-                                <Step key={label} sx={{ '& .MuiStepLabel-label': { fontSize: { xs: '0.65rem', md: '0.9rem' } }, px: 0.25 }}>
+                                <Step key={label}>
                                     <StepLabel>{label}</StepLabel>
                                 </Step>
                             ))}
                         </Stepper>
                     </Box>
 
-                    <Box sx={{ minHeight: { xs: 'auto', md: '400px' } }}>
+                    {/* Content Area */}
+                    <Box>
                         {renderStepContent(activeStep)}
                     </Box>
 
-                    <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2, gap: 0.5, flexWrap: 'wrap' }}>
-                        <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap' }}>
-                            <Button
-                                disabled={activeStep === 0}
-                                onClick={handleBack}
-                                startIcon={<ArrowBackIcon />}
-                                size="small"
-                                sx={{ minWidth: 78, mx: 0.25, px: 1 }}
-                            >
-                                Back
-                            </Button>
+                    {/* Navigation Buttons */}
+                    <Box sx={{
+                        display: 'flex',
+                        justifyContent: 'center',
+                        gap: { xs: 1, md: 1.5 },
+                        mt: { xs: 2, md: 2.5 },
+                        pt: { xs: 2, md: 2.5 },
+                        borderTop: '1px solid #e5e7eb',
+                        flexWrap: 'wrap'
+                    }}>
+                        <Button
+                            disabled={activeStep === 0}
+                            onClick={handleBack}
+                            startIcon={<ArrowBackIcon />}
+                            variant="outlined"
+                            size={isMobile ? 'small' : 'medium'}
+                            sx={{
+                                minWidth: { xs: 85, md: 110 },
+                                height: { xs: 36, md: 44 },
+                                borderRadius: 3,
+                                fontWeight: 600,
+                                fontSize: { xs: '0.8rem', md: '0.9rem' },
+                                borderWidth: 2,
+                                '&:hover': {
+                                    borderWidth: 2,
+                                }
+                            }}
+                        >
+                            Back
+                        </Button>
 
-                            {activeStep === 1 && (
-                                <Button onClick={handleSkip} size="small" sx={{ minWidth: 78, mx: 0.25, px: 1 }}>
-                                    Skip for Now
-                                </Button>
-                            )}
-
+                        {activeStep === 1 && (
                             <Button
-                                variant="contained"
-                                onClick={handleNext}
-                                endIcon={activeStep === steps.length - 1 ? <CheckCircleIcon /> : <ArrowForwardIcon />}
-                                disabled={activeStep === 0 && !selectedWarehouse}
-                                size="small"
-                                sx={{ minWidth: 78, mx: 0.25, px: 1 }}
+                                onClick={handleSkip}
+                                variant="outlined"
+                                size={isMobile ? 'small' : 'medium'}
+                                sx={{
+                                    minWidth: { xs: 85, md: 110 },
+                                    height: { xs: 36, md: 44 },
+                                    borderRadius: 3,
+                                    fontWeight: 600,
+                                    fontSize: { xs: '0.8rem', md: '0.9rem' },
+                                    borderWidth: 2,
+                                    color: '#6b7280',
+                                    borderColor: '#e5e7eb',
+                                    '&:hover': {
+                                        borderWidth: 2,
+                                        borderColor: '#9ca3af',
+                                        bgcolor: '#f9fafb'
+                                    }
+                                }}
                             >
-                                {activeStep === steps.length - 1 ? 'Get Started' : 'Next'}
+                                Skip
                             </Button>
-                        </Box>
+                        )}
+
+                        <Button
+                            variant="contained"
+                            onClick={handleNext}
+                            endIcon={activeStep === steps.length - 1 ? <CheckCircleIcon /> : <ArrowForwardIcon />}
+                            disabled={activeStep === 0 && !selectedWarehouse}
+                            size={isMobile ? 'small' : 'medium'}
+                            sx={{
+                                minWidth: { xs: 100, md: 130 },
+                                height: { xs: 36, md: 44 },
+                                borderRadius: 3,
+                                fontWeight: 700,
+                                fontSize: { xs: '0.8rem', md: '0.9rem' },
+                                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                                boxShadow: '0 4px 14px rgba(102, 126, 234, 0.4)',
+                                '&:hover': {
+                                    background: 'linear-gradient(135deg, #5568d3 0%, #63408b 100%)',
+                                    boxShadow: '0 6px 20px rgba(102, 126, 234, 0.5)',
+                                    transform: 'translateY(-1px)'
+                                },
+                                '&:disabled': {
+                                    background: '#e5e7eb',
+                                    color: '#9ca3af'
+                                },
+                                transition: 'all 0.2s ease-in-out'
+                            }}
+                        >
+                            {activeStep === steps.length - 1 ? 'Get Started' : 'Next'}
+                        </Button>
                     </Box>
-                </Box>
-            </DialogContent>
+                </DialogContent>
+            </Box>
         </Dialog>
     );
 }

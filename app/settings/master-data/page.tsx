@@ -9,13 +9,14 @@ import {
   Dialog, DialogTitle, DialogContent, DialogActions, Chip, CircularProgress,
   LinearProgress, IconButton, Tabs, Tab, Menu, MenuItem, Checkbox, ListItemText,
   TextField, FormControl, InputLabel, Select, InputAdornment, Badge, useTheme, useMediaQuery,
-  Collapse
+  Collapse, Tooltip, FormControlLabel, Divider
 } from '@mui/material';
 import {
   Upload as UploadIcon, Refresh as RefreshIcon, Logout as LogoutIcon,
   GetApp as ExportIcon, Visibility as VisibilityIcon, Cancel as CancelIcon,
   DeleteSweep as DeleteSweepIcon, Download as DownloadIcon, Search as SearchIcon,
-  Speed as SpeedIcon, Clear as ClearIcon, CheckCircle
+  Speed as SpeedIcon, Clear as ClearIcon, CheckCircle, Settings as SettingsIcon,
+  Tune as TuneIcon
 } from '@mui/icons-material';
 import toast, { Toaster } from 'react-hot-toast';
 import { getStoredUser, logout } from '@/lib/auth';
@@ -24,6 +25,13 @@ import AppLayout from '@/components/AppLayout';
 import * as XLSX from 'xlsx';
 import { useRoleGuard } from '@/hooks/useRoleGuard';
 import FilterListIcon from '@mui/icons-material/FilterList';
+
+import { AgGridReact } from 'ag-grid-react';
+import { ModuleRegistry, AllCommunityModule, ClientSideRowModelModule } from 'ag-grid-community';
+import 'ag-grid-community/styles/ag-theme-quartz.css';
+
+// Register AG Grid modules
+ModuleRegistry.registerModules([AllCommunityModule, ClientSideRowModelModule]);
 
 
 
@@ -235,6 +243,39 @@ export default function MasterDataPage() {
   const [filterBrand, setFilterBrand] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [mobileActionsOpen, setMobileActionsOpen] = useState(false);
+
+  // AG Grid refs and state
+  const gridRef = useRef<any>(null);
+  const columnApiRef = useRef<any>(null);
+  const [columnDefs, setColumnDefs] = useState<any[]>([]);
+  const [topLoading, setTopLoading] = useState(false);
+  const [gridSettingsOpen, setGridSettingsOpen] = useState(false);
+  const overlayTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const overlayShownRef = useRef(false);
+  const overlayStartRef = useRef<number | null>(null);
+  const SHOW_OVERLAY_DELAY = 150;
+  const MIN_LOADING_MS = 350;
+
+  // Grid settings
+  const [enableSorting, setEnableSorting] = useState<boolean>(() => {
+    try { return localStorage.getItem('masterdata_enableSorting') !== 'false'; } catch { return true; }
+  });
+  const [enableColumnFilters, setEnableColumnFilters] = useState<boolean>(() => {
+    try { return localStorage.getItem('masterdata_enableColumnFilters') !== 'false'; } catch { return true; }
+  });
+  const [enableColumnResize, setEnableColumnResize] = useState<boolean>(() => {
+    try { return localStorage.getItem('masterdata_enableColumnResize') !== 'false'; } catch { return true; }
+  });
+
+  const defaultColDef = useMemo(() => ({
+    sortable: !!enableSorting,
+    resizable: !!enableColumnResize,
+    filter: !!enableColumnFilters,
+    minWidth: 100,
+    flex: 1,
+    tooltipComponentParams: { color: '#ececec' },
+  }), [enableSorting, enableColumnFilters, enableColumnResize]);
 
   const columns = [
     { id: 'wsn', label: 'WSN', width: 120 },
@@ -261,6 +302,114 @@ export default function MasterDataPage() {
     { id: 'actual_received', label: 'Actual Received', width: 130 },
     { id: 'created_at', label: 'Created', width: 150 }
   ];
+
+  // AG Grid column sizing helper
+  const getColumnSizing = useCallback((col: string) => {
+    const colConfig = columns.find(c => c.id === col);
+    if (!colConfig) return {};
+
+    if (isMobile) {
+      return {
+        width: Math.max(70, Math.round(colConfig.width * 0.7)),
+        minWidth: Math.max(70, Math.round(colConfig.width * 0.7)),
+        suppressSizeToFit: true
+      };
+    }
+
+    return {
+      width: colConfig.width,
+      minWidth: colConfig.width,
+      suppressSizeToFit: true
+    };
+  }, [isMobile]);
+
+  // Build column definitions for AG Grid
+  useEffect(() => {
+    const visibleCols = columns.filter(col => columnVisibility[col.id as keyof typeof columnVisibility]);
+
+    const defs: any = visibleCols.map((col) => {
+      const base: any = {
+        field: col.id,
+        headerName: col.label,
+        sortable: enableSorting,
+        resizable: enableColumnResize,
+        filter: enableColumnFilters ? 'agTextColumnFilter' : undefined,
+        tooltipField: col.id,
+        ...getColumnSizing(col.id),
+      };
+
+      // Grade column - chip renderer
+      if (col.id === 'fk_grade') {
+        return {
+          ...base,
+          cellRenderer: (p: any) => {
+            if (!p.value) return '-';
+            const color = getGradeColor(p.value);
+            return `<span style="display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; background-color: ${color === 'success' ? '#4caf50' : color === 'warning' ? '#ff9800' : color === 'error' ? '#f44336' : '#999'
+              }; color: white;">${p.value}</span>`;
+          },
+        };
+      }
+
+      // Actual received column - chip renderer
+      if (col.id === 'actual_received') {
+        return {
+          ...base,
+          cellRenderer: (p: any) => {
+            const status = p.value || 'Pending';
+            const color = status === 'Received' ? '#4caf50' : '#ff9800';
+            return `<span style="display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: bold; border: 1px solid ${color}; color: ${color};">${status}</span>`;
+          },
+        };
+      }
+
+      // Batch ID column - chip renderer
+      if (col.id === 'batch_id') {
+        return {
+          ...base,
+          cellRenderer: (p: any) => {
+            if (!p.value) return '-';
+            return `<span style="display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 0.7rem; border: 1px solid #1976d2; color: #1976d2;">${p.value}</span>`;
+          },
+        };
+      }
+
+      // Date columns
+      if (col.id.includes('date') || col.id === 'created_at') {
+        return {
+          ...base,
+          valueFormatter: (p: any) => {
+            if (!p.value) return '-';
+            if (col.id === 'invoice_date') return p.data?.invoice_date_display || '-';
+            if (col.id === 'created_at') return p.data?.created_at_display || '-';
+            return formatDateToIST(p.value, 'date');
+          },
+        };
+      }
+
+      // Price columns
+      if (col.id === 'fsp' || col.id === 'mrp' || col.id === 'vrp') {
+        return {
+          ...base,
+          valueFormatter: (p: any) => p.value ? `₹${p.value}` : '-',
+          cellStyle: { textAlign: 'right' }
+        };
+      }
+
+      return base;
+    });
+
+    setColumnDefs(defs);
+  }, [columnVisibility, enableSorting, enableColumnFilters, enableColumnResize, getColumnSizing]);
+
+  // Save grid settings to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('masterdata_enableSorting', String(enableSorting));
+      localStorage.setItem('masterdata_enableColumnFilters', String(enableColumnFilters));
+      localStorage.setItem('masterdata_enableColumnResize', String(enableColumnResize));
+    } catch { }
+  }, [enableSorting, enableColumnFilters, enableColumnResize]);
 
   // ✅ CRITICAL: Set isClient on mount
   useEffect(() => {
@@ -359,6 +508,21 @@ export default function MasterDataPage() {
       setRefreshSuccess(false);
     } else {
       setLoading(true);
+      // Show delayed overlay to avoid blinking on fast loads
+      if (masterData.length > 0) {
+        if (overlayTimerRef.current) clearTimeout(overlayTimerRef.current);
+        overlayShownRef.current = false;
+        overlayStartRef.current = null;
+        overlayTimerRef.current = setTimeout(() => {
+          try {
+            setTopLoading(true);
+            overlayShownRef.current = true;
+            overlayStartRef.current = Date.now();
+            try { gridRef.current?.api?.showLoadingOverlay(); } catch { }
+          } catch (err) { }
+          overlayTimerRef.current = null;
+        }, SHOW_OVERLAY_DELAY);
+      }
     }
 
     try {
@@ -407,6 +571,13 @@ export default function MasterDataPage() {
       const now = new Date();
       setLastRefreshTime(now);
 
+      // Update grid if available
+      if (gridRef.current && typeof gridRef.current.setRowData === 'function') {
+        try {
+          gridRef.current.setRowData(formattedData);
+        } catch { }
+      }
+
       if (buttonRefresh) {
         toast.success('✓ Refreshed');
         setRefreshSuccess(true);
@@ -419,6 +590,23 @@ export default function MasterDataPage() {
       if (buttonRefresh) {
         setRefreshing(false);
       } else {
+        // Handle overlay cleanup
+        if (overlayShownRef.current && overlayStartRef.current) {
+          const elapsed = Date.now() - overlayStartRef.current;
+          if (elapsed < MIN_LOADING_MS) {
+            await new Promise(res => setTimeout(res, MIN_LOADING_MS - elapsed));
+          }
+          try { gridRef.current?.api?.hideOverlay(); } catch { }
+          overlayShownRef.current = false;
+          overlayStartRef.current = null;
+          try { setTopLoading(false); } catch { }
+        } else {
+          if (overlayTimerRef.current) {
+            clearTimeout(overlayTimerRef.current);
+            overlayTimerRef.current = null;
+          }
+        }
+
         setLoading(false);
         setShowLoadingOverlay(false);
         if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
@@ -540,8 +728,34 @@ export default function MasterDataPage() {
   // ✅ ISSUE #5 FIX: Download template function
   const handleDownloadTemplate = async () => {
     try {
-      masterDataAPI.downloadTemplate();
-      toast.success('✓ Template download initiated!', { icon: '⬇️' });
+      const token = localStorage.getItem('token');
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/master-data/download-template`,
+        {
+          headers: { 'Authorization': `Bearer ${token}` }
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to download template');
+      }
+
+      // Get the blob from response
+      const blob = await response.blob();
+
+      // Create a download link
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'master-data-template.xlsx';
+      document.body.appendChild(a);
+      a.click();
+
+      // Cleanup
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      toast.success('✓ Template downloaded successfully!', { icon: '⬇️' });
     } catch (error: any) {
       console.error('❌ Template download error:', error);
       toast.error(`Failed to download template: ${error.message || error}`);
@@ -1021,7 +1235,7 @@ export default function MasterDataPage() {
                       display: 'grid',
                       gridTemplateColumns: {
                         md: 'repeat(auto-fit, minmax(100px, 1fr))',
-                        lg: 'repeat(9, 1fr)'
+                        lg: 'repeat(10, 1fr)'
                       },
                       gap: 0.5,
                       alignItems: 'center'
@@ -1163,6 +1377,24 @@ export default function MasterDataPage() {
                         <Box component="span" sx={{ display: { md: 'inline', lg: 'none' } }}>Cols</Box>
                       </Button>
 
+                      {/* Grid Settings Button */}
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        startIcon={<TuneIcon fontSize="small" sx={{ display: { md: 'none', lg: 'inline-flex' } }} />}
+                        onClick={() => setGridSettingsOpen(true)}
+                        sx={{
+                          height: 32,
+                          fontSize: { md: '0.7rem', lg: '0.75rem' },
+                          px: { md: 0.5, lg: 1.25 },
+                          whiteSpace: 'nowrap',
+                          minWidth: 0
+                        }}
+                      >
+                        <Box component="span" sx={{ display: { md: 'none', lg: 'inline' } }}>Grid</Box>
+                        <Box component="span" sx={{ display: { md: 'inline', lg: 'none' } }}>Grid</Box>
+                      </Button>
+
                       {/* Reset Button */}
                       <Button
                         variant="outlined"
@@ -1187,7 +1419,7 @@ export default function MasterDataPage() {
                   </Collapse>
                 </Box>
 
-                {/* MOBILE LAYOUT - Unchanged */}
+                {/* MOBILE LAYOUT */}
                 <Box sx={{ display: { xs: 'block', md: 'none' } }}>
                   <Stack direction="row" spacing={0.5} alignItems="center" sx={{ gap: 0.5 }}>
                     {/* Search Field */}
@@ -1209,39 +1441,20 @@ export default function MasterDataPage() {
                       InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" sx={{ color: '#1976d2' }} /></InputAdornment> }}
                     />
 
-                    {/* Filter Toggle Button */}
+                    {/* Mobile Actions Button */}
                     <Button
-                      size="small"
-                      variant={showAdvancedFilters ? "contained" : "outlined"}
-                      onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                      variant="contained"
+                      color="primary"
+                      startIcon={<TuneIcon />}
                       sx={{
                         height: 36,
-                        minWidth: 70,
-                        fontSize: '0.7rem',
-                        whiteSpace: 'nowrap',
-                        px: 1,
-                        fontWeight: 600,
-                        position: 'relative',
-                        borderWidth: 2,
-                        borderColor: showAdvancedFilters ? '#667eea' : '#cbd5e1',
-                        bgcolor: showAdvancedFilters ? 'rgba(102, 126, 234, 0.1)' : 'white',
-                        color: showAdvancedFilters ? '#667eea' : '#64748b',
+                        px: 2,
+                        textTransform: 'none',
+                        whiteSpace: 'nowrap'
                       }}
+                      onClick={() => setMobileActionsOpen(true)}
                     >
-                      <FilterListIcon sx={{ fontSize: 16, mr: 0.3 }} />
-                      Filters
-                      {(filterBatchId || filterStatus !== 'All' || filterBrand || filterCategory) && (
-                        <Box sx={{
-                          position: 'absolute',
-                          top: -6,
-                          right: -6,
-                          width: 12,
-                          height: 12,
-                          borderRadius: '50%',
-                          bgcolor: '#10b981',
-                          border: '2px solid white',
-                        }} />
-                      )}
+                      Actions
                     </Button>
 
                     {/* Refresh Button */}
@@ -1369,7 +1582,7 @@ export default function MasterDataPage() {
                       <Box sx={{ fontSize: '0.55rem', fontWeight: 600, mt: 0.1 }}>Export</Box>
                     </Button>
 
-                    {/* Row 3: Template, Columns, Reset */}
+                    {/* Row 3: Template, Columns, Grid, Reset */}
                     <Button
                       variant="outlined"
                       size="small"
@@ -1413,6 +1626,26 @@ export default function MasterDataPage() {
                     <Button
                       variant="outlined"
                       size="small"
+                      onClick={() => setGridSettingsOpen(true)}
+                      sx={{
+                        height: 36,
+                        fontSize: '0.65rem',
+                        px: 0.5,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        lineHeight: 1,
+                        minWidth: 0
+                      }}
+                    >
+                      <TuneIcon sx={{ fontSize: 16 }} />
+                      <Box sx={{ fontSize: '0.55rem', fontWeight: 600, mt: 0.1 }}>Grid</Box>
+                    </Button>
+
+                    <Button
+                      variant="outlined"
+                      size="small"
                       onClick={resetFilters}
                       sx={{
                         height: 36,
@@ -1438,41 +1671,64 @@ export default function MasterDataPage() {
 
 
 
-              {/* Excel-like Data Table */}
+              {/* AG Grid Table */}
               <Box sx={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', borderLeft: '1px solid #e0e0e0', borderRight: '1px solid #e0e0e0', position: 'relative' }}>
-                {showLoadingOverlay && loading && (
-                  <Box sx={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, bgcolor: 'rgba(255,255,255,0.65)', zIndex: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(0.5px)', opacity: showLoadingOverlay ? 1 : 0, transition: 'opacity 0.2s ease-in-out' }}>
-                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.8 }}>
-                      <CircularProgress size={36} thickness={4} />
-                      <Typography variant="caption" sx={{ fontSize: '0.7rem', color: 'text.secondary', fontWeight: 500 }}>Loading...</Typography>
-                    </Box>
-                  </Box>
-                )}
-                <TableContainer sx={{ flex: 1, overflow: 'auto' }}>
-                  <Table stickyHeader size="small" sx={{ borderCollapse: 'collapse' }}>
-                    <TableHead>
-                      <TableRow sx={{ backgroundColor: '#1565c0' }}>
-                        <TableCell sx={{ bgcolor: '#1565c0', color: 'white', fontWeight: '700', width: 35, py: 0.3, px: 0.8, border: '1px solid #1565c0', position: 'sticky', top: 0, zIndex: 3, fontSize: '0.8rem' }}>#</TableCell>
-                        {columns.filter(col => columnVisibility[col.id as keyof typeof columnVisibility]).map(col => (
-                          <TableCell key={col.id} sx={{ bgcolor: '#1565c0', color: 'white', fontWeight: '700', minWidth: col.width, py: 0.3, px: 0.8, border: '1px solid #1565c0', fontSize: '0.8rem', position: 'sticky', top: 0, zIndex: 3, textTransform: 'uppercase', letterSpacing: '0.3px' }}>{col.label}</TableCell>
-                        ))}
-                      </TableRow>
-                    </TableHead>
+                {topLoading && <LinearProgress color="primary" sx={{ height: 3 }} />}
 
-                    <TableBody>
-                      {masterData.map((row, idx) => (
-                        <MasterDataRow
-                          key={row.id || idx}
-                          row={row}
-                          idx={idx}
-                          page={page}
-                          rowsPerPage={rowsPerPage}
-                          columnVisibility={columnVisibility}
-                        />
-                      ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
+                <Box sx={{
+                  flex: 1,
+                  overflow: 'hidden',
+                  px: 1,
+                  pb: 1,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  '& .ag-root-wrapper': { height: '100%' },
+                  '& .ag-row': { height: 36 },
+                  '& .ag-row-even': { backgroundColor: '#ffffff' },
+                  '& .ag-row-odd': { backgroundColor: '#f9fafb' },
+                  '& .ag-cell-focus': { border: '2px solid #2563eb !important' },
+                  '& .ag-row-hover': { backgroundColor: '#e5f3ff !important' },
+                  '& .ag-header-cell': {
+                    backgroundColor: '#1565c0',
+                    color: 'white',
+                    fontWeight: 700,
+                    fontSize: '0.8rem',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.3px'
+                  }
+                }}>
+                  <div className="ag-theme-quartz" style={{ height: '100%', width: '100%' }}>
+                    <AgGridReact
+                      ref={gridRef}
+                      rowData={masterData}
+                      columnDefs={columnDefs}
+                      defaultColDef={defaultColDef}
+                      rowSelection="single"
+                      suppressRowClickSelection={true}
+                      getRowId={(params: any) => params.data?.id || params.data?.wsn || String(params.rowIndex)}
+                      onGridReady={(params: any) => {
+                        gridRef.current = params.api;
+                        columnApiRef.current = params.columnApi;
+                        try {
+                          const colApi = params.columnApi;
+                          const allCols = colApi.getAllColumns()?.map((c: any) => c.getColId()) || [];
+                          if (allCols.length > 0) {
+                            colApi.autoSizeColumns(allCols, false);
+                          }
+                        } catch { }
+                        try { params.api.sizeColumnsToFit(); } catch { }
+                      }}
+                      animateRows={false}
+                      rowBuffer={10}
+                      rowHeight={36}
+                      headerHeight={isMobile ? 40 : 48}
+                      pagination={false}
+                      suppressPaginationPanel={true}
+                      domLayout="normal"
+                    />
+                  </div>
+                </Box>
+
                 <Box sx={{ borderTop: '2px solid #1565c0', bgcolor: '#f5f5f5', py: 0.25 }}>
                   <TablePagination
                     component="div"
@@ -1515,11 +1771,11 @@ export default function MasterDataPage() {
 
                 <Table size="small" sx={{ minWidth: 600 }}>
                   <TableHead>
-                    <TableRow sx={{ bgcolor: '#1565c0' }}>
-                      <TableCell sx={{ fontWeight: '700', color: 'white', py: 1, fontSize: '0.95rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Batch ID</TableCell>
-                      <TableCell sx={{ fontWeight: '700', color: 'white', py: 1, fontSize: '0.95rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Records</TableCell>
-                      <TableCell sx={{ fontWeight: '700', color: 'white', py: 1, fontSize: '0.95rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Last Updated</TableCell>
-                      <TableCell sx={{ fontWeight: '700', color: 'white', py: 1, fontSize: '0.95rem', textTransform: 'uppercase', letterSpacing: '0.5px' }} align="center">Actions</TableCell>
+                    <TableRow>
+                      <TableCell sx={{ bgcolor: '#1565c0', color: 'white', fontWeight: '700', py: 1, fontSize: '0.95rem', textTransform: 'uppercase', letterSpacing: '0.5px', border: '1px solid #1565c0' }}>Batch ID</TableCell>
+                      <TableCell sx={{ bgcolor: '#1565c0', color: 'white', fontWeight: '700', py: 1, fontSize: '0.95rem', textTransform: 'uppercase', letterSpacing: '0.5px', border: '1px solid #1565c0' }}>Records</TableCell>
+                      <TableCell sx={{ bgcolor: '#1565c0', color: 'white', fontWeight: '700', py: 1, fontSize: '0.95rem', textTransform: 'uppercase', letterSpacing: '0.5px', border: '1px solid #1565c0' }}>Last Updated</TableCell>
+                      <TableCell sx={{ bgcolor: '#1565c0', color: 'white', fontWeight: '700', py: 1, fontSize: '0.95rem', textTransform: 'uppercase', letterSpacing: '0.5px', border: '1px solid #1565c0' }} align="center">Actions</TableCell>
                     </TableRow>
                   </TableHead>
 
@@ -1553,15 +1809,171 @@ export default function MasterDataPage() {
           ) : null}
         </Box>
 
-        {/* Column Visibility Menu */}
-        <Menu anchorEl={columnMenuAnchor} open={Boolean(columnMenuAnchor)} onClose={() => setColumnMenuAnchor(null)}>
-          {columns.map(col => (
-            <MenuItem key={col.id} onClick={() => toggleColumn(col.id)}>
-              <Checkbox checked={columnVisibility[col.id as keyof typeof columnVisibility]} />
-              <ListItemText primary={col.label} />
-            </MenuItem>
-          ))}
-        </Menu>
+        {/* COLUMNS DIALOG */}
+        <Dialog
+          open={columnMenuAnchor !== null}
+          onClose={() => setColumnMenuAnchor(null)}
+          maxWidth="sm"
+          fullWidth
+        >
+          <DialogTitle>Select Visible Columns</DialogTitle>
+          <DialogContent>
+            <Stack spacing={1} sx={{ mt: 2 }}>
+              {columns.map((col) => (
+                <FormControlLabel
+                  key={col.id}
+                  control={
+                    <Checkbox
+                      checked={columnVisibility[col.id as keyof typeof columnVisibility]}
+                      onChange={() => toggleColumn(col.id)}
+                    />
+                  }
+                  label={col.label}
+                />
+              ))}
+            </Stack>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setColumnMenuAnchor(null)}>Close</Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* GRID SETTINGS DIALOG */}
+        <Dialog
+          open={gridSettingsOpen}
+          onClose={() => setGridSettingsOpen(false)}
+          maxWidth="xs"
+          fullWidth
+          PaperProps={{ sx: { borderRadius: 2, boxShadow: '0 8px 32px rgba(0,0,0,0.12)' } }}
+        >
+          <DialogTitle sx={{
+            background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+            color: 'white',
+            fontWeight: 800,
+            fontSize: '1.1rem',
+            py: 1.5
+          }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <SettingsIcon />
+              Grid Settings
+            </Box>
+          </DialogTitle>
+
+          <DialogContent sx={{ mt: 2, pb: 1 }}>
+            <Stack spacing={2.5}>
+              <Paper sx={{ p: 1.5, bgcolor: '#e0f2fe', borderLeft: '4px solid #0ea5e9' }}>
+                <Typography variant="body2" sx={{ fontSize: '0.8rem', color: '#0369a1' }}>
+                  💾 Settings auto-save and persist after reload
+                </Typography>
+              </Paper>
+
+              {/* SORTABLE */}
+              <Box>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={enableSorting}
+                      onChange={(e) => setEnableSorting(e.target.checked)}
+                      sx={{ '&.Mui-checked': { color: '#f59e0b' } }}
+                    />
+                  }
+                  label={
+                    <Box>
+                      <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#1e293b' }}>
+                        ⬆️ Enable Sorting
+                      </Typography>
+                      <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem' }}>
+                        Click column headers to sort ascending/descending
+                      </Typography>
+                    </Box>
+                  }
+                />
+              </Box>
+
+              <Divider sx={{ my: 0.5 }} />
+
+              {/* FILTER */}
+              <Box>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={enableColumnFilters}
+                      onChange={(e) => setEnableColumnFilters(e.target.checked)}
+                      sx={{ '&.Mui-checked': { color: '#f59e0b' } }}
+                    />
+                  }
+                  label={
+                    <Box>
+                      <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#1e293b' }}>
+                        🔍 Enable Column Filters
+                      </Typography>
+                      <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem' }}>
+                        Filter menu icon in column headers
+                      </Typography>
+                    </Box>
+                  }
+                />
+              </Box>
+
+              <Divider sx={{ my: 0.5 }} />
+
+              {/* RESIZABLE */}
+              <Box>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={enableColumnResize}
+                      onChange={(e) => setEnableColumnResize(e.target.checked)}
+                      sx={{ '&.Mui-checked': { color: '#f59e0b' } }}
+                    />
+                  }
+                  label={
+                    <Box>
+                      <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#1e293b' }}>
+                        ↔️ Enable Column Resize
+                      </Typography>
+                      <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem' }}>
+                        Drag column borders to adjust width
+                      </Typography>
+                    </Box>
+                  }
+                />
+              </Box>
+
+            </Stack>
+          </DialogContent>
+
+          <DialogActions sx={{ p: 2, background: '#fef3c7', gap: 1 }}>
+            <Button
+              onClick={() => {
+                setEnableSorting(true);
+                setEnableColumnFilters(true);
+                setEnableColumnResize(true);
+                toast.success('Settings reset to default');
+              }}
+              sx={{
+                fontWeight: 700,
+                color: '#78716c',
+                '&:hover': { bgcolor: 'rgba(120, 113, 108, 0.1)' }
+              }}
+            >
+              🔄 Reset All
+            </Button>
+            <Button
+              onClick={() => setGridSettingsOpen(false)}
+              variant="contained"
+              sx={{
+                fontWeight: 700,
+                background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                '&:hover': {
+                  background: 'linear-gradient(135deg, #d97706 0%, #b45309 100%)',
+                }
+              }}
+            >
+              ✓ Done
+            </Button>
+          </DialogActions>
+        </Dialog>
 
         {/* Upload Dialog */}
         <Dialog
@@ -1810,31 +2222,315 @@ export default function MasterDataPage() {
           </DialogActions>
         </Dialog>
 
+        {/* Mobile Actions Dialog */}
+        <Dialog fullScreen open={mobileActionsOpen} onClose={() => setMobileActionsOpen(false)} TransitionProps={{}}>
+          <AppBar position="sticky" elevation={1} sx={{ bgcolor: 'background.paper', color: 'text.primary' }}>
+            <Toolbar>
+              <IconButton edge="start" color="inherit" onClick={() => setMobileActionsOpen(false)} aria-label="close">
+                <CancelIcon />
+              </IconButton>
+              <Typography sx={{ ml: 2, flex: 1, fontWeight: 700 }}>Filters & Actions</Typography>
+              <Button color="primary" onClick={() => setMobileActionsOpen(false)}>Close</Button>
+            </Toolbar>
+          </AppBar>
+
+          <DialogContent sx={{ p: 2 }}>
+            <Stack spacing={2}>
+              {/* Filters */}
+              <Box>
+                <FormControl fullWidth size="small">
+                  <InputLabel>Batch ID</InputLabel>
+                  <Select
+                    value={filterBatchId}
+                    label="Batch ID"
+                    onChange={(e) => { setFilterBatchId(e.target.value); setPage(0); }}
+                  >
+                    <MenuItem value="">All</MenuItem>
+                    {batches.map(b => (
+                      <MenuItem key={b.batch_id} value={b.batch_id}>{b.batch_id} ({formatNumber(b.count)})</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Box>
+
+              <Box>
+                <FormControl fullWidth size="small">
+                  <InputLabel>Status</InputLabel>
+                  <Select
+                    value={filterStatus}
+                    label="Status"
+                    onChange={(e) => { setFilterStatus(e.target.value); setPage(0); }}
+                  >
+                    <MenuItem value="All">All</MenuItem>
+                    <MenuItem value="Received">✅ Received</MenuItem>
+                    <MenuItem value="Pending">❌ Pending</MenuItem>
+                  </Select>
+                </FormControl>
+              </Box>
+
+              <Box>
+                <FormControl fullWidth size="small">
+                  <InputLabel>Brand</InputLabel>
+                  <Select
+                    value={filterBrand}
+                    label="Brand"
+                    onChange={(e) => { setFilterBrand(e.target.value); setPage(0); }}
+                  >
+                    <MenuItem value="">All</MenuItem>
+                    {Array.from(new Set(masterData.map(d => d.brand).filter(Boolean))).map(brand => (
+                      <MenuItem key={brand} value={brand}>{brand}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Box>
+
+              <Box>
+                <FormControl fullWidth size="small">
+                  <InputLabel>Category</InputLabel>
+                  <Select
+                    value={filterCategory}
+                    label="Category"
+                    onChange={(e) => { setFilterCategory(e.target.value); setPage(0); }}
+                  >
+                    <MenuItem value="">All</MenuItem>
+                    {Array.from(new Set(masterData.map(d => d.cms_vertical).filter(Boolean))).map(category => (
+                      <MenuItem key={category} value={category}>{category}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Box>
+
+              {/* Action buttons */}
+              <Box sx={{ display: 'grid', gap: 1, mt: 2, gridTemplateColumns: 'repeat(2, 1fr)' }}>
+                <Button
+                  variant="outlined"
+                  startIcon={<UploadIcon />}
+                  onClick={() => { setUploadDialogOpen(true); setMobileActionsOpen(false); }}
+                  fullWidth
+                >
+                  Upload
+                </Button>
+                <Button
+                  variant="outlined"
+                  startIcon={<DownloadIcon />}
+                  onClick={handleDownloadTemplate}
+                  fullWidth
+                >
+                  Template
+                </Button>
+                <Button
+                  variant="outlined"
+                  startIcon={<ExportIcon />}
+                  onClick={() => { setExportDialogOpen(true); setMobileActionsOpen(false); }}
+                  fullWidth
+                >
+                  Export
+                </Button>
+                <Button
+                  variant="outlined"
+                  startIcon={<VisibilityIcon />}
+                  onClick={() => { setColumnMenuAnchor(document.body); setMobileActionsOpen(false); }}
+                  fullWidth
+                >
+                  Columns
+                </Button>
+                <Button
+                  variant="outlined"
+                  startIcon={<TuneIcon />}
+                  onClick={() => { setGridSettingsOpen(true); setMobileActionsOpen(false); }}
+                  fullWidth
+                >
+                  Grid
+                </Button>
+                <Button
+                  variant="outlined"
+                  startIcon={<ClearIcon />}
+                  onClick={resetFilters}
+                  fullWidth
+                  color="error"
+                >
+                  Reset
+                </Button>
+              </Box>
+            </Stack>
+          </DialogContent>
+
+          <Box sx={{ position: 'sticky', bottom: 0, left: 0, right: 0, bgcolor: 'background.paper', p: 1, borderTop: '1px solid #e0e0e0', display: 'flex', gap: 1 }}>
+            <Button fullWidth variant="outlined" onClick={() => { setFilterBatchId(''); setFilterStatus('All'); setFilterBrand(''); setFilterCategory(''); setSearchQuery(''); setPage(0); }}>Reset All</Button>
+            <Button fullWidth variant="contained" onClick={() => { setPage(0); setMobileActionsOpen(false); }}>Apply</Button>
+          </Box>
+        </Dialog>
+
         {/* Export Dialog */}
-        <Dialog open={exportDialogOpen} onClose={() => setExportDialogOpen(false)} maxWidth="sm" fullWidth>
-          <DialogTitle fontWeight="bold">📥 Export to Excel</DialogTitle>
-          <DialogContent sx={{ p: 3 }}>
-            <Stack spacing={2} sx={{ mt: 1 }}>
+        <Dialog
+          open={exportDialogOpen}
+          onClose={() => setExportDialogOpen(false)}
+          maxWidth="md"
+          fullWidth
+          PaperProps={{
+            sx: {
+              borderRadius: 3,
+              boxShadow: '0 25px 50px rgba(0,0,0,0.25)',
+              overflow: 'hidden'
+            }
+          }}
+        >
+          <DialogTitle sx={{
+            fontWeight: 800,
+            background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+            color: 'white',
+            py: 3,
+            px: 3,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1.5
+          }}>
+            <DownloadIcon sx={{ fontSize: '1.5rem' }} />
+            Advanced Export Options
+            <Typography variant="caption" sx={{ ml: 'auto', opacity: 0.8, fontSize: '0.7rem' }}>
+              Filter & Download
+            </Typography>
+          </DialogTitle>
+
+          <DialogContent sx={{ py: 4, px: 3 }}>
+            <Stack spacing={3}>
+              {/* CURRENT FILTERS PREVIEW */}
+              <Paper sx={{
+                p: 2,
+                bgcolor: '#e0f2fe',
+                border: '1px solid #0ea5e9',
+                borderRadius: 2
+              }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1, color: '#0369a1' }}>
+                  📋 Applied Filters Preview:
+                </Typography>
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 1 }}>
+                  {debouncedSearch && (
+                    <Chip size="small" label={`🔍 "${debouncedSearch}"`} sx={{ bgcolor: '#dbeafe', color: '#1e40af' }} />
+                  )}
+                  {filterBrand && (
+                    <Chip size="small" label={`🏷️ ${filterBrand}`} sx={{ bgcolor: '#dcfce7', color: '#166534' }} />
+                  )}
+                  {filterCategory && (
+                    <Chip size="small" label={`📂 ${filterCategory}`} sx={{ bgcolor: '#fef3c7', color: '#92400e' }} />
+                  )}
+                  {filterBatchId && (
+                    <Chip size="small" label={`📦 Batch: ${filterBatchId}`} sx={{ bgcolor: '#f3e8ff', color: '#6b21a8' }} />
+                  )}
+                  {filterStatus && filterStatus !== 'All' && (
+                    <Chip size="small" label={`✅ ${filterStatus}`} sx={{ bgcolor: '#fef3c7', color: '#92400e' }} />
+                  )}
+                  {!debouncedSearch && !filterBrand && !filterCategory && !filterBatchId && (!filterStatus || filterStatus === 'All') && (
+                    <Chip size="small" label="📊 All Data" sx={{ bgcolor: '#fee2e2', color: '#dc2626' }} />
+                  )}
+                </Box>
+              </Paper>
+
+              {/* DIVIDER WITH ICON */}
+              <Divider sx={{ '&::before, &::after': { borderColor: '#e5e7eb' } }}>
+                <Box sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1,
+                  px: 2,
+                  py: 0.5,
+                  bgcolor: '#f9fafb',
+                  borderRadius: 2,
+                  border: '1px solid #e5e7eb'
+                }}>
+                  <SettingsIcon sx={{ fontSize: '1rem', color: '#6b7280' }} />
+                  <Typography variant="body2" sx={{ fontWeight: 600, color: '#6b7280' }}>
+                    Override Filters (Optional)
+                  </Typography>
+                </Box>
+              </Divider>
+
+              {/* OVERRIDE CONTROLS */}
+              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2 }}>
+                <TextField
+                  fullWidth
+                  label="Start Date Override"
+                  type="date"
+                  InputLabelProps={{ shrink: true }}
+                  value={exportDateFrom}
+                  onChange={(e) => setExportDateFrom(e.target.value)}
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      borderRadius: 2,
+                      '&:hover fieldset': { borderColor: '#10b981' },
+                      '&.Mui-focused fieldset': { borderColor: '#10b981' }
+                    }
+                  }}
+                />
+                <TextField
+                  fullWidth
+                  label="End Date Override"
+                  type="date"
+                  InputLabelProps={{ shrink: true }}
+                  value={exportDateTo}
+                  onChange={(e) => setExportDateTo(e.target.value)}
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      borderRadius: 2,
+                      '&:hover fieldset': { borderColor: '#10b981' },
+                      '&.Mui-focused fieldset': { borderColor: '#10b981' }
+                    }
+                  }}
+                />
+              </Box>
+
+              {/* BATCH SELECTION */}
               <FormControl fullWidth>
-                <InputLabel>Filter by Batches (Multi-select)</InputLabel>
+                <InputLabel sx={{ '&.Mui-focused': { color: '#10b981' } }}>
+                  Select Batch IDs (Multiple)
+                </InputLabel>
                 <Select
                   multiple
                   value={exportBatch}
-                  label="Filter by Batches (Multi-select)"
                   onChange={(e) => setExportBatch(typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value)}
                   renderValue={(selected) => (
                     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                       {selected.map((value) => (
-                        <Chip key={value} label={value} size="small" />
+                        <Chip
+                          key={value}
+                          label={value}
+                          size="small"
+                          onDelete={() => setExportBatch(exportBatch.filter(b => b !== value))}
+                          sx={{
+                            bgcolor: '#10b981',
+                            color: 'white',
+                            '& .MuiChip-deleteIcon': { color: 'white', '&:hover': { color: '#a7f3d0' } }
+                          }}
+                        />
                       ))}
                     </Box>
                   )}
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      borderRadius: 2,
+                      '&:hover fieldset': { borderColor: '#10b981' },
+                      '&.Mui-focused fieldset': { borderColor: '#10b981' }
+                    }
+                  }}
                 >
                   {batches && batches.length > 0 ? (
                     batches.map(b => (
-                      <MenuItem key={b.batch_id} value={b.batch_id}>
-                        <Checkbox checked={exportBatch.indexOf(b.batch_id) > -1} />
-                        <ListItemText primary={`${b.batch_id} (${formatNumber(b.count)} records)`} />
+                      <MenuItem key={b.batch_id} value={b.batch_id} sx={{ py: 1 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                            {b.batch_id}
+                          </Typography>
+                          <Chip
+                            label={`${formatNumber(b.count)} entries`}
+                            size="small"
+                            sx={{
+                              bgcolor: '#e5e7eb',
+                              color: '#374151',
+                              fontSize: '0.7rem',
+                              height: '20px'
+                            }}
+                          />
+                        </Box>
                       </MenuItem>
                     ))
                   ) : (
@@ -1843,31 +2539,30 @@ export default function MasterDataPage() {
                 </Select>
               </FormControl>
 
-              <Typography variant="body2" color="text.secondary" align="center">OR</Typography>
-
-              <TextField
-                label="From Date"
-                type="date"
-                value={exportDateFrom}
-                onChange={(e) => setExportDateFrom(e.target.value)}
-                InputLabelProps={{ shrink: true }}
-                fullWidth
-              />
-              <TextField
-                label="To Date"
-                type="date"
-                value={exportDateTo}
-                onChange={(e) => setExportDateTo(e.target.value)}
-                InputLabelProps={{ shrink: true }}
-                fullWidth
-              />
-
-              <Typography variant="caption" color="text.secondary">
-                💡 Select multiple batches OR use date range. Leave all empty to export current view.
-              </Typography>
+              {/* EXPORT SUMMARY */}
+              <Paper sx={{
+                bgcolor: '#f0fdf4',
+                border: '1px solid #bbf7d0',
+                borderRadius: 2,
+                p: 2
+              }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#166534', mb: 1 }}>
+                  📊 Export Summary:
+                </Typography>
+                <Typography variant="body2" sx={{ color: '#166534' }}>
+                  This will export filtered master data records to Excel with all selected criteria applied.
+                  The file will include all product details, dates, and batch information.
+                </Typography>
+              </Paper>
             </Stack>
           </DialogContent>
-          <DialogActions sx={{ p: 2 }}>
+
+          <DialogActions sx={{
+            p: 3,
+            bgcolor: '#f9fafb',
+            borderTop: '1px solid #e5e7eb',
+            gap: 1
+          }}>
             <Button
               onClick={() => {
                 setExportDialogOpen(false);
@@ -1876,16 +2571,38 @@ export default function MasterDataPage() {
                 setExportDateTo('');
               }}
               disabled={loading}
+              sx={{
+                borderRadius: 2,
+                px: 3,
+                fontWeight: 600,
+                color: '#6b7280',
+                '&:hover': { bgcolor: '#e5e7eb' }
+              }}
             >
               Cancel
             </Button>
             <Button
               variant="contained"
-              startIcon={loading ? <CircularProgress size={20} color="inherit" /> : <ExportIcon />}
               onClick={handleExport}
+              startIcon={loading ? <CircularProgress size={20} color="inherit" /> : <DownloadIcon />}
               disabled={loading}
+              sx={{
+                borderRadius: 2,
+                px: 4,
+                py: 1.5,
+                fontWeight: 700,
+                fontSize: '0.9rem',
+                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                boxShadow: '0 4px 14px rgba(16, 185, 129, 0.3)',
+                '&:hover': {
+                  background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+                  boxShadow: '0 6px 20px rgba(16, 185, 129, 0.4)',
+                  transform: 'translateY(-1px)'
+                },
+                transition: 'all 0.2s ease-in-out'
+              }}
             >
-              {loading ? 'Exporting...' : 'Export'}
+              {loading ? 'Exporting...' : 'Export Data'}
             </Button>
           </DialogActions>
         </Dialog>
