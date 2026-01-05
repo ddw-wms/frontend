@@ -7,7 +7,7 @@ export { StandardButton } from './StandardButton';
 export { StandardDialog } from './StandardDialog';
 export { ColumnSettingsDialog } from './ColumnSettingsDialog';
 export { ExportDialog } from './ExportDialog';
-export { StandardAGGrid } from './StandardAGGrid';
+export { default as StandardAGGrid } from './StandardAGGrid';
 export { StandardActionButtons, commonButtons } from './StandardActionButtons';
 export { useStandardGridStyles, statusCellRenderer, dateCellRenderer, currencyCellRenderer, numberCellRenderer } from './StandardGridStyles';
 export { default as AppLayout } from './AppLayout';
