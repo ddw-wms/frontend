@@ -754,12 +754,22 @@ export default function QCPage() {
         return {
           field: col,
           headerName: 'QC STATUS',
-          cellRenderer: (p: any) => {
-            if (!p.value) return '-';
-            const color = p.value === 'Pass' ? 'success' : p.value === 'Fail' ? 'error' : p.value === 'Done' ? 'info' : 'warning';
-            return (
-              `<div style="display: inline-block; padding: 2px 8px; border-radius: 12px; background: ${color === 'success' ? '#d1fae5' : color === 'error' ? '#fee2e2' : color === 'info' ? '#dbeafe' : '#fef3c7'}; color: ${color === 'success' ? '#065f46' : color === 'error' ? '#991b1b' : color === 'info' ? '#1e40af' : '#92400e'}; font-size: 0.7rem; font-weight: 600;">${p.value}</div>`
-            );
+          cellStyle: (p: any) => {
+            if (!p.value) return null;
+            const value = p.value;
+            const color = value === 'Pass' ? 'success' : value === 'Fail' ? 'error' : value === 'Done' ? 'info' : 'warning';
+            const bgColor = color === 'success' ? '#d1fae5' : color === 'error' ? '#fee2e2' : color === 'info' ? '#dbeafe' : '#fef3c7';
+            const textColor = color === 'success' ? '#065f46' : color === 'error' ? '#991b1b' : color === 'info' ? '#1e40af' : '#92400e';
+
+            return {
+              backgroundColor: bgColor,
+              color: textColor,
+              padding: '2px 8px',
+              borderRadius: '12px',
+              fontSize: '0.7rem',
+              fontWeight: '600' as any,
+              textAlign: 'center' as any,
+            };
           },
           width: 120,
         };
@@ -770,11 +780,17 @@ export default function QCPage() {
         return {
           field: col,
           headerName: 'QC GRADE',
-          cellRenderer: (p: any) => {
-            if (!p.value) return '-';
-            return (
-              `<div style="display: inline-block; padding: 2px 8px; border-radius: 12px; background: #e0e7ff; color: #3730a3; font-size: 0.7rem; font-weight: 700;">${p.value}</div>`
-            );
+          cellStyle: (p: any) => {
+            if (!p.value) return null;
+            return {
+              backgroundColor: '#e0e7ff',
+              color: '#3730a3',
+              padding: '2px 8px',
+              borderRadius: '12px',
+              fontSize: '0.7rem',
+              fontWeight: '700' as any,
+              textAlign: 'center' as any,
+            };
           },
           width: 120,
         };
