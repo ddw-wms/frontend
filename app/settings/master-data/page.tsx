@@ -273,7 +273,6 @@ export default function MasterDataPage() {
     resizable: !!enableColumnResize,
     filter: !!enableColumnFilters,
     minWidth: 100,
-    flex: 1,
     tooltipComponentParams: { color: '#ececec' },
   }), [enableSorting, enableColumnFilters, enableColumnResize]);
 
@@ -336,16 +335,11 @@ export default function MasterDataPage() {
         ...getColumnSizing(col.id),
       };
 
-      // Grade column - chip renderer
+      // Grade column - normal text
       if (col.id === 'fk_grade') {
         return {
           ...base,
-          cellRenderer: (p: any) => {
-            if (!p.value) return '-';
-            const color = getGradeColor(p.value);
-            return `<span style="display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; background-color: ${color === 'success' ? '#4caf50' : color === 'warning' ? '#ff9800' : color === 'error' ? '#f44336' : '#999'
-              }; color: white;">${p.value}</span>`;
-          },
+          valueFormatter: (p: any) => p.value || '-',
         };
       }
 
@@ -412,7 +406,12 @@ export default function MasterDataPage() {
       if (col.id === 'fsp' || col.id === 'mrp' || col.id === 'vrp') {
         return {
           ...base,
-          valueFormatter: (p: any) => p.value ? `₹${p.value}` : '-',
+          valueFormatter: (p: any) => {
+            if (!p.value) return '-';
+            // VRP shows normal number, FSP and MRP show rupees
+            if (col.id === 'vrp') return p.value;
+            return `₹${p.value}`;
+          },
           cellStyle: { textAlign: 'right' }
         };
       }

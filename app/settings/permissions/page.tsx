@@ -504,36 +504,6 @@ export default function PermissionsPage() {
                   '& .MuiChip-label': { px: { xs: 0.75, sm: 1 } }
                 }}
               />
-              <Chip
-                label={user?.full_name}
-                size="small"
-                avatar={<Box sx={{
-                  bgcolor: 'rgba(255,255,255,0.3)',
-                  width: { xs: 14, sm: 16 },
-                  height: { xs: 14, sm: 16 },
-                  borderRadius: '50%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: { xs: '0.55rem', sm: '0.6rem' }
-                }}>👤</Box>}
-                sx={{
-                  bgcolor: 'rgba(255,255,255,0.2)',
-                  color: 'white',
-                  fontWeight: 600,
-                  height: { xs: 20, sm: 24 },
-                  fontSize: { xs: '0.62rem', sm: '0.72rem' },
-                  border: '1.5px solid rgba(255,255,255,0.3)',
-                  backdropFilter: 'blur(10px)',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                  '& .MuiChip-label': { px: { xs: 0.75, sm: 1 } },
-                  '& .MuiChip-avatar': {
-                    width: { xs: 14, sm: 16 },
-                    height: { xs: 14, sm: 16 },
-                    ml: { xs: 0.5, sm: 0.75 }
-                  }
-                }}
-              />
             </Stack>
           </Box>
         </Box>

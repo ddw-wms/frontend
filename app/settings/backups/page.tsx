@@ -30,7 +30,10 @@ import {
     useMediaQuery,
     CircularProgress,
     Tooltip,
-    Stack
+    Stack,
+    Grid,
+    Divider,
+    Collapse
 } from '@mui/material';
 import {
     CloudDownload as DownloadIcon,
@@ -39,7 +42,9 @@ import {
     Restore as RestoreIcon,
     Storage as StorageIcon,
     Info as InfoIcon,
-    Warning as WarningIcon
+    Warning as WarningIcon,
+    MoreVert as MoreVertIcon,
+    Close as CloseIcon
 } from '@mui/icons-material';
 import { useRoleGuard } from '@/hooks/useRoleGuard';
 import AppLayout from '@/components/AppLayout';
@@ -83,6 +88,7 @@ export default function BackupPage() {
     const [confirmRestore, setConfirmRestore] = useState('');
     const [dbStats, setDbStats] = useState<DatabaseStats | null>(null);
     const [statsDialogOpen, setStatsDialogOpen] = useState(false);
+    const [mobileMenuOpen, setMobileMenuOpen] = useState<number | null>(null);
 
     useEffect(() => {
         loadBackups();
@@ -134,6 +140,9 @@ export default function BackupPage() {
     const handleDownloadBackup = async (backup: Backup) => {
         const toastId = toast.loading('Downloading backup...');
         try {
+            console.log('Downloading backup ID:', backup.id);
+            console.log('Request URL:', `/backups/download/${backup.id}`);
+
             const response = await api.get(`/backups/download/${backup.id}`, {
                 responseType: 'blob'
             });
@@ -148,8 +157,11 @@ export default function BackupPage() {
 
             toast.success('Backup downloaded!', { id: toastId });
         } catch (error: any) {
-            toast.error('Download failed', { id: toastId });
-            console.error(error);
+            console.error('Download error:', error);
+            console.error('Error response:', error.response?.data);
+            console.error('Error status:', error.response?.status);
+            console.error('Full error:', error);
+            toast.error(error.response?.data?.error || 'Download failed', { id: toastId });
         }
     };
 
@@ -219,191 +231,491 @@ export default function BackupPage() {
         }
     };
 
+    /////////////////////// UI Render ///////////////////////
     return (
         <AppLayout>
-            <Toaster position="top-center" />
+            <Toaster position="top-right" />
             <Box sx={{
-                p: { xs: 0.75, md: 1 },
+                p: { xs: 2, sm: 2.5, md: 3 },
                 background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
-                minHeight: { xs: 'calc(100vh - 60px)', md: '100%' },
+                minHeight: { xs: 'calc(100vh - 64px)', md: '100%' },
                 width: '100%',
                 display: 'flex',
                 flex: { md: 1 },
                 flexDirection: 'column',
                 overflowY: 'auto',
-                overflowX: 'auto',
-                pb: { xs: 0.5, md: 0 }
+                overflowX: 'hidden',
             }}>
 
                 {/* Header */}
                 <Box sx={{
                     position: 'sticky',
-                    top: 0,
+                    top: { xs: -16, md: 0 },
                     zIndex: 1000,
-                    background: 'linear-gradient(135deg, #1e293b 0%, #334155 100%)',
-                    borderRadius: { xs: '12px 12px 0 0', md: '16px 16px 0 0' },
-                    p: { xs: 1.5, md: 2.5 },
-                    mb: { xs: 1.5, md: 2 },
-                    boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+                    background: 'linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)',
+                    borderRadius: { xs: '12px', md: '16px' },
+                    p: { xs: 2, sm: 2.5, md: 3 },
+                    mb: { xs: 2, md: 3 },
+                    boxShadow: '0 8px 32px rgba(30, 58, 138, 0.25)',
                 }}>
-                    <Typography variant="h5" sx={{ fontWeight: 700, color: '#fff', mb: 0.5 }}>
-                        🔄 Database Backup & Restore
-                    </Typography>
-                    <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.8)' }}>
-                        Manage database backups and restore points
+                    <Stack direction="row" alignItems="center" spacing={1.5} mb={0.5}>
+                        <BackupIcon sx={{ color: '#fff', fontSize: { xs: 28, md: 32 } }} />
+                        <Typography variant={isMobile ? 'h6' : 'h5'} sx={{ fontWeight: 700, color: '#fff' }}>
+                            Database Backup & Restore
+                        </Typography>
+                    </Stack>
+                    <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.85)', fontSize: { xs: '0.875rem', md: '0.95rem' } }}>
+                        Securely backup and restore your WMS database
                     </Typography>
                 </Box>
 
                 {/* Content */}
                 <Box sx={{ flex: 1 }}>
 
-                    {/* Statistics Card */}
-                    <Card sx={{ mb: 3 }}>
-                        <CardContent>
-                            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3, justifyContent: 'space-around' }}>
-                                <Box textAlign="center" sx={{ minWidth: 120 }}>
-                                    <Typography variant="h4" color="primary.main">
-                                        {backups.length}
-                                    </Typography>
-                                    <Typography variant="body2" color="text.secondary">
-                                        Total Backups
-                                    </Typography>
-                                </Box>
-                                <Box textAlign="center" sx={{ minWidth: 120 }}>
-                                    <Typography variant="h4" color="success.main">
-                                        {dbStats?.total_database_size || '...'}
-                                    </Typography>
-                                    <Typography variant="body2" color="text.secondary">
-                                        Database Size
-                                    </Typography>
-                                </Box>
-                                <Box textAlign="center" sx={{ minWidth: 120 }}>
-                                    <Typography variant="h4" color="info.main">
-                                        {backups.filter(b => b.backup_type === 'full' || b.backup_type === 'json').length}
-                                    </Typography>
-                                    <Typography variant="body2" color="text.secondary">
-                                        Full Backups
-                                    </Typography>
-                                </Box>
-                                <Box textAlign="center" sx={{ minWidth: 120 }}>
-                                    <Button
-                                        variant="outlined"
-                                        startIcon={<InfoIcon />}
-                                        onClick={() => setStatsDialogOpen(true)}
-                                        fullWidth={isMobile}
-                                    >
-                                        View Details
-                                    </Button>
-                                </Box>
-                            </Box>
-                        </CardContent>
-                    </Card>
+                    {/* Statistics Cards */}
+                    <Box sx={{
+                        display: 'grid',
+                        gridTemplateColumns: { xs: 'repeat(4, 1fr)', sm: 'repeat(4, 1fr)' },
+                        gap: { xs: 0.75, md: 2 },
+                        mb: { xs: 2, md: 3 }
+                    }}>
+                        <Card sx={{
+                            height: '100%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            textAlign: 'center',
+                            background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+                            color: 'white',
+                            boxShadow: { xs: '0 2px 8px rgba(59, 130, 246, 0.3)', md: '0 4px 12px rgba(59, 130, 246, 0.3)' },
+                            transition: 'transform 0.2s, box-shadow 0.2s',
+                            '&:hover': {
+                                transform: { xs: 'none', md: 'translateY(-4px)' },
+                                boxShadow: { xs: '0 2px 8px rgba(59, 130, 246, 0.3)', md: '0 8px 24px rgba(59, 130, 246, 0.4)' },
+                            }
+                        }}>
+                            <CardContent sx={{
+                                py: { xs: 1, md: 3 },
+                                px: { xs: 0.5, md: 2 },
+                                width: '100%',
+                                '&:last-child': { pb: { xs: 1, md: 3 } }
+                            }}>
+                                <Typography variant="h4" sx={{ fontWeight: 700, mb: { xs: 0.25, md: 1 }, fontSize: { xs: '1.25rem', md: '2.125rem' } }}>
+                                    {backups.length}
+                                </Typography>
+                                <Typography variant="body2" sx={{ fontSize: { xs: '0.6rem', md: '0.875rem' }, fontWeight: 500, lineHeight: 1.2 }}>
+                                    Total Backups
+                                </Typography>
+                            </CardContent>
+                        </Card>
+
+                        <Card sx={{
+                            height: '100%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            textAlign: 'center',
+                            background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                            color: 'white',
+                            boxShadow: { xs: '0 2px 8px rgba(16, 185, 129, 0.3)', md: '0 4px 12px rgba(16, 185, 129, 0.3)' },
+                            transition: 'transform 0.2s, box-shadow 0.2s',
+                            '&:hover': {
+                                transform: { xs: 'none', md: 'translateY(-4px)' },
+                                boxShadow: { xs: '0 2px 8px rgba(16, 185, 129, 0.3)', md: '0 8px 24px rgba(16, 185, 129, 0.4)' },
+                            }
+                        }}>
+                            <CardContent sx={{
+                                py: { xs: 1, md: 3 },
+                                px: { xs: 0.5, md: 2 },
+                                width: '100%',
+                                '&:last-child': { pb: { xs: 1, md: 3 } }
+                            }}>
+                                <Typography variant="h6" sx={{ fontWeight: 700, mb: { xs: 0.25, md: 1 }, fontSize: { xs: '0.9rem', md: '2.125rem' } }}>
+                                    {dbStats?.total_database_size || '...'}
+                                </Typography>
+                                <Typography variant="body2" sx={{ fontSize: { xs: '0.6rem', md: '0.875rem' }, fontWeight: 500, lineHeight: 1.2 }}>
+                                    DB Size
+                                </Typography>
+                            </CardContent>
+                        </Card>
+
+                        <Card sx={{
+                            height: '100%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            textAlign: 'center',
+                            background: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
+                            color: 'white',
+                            boxShadow: { xs: '0 2px 8px rgba(139, 92, 246, 0.3)', md: '0 4px 12px rgba(139, 92, 246, 0.3)' },
+                            transition: 'transform 0.2s, box-shadow 0.2s',
+                            '&:hover': {
+                                transform: { xs: 'none', md: 'translateY(-4px)' },
+                                boxShadow: { xs: '0 2px 8px rgba(139, 92, 246, 0.3)', md: '0 8px 24px rgba(139, 92, 246, 0.4)' },
+                            }
+                        }}>
+                            <CardContent sx={{
+                                py: { xs: 1, md: 3 },
+                                px: { xs: 0.5, md: 2 },
+                                width: '100%',
+                                '&:last-child': { pb: { xs: 1, md: 3 } }
+                            }}>
+                                <Typography variant="h4" sx={{ fontWeight: 700, mb: { xs: 0.25, md: 1 }, fontSize: { xs: '1.25rem', md: '2.125rem' } }}>
+                                    {backups.filter(b => b.backup_type === 'full' || b.backup_type === 'json').length}
+                                </Typography>
+                                <Typography variant="body2" sx={{ fontSize: { xs: '0.6rem', md: '0.875rem' }, fontWeight: 500, lineHeight: 1.2 }}>
+                                    Full Backups
+                                </Typography>
+                            </CardContent>
+                        </Card>
+
+                        <Card sx={{
+                            height: '100%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            textAlign: 'center',
+                            background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                            color: 'white',
+                            boxShadow: { xs: '0 2px 8px rgba(245, 158, 11, 0.3)', md: '0 4px 12px rgba(245, 158, 11, 0.3)' },
+                            cursor: 'pointer',
+                            transition: 'transform 0.2s, box-shadow 0.2s',
+                            '&:hover': {
+                                transform: { xs: 'none', md: 'translateY(-4px)' },
+                                boxShadow: { xs: '0 2px 8px rgba(245, 158, 11, 0.3)', md: '0 8px 24px rgba(245, 158, 11, 0.4)' },
+                            }
+                        }}
+                            onClick={() => setStatsDialogOpen(true)}
+                        >
+                            <CardContent sx={{
+                                py: { xs: 1, md: 3 },
+                                px: { xs: 0.5, md: 2 },
+                                width: '100%',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                '&:last-child': { pb: { xs: 1, md: 3 } }
+                            }}>
+                                <InfoIcon sx={{ fontSize: { xs: 22, md: 40 }, mb: { xs: 0.25, md: 0.5 } }} />
+                                <Typography variant="body2" sx={{ fontSize: { xs: '0.6rem', md: '0.875rem' }, fontWeight: 500, lineHeight: 1.2 }}>
+                                    View Details
+                                </Typography>
+                            </CardContent>
+                        </Card>
+                    </Box>
 
                     {/* Action Buttons */}
-                    <Box sx={{ mb: 3, display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                    <Box sx={{ mb: 3 }}>
                         <Button
                             variant="contained"
+                            size="large"
                             startIcon={<BackupIcon />}
                             onClick={() => setCreateDialogOpen(true)}
+                            sx={{
+                                py: 1.5,
+                                px: 3,
+                                background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+                                boxShadow: '0 4px 12px rgba(59, 130, 246, 0.3)',
+                                fontWeight: 600,
+                                fontSize: '1rem',
+                                '&:hover': {
+                                    background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
+                                    boxShadow: '0 6px 20px rgba(59, 130, 246, 0.4)',
+                                    transform: 'translateY(-2px)',
+                                },
+                                transition: 'all 0.2s'
+                            }}
                         >
-                            Create Backup
+                            Create New Backup
                         </Button>
                     </Box>
 
                     {/* Important Notice */}
-                    <Alert severity="warning" icon={<WarningIcon />} sx={{ mb: 3 }}>
-                        <strong>Important:</strong> Database restore will overwrite current data.
-                        Always create a backup before restoring. For Supabase, you can also use
-                        their built-in backup features.
+                    <Alert
+                        severity="info"
+                        icon={<InfoIcon />}
+                        sx={{
+                            mb: 3,
+                            borderRadius: 2,
+                            border: '1px solid rgba(59, 130, 246, 0.3)',
+                            '& .MuiAlert-message': {
+                                fontSize: '0.875rem',
+                                width: '100%'
+                            }
+                        }}
+                    >
+                        <Typography variant="body2" fontWeight={600} mb={0.5}>
+                            ℹ️ Backup Information
+                        </Typography>
+                        <Typography variant="body2">
+                            JSON backups work with Supabase without requiring pg_dump. Restore operations will replace current data. Always download backups for safety.
+                        </Typography>
                     </Alert>
 
-                    {/* Backups Table */}
+                    {/* Backups List */}
                     {loading ? (
-                        <Box display="flex" justifyContent="center" py={4}>
-                            <CircularProgress />
+                        <Box display="flex" justifyContent="center" alignItems="center" py={8}>
+                            <CircularProgress size={48} />
                         </Box>
+                    ) : backups.length === 0 ? (
+                        <Paper sx={{
+                            p: { xs: 4, md: 6 },
+                            textAlign: 'center',
+                            borderRadius: 3,
+                            border: '2px dashed',
+                            borderColor: 'divider'
+                        }}>
+                            <StorageIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
+                            <Typography variant="h6" color="text.secondary" gutterBottom>
+                                No Backups Yet
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary" mb={3}>
+                                Create your first backup to secure your data
+                            </Typography>
+                            <Button
+                                variant="contained"
+                                startIcon={<BackupIcon />}
+                                onClick={() => setCreateDialogOpen(true)}
+                            >
+                                Create First Backup
+                            </Button>
+                        </Paper>
                     ) : (
-                        <TableContainer component={Paper}>
-                            <Table>
-                                <TableHead>
-                                    <TableRow>
-                                        <TableCell>File Name</TableCell>
-                                        <TableCell>Type</TableCell>
-                                        <TableCell>Size</TableCell>
-                                        <TableCell>Description</TableCell>
-                                        <TableCell>Created At</TableCell>
-                                        <TableCell align="right">Actions</TableCell>
-                                    </TableRow>
-                                </TableHead>
-                                <TableBody>
-                                    {backups.length === 0 ? (
-                                        <TableRow>
-                                            <TableCell colSpan={6} align="center">
-                                                <Typography variant="body2" color="text.secondary" py={4}>
-                                                    No backups found. Create your first backup to get started.
-                                                </Typography>
-                                            </TableCell>
-                                        </TableRow>
-                                    ) : (
-                                        backups.map((backup) => (
-                                            <TableRow key={backup.id} hover>
-                                                <TableCell>
-                                                    <Typography variant="body2" fontWeight={500}>
-                                                        {backup.file_name}
-                                                    </Typography>
-                                                </TableCell>
-                                                <TableCell>
-                                                    <Chip
-                                                        label={backup.backup_type.toUpperCase()}
-                                                        color={getBackupTypeColor(backup.backup_type) as any}
-                                                        size="small"
-                                                    />
-                                                </TableCell>
-                                                <TableCell>{backup.file_size_mb} MB</TableCell>
-                                                <TableCell>
-                                                    <Typography variant="body2" color="text.secondary">
-                                                        {backup.description || '-'}
-                                                    </Typography>
-                                                </TableCell>
-                                                <TableCell>{formatDate(backup.created_at)}</TableCell>
-                                                <TableCell align="right">
-                                                    <Tooltip title="Download">
-                                                        <IconButton
+                        <>
+                            {/* Desktop Table View */}
+                            {!isMobile ? (
+                                <TableContainer component={Paper} sx={{
+                                    borderRadius: 2,
+                                    boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
+                                    border: '1px solid',
+                                    borderColor: 'divider'
+                                }}>
+                                    <Table>
+                                        <TableHead>
+                                            <TableRow sx={{
+                                                bgcolor: 'grey.100',
+                                                '& th': {
+                                                    borderBottom: '2px solid',
+                                                    borderColor: 'divider'
+                                                }
+                                            }}>
+                                                <TableCell sx={{ fontWeight: 700, fontSize: '0.875rem' }}>File Name</TableCell>
+                                                <TableCell sx={{ fontWeight: 700, fontSize: '0.875rem', width: 100 }}>Type</TableCell>
+                                                <TableCell sx={{ fontWeight: 700, fontSize: '0.875rem', width: 100 }}>Size</TableCell>
+                                                <TableCell sx={{ fontWeight: 700, fontSize: '0.875rem', width: 200 }}>Description</TableCell>
+                                                <TableCell sx={{ fontWeight: 700, fontSize: '0.875rem', width: 180 }}>Created</TableCell>
+                                                <TableCell align="center" sx={{ fontWeight: 700, fontSize: '0.875rem', width: 140 }}>Actions</TableCell>
+                                            </TableRow>
+                                        </TableHead>
+                                        <TableBody>
+                                            {backups.map((backup) => (
+                                                <TableRow
+                                                    key={backup.id}
+                                                    hover
+                                                    sx={{
+                                                        '&:last-child td': { border: 0 },
+                                                        '&:hover': { bgcolor: 'action.hover' }
+                                                    }}
+                                                >
+                                                    <TableCell>
+                                                        <Typography variant="body2" fontWeight={500} fontFamily="monospace" fontSize="0.8rem">
+                                                            {backup.file_name}
+                                                        </Typography>
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <Chip
+                                                            label={backup.backup_type.toUpperCase()}
+                                                            color={getBackupTypeColor(backup.backup_type) as any}
                                                             size="small"
-                                                            color="primary"
+                                                            sx={{ fontWeight: 600, fontSize: '0.7rem' }}
+                                                        />
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <Typography variant="body2" fontWeight={500}>
+                                                            {backup.file_size_mb} MB
+                                                        </Typography>
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <Typography variant="body2" color="text.secondary" noWrap sx={{ maxWidth: 200 }}>
+                                                            {backup.description || '-'}
+                                                        </Typography>
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <Typography variant="body2" fontSize="0.85rem">
+                                                            {formatDate(backup.created_at)}
+                                                        </Typography>
+                                                    </TableCell>
+                                                    <TableCell align="center">
+                                                        <Stack direction="row" spacing={0.5} justifyContent="center">
+                                                            <Tooltip title="Download" arrow>
+                                                                <IconButton
+                                                                    size="small"
+                                                                    color="primary"
+                                                                    onClick={() => handleDownloadBackup(backup)}
+                                                                    sx={{
+                                                                        '&:hover': {
+                                                                            bgcolor: 'primary.light',
+                                                                            color: 'white'
+                                                                        }
+                                                                    }}
+                                                                >
+                                                                    <DownloadIcon fontSize="small" />
+                                                                </IconButton>
+                                                            </Tooltip>
+                                                            <Tooltip title="Restore" arrow>
+                                                                <IconButton
+                                                                    size="small"
+                                                                    color="success"
+                                                                    onClick={() => {
+                                                                        setSelectedBackup(backup);
+                                                                        setRestoreDialogOpen(true);
+                                                                    }}
+                                                                    sx={{
+                                                                        '&:hover': {
+                                                                            bgcolor: 'success.light',
+                                                                            color: 'white'
+                                                                        }
+                                                                    }}
+                                                                >
+                                                                    <RestoreIcon fontSize="small" />
+                                                                </IconButton>
+                                                            </Tooltip>
+                                                            <Tooltip title="Delete" arrow>
+                                                                <IconButton
+                                                                    size="small"
+                                                                    color="error"
+                                                                    onClick={() => handleDeleteBackup(backup)}
+                                                                    sx={{
+                                                                        '&:hover': {
+                                                                            bgcolor: 'error.light',
+                                                                            color: 'white'
+                                                                        }
+                                                                    }}
+                                                                >
+                                                                    <DeleteIcon fontSize="small" />
+                                                                </IconButton>
+                                                            </Tooltip>
+                                                        </Stack>
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+                                </TableContainer>
+                            ) : (
+                                /* Mobile Card View */
+                                <Stack spacing={2}>
+                                    {backups.map((backup) => (
+                                        <Card key={backup.id} sx={{
+                                            borderRadius: 2,
+                                            boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                                            transition: 'transform 0.2s, box-shadow 0.2s',
+                                            '&:active': {
+                                                transform: 'scale(0.98)',
+                                            }
+                                        }}>
+                                            <CardContent sx={{ p: 2 }}>
+                                                <Stack spacing={1.5}>
+                                                    {/* Header Row */}
+                                                    <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
+                                                        <Box flex={1}>
+                                                            <Typography variant="subtitle2" fontWeight={600} sx={{
+                                                                wordBreak: 'break-word',
+                                                                fontSize: '0.9rem',
+                                                                lineHeight: 1.3
+                                                            }}>
+                                                                {backup.file_name}
+                                                            </Typography>
+                                                        </Box>
+                                                        <Chip
+                                                            label={backup.backup_type.toUpperCase()}
+                                                            color={getBackupTypeColor(backup.backup_type) as any}
+                                                            size="small"
+                                                            sx={{ ml: 1, fontWeight: 600, fontSize: '0.7rem' }}
+                                                        />
+                                                    </Stack>
+
+                                                    <Divider />
+
+                                                    {/* Info Grid */}
+                                                    <Stack spacing={1.5}>
+                                                        <Box sx={{ display: 'flex', gap: 2 }}>
+                                                            <Box sx={{ flex: 1 }}>
+                                                                <Typography variant="caption" color="text.secondary" display="block">
+                                                                    Size
+                                                                </Typography>
+                                                                <Typography variant="body2" fontWeight={500}>
+                                                                    {backup.file_size_mb} MB
+                                                                </Typography>
+                                                            </Box>
+                                                            <Box sx={{ flex: 1 }}>
+                                                                <Typography variant="caption" color="text.secondary" display="block">
+                                                                    Created
+                                                                </Typography>
+                                                                <Typography variant="body2" fontWeight={500} fontSize="0.85rem">
+                                                                    {formatDate(backup.created_at)}
+                                                                </Typography>
+                                                            </Box>
+                                                        </Box>
+                                                        {backup.description && (
+                                                            <Box>
+                                                                <Typography variant="caption" color="text.secondary" display="block">
+                                                                    Description
+                                                                </Typography>
+                                                                <Typography variant="body2" fontSize="0.85rem">
+                                                                    {backup.description}
+                                                                </Typography>
+                                                            </Box>
+                                                        )}
+                                                    </Stack>
+
+                                                    <Divider />
+
+                                                    {/* Action Buttons */}
+                                                    <Stack direction="row" spacing={1}>
+                                                        <Button
+                                                            size="small"
+                                                            variant="outlined"
+                                                            startIcon={<DownloadIcon />}
                                                             onClick={() => handleDownloadBackup(backup)}
+                                                            fullWidth
                                                         >
-                                                            <DownloadIcon />
-                                                        </IconButton>
-                                                    </Tooltip>
-                                                    <Tooltip title="Restore">
-                                                        <IconButton
+                                                            Download
+                                                        </Button>
+                                                        <Button
                                                             size="small"
+                                                            variant="outlined"
                                                             color="success"
+                                                            startIcon={<RestoreIcon />}
                                                             onClick={() => {
                                                                 setSelectedBackup(backup);
                                                                 setRestoreDialogOpen(true);
                                                             }}
+                                                            fullWidth
                                                         >
-                                                            <RestoreIcon />
-                                                        </IconButton>
-                                                    </Tooltip>
-                                                    <Tooltip title="Delete">
+                                                            Restore
+                                                        </Button>
                                                         <IconButton
                                                             size="small"
                                                             color="error"
                                                             onClick={() => handleDeleteBackup(backup)}
+                                                            sx={{
+                                                                border: '1px solid',
+                                                                borderColor: 'error.main',
+                                                                borderRadius: 1
+                                                            }}
                                                         >
-                                                            <DeleteIcon />
+                                                            <DeleteIcon fontSize="small" />
                                                         </IconButton>
-                                                    </Tooltip>
-                                                </TableCell>
-                                            </TableRow>
-                                        ))
-                                    )}
-                                </TableBody>
-                            </Table>
-                        </TableContainer>
+                                                    </Stack>
+                                                </Stack>
+                                            </CardContent>
+                                        </Card>
+                                    ))}
+                                </Stack>
+                            )}
+                        </>
                     )}
 
                     {/* Create Backup Dialog */}
@@ -412,44 +724,113 @@ export default function BackupPage() {
                         onClose={() => setCreateDialogOpen(false)}
                         maxWidth="sm"
                         fullWidth
+                        fullScreen={isMobile}
+                        PaperProps={{
+                            sx: {
+                                borderRadius: { xs: 0, sm: 3 },
+                                m: { xs: 0, sm: 2 }
+                            }
+                        }}
                     >
-                        <DialogTitle>Create New Backup</DialogTitle>
-                        <DialogContent>
-                            <Box sx={{ pt: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        <DialogTitle sx={{
+                            background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+                            color: 'white',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            py: { xs: 2, md: 2.5 }
+                        }}>
+                            <Stack direction="row" alignItems="center" spacing={1.5}>
+                                <BackupIcon />
+                                <Typography variant={isMobile ? 'h6' : 'h6'} fontWeight={600}>
+                                    Create New Backup
+                                </Typography>
+                            </Stack>
+                            {isMobile && (
+                                <IconButton onClick={() => setCreateDialogOpen(false)} sx={{ color: 'white' }}>
+                                    <CloseIcon />
+                                </IconButton>
+                            )}
+                        </DialogTitle>
+                        <DialogContent sx={{ pt: { xs: 3, md: 3 }, pb: { xs: 1.5, md: 2 }, px: { xs: 2.5, md: 3 } }}>
+                            <Stack spacing={{ xs: 2.5, md: 3 }} sx={{ pt: 1.5 }}>
                                 <FormControl fullWidth>
                                     <InputLabel>Backup Type</InputLabel>
                                     <Select
                                         value={backupType}
                                         onChange={(e) => setBackupType(e.target.value as any)}
                                         label="Backup Type"
-                                    >
-                                        <MenuItem value="full">Full Backup (Schema + Data)</MenuItem>
-                                        <MenuItem value="schema">Schema Only</MenuItem>
-                                        <MenuItem value="data">Data Only</MenuItem>
+                                        sx={{
+                                            '& .MuiSelect-select': {
+                                                py: { xs: 1.5, md: 2 }
+                                            }
+                                        }}
+                                    >   <MenuItem value="full" sx={{ py: 1.5 }}>
+                                            <Stack spacing={0.25}>
+                                                <Typography variant="body2" fontWeight={500}>Full Backup</Typography>
+                                                <Typography variant="caption" color="text.secondary">Schema + All Data</Typography>
+                                            </Stack>
+                                        </MenuItem>
+                                        <MenuItem value="schema" sx={{ py: 1.5 }}>
+                                            <Stack spacing={0.25}>
+                                                <Typography variant="body2" fontWeight={500}>Schema Only</Typography>
+                                                <Typography variant="caption" color="text.secondary">Table Structure</Typography>
+                                            </Stack>
+                                        </MenuItem>
+                                        <MenuItem value="data" sx={{ py: 1.5 }}>
+                                            <Stack spacing={0.25}>
+                                                <Typography variant="body2" fontWeight={500}>Data Only</Typography>
+                                                <Typography variant="caption" color="text.secondary">Records Without Structure</Typography>
+                                            </Stack>
+                                        </MenuItem>
                                     </Select>
                                 </FormControl>
 
                                 <TextField
                                     label="Description (Optional)"
                                     multiline
-                                    rows={3}
+                                    rows={isMobile ? 2 : 3}
                                     value={description}
                                     onChange={(e) => setDescription(e.target.value)}
                                     placeholder="e.g., Before major update, Weekly backup, etc."
+                                    fullWidth
+                                    sx={{
+                                        '& .MuiOutlinedInput-root': {
+                                            fontSize: { xs: '0.9rem', md: '1rem' }
+                                        }
+                                    }}
                                 />
 
-                                <Alert severity="info">
-                                    <strong>Note:</strong> This requires pg_dump to be installed on the server.
-                                    For production on Supabase, use their backup features.
+                                <Alert severity="success" sx={{ borderRadius: { xs: 1.5, md: 2 }, py: { xs: 1, md: 1.5 } }}>
+                                    <Typography variant="body2" fontWeight={500} sx={{ fontSize: { xs: '0.85rem', md: '0.875rem' } }}>✓ Supabase Compatible</Typography>
+                                    <Typography variant="caption" sx={{ fontSize: { xs: '0.7rem', md: '0.75rem' } }}>
+                                        Uses JSON format, no pg_dump required
+                                    </Typography>
                                 </Alert>
-                            </Box>
+                            </Stack>
                         </DialogContent>
-                        <DialogActions>
-                            <Button onClick={() => setCreateDialogOpen(false)}>Cancel</Button>
+                        <DialogActions sx={{ px: { xs: 2, md: 3 }, pb: { xs: 2, md: 3 }, pt: { xs: 1, md: 1.5 }, gap: 1 }}>
+                            <Button
+                                onClick={() => setCreateDialogOpen(false)}
+                                fullWidth={isMobile}
+                                size="large"
+                                sx={{ fontWeight: 500 }}
+                            >
+                                Cancel
+                            </Button>
                             <Button
                                 variant="contained"
                                 onClick={handleCreateBackup}
                                 startIcon={<BackupIcon />}
+                                fullWidth={isMobile}
+                                size="large"
+                                sx={{
+                                    background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+                                    fontWeight: 600,
+                                    '&:hover': {
+                                        background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
+                                    }
+                                }}
                             >
                                 Create Backup
                             </Button>
@@ -462,34 +843,73 @@ export default function BackupPage() {
                         onClose={() => setRestoreDialogOpen(false)}
                         maxWidth="sm"
                         fullWidth
+                        fullScreen={isMobile}
+                        PaperProps={{
+                            sx: {
+                                borderRadius: { xs: 0, sm: 3 },
+                                m: { xs: 0, sm: 2 }
+                            }
+                        }}
                     >
-                        <DialogTitle>
-                            <Box display="flex" alignItems="center" gap={1}>
-                                <WarningIcon color="warning" />
-                                Restore Database
-                            </Box>
+                        <DialogTitle sx={{
+                            background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
+                            color: 'white',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            py: { xs: 2, md: 2.5 }
+                        }}>
+                            <Stack direction="row" alignItems="center" spacing={1.5}>
+                                <WarningIcon />
+                                <Typography variant={isMobile ? 'h6' : 'h6'} fontWeight={600}>
+                                    Restore Database
+                                </Typography>
+                            </Stack>
+                            {isMobile && (
+                                <IconButton onClick={() => {
+                                    setRestoreDialogOpen(false);
+                                    setConfirmRestore('');
+                                }} sx={{ color: 'white' }}>
+                                    <CloseIcon />
+                                </IconButton>
+                            )}
                         </DialogTitle>
-                        <DialogContent>
-                            <Box sx={{ pt: 2 }}>
-                                <Alert severity="error" sx={{ mb: 2 }}>
-                                    <strong>⚠️ WARNING:</strong> This will DELETE all current data and replace it with backup data.
-                                    <br />
-                                    <strong>Tables affected:</strong> warehouses, customers, racks, master_data, inbound, qc, picking, outbound, etc.
-                                    <br />
-                                    <strong>This action CANNOT be undone!</strong>
+                        <DialogContent sx={{ pt: 3, pb: 2 }}>
+                            <Stack spacing={2.5}>
+                                <Alert severity="error" sx={{ borderRadius: 2 }}>
+                                    <Typography variant="body2" fontWeight={600} mb={0.5}>
+                                        ⚠️ CRITICAL WARNING
+                                    </Typography>
+                                    <Typography variant="body2" component="div" fontSize="0.85rem">
+                                        • All current data will be DELETED
+                                        <br />
+                                        • Tables will be replaced with backup data
+                                        <br />
+                                        • This action CANNOT be undone
+                                    </Typography>
                                 </Alert>
 
-                                <Alert severity="info" sx={{ mb: 2 }}>
-                                    <strong>💡 Tip:</strong> Create a backup of current state before restoring, so you can revert if needed.
+                                <Alert severity="info" sx={{ borderRadius: 2 }}>
+                                    <Typography variant="body2" fontWeight={500}>
+                                        💡 Recommendation
+                                    </Typography>
+                                    <Typography variant="caption" display="block">
+                                        Create a backup of current state before restoring
+                                    </Typography>
                                 </Alert>
 
                                 {selectedBackup && (
-                                    <Box sx={{ mb: 2, p: 2, bgcolor: 'grey.100', borderRadius: 1 }}>
-                                        <Typography variant="body2"><strong>File:</strong> {selectedBackup.file_name}</Typography>
-                                        <Typography variant="body2"><strong>Type:</strong> {selectedBackup.backup_type.toUpperCase()}</Typography>
-                                        <Typography variant="body2"><strong>Date:</strong> {formatDate(selectedBackup.created_at)}</Typography>
-                                        <Typography variant="body2"><strong>Size:</strong> {selectedBackup.file_size_mb} MB</Typography>
-                                    </Box>
+                                    <Paper sx={{ p: 2, bgcolor: 'grey.50', borderRadius: 2 }}>
+                                        <Typography variant="caption" color="text.secondary" display="block" mb={1}>
+                                            BACKUP TO RESTORE:
+                                        </Typography>
+                                        <Stack spacing={0.5}>
+                                            <Typography variant="body2"><strong>File:</strong> {selectedBackup.file_name}</Typography>
+                                            <Typography variant="body2"><strong>Type:</strong> {selectedBackup.backup_type.toUpperCase()}</Typography>
+                                            <Typography variant="body2"><strong>Date:</strong> {formatDate(selectedBackup.created_at)}</Typography>
+                                            <Typography variant="body2"><strong>Size:</strong> {selectedBackup.file_size_mb} MB</Typography>
+                                        </Stack>
+                                    </Paper>
                                 )}
 
                                 <TextField
@@ -499,15 +919,24 @@ export default function BackupPage() {
                                     onChange={(e) => setConfirmRestore(e.target.value.toUpperCase())}
                                     placeholder="RESTORE"
                                     error={confirmRestore.length > 0 && confirmRestore !== 'RESTORE'}
-                                    helperText="Type RESTORE in capital letters to confirm"
+                                    helperText="Type RESTORE in capital letters to proceed"
+                                    autoFocus={!isMobile}
+                                    sx={{
+                                        '& .MuiOutlinedInput-root': {
+                                            fontSize: { xs: '1rem', md: '1rem' }
+                                        }
+                                    }}
                                 />
-                            </Box>
+                            </Stack>
                         </DialogContent>
-                        <DialogActions>
-                            <Button onClick={() => {
-                                setRestoreDialogOpen(false);
-                                setConfirmRestore('');
-                            }}>
+                        <DialogActions sx={{ px: 3, pb: 3, gap: 1 }}>
+                            <Button
+                                onClick={() => {
+                                    setRestoreDialogOpen(false);
+                                    setConfirmRestore('');
+                                }}
+                                fullWidth={isMobile}
+                            >
                                 Cancel
                             </Button>
                             <Button
@@ -516,8 +945,14 @@ export default function BackupPage() {
                                 onClick={handleRestoreBackup}
                                 disabled={confirmRestore !== 'RESTORE'}
                                 startIcon={<RestoreIcon />}
+                                fullWidth={isMobile}
+                                sx={{
+                                    background: confirmRestore === 'RESTORE'
+                                        ? 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)'
+                                        : undefined
+                                }}
                             >
-                                Restore Database
+                                Restore Now
                             </Button>
                         </DialogActions>
                     </Dialog>
@@ -528,45 +963,212 @@ export default function BackupPage() {
                         onClose={() => setStatsDialogOpen(false)}
                         maxWidth="md"
                         fullWidth
+                        fullScreen={isMobile}
+                        PaperProps={{
+                            sx: {
+                                borderRadius: { xs: 0, sm: 3 },
+                                m: { xs: 0, sm: 2 }
+                            }
+                        }}
                     >
-                        <DialogTitle>Database Statistics</DialogTitle>
-                        <DialogContent>
+                        <DialogTitle sx={{
+                            background: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
+                            color: 'white',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            py: { xs: 2, md: 2.5 }
+                        }}>
+                            <Stack direction="row" alignItems="center" spacing={1.5}>
+                                <StorageIcon />
+                                <Typography variant={isMobile ? 'h6' : 'h6'} fontWeight={600}>
+                                    Database Statistics
+                                </Typography>
+                            </Stack>
+                            <Stack direction="row" alignItems="center" spacing={1.5}>
+                                {dbStats && (
+                                    <Stack alignItems="flex-end" spacing={0.25}>
+                                        <Typography variant="caption" sx={{ opacity: 0.9, fontSize: { xs: '0.65rem', md: '0.7rem' } }}>
+                                            Total Size
+                                        </Typography>
+                                        <Typography variant={isMobile ? 'h6' : 'h5'} fontWeight={700} sx={{ lineHeight: 1 }}>
+                                            {dbStats.total_database_size}
+                                        </Typography>
+                                    </Stack>
+                                )}
+                                {isMobile && (
+                                    <IconButton onClick={() => setStatsDialogOpen(false)} sx={{ color: 'white' }}>
+                                        <CloseIcon />
+                                    </IconButton>
+                                )}
+                            </Stack>
+                        </DialogTitle>
+                        <DialogContent sx={{ pt: { xs: 1.5, md: 3 }, pb: { xs: 1, md: 2 }, px: { xs: 1.5, md: 3 } }}>
                             {dbStats && (
-                                <Box sx={{ pt: 2 }}>
-                                    <Typography variant="h6" gutterBottom>
-                                        Total Database Size: {dbStats.total_database_size}
-                                    </Typography>
-
-                                    <TableContainer>
-                                        <Table size="small">
-                                            <TableHead>
-                                                <TableRow>
-                                                    <TableCell>Table Name</TableCell>
-                                                    <TableCell align="right">Size</TableCell>
-                                                </TableRow>
-                                            </TableHead>
-                                            <TableBody>
+                                <Box>
+                                    {isMobile ? (
+                                        // Mobile Compact Table-like View
+                                        <Box sx={{
+                                            border: '1px solid',
+                                            borderColor: 'divider',
+                                            borderRadius: 1.5,
+                                            overflow: 'hidden',
+                                            bgcolor: 'white'
+                                        }}>
+                                            {/* Header */}
+                                            <Box sx={{
+                                                display: 'flex',
+                                                bgcolor: 'grey.100',
+                                                borderBottom: '2px solid',
+                                                borderColor: 'divider',
+                                                py: 0.75,
+                                                px: 1.25
+                                            }}>
+                                                <Typography variant="caption" fontWeight={700} sx={{ flex: 1, fontSize: '0.7rem' }}>
+                                                    Table Name
+                                                </Typography>
+                                                <Typography variant="caption" fontWeight={700} sx={{ width: 60, textAlign: 'right', fontSize: '0.7rem' }}>
+                                                    Size
+                                                </Typography>
+                                            </Box>
+                                            {/* Rows */}
+                                            <Box sx={{ overflow: 'auto' }}>
                                                 {dbStats.tables.map((table, index) => (
-                                                    <TableRow key={`${table.schema}.${table.table_name}-${index}`}>
-                                                        <TableCell>
+                                                    <Box
+                                                        key={`${table.schema}.${table.table_name}-${index}`}
+                                                        sx={{
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            py: 0.75,
+                                                            px: 1.25,
+                                                            borderBottom: index < dbStats.tables.length - 1 ? '1px solid' : 'none',
+                                                            borderColor: 'divider',
+                                                            '&:active': {
+                                                                bgcolor: 'action.selected'
+                                                            }
+                                                        }}
+                                                    >
+                                                        <Typography
+                                                            variant="body2"
+                                                            fontFamily="monospace"
+                                                            sx={{
+                                                                flex: 1,
+                                                                fontSize: '0.7rem',
+                                                                overflow: 'hidden',
+                                                                textOverflow: 'ellipsis',
+                                                                whiteSpace: 'nowrap',
+                                                                pr: 1
+                                                            }}
+                                                        >
                                                             {table.schema === 'public' ? table.table_name : `${table.schema}.${table.table_name}`}
-                                                        </TableCell>
-                                                        <TableCell align="right">{table.size}</TableCell>
-                                                    </TableRow>
+                                                        </Typography>
+                                                        <Chip
+                                                            label={table.size}
+                                                            size="small"
+                                                            color="primary"
+                                                            sx={{
+                                                                height: 18,
+                                                                fontSize: '0.65rem',
+                                                                fontWeight: 600,
+                                                                '& .MuiChip-label': {
+                                                                    px: 0.75
+                                                                }
+                                                            }}
+                                                        />
+                                                    </Box>
                                                 ))}
-                                            </TableBody>
-                                        </Table>
-                                    </TableContainer>
+                                            </Box>
+                                        </Box>
+                                    ) : (
+                                        // Desktop Compact Table View
+                                        <TableContainer component={Paper} sx={{
+                                            borderRadius: 2,
+                                            boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                                            border: '1px solid',
+                                            borderColor: 'divider',
+                                            maxHeight: 400,
+                                            overflow: 'auto'
+                                        }}>
+                                            <Table size="small" stickyHeader>
+                                                <TableHead>
+                                                    <TableRow>
+                                                        <TableCell sx={{
+                                                            fontWeight: 700,
+                                                            bgcolor: 'grey.100',
+                                                            fontSize: '0.875rem',
+                                                            py: 1.5
+                                                        }}>
+                                                            Table Name
+                                                        </TableCell>
+                                                        <TableCell align="right" sx={{
+                                                            fontWeight: 700,
+                                                            bgcolor: 'grey.100',
+                                                            fontSize: '0.875rem',
+                                                            py: 1.5,
+                                                            width: 120
+                                                        }}>
+                                                            Size
+                                                        </TableCell>
+                                                    </TableRow>
+                                                </TableHead>
+                                                <TableBody>
+                                                    {dbStats.tables.map((table, index) => (
+                                                        <TableRow
+                                                            key={`${table.schema}.${table.table_name}-${index}`}
+                                                            hover
+                                                            sx={{
+                                                                '&:hover': { bgcolor: 'action.hover' },
+                                                                '&:last-child td': { border: 0 }
+                                                            }}
+                                                        >
+                                                            <TableCell sx={{ py: 1.25 }}>
+                                                                <Typography variant="body2" fontFamily="monospace" fontSize="0.8rem">
+                                                                    {table.schema === 'public' ? table.table_name : `${table.schema}.${table.table_name}`}
+                                                                </Typography>
+                                                            </TableCell>
+                                                            <TableCell align="right" sx={{ py: 1.25 }}>
+                                                                <Chip
+                                                                    label={table.size}
+                                                                    size="small"
+                                                                    color="primary"
+                                                                    variant="outlined"
+                                                                    sx={{
+                                                                        fontWeight: 600,
+                                                                        fontSize: '0.75rem'
+                                                                    }}
+                                                                />
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    ))}
+                                                </TableBody>
+                                            </Table>
+                                        </TableContainer>
+                                    )}
                                 </Box>
                             )}
                         </DialogContent>
-                        <DialogActions>
-                            <Button onClick={() => setStatsDialogOpen(false)}>Close</Button>
+                        <DialogActions sx={{ px: { xs: 1.5, md: 3 }, pb: { xs: 1.5, md: 3 }, pt: { xs: 1, md: 2 } }}>
+                            <Button
+                                onClick={() => setStatsDialogOpen(false)}
+                                fullWidth={isMobile}
+                                variant="contained"
+                                size={isMobile ? "medium" : "large"}
+                                sx={{
+                                    py: { xs: 0.875, md: 1.25 },
+                                    background: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
+                                    fontWeight: 600,
+                                    '&:hover': {
+                                        background: 'linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)',
+                                    }
+                                }}
+                            >
+                                Close
+                            </Button>
                         </DialogActions>
                     </Dialog>
 
                 </Box>
             </Box>
-        </AppLayout>
+        </AppLayout >
     );
 }
