@@ -72,6 +72,37 @@ interface DatabaseStats {
     total_database_size: string;
 }
 
+interface BackupSchedule {
+    id: number;
+    name: string;
+    frequency: 'hourly' | 'daily' | 'weekly' | 'monthly';
+    backup_type: string;
+    description: string;
+    enabled: boolean;
+    time_of_day: string;
+    day_of_week: number;
+    day_of_month: number;
+    retention_days: number;
+    last_run_at: string | null;
+    next_run_at: string | null;
+    created_at: string;
+}
+
+interface HealthStats {
+    total_backups: number;
+    successful_backups: number;
+    failed_backups: number;
+    last_backup_at: string | null;
+    last_backup_status: string | null;
+    last_backup_size: number;
+    total_storage_used: number;
+    average_backup_size: number;
+    success_rate: number;
+    total_storage_used_formatted: string;
+    average_backup_size_formatted: string;
+    last_backup_size_formatted: string;
+}
+
 export default function BackupPage() {
     useRoleGuard(['admin']);
 
@@ -89,10 +120,17 @@ export default function BackupPage() {
     const [dbStats, setDbStats] = useState<DatabaseStats | null>(null);
     const [statsDialogOpen, setStatsDialogOpen] = useState(false);
     const [mobileMenuOpen, setMobileMenuOpen] = useState<number | null>(null);
+    const [healthStats, setHealthStats] = useState<HealthStats | null>(null);
+    const [schedules, setSchedules] = useState<BackupSchedule[]>([]);
+    const [schedulesDialogOpen, setSchedulesDialogOpen] = useState(false);
+    const [scheduleFormOpen, setScheduleFormOpen] = useState(false);
+    const [currentSchedule, setCurrentSchedule] = useState<Partial<BackupSchedule> | null>(null);
 
     useEffect(() => {
         loadBackups();
         loadDatabaseStats();
+        loadHealthStats();
+        loadSchedules();
     }, []);
 
     const loadBackups = async () => {
@@ -114,6 +152,24 @@ export default function BackupPage() {
             setDbStats(response.data);
         } catch (error) {
             console.error('Failed to load database stats:', error);
+        }
+    };
+
+    const loadHealthStats = async () => {
+        try {
+            const response = await api.get('/backups/health/stats');
+            setHealthStats(response.data);
+        } catch (error) {
+            console.error('Failed to load health stats:', error);
+        }
+    };
+
+    const loadSchedules = async () => {
+        try {
+            const response = await api.get('/backups/schedules');
+            setSchedules(response.data);
+        } catch (error) {
+            console.error('Failed to load schedules:', error);
         }
     };
 
@@ -404,6 +460,96 @@ export default function BackupPage() {
                             </CardContent>
                         </Card>
                     </Box>
+
+                    {/* Health Dashboard */}
+                    {healthStats && (
+                        <Paper sx={{
+                            p: { xs: 2, md: 3 },
+                            mb: 3,
+                            background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)',
+                            border: '1px solid',
+                            borderColor: 'primary.light',
+                            borderRadius: 2
+                        }}>
+                            <Stack direction="row" alignItems="center" justifyContent="space-between" mb={2}>
+                                <Stack direction="row" alignItems="center" spacing={1.5}>
+                                    <Typography variant="h6" fontWeight={700} color="primary.main">
+                                        📊 Backup Health Dashboard
+                                    </Typography>
+                                </Stack>
+                                <Button
+                                    variant="outlined"
+                                    size="small"
+                                    onClick={() => setSchedulesDialogOpen(true)}
+                                    sx={{ fontSize: { xs: '0.7rem', sm: '0.85rem' } }}
+                                >
+                                    ⏰ Schedules ({schedules.length})
+                                </Button>
+                            </Stack>
+
+                            <Box sx={{
+                                display: 'grid',
+                                gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' },
+                                gap: 2
+                            }}>
+                                <Card sx={{ bgcolor: 'white', boxShadow: 2 }}>
+                                    <CardContent sx={{ textAlign: 'center' }}>
+                                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
+                                            Success Rate
+                                        </Typography>
+                                        <Typography variant="h4" fontWeight={700} color="success.main" sx={{ my: 0.5 }}>
+                                            {Number(healthStats.success_rate || 0).toFixed(1)}%
+                                        </Typography>
+                                        <Typography variant="caption" color="text.secondary">
+                                            {healthStats.successful_backups}/{healthStats.total_backups} successful
+                                        </Typography>
+                                    </CardContent>
+                                </Card>
+
+                                <Card sx={{ bgcolor: 'white', boxShadow: 2 }}>
+                                    <CardContent sx={{ textAlign: 'center' }}>
+                                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
+                                            Total Storage
+                                        </Typography>
+                                        <Typography variant="h5" fontWeight={700} color="primary.main" sx={{ my: 0.5, fontSize: { xs: '1.25rem', sm: '1.5rem' } }}>
+                                            {healthStats.total_storage_used_formatted}
+                                        </Typography>
+                                        <Typography variant="caption" color="text.secondary">
+                                            Avg: {healthStats.average_backup_size_formatted}
+                                        </Typography>
+                                    </CardContent>
+                                </Card>
+
+                                <Card sx={{ bgcolor: 'white', boxShadow: 2 }}>
+                                    <CardContent sx={{ textAlign: 'center' }}>
+                                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
+                                            Last Backup
+                                        </Typography>
+                                        <Typography variant="body1" fontWeight={600} sx={{ my: 0.5, fontSize: { xs: '0.85rem', sm: '1rem' } }}>
+                                            {healthStats.last_backup_at ? new Date(healthStats.last_backup_at).toLocaleDateString() : 'Never'}
+                                        </Typography>
+                                        <Typography variant="caption" color="text.secondary">
+                                            {healthStats.last_backup_size_formatted}
+                                        </Typography>
+                                    </CardContent>
+                                </Card>
+
+                                <Card sx={{ bgcolor: 'white', boxShadow: 2 }}>
+                                    <CardContent sx={{ textAlign: 'center' }}>
+                                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
+                                            Active Schedules
+                                        </Typography>
+                                        <Typography variant="h4" fontWeight={700} color="warning.main" sx={{ my: 0.5 }}>
+                                            {schedules.filter(s => s.enabled).length}
+                                        </Typography>
+                                        <Typography variant="caption" color="text.secondary">
+                                            of {schedules.length} total
+                                        </Typography>
+                                    </CardContent>
+                                </Card>
+                            </Box>
+                        </Paper>
+                    )}
 
                     {/* Action Buttons */}
                     <Box sx={{ mb: 3 }}>
@@ -1163,6 +1309,311 @@ export default function BackupPage() {
                                 }}
                             >
                                 Close
+                            </Button>
+                        </DialogActions>
+                    </Dialog>
+
+                    {/* Schedules Management Dialog */}
+                    <Dialog
+                        open={schedulesDialogOpen}
+                        onClose={() => setSchedulesDialogOpen(false)}
+                        maxWidth="md"
+                        fullWidth
+                        fullScreen={isMobile}
+                        PaperProps={{
+                            sx: {
+                                borderRadius: { xs: 0, sm: 3 },
+                                m: { xs: 0, sm: 2 }
+                            }
+                        }}
+                    >
+                        <DialogTitle sx={{
+                            background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                            color: 'white',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            py: { xs: 2, md: 2.5 }
+                        }}>
+                            <Stack direction="row" alignItems="center" spacing={1.5}>
+                                <Typography fontSize="1.5rem">⏰</Typography>
+                                <Typography variant={isMobile ? 'h6' : 'h6'} fontWeight={600}>
+                                    Backup Schedules
+                                </Typography>
+                            </Stack>
+                            <Stack direction="row" spacing={1} alignItems="center">
+                                <Button
+                                    variant="contained"
+                                    size="small"
+                                    onClick={() => {
+                                        setCurrentSchedule({
+                                            name: '',
+                                            frequency: 'daily',
+                                            backup_type: 'full',
+                                            enabled: true,
+                                            time_of_day: '02:00:00',
+                                            retention_days: 30
+                                        });
+                                        setScheduleFormOpen(true);
+                                    }}
+                                    sx={{
+                                        bgcolor: 'white',
+                                        color: 'warning.main',
+                                        '&:hover': { bgcolor: 'grey.100' }
+                                    }}
+                                >
+                                    + New
+                                </Button>
+                                {isMobile && (
+                                    <IconButton onClick={() => setSchedulesDialogOpen(false)} sx={{ color: 'white' }}>
+                                        <CloseIcon />
+                                    </IconButton>
+                                )}
+                            </Stack>
+                        </DialogTitle>
+                        <DialogContent sx={{ pt: { xs: 2, md: 3 }, pb: 2 }}>
+                            {schedules.length === 0 ? (
+                                <Box sx={{ textAlign: 'center', py: 4 }}>
+                                    <Typography color="text.secondary">No schedules configured</Typography>
+                                    <Button
+                                        variant="outlined"
+                                        size="small"
+                                        onClick={() => {
+                                            setCurrentSchedule({
+                                                name: '',
+                                                frequency: 'daily',
+                                                backup_type: 'full',
+                                                enabled: true,
+                                                time_of_day: '02:00:00',
+                                                retention_days: 30
+                                            });
+                                            setScheduleFormOpen(true);
+                                        }}
+                                        sx={{ mt: 2 }}
+                                    >
+                                        Create First Schedule
+                                    </Button>
+                                </Box>
+                            ) : (
+                                <Stack spacing={2}>
+                                    {schedules.map((schedule) => (
+                                        <Card key={schedule.id} sx={{
+                                            border: schedule.enabled ? '2px solid' : '1px solid',
+                                            borderColor: schedule.enabled ? 'success.main' : 'divider'
+                                        }}>
+                                            <CardContent>
+                                                <Stack direction="row" justifyContent="space-between" alignItems="start" mb={1}>
+                                                    <Stack spacing={0.5} flex={1}>
+                                                        <Stack direction="row" alignItems="center" spacing={1}>
+                                                            <Typography variant="h6" fontWeight={600}>
+                                                                {schedule.name}
+                                                            </Typography>
+                                                            <Chip
+                                                                label={schedule.enabled ? 'Active' : 'Disabled'}
+                                                                color={schedule.enabled ? 'success' : 'default'}
+                                                                size="small"
+                                                                sx={{ height: 20, fontSize: '0.7rem' }}
+                                                            />
+                                                        </Stack>
+                                                        <Typography variant="body2" color="text.secondary">
+                                                            {schedule.description || 'No description'}
+                                                        </Typography>
+                                                        <Stack direction="row" spacing={2} mt={1}>
+                                                            <Typography variant="caption">
+                                                                <strong>Frequency:</strong> {schedule.frequency}
+                                                            </Typography>
+                                                            <Typography variant="caption">
+                                                                <strong>Time:</strong> {schedule.time_of_day}
+                                                            </Typography>
+                                                            <Typography variant="caption">
+                                                                <strong>Retention:</strong> {schedule.retention_days} days
+                                                            </Typography>
+                                                        </Stack>
+                                                        {schedule.next_run_at && (
+                                                            <Typography variant="caption" color="primary.main">
+                                                                Next run: {new Date(schedule.next_run_at).toLocaleString()}
+                                                            </Typography>
+                                                        )}
+                                                    </Stack>
+                                                    <Stack direction="row" spacing={0.5}>
+                                                        <IconButton
+                                                            size="small"
+                                                            color="error"
+                                                            onClick={async () => {
+                                                                if (confirm(`Delete schedule "${schedule.name}"?`)) {
+                                                                    try {
+                                                                        await api.delete(`/backups/schedules/${schedule.id}`);
+                                                                        toast.success('Schedule deleted');
+                                                                        loadSchedules();
+                                                                    } catch (error) {
+                                                                        toast.error('Failed to delete schedule');
+                                                                    }
+                                                                }
+                                                            }}
+                                                        >
+                                                            <DeleteIcon fontSize="small" />
+                                                        </IconButton>
+                                                    </Stack>
+                                                </Stack>
+                                            </CardContent>
+                                        </Card>
+                                    ))}
+                                </Stack>
+                            )}
+                        </DialogContent>
+                        <DialogActions sx={{ px: 3, pb: 3 }}>
+                            <Button onClick={() => setSchedulesDialogOpen(false)} fullWidth={isMobile}>
+                                Close
+                            </Button>
+                        </DialogActions>
+                    </Dialog>
+
+                    {/* Schedule Form Dialog */}
+                    <Dialog
+                        open={scheduleFormOpen}
+                        onClose={() => {
+                            setScheduleFormOpen(false);
+                            setCurrentSchedule(null);
+                        }}
+                        maxWidth="sm"
+                        fullWidth
+                        fullScreen={isMobile}
+                    >
+                        <DialogTitle sx={{
+                            background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                            color: 'white',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between'
+                        }}>
+                            <Box component="span" fontWeight={600} fontSize="1.25rem">
+                                Create Backup Schedule
+                            </Box>
+                            {isMobile && (
+                                <IconButton onClick={() => {
+                                    setScheduleFormOpen(false);
+                                    setCurrentSchedule(null);
+                                }} sx={{ color: 'white' }}>
+                                    <CloseIcon />
+                                </IconButton>
+                            )}
+                        </DialogTitle>
+                        <DialogContent sx={{ pt: 3, pb: 2 }}>
+                            <Stack spacing={2.5}>
+                                <TextField
+                                    label="Schedule Name"
+                                    fullWidth
+                                    required
+                                    value={currentSchedule?.name || ''}
+                                    onChange={(e) => setCurrentSchedule({ ...currentSchedule, name: e.target.value })}
+                                    placeholder="e.g., Daily Backup, Weekly Backup"
+                                />
+
+                                <FormControl fullWidth required>
+                                    <InputLabel>Frequency</InputLabel>
+                                    <Select
+                                        value={currentSchedule?.frequency || 'daily'}
+                                        onChange={(e) => setCurrentSchedule({ ...currentSchedule, frequency: e.target.value as any })}
+                                        label="Frequency"
+                                    >
+                                        <MenuItem value="hourly">Hourly</MenuItem>
+                                        <MenuItem value="daily">Daily</MenuItem>
+                                        <MenuItem value="weekly">Weekly</MenuItem>
+                                        <MenuItem value="monthly">Monthly</MenuItem>
+                                    </Select>
+                                </FormControl>
+
+                                <TextField
+                                    label="Time (24-hour format)"
+                                    type="time"
+                                    fullWidth
+                                    value={currentSchedule?.time_of_day?.substring(0, 5) || '02:00'}
+                                    onChange={(e) => setCurrentSchedule({ ...currentSchedule, time_of_day: e.target.value + ':00' })}
+                                    helperText="When to run the backup"
+                                />
+
+                                <TextField
+                                    label="Retention Days"
+                                    type="number"
+                                    fullWidth
+                                    value={currentSchedule?.retention_days || 30}
+                                    onChange={(e) => setCurrentSchedule({ ...currentSchedule, retention_days: parseInt(e.target.value) })}
+                                    helperText="Auto-delete backups older than this (0 = never delete)"
+                                />
+
+                                <FormControl fullWidth>
+                                    <InputLabel>Backup Type</InputLabel>
+                                    <Select
+                                        value={currentSchedule?.backup_type || 'full'}
+                                        onChange={(e) => setCurrentSchedule({ ...currentSchedule, backup_type: e.target.value })}
+                                        label="Backup Type"
+                                    >
+                                        <MenuItem value="full">Full Backup</MenuItem>
+                                        <MenuItem value="schema">Schema Only</MenuItem>
+                                        <MenuItem value="data">Data Only</MenuItem>
+                                    </Select>
+                                </FormControl>
+
+                                <TextField
+                                    label="Description (Optional)"
+                                    multiline
+                                    rows={2}
+                                    fullWidth
+                                    value={currentSchedule?.description || ''}
+                                    onChange={(e) => setCurrentSchedule({ ...currentSchedule, description: e.target.value })}
+                                    placeholder="e.g., Automated backup for production data"
+                                />
+
+                                <Alert severity="info" sx={{ fontSize: '0.85rem' }}>
+                                    <Typography variant="caption" display="block" fontWeight={600} mb={0.5}>
+                                        💡 Note:
+                                    </Typography>
+                                    <Typography variant="caption">
+                                        Schedule will run automatically at the specified time. Backups older than retention days will be auto-deleted.
+                                    </Typography>
+                                </Alert>
+                            </Stack>
+                        </DialogContent>
+                        <DialogActions sx={{ px: 3, pb: 3, gap: 1 }}>
+                            <Button
+                                onClick={() => {
+                                    setScheduleFormOpen(false);
+                                    setCurrentSchedule(null);
+                                }}
+                                fullWidth={isMobile}
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                variant="contained"
+                                onClick={async () => {
+                                    if (!currentSchedule?.name || !currentSchedule?.frequency) {
+                                        toast.error('Please fill required fields');
+                                        return;
+                                    }
+
+                                    const toastId = toast.loading('Creating schedule...');
+                                    try {
+                                        await api.post('/backups/schedules', currentSchedule);
+                                        toast.success('Schedule created successfully!', { id: toastId });
+                                        setScheduleFormOpen(false);
+                                        setCurrentSchedule(null);
+                                        loadSchedules();
+                                        loadHealthStats();
+                                    } catch (error: any) {
+                                        toast.error(error.response?.data?.error || 'Failed to create schedule', { id: toastId });
+                                        console.error(error);
+                                    }
+                                }}
+                                fullWidth={isMobile}
+                                sx={{
+                                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                                    '&:hover': {
+                                        background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+                                    }
+                                }}
+                            >
+                                Create Schedule
                             </Button>
                         </DialogActions>
                     </Dialog>

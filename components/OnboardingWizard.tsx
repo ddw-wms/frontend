@@ -134,20 +134,22 @@ export default function OnboardingWizard({ open, onComplete }: OnboardingWizardP
         }
     };
 
-    // const downloadPrintAgent = () => {
-    //     const API_BASE = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:5000';
-    //     window.open(`${API_BASE}/downloads/print-agent`, '_blank');
-    // };
-
-
     const downloadPrintAgent = () => {
-        const link = document.createElement("a");
-        link.href = "https://drive.google.com/file/d/1pcVAo0mA-zvw31W_0_h5ysM4KPSa0BUs/view?usp=sharing";
-        link.target = "_blank"; // new tab / window
-        link.rel = "noopener noreferrer"; // security best practice
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        try {
+            // Direct backend download (Cloudflare R2)
+            const link = document.createElement('a');
+            link.href = `${process.env.NEXT_PUBLIC_API_URL}/downloads/print-agent`;
+            link.download = 'WMS Print Agent Setup 1.0.0.exe';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            setTimeout(() => {
+                alert('📥 Download started!\n\nFile: WMS Print Agent Setup 1.0.0\nDownloading from secure cloud storage...');
+            }, 500);
+        } catch (error) {
+            alert('Download failed. Please try again or contact IT support.');
+        }
     };
 
 

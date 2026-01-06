@@ -554,12 +554,22 @@ export default function PrinterSettingsPage() {
                     variant="contained"
                     size="large"
                     startIcon={<DownloadIcon />}
-                    onClick={() => {
-                      const downloadUrl = 'https://drive.google.com/file/d/1pcVAo0mA-zvw31W_0_h5ysM4KPSa0BUs/view?usp=sharing';
-                      window.open(downloadUrl, '_blank');
-                      setTimeout(() => {
-                        alert('📥 Download started!\n\nFile: WMS Print Agent Setup (518 MB)\nIf download doesn\'t start:\n1. Check Downloads folder\n2. Check browser download manager\n3. Contact IT support');
-                      }, 1000);
+                    onClick={async () => {
+                      try {
+                        // Direct backend download (Cloudflare R2)
+                        const link = document.createElement('a');
+                        link.href = `${process.env.NEXT_PUBLIC_API_URL}/downloads/print-agent`;
+                        link.download = 'WMS Print Agent Setup 1.0.0.exe';
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+
+                        setTimeout(() => {
+                          alert('📥 Download started!\n\nFile: WMS Print Agent Setup 1.0.0\nDownloading from secure cloud storage...');
+                        }, 500);
+                      } catch (error) {
+                        alert('Download failed. Please try again or contact IT support.');
+                      }
                     }}
                     sx={{
                       backgroundColor: 'white',
@@ -575,7 +585,7 @@ export default function PrinterSettingsPage() {
                       transition: 'all 0.2s'
                     }}
                   >
-                    Download Print Agent (518 MB)
+                    Download Print Agent
                   </Button>
 
                   <Stack direction="row" spacing={1} flexWrap="wrap">
