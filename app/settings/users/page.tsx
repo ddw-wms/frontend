@@ -6,7 +6,7 @@ import {
   Box, Button, Dialog, DialogActions, DialogContent, DialogTitle,
   TextField, Paper, Typography, Table, TableBody, TableCell, TableHead,
   TableRow, TableContainer, Chip, IconButton, Stack,
-  FormControl, InputLabel, Select, MenuItem, Switch, FormControlLabel, useMediaQuery, useTheme
+  FormControl, InputLabel, Select, MenuItem, Switch, FormControlLabel, useMediaQuery, useTheme, CircularProgress
 } from '@mui/material';
 import { Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon, Key as KeyIcon } from '@mui/icons-material';
 import { usersAPI } from '@/lib/api';
