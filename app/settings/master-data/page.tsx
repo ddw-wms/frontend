@@ -306,20 +306,18 @@ export default function MasterDataPage() {
   // AG Grid column sizing helper
   const getColumnSizing = useCallback((col: string) => {
     const colConfig = columns.find(c => c.id === col);
-    if (!colConfig) return {};
+    if (!colConfig) return { minWidth: 50 };
 
     if (isMobile) {
       return {
         width: Math.max(70, Math.round(colConfig.width * 0.7)),
-        minWidth: Math.max(70, Math.round(colConfig.width * 0.7)),
-        suppressSizeToFit: true
+        minWidth: 50,
       };
     }
 
     return {
       width: colConfig.width,
-      minWidth: colConfig.width,
-      suppressSizeToFit: true
+      minWidth: 50,
     };
   }, [isMobile]);
 
@@ -351,25 +349,48 @@ export default function MasterDataPage() {
         };
       }
 
-      // Actual received column - chip renderer
+      // Actual received column - chip style
       if (col.id === 'actual_received') {
         return {
           ...base,
-          cellRenderer: (p: any) => {
+          valueFormatter: (p: any) => p.value || 'Pending',
+          cellStyle: (p: any) => {
             const status = p.value || 'Pending';
             const color = status === 'Received' ? '#4caf50' : '#ff9800';
-            return `<span style="display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: bold; border: 1px solid ${color}; color: ${color};">${status}</span>`;
+            return {
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '2px 8px',
+              borderRadius: '12px',
+              fontSize: '0.75rem',
+              fontWeight: 'bold',
+              border: `1px solid ${color}`,
+              color: color,
+              backgroundColor: 'transparent'
+            };
           },
         };
       }
 
-      // Batch ID column - chip renderer
+      // Batch ID column - chip style
       if (col.id === 'batch_id') {
         return {
           ...base,
-          cellRenderer: (p: any) => {
-            if (!p.value) return '-';
-            return `<span style="display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 0.7rem; border: 1px solid #1976d2; color: #1976d2;">${p.value}</span>`;
+          valueFormatter: (p: any) => p.value || '-',
+          cellStyle: (p: any) => {
+            if (!p.value) return {};
+            return {
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '2px 8px',
+              borderRadius: '12px',
+              fontSize: '0.7rem',
+              border: '1px solid #1976d2',
+              color: '#1976d2',
+              backgroundColor: 'transparent'
+            };
           },
         };
       }
@@ -400,7 +421,7 @@ export default function MasterDataPage() {
     });
 
     setColumnDefs(defs);
-  }, [columnVisibility, enableSorting, enableColumnFilters, enableColumnResize, getColumnSizing]);
+  }, [columnVisibility, enableSorting, enableColumnFilters, enableColumnResize, isMobile]);
 
   // Save grid settings to localStorage
   useEffect(() => {
@@ -1805,14 +1826,46 @@ export default function MasterDataPage() {
                       onGridReady={(params: any) => {
                         gridRef.current = params.api;
                         columnApiRef.current = params.columnApi;
+
+                        // Restore saved column state immediately
                         try {
-                          const colApi = params.columnApi;
-                          const allCols = colApi.getAllColumns()?.map((c: any) => c.getColId()) || [];
-                          if (allCols.length > 0) {
-                            colApi.autoSizeColumns(allCols, false);
+                          const savedState = localStorage.getItem('masterdata_columnState');
+                          if (savedState && params.api) {
+                            const state = JSON.parse(savedState);
+                            // Apply saved column state using the main API
+                            params.api.applyColumnState({
+                              state: state,
+                              applyOrder: true,
+                            });
+                            console.log('Column state restored from localStorage', state);
                           }
-                        } catch { }
-                        try { params.api.sizeColumnsToFit(); } catch { }
+                        } catch (err) {
+                          console.error('Failed to restore column state:', err);
+                        }
+                      }}
+                      onColumnResized={(params: any) => {
+                        // Save column state when resized
+                        if (params.finished && params.api) {
+                          try {
+                            const columnState = params.api.getColumnState();
+                            localStorage.setItem('masterdata_columnState', JSON.stringify(columnState));
+                            console.log('Column widths saved to localStorage', columnState);
+                          } catch (err) {
+                            console.error('Failed to save column state:', err);
+                          }
+                        }
+                      }}
+                      onColumnMoved={(params: any) => {
+                        // Save column state when moved
+                        if (params.finished && params.api) {
+                          try {
+                            const columnState = params.api.getColumnState();
+                            localStorage.setItem('masterdata_columnState', JSON.stringify(columnState));
+                            console.log('Column order saved to localStorage', columnState);
+                          } catch (err) {
+                            console.error('Failed to save column state:', err);
+                          }
+                        }
                       }}
                       animateRows={false}
                       rowBuffer={10}

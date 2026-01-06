@@ -133,6 +133,7 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
         { label: 'Users', icon: PersonIcon, path: '/settings/users' },
         { label: 'Permissions', icon: SettingsIcon, path: '/settings/permissions' },
         { label: 'Printers', icon: PrinterIcon, path: '/settings/printers' },
+        { label: 'Backups', icon: StorageIcon, path: '/settings/backups' },
       ];
     } else if (userRole === 'manager') {
       return [

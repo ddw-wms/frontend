@@ -220,8 +220,8 @@ export default function DashboardPage() {
   const overlayTimerRef = useRef<NodeJS.Timeout | null>(null);
   const overlayShownRef = useRef(false);
   const overlayStartRef = useRef<number | null>(null);
-  const SHOW_OVERLAY_DELAY = 150; // ms
-  const MIN_LOADING_MS = 350; // ms - ensure overlay visible long enough to avoid flicker
+  const SHOW_OVERLAY_DELAY = 50; // ms
+  const MIN_LOADING_MS = 100; // ms - ensure overlay visible long enough to avoid flicker
   const [topLoading, setTopLoading] = useState(false);
   const inventoryLoadDebounceRef = useRef<NodeJS.Timeout | null>(null);
   const [initialLoad, setInitialLoad] = useState<boolean>(true);
@@ -320,9 +320,7 @@ export default function DashboardPage() {
           ...base,
           filter: enableColumnFilters ? 'agTextColumnFilter' : undefined,
           cellRenderer: (p: any) => {
-            // Special-case: if this is the picking or outbound status column and the WSN exists in the
-            // corresponding list, show DONE regardless of the raw value (handles cases where QC remark
-            // or other text was being shown).
+            // Use latest pickingWSNs and outboundWSNs values
             const wsn = p.data?.wsn;
             if (col === 'picking_status' && wsn && pickingWSNs.has(wsn)) {
               return (
@@ -416,7 +414,7 @@ export default function DashboardPage() {
     });
 
     setColumnDefs(defs);
-  }, [visibleColumns, enableSorting, enableColumnFilters, enableColumnResize, pickingWSNs, outboundWSNs, getColumnSizing]);
+  }, [visibleColumns, enableSorting, enableColumnFilters, enableColumnResize, isMobile]);
 
 
 
@@ -530,7 +528,7 @@ export default function DashboardPage() {
   const [exportLoading, setExportLoading] = useState(false);
 
   useEffect(() => {
-    const id = setTimeout(() => setSearchDebounced(searchWSN), 350);
+    const id = setTimeout(() => setSearchDebounced(searchWSN), 100);
     return () => clearTimeout(id);
   }, [searchWSN]);
 
@@ -646,14 +644,10 @@ export default function DashboardPage() {
       if (loadId === currentLoadIdRef.current) {
         // Always clear loading state
         setLoading(false);
-
-        // Mark that initial load has finished so we no longer show the pre-load placeholder
-        if (initialLoad) setInitialLoad(false);
-
         inventoryAbortControllerRef.current = null;
       }
     }
-  }, [activeWarehouse?.id, page, limit, searchDebounced, stageFilter, availableOnly, brandFilter, categoryFilter, dateFrom, dateTo, initialLoad]);
+  }, [activeWarehouse?.id, page, limit, searchDebounced, stageFilter, availableOnly, brandFilter, categoryFilter, dateFrom, dateTo]);
 
   const loadFilterOptions = useCallback(async () => {
     try {
@@ -768,7 +762,7 @@ export default function DashboardPage() {
       inventoryLoadDebounceRef.current = setTimeout(() => {
         loadInventoryData();
         inventoryLoadDebounceRef.current = null;
-      }, 350);
+      }, 100);
 
       const interval = setInterval(() => {
         loadMetrics();
@@ -1272,7 +1266,6 @@ export default function DashboardPage() {
                 onChange={(e) => {
                   setSearchWSN(e.target.value);
                   setPage(1);
-                  setLoading(true);
                 }}
                 fullWidth
                 sx={{ "& .MuiOutlinedInput-root": { height: 40 } }}
@@ -1710,24 +1703,19 @@ export default function DashboardPage() {
             {/* Table Container - AG Grid */}
             <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
               {/* Loading Overlay - shows during any loading state */}
-              {(loading || initialLoad) && (
+              {loading && (
                 <Box sx={{
                   position: 'absolute',
-                  top: 0,
+                  top: 48,
                   left: 0,
                   right: 0,
                   bottom: 0,
                   backgroundColor: 'rgba(255, 255, 255, 0.9)',
                   backdropFilter: 'blur(3px)',
-                  zIndex: 10,
+                  zIndex: 5,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  animation: 'fadeIn 0.15s ease-in',
-                  '@keyframes fadeIn': {
-                    '0%': { opacity: 0 },
-                    '100%': { opacity: 1 }
-                  }
                 }}>
                   <Box sx={{
                     display: 'flex',
@@ -1787,7 +1775,7 @@ export default function DashboardPage() {
               )}
 
               {/* Empty State Overlay - shows when no data but headers remain visible */}
-              {!activeWarehouse && (!filteredData || filteredData.length === 0) && !loading && !initialLoad && (
+              {!activeWarehouse && (!filteredData || filteredData.length === 0) && !loading && (
                 <Box sx={{
                   position: 'absolute',
                   top: 60,
@@ -1830,7 +1818,7 @@ export default function DashboardPage() {
                 </Box>
               )}
 
-              {activeWarehouse && (!filteredData || filteredData.length === 0) && !loading && !initialLoad && (
+              {activeWarehouse && (!filteredData || filteredData.length === 0) && !loading && (
                 <Box sx={{
                   position: 'absolute',
                   top: 60,
@@ -1883,12 +1871,13 @@ export default function DashboardPage() {
                   backgroundColor: '#f8f9fa',
                   borderBottom: '2px solid #e9ecef',
                   fontWeight: 600,
-                  opacity: 1,
-                  zIndex: 2,
+                  opacity: '1 !important',
+                  zIndex: 15,
                   position: 'relative'
                 },
                 '& .ag-header-cell': {
                   padding: '0 12px',
+                  opacity: '1 !important'
                 },
                 '& .ag-body-viewport': {
                   opacity: loading ? 0.3 : 1,
@@ -1938,13 +1927,25 @@ export default function DashboardPage() {
                       gridRef.current = params.api;
                       columnApiRef.current = params.columnApi;
                       try {
-                        const colApi = params.columnApi;
-                        const allCols = colApi.getAllColumns()?.map((c: any) => c.getColId()) || [];
-                        if (allCols.length > 0) {
-                          colApi.autoSizeColumns(allCols, false);
+                        const savedState = localStorage.getItem('dashboard_columnState');
+                        if (savedState && params.api) {
+                          params.api.applyColumnState({ state: JSON.parse(savedState), applyOrder: true });
                         }
                       } catch { /* ignore */ }
-                      try { params.api.sizeColumnsToFit(); } catch { /* ignore */ }
+                    }}
+                    onColumnResized={(params: any) => {
+                      if (params.finished && params.api) {
+                        try {
+                          localStorage.setItem('dashboard_columnState', JSON.stringify(params.api.getColumnState()));
+                        } catch { /* ignore */ }
+                      }
+                    }}
+                    onColumnMoved={(params: any) => {
+                      if (params.finished && params.api) {
+                        try {
+                          localStorage.setItem('dashboard_columnState', JSON.stringify(params.api.getColumnState()));
+                        } catch { /* ignore */ }
+                      }
                     }}
                     animateRows={false}
                     rowBuffer={10}
@@ -2058,7 +2059,7 @@ export default function DashboardPage() {
         <DialogContent sx={{ p: 2 }}>
           <Stack spacing={2}>
             <Box>
-              <TextField fullWidth placeholder="Search WSN or Product" value={searchWSN} onChange={(e) => { setSearchWSN(e.target.value); setLoading(true); }} size="small" sx={{ '& .MuiOutlinedInput-root': { height: 40 } }} />
+              <TextField fullWidth placeholder="Search WSN or Product" value={searchWSN} onChange={(e) => { setSearchWSN(e.target.value); }} size="small" sx={{ '& .MuiOutlinedInput-root': { height: 40 } }} />
             </Box>
 
             <Box display="flex" gap={1} flexDirection="column">

@@ -1461,7 +1461,6 @@ export default function QCPage() {
                       const value = e.target.value;
                       setSearchFilter(value);
                       setPage(1);
-                      setListLoading(true);
                       // Force immediate reload if empty (clear search)
                       if (value === '') {
                         loadQCList();
@@ -2167,34 +2166,70 @@ export default function QCPage() {
                 {listLoading && (
                   <Box sx={{
                     position: 'absolute',
-                    top: 0,
+                    top: 48,
                     left: 0,
                     right: 0,
                     bottom: 0,
+                    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                    backdropFilter: 'blur(3px)',
+                    zIndex: 5,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    backgroundColor: 'rgba(255, 255, 255, 0.7)',
-                    backdropFilter: 'blur(2px)',
-                    zIndex: 10,
-                    '@keyframes spin': {
-                      '0%': { transform: 'rotate(0deg)' },
-                      '100%': { transform: 'rotate(360deg)' }
-                    },
-                    '@keyframes pulse': {
-                      '0%, 100%': { opacity: 1 },
-                      '50%': { opacity: 0.5 }
-                    }
                   }}>
-                    <Box sx={{ textAlign: 'center' }}>
-                      <CircularProgress
-                        size={48}
-                        thickness={3.5}
+                    <Box sx={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: 3,
+                      p: 4,
+                      bgcolor: 'white',
+                      borderRadius: 3,
+                      boxShadow: '0 8px 24px rgba(0,0,0,0.12)'
+                    }}>
+                      <Box sx={{ position: 'relative' }}>
+                        <CircularProgress
+                          size={56}
+                          thickness={3.5}
+                          sx={{
+                            color: '#1976d2',
+                            filter: 'drop-shadow(0 2px 8px rgba(25, 118, 210, 0.2))'
+                          }}
+                        />
+                        <Box sx={{
+                          position: 'absolute',
+                          top: '50%',
+                          left: '50%',
+                          transform: 'translate(-50%, -50%)',
+                          width: 44,
+                          height: 44,
+                          borderRadius: '50%',
+                          background: 'linear-gradient(135deg, #1976d2 0%, #42a5f5 100%)',
+                          opacity: 0.15,
+                          animation: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                          '@keyframes pulse': {
+                            '0%, 100%': {
+                              transform: 'translate(-50%, -50%) scale(1)',
+                              opacity: 0.15
+                            },
+                            '50%': {
+                              transform: 'translate(-50%, -50%) scale(1.15)',
+                              opacity: 0.05
+                            }
+                          }
+                        }} />
+                      </Box>
+                      <Typography
                         sx={{
-                          color: '#1976d2',
-                          animation: 'pulse 1.5s ease-in-out infinite'
+                          fontSize: '0.95rem',
+                          fontWeight: 500,
+                          color: '#546e7a',
+                          letterSpacing: 0.3,
+                          textAlign: 'center'
                         }}
-                      />
+                      >
+                        Loading data...
+                      </Typography>
                     </Box>
                   </Box>
                 )}
@@ -2267,7 +2302,9 @@ export default function QCPage() {
                         suppressNoRowsOverlay={true}
                         animateRows={false}
                         gridOptions={{ getRowId: (params: any) => params.data?.id || params.data?.wsn || String(params.rowIndex), suppressRowTransform: true }}
-                        onGridReady={(params: any) => { gridRef.current = params.api; columnApiRef.current = params.columnApi; try { params.api.sizeColumnsToFit(); } catch (e) { /* ignore */ } }}
+                        onGridReady={(params: any) => { gridRef.current = params.api; columnApiRef.current = params.columnApi; try { const savedState = localStorage.getItem('qc_columnState'); if (savedState && params.api) { params.api.applyColumnState({ state: JSON.parse(savedState), applyOrder: true }); } } catch (e) { /* ignore */ } }}
+                        onColumnResized={(params: any) => { if (params.finished && params.api) { try { localStorage.setItem('qc_columnState', JSON.stringify(params.api.getColumnState())); } catch { /* ignore */ } } }}
+                        onColumnMoved={(params: any) => { if (params.finished && params.api) { try { localStorage.setItem('qc_columnState', JSON.stringify(params.api.getColumnState())); } catch { /* ignore */ } } }}
                         pagination={false}
                       />
                     </Box>
