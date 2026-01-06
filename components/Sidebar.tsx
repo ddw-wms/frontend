@@ -104,8 +104,8 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
   }, [collapsed]);
 
   useEffect(() => {
-    setMobileOpen(false);
-  }, [pathname]);
+    setMobileOpen?.(false);
+  }, [pathname, setMobileOpen]);
 
   const drawerWidth = collapsed ? 70 : 230;
 
