@@ -436,12 +436,14 @@ export default function PermissionsPage() {
         <Box sx={{
           position: 'sticky',
           top: 0,
-          zIndex: 100,
-          mb: 1,
-          p: { xs: 1, sm: 1.25 },
-          background: 'linear-gradient(  135deg, #0f2027 0%, #203a43 50%, #2c5364 100%  )',
-          borderRadius: 1.5,
-          boxShadow: '0 8px 30px rgba(102, 126, 234, 0.25)',
+          zIndex: 1000,
+          mb: 0,
+          px: 2,
+          py: 1.25,
+          pl: { xs: '54px', sm: 2 },
+          background: 'linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%)',
+          borderRadius: 0,
+          boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
         }}>
           <Box sx={{
             display: 'flex',
@@ -470,7 +472,7 @@ export default function PermissionsPage() {
                   lineHeight: 1.1,
                   textShadow: '0 2px 4px rgba(0,0,0,0.1)'
                 }}>
-                  User Permissions Management
+                  User Permissions
                 </Typography>
                 <Typography variant="caption" sx={{
                   color: 'rgba(255,255,255,0.9)',

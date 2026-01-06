@@ -1060,12 +1060,14 @@ export default function MasterDataPage() {
           <Box sx={{
             position: 'sticky',
             top: 0,
-            zIndex: 100,
-            mb: 1,
-            p: { xs: 1, sm: 1.25 },
-            background: 'linear-gradient(  135deg, #0f2027 0%, #203a43 50%, #2c5364 100%  )',
-            borderRadius: 1.5,
-            boxShadow: '0 8px 30px rgba(102, 126, 234, 0.25)',
+            zIndex: 1000,
+            mb: 0,
+            px: 2,
+            py: 1.25,
+            pl: { xs: '54px', sm: 2 },
+            background: 'linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%)',
+            borderRadius: 0,
+            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
           }}>
             <Box sx={{
               display: 'flex',
@@ -1084,7 +1086,7 @@ export default function MasterDataPage() {
                     lineHeight: 1.1,
                     textShadow: '0 2px 4px rgba(0,0,0,0.1)'
                   }}>
-                    📊 Master Data Management
+                    📊 Master Data
                   </Typography>
                   <Typography variant="caption" sx={{
                     color: 'rgba(255,255,255,0.9)',
@@ -1094,7 +1096,7 @@ export default function MasterDataPage() {
                     display: 'block',
                     mt: 0.25
                   }}>
-                    Manage master data for your warehouse
+                    Manage master data
                   </Typography>
                 </Box>
               </Box>
@@ -1161,7 +1163,7 @@ export default function MasterDataPage() {
                       size="small"
                       placeholder="🔍 Search..."
                       value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
+                      onChange={(e) => { setSearchQuery(e.target.value); setLoading(true); }}
                       sx={{
                         minWidth: 0,
                         '& .MuiInputBase-root': { height: 32 },
@@ -1672,8 +1674,90 @@ export default function MasterDataPage() {
 
 
               {/* AG Grid Table */}
-              <Box sx={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', borderLeft: '1px solid #e0e0e0', borderRight: '1px solid #e0e0e0', position: 'relative' }}>
-                {topLoading && <LinearProgress color="primary" sx={{ height: 3 }} />}
+              <Box sx={{
+                flex: 1,
+                overflow: 'hidden',
+                display: 'flex',
+                flexDirection: 'column',
+                borderLeft: '1px solid #e0e0e0',
+                borderRight: '1px solid #e0e0e0',
+                position: 'relative'
+              }}>
+
+                {/* Loading Overlay with Spinner */}
+                {loading && (
+                  <Box sx={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: 'rgba(255, 255, 255, 0.7)',
+                    backdropFilter: 'blur(2px)',
+                    zIndex: 10,
+                    '@keyframes spin': {
+                      '0%': { transform: 'rotate(0deg)' },
+                      '100%': { transform: 'rotate(360deg)' }
+                    },
+                    '@keyframes pulse': {
+                      '0%, 100%': { opacity: 1 },
+                      '50%': { opacity: 0.5 }
+                    }
+                  }}>
+                    <Box sx={{ textAlign: 'center' }}>
+                      <CircularProgress
+                        size={48}
+                        thickness={3.5}
+                        sx={{
+                          color: '#1976d2',
+                          animation: 'pulse 1.5s ease-in-out infinite'
+                        }}
+                      />
+                    </Box>
+                  </Box>
+                )}
+
+                {/* Empty State Overlay */}
+                {!loading && (!masterData || masterData.length === 0) && (
+                  <Box sx={{
+                    position: 'absolute',
+                    top: 60,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                    zIndex: 5,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}>
+                    <Box sx={{
+                      textAlign: 'center',
+                      p: 4,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: 2
+                    }}>
+                      <Box sx={{
+                        fontSize: '4rem',
+                        opacity: 0.3,
+                        mb: 1
+                      }}>
+                        📭
+                      </Box>
+                      <Typography variant="h5" sx={{ fontWeight: 600, color: '#6b7280', mb: 0.5 }}>
+                        No Data Found
+                      </Typography>
+                      <Typography variant="body2" sx={{ color: '#9ca3af', maxWidth: 400 }}>
+                        No master data items match your current filters. Try adjusting your search criteria or reset filters to see all items.
+                      </Typography>
+                    </Box>
+                  </Box>
+                )}
 
                 <Box sx={{
                   flex: 1,
@@ -1694,7 +1778,17 @@ export default function MasterDataPage() {
                     fontWeight: 700,
                     fontSize: '0.8rem',
                     textTransform: 'uppercase',
-                    letterSpacing: '0.3px'
+                    letterSpacing: '0.3px',
+                    opacity: '1 !important'
+                  },
+                  '& .ag-header': {
+                    opacity: '1 !important',
+                    zIndex: 15,
+                    position: 'relative'
+                  },
+                  '& .ag-body-viewport': {
+                    opacity: loading ? 0.3 : 1,
+                    transition: 'opacity 0.2s ease-in-out'
                   }
                 }}>
                   <div className="ag-theme-quartz" style={{ height: '100%', width: '100%' }}>
@@ -1705,6 +1799,8 @@ export default function MasterDataPage() {
                       defaultColDef={defaultColDef}
                       rowSelection="single"
                       suppressRowClickSelection={true}
+                      suppressLoadingOverlay={true}
+                      suppressNoRowsOverlay={true}
                       getRowId={(params: any) => params.data?.id || params.data?.wsn || String(params.rowIndex)}
                       onGridReady={(params: any) => {
                         gridRef.current = params.api;

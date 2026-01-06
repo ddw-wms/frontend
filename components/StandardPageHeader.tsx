@@ -27,6 +27,7 @@ export default function StandardPageHeader({
             color: 'white',
             px: 2,
             py: 1.25,
+            pl: { xs: '54px', sm: 2 },
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
@@ -35,8 +36,9 @@ export default function StandardPageHeader({
             boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
             position: 'sticky',
             top: 0,
-            zIndex: 100,
-            flexShrink: 0
+            zIndex: 1000,
+            flexShrink: 0,
+            mb: 0
         }}>
             {/* LEFT: Icon + Title */}
             <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 0.75, sm: 1.25 } }}>

@@ -211,12 +211,14 @@ export default function UsersPage() {
         <Box sx={{
           position: 'sticky',
           top: 0,
-          zIndex: 100,
-          mb: 1,
-          p: { xs: 1, sm: 1.25 },
-          background: 'linear-gradient(  135deg, #0f2027 0%, #203a43 50%, #2c5364 100%  )',
-          borderRadius: 1.5,
-          boxShadow: '0 8px 30px rgba(102, 126, 234, 0.25)',
+          zIndex: 1000,
+          mb: 0,
+          px: 2,
+          py: 1.25,
+          pl: { xs: '54px', sm: 2 },
+          background: 'linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%)',
+          borderRadius: 0,
+          boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
         }}>
           <Box sx={{
             display: 'flex',
@@ -310,7 +312,7 @@ export default function UsersPage() {
             </Stack>
           </Box>
         </Box>
-        <Box sx={{ marginBottom: 1, mt: -1, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+        <Box sx={{ marginBottom: 1.5, mt: 1.5, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
           <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
             <Button variant="contained" startIcon={<AddIcon />} onClick={() => handleDialogOpen()} size="small" sx={{ height: 36, fontWeight: 600, background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
               Add User
@@ -318,46 +320,43 @@ export default function UsersPage() {
           </Box>
         </Box>
 
-        <Paper sx={{ display: 'flex', flexDirection: 'column', minHeight: 0, flex: 1 }}>
-          <TableContainer sx={{ overflowX: 'auto', maxHeight: { xs: 'calc(100vh - 180px)', md: 'calc(100vh - 160px)' }, overflowY: 'auto', flex: 1 }}>
-            <Table stickyHeader size="small" sx={{
-              '& .MuiTableCell-root': { padding: '8px 12px', fontSize: '0.82rem', borderBottom: '1px solid #e6eef6', fontFamily: 'monospace' },
-              '& .MuiTableCell-head': { background: 'linear-gradient(180deg, #e6f4e6 0%, #cdeccf 100%)', color: '#0b5e36', fontWeight: 800, borderBottom: '2px solid #b7e0b7', position: 'sticky', top: 0, zIndex: 3 }
-            }}>
+        <Box sx={{ flex: 1, overflow: 'auto', minHeight: 0, border: '1px solid #d1d5db', position: 'relative' }}>
+          <TableContainer component={Paper} sx={{ borderRadius: 0, boxShadow: 'none', border: 'none', background: '#ffffff', height: '100%' }}>
+            <Table stickyHeader size="small" sx={{ '& .MuiTableCell-root': { borderRight: '1px solid #d1d5db', padding: '6px 10px', fontSize: '0.75rem' } }}>
               <TableHead>
-                <TableRow>
-                  <TableCell sx={{ fontWeight: 800, textTransform: 'uppercase', py: 1, width: 60 }}>#</TableCell>
-                  <TableCell sx={{ fontWeight: 800, textTransform: 'uppercase', py: 1 }}>Full Name</TableCell>
-                  <TableCell sx={{ fontWeight: 800, textTransform: 'uppercase', py: 1 }}>Username</TableCell>
-                  <TableCell sx={{ fontWeight: 800, textTransform: 'uppercase', py: 1 }}>Email</TableCell>
-                  <TableCell sx={{ fontWeight: 800, textTransform: 'uppercase', py: 1 }}>Phone</TableCell>
-                  <TableCell sx={{ fontWeight: 800, textTransform: 'uppercase', py: 1 }}>Role</TableCell>
-                  <TableCell sx={{ fontWeight: 800, textTransform: 'uppercase', py: 1 }}>Status</TableCell>
-                  <TableCell sx={{ fontWeight: 800, textTransform: 'uppercase', py: 1 }} align="center">Actions</TableCell>
+                <TableRow sx={{ background: '#e5e7eb' }}>
+                  <TableCell sx={{ color: '#1f2937', fontWeight: 700, background: '#e5e7eb', fontSize: '0.75rem', textTransform: 'uppercase', py: 0.8, whiteSpace: 'nowrap', width: 60 }}>#</TableCell>
+                  <TableCell sx={{ color: '#1f2937', fontWeight: 700, background: '#e5e7eb', fontSize: '0.75rem', textTransform: 'uppercase', py: 0.8, whiteSpace: 'nowrap', minWidth: 150 }}>FULL NAME</TableCell>
+                  <TableCell sx={{ color: '#1f2937', fontWeight: 700, background: '#e5e7eb', fontSize: '0.75rem', textTransform: 'uppercase', py: 0.8, whiteSpace: 'nowrap', minWidth: 120 }}>USERNAME</TableCell>
+                  <TableCell sx={{ color: '#1f2937', fontWeight: 700, background: '#e5e7eb', fontSize: '0.75rem', textTransform: 'uppercase', py: 0.8, whiteSpace: 'nowrap', minWidth: 180 }}>EMAIL</TableCell>
+                  <TableCell sx={{ color: '#1f2937', fontWeight: 700, background: '#e5e7eb', fontSize: '0.75rem', textTransform: 'uppercase', py: 0.8, whiteSpace: 'nowrap', minWidth: 120 }}>PHONE</TableCell>
+                  <TableCell sx={{ color: '#1f2937', fontWeight: 700, background: '#e5e7eb', fontSize: '0.75rem', textTransform: 'uppercase', py: 0.8, whiteSpace: 'nowrap', minWidth: 100 }}>ROLE</TableCell>
+                  <TableCell sx={{ color: '#1f2937', fontWeight: 700, background: '#e5e7eb', fontSize: '0.75rem', textTransform: 'uppercase', py: 0.8, whiteSpace: 'nowrap', minWidth: 100 }}>STATUS</TableCell>
+                  <TableCell sx={{ color: '#1f2937', fontWeight: 700, background: '#e5e7eb', fontSize: '0.75rem', textTransform: 'uppercase', py: 0.8, whiteSpace: 'nowrap', minWidth: 120, textAlign: 'center' }}>ACTIONS</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={8} sx={{ textAlign: 'center', py: 4 }}>
-                      Loading...
+                    <TableCell colSpan={8} align="center" sx={{ py: 8 }}>
+                      <CircularProgress size={50} />
                     </TableCell>
                   </TableRow>
                 ) : users.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={8} align="center" sx={{ py: 8 }}>
-                      <Typography color="text.secondary">No users found</Typography>
+                      <Typography sx={{ fontWeight: 700, color: '#94a3b8' }}>📭 No users found</Typography>
                     </TableCell>
                   </TableRow>
                 ) : (
                   users.map((user, idx) => (
-                    <TableRow key={user.id} hover sx={{ background: idx % 2 === 0 ? '#ffffff' : '#fbfcfe', '&:hover': { background: '#eefbf0' } }}>
-                      <TableCell sx={{ fontWeight: 700, width: 60 }}>{idx + 1}</TableCell>
-                      <TableCell sx={{ fontWeight: 700 }}>{user.full_name || '-'}</TableCell>
-                      <TableCell>{user.username}</TableCell>
-                      <TableCell>{user.email || '-'}</TableCell>
-                      <TableCell>{user.phone || '-'}</TableCell>
-                      <TableCell>
+                    <TableRow key={user.id} sx={{ bgcolor: idx % 2 === 0 ? '#ffffff' : '#f9fafb', '&:hover': { bgcolor: '#f0f0f0' } }}>
+                      <TableCell sx={{ fontWeight: 700, width: 60, fontSize: '0.75rem' }}>{idx + 1}</TableCell>
+                      <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem', whiteSpace: 'nowrap' }}>{user.full_name || '-'}</TableCell>
+                      <TableCell sx={{ fontWeight: 500, fontSize: '0.75rem', whiteSpace: 'nowrap' }}>{user.username}</TableCell>
+                      <TableCell sx={{ fontWeight: 500, fontSize: '0.75rem', whiteSpace: 'nowrap' }}>{user.email || '-'}</TableCell>
+                      <TableCell sx={{ fontWeight: 500, fontSize: '0.75rem', whiteSpace: 'nowrap' }}>{user.phone || '-'}</TableCell>
+                      <TableCell sx={{ whiteSpace: 'nowrap' }}>
                         <Chip
                           label={user.role.toUpperCase()}
                           size="small"
@@ -365,23 +364,38 @@ export default function UsersPage() {
                           variant="outlined"
                         />
                       </TableCell>
-                      <TableCell>
+                      <TableCell sx={{ whiteSpace: 'nowrap' }}>
                         {user.is_active ? (
                           <Chip label="Active" color="success" size="small" />
                         ) : (
                           <Chip label="Inactive" size="small" />
                         )}
                       </TableCell>
-                      <TableCell align="center">
-                        <Stack direction="row" spacing={1} justifyContent="center">
-                          <IconButton size="small" onClick={() => handleDialogOpen(user)} title="Edit">
-                            <EditIcon fontSize="small" />
+                      <TableCell sx={{ textAlign: 'center' }}>
+                        <Stack direction="row" spacing={0.5} justifyContent="center">
+                          <IconButton
+                            size="small"
+                            onClick={() => handleDialogOpen(user)}
+                            title="Edit"
+                            sx={{ color: '#667eea', p: 0.5, '&:hover': { bgcolor: 'rgba(102, 126, 234, 0.1)' } }}
+                          >
+                            <EditIcon sx={{ fontSize: 16 }} />
                           </IconButton>
-                          <IconButton size="small" color="primary" onClick={() => handleOpenPasswordDialog(user)} title="Change Password">
-                            <KeyIcon fontSize="small" />
+                          <IconButton
+                            size="small"
+                            onClick={() => handleOpenPasswordDialog(user)}
+                            title="Change Password"
+                            sx={{ color: '#10b981', p: 0.5, '&:hover': { bgcolor: 'rgba(16, 185, 129, 0.1)' } }}
+                          >
+                            <KeyIcon sx={{ fontSize: 16 }} />
                           </IconButton>
-                          <IconButton size="small" color="error" onClick={() => handleDelete(user.id)} title="Delete">
-                            <DeleteIcon fontSize="small" />
+                          <IconButton
+                            size="small"
+                            onClick={() => handleDelete(user.id)}
+                            title="Delete"
+                            sx={{ color: '#ef4444', p: 0.5, '&:hover': { bgcolor: 'rgba(239, 68, 68, 0.1)' } }}
+                          >
+                            <DeleteIcon sx={{ fontSize: 16 }} />
                           </IconButton>
                         </Stack>
                       </TableCell>
@@ -391,7 +405,7 @@ export default function UsersPage() {
               </TableBody>
             </Table>
           </TableContainer>
-        </Paper>
+        </Box>
       </Box>
 
       {/* Dialog */}

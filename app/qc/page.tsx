@@ -208,6 +208,7 @@ export default function QCPage() {
   const isMobile = useMediaQuery('(max-width:600px)');
   const [user, setUser] = useState<any>(null);
   const [tabValue, setTabValue] = useState(0);
+  const [multiQCSubTab, setMultiQCSubTab] = useState(0); // Sub-tab for Multi QC (0: Grid, 1: Bulk Upload)
 
   // AG Grid refs
   const gridRef = useRef<any>(null);
@@ -677,7 +678,7 @@ export default function QCPage() {
       loadStats();
     } else if (tabValue === 1) {
       loadRacks();
-    } else if (tabValue === 3) {
+    } else if (tabValue === 2) {
       loadRacks();
     } else if (tabValue === 4) {
       loadBatches();
@@ -1418,7 +1419,7 @@ export default function QCPage() {
         <StandardTabs
           value={tabValue}
           onChange={(event, newValue) => setTabValue(newValue)}
-          tabs={['QC List', 'Single QC', 'Multi QC', 'Batches']}
+          tabs={['QC List', 'Single QC', 'Multi QC', 'Bulk Upload', 'Batches']}
           color="#667eea"
         />
 
@@ -1460,6 +1461,7 @@ export default function QCPage() {
                       const value = e.target.value;
                       setSearchFilter(value);
                       setPage(1);
+                      setListLoading(true);
                       // Force immediate reload if empty (clear search)
                       if (value === '') {
                         loadQCList();
@@ -2154,41 +2156,121 @@ export default function QCPage() {
               </Dialog>
 
               {/* TABLE - AG GRID (always render grid so header remains visible) */}
-              <Box sx={{ flex: 1, minHeight: 0, border: '1px solid #d1d5db', position: 'relative' }}>
+              <Box sx={{
+                flex: 1,
+                minHeight: 0,
+                border: '1px solid #d1d5db',
+                position: 'relative'
+              }}>
+
+                {/* Loading Overlay with Spinner */}
+                {listLoading && (
+                  <Box sx={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: 'rgba(255, 255, 255, 0.7)',
+                    backdropFilter: 'blur(2px)',
+                    zIndex: 10,
+                    '@keyframes spin': {
+                      '0%': { transform: 'rotate(0deg)' },
+                      '100%': { transform: 'rotate(360deg)' }
+                    },
+                    '@keyframes pulse': {
+                      '0%, 100%': { opacity: 1 },
+                      '50%': { opacity: 0.5 }
+                    }
+                  }}>
+                    <Box sx={{ textAlign: 'center' }}>
+                      <CircularProgress
+                        size={48}
+                        thickness={3.5}
+                        sx={{
+                          color: '#1976d2',
+                          animation: 'pulse 1.5s ease-in-out infinite'
+                        }}
+                      />
+                    </Box>
+                  </Box>
+                )}
+
+                {/* Empty State Overlay */}
+                {!listLoading && (!qcList || qcList.length === 0) && (
+                  <Box sx={{
+                    position: 'absolute',
+                    top: 60,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                    zIndex: 5,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}>
+                    <Box sx={{
+                      textAlign: 'center',
+                      p: 4,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: 2
+                    }}>
+                      <Box sx={{
+                        fontSize: '4rem',
+                        opacity: 0.3,
+                        mb: 1
+                      }}>
+                        📭
+                      </Box>
+                      <Typography variant="h5" sx={{ fontWeight: 600, color: '#6b7280', mb: 0.5 }}>
+                        No Data Found
+                      </Typography>
+                      <Typography variant="body2" sx={{ color: '#9ca3af', maxWidth: 400 }}>
+                        No QC items match your current filters. Try adjusting your search criteria or reset filters to see all items.
+                      </Typography>
+                    </Box>
+                  </Box>
+                )}
+
                 <Box sx={{ height: '100%', width: '100%' }}>
-                  <div className="ag-theme-quartz" style={{ height: '100%', width: '100%', position: 'relative', transition: 'opacity 200ms ease-in-out', opacity: topLoading ? 0.65 : 1 }}>
-                    {/* Top-loading animation placed above the grid header to match Dashboard */}
-                    {topLoading && <LinearProgress color="primary" sx={{ height: 3, mb: 0.5 }} />}
-
-                    <AgGridReact
-                      ref={gridRef}
-                      rowData={qcList}
-                      columnDefs={listColumnDefs}
-                      defaultColDef={listDefaultColDef}
-                      rowSelection="single"
-                      suppressRowClickSelection={true}
-                      animateRows={false}
-                      gridOptions={{ getRowId: (params: any) => params.data?.id || params.data?.wsn || String(params.rowIndex), suppressRowTransform: true }}
-                      onGridReady={(params: any) => { gridRef.current = params.api; columnApiRef.current = params.columnApi; try { params.api.sizeColumnsToFit(); } catch (e) { /* ignore */ } }}
-                      pagination={false}
-                    />
-
-                    {/* Full centered spinner overlay when loading and no previous data */}
-                    {(isFetching || listLoading) && (!previousDataRef.current || previousDataRef.current.length === 0) && (
-                      <Box sx={{ position: 'absolute', top: 48, bottom: 48, left: 0, right: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'rgba(255,255,255,0.8)', zIndex: 1200 }}>
-                        <Box sx={{ textAlign: 'center' }}>
-                          <CircularProgress size={56} />
-                          <Typography sx={{ mt: 1, fontWeight: 700, color: '#64748b' }}>Loading results...</Typography>
-                        </Box>
-                      </Box>
-                    )}
-
-                    {/* Subtle overlay with small spinner when loading but previous rows exist */}
-                    {(isFetching || listLoading) && previousDataRef.current && previousDataRef.current.length > 0 && (
-                      <Box sx={{ position: 'absolute', top: 48, bottom: 48, left: 0, right: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'rgba(255,255,255,0.24)', zIndex: 1100 }}>
-                        <CircularProgress size={36} />
-                      </Box>
-                    )}
+                  <div className="ag-theme-quartz" style={{ height: '100%', width: '100%', position: 'relative' }}>
+                    <Box sx={{
+                      height: '100%',
+                      width: '100%',
+                      '& .ag-header': {
+                        opacity: '1 !important',
+                        zIndex: 15,
+                        position: 'relative'
+                      },
+                      '& .ag-header-cell': {
+                        opacity: '1 !important'
+                      },
+                      '& .ag-body-viewport': {
+                        opacity: listLoading ? 0.3 : 1,
+                        transition: 'opacity 0.2s ease-in-out'
+                      }
+                    }}>
+                      <AgGridReact
+                        ref={gridRef}
+                        rowData={qcList}
+                        columnDefs={listColumnDefs}
+                        defaultColDef={listDefaultColDef}
+                        rowSelection="single"
+                        suppressRowClickSelection={true}
+                        suppressLoadingOverlay={true}
+                        suppressNoRowsOverlay={true}
+                        animateRows={false}
+                        gridOptions={{ getRowId: (params: any) => params.data?.id || params.data?.wsn || String(params.rowIndex), suppressRowTransform: true }}
+                        onGridReady={(params: any) => { gridRef.current = params.api; columnApiRef.current = params.columnApi; try { params.api.sizeColumnsToFit(); } catch (e) { /* ignore */ } }}
+                        pagination={false}
+                      />
+                    </Box>
                   </div>
                 </Box>
               </Box>
@@ -3066,132 +3148,8 @@ export default function QCPage() {
           )
           }
 
-          {/* ========== TAB 2: BULK UPLOAD ========== */}
-          {/* TAB 2 - BULK UPLOAD */}
-          {tabValue === 2 && (
-            <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', p: { xs: 1, sm: 1.5, md: 2 }, overflow: 'auto' }}>
-              <Card sx={{ borderRadius: 1.5, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-                <CardContent sx={{ p: 2 }}>
-                  <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 2, color: '#1a237e' }}>
-                    📤 Bulk Upload
-                  </Typography>
-
-                  <Stack spacing={2}>
-                    {/* DOWNLOAD TEMPLATE BUTTON */}
-                    <Button
-                      variant="outlined"
-                      startIcon={<DownloadIcon />}
-                      onClick={downloadBulkTemplate}
-                      sx={{ py: 1.5 }}
-                    >
-                      📥 DOWNLOAD TEMPLATE
-                    </Button>
-
-                    {/* Confirmation Dialog for Download */}
-                    <Dialog
-                      open={confirmOpen}
-                      onClose={() => setConfirmOpen(false)}
-                      maxWidth="xs"
-                      fullWidth
-                    >
-                      <DialogTitle sx={{ fontWeight: 700, color: '#1a237e' }}>
-                        Confirm Download
-                      </DialogTitle>
-
-                      <DialogContent>
-                        <Typography sx={{ color: '#334155', mb: 2 }}>
-                          Would you like to proceed with downloading the template?
-                        </Typography>
-                      </DialogContent>
-
-                      <DialogActions sx={{ p: 2 }}>
-                        <Button onClick={() => setConfirmOpen(false)}>Cancel</Button>
-                        <Button
-                          variant="contained"
-                          onClick={handleConfirmDownload}
-                          sx={{
-                            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
-                          }}
-                        >
-                          Yes, Download
-                        </Button>
-                      </DialogActions>
-                    </Dialog>
-
-                    {/* FILE UPLOAD SECTION - SAME AS INBOUND */}
-                    <Box
-                      sx={{
-                        border: '2px dashed #667eea',
-                        borderRadius: 2,
-                        p: 3,
-                        textAlign: 'center',
-                        cursor: 'pointer',
-                        background: 'rgba(102, 126, 234, 0.05)',
-                        transition: 'all 0.3s',
-                        '&:hover': {
-                          background: 'rgba(102, 126, 234, 0.1)',
-                          borderColor: '#764ba2',
-                        },
-                      }}
-                    >
-                      <input
-                        type="file"
-                        accept=".xlsx,.xls"
-                        onChange={(e) => setBulkFile(e.target.files?.[0] || null)}
-                        style={{ display: 'none' }}
-                        id="bulk-file"
-                      />
-                      <label htmlFor="bulk-file" style={{ cursor: 'pointer', display: 'block' }}>
-                        <CloudUploadIcon sx={{ fontSize: 40, color: '#667eea', mb: 1 }} />
-                        <Typography sx={{ fontWeight: 700 }}>Click to upload file</Typography>
-                        <Typography variant="caption" sx={{ color: '#94a3b8' }}>
-                          {bulkFile?.name || 'No file selected'}
-                        </Typography>
-                      </label>
-                    </Box>
-
-                    {/* UPLOAD BUTTON */}
-                    <Button
-                      variant="contained"
-                      onClick={handleBulkUpload}
-                      disabled={bulkLoading || !bulkFile}
-                      sx={{
-                        py: 1.5,
-                        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                      }}
-                    >
-                      {bulkLoading ? <CircularProgress size={20} sx={{ mr: 1 }} /> : <CloudUploadIcon sx={{ mr: 1 }} />}
-                      Upload
-                    </Button>
-                  </Stack>
-
-                  {/* PROGRESS INDICATOR */}
-                  {bulkProgress.show && (
-                    <Card sx={{ background: 'linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)', border: '2px solid #3b82f6', mt: 2 }}>
-                      <CardContent>
-                        <Stack spacing={2}>
-                          <Box>
-                            <Typography variant="caption" sx={{ fontWeight: 700, color: '#1e40af' }}>BATCH ID</Typography>
-                            <Typography sx={{ fontWeight: 700, color: '#1e3a8a' }}>{bulkProgress.batchId}</Typography>
-                          </Box>
-                          <Box>
-                            <Typography variant="caption" sx={{ fontWeight: 700, color: '#1e40af' }}>TOTAL ROWS</Typography>
-                            <Typography sx={{ fontWeight: 700, color: '#1e3a8a' }}>{bulkProgress.total}</Typography>
-                          </Box>
-                          <LinearProgress variant="determinate" value={50} sx={{ height: 8, borderRadius: 4 }} />
-                          <Typography variant="caption" sx={{ color: '#1e40af', fontWeight: 600 }}>Processing...</Typography>
-                        </Stack>
-                      </CardContent>
-                    </Card>
-                  )}
-                </CardContent>
-              </Card>
-            </Box>
-          )}
-
-
-          {/* ========== TAB 3: MULTI QC (AG GRID) ========== */}
-          {tabValue === 3 && (() => {
+          {/* ========== TAB 2: MULTI QC ========== */}
+          {tabValue === 2 && (() => {
             // Column definitions for AG Grid
             const columnDefs = visibleColumns.map((field: string) => {
               // Normalize the field (remove underscores and lowercase) to match COLUMN_WIDTHS / ALL_MASTER_COLUMNS keys
@@ -4107,8 +4065,129 @@ export default function QCPage() {
                 </Dialog>
               </Box>
             );
-          })()
-          }
+          })()}
+
+          {/* ========== TAB 3: BULK UPLOAD ========== */}
+          {tabValue === 3 && (
+            <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', p: { xs: 1, sm: 1.5, md: 2 }, overflow: 'auto' }}>
+              <Card sx={{ borderRadius: 1.5, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+                <CardContent sx={{ p: 2 }}>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 2, color: '#1a237e' }}>
+                    📤 Bulk Upload
+                  </Typography>
+
+                  <Stack spacing={2}>
+                    {/* DOWNLOAD TEMPLATE BUTTON */}
+                    <Button
+                      variant="outlined"
+                      startIcon={<DownloadIcon />}
+                      onClick={downloadBulkTemplate}
+                      sx={{ py: 1.5 }}
+                    >
+                      📥 DOWNLOAD TEMPLATE
+                    </Button>
+
+                    {/* Confirmation Dialog for Download */}
+                    <Dialog
+                      open={confirmOpen}
+                      onClose={() => setConfirmOpen(false)}
+                      maxWidth="xs"
+                      fullWidth
+                    >
+                      <DialogTitle sx={{ fontWeight: 700, color: '#1a237e' }}>
+                        Confirm Download
+                      </DialogTitle>
+
+                      <DialogContent>
+                        <Typography sx={{ color: '#334155', mb: 2 }}>
+                          Would you like to proceed with downloading the template?
+                        </Typography>
+                      </DialogContent>
+
+                      <DialogActions sx={{ p: 2 }}>
+                        <Button onClick={() => setConfirmOpen(false)}>Cancel</Button>
+                        <Button
+                          variant="contained"
+                          onClick={handleConfirmDownload}
+                          sx={{
+                            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+                          }}
+                        >
+                          Yes, Download
+                        </Button>
+                      </DialogActions>
+                    </Dialog>
+
+                    {/* FILE UPLOAD SECTION */}
+                    <Box
+                      sx={{
+                        border: '2px dashed #667eea',
+                        borderRadius: 2,
+                        p: 3,
+                        textAlign: 'center',
+                        cursor: 'pointer',
+                        background: 'rgba(102, 126, 234, 0.05)',
+                        transition: 'all 0.3s',
+                        '&:hover': {
+                          background: 'rgba(102, 126, 234, 0.1)',
+                          borderColor: '#764ba2',
+                        },
+                      }}
+                    >
+                      <input
+                        type="file"
+                        accept=".xlsx,.xls"
+                        onChange={(e) => setBulkFile(e.target.files?.[0] || null)}
+                        style={{ display: 'none' }}
+                        id="bulk-file"
+                      />
+                      <label htmlFor="bulk-file" style={{ cursor: 'pointer', display: 'block' }}>
+                        <CloudUploadIcon sx={{ fontSize: 40, color: '#667eea', mb: 1 }} />
+                        <Typography sx={{ fontWeight: 700 }}>Click to upload file</Typography>
+                        <Typography variant="caption" sx={{ color: '#94a3b8' }}>
+                          {bulkFile?.name || 'No file selected'}
+                        </Typography>
+                      </label>
+                    </Box>
+
+                    {/* UPLOAD BUTTON */}
+                    <Button
+                      variant="contained"
+                      onClick={handleBulkUpload}
+                      disabled={bulkLoading || !bulkFile}
+                      sx={{
+                        py: 1.5,
+                        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                      }}
+                    >
+                      {bulkLoading ? <CircularProgress size={20} sx={{ mr: 1 }} /> : <CloudUploadIcon sx={{ mr: 1 }} />}
+                      Upload
+                    </Button>
+                  </Stack>
+
+                  {/* PROGRESS INDICATOR */}
+                  {bulkProgress.show && (
+                    <Card sx={{ background: 'linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)', border: '2px solid #3b82f6', mt: 2 }}>
+                      <CardContent>
+                        <Stack spacing={2}>
+                          <Box>
+                            <Typography variant="caption" sx={{ fontWeight: 700, color: '#1e40af' }}>BATCH ID</Typography>
+                            <Typography sx={{ fontWeight: 700, color: '#1e3a8a' }}>{bulkProgress.batchId}</Typography>
+                          </Box>
+                          <Box>
+                            <Typography variant="caption" sx={{ fontWeight: 700, color: '#1e40af' }}>TOTAL ROWS</Typography>
+                            <Typography sx={{ fontWeight: 700, color: '#1e3a8a' }}>{bulkProgress.total}</Typography>
+                          </Box>
+                          <LinearProgress variant="determinate" value={50} sx={{ height: 8, borderRadius: 4 }} />
+                          <Typography variant="caption" sx={{ color: '#1e40af', fontWeight: 600 }}>Processing...</Typography>
+                        </Stack>
+                      </CardContent>
+                    </Card>
+                  )}
+                </CardContent>
+              </Card>
+            </Box>
+          )}
 
           {/* ========== TAB 4: BATCH MANAGER ========== */}
           {

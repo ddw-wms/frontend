@@ -1,801 +1,756 @@
-// File Path = warehouse-frontend/app/reports/page.tsx
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
-    Box,
-    Card,
-    CardContent,
-    Typography,
-    Tabs,
-    Tab,
-    TextField,
-    Button,
-    MenuItem,
-    Table,
-    TableBody,
-    TableCell,
-    TableContainer,
-    TableHead,
-    TableRow,
-    Paper,
-    Chip,
-    CircularProgress,
-    Alert,
-    Stack,
-    IconButton,
-    Tooltip,
-    TablePagination,
+    Box, Paper, Typography, Card, CardContent, Stack, LinearProgress,
+    Alert, Chip, Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
+    useTheme, useMediaQuery
 } from '@mui/material';
 import {
-    Download,
-    Refresh,
-    Assessment,
-    Inventory,
-    LocalShipping,
-    CheckCircle,
-    ShoppingCart,
-    TrendingUp,
+    TrendingUp as TrendingUpIcon,
+    TrendingDown as TrendingDownIcon,
+    CheckCircle as CheckCircleIcon,
+    Warning as WarningIcon,
+    Error as ErrorIcon,
+    Speed as SpeedIcon,
+    Inventory as InventoryIcon,
+    LocalShipping as LocalShippingIcon
 } from '@mui/icons-material';
-import api from '@/lib/api';
-import dayjs from 'dayjs';
+import { useWarehouse } from '@/app/context/WarehouseContext';
+import { getStoredUser } from '@/lib/auth';
 import AppLayout from '@/components/AppLayout';
+import { StandardPageHeader, StandardTabs } from '@/components';
+import toast from 'react-hot-toast';
+import { useRoleGuard } from '@/hooks/useRoleGuard';
+import {
+    LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
+    XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
+} from 'recharts';
+import dayjs from 'dayjs';
+import api from '@/lib/api';
 
-interface Warehouse {
-    id: number;
-    name: string;
-}
-
-interface ReportData {
-    data: any[];
-    summary?: any;
-    total: number;
-}
+const COLORS = ['#667eea', '#f093fb', '#4facfe', '#43e97b', '#fa709a'];
 
 export default function ReportsPage() {
-    const [currentTab, setCurrentTab] = useState(0);
-    const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
-    const [selectedWarehouse, setSelectedWarehouse] = useState<string>('');
-    const [startDate, setStartDate] = useState<string>('');
-    const [endDate, setEndDate] = useState<string>('');
-    const [reportData, setReportData] = useState<ReportData>({ data: [], total: 0 });
+    useRoleGuard(['admin', 'manager']);
+
+    const { activeWarehouse } = useWarehouse();
+    const [user, setUser] = useState<any>(null);
+    const [selectedTab, setSelectedTab] = useState(0);
     const [loading, setLoading] = useState(false);
-    const [error, setError] = useState<string>('');
-    const [summaryData, setSummaryData] = useState<any>(null);
+    const theme = useTheme();
+    const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
-    // Pagination (server-aware)
-    const [page, setPage] = useState<number>(0);
-    const [rowsPerPage, setRowsPerPage] = useState<number>(50);
-
-    // Additional filters
-    const [brand, setBrand] = useState<string>('');
-    const [category, setCategory] = useState<string>('');
-    const [customer, setCustomer] = useState<string>('');
-    const [qcGrade, setQcGrade] = useState<string>('');
+    // Analytics data state
+    const [trendData, setTrendData] = useState<any[]>([]);
+    const [qcAnalysis, setQcAnalysis] = useState<any[]>([]);
+    const [userPerformance, setUserPerformance] = useState<any[]>([]);
+    const [brandPerformance, setBrandPerformance] = useState<any[]>([]);
+    const [exceptionReports, setExceptionReports] = useState<any>({
+        stuckInbound: [],
+        qcFailed: [],
+        slowMoving: []
+    });
 
     useEffect(() => {
-        fetchWarehouses();
-        // Set default date range (last 30 days)
-        const today = new Date();
-        const thirtyDaysAgo = new Date();
-        thirtyDaysAgo.setDate(today.getDate() - 30);
-        setStartDate(dayjs(thirtyDaysAgo).format('YYYY-MM-DD'));
-        setEndDate(dayjs(today).format('YYYY-MM-DD'));
+        const storedUser = getStoredUser();
+        if (!storedUser) {
+            window.location.href = '/login';
+            return;
+        }
+        setUser(storedUser);
     }, []);
 
     useEffect(() => {
-        // Auto-fetch report when tab, page or rowsPerPage changes
-        if (startDate && endDate) {
-            handleGenerateReport();
+        if (activeWarehouse?.id) {
+            loadAnalyticsData();
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [currentTab, page, rowsPerPage]);
+    }, [activeWarehouse?.id, selectedTab]);
 
-    const fetchWarehouses = async () => {
-        try {
-            const response = await api.get('/warehouses');
-            setWarehouses(response.data);
-        } catch (error: any) {
-            console.error('Error fetching warehouses:', error);
-        }
-    };
+    const loadAnalyticsData = useCallback(async () => {
+        if (!activeWarehouse?.id) return;
 
-    const handleGenerateReport = async () => {
         setLoading(true);
-        setError('');
-
         try {
-            const params: any = {
-                warehouse_id: selectedWarehouse || undefined,
-                start_date: startDate || undefined,
-                end_date: endDate || undefined,
-                page: page + 1,
-                limit: rowsPerPage,
-            };
-
-            let endpoint = '';
-
-            switch (currentTab) {
-                case 0: // Current Stock
-                    endpoint = '/reports/current-stock';
-                    if (brand) params.brand = brand;
-                    if (category) params.category = category;
-                    break;
-                case 1: // Stock Movement
-                    endpoint = '/reports/stock-movement';
-                    break;
-                case 2: // Inbound
-                    endpoint = '/reports/inbound';
-                    if (brand) params.brand = brand;
-                    if (category) params.category = category;
-                    break;
-                case 3: // Outbound
-                    endpoint = '/reports/outbound';
-                    if (customer) params.customer = customer;
-                    break;
-                case 4: // QC
-                    endpoint = '/reports/qc';
-                    if (qcGrade) params.qc_grade = qcGrade;
-                    break;
-                case 5: // Picking
-                    endpoint = '/reports/picking';
-                    if (customer) params.customer = customer;
-                    break;
-                case 6: // Performance
-                    endpoint = '/reports/user-performance';
-                    break;
-                case 7: // Summary
-                    endpoint = '/reports/warehouse-summary';
-                    break;
-                default:
-                    endpoint = '/reports/current-stock';
-            }
-
-            const response = await api.get(endpoint, { params });
-            setReportData(response.data);
-
-            // For summary dashboard
-            if (currentTab === 7) {
-                setSummaryData(response.data);
+            if (selectedTab === 0) {
+                // Analytics Dashboard
+                const [trends, qc] = await Promise.all([
+                    api.get(`/reports/trend-analysis?warehouse_id=${activeWarehouse.id}`),
+                    api.get(`/reports/qc-analysis?warehouse_id=${activeWarehouse.id}`)
+                ]);
+                setTrendData(trends.data.trends || []);
+                setQcAnalysis(qc.data.qcAnalysis || []);
+            } else if (selectedTab === 1) {
+                // Performance Reports
+                const perf = await api.get(`/reports/performance-metrics?warehouse_id=${activeWarehouse.id}`);
+                setUserPerformance(perf.data.userPerformance || []);
+                setBrandPerformance(perf.data.brandPerformance || []);
+            } else if (selectedTab === 2) {
+                // Exception Reports
+                const exceptions = await api.get(`/reports/exception-reports?warehouse_id=${activeWarehouse.id}`);
+                setExceptionReports(exceptions.data);
             }
         } catch (error: any) {
-            setError(error.response?.data?.error || 'Failed to generate report');
+            console.error('Error loading analytics:', error);
+            const errorMsg = error.response?.data?.error || error.message || 'Failed to load analytics data';
+            toast.error(errorMsg);
         } finally {
             setLoading(false);
         }
-    };
+    }, [activeWarehouse?.id, selectedTab]);
 
-    const handleExportToExcel = async () => {
-        try {
-            const reportTypeMap: any = {
-                0: 'current_stock',
-                1: 'stock_movement',
-                2: 'inbound',
-                3: 'outbound',
-                4: 'qc',
-                5: 'picking',
-                6: 'user_performance',
-                7: 'warehouse_summary',
-            };
+    // Calculate KPIs from trend data
+    const kpis = useMemo(() => {
+        if (!trendData.length) return null;
 
-            const params: any = {
-                report_type: reportTypeMap[currentTab],
-                warehouse_id: selectedWarehouse || undefined,
-                start_date: startDate || undefined,
-                end_date: endDate || undefined,
-            };
+        const last7Days = trendData.slice(-7);
+        const prev7Days = trendData.slice(-14, -7);
 
-            const response = await api.get('/reports/export', {
-                params,
-                responseType: 'blob',
-            });
+        const sumField = (arr: any[], field: string) =>
+            arr.reduce((sum, item) => sum + (parseInt(item[field]) || 0), 0);
 
-            const url = window.URL.createObjectURL(new Blob([response.data]));
-            const link = document.createElement('a');
-            link.href = url;
-            link.setAttribute('download', `${reportTypeMap[currentTab]}_report.xlsx`);
-            document.body.appendChild(link);
-            link.click();
-            link.remove();
-        } catch (error: any) {
-            setError('Failed to export report');
-        }
-    };
+        const lastWeekInbound = sumField(last7Days, 'inbound');
+        const prevWeekInbound = sumField(prev7Days, 'inbound');
+        const inboundChange = prevWeekInbound ? ((lastWeekInbound - prevWeekInbound) / prevWeekInbound * 100) : 0;
 
-    const renderFilters = () => (
-        <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', alignItems: 'center' }}>
-            <TextField
-                select
-                label="Warehouse"
-                value={selectedWarehouse}
-                onChange={(e) => setSelectedWarehouse(e.target.value)}
-                size="small"
-                sx={{ minWidth: { xs: '100%', sm: 200 } }}
-            >
-                <MenuItem value="">All Warehouses</MenuItem>
-                {warehouses && warehouses.length > 0 && warehouses.map((w) => (
-                    <MenuItem key={w.id} value={w.id}>
-                        {w.name}
-                    </MenuItem>
-                ))}
-            </TextField>
+        const lastWeekOutbound = sumField(last7Days, 'outbound');
+        const prevWeekOutbound = sumField(prev7Days, 'outbound');
+        const outboundChange = prevWeekOutbound ? ((lastWeekOutbound - prevWeekOutbound) / prevWeekOutbound * 100) : 0;
 
-            <TextField
-                type="date"
-                label="Start Date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                InputLabelProps={{ shrink: true }}
-                size="small"
-                sx={{ minWidth: { xs: '100%', sm: 150 } }}
-            />
+        const lastWeekQC = sumField(last7Days, 'qc');
+        const prevWeekQC = sumField(prev7Days, 'qc');
+        const qcChange = prevWeekQC ? ((lastWeekQC - prevWeekQC) / prevWeekQC * 100) : 0;
 
-            <TextField
-                type="date"
-                label="End Date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                InputLabelProps={{ shrink: true }}
-                size="small"
-                sx={{ minWidth: 150 }}
-            />
+        return {
+            inbound: { value: lastWeekInbound, change: inboundChange },
+            outbound: { value: lastWeekOutbound, change: outboundChange },
+            qc: { value: lastWeekQC, change: qcChange },
+            picking: { value: sumField(last7Days, 'picking'), change: 0 }
+        };
+    }, [trendData]);
 
-            {/* Additional filters based on report type */}
-            {(currentTab === 0 || currentTab === 2) && (
-                <>
-                    <TextField
-                        label="Brand"
-                        value={brand}
-                        onChange={(e) => setBrand(e.target.value)}
-                        size="small"
-                        placeholder="Search brand..."
-                        sx={{ minWidth: 150 }}
-                    />
-                    <TextField
-                        label="Category"
-                        value={category}
-                        onChange={(e) => setCategory(e.target.value)}
-                        size="small"
-                        placeholder="Search category..."
-                        sx={{ minWidth: 150 }}
-                    />
-                </>
-            )}
-
-            {(currentTab === 3 || currentTab === 5) && (
-                <TextField
-                    label="Customer"
-                    value={customer}
-                    onChange={(e) => setCustomer(e.target.value)}
-                    size="small"
-                    placeholder="Search customer..."
-                    sx={{ minWidth: 150 }}
-                />
-            )}
-
-            {currentTab === 4 && (
-                <TextField
-                    select
-                    label="QC Grade"
-                    value={qcGrade}
-                    onChange={(e) => setQcGrade(e.target.value)}
-                    size="small"
-                    sx={{ minWidth: 150 }}
-                >
-                    <MenuItem value="">All Grades</MenuItem>
-                    <MenuItem value="A">Grade A</MenuItem>
-                    <MenuItem value="B">Grade B</MenuItem>
-                    <MenuItem value="C">Grade C</MenuItem>
-                    <MenuItem value="Reject">Reject</MenuItem>
-                </TextField>
-            )}
-
-            <Button
-                variant="contained"
-                startIcon={<Assessment />}
-                onClick={handleGenerateReport}
-                disabled={loading}
-                sx={{ minWidth: { xs: '100%', sm: 150 } }}
-            >
-                Generate Report
-            </Button>
-
-            <Button
-                variant="outlined"
-                startIcon={<Download />}
-                onClick={handleExportToExcel}
-                disabled={loading || !reportData?.data || reportData.data.length === 0}
-                sx={{ minWidth: { xs: '100%', sm: 150 } }}
-                aria-label="Export report to Excel"
-            >
-                Export Excel
-            </Button>
-        </Box>
-    );
-
-    const renderCurrentStockTable = () => (
-        <Box sx={{ width: '100%', overflowX: 'auto' }}>
-            <TableContainer component={Paper}>
-                <Table sx={{ minWidth: 900 }} size="small">
-                    <TableHead>
-                        <TableRow sx={{ bgcolor: 'primary.main' }}>
-                            <TableCell sx={{ color: 'white' }}>WSN</TableCell>
-                            <TableCell sx={{ color: 'white' }}>Warehouse</TableCell>
-                            <TableCell sx={{ color: 'white' }}>Product</TableCell>
-                            <TableCell sx={{ color: 'white' }}>Brand</TableCell>
-                            <TableCell sx={{ color: 'white' }}>Category</TableCell>
-                            <TableCell sx={{ color: 'white' }}>MRP</TableCell>
-                            <TableCell sx={{ color: 'white' }}>Rack</TableCell>
-                            <TableCell sx={{ color: 'white' }}>Status</TableCell>
-                            <TableCell sx={{ color: 'white' }}>Inbound Date</TableCell>
-                        </TableRow>
-                    </TableHead>
-                    <TableBody>
-                        {reportData.data.map((row: any, index: number) => (
-                            <TableRow key={index} hover>
-                                <TableCell>{row.wsn}</TableCell>
-                                <TableCell>{row.warehouse_name}</TableCell>
-                                <TableCell sx={{ maxWidth: 240, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.product_title}</TableCell>
-                                <TableCell sx={{ maxWidth: 160, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.brand}</TableCell>
-                                <TableCell>{row.cms_vertical}</TableCell>
-                                <TableCell>₹{row.mrp}</TableCell>
-                                <TableCell>{row.rack_no || 'N/A'}</TableCell>
-                                <TableCell>
-                                    <Chip
-                                        label={row.current_status}
-                                        size="small"
-                                        color={
-                                            row.current_status === 'OUTBOUND' ? 'success' :
-                                                row.current_status === 'PICKING' ? 'warning' :
-                                                    row.current_status === 'QC' ? 'info' : 'default'
-                                        }
-                                    />
-                                </TableCell>
-                                <TableCell>{row.inbound_date ? dayjs(row.inbound_date).format('DD-MMM-YYYY') : ''}</TableCell>
-                            </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
-            </TableContainer>
-        </Box>
-    );
-
-    const renderStockMovementTable = () => (
-        <Box sx={{ width: '100%', overflowX: 'auto' }}>
-            <TableContainer component={Paper}>
-                <Table sx={{ minWidth: 700 }} size="small">
-                    <TableHead>
-                        <TableRow sx={{ bgcolor: 'primary.main' }}>
-                            <TableCell sx={{ color: 'white' }}>WSN</TableCell>
-                            <TableCell sx={{ color: 'white' }}>Movement Type</TableCell>
-                            <TableCell sx={{ color: 'white' }}>Movement Date</TableCell>
-                            <TableCell sx={{ color: 'white' }}>User</TableCell>
-                            <TableCell sx={{ color: 'white' }}>Timestamp</TableCell>
-                        </TableRow>
-                    </TableHead>
-                    <TableBody>
-                        {reportData.data.map((row: any, index: number) => (
-                            <TableRow key={index} hover>
-                                <TableCell>{row.wsn}</TableCell>
-                                <TableCell>
-                                    <Chip
-                                        label={row.movement_type}
-                                        size="small"
-                                        color={
-                                            row.movement_type === 'OUTBOUND' ? 'success' :
-                                                row.movement_type === 'PICKING' ? 'warning' :
-                                                    row.movement_type === 'QC' ? 'info' : 'default'
-                                        }
-                                    />
-                                </TableCell>
-                                <TableCell>{row.movement_date ? dayjs(row.movement_date).format('DD-MMM-YYYY') : ''}</TableCell>
-                                <TableCell sx={{ maxWidth: 200, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.user_name}</TableCell>
-                                <TableCell>{row.sort_date ? dayjs(row.sort_date).format('DD-MMM-YYYY HH:mm') : ''}</TableCell>
-                            </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
-            </TableContainer>
-        </Box>
-    );
-
-    const renderInboundTable = () => (
-        <Box>
-            {reportData.summary && (
-                <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap' }}>
-                    <Card sx={{ minWidth: 200 }}>
-                        <CardContent>
-                            <Typography variant="body2" color="text.secondary">Total Inbound</Typography>
-                            <Typography variant="h4">{reportData.summary.total_inbound}</Typography>
+    // Render Analytics Dashboard
+    const renderAnalyticsDashboard = () => (
+        <Box sx={{ p: { xs: 1, md: 2 } }}>
+            {/* KPI Cards */}
+            {kpis && (
+                <Box sx={{
+                    display: 'grid',
+                    gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(4, 1fr)' },
+                    gap: { xs: 1, md: 1.5 },
+                    mb: { xs: 2, md: 2.5 }
+                }}>
+                    <Card sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white' }}>
+                        <CardContent sx={{ p: { xs: 1, md: 1.5 }, '&:last-child': { pb: { xs: 1, md: 1.5 } } }}>
+                            <Typography variant="caption" sx={{ opacity: 0.9, fontSize: { xs: '0.65rem', md: '0.75rem' }, display: 'block', mb: 0.5 }}>
+                                Inbound (7 Days)
+                            </Typography>
+                            <Typography variant="h4" sx={{ fontWeight: 700, fontSize: { xs: '1.5rem', md: '2rem' }, mb: 0.5 }}>
+                                {kpis.inbound.value}
+                            </Typography>
+                            <Stack direction="row" alignItems="center" spacing={0.5}>
+                                {kpis.inbound.change >= 0 ?
+                                    <TrendingUpIcon sx={{ fontSize: { xs: 12, md: 16 } }} /> :
+                                    <TrendingDownIcon sx={{ fontSize: { xs: 12, md: 16 } }} />
+                                }
+                                <Typography variant="caption" sx={{ fontSize: { xs: '0.6rem', md: '0.7rem' } }}>
+                                    {Math.abs(kpis.inbound.change).toFixed(1)}%
+                                </Typography>
+                            </Stack>
                         </CardContent>
                     </Card>
-                    <Card sx={{ minWidth: 200 }}>
-                        <CardContent>
-                            <Typography variant="body2" color="text.secondary">Unique Items</Typography>
-                            <Typography variant="h4">{reportData.summary.unique_items}</Typography>
+
+                    <Card sx={{ background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)', color: 'white' }}>
+                        <CardContent sx={{ p: { xs: 1, md: 1.5 }, '&:last-child': { pb: { xs: 1, md: 1.5 } } }}>
+                            <Typography variant="caption" sx={{ opacity: 0.9, fontSize: { xs: '0.65rem', md: '0.75rem' }, display: 'block', mb: 0.5 }}>
+                                QC (7 Days)
+                            </Typography>
+                            <Typography variant="h4" sx={{ fontWeight: 700, fontSize: { xs: '1.5rem', md: '2rem' }, mb: 0.5 }}>
+                                {kpis.qc.value}
+                            </Typography>
+                            <Stack direction="row" alignItems="center" spacing={0.5}>
+                                {kpis.qc.change >= 0 ?
+                                    <TrendingUpIcon sx={{ fontSize: { xs: 12, md: 16 } }} /> :
+                                    <TrendingDownIcon sx={{ fontSize: { xs: 12, md: 16 } }} />
+                                }
+                                <Typography variant="caption" sx={{ fontSize: { xs: '0.6rem', md: '0.7rem' } }}>
+                                    {Math.abs(kpis.qc.change).toFixed(1)}%
+                                </Typography>
+                            </Stack>
                         </CardContent>
                     </Card>
-                    <Card sx={{ minWidth: 200 }}>
-                        <CardContent>
-                            <Typography variant="body2" color="text.secondary">Brands</Typography>
-                            <Typography variant="h4">{reportData.summary.brands_count}</Typography>
+
+                    <Card sx={{ background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)', color: 'white' }}>
+                        <CardContent sx={{ p: { xs: 1, md: 1.5 }, '&:last-child': { pb: { xs: 1, md: 1.5 } } }}>
+                            <Typography variant="caption" sx={{ opacity: 0.9, fontSize: { xs: '0.65rem', md: '0.75rem' }, display: 'block', mb: 0.5 }}>
+                                Picking (7 Days)
+                            </Typography>
+                            <Typography variant="h4" sx={{ fontWeight: 700, fontSize: { xs: '1.5rem', md: '2rem' }, mb: 0.5 }}>
+                                {kpis.picking.value}
+                            </Typography>
+                            <Stack direction="row" alignItems="center" spacing={0.5}>
+                                <SpeedIcon sx={{ fontSize: { xs: 12, md: 16 } }} />
+                                <Typography variant="caption" sx={{ fontSize: { xs: '0.6rem', md: '0.7rem' } }}>
+                                    Active
+                                </Typography>
+                            </Stack>
                         </CardContent>
                     </Card>
-                    <Card sx={{ minWidth: 200 }}>
-                        <CardContent>
-                            <Typography variant="body2" color="text.secondary">Categories</Typography>
-                            <Typography variant="h4">{reportData.summary.categories_count}</Typography>
+
+                    <Card sx={{ background: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)', color: 'white' }}>
+                        <CardContent sx={{ p: { xs: 1, md: 1.5 }, '&:last-child': { pb: { xs: 1, md: 1.5 } } }}>
+                            <Typography variant="caption" sx={{ opacity: 0.9, fontSize: { xs: '0.65rem', md: '0.75rem' }, display: 'block', mb: 0.5 }}>
+                                Outbound (7 Days)
+                            </Typography>
+                            <Typography variant="h4" sx={{ fontWeight: 700, fontSize: { xs: '1.5rem', md: '2rem' }, mb: 0.5 }}>
+                                {kpis.outbound.value}
+                            </Typography>
+                            <Stack direction="row" alignItems="center" spacing={0.5}>
+                                {kpis.outbound.change >= 0 ?
+                                    <TrendingUpIcon sx={{ fontSize: { xs: 12, md: 16 } }} /> :
+                                    <TrendingDownIcon sx={{ fontSize: { xs: 12, md: 16 } }} />
+                                }
+                                <Typography variant="caption" sx={{ fontSize: { xs: '0.6rem', md: '0.7rem' } }}>
+                                    {Math.abs(kpis.outbound.change).toFixed(1)}%
+                                </Typography>
+                            </Stack>
                         </CardContent>
                     </Card>
                 </Box>
             )}
-            <Box sx={{ width: '100%', overflowX: 'auto' }}>
-                <TableContainer component={Paper}>
-                    <Table sx={{ minWidth: 900 }} size="small">
+
+            {/* Trend Chart */}
+            <Paper sx={{ p: { xs: 1, md: 2 }, mb: { xs: 2, md: 3 } }}>
+                <Typography variant="h6" sx={{ mb: { xs: 1, md: 2 }, fontWeight: 600, fontSize: { xs: '0.9rem', md: '1.25rem' } }}>
+                    📈 30-Day Operations Trend
+                </Typography>
+                <ResponsiveContainer width="100%" height={isMobile ? 200 : 300}>
+                    <LineChart data={trendData}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis
+                            dataKey="date"
+                            tickFormatter={(date) => dayjs(date).format(isMobile ? 'DD' : 'MMM DD')}
+                            fontSize={isMobile ? 10 : 12}
+                        />
+                        <YAxis fontSize={isMobile ? 10 : 12} />
+                        <Tooltip
+                            labelFormatter={(date) => dayjs(date).format('MMM DD, YYYY')}
+                        />
+                        <Legend wrapperStyle={{ fontSize: isMobile ? '11px' : '14px' }} />
+                        <Line type="monotone" dataKey="inbound" stroke="#667eea" strokeWidth={isMobile ? 1.5 : 2} name="Inbound" />
+                        <Line type="monotone" dataKey="qc" stroke="#f093fb" strokeWidth={isMobile ? 1.5 : 2} name="QC" />
+                        <Line type="monotone" dataKey="picking" stroke="#4facfe" strokeWidth={isMobile ? 1.5 : 2} name="Picking" />
+                        <Line type="monotone" dataKey="outbound" stroke="#43e97b" strokeWidth={isMobile ? 1.5 : 2} name="Outbound" />
+                    </LineChart>
+                </ResponsiveContainer>
+            </Paper>
+
+            {/* QC Analysis */}
+            <Paper sx={{ p: { xs: 1, md: 2 } }}>
+                <Typography variant="h6" sx={{ mb: { xs: 1, md: 2 }, fontWeight: 600, fontSize: { xs: '0.9rem', md: '1.25rem' } }}>
+                    ✅ QC Status Distribution
+                </Typography>
+                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: { xs: 1, md: 2 } }}>
+                    <ResponsiveContainer width="100%" height={isMobile ? 180 : 250}>
+                        <PieChart>
+                            <Pie
+                                data={qcAnalysis}
+                                dataKey="count"
+                                nameKey="qc_status"
+                                cx="50%"
+                                cy="50%"
+                                outerRadius={isMobile ? 60 : 80}
+                                label
+                            >
+                                {qcAnalysis.map((entry, index) => (
+                                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                ))}
+                            </Pie>
+                            <Tooltip />
+                        </PieChart>
+                    </ResponsiveContainer>
+
+                    <Box>
+                        <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600, fontSize: { xs: '0.8rem', md: '0.875rem' } }}>
+                            QC Summary
+                        </Typography>
+                        {qcAnalysis.map((item, idx) => (
+                            <Stack key={idx} direction="row" justifyContent="space-between" sx={{ mb: { xs: 0.5, md: 1 } }}>
+                                <Chip
+                                    label={`${item.qc_status} (${item.qc_grade || 'N/A'})`}
+                                    size="small"
+                                    sx={{
+                                        bgcolor: COLORS[idx % COLORS.length],
+                                        color: 'white',
+                                        fontSize: { xs: '0.65rem', md: '0.8125rem' },
+                                        height: { xs: 20, md: 24 }
+                                    }}
+                                />
+                                <Typography variant="body2" sx={{ fontWeight: 600, fontSize: { xs: '0.7rem', md: '0.875rem' } }}>
+                                    {item.count} items
+                                </Typography>
+                            </Stack>
+                        ))}
+                    </Box>
+                </Box>
+            </Paper>
+        </Box>
+    );
+
+    // Render Performance Reports
+    const renderPerformanceReports = () => (
+        <Box sx={{ p: { xs: 1, md: 2 } }}>
+            {/* User Performance */}
+            <Paper sx={{ p: { xs: 1, md: 2 }, mb: { xs: 2, md: 3 } }}>
+                <Typography variant="h6" sx={{ mb: { xs: 1, md: 2 }, fontWeight: 600, fontSize: { xs: '0.9rem', md: '1.25rem' } }}>
+                    👥 User Performance (Top 20)
+                </Typography>
+                <ResponsiveContainer width="100%" height={isMobile ? 200 : 300}>
+                    <BarChart data={userPerformance}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis
+                            dataKey="user_name"
+                            angle={-45}
+                            textAnchor="end"
+                            height={isMobile ? 80 : 100}
+                            fontSize={isMobile ? 9 : 11}
+                        />
+                        <YAxis fontSize={isMobile ? 10 : 12} />
+                        <Tooltip />
+                        <Legend wrapperStyle={{ fontSize: isMobile ? '10px' : '12px' }} />
+                        <Bar dataKey="inbound" fill="#667eea" name="Inbound" />
+                        <Bar dataKey="qc" fill="#f093fb" name="QC" />
+                        <Bar dataKey="picking" fill="#4facfe" name="Picking" />
+                    </BarChart>
+                </ResponsiveContainer>
+
+                <TableContainer sx={{ mt: { xs: 1, md: 2 }, maxHeight: isMobile ? 250 : 400 }}>
+                    <Table size="small" stickyHeader>
                         <TableHead>
-                            <TableRow sx={{ bgcolor: 'primary.main' }}>
-                                <TableCell sx={{ color: 'white' }}>WSN</TableCell>
-                                <TableCell sx={{ color: 'white' }}>Warehouse</TableCell>
-                                <TableCell sx={{ color: 'white' }}>Product</TableCell>
-                                <TableCell sx={{ color: 'white' }}>Brand</TableCell>
-                                <TableCell sx={{ color: 'white' }}>Category</TableCell>
-                                <TableCell sx={{ color: 'white' }}>Inbound Date</TableCell>
-                                <TableCell sx={{ color: 'white' }}>Created By</TableCell>
+                            <TableRow>
+                                <TableCell sx={{ fontWeight: 700, fontSize: { xs: '0.7rem', md: '0.875rem' }, p: { xs: 0.5, md: 2 } }}>
+                                    User
+                                </TableCell>
+                                <TableCell align="right" sx={{ fontWeight: 700, fontSize: { xs: '0.7rem', md: '0.875rem' }, p: { xs: 0.5, md: 2 } }}>
+                                    Inbound
+                                </TableCell>
+                                <TableCell align="right" sx={{ fontWeight: 700, fontSize: { xs: '0.7rem', md: '0.875rem' }, p: { xs: 0.5, md: 2 } }}>
+                                    QC
+                                </TableCell>
+                                <TableCell align="right" sx={{ fontWeight: 700, fontSize: { xs: '0.7rem', md: '0.875rem' }, p: { xs: 0.5, md: 2 } }}>
+                                    Picking
+                                </TableCell>
+                                <TableCell align="right" sx={{ fontWeight: 700, fontSize: { xs: '0.7rem', md: '0.875rem' }, p: { xs: 0.5, md: 2 } }}>
+                                    Total
+                                </TableCell>
                             </TableRow>
                         </TableHead>
                         <TableBody>
-                            {reportData.data.map((row: any, index: number) => (
-                                <TableRow key={index} hover>
-                                    <TableCell>{row.wsn}</TableCell>
-                                    <TableCell>{row.warehouse_name}</TableCell>
-                                    <TableCell sx={{ maxWidth: 260, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.product_title}</TableCell>
-                                    <TableCell sx={{ maxWidth: 160, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.brand}</TableCell>
-                                    <TableCell>{row.cms_vertical}</TableCell>
-                                    <TableCell>{row.inbound_date ? dayjs(row.inbound_date).format('DD-MMM-YYYY') : ''}</TableCell>
-                                    <TableCell sx={{ maxWidth: 160, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.created_user_name}</TableCell>
+                            {userPerformance.map((row, idx) => (
+                                <TableRow key={idx} hover>
+                                    <TableCell sx={{ fontSize: { xs: '0.7rem', md: '0.875rem' }, p: { xs: 0.5, md: 2 } }}>
+                                        {row.user_name}
+                                    </TableCell>
+                                    <TableCell align="right" sx={{ fontSize: { xs: '0.7rem', md: '0.875rem' }, p: { xs: 0.5, md: 2 } }}>
+                                        {row.inbound}
+                                    </TableCell>
+                                    <TableCell align="right" sx={{ fontSize: { xs: '0.7rem', md: '0.875rem' }, p: { xs: 0.5, md: 2 } }}>
+                                        {row.qc}
+                                    </TableCell>
+                                    <TableCell align="right" sx={{ fontSize: { xs: '0.7rem', md: '0.875rem' }, p: { xs: 0.5, md: 2 } }}>
+                                        {row.picking}
+                                    </TableCell>
+                                    <TableCell align="right" sx={{ fontWeight: 700, fontSize: { xs: '0.7rem', md: '0.875rem' }, p: { xs: 0.5, md: 2 } }}>
+                                        {row.total}
+                                    </TableCell>
                                 </TableRow>
                             ))}
                         </TableBody>
                     </Table>
                 </TableContainer>
-            </Box>
-        </Box>
-    );
+            </Paper>
 
-    const renderOutboundTable = () => (
-        <Box sx={{ width: '100%', overflowX: 'auto' }}>
-            <TableContainer component={Paper}>
-                <Table sx={{ minWidth: 900 }} size="small">
-                    <TableHead>
-                        <TableRow sx={{ bgcolor: 'primary.main' }}>
-                            <TableCell sx={{ color: 'white' }}>WSN</TableCell>
-                            <TableCell sx={{ color: 'white' }}>Warehouse</TableCell>
-                            <TableCell sx={{ color: 'white' }}>Product</TableCell>
-                            <TableCell sx={{ color: 'white' }}>Customer</TableCell>
-                            <TableCell sx={{ color: 'white' }}>Source</TableCell>
-                            <TableCell sx={{ color: 'white' }}>Dispatch Date</TableCell>
-                            <TableCell sx={{ color: 'white' }}>Tracking No</TableCell>
-                        </TableRow>
-                    </TableHead>
-                    <TableBody>
-                        {reportData.data.map((row: any, index: number) => (
-                            <TableRow key={index} hover>
-                                <TableCell>{row.wsn}</TableCell>
-                                <TableCell>{row.warehouse_name}</TableCell>
-                                <TableCell sx={{ maxWidth: 260, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.product_title}</TableCell>
-                                <TableCell sx={{ maxWidth: 180, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.customer_name}</TableCell>
-                                <TableCell>{row.source}</TableCell>
-                                <TableCell>{row.dispatch_date ? dayjs(row.dispatch_date).format('DD-MMM-YYYY') : ''}</TableCell>
-                                <TableCell>{row.tracking_no}</TableCell>
-                            </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
-            </TableContainer>
-        </Box>
-    );
-
-    const renderQCTable = () => (
-        <Box>
-            {reportData.summary && reportData.summary.length > 0 && (
-                <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap' }}>
-                    {reportData.summary.map((item: any, index: number) => (
-                        <Card key={index} sx={{ minWidth: 200 }}>
-                            <CardContent>
-                                <Typography variant="body2" color="text.secondary">
-                                    {item.qc_grade} - {item.qc_status}
-                                </Typography>
-                                <Typography variant="h4">{item.count}</Typography>
-                            </CardContent>
-                        </Card>
-                    ))}
-                </Box>
-            )}
-            <Box sx={{ width: '100%', overflowX: 'auto' }}>
-                <TableContainer component={Paper}>
-                    <Table sx={{ minWidth: 900 }} size="small">
+            {/* Brand Performance */}
+            <Paper sx={{ p: { xs: 1, md: 2 } }}>
+                <Typography variant="h6" sx={{ mb: { xs: 1, md: 2 }, fontWeight: 600, fontSize: { xs: '0.9rem', md: '1.25rem' } }}>
+                    🏷️ Brand Performance (Top 20)
+                </Typography>
+                <TableContainer sx={{ maxHeight: isMobile ? 300 : 400 }}>
+                    <Table size="small" stickyHeader>
                         <TableHead>
-                            <TableRow sx={{ bgcolor: 'primary.main' }}>
-                                <TableCell sx={{ color: 'white' }}>WSN</TableCell>
-                                <TableCell sx={{ color: 'white' }}>Warehouse</TableCell>
-                                <TableCell sx={{ color: 'white' }}>Product</TableCell>
-                                <TableCell sx={{ color: 'white' }}>Brand</TableCell>
-                                <TableCell sx={{ color: 'white' }}>QC Grade</TableCell>
-                                <TableCell sx={{ color: 'white' }}>QC Status</TableCell>
-                                <TableCell sx={{ color: 'white' }}>QC Date</TableCell>
-                                <TableCell sx={{ color: 'white' }}>QC By</TableCell>
+                            <TableRow>
+                                <TableCell sx={{ fontWeight: 700, fontSize: { xs: '0.7rem', md: '0.875rem' }, p: { xs: 0.5, md: 2 } }}>
+                                    Brand
+                                </TableCell>
+                                <TableCell align="right" sx={{ fontWeight: 700, fontSize: { xs: '0.7rem', md: '0.875rem' }, p: { xs: 0.5, md: 2 } }}>
+                                    Total
+                                </TableCell>
+                                <TableCell align="right" sx={{ fontWeight: 700, fontSize: { xs: '0.7rem', md: '0.875rem' }, p: { xs: 0.5, md: 2 } }}>
+                                    Dispatched
+                                </TableCell>
+                                <TableCell align="right" sx={{ fontWeight: 700, fontSize: { xs: '0.7rem', md: '0.875rem' }, p: { xs: 0.5, md: 2 } }}>
+                                    Rate
+                                </TableCell>
+                                <TableCell align="right" sx={{ fontWeight: 700, fontSize: { xs: '0.7rem', md: '0.875rem' }, p: { xs: 0.5, md: 2 } }}>
+                                    Avg Days
+                                </TableCell>
                             </TableRow>
                         </TableHead>
                         <TableBody>
-                            {reportData.data.map((row: any, index: number) => (
-                                <TableRow key={index} hover>
-                                    <TableCell>{row.wsn}</TableCell>
-                                    <TableCell>{row.warehouse_name}</TableCell>
-                                    <TableCell sx={{ maxWidth: 260, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.product_title}</TableCell>
-                                    <TableCell sx={{ maxWidth: 160, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.brand}</TableCell>
-                                    <TableCell>
+                            {brandPerformance.map((row, idx) => (
+                                <TableRow key={idx} hover>
+                                    <TableCell sx={{ fontSize: { xs: '0.7rem', md: '0.875rem' }, p: { xs: 0.5, md: 2 } }}>
+                                        {row.brand}
+                                    </TableCell>
+                                    <TableCell align="right" sx={{ fontSize: { xs: '0.7rem', md: '0.875rem' }, p: { xs: 0.5, md: 2 } }}>
+                                        {row.total_items}
+                                    </TableCell>
+                                    <TableCell align="right" sx={{ fontSize: { xs: '0.7rem', md: '0.875rem' }, p: { xs: 0.5, md: 2 } }}>
+                                        {row.dispatched_items}
+                                    </TableCell>
+                                    <TableCell align="right" sx={{ p: { xs: 0.5, md: 2 } }}>
                                         <Chip
-                                            label={row.qc_grade}
+                                            label={`${row.dispatch_rate}%`}
                                             size="small"
-                                            color={row.qc_grade === 'A' ? 'success' : row.qc_grade === 'B' ? 'info' : 'warning'}
+                                            color={parseFloat(row.dispatch_rate) > 50 ? 'success' : 'warning'}
+                                            sx={{ fontSize: { xs: '0.65rem', md: '0.8125rem' }, height: { xs: 18, md: 24 } }}
                                         />
                                     </TableCell>
-                                    <TableCell><Chip label={row.qc_status} size="small" /></TableCell>
-                                    <TableCell>{row.qc_date ? dayjs(row.qc_date).format('DD-MMM-YYYY') : ''}</TableCell>
-                                    <TableCell sx={{ maxWidth: 160, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.qc_by_name}</TableCell>
+                                    <TableCell align="right" sx={{ fontSize: { xs: '0.7rem', md: '0.875rem' }, p: { xs: 0.5, md: 2 } }}>
+                                        {row.avg_days}d
+                                    </TableCell>
                                 </TableRow>
                             ))}
                         </TableBody>
                     </Table>
                 </TableContainer>
-            </Box>
+            </Paper>
         </Box>
     );
 
-    const renderPickingTable = () => (
-        <Box sx={{ width: '100%', overflowX: 'auto' }}>
-            <TableContainer component={Paper}>
-                <Table sx={{ minWidth: 900 }} size="small">
-                    <TableHead>
-                        <TableRow sx={{ bgcolor: 'primary.main' }}>
-                            <TableCell sx={{ color: 'white' }}>WSN</TableCell>
-                            <TableCell sx={{ color: 'white' }}>Warehouse</TableCell>
-                            <TableCell sx={{ color: 'white' }}>Product</TableCell>
-                            <TableCell sx={{ color: 'white' }}>Customer</TableCell>
-                            <TableCell sx={{ color: 'white' }}>Picking Date</TableCell>
-                            <TableCell sx={{ color: 'white' }}>Picked By</TableCell>
-                        </TableRow>
-                    </TableHead>
-                    <TableBody>
-                        {reportData.data.map((row: any, index: number) => (
-                            <TableRow key={index} hover>
-                                <TableCell>{row.wsn}</TableCell>
-                                <TableCell>{row.warehouse_name}</TableCell>
-                                <TableCell sx={{ maxWidth: 260, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.product_title}</TableCell>
-                                <TableCell sx={{ maxWidth: 180, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.customer_name}</TableCell>
-                                <TableCell>{row.picking_date ? dayjs(row.picking_date).format('DD-MMM-YYYY') : ''}</TableCell>
-                                <TableCell>{row.picked_by_name}</TableCell>
-                            </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
-            </TableContainer>
-        </Box>
-    );
-
-    const renderPerformanceTable = () => (
-        <TableContainer component={Paper}>
-            <Table size="small">
-                <TableHead>
-                    <TableRow sx={{ bgcolor: 'primary.main' }}>
-                        <TableCell sx={{ color: 'white' }}>User Name</TableCell>
-                        <TableCell sx={{ color: 'white' }}>Activity Type</TableCell>
-                        <TableCell sx={{ color: 'white' }}>Total Operations</TableCell>
-                        <TableCell sx={{ color: 'white' }}>First Operation</TableCell>
-                        <TableCell sx={{ color: 'white' }}>Last Operation</TableCell>
-                    </TableRow>
-                </TableHead>
-                <TableBody>
-                    {reportData.data.map((row: any, index: number) => (
-                        <TableRow key={index} hover>
-                            <TableCell>{row.user_name}</TableCell>
-                            <TableCell>
-                                <Chip label={row.activity_type} size="small" color="primary" />
-                            </TableCell>
-                            <TableCell>{row.total_operations}</TableCell>
-                            <TableCell>
-                                {row.first_operation ? dayjs(row.first_operation).format('DD-MMM-YYYY HH:mm') : ''}
-                            </TableCell>
-                            <TableCell>
-                                {row.last_operation ? dayjs(row.last_operation).format('DD-MMM-YYYY HH:mm') : ''}
-                            </TableCell>
-                        </TableRow>
-                    ))}
-                </TableBody>
-            </Table>
-        </TableContainer>
-    );
-
-    const renderSummaryDashboard = () => (
-        <Box sx={{ display: 'flex', gap: 3, flexDirection: 'column' }}>
-            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-                <Card sx={{ minWidth: 250, bgcolor: '#e3f2fd' }}>
-                    <CardContent>
-                        <Stack direction="row" alignItems="center" justifyContent="space-between">
+    // Render Exception Reports
+    const renderExceptionReports = () => (
+        <Box sx={{ p: { xs: 1, md: 2 } }}>
+            {/* Summary Cards */}
+            <Box sx={{
+                display: 'grid',
+                gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' },
+                gap: { xs: 1, md: 2 },
+                mb: { xs: 2, md: 3 }
+            }}>
+                <Card>
+                    <CardContent sx={{ p: { xs: 1.5, md: 2 }, '&:last-child': { pb: { xs: 1.5, md: 2 } } }}>
+                        <Stack direction="row" alignItems="center" spacing={{ xs: 1, md: 2 }}>
+                            <WarningIcon sx={{ fontSize: { xs: 32, md: 40 }, color: '#f59e0b' }} />
                             <Box>
-                                <Typography variant="body2" color="text.secondary">Total Inbound</Typography>
-                                <Typography variant="h3">{summaryData?.inbound || 0}</Typography>
+                                <Typography variant="h4" sx={{ fontWeight: 700, fontSize: { xs: '1.5rem', md: '2.125rem' } }}>
+                                    {exceptionReports.stuckInbound?.length || 0}
+                                </Typography>
+                                <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: '0.7rem', md: '0.875rem' } }}>
+                                    Stuck in Inbound
+                                </Typography>
                             </Box>
-                            <Inventory sx={{ fontSize: 48, color: '#1976d2' }} />
                         </Stack>
                     </CardContent>
                 </Card>
 
-                <Card sx={{ minWidth: 250, bgcolor: '#fff3e0' }}>
-                    <CardContent>
-                        <Stack direction="row" alignItems="center" justifyContent="space-between">
+                <Card>
+                    <CardContent sx={{ p: { xs: 1.5, md: 2 }, '&:last-child': { pb: { xs: 1.5, md: 2 } } }}>
+                        <Stack direction="row" alignItems="center" spacing={{ xs: 1, md: 2 }}>
+                            <ErrorIcon sx={{ fontSize: { xs: 32, md: 40 }, color: '#ef4444' }} />
                             <Box>
-                                <Typography variant="body2" color="text.secondary">Total QC</Typography>
-                                <Typography variant="h3">{summaryData?.qc || 0}</Typography>
+                                <Typography variant="h4" sx={{ fontWeight: 700, fontSize: { xs: '1.5rem', md: '2.125rem' } }}>
+                                    {exceptionReports.qcFailed?.length || 0}
+                                </Typography>
+                                <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: '0.7rem', md: '0.875rem' } }}>
+                                    QC Failed
+                                </Typography>
                             </Box>
-                            <CheckCircle sx={{ fontSize: 48, color: '#f57c00' }} />
                         </Stack>
                     </CardContent>
                 </Card>
 
-                <Card sx={{ minWidth: 250, bgcolor: '#fce4ec' }}>
-                    <CardContent>
-                        <Stack direction="row" alignItems="center" justifyContent="space-between">
+                <Card>
+                    <CardContent sx={{ p: { xs: 1.5, md: 2 }, '&:last-child': { pb: { xs: 1.5, md: 2 } } }}>
+                        <Stack direction="row" alignItems="center" spacing={{ xs: 1, md: 2 }}>
+                            <InventoryIcon sx={{ fontSize: { xs: 32, md: 40 }, color: '#6366f1' }} />
                             <Box>
-                                <Typography variant="body2" color="text.secondary">Total Picking</Typography>
-                                <Typography variant="h3">{summaryData?.picking || 0}</Typography>
+                                <Typography variant="h4" sx={{ fontWeight: 700, fontSize: { xs: '1.5rem', md: '2.125rem' } }}>
+                                    {exceptionReports.slowMoving?.length || 0}
+                                </Typography>
+                                <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: '0.7rem', md: '0.875rem' } }}>
+                                    Slow Moving
+                                </Typography>
                             </Box>
-                            <ShoppingCart sx={{ fontSize: 48, color: '#c2185b' }} />
-                        </Stack>
-                    </CardContent>
-                </Card>
-
-                <Card sx={{ minWidth: 250, bgcolor: '#e8f5e9' }}>
-                    <CardContent>
-                        <Stack direction="row" alignItems="center" justifyContent="space-between">
-                            <Box>
-                                <Typography variant="body2" color="text.secondary">Total Outbound</Typography>
-                                <Typography variant="h3">{summaryData?.outbound || 0}</Typography>
-                            </Box>
-                            <LocalShipping sx={{ fontSize: 48, color: '#388e3c' }} />
                         </Stack>
                     </CardContent>
                 </Card>
             </Box>
 
-            <Card>
-                <CardContent>
-                    <Stack direction="row" alignItems="center" justifyContent="space-between">
-                        <Box>
-                            <Typography variant="h6" color="text.secondary">Grand Total Operations</Typography>
-                            <Typography variant="h2" sx={{ mt: 1 }}>{summaryData?.total || 0}</Typography>
-                        </Box>
-                        <TrendingUp sx={{ fontSize: 64, color: '#1976d2' }} />
-                    </Stack>
-                </CardContent>
-            </Card>
+            {/* Stuck in Inbound */}
+            <Paper sx={{ p: { xs: 1, md: 2 }, mb: { xs: 2, md: 3 } }}>
+                <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: { xs: 1, md: 2 } }}>
+                    <WarningIcon sx={{ color: '#f59e0b', fontSize: { xs: 18, md: 24 } }} />
+                    <Typography variant="h6" sx={{ fontWeight: 600, fontSize: { xs: '0.9rem', md: '1.25rem' } }}>
+                        Stuck in Inbound (&gt; 7 Days)
+                    </Typography>
+                </Stack>
+                {exceptionReports.stuckInbound?.length > 0 ? (
+                    <TableContainer sx={{ maxHeight: isMobile ? 200 : 300 }}>
+                        <Table size="small" stickyHeader>
+                            <TableHead>
+                                <TableRow>
+                                    <TableCell sx={{ fontWeight: 700, fontSize: { xs: '0.7rem', md: '0.875rem' }, p: { xs: 0.5, md: 2 } }}>
+                                        WSN
+                                    </TableCell>
+                                    {!isMobile && (
+                                        <TableCell sx={{ fontWeight: 700, fontSize: { xs: '0.7rem', md: '0.875rem' }, p: { xs: 0.5, md: 2 } }}>
+                                            Product
+                                        </TableCell>
+                                    )}
+                                    <TableCell sx={{ fontWeight: 700, fontSize: { xs: '0.7rem', md: '0.875rem' }, p: { xs: 0.5, md: 2 } }}>
+                                        Brand
+                                    </TableCell>
+                                    <TableCell sx={{ fontWeight: 700, fontSize: { xs: '0.7rem', md: '0.875rem' }, p: { xs: 0.5, md: 2 } }}>
+                                        Date
+                                    </TableCell>
+                                    <TableCell align="right" sx={{ fontWeight: 700, fontSize: { xs: '0.7rem', md: '0.875rem' }, p: { xs: 0.5, md: 2 } }}>
+                                        Days
+                                    </TableCell>
+                                </TableRow>
+                            </TableHead>
+                            <TableBody>
+                                {exceptionReports.stuckInbound.map((row: any, idx: number) => (
+                                    <TableRow key={idx} hover>
+                                        <TableCell sx={{ fontSize: { xs: '0.7rem', md: '0.875rem' }, p: { xs: 0.5, md: 2 } }}>
+                                            {row.wsn}
+                                        </TableCell>
+                                        {!isMobile && (
+                                            <TableCell sx={{ fontSize: { xs: '0.7rem', md: '0.875rem' }, p: { xs: 0.5, md: 2 } }}>
+                                                {row.product_title}
+                                            </TableCell>
+                                        )}
+                                        <TableCell sx={{ fontSize: { xs: '0.7rem', md: '0.875rem' }, p: { xs: 0.5, md: 2 } }}>
+                                            {row.brand}
+                                        </TableCell>
+                                        <TableCell sx={{ fontSize: { xs: '0.7rem', md: '0.875rem' }, p: { xs: 0.5, md: 2 } }}>
+                                            {dayjs(row.inbound_date).format(isMobile ? 'DD/MM' : 'DD-MMM-YY')}
+                                        </TableCell>
+                                        <TableCell align="right" sx={{ p: { xs: 0.5, md: 2 } }}>
+                                            <Chip
+                                                label={`${row.days_stuck}d`}
+                                                size="small"
+                                                color="warning"
+                                                sx={{ fontSize: { xs: '0.65rem', md: '0.8125rem' }, height: { xs: 18, md: 24 } }}
+                                            />
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </TableContainer>
+                ) : (
+                    <Alert severity="success" sx={{ fontSize: { xs: '0.75rem', md: '0.875rem' } }}>
+                        No items stuck in inbound! 🎉
+                    </Alert>
+                )}
+            </Paper>
+
+            {/* QC Failed */}
+            <Paper sx={{ p: { xs: 1, md: 2 }, mb: { xs: 2, md: 3 } }}>
+                <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: { xs: 1, md: 2 } }}>
+                    <ErrorIcon sx={{ color: '#ef4444', fontSize: { xs: 18, md: 24 } }} />
+                    <Typography variant="h6" sx={{ fontWeight: 600, fontSize: { xs: '0.9rem', md: '1.25rem' } }}>
+                        QC Failed Items
+                    </Typography>
+                </Stack>
+                {exceptionReports.qcFailed?.length > 0 ? (
+                    <TableContainer sx={{ maxHeight: isMobile ? 200 : 300 }}>
+                        <Table size="small" stickyHeader>
+                            <TableHead>
+                                <TableRow>
+                                    <TableCell sx={{ fontWeight: 700, fontSize: { xs: '0.7rem', md: '0.875rem' }, p: { xs: 0.5, md: 2 } }}>
+                                        WSN
+                                    </TableCell>
+                                    {!isMobile && (
+                                        <TableCell sx={{ fontWeight: 700, fontSize: { xs: '0.7rem', md: '0.875rem' }, p: { xs: 0.5, md: 2 } }}>
+                                            Product
+                                        </TableCell>
+                                    )}
+                                    <TableCell sx={{ fontWeight: 700, fontSize: { xs: '0.7rem', md: '0.875rem' }, p: { xs: 0.5, md: 2 } }}>
+                                        Brand
+                                    </TableCell>
+                                    <TableCell sx={{ fontWeight: 700, fontSize: { xs: '0.7rem', md: '0.875rem' }, p: { xs: 0.5, md: 2 } }}>
+                                        Date
+                                    </TableCell>
+                                    <TableCell sx={{ fontWeight: 700, fontSize: { xs: '0.7rem', md: '0.875rem' }, p: { xs: 0.5, md: 2 } }}>
+                                        Grade
+                                    </TableCell>
+                                    {!isMobile && (
+                                        <TableCell sx={{ fontWeight: 700, fontSize: { xs: '0.7rem', md: '0.875rem' }, p: { xs: 0.5, md: 2 } }}>
+                                            Remarks
+                                        </TableCell>
+                                    )}
+                                </TableRow>
+                            </TableHead>
+                            <TableBody>
+                                {exceptionReports.qcFailed.map((row: any, idx: number) => (
+                                    <TableRow key={idx} hover>
+                                        <TableCell sx={{ fontSize: { xs: '0.7rem', md: '0.875rem' }, p: { xs: 0.5, md: 2 } }}>
+                                            {row.wsn}
+                                        </TableCell>
+                                        {!isMobile && (
+                                            <TableCell sx={{ fontSize: { xs: '0.7rem', md: '0.875rem' }, p: { xs: 0.5, md: 2 } }}>
+                                                {row.product_title}
+                                            </TableCell>
+                                        )}
+                                        <TableCell sx={{ fontSize: { xs: '0.7rem', md: '0.875rem' }, p: { xs: 0.5, md: 2 } }}>
+                                            {row.brand}
+                                        </TableCell>
+                                        <TableCell sx={{ fontSize: { xs: '0.7rem', md: '0.875rem' }, p: { xs: 0.5, md: 2 } }}>
+                                            {dayjs(row.qc_date).format(isMobile ? 'DD/MM' : 'DD-MMM-YY')}
+                                        </TableCell>
+                                        <TableCell sx={{ p: { xs: 0.5, md: 2 } }}>
+                                            <Chip
+                                                label={row.qc_grade}
+                                                size="small"
+                                                color="error"
+                                                sx={{ fontSize: { xs: '0.65rem', md: '0.8125rem' }, height: { xs: 18, md: 24 } }}
+                                            />
+                                        </TableCell>
+                                        {!isMobile && (
+                                            <TableCell sx={{ fontSize: { xs: '0.7rem', md: '0.875rem' }, p: { xs: 0.5, md: 2 } }}>
+                                                {row.qc_remarks}
+                                            </TableCell>
+                                        )}
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </TableContainer>
+                ) : (
+                    <Alert severity="success" sx={{ fontSize: { xs: '0.75rem', md: '0.875rem' } }}>
+                        No QC failures! 🎉
+                    </Alert>
+                )}
+            </Paper>
+
+            {/* Slow Moving */}
+            <Paper sx={{ p: { xs: 1, md: 2 } }}>
+                <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: { xs: 1, md: 2 } }}>
+                    <InventoryIcon sx={{ color: '#6366f1', fontSize: { xs: 18, md: 24 } }} />
+                    <Typography variant="h6" sx={{ fontWeight: 600, fontSize: { xs: '0.9rem', md: '1.25rem' } }}>
+                        Slow Moving Inventory (&gt; 30 Days)
+                    </Typography>
+                </Stack>
+                {exceptionReports.slowMoving?.length > 0 ? (
+                    <TableContainer sx={{ maxHeight: isMobile ? 200 : 300 }}>
+                        <Table size="small" stickyHeader>
+                            <TableHead>
+                                <TableRow>
+                                    <TableCell sx={{ fontWeight: 700, fontSize: { xs: '0.7rem', md: '0.875rem' }, p: { xs: 0.5, md: 2 } }}>
+                                        WSN
+                                    </TableCell>
+                                    {!isMobile && (
+                                        <TableCell sx={{ fontWeight: 700, fontSize: { xs: '0.7rem', md: '0.875rem' }, p: { xs: 0.5, md: 2 } }}>
+                                            Product
+                                        </TableCell>
+                                    )}
+                                    <TableCell sx={{ fontWeight: 700, fontSize: { xs: '0.7rem', md: '0.875rem' }, p: { xs: 0.5, md: 2 } }}>
+                                        Brand
+                                    </TableCell>
+                                    <TableCell sx={{ fontWeight: 700, fontSize: { xs: '0.7rem', md: '0.875rem' }, p: { xs: 0.5, md: 2 } }}>
+                                        Date
+                                    </TableCell>
+                                    <TableCell align="right" sx={{ fontWeight: 700, fontSize: { xs: '0.7rem', md: '0.875rem' }, p: { xs: 0.5, md: 2 } }}>
+                                        Days
+                                    </TableCell>
+                                </TableRow>
+                            </TableHead>
+                            <TableBody>
+                                {exceptionReports.slowMoving.map((row: any, idx: number) => (
+                                    <TableRow key={idx} hover>
+                                        <TableCell sx={{ fontSize: { xs: '0.7rem', md: '0.875rem' }, p: { xs: 0.5, md: 2 } }}>
+                                            {row.wsn}
+                                        </TableCell>
+                                        {!isMobile && (
+                                            <TableCell sx={{ fontSize: { xs: '0.7rem', md: '0.875rem' }, p: { xs: 0.5, md: 2 } }}>
+                                                {row.product_title}
+                                            </TableCell>
+                                        )}
+                                        <TableCell sx={{ fontSize: { xs: '0.7rem', md: '0.875rem' }, p: { xs: 0.5, md: 2 } }}>
+                                            {row.brand}
+                                        </TableCell>
+                                        <TableCell sx={{ fontSize: { xs: '0.7rem', md: '0.875rem' }, p: { xs: 0.5, md: 2 } }}>
+                                            {dayjs(row.inbound_date).format(isMobile ? 'DD/MM' : 'DD-MMM-YY')}
+                                        </TableCell>
+                                        <TableCell align="right" sx={{ p: { xs: 0.5, md: 2 } }}>
+                                            <Chip
+                                                label={`${row.days_in_warehouse}d`}
+                                                size="small"
+                                                color={row.days_in_warehouse > 60 ? 'error' : 'warning'}
+                                                sx={{ fontSize: { xs: '0.65rem', md: '0.8125rem' }, height: { xs: 18, md: 24 } }}
+                                            />
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </TableContainer>
+                ) : (
+                    <Alert severity="success" sx={{ fontSize: { xs: '0.75rem', md: '0.875rem' } }}>
+                        No slow moving inventory! 🎉
+                    </Alert>
+                )}
+            </Paper>
         </Box>
     );
 
-    const renderTableContent = () => {
-        if (loading) {
-            return (
-                <Box display="flex" justifyContent="center" alignItems="center" minHeight={{ xs: 200, sm: 400 }}>
-                    <CircularProgress />
-                </Box>
-            );
-        }
-
-        if (error) {
-            return <Alert severity="error">{error}</Alert>;
-        }
-
-        if (currentTab === 7) {
-            return renderSummaryDashboard();
-        }
-
-        if (!reportData?.data || reportData.data.length === 0) {
-            return (
-                <Alert severity="info">
-                    No data available for the selected criteria. Try adjusting your filters.
-                </Alert>
-            );
-        }
-
-        switch (currentTab) {
-            case 0:
-                return renderCurrentStockTable();
-            case 1:
-                return renderStockMovementTable();
-            case 2:
-                return renderInboundTable();
-            case 3:
-                return renderOutboundTable();
-            case 4:
-                return renderQCTable();
-            case 5:
-                return renderPickingTable();
-            case 6:
-                return renderPerformanceTable();
-            default:
-                return null;
-        }
-    };
+    const tabs = [
+        '📊 Analytics Dashboard',
+        '📈 Performance Reports',
+        '⚠️ Exception Reports'
+    ];
 
     return (
         <AppLayout>
-            {/* Sticky Header Section */}
             <Box sx={{
-                position: 'sticky',
-                top: 0,
-                zIndex: 100,
-                bgcolor: 'background.default',
-                pb: 1,
-                borderBottom: 1,
-                borderColor: 'divider'
+                p: { xs: 0.75, md: 1 },
+                background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
+                height: '100vh',
+                display: 'flex',
+                flexDirection: 'column',
+                overflow: 'hidden'
             }}>
-                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ px: 2, py: 1.5 }}>
-                    <Typography variant="h5">📊 Reports & Analytics</Typography>
-                    <Tooltip title="Refresh">
-                        <IconButton aria-label="Refresh reports" onClick={handleGenerateReport} color="primary" size="small">
-                            <Refresh />
-                        </IconButton>
-                    </Tooltip>
-                </Stack>
+                {loading && (
+                    <LinearProgress sx={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 2000 }} />
+                )}
 
-                <Tabs
-                    value={currentTab}
-                    onChange={(e, newValue) => { setCurrentTab(newValue); setPage(0); }}
-                    variant="scrollable"
-                    scrollButtons="auto"
-                    sx={{
-                        borderBottom: 1,
-                        borderColor: 'divider',
-                        bgcolor: 'background.paper',
-                        '& .MuiTab-root': {
-                            minHeight: 48,
-                            textTransform: 'none'
-                        }
-                    }}
-                >
-                    {['Current Stock', 'Stock Movement', 'Inbound', 'Outbound', 'QC', 'Picking', 'User Performance', 'Summary Dashboard'].map((label, i) => (
-                        <Tab key={i} label={label} id={`tab-${i}`} aria-controls={`tabpanel-${i}`} />
-                    ))}
-                </Tabs>
+                <StandardPageHeader
+                    title="Reports & Analytics"
+                    subtitle={`${activeWarehouse?.name || 'Select Warehouse'} - Business Intelligence`}
+                    icon="📊"
+                    warehouseName={activeWarehouse?.name}
+                    userName={user?.full_name}
+                />
 
-                {/* Compact Filters */}
-                <Box sx={{ px: 2, py: 1.5, bgcolor: 'background.paper' }}>
-                    {renderFilters()}
-                </Box>
-            </Box>
+                <StandardTabs
+                    tabs={tabs}
+                    value={selectedTab}
+                    onChange={(_, newValue) => setSelectedTab(newValue)}
+                />
 
-            {/* Scrollable Content */}
-            <Box sx={{ p: 2 }}>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-                    Total Records: {currentTab === 7 ? summaryData?.total || 0 : reportData.total}
-                </Typography>
-
-                <Box role="tabpanel" id={`tabpanel-${currentTab}`} aria-labelledby={`tab-${currentTab}`}>
-                    {renderTableContent()}
-
-                    {/* Pagination for tabular reports */}
-                    {currentTab !== 7 && (
-                        <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
-                            <TablePagination
-                                component="div"
-                                count={reportData.total || 0}
-                                page={page}
-                                onPageChange={(e, newPage) => setPage(newPage)}
-                                rowsPerPage={rowsPerPage}
-                                onRowsPerPageChange={(e) => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0); }}
-                                rowsPerPageOptions={[10, 25, 50, 100]}
-                            />
+                <Box sx={{ flex: 1, overflow: 'auto', bgcolor: '#f5f5f5', py: { xs: 2, sm: 3 } }}>
+                    {!activeWarehouse ? (
+                        <Box sx={{ p: 3 }}>
+                            <Alert severity="warning">Please select a warehouse to view reports</Alert>
                         </Box>
+                    ) : (
+                        <>
+                            {selectedTab === 0 && renderAnalyticsDashboard()}
+                            {selectedTab === 1 && renderPerformanceReports()}
+                            {selectedTab === 2 && renderExceptionReports()}
+                        </>
                     )}
                 </Box>
             </Box>

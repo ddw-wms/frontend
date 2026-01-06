@@ -280,12 +280,14 @@ export default function CustomersPage() {
         <Box sx={{
           position: 'sticky',
           top: 0,
-          zIndex: 100,
-          mb: 1,
-          p: { xs: 1, sm: 1.25 },
-          background: 'linear-gradient(  135deg, #0f2027 0%, #203a43 50%, #2c5364 100%  )',
-          borderRadius: 1.5,
-          boxShadow: '0 8px 30px rgba(102, 126, 234, 0.25)',
+          zIndex: 1000,
+          mb: 0,
+          px: 2,
+          py: 1.25,
+          pl: { xs: '54px', sm: 2 },
+          background: 'linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%)',
+          borderRadius: 0,
+          boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
         }}>
           <Box sx={{
             display: 'flex',
@@ -314,7 +316,7 @@ export default function CustomersPage() {
                   lineHeight: 1.1,
                   textShadow: '0 2px 4px rgba(0,0,0,0.1)'
                 }}>
-                  Customer Management
+                  Customers
                 </Typography>
                 <Typography variant="caption" sx={{
                   color: 'rgba(255,255,255,0.9)',
@@ -324,7 +326,7 @@ export default function CustomersPage() {
                   display: 'block',
                   mt: 0.25
                 }}>
-                  Manage your warehouse customers
+                  Manage your customers
                 </Typography>
               </Box>
             </Box>
@@ -379,8 +381,17 @@ export default function CustomersPage() {
             </Stack>
           </Box>
         </Box>
-        <Box sx={{ marginBottom: 1, mt: -1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
+
+        {/* Action Buttons */}
+        <Box sx={{ 
+          mb: 1.5, 
+          mt: 1.5, 
+          px: 1,
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center' 
+        }}>
+          <Box sx={{ display: 'flex', gap: 1 }}>
             <Button size="small" startIcon={<AddIcon sx={{ fontSize: 14 }} />} variant="contained" onClick={() => handleOpenDialog()} sx={{ height: 36, fontSize: '0.75rem', fontWeight: 600, background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
               ADD
             </Button>

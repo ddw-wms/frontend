@@ -368,227 +368,254 @@ export default function PrinterSettingsPage() {
 
   return (
     <AppLayout>
-      <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <Box sx={{
+        p: { xs: 0.75, md: 1 },
+        background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
+        height: '100vh',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden'
+      }}>
 
         {/* STICKY HEADER */}
         <Box sx={{
           position: 'sticky',
           top: 0,
-          zIndex: 100,
-          backgroundColor: 'background.default',
-          borderBottom: '1px solid',
-          borderColor: 'divider',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.08)'
+          zIndex: 1000,
+          px: 2,
+          py: 1.25,
+          pl: { xs: '54px', sm: 2 },
+          background: 'linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%)',
+          color: 'white',
+          borderRadius: 0,
+          boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: { xs: 0.75, sm: 1 }
         }}>
-          <Container maxWidth="lg" sx={{ py: { xs: 1, sm: 1.5 } }}>
-
-            {/* Title */}
-            <Box sx={{ mb: 1.5 }}>
+          {/* LEFT: Icon + Title */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 0.75, sm: 1.25 } }}>
+            <Box sx={{
+              p: { xs: 0.4, sm: 0.7 },
+              bgcolor: 'rgba(255,255,255,0.2)',
+              borderRadius: 1.5,
+              backdropFilter: 'blur(10px)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}>
+              <Typography sx={{ fontSize: { xs: '1rem', sm: '1.5rem' }, lineHeight: 1 }}>🖨️</Typography>
+            </Box>
+            <Box>
               <Typography variant="h4" sx={{
-                fontWeight: 700,
-                mb: 0.5,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 1,
-                fontSize: { xs: '1.25rem', sm: '1.5rem', md: '1.75rem' }
+                fontWeight: 650,
+                color: 'white',
+                fontSize: { xs: '0.85rem', sm: '1rem', md: '1.3rem' },
+                lineHeight: 1.1,
+                textShadow: '0 2px 4px rgba(0,0,0,0.1)'
               }}>
-                <PrintIcon fontSize="medium" />
                 Printer Settings
               </Typography>
-
-              <Typography variant="body2" color="textSecondary" sx={{
-                display: { xs: 'none', sm: 'block' },
-                fontSize: '0.875rem'
+              <Typography variant="caption" sx={{
+                color: 'rgba(255,255,255,0.9)',
+                fontSize: { xs: '0.5rem', sm: '0.7rem' },
+                fontWeight: 500,
+                lineHeight: 1.2,
+                display: 'block',
+                mt: 0.25
               }}>
-                Configure thermal printer, label settings, and print agent preferences
+                Configure thermal printer and label settings
               </Typography>
             </Box>
+          </Box>
+        </Box>
 
-            {/* Enhanced Status Card */}
-            <Card sx={{
-              background: agentStatus === 'connected'
-                ? 'linear-gradient(135deg, #e8f5e9 0%, #f1f8f4 100%)'
-                : 'linear-gradient(135deg, #ffebee 0%, #fff5f5 100%)',
-              border: `2px solid ${agentStatus === 'connected' ? '#4caf50' : '#f44336'}`,
-              boxShadow: agentStatus === 'connected'
-                ? '0 4px 12px rgba(76, 175, 80, 0.2)'
-                : '0 4px 12px rgba(244, 67, 54, 0.2)',
+        {/* Enhanced Status Card */}
+        <Box sx={{ px: 2, pt: 2 }}>
+          <Card sx={{
+            background: agentStatus === 'connected'
+              ? 'linear-gradient(135deg, #e8f5e9 0%, #f1f8f4 100%)'
+              : 'linear-gradient(135deg, #ffebee 0%, #fff5f5 100%)',
+            border: `2px solid ${agentStatus === 'connected' ? '#4caf50' : '#f44336'}`,
+            boxShadow: agentStatus === 'connected'
+              ? '0 4px 12px rgba(76, 175, 80, 0.2)'
+              : '0 4px 12px rgba(244, 67, 54, 0.2)',
+          }}>
+            <CardContent sx={{
+              py: { xs: 1.2, sm: 1.5 },
+              px: { xs: 2, sm: 3 },
+              '&:last-child': { pb: { xs: 1.2, sm: 1.5 } }
             }}>
-              <CardContent sx={{
-                py: { xs: 1.2, sm: 1.5 },
-                px: { xs: 2, sm: 3 },
-                '&:last-child': { pb: { xs: 1.2, sm: 1.5 } }
+              <Box sx={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: { xs: 1.5, sm: 2 },
+                alignItems: 'center'
               }}>
-                <Box sx={{
-                  display: 'flex',
-                  flexWrap: 'wrap',
-                  gap: { xs: 1.5, sm: 2 },
-                  alignItems: 'center'
-                }}>
 
-                  {/* LEFT - Status */}
-                  <Box sx={{ flex: { xs: '1 1 100%', sm: '1 1 50%' } }}>
-                    <StatusBadge />
-                    {agentStatus === 'connected' && agentVersion && (
-                      <Chip
-                        label={`v${agentVersion}`}
-                        size="small"
-                        color="success"
-                        variant="outlined"
-                        sx={{ ml: { xs: 0, sm: 5 }, mt: { xs: 0.5, sm: 0 }, fontWeight: 600 }}
-                      />
-                    )}
-                    {agentStatus === 'connected' && printers.length > 0 && (
-                      <Chip
-                        icon={<PrintIcon fontSize="small" />}
-                        label={`${printers.length} printer${printers.length > 1 ? 's' : ''} detected`}
-                        size="small"
-                        color="info"
-                        variant="outlined"
-                        sx={{ ml: 1, mt: { xs: 0.5, sm: 0 }, fontWeight: 600 }}
-                      />
-                    )}
-                  </Box>
+                {/* LEFT - Status */}
+                <Box sx={{ flex: { xs: '1 1 100%', sm: '1 1 50%' } }}>
+                  <StatusBadge />
+                  {agentStatus === 'connected' && agentVersion && (
+                    <Chip
+                      label={`v${agentVersion}`}
+                      size="small"
+                      color="success"
+                      variant="outlined"
+                      sx={{ ml: { xs: 0, sm: 5 }, mt: { xs: 0.5, sm: 0 }, fontWeight: 600 }}
+                    />
+                  )}
+                  {agentStatus === 'connected' && printers.length > 0 && (
+                    <Chip
+                      icon={<PrintIcon fontSize="small" />}
+                      label={`${printers.length} printer${printers.length > 1 ? 's' : ''} detected`}
+                      size="small"
+                      color="info"
+                      variant="outlined"
+                      sx={{ ml: 1, mt: { xs: 0.5, sm: 0 }, fontWeight: 600 }}
+                    />
+                  )}
+                </Box>
 
-                  {/* RIGHT - Actions */}
-                  <Box sx={{ flex: { xs: '1 1 100%', sm: '1 1 auto' }, textAlign: { xs: 'left', sm: 'right' } }}>
-                    <Stack
-                      direction={{ xs: 'column', sm: 'row' }}
-                      spacing={1}
-                      justifyContent={{ xs: 'flex-start', sm: 'flex-end' }}
-                    >
-                      <Tooltip title="Check agent connection status">
-                        <Button
-                          variant={agentStatus === 'connected' ? 'outlined' : 'contained'}
-                          color={agentStatus === 'connected' ? 'success' : 'error'}
-                          size="small"
-                          startIcon={<RefreshIcon />}
-                          onClick={() => checkAgentStatus(settings.agentPort)}
-                          sx={{ width: { xs: '100%', sm: 'auto' }, fontWeight: 600 }}
-                        >
-                          Refresh Status
-                        </Button>
-                      </Tooltip>
-
-                      <Chip
-                        icon={<NetworkCheckIcon />}
-                        label={`Port: ${settings.agentPort}`}
+                {/* RIGHT - Actions */}
+                <Box sx={{ flex: { xs: '1 1 100%', sm: '1 1 auto' }, textAlign: { xs: 'left', sm: 'right' } }}>
+                  <Stack
+                    direction={{ xs: 'column', sm: 'row' }}
+                    spacing={1}
+                    justifyContent={{ xs: 'flex-start', sm: 'flex-end' }}
+                  >
+                    <Tooltip title="Check agent connection status">
+                      <Button
+                        variant={agentStatus === 'connected' ? 'outlined' : 'contained'}
+                        color={agentStatus === 'connected' ? 'success' : 'error'}
                         size="small"
-                        variant="filled"
-                        color={agentStatus === 'connected' ? 'success' : 'default'}
+                        startIcon={<RefreshIcon />}
+                        onClick={() => checkAgentStatus(settings.agentPort)}
                         sx={{ width: { xs: '100%', sm: 'auto' }, fontWeight: 600 }}
-                      />
-                    </Stack>
-                  </Box>
+                      >
+                        Refresh Status
+                      </Button>
+                    </Tooltip>
 
-                </Box>
-              </CardContent>
-            </Card>
-
-            {/* Save Message */}
-            {saveMessage && (
-              <Alert
-                severity={saveMessage.includes('✅') ? 'success' : saveMessage.includes('⚠️') ? 'warning' : 'info'}
-                sx={{ mt: 1.5, fontWeight: 500 }}
-                onClose={() => setSaveMessage('')}
-              >
-                {saveMessage}
-              </Alert>
-            )}
-
-            {/* Enhanced Installation Guide (Disconnected State) */}
-            {agentStatus === 'disconnected' && (
-              <Alert
-                severity="error"
-                variant="filled"
-                sx={{
-                  mt: 1.5,
-                  background: 'linear-gradient(135deg, #f44336 0%, #e53935 100%)',
-                  '& .MuiAlert-message': { width: '100%' }
-                }}
-                icon={<CloudDownloadIcon sx={{ fontSize: 28 }} />}
-              >
-                <Typography variant="h6" sx={{ fontWeight: 700, mb: 1, color: 'white' }}>
-                  🚨 Print Agent Required
-                </Typography>
-                <Typography variant="body2" sx={{ mb: 2, color: 'rgba(255,255,255,0.95)' }}>
-                  Download and install the WMS Print Agent to enable label printing functionality.
-                </Typography>
-
-                <Box sx={{
-                  backgroundColor: 'rgba(255,255,255,0.15)',
-                  borderRadius: 2,
-                  p: 2,
-                  border: '1px solid rgba(255,255,255,0.2)'
-                }}>
-                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems="center" flexWrap="wrap">
-                    <Button
-                      variant="contained"
-                      size="large"
-                      startIcon={<DownloadIcon />}
-                      onClick={() => {
-                        const downloadUrl = 'https://drive.google.com/file/d/1pcVAo0mA-zvw31W_0_h5ysM4KPSa0BUs/view?usp=sharing';
-                        window.open(downloadUrl, '_blank');
-                        setTimeout(() => {
-                          alert('📥 Download started!\n\nFile: WMS Print Agent Setup (518 MB)\nIf download doesn\'t start:\n1. Check Downloads folder\n2. Check browser download manager\n3. Contact IT support');
-                        }, 1000);
-                      }}
-                      sx={{
-                        backgroundColor: 'white',
-                        color: '#f44336',
-                        fontWeight: 700,
-                        px: 4,
-                        py: 1.5,
-                        '&:hover': {
-                          backgroundColor: '#fafafa',
-                          transform: 'scale(1.05)',
-                          boxShadow: '0 6px 20px rgba(0,0,0,0.3)'
-                        },
-                        transition: 'all 0.2s'
-                      }}
-                    >
-                      Download Print Agent (518 MB)
-                    </Button>
-
-                    <Stack direction="row" spacing={1} flexWrap="wrap">
-                      <Chip
-                        label="Version 1.0.0"
-                        size="medium"
-                        sx={{
-                          backgroundColor: 'rgba(255,255,255,0.25)',
-                          color: 'white',
-                          fontWeight: 600,
-                          border: '1px solid rgba(255,255,255,0.3)'
-                        }}
-                      />
-                      <Chip
-                        label="Windows 10/11"
-                        size="medium"
-                        sx={{
-                          backgroundColor: 'rgba(255,255,255,0.25)',
-                          color: 'white',
-                          fontWeight: 600,
-                          border: '1px solid rgba(255,255,255,0.3)'
-                        }}
-                      />
-                    </Stack>
+                    <Chip
+                      icon={<NetworkCheckIcon />}
+                      label={`Port: ${settings.agentPort}`}
+                      size="small"
+                      variant="filled"
+                      color={agentStatus === 'connected' ? 'success' : 'default'}
+                      sx={{ width: { xs: '100%', sm: 'auto' }, fontWeight: 600 }}
+                    />
                   </Stack>
-
-                  <Divider sx={{ my: 2, borderColor: 'rgba(255,255,255,0.2)' }} />
-
-                  <Typography variant="body2" sx={{ fontWeight: 600, mb: 1, color: 'white' }}>
-                    📝 Quick Setup:
-                  </Typography>
-                  <Box component="ul" sx={{ pl: 2, m: 0, color: 'rgba(255,255,255,0.95)' }}>
-                    <li><Typography variant="caption">Run <strong>WMS-Print-Agent-Setup.exe</strong></Typography></li>
-                    <li><Typography variant="caption">Connect thermal printer via USB</Typography></li>
-                    <li><Typography variant="caption">Look for 🖨️ icon in system tray</Typography></li>
-                    <li><Typography variant="caption">Click <strong>"Refresh Status"</strong> button above</Typography></li>
-                  </Box>
                 </Box>
-              </Alert>
-            )}
-          </Container>
+
+              </Box>
+            </CardContent>
+          </Card>
+
+          {/* Save Message */}
+          {saveMessage && (
+            <Alert
+              severity={saveMessage.includes('✅') ? 'success' : saveMessage.includes('⚠️') ? 'warning' : 'info'}
+              sx={{ mt: 1.5, fontWeight: 500 }}
+              onClose={() => setSaveMessage('')}
+            >
+              {saveMessage}
+            </Alert>
+          )}
+
+          {/* Enhanced Installation Guide (Disconnected State) */}
+          {agentStatus === 'disconnected' && (
+            <Alert
+              severity="error"
+              variant="filled"
+              sx={{
+                mt: 1.5,
+                background: 'linear-gradient(135deg, #f44336 0%, #e53935 100%)',
+                '& .MuiAlert-message': { width: '100%' }
+              }}
+              icon={<CloudDownloadIcon sx={{ fontSize: 28 }} />}
+            >
+              <Typography variant="h6" sx={{ fontWeight: 700, mb: 1, color: 'white' }}>
+                🚨 Print Agent Required
+              </Typography>
+              <Typography variant="body2" sx={{ mb: 2, color: 'rgba(255,255,255,0.95)' }}>
+                Download and install the WMS Print Agent to enable label printing functionality.
+              </Typography>
+
+              <Box sx={{
+                backgroundColor: 'rgba(255,255,255,0.15)',
+                borderRadius: 2,
+                p: 2,
+                border: '1px solid rgba(255,255,255,0.2)'
+              }}>
+                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems="center" flexWrap="wrap">
+                  <Button
+                    variant="contained"
+                    size="large"
+                    startIcon={<DownloadIcon />}
+                    onClick={() => {
+                      const downloadUrl = 'https://drive.google.com/file/d/1pcVAo0mA-zvw31W_0_h5ysM4KPSa0BUs/view?usp=sharing';
+                      window.open(downloadUrl, '_blank');
+                      setTimeout(() => {
+                        alert('📥 Download started!\n\nFile: WMS Print Agent Setup (518 MB)\nIf download doesn\'t start:\n1. Check Downloads folder\n2. Check browser download manager\n3. Contact IT support');
+                      }, 1000);
+                    }}
+                    sx={{
+                      backgroundColor: 'white',
+                      color: '#f44336',
+                      fontWeight: 700,
+                      px: 4,
+                      py: 1.5,
+                      '&:hover': {
+                        backgroundColor: '#fafafa',
+                        transform: 'scale(1.05)',
+                        boxShadow: '0 6px 20px rgba(0,0,0,0.3)'
+                      },
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    Download Print Agent (518 MB)
+                  </Button>
+
+                  <Stack direction="row" spacing={1} flexWrap="wrap">
+                    <Chip
+                      label="Version 1.0.0"
+                      size="medium"
+                      sx={{
+                        backgroundColor: 'rgba(255,255,255,0.25)',
+                        color: 'white',
+                        fontWeight: 600,
+                        border: '1px solid rgba(255,255,255,0.3)'
+                      }}
+                    />
+                    <Chip
+                      label="Windows 10/11"
+                      size="medium"
+                      sx={{
+                        backgroundColor: 'rgba(255,255,255,0.25)',
+                        color: 'white',
+                        fontWeight: 600,
+                        border: '1px solid rgba(255,255,255,0.3)'
+                      }}
+                    />
+                  </Stack>
+                </Stack>
+
+                <Divider sx={{ my: 2, borderColor: 'rgba(255,255,255,0.2)' }} />
+
+                <Typography variant="body2" sx={{ fontWeight: 600, mb: 1, color: 'white' }}>
+                  📝 Quick Setup:
+                </Typography>
+                <Box component="ul" sx={{ pl: 2, m: 0, color: 'rgba(255,255,255,0.95)' }}>
+                  <li><Typography variant="caption">Run <strong>WMS-Print-Agent-Setup.exe</strong></Typography></li>
+                  <li><Typography variant="caption">Connect thermal printer via USB</Typography></li>
+                  <li><Typography variant="caption">Look for 🖨️ icon in system tray</Typography></li>
+                  <li><Typography variant="caption">Click <strong>"Refresh Status"</strong> button above</Typography></li>
+                </Box>
+              </Box>
+            </Alert>
+          )}
         </Box>
 
         {/* SCROLLABLE CONTENT */}
@@ -1165,6 +1192,6 @@ export default function PrinterSettingsPage() {
           </Container>
         </Box>
       </Box>
-    </AppLayout>
+    </AppLayout >
   );
 }

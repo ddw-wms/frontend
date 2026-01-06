@@ -1699,7 +1699,7 @@ export default function OutboundPage() {
             <Toaster position="top-right" toastOptions={{ duration: 3000, style: { background: '#363636', color: '#fff', borderRadius: '10px', padding: '16px', fontWeight: 600 }, success: { iconTheme: { primary: '#10b981', secondary: '#fff' } }, error: { iconTheme: { primary: '#ef4444', secondary: '#fff' } } }} />
 
             <Box sx={{
-                p: { xs: 0.8, md: 1 },
+                p: { xs: 0.75, md: 1 },
                 background: 'linear-gradient(135deg, #f0f4f8 0%, #d9e2ec 100%)', minHeight: '100vh', width: '100%'
             }}>
                 {/* HEADER */}
@@ -1728,7 +1728,7 @@ export default function OutboundPage() {
                         <Box sx={{ mb: 0.5 }}>
                             <Stack direction={{ xs: 'row', md: 'row' }} spacing={1} alignItems="center" sx={{ mb: 1 }}>
                                 <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', width: '100%' }}>
-                                    <TextField size="small" placeholder="🔍 Search by WSN, Product or Customer" value={searchFilter} onChange={(e) => { setSearchFilter(e.target.value); setPage(1); }} sx={{ flex: 1, minWidth: 0, '& .MuiOutlinedInput-root': { height: 36 } }} />
+                                    <TextField size="small" placeholder="🔍 Search by WSN, Product or Customer" value={searchFilter} onChange={(e) => { setSearchFilter(e.target.value); setPage(1); setListLoading(true); }} sx={{ flex: 1, minWidth: 0, '& .MuiOutlinedInput-root': { height: 36 } }} />
 
                                     {/* Mobile Actions button - opens full-screen filters/actions dialog */}
                                     <Button
@@ -2069,41 +2069,121 @@ export default function OutboundPage() {
 
 
                         {/* TABLE - AG GRID (always render grid so header remains visible) */}
-                        <Box sx={{ flex: 1, minHeight: 0, border: '1px solid #d1d5db', position: 'relative' }}>
+                        <Box sx={{
+                            flex: 1,
+                            minHeight: 0,
+                            border: '1px solid #d1d5db',
+                            position: 'relative'
+                        }}>
+
+                            {/* Loading Overlay with Spinner */}
+                            {listLoading && (
+                                <Box sx={{
+                                    position: 'absolute',
+                                    top: 0,
+                                    left: 0,
+                                    right: 0,
+                                    bottom: 0,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    backgroundColor: 'rgba(255, 255, 255, 0.7)',
+                                    backdropFilter: 'blur(2px)',
+                                    zIndex: 10,
+                                    '@keyframes spin': {
+                                        '0%': { transform: 'rotate(0deg)' },
+                                        '100%': { transform: 'rotate(360deg)' }
+                                    },
+                                    '@keyframes pulse': {
+                                        '0%, 100%': { opacity: 1 },
+                                        '50%': { opacity: 0.5 }
+                                    }
+                                }}>
+                                    <Box sx={{ textAlign: 'center' }}>
+                                        <CircularProgress
+                                            size={48}
+                                            thickness={3.5}
+                                            sx={{
+                                                color: '#1976d2',
+                                                animation: 'pulse 1.5s ease-in-out infinite'
+                                            }}
+                                        />
+                                    </Box>
+                                </Box>
+                            )}
+
+                            {/* Empty State Overlay */}
+                            {!listLoading && (!listData || listData.length === 0) && (
+                                <Box sx={{
+                                    position: 'absolute',
+                                    top: 60,
+                                    left: 0,
+                                    right: 0,
+                                    bottom: 0,
+                                    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                                    zIndex: 5,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                }}>
+                                    <Box sx={{
+                                        textAlign: 'center',
+                                        p: 4,
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        alignItems: 'center',
+                                        gap: 2
+                                    }}>
+                                        <Box sx={{
+                                            fontSize: '4rem',
+                                            opacity: 0.3,
+                                            mb: 1
+                                        }}>
+                                            📭
+                                        </Box>
+                                        <Typography variant="h5" sx={{ fontWeight: 600, color: '#6b7280', mb: 0.5 }}>
+                                            No Data Found
+                                        </Typography>
+                                        <Typography variant="body2" sx={{ color: '#9ca3af', maxWidth: 400 }}>
+                                            No outbound items match your current filters. Try adjusting your search criteria or reset filters to see all items.
+                                        </Typography>
+                                    </Box>
+                                </Box>
+                            )}
+
                             <Box sx={{ height: '100%', width: '100%' }}>
-                                <div className="ag-theme-quartz" style={{ height: '100%', width: '100%', position: 'relative', transition: 'opacity 200ms ease-in-out', opacity: topLoading ? 0.65 : 1 }}>
-                                    {/* Top-loading animation placed above the grid header to match Dashboard */}
-                                    {topLoading && <LinearProgress color="primary" sx={{ height: 3, mb: 0.5 }} />}
-
-                                    <AgGridReact
-                                        ref={gridRef}
-                                        rowData={listData}
-                                        columnDefs={listColumnDefs}
-                                        defaultColDef={listDefaultColDef}
-                                        rowSelection="single"
-                                        suppressRowClickSelection={true}
-                                        animateRows={false}
-                                        gridOptions={{ getRowId: (params: any) => params.data?.wsn || params.data?.wid || params.data?.id || String(params.rowIndex), suppressRowTransform: true }}
-                                        onGridReady={(params: any) => { gridRef.current = params.api; columnApiRef.current = params.columnApi; try { params.api.sizeColumnsToFit(); } catch (e) { /* ignore */ } }}
-                                        pagination={false}
-                                    />
-
-                                    {/* Full centered spinner overlay when loading and no previous data */}
-                                    {(isFetching || listLoading) && (!previousDataRef.current || previousDataRef.current.length === 0) && (
-                                        <Box sx={{ position: 'absolute', top: 48, bottom: 48, left: 0, right: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'rgba(255,255,255,0.8)', zIndex: 1200 }}>
-                                            <Box sx={{ textAlign: 'center' }}>
-                                                <CircularProgress size={56} />
-                                                <Typography sx={{ mt: 1, fontWeight: 700, color: '#64748b' }}>Loading results...</Typography>
-                                            </Box>
-                                        </Box>
-                                    )}
-
-                                    {/* Subtle overlay with small spinner when loading but previous rows exist */}
-                                    {(isFetching || listLoading) && previousDataRef.current && previousDataRef.current.length > 0 && (
-                                        <Box sx={{ position: 'absolute', top: 48, bottom: 48, left: 0, right: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'rgba(255,255,255,0.24)', zIndex: 1100 }}>
-                                            <CircularProgress size={36} />
-                                        </Box>
-                                    )}
+                                <div className="ag-theme-quartz" style={{ height: '100%', width: '100%', position: 'relative' }}>
+                                    <Box sx={{
+                                        height: '100%',
+                                        width: '100%',
+                                        '& .ag-header': {
+                                            opacity: '1 !important',
+                                            zIndex: 15,
+                                            position: 'relative'
+                                        },
+                                        '& .ag-header-cell': {
+                                            opacity: '1 !important'
+                                        },
+                                        '& .ag-body-viewport': {
+                                            opacity: listLoading ? 0.3 : 1,
+                                            transition: 'opacity 0.2s ease-in-out'
+                                        }
+                                    }}>
+                                        <AgGridReact
+                                            ref={gridRef}
+                                            rowData={listData}
+                                            columnDefs={listColumnDefs}
+                                            defaultColDef={listDefaultColDef}
+                                            rowSelection="single"
+                                            suppressRowClickSelection={true}
+                                            suppressLoadingOverlay={true}
+                                            suppressNoRowsOverlay={true}
+                                            animateRows={false}
+                                            gridOptions={{ getRowId: (params: any) => params.data?.wsn || params.data?.wid || params.data?.id || String(params.rowIndex), suppressRowTransform: true }}
+                                            onGridReady={(params: any) => { gridRef.current = params.api; columnApiRef.current = params.columnApi; try { params.api.sizeColumnsToFit(); } catch (e) { /* ignore */ } }}
+                                            pagination={false}
+                                        />
+                                    </Box>
                                 </div>
                             </Box>
                         </Box>

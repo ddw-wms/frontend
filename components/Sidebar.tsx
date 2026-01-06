@@ -41,7 +41,12 @@ import path from 'path';
 import { Group as GroupIcon, Logout as LogoutIcon } from '@mui/icons-material';
 import { getStoredUser, logout } from '@/lib/auth';
 
-export default function Sidebar() {
+interface SidebarProps {
+  mobileOpen?: boolean;
+  setMobileOpen?: (open: boolean) => void;
+}
+
+export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarProps) {
   const router = useRouter();
   const pathname = usePathname();
   const [userRole, setUserRole] = useState<string>('');
@@ -53,27 +58,27 @@ export default function Sidebar() {
     return false;
   });
 
-  const [mobileOpen, setMobileOpen] = useState(false);
-
   // --------------------------------------
-  // FIXED MOBILE DETECTION (REAL DEVICE)
+  // MOBILE DETECTION (SCREEN WIDTH)
   // --------------------------------------
   const [isMobile, setIsMobile] = useState(false);
 
   const checkMobile = useCallback(() => {
-    if (typeof navigator !== 'undefined') {
-      const real = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-      setIsMobile(real);
+    if (typeof window !== 'undefined') {
+      const width = window.innerWidth;
+      setIsMobile(width < 900);
     }
   }, []);
 
   useEffect(() => {
     checkMobile();
+    window.addEventListener('resize', checkMobile);
     // Get user role
     const user = getStoredUser();
     if (user) {
       setUserRole(user.role || '');
     }
+    return () => window.removeEventListener('resize', checkMobile);
   }, [checkMobile]);
 
   const [settingsOpen, setSettingsOpen] = useState(() =>
@@ -147,7 +152,7 @@ export default function Sidebar() {
 
   const navigate = (path: string) => {
     router.push(path);
-    if (isMobile) setMobileOpen(false);
+    if (isMobile && setMobileOpen) setMobileOpen(false);
   };
 
   const handleLogout = () => {
@@ -161,7 +166,7 @@ export default function Sidebar() {
     <>
       <Toolbar sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
         <IconButton
-          onClick={() => (isMobile ? setMobileOpen(false) : setCollapsed(!collapsed))}
+          onClick={() => (isMobile ? (setMobileOpen && setMobileOpen(false)) : setCollapsed(!collapsed))}
           sx={{ color: 'white', margin: -1 }}
         >
           <MenuIcon />
@@ -174,7 +179,7 @@ export default function Sidebar() {
         {isMobile && (
           <IconButton
             sx={{ marginLeft: 'auto', color: 'white' }}
-            onClick={() => setMobileOpen(false)}
+            onClick={() => setMobileOpen && setMobileOpen(false)}
           >
             <CloseIcon />
           </IconButton>
@@ -330,7 +335,7 @@ export default function Sidebar() {
           <Drawer
             variant="temporary"
             open={mobileOpen}
-            onClose={() => setMobileOpen(false)}
+            onClose={() => setMobileOpen && setMobileOpen(false)}
             ModalProps={{ keepMounted: true }}
             sx={{
               '& .MuiDrawer-paper': {
@@ -340,12 +345,10 @@ export default function Sidebar() {
                 left: 0,
                 position: 'fixed',
                 borderRight: 'none',
-                // ✅ Mobile scrollbar styling
                 scrollbarWidth: 'thin',
                 scrollbarColor: 'rgba(255,255,255,0.3) transparent',
-
                 '&::-webkit-scrollbar': {
-                  width: '4px', // Mobile pe aur bhi thin
+                  width: '4px',
                 },
                 '&::-webkit-scrollbar-thumb': {
                   backgroundColor: 'rgba(255,255,255,0.3)',
@@ -356,22 +359,6 @@ export default function Sidebar() {
           >
             {drawerContent}
           </Drawer>
-
-          {!mobileOpen && (
-            <IconButton
-              onClick={() => setMobileOpen(true)}
-              sx={{
-                position: 'fixed',
-                top: 10,
-                left: 10,
-                zIndex: 3000,
-                bgcolor: '#052457',
-                color: 'white',
-              }}
-            >
-              <MenuIcon />
-            </IconButton>
-          )}
         </>
       ) : (
         <Drawer
@@ -379,35 +366,33 @@ export default function Sidebar() {
           sx={{
             width: drawerWidth,
             flexShrink: 0,
+            height: '100vh',
             '& .MuiDrawer-paper': {
               width: drawerWidth,
               background: "linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%)",
               color: 'white',
               transition: 'width 0.3s',
               overflowX: 'hidden',
-              position: 'fixed',
-              top: 0,
-              left: 0,
-              height: '100vh',
+              overflowY: 'auto',
+              position: 'relative',
+              height: '100%',
+              maxHeight: '100vh',
               display: 'flex',
               flexDirection: 'column',
               borderRight: 'none',
-              // ✅ Scrollbar styling add karo
-              scrollbarWidth: 'thin', // Firefox ke liye
-              scrollbarColor: 'rgba(255,255,255,0.3) transparent', // Firefox ke liye
-
-              // Chrome, Safari, Edge ke liye
+              scrollbarWidth: 'thin',
+              scrollbarColor: 'rgba(255,255,255,0.3) transparent',
               '&::-webkit-scrollbar': {
-                width: '4px', // Thickness kam karo (default 15px hoti hai)
+                width: '6px',
               },
               '&::-webkit-scrollbar-track': {
-                background: 'transparent', // Track ka color
+                background: 'transparent',
               },
               '&::-webkit-scrollbar-thumb': {
-                backgroundColor: 'rgba(255,255,255,0.3)', // Thumb ka color
-                borderRadius: '10px', // Rounded corners
+                backgroundColor: 'rgba(255,255,255,0.3)',
+                borderRadius: '10px',
                 '&:hover': {
-                  backgroundColor: 'rgba(255,255,255,0.5)', // Hover pe brightness
+                  backgroundColor: 'rgba(255,255,255,0.5)',
                 },
               },
             },

@@ -1539,6 +1539,7 @@ export default function InboundPage() {
 
                         // indicate a pending search for the spinner
                         setSearchPending(true);
+                        setListLoading(true);
 
                         if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
                         searchDebounceRef.current = setTimeout(() => {
@@ -1787,6 +1788,7 @@ export default function InboundPage() {
                               size="small"
                               variant="outlined"
                               onClick={() => {
+                                setSearchInput('');
                                 setSearchFilter('');
                                 setBrandFilter('');
                                 setCategoryFilter('');
@@ -1945,7 +1947,7 @@ export default function InboundPage() {
                           </Box>
 
                           <Box sx={{ display: 'grid', gap: 1, mt: 1, gridTemplateColumns: 'repeat(2, 1fr)' }}>
-                            <Button variant="outlined" onClick={() => { setBrandFilter(''); setCategoryFilter(''); setDateFromFilter(''); setDateToFilter(''); setPage(1); }}>Reset</Button>
+                            <Button variant="outlined" onClick={() => { setSearchInput(''); setBrandFilter(''); setCategoryFilter(''); setDateFromFilter(''); setDateToFilter(''); setPage(1); }}>Reset</Button>
                             <Button variant="outlined" onClick={() => { setListColumnSettingsOpen(true); }}>Columns</Button>
                             <Button variant="outlined" onClick={() => { setGridSettingsOpen(true); }}>Grid</Button>
                             <Button variant="outlined" onClick={() => { setExportDialogOpen(true); }}>Export</Button>
@@ -1956,7 +1958,7 @@ export default function InboundPage() {
                     </DialogContent>
 
                     <Box sx={{ position: 'sticky', bottom: 0, left: 0, right: 0, bgcolor: 'background.paper', p: 1, borderTop: '1px solid #e0e0e0', display: 'flex', gap: 1 }}>
-                      <Button fullWidth variant="outlined" onClick={() => { setBrandFilter(''); setCategoryFilter(''); setDateFromFilter(''); setDateToFilter(''); }}>Reset</Button>
+                      <Button fullWidth variant="outlined" onClick={() => { setSearchInput(''); setBrandFilter(''); setCategoryFilter(''); setDateFromFilter(''); setDateToFilter(''); }}>Reset</Button>
                       <Button fullWidth variant="contained" onClick={() => { setPage(1); setMobileActionsOpen(false); }}>Apply</Button>
                     </Box>
                   </Dialog>
@@ -1964,7 +1966,7 @@ export default function InboundPage() {
                 </Box>
 
                 {/* TABLE (AG GRID) - HORIZONTAL SCROLL: Replaced Table with AG Grid to improve column sizing and interactions while keeping filters/export/pagination unchanged */}
-                <Box className="ag-theme-quartz" sx={{
+                <Box sx={{
                   position: 'relative',
                   flex: 1,
                   overflow: 'hidden',
@@ -1972,71 +1974,154 @@ export default function InboundPage() {
                   border: '2px solid #e2e8f0',
                   borderRadius: 1.5,
                   boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
-                  '& .ag-header': { background: 'linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%)', borderBottom: '1px solid #e5e7eb' },
-                  '& .ag-header-cell': { backgroundColor: 'transparent', color: '#1e293b', fontWeight: 800, fontSize: '0.75rem', borderRight: '1px solid #e5e7eb' },
-                  '& .ag-cell': { borderRight: '1px solid #f1f5f9' }
                 }}>
 
-                  {/* Top subtle loading bar to avoid flashing overlays */}
-                  <Box sx={{ position: 'absolute', top: 0, left: 0, right: 0, height: 4, zIndex: 20, pointerEvents: 'none', display: 'flex', alignItems: 'center' }}>
-                    <Box sx={{ width: '100%', opacity: topLoading ? 1 : 0, transition: 'opacity 220ms ease-in-out' }}>
-                      <LinearProgress color="primary" sx={{ height: 4, borderRadius: 2 }} />
+                  {/* Loading Overlay with Spinner */}
+                  {listLoading && (
+                    <Box sx={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      backgroundColor: 'rgba(255, 255, 255, 0.7)',
+                      backdropFilter: 'blur(2px)',
+                      zIndex: 10,
+                      '@keyframes spin': {
+                        '0%': { transform: 'rotate(0deg)' },
+                        '100%': { transform: 'rotate(360deg)' }
+                      },
+                      '@keyframes pulse': {
+                        '0%, 100%': { opacity: 1 },
+                        '50%': { opacity: 0.5 }
+                      }
+                    }}>
+                      <Box sx={{ textAlign: 'center' }}>
+                        <CircularProgress
+                          size={48}
+                          thickness={3.5}
+                          sx={{
+                            color: '#1976d2',
+                            animation: 'pulse 1.5s ease-in-out infinite'
+                          }}
+                        />
+                      </Box>
                     </Box>
-                  </Box>
+                  )}
 
-                  <AgGridReact
-                    ref={gridRef}
-                    rowData={listData}
-                    columnDefs={inboundColumnDefs}
-                    defaultColDef={inboundDefaultColDef}
-                    onGridReady={(params: any) => {
-                      columnApiRef.current = params.columnApi;
+                  {/* Empty State Overlay */}
+                  {!listLoading && (!listData || listData.length === 0) && (
+                    <Box sx={{
+                      position: 'absolute',
+                      top: 60,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                      zIndex: 5,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}>
+                      <Box sx={{
+                        textAlign: 'center',
+                        p: 4,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: 2
+                      }}>
+                        <Box sx={{
+                          fontSize: '4rem',
+                          opacity: 0.3,
+                          mb: 1
+                        }}>
+                          📭
+                        </Box>
+                        <Typography variant="h5" sx={{ fontWeight: 600, color: '#6b7280', mb: 0.5 }}>
+                          No Data Found
+                        </Typography>
+                        <Typography variant="body2" sx={{ color: '#9ca3af', maxWidth: 400 }}>
+                          No inbound items match your current filters. Try adjusting your search criteria or reset filters to see all items.
+                        </Typography>
+                      </Box>
+                    </Box>
+                  )}
 
-                      // initial autosize/fit
-                      setTimeout(() => {
+                  {/* AG Grid - Always Rendered */}
+                  <Box className="ag-theme-quartz" sx={{
+                    height: '100%',
+                    width: '100%',
+                    '& .ag-header': {
+                      background: 'linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%)',
+                      borderBottom: '1px solid #e5e7eb',
+                      opacity: '1 !important',
+                      zIndex: 15,
+                      position: 'relative'
+                    },
+                    '& .ag-header-cell': {
+                      backgroundColor: 'transparent',
+                      color: '#1e293b',
+                      fontWeight: 800,
+                      fontSize: '0.75rem',
+                      borderRight: '1px solid #e5e7eb',
+                      opacity: '1 !important'
+                    },
+                    '& .ag-body-viewport': {
+                      opacity: listLoading ? 0.3 : 1,
+                      transition: 'opacity 0.2s ease-in-out'
+                    },
+                    '& .ag-cell': { borderRight: '1px solid #f1f5f9' }
+                  }}>
+                    <AgGridReact
+                      ref={gridRef}
+                      rowData={listData}
+                      columnDefs={inboundColumnDefs}
+                      defaultColDef={inboundDefaultColDef}
+                      onGridReady={(params: any) => {
+                        columnApiRef.current = params.columnApi;
+
+                        // initial autosize/fit
+                        setTimeout(() => {
+                          try {
+                            const allCols = columnApiRef.current.getAllColumns().map((c: any) => c.getId());
+                            columnApiRef.current.autoSizeColumns(allCols, false);
+                          } catch (err) {
+                            params.api.sizeColumnsToFit();
+                          }
+                        }, 60);
+                      }}
+                      onFirstDataRendered={() => {
+                        const colApi = columnApiRef.current;
+                        if (!colApi) return;
                         try {
-                          const allCols = columnApiRef.current.getAllColumns().map((c: any) => c.getId());
-                          columnApiRef.current.autoSizeColumns(allCols, false);
+                          const allCols = colApi.getAllColumns().map((c: any) => c.getId());
+                          colApi.autoSizeColumns(allCols, false);
                         } catch (err) {
-                          params.api.sizeColumnsToFit();
+                          gridRef.current?.api.sizeColumnsToFit();
                         }
-
-                        if (listLoading) {
-                          params.api.showLoadingOverlay();
-                        } else if (!listData || listData.length === 0) {
-                          params.api.showNoRowsOverlay();
-                        } else {
-                          params.api.hideOverlay();
+                      }}
+                      onGridSizeChanged={() => {
+                        const colApi = columnApiRef.current;
+                        if (!colApi) return;
+                        try {
+                          const allCols = colApi.getAllColumns().map((c: any) => c.getId());
+                          colApi.autoSizeColumns(allCols, false);
+                        } catch (err) {
+                          gridRef.current?.api.sizeColumnsToFit();
                         }
-                      }, 60);
-                    }}
-                    onFirstDataRendered={() => {
-                      const colApi = columnApiRef.current;
-                      if (!colApi) return;
-                      try {
-                        const allCols = colApi.getAllColumns().map((c: any) => c.getId());
-                        colApi.autoSizeColumns(allCols, false);
-                      } catch (err) {
-                        gridRef.current?.api.sizeColumnsToFit();
-                      }
-                    }}
-                    onGridSizeChanged={() => {
-                      const colApi = columnApiRef.current;
-                      if (!colApi) return;
-                      try {
-                        const allCols = colApi.getAllColumns().map((c: any) => c.getId());
-                        colApi.autoSizeColumns(allCols, false);
-                      } catch (err) {
-                        gridRef.current?.api.sizeColumnsToFit();
-                      }
-                    }}
-                    animateRows={true}
-                    suppressRowClickSelection={true}
-                    rowSelection="single"
-                    containerStyle={{ height: '100%', width: '100%' }}
-                    overlayNoRowsTemplate={'<span style="padding:14px; font-weight:700; color:#94a3b8">🔭 No data found<br/><small style="color:#cbd5e1">Try adjusting filters</small></span>'}
-                    overlayLoadingTemplate={'<span style="padding:12px; font-weight:700; color:#667eea">Loading data...</span>'}
-                  />
+                      }}
+                      animateRows={false}
+                      suppressRowClickSelection={true}
+                      rowSelection="single"
+                      suppressLoadingOverlay={true}
+                      suppressNoRowsOverlay={true}
+                      containerStyle={{ height: '100%', width: '100%' }}
+                    />
+                  </Box>
                 </Box>
 
 

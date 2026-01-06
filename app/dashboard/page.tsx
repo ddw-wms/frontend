@@ -588,32 +588,8 @@ export default function DashboardPage() {
     currentLoadIdRef.current += 1;
     const loadId = currentLoadIdRef.current;
 
-    // If we already have rows visible, avoid replacing the whole area with the full-screen spinner:
-    // show a delayed overlay on the grid instead to avoid blinking for fast loads.
-    if (!filteredData || filteredData.length === 0) {
-      setLoading(true);
-    } else {
-      // start delayed overlay timer
-      if (overlayTimerRef.current) clearTimeout(overlayTimerRef.current);
-      overlayShownRef.current = false;
-      overlayStartRef.current = null;
-      overlayTimerRef.current = setTimeout(() => {
-        try {
-          setTopLoading(true);
-          overlayShownRef.current = true;
-          overlayStartRef.current = Date.now();
-          try { gridRef.current?.api?.showLoadingOverlay(); } catch { }
-        } catch (err) { }
-        overlayTimerRef.current = null;
-      }, SHOW_OVERLAY_DELAY);
-    }
-
-    const wakeUpTimer = setTimeout(() => {
-      toast.loading(
-        "⏳ Waking up the server... Render free plan may take 20–40 seconds",
-        { id: "wake-msg" }
-      );
-    }, 4000);
+    // Always show the professional loading spinner for consistent UX
+    setLoading(true);
 
     // Cancel any previous in-flight request
     if (inventoryAbortControllerRef.current) {
@@ -666,29 +642,10 @@ export default function DashboardPage() {
       console.error("Load inventory error:", error);
       toast.error("Failed to load inventory data");
     } finally {
-      clearTimeout(wakeUpTimer);   // ⛔ timer stop
-      toast.dismiss("wake-msg");  // ⛔ toast remove
-
-      // Only clear loading/overlays when this is the latest request
+      // Only clear loading when this is the latest request
       if (loadId === currentLoadIdRef.current) {
-        if (overlayShownRef.current && overlayStartRef.current) {
-          const elapsed = Date.now() - overlayStartRef.current;
-          if (elapsed < MIN_LOADING_MS) {
-            await new Promise(res => setTimeout(res, MIN_LOADING_MS - elapsed));
-          }
-          try { gridRef.current?.api?.hideOverlay(); } catch { }
-          overlayShownRef.current = false;
-          overlayStartRef.current = null;
-          try { setTopLoading(false); } catch { }
-        } else {
-          // overlay never shown, clear pending timer
-          if (overlayTimerRef.current) {
-            clearTimeout(overlayTimerRef.current);
-            overlayTimerRef.current = null;
-          }
-        }
-
-        if (!filteredData || filteredData.length === 0) setLoading(false);
+        // Always clear loading state
+        setLoading(false);
 
         // Mark that initial load has finished so we no longer show the pre-load placeholder
         if (initialLoad) setInitialLoad(false);
@@ -696,7 +653,7 @@ export default function DashboardPage() {
         inventoryAbortControllerRef.current = null;
       }
     }
-  }, [activeWarehouse?.id, page, limit, searchDebounced, stageFilter, availableOnly, brandFilter, categoryFilter, dateFrom, dateTo]);
+  }, [activeWarehouse?.id, page, limit, searchDebounced, stageFilter, availableOnly, brandFilter, categoryFilter, dateFrom, dateTo, initialLoad]);
 
   const loadFilterOptions = useCallback(async () => {
     try {
@@ -833,15 +790,7 @@ export default function DashboardPage() {
     setFilteredData(inventoryData);
   }, [inventoryData]);
 
-  // Sync AG Grid overlays with data/loading state to avoid full re-renders and flicker
-  useEffect(() => {
-    const api = gridRef.current?.api;
-    if (!api) return;
-    if (!loading) {
-      if (!filteredData || filteredData.length === 0) api.showNoRowsOverlay();
-      else api.hideOverlay();
-    }
-  }, [loading, filteredData]);
+  // Removed AG Grid overlay sync to avoid flash during loading
 
   // Cleanup timers/aborters on unmount
   useEffect(() => {
@@ -1199,7 +1148,7 @@ export default function DashboardPage() {
         {/* ================= HEADER ================= */}
         <StandardPageHeader
           title="Dashboard"
-          subtitle="Track all warehouse operations"
+          subtitle="All warehouse operations"
           icon="📊"
           warehouseName={activeWarehouse?.name}
           userName={user?.fullName}
@@ -1323,6 +1272,7 @@ export default function DashboardPage() {
                 onChange={(e) => {
                   setSearchWSN(e.target.value);
                   setPage(1);
+                  setLoading(true);
                 }}
                 fullWidth
                 sx={{ "& .MuiOutlinedInput-root": { height: 40 } }}
@@ -1758,85 +1708,250 @@ export default function DashboardPage() {
             }}
           >
             {/* Table Container - AG Grid */}
-            <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-              {((initialLoad || loading) && (!filteredData || filteredData.length === 0)) ? (
-                <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <CircularProgress size={30} />
-                </Box>
-              ) : (filteredData.length === 0) ? (
-                <Box sx={{ p: 2 }}>
-                  <Typography variant="h6">📭 No items found</Typography>
-                  {!activeWarehouse && (
-                    <Box
+            <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
+              {/* Loading Overlay - shows during any loading state */}
+              {(loading || initialLoad) && (
+                <Box sx={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                  backdropFilter: 'blur(3px)',
+                  zIndex: 10,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  animation: 'fadeIn 0.15s ease-in',
+                  '@keyframes fadeIn': {
+                    '0%': { opacity: 0 },
+                    '100%': { opacity: 1 }
+                  }
+                }}>
+                  <Box sx={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: 3,
+                    p: 4,
+                    bgcolor: 'white',
+                    borderRadius: 3,
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.12)'
+                  }}>
+                    <Box sx={{ position: 'relative' }}>
+                      <CircularProgress
+                        size={56}
+                        thickness={3.5}
+                        sx={{
+                          color: '#1976d2',
+                          filter: 'drop-shadow(0 2px 8px rgba(25, 118, 210, 0.2))'
+                        }}
+                      />
+                      <Box sx={{
+                        position: 'absolute',
+                        top: '50%',
+                        left: '50%',
+                        transform: 'translate(-50%, -50%)',
+                        width: 44,
+                        height: 44,
+                        borderRadius: '50%',
+                        background: 'linear-gradient(135deg, #1976d2 0%, #42a5f5 100%)',
+                        opacity: 0.15,
+                        animation: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                        '@keyframes pulse': {
+                          '0%, 100%': {
+                            transform: 'translate(-50%, -50%) scale(1)',
+                            opacity: 0.15
+                          },
+                          '50%': {
+                            transform: 'translate(-50%, -50%) scale(1.15)',
+                            opacity: 0.05
+                          }
+                        }
+                      }} />
+                    </Box>
+                    <Typography
                       sx={{
-                        p: 6,
-                        textAlign: 'center',
-                        minHeight: '40vh',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        flexDirection: 'column',
+                        fontSize: '0.95rem',
+                        fontWeight: 500,
+                        color: '#546e7a',
+                        letterSpacing: 0.3,
+                        textAlign: 'center'
                       }}
                     >
-                      <Box
-                        sx={{
-                          p: 5,
-                          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                          borderRadius: 4,
-                          color: 'white',
-                          boxShadow: '0 20px 60px rgba(102, 126, 234, 0.4)',
-                        }}
-                      >
-                        <Typography variant="h5" sx={{ fontWeight: 700, mb: 1 }}>
-                          No active warehouse selected.
-                        </Typography>
-                        <Typography variant="body2" sx={{ opacity: 0.9 }}>
-                          Please go to Settings &gt; Warehouses to set one.
-                        </Typography>
-                      </Box>
-                    </Box>
-                  )}
-                </Box>
-              ) : (
-                <Box sx={{
-                  flex: 1, overflow: 'hidden', px: 2, pb: 2, display: 'flex', flexDirection: 'column',
-                  '& .ag-root-wrapper': { height: '100%' },
-                  '& .ag-row': { height: 26, overflow: 'visible' },
-                  '& .ag-row-even': { backgroundColor: '#ffffff' },
-                  '& .ag-row-odd': { backgroundColor: '#f9fafb' },
-                  '& .ag-cell-focus': { border: '2px solid #2563eb !important', boxSizing: 'border-box' },
-                  '& .ag-cell-range-selected': { backgroundColor: '#dbeafe !important' },
-                  '& .ag-row-hover': { backgroundColor: '#e5f3ff !important' },
-                }}>
-                  <div className="ag-theme-quartz" style={{ height: '100%', width: '100%' }}>
-                    {topLoading && <LinearProgress color="primary" sx={{ height: 3, mb: 0.5 }} />}
-                    <AgGridReact
-                      ref={gridRef}
-                      rowData={filteredData}
-                      columnDefs={columnDefs}
-                      defaultColDef={defaultColDef}
-                      rowSelection="single"
-                      suppressRowClickSelection={true}
-                      getRowId={(params: any) => params.data?.wsn || params.data?.wid || String(params.rowIndex)}
-                      onGridReady={(params: any) => {
-                        gridRef.current = params.api;
-                        columnApiRef.current = params.columnApi;
-                        try {
-                          const colApi = params.columnApi;
-                          const allCols = colApi.getAllColumns()?.map((c: any) => c.getColId()) || [];
-                          if (allCols.length > 0) {
-                            colApi.autoSizeColumns(allCols, false);
-                          }
-                        } catch { /* ignore */ }
-                        try { params.api.sizeColumnsToFit(); } catch { /* ignore */ }
-                      }}
-                      animateRows={false}
-                      rowBuffer={1}
-                      rowHeight={36}
-                    />
-                  </div>
+                      Loading data...
+                    </Typography>
+                  </Box>
                 </Box>
               )}
+
+              {/* Empty State Overlay - shows when no data but headers remain visible */}
+              {!activeWarehouse && (!filteredData || filteredData.length === 0) && !loading && !initialLoad && (
+                <Box sx={{
+                  position: 'absolute',
+                  top: 60,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                  zIndex: 5,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}>
+                  <Box
+                    sx={{
+                      p: 5,
+                      textAlign: 'center',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexDirection: 'column',
+                    }}
+                  >
+                    <Box
+                      sx={{
+                        p: 5,
+                        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                        borderRadius: 4,
+                        color: 'white',
+                        boxShadow: '0 20px 60px rgba(102, 126, 234, 0.4)',
+                      }}
+                    >
+                      <Typography variant="h5" sx={{ fontWeight: 700, mb: 1 }}>
+                        No active warehouse selected
+                      </Typography>
+                      <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                        Please go to Settings &gt; Warehouses to set one
+                      </Typography>
+                    </Box>
+                  </Box>
+                </Box>
+              )}
+
+              {activeWarehouse && (!filteredData || filteredData.length === 0) && !loading && !initialLoad && (
+                <Box sx={{
+                  position: 'absolute',
+                  top: 60,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                  zIndex: 5,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}>
+                  <Box sx={{
+                    textAlign: 'center',
+                    p: 4,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: 2
+                  }}>
+                    <Box sx={{
+                      fontSize: '4rem',
+                      opacity: 0.3,
+                      mb: 1
+                    }}>
+                      📭
+                    </Box>
+                    <Typography variant="h5" sx={{ fontWeight: 600, color: '#6b7280', mb: 0.5 }}>
+                      No Data Found
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: '#9ca3af', maxWidth: 400 }}>
+                      No items match your current filters. Try adjusting your search criteria or reset filters to see all items.
+                    </Typography>
+                  </Box>
+                </Box>
+              )}
+
+              {/* AG Grid - Always Rendered */}
+              <Box sx={{
+                flex: 1,
+                overflow: 'hidden',
+                display: 'flex',
+                flexDirection: 'column',
+                '& .ag-root-wrapper': {
+                  height: '100%',
+                  borderRadius: '4px',
+                  overflow: 'hidden'
+                },
+                '& .ag-header': {
+                  backgroundColor: '#f8f9fa',
+                  borderBottom: '2px solid #e9ecef',
+                  fontWeight: 600,
+                  opacity: 1,
+                  zIndex: 2,
+                  position: 'relative'
+                },
+                '& .ag-header-cell': {
+                  padding: '0 12px',
+                },
+                '& .ag-body-viewport': {
+                  opacity: loading ? 0.3 : 1,
+                  transition: 'opacity 0.2s ease-in-out'
+                },
+                '& .ag-row': {
+                  height: 26,
+                  overflow: 'visible',
+                  transition: 'background-color 0.15s ease'
+                },
+                '& .ag-row-even': {
+                  backgroundColor: '#ffffff',
+                },
+                '& .ag-row-odd': {
+                  backgroundColor: '#fafbfc',
+                },
+                '& .ag-cell': {
+                  display: 'flex',
+                  alignItems: 'center',
+                  lineHeight: '26px',
+                },
+                '& .ag-cell-focus': {
+                  border: '2px solid #1976d2 !important',
+                  boxSizing: 'border-box',
+                  outline: 'none'
+                },
+                '& .ag-cell-range-selected': {
+                  backgroundColor: '#e3f2fd !important',
+                },
+                '& .ag-row-hover': {
+                  backgroundColor: '#f0f7ff !important',
+                  transition: 'background-color 0.1s ease'
+                },
+              }}>
+                <div className="ag-theme-quartz" style={{ height: '100%', width: '100%' }}>
+                  <AgGridReact
+                    ref={gridRef}
+                    rowData={filteredData}
+                    columnDefs={columnDefs}
+                    defaultColDef={defaultColDef}
+                    rowSelection="single"
+                    suppressRowClickSelection={true}
+                    suppressLoadingOverlay={true}
+                    suppressNoRowsOverlay={true}
+                    getRowId={(params: any) => params.data?.wsn || params.data?.wid || String(params.rowIndex)}
+                    onGridReady={(params: any) => {
+                      gridRef.current = params.api;
+                      columnApiRef.current = params.columnApi;
+                      try {
+                        const colApi = params.columnApi;
+                        const allCols = colApi.getAllColumns()?.map((c: any) => c.getColId()) || [];
+                        if (allCols.length > 0) {
+                          colApi.autoSizeColumns(allCols, false);
+                        }
+                      } catch { /* ignore */ }
+                      try { params.api.sizeColumnsToFit(); } catch { /* ignore */ }
+                    }}
+                    animateRows={false}
+                    rowBuffer={10}
+                    rowHeight={36}
+                  />
+                </div>
+              </Box>
             </Box>
             {/* ================= PAGINATION (ALWAYS ONE ROW + MOBILE COMPACT) ================= */}
             <Box
@@ -1943,7 +2058,7 @@ export default function DashboardPage() {
         <DialogContent sx={{ p: 2 }}>
           <Stack spacing={2}>
             <Box>
-              <TextField fullWidth placeholder="Search WSN or Product" value={searchWSN} onChange={(e) => setSearchWSN(e.target.value)} size="small" sx={{ '& .MuiOutlinedInput-root': { height: 40 } }} />
+              <TextField fullWidth placeholder="Search WSN or Product" value={searchWSN} onChange={(e) => { setSearchWSN(e.target.value); setLoading(true); }} size="small" sx={{ '& .MuiOutlinedInput-root': { height: 40 } }} />
             </Box>
 
             <Box display="flex" gap={1} flexDirection="column">
