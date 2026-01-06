@@ -32,7 +32,7 @@ export const fetchUserPermissions = async (): Promise<any> => {
 
         return response.data.permissions;
     } catch (error) {
-        console.error('Error fetching permissions:', error);
+        // Fail silently in production
         return null;
     }
 };
@@ -51,7 +51,7 @@ export const hasPermission = async (permissionKey: string): Promise<boolean> => 
 
         return permissions[permissionKey] === true;
     } catch (error) {
-        console.error('Error checking permission:', error);
+        // Fail silently
         return false;
     }
 };

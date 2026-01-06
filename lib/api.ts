@@ -18,14 +18,10 @@ export const authAPI = {
   register: (data: any) => api.post('auth/register', data),
 };
 
-console.log("DEPLOYED API BASEURL:", API_URL);
-
-// Request interceptor - add token & debug
+// Request interceptor - add token
 api.interceptors.request.use((config) => {
   if (typeof window !== 'undefined') {
     const token = localStorage.getItem('token');
-    // Debug: do not log token value, only presence
-    console.debug('API Request:', config.method, config.url, 'hasToken=', !!token);
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
