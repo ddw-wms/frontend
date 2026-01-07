@@ -22,6 +22,8 @@ export const login = async (username: string, password: string): Promise<AuthTok
   if (typeof window !== 'undefined') {
     localStorage.setItem('token', token);
     localStorage.setItem('user', JSON.stringify(user));
+    // Clear permissions cache to force reload on next check
+
   }
 
   return { token, user };

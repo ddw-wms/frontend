@@ -46,7 +46,8 @@ import {
     MoreVert as MoreVertIcon,
     Close as CloseIcon
 } from '@mui/icons-material';
-import { useRoleGuard } from '@/hooks/useRoleGuard';
+import { usePermissionGuard } from '@/hooks/usePermissionGuard';
+import { usePermissions } from '@/app/context/PermissionsContext';
 import AppLayout from '@/components/AppLayout';
 import api from '@/lib/api';
 import toast, { Toaster } from 'react-hot-toast';
@@ -104,7 +105,10 @@ interface HealthStats {
 }
 
 export default function BackupPage() {
-    useRoleGuard(['admin']);
+    const { loading: permissionLoading } = usePermissionGuard('view_backups');
+
+    // Permission checks
+    const { hasPermission } = usePermissions();
 
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -127,11 +131,14 @@ export default function BackupPage() {
     const [currentSchedule, setCurrentSchedule] = useState<Partial<BackupSchedule> | null>(null);
 
     useEffect(() => {
-        loadBackups();
-        loadDatabaseStats();
-        loadHealthStats();
-        loadSchedules();
-    }, []);
+        // Only load data after permissions are checked
+        if (!permissionLoading) {
+            loadBackups();
+            loadDatabaseStats();
+            loadHealthStats();
+            loadSchedules();
+        }
+    }, [permissionLoading]);
 
     const loadBackups = async () => {
         try {
@@ -286,6 +293,22 @@ export default function BackupPage() {
             default: return 'default';
         }
     };
+
+    // Show loading state while permissions are being checked
+    if (permissionLoading) {
+        return (
+            <AppLayout>
+                <Box sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    height: '100vh'
+                }}>
+                    <CircularProgress />
+                </Box>
+            </AppLayout>
+        );
+    }
 
     /////////////////////// UI Render ///////////////////////
     return (

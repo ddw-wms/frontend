@@ -27,7 +27,8 @@ import * as XLSX from 'xlsx';
 import { AgGridReact } from 'ag-grid-react';
 import { ModuleRegistry, AllCommunityModule, ClientSideRowModelModule } from 'ag-grid-community';
 import 'ag-grid-community/styles/ag-theme-quartz.css';
-import { useRoleGuard } from '@/hooks/useRoleGuard';
+import { usePermissionGuard } from '@/hooks/usePermissionGuard';
+import { usePermissions } from '@/app/context/PermissionsContext';
 
 // Register AG Grid modules ONCE (include ClientSideRowModel for client-side features)
 ModuleRegistry.registerModules([AllCommunityModule, ClientSideRowModelModule]);
@@ -96,7 +97,10 @@ const DEFAULT_LIST_COLUMNS = [
 
 export default function PickingPage() {
   // Role guard - only admin, manager, picker can access
-  useRoleGuard(['admin', 'manager', 'picker']);
+  const { loading: permissionLoading } = usePermissionGuard('view_picking');
+
+  // Permission checks
+  const { hasPermission } = usePermissions();
 
   const router = useRouter();
   const { activeWarehouse } = useWarehouse();
@@ -1134,6 +1138,22 @@ export default function PickingPage() {
   });
 
   //////////////////////////////////====UI RENDERING====////////////////////////////////////
+
+  // Show loading state while permissions are being checked
+  if (permissionLoading) {
+    return (
+      <AppLayout>
+        <Box sx={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          height: '100vh'
+        }}>
+          <CircularProgress />
+        </Box>
+      </AppLayout>
+    );
+  }
 
   return (
     <AppLayout>

@@ -23,7 +23,8 @@ import { getStoredUser, logout } from '@/lib/auth';
 import { masterDataAPI } from '@/lib/api';
 import AppLayout from '@/components/AppLayout';
 import * as XLSX from 'xlsx';
-import { useRoleGuard } from '@/hooks/useRoleGuard';
+import { usePermissionGuard } from '@/hooks/usePermissionGuard';
+import { usePermissions } from '@/app/context/PermissionsContext';
 import FilterListIcon from '@mui/icons-material/FilterList';
 
 import { AgGridReact } from 'ag-grid-react';
@@ -182,7 +183,10 @@ MasterDataRow.displayName = 'MasterDataRow';
 
 export default function MasterDataPage() {
   // Role guard - admin, manager, operator can access
-  useRoleGuard(['admin', 'manager', 'operator']);
+  usePermissionGuard('view_master_data');
+
+  // Permission checks
+  const { hasPermission } = usePermissions();
 
   const router = useRouter();
   const theme = useTheme();

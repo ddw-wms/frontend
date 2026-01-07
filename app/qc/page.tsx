@@ -57,7 +57,8 @@ import { useWarehouse } from '@/app/context/WarehouseContext';
 import { getStoredUser } from '@/lib/auth';
 import AppLayout from '@/components/AppLayout';
 import { StandardPageHeader, StandardTabs } from '@/components';
-import { useRoleGuard } from '@/hooks/useRoleGuard';
+import { usePermissionGuard } from '@/hooks/usePermissionGuard';
+import { usePermissions } from '@/app/context/PermissionsContext';
 import toast, { Toaster } from 'react-hot-toast';
 import * as XLSX from 'xlsx';
 import { AgGridReact } from 'ag-grid-react';
@@ -201,7 +202,10 @@ interface Batch {
 
 export default function QCPage() {
   // Role guard - only admin, manager, qc can access
-  useRoleGuard(['admin', 'manager', 'qc']);
+  const { loading: permissionLoading } = usePermissionGuard('view_qc');
+
+  // Permission checks
+  const { hasPermission } = usePermissions();
 
   const router = useRouter();
   const { activeWarehouse } = useWarehouse();
@@ -1378,6 +1382,22 @@ export default function QCPage() {
       toast.error('Failed to delete');
     }
   };
+
+  // Show loading state while permissions are being checked
+  if (permissionLoading) {
+    return (
+      <AppLayout>
+        <Box sx={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          height: '100vh'
+        }}>
+          <CircularProgress />
+        </Box>
+      </AppLayout>
+    );
+  }
 
   if (!activeWarehouse) {
     return <AppLayout>⚠️ No warehouse selected</AppLayout>;

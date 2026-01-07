@@ -19,11 +19,15 @@ import { useWarehouse } from '@/app/context/WarehouseContext';
 import { getStoredUser } from '@/lib/auth';
 import AppLayout from '@/components/AppLayout';
 import toast, { Toaster } from 'react-hot-toast';
-import { useRoleGuard } from '@/hooks/useRoleGuard';
+import { usePermissionGuard } from '@/hooks/usePermissionGuard';
+import { usePermissions } from '@/app/context/PermissionsContext';
 
 export default function RacksPage() {
   // Role guard - only admin can access
-  useRoleGuard(['admin']);
+  usePermissionGuard('view_racks');
+
+  // Permission checks
+  const { hasPermission } = usePermissions();
 
   const [bulkFile, setBulkFile] = useState<File | null>(null);
   const [bulkUploading, setBulkUploading] = useState(false);

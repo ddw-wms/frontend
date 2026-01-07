@@ -27,6 +27,7 @@ import {
 } from '@mui/icons-material';
 import toast, { Toaster } from 'react-hot-toast';
 import { login } from '@/lib/auth';
+import { usePermissions } from '@/app/context/PermissionsContext';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -45,6 +46,8 @@ export default function LoginPage() {
     }
   }, []);
 
+
+  const { refreshPermissions } = usePermissions();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -65,6 +68,9 @@ export default function LoginPage() {
 
     try {
       await login(username, password);
+
+      // Refresh permissions after successful login
+      await refreshPermissions();
 
       clearTimeout(wakeUpTimer);
       toast.dismiss('wake-msg');

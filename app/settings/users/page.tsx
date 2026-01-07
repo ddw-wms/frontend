@@ -12,13 +12,17 @@ import { Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon, Key as KeyIcon 
 import { usersAPI } from '@/lib/api';
 import AppLayout from '@/components/AppLayout';
 import toast, { Toaster } from 'react-hot-toast';
-import { useRoleGuard } from '@/hooks/useRoleGuard';
+import { usePermissionGuard } from '@/hooks/usePermissionGuard';
+import { usePermissions } from '@/app/context/PermissionsContext';
 import { useWarehouse } from '@/app/context/WarehouseContext';
 import { getStoredUser } from '@/lib/auth';
 
 export default function UsersPage() {
   // Role guard - only admin can access
-  useRoleGuard(['admin']);
+  const { loading: permissionLoading } = usePermissionGuard('view_users');
+
+  // Permission checks
+  const { hasPermission } = usePermissions();
 
   const { activeWarehouse, setActiveWarehouse } = useWarehouse();
   const theme = useTheme();
@@ -59,8 +63,27 @@ export default function UsersPage() {
   };
 
   useEffect(() => {
-    loadUsers();
-  }, []);
+    // Only load data after permissions are checked
+    if (!permissionLoading) {
+      loadUsers();
+    }
+  }, [permissionLoading]);
+
+  // Show loading state while permissions are being checked
+  if (permissionLoading) {
+    return (
+      <AppLayout>
+        <Box sx={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          height: '100vh'
+        }}>
+          <CircularProgress />
+        </Box>
+      </AppLayout>
+    );
+  }
 
   const handleDialogOpen = (item?: any) => {
     setEditItem(item || null);

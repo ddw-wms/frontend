@@ -59,7 +59,8 @@ import {
 import { outboundAPI, customerAPI } from '@/lib/api';
 import { useWarehouse } from '@/app/context/WarehouseContext';
 import { getStoredUser } from '@/lib/auth';
-import { useRoleGuard } from '@/hooks/useRoleGuard';
+import { usePermissionGuard } from '@/hooks/usePermissionGuard';
+import { usePermissions } from '@/app/context/PermissionsContext';
 import AppLayout from '@/components/AppLayout';
 import { StandardPageHeader, StandardTabs } from '@/components';
 import toast, { Toaster } from 'react-hot-toast';
@@ -181,7 +182,10 @@ interface Batch {
 
 export default function OutboundPage() {
     // Role guard - only admin, manager, operator can access
-    useRoleGuard(['admin', 'manager', 'operator']);
+    const { loading: permissionLoading } = usePermissionGuard('view_outbound');
+
+    // Permission checks
+    const { hasPermission } = usePermissions();
 
     const router = useRouter();
     const { activeWarehouse } = useWarehouse();
@@ -1677,6 +1681,22 @@ export default function OutboundPage() {
 
     if (!user) {
         return <CircularProgress />;
+    }
+
+    // Show loading state while permissions are being checked
+    if (permissionLoading) {
+        return (
+            <AppLayout>
+                <Box sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    height: '100vh'
+                }}>
+                    <CircularProgress />
+                </Box>
+            </AppLayout>
+        );
     }
 
     if (!activeWarehouse) {

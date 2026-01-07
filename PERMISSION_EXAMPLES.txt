@@ -1,0 +1,275 @@
+// Example: How to integrate permissions into existing pages
+// This file shows examples - not meant to be run
+
+// ==========================================
+// EXAMPLE 1: Page with Permission Guard
+// ==========================================
+import { usePermissionGuard } from '@/hooks/usePermissionGuard';
+import { usePermissions } from '@/app/context/PermissionsContext';
+import { PermissionButton } from '@/components/PermissionButton';
+import { PermissionGate } from '@/hooks/usePermissionGuard';
+
+export default function InboundPage() {
+    // Redirect to dashboard if user doesn't have view permission
+    usePermissionGuard('view_inbound');
+
+    const { hasPermission, canCreate, canEdit, canDelete } = usePermissions();
+
+    return (
+        <StandardPageLayout title="Inbound Orders">
+            {/* Action Buttons with Permissions */}
+            <Box sx={{ mb: 2, display: 'flex', gap: 1 }}>
+                <PermissionButton
+                    permission="create_inbound"
+                    variant="contained"
+                    startIcon={<AddIcon />}
+                    onClick={handleCreate}
+                >
+                    Create Inbound
+                </PermissionButton>
+
+                <PermissionButton
+                    permission="import_inbound"
+                    variant="outlined"
+                    startIcon={<UploadIcon />}
+                    onClick={handleImport}
+                >
+                    Import
+                </PermissionButton>
+
+                <PermissionButton
+                    permission="export_inbound"
+                    variant="outlined"
+                    startIcon={<DownloadIcon />}
+                    onClick={handleExport}
+                >
+                    Export
+                </PermissionButton>
+            </Box>
+
+            {/* Table with conditional columns */}
+            <StandardAGGrid
+                rowData={data}
+                columnDefs={[
+                    { field: 'id', headerName: 'ID' },
+                    { field: 'customer', headerName: 'Customer' },
+                    { field: 'status', headerName: 'Status' },
+                    // Actions column - only show if user has edit or delete permission
+                    ...(hasPermission('edit_inbound') || hasPermission('delete_inbound')
+                        ? [{
+                            headerName: 'Actions',
+                            cellRenderer: (params: any) => (
+                                <Box sx={{ display: 'flex', gap: 1 }}>
+                                    <PermissionIconButton
+                                        permission="edit_inbound"
+                                        icon={<EditIcon />}
+                                        tooltip="Edit"
+                                        onClick={() => handleEdit(params.data)}
+                                    />
+                                    <PermissionIconButton
+                                        permission="delete_inbound"
+                                        icon={<DeleteIcon />}
+                                        tooltip="Delete"
+                                        color="error"
+                                        onClick={() => handleDelete(params.data)}
+                                    />
+                                </Box>
+                            ),
+                        }]
+                        : []),
+                ]}
+            />
+
+            {/* Conditional Sections */}
+            <PermissionGate permission="receive_inbound">
+                <Box sx={{ mt: 3 }}>
+                    <Typography variant="h6">Receiving Section</Typography>
+                    <Button onClick={handleReceive}>Mark as Received</Button>
+                </Box>
+            </PermissionGate>
+        </StandardPageLayout>
+    );
+}
+
+// ==========================================
+// EXAMPLE 2: Dialog with Permission Check
+// ==========================================
+function EditInboundDialog({ open, onClose, data }) {
+    const { hasPermission } = usePermissions();
+
+    if (!hasPermission('edit_inbound')) {
+        return (
+            <Dialog open={open} onClose={onClose}>
+                <DialogContent>
+                    <Alert severity="error">
+                        You don't have permission to edit inbound orders
+                    </Alert>
+                </DialogContent>
+            </Dialog>
+        );
+    }
+
+    return (
+        <Dialog open={open} onClose={onClose}>
+            <DialogTitle>Edit Inbound Order</DialogTitle>
+            <DialogContent>
+                {/* Edit form */}
+            </DialogContent>
+            <DialogActions>
+                <Button onClick={onClose}>Cancel</Button>
+                <PermissionButton
+                    permission="edit_inbound"
+                    variant="contained"
+                    onClick={handleSave}
+                >
+                    Save
+                </PermissionButton>
+            </DialogActions>
+        </Dialog>
+    );
+}
+
+// ==========================================
+// EXAMPLE 3: Tabs with Permissions
+// ==========================================
+function ReportsPage() {
+    usePermissionGuard('view_reports');
+
+    const { hasPermission } = usePermissions();
+    const [tab, setTab] = useState(0);
+
+    // Filter tabs based on permissions
+    const tabs = [
+        {
+            label: 'Inventory',
+            permission: 'generate_inventory_report',
+            component: <InventoryReport />
+        },
+        {
+            label: 'Inbound',
+            permission: 'generate_inbound_report',
+            component: <InboundReport />
+        },
+        {
+            label: 'Outbound',
+            permission: 'generate_outbound_report',
+            component: <OutboundReport />
+        },
+    ].filter(tab => hasPermission(tab.permission));
+
+    return (
+        <StandardPageLayout title="Reports">
+            <Tabs value={tab} onChange={(e, v) => setTab(v)}>
+                {tabs.map((t, i) => (
+                    <Tab key={i} label={t.label} />
+                ))}
+            </Tabs>
+
+            {tabs[tab]?.component}
+        </StandardPageLayout>
+    );
+}
+
+// ==========================================
+// EXAMPLE 4: Menu Items with Permissions
+// ==========================================
+function ActionsMenu({ rowData }) {
+    const { hasPermission } = usePermissions();
+
+    const actions = [
+        {
+            label: 'Edit',
+            icon: <EditIcon />,
+            onClick: () => handleEdit(rowData),
+            permission: 'edit_customer',
+        },
+        {
+            label: 'Delete',
+            icon: <DeleteIcon />,
+            onClick: () => handleDelete(rowData),
+            permission: 'delete_customer',
+        },
+        {
+            label: 'Export',
+            icon: <DownloadIcon />,
+            onClick: () => handleExport(rowData),
+            permission: 'export_customers',
+        },
+    ].filter(action => hasPermission(action.permission));
+
+    return (
+        <Menu>
+            {actions.map((action, i) => (
+                <MenuItem key={i} onClick={action.onClick}>
+                    <ListItemIcon>{action.icon}</ListItemIcon>
+                    <ListItemText>{action.label}</ListItemText>
+                </MenuItem>
+            ))}
+        </Menu>
+    );
+}
+
+// ==========================================
+// EXAMPLE 5: Using Multiple Permissions
+// ==========================================
+function AdvancedFeaturesPanel() {
+    const { hasAllPermissions, hasAnyPermission } = usePermissions();
+
+    // Show only if user has ALL these permissions
+    const canUseAdvancedFeatures = hasAllPermissions([
+        'edit_inventory',
+        'move_inventory',
+        'adjust_inventory'
+    ]);
+
+    // Show if user has ANY of these permissions
+    const canViewData = hasAnyPermission([
+        'view_inventory',
+        'view_inbound',
+        'view_outbound'
+    ]);
+
+    return (
+        <Box>
+            {canViewData && <DataTable />}
+
+            {canUseAdvancedFeatures && (
+                <PermissionGate
+                    permission={['edit_inventory', 'adjust_inventory']}
+                    requireAll
+                >
+                    <AdvancedToolbar />
+                </PermissionGate>
+            )}
+        </Box>
+    );
+}
+
+// ==========================================
+// EXAMPLE 6: Conditional Form Fields
+// ==========================================
+function ProductForm() {
+    const { hasPermission } = usePermissions();
+
+    return (
+        <form>
+            <TextField label="Product Name" required />
+            <TextField label="SKU" required />
+
+            {/* Only admins or managers can edit pricing */}
+            {hasPermission('manage_products') && (
+                <>
+                    <TextField label="Cost Price" type="number" />
+                    <TextField label="Selling Price" type="number" />
+                </>
+            )}
+
+            {/* Only show delete button if user can delete */}
+            <PermissionGate permission="delete_product" hideIfNoPermission>
+                <Button color="error" onClick={handleDelete}>
+                    Delete Product
+                </Button>
+            </PermissionGate>
+        </form>
+    );
+}

@@ -21,7 +21,8 @@ import { getStoredUser } from '@/lib/auth';
 import AppLayout from '@/components/AppLayout';
 import { StandardPageHeader, StandardTabs } from '@/components';
 import toast from 'react-hot-toast';
-import { useRoleGuard } from '@/hooks/useRoleGuard';
+import { usePermissionGuard } from '@/hooks/usePermissionGuard';
+import { usePermissions } from '@/app/context/PermissionsContext';
 import {
     LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
     XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
@@ -32,7 +33,10 @@ import api from '@/lib/api';
 const COLORS = ['#667eea', '#f093fb', '#4facfe', '#43e97b', '#fa709a'];
 
 export default function ReportsPage() {
-    useRoleGuard(['admin', 'manager']);
+    usePermissionGuard('view_reports');
+
+    // Permission checks
+    const { hasPermission } = usePermissions();
 
     const { activeWarehouse } = useWarehouse();
     const [user, setUser] = useState<any>(null);

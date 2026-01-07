@@ -12,12 +12,16 @@ import { warehousesAPI } from '@/lib/api';
 import AppLayout from '@/components/AppLayout';
 import { useWarehouse } from '@/app/context/WarehouseContext';
 import toast, { Toaster } from 'react-hot-toast';
-import { useRoleGuard } from '@/hooks/useRoleGuard';
+import { usePermissionGuard } from '@/hooks/usePermissionGuard';
+import { usePermissions } from '@/app/context/PermissionsContext';
 import { ArrowBack as BackIcon, Download as DownloadIcon, Refresh as RefreshIcon } from '@mui/icons-material';
 
 export default function WarehousesPage() {
   // Role guard - only admin can access
-  useRoleGuard(['admin']);
+  usePermissionGuard('view_warehouses');
+
+  // Permission checks
+  const { hasPermission } = usePermissions();
 
   const { activeWarehouse, setActiveWarehouse } = useWarehouse();
   const [warehouses, setWarehouses] = useState<any[]>([]);

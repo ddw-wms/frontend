@@ -23,11 +23,15 @@ import StandardPageLayout from '@/components/StandardPageLayout';
 
 import toast, { Toaster } from 'react-hot-toast';
 import { customerAPI } from '@/lib/api';
-import { useRoleGuard } from '@/hooks/useRoleGuard';
+import { usePermissionGuard } from '@/hooks/usePermissionGuard';
+import { usePermissions } from '@/app/context/PermissionsContext';
 
 export default function CustomersPage() {
   // Role guard - only admin, manager, operator can access
-  useRoleGuard(['admin', 'manager', 'operator']);
+  usePermissionGuard('view_customers');
+
+  // Permission checks
+  const { hasPermission } = usePermissions();
 
   const router = useRouter();
   const { activeWarehouse } = useWarehouse();
@@ -362,9 +366,11 @@ export default function CustomersPage() {
           alignItems: 'center'
         }}>
           <Box sx={{ display: 'flex', gap: 1 }}>
-            <Button size="small" startIcon={<AddIcon sx={{ fontSize: 14 }} />} variant="contained" onClick={() => handleOpenDialog()} sx={{ height: 36, fontSize: '0.75rem', fontWeight: 600, background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
-              ADD
-            </Button>
+            {hasPermission('create_customer') && (
+              <Button size="small" startIcon={<AddIcon sx={{ fontSize: 14 }} />} variant="contained" onClick={() => handleOpenDialog()} sx={{ height: 36, fontSize: '0.75rem', fontWeight: 600, background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
+                ADD
+              </Button>
+            )}
             <Button size="small" startIcon={<DownloadIcon sx={{ fontSize: 14 }} />} variant="contained" onClick={handleExport} sx={{ height: 36, fontSize: '0.75rem', fontWeight: 600, background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)' }}>
               EXPORT
             </Button>
@@ -420,20 +426,24 @@ export default function CustomersPage() {
                       </TableCell>
                       <TableCell sx={{ textAlign: 'center' }}>
                         <Stack direction="row" spacing={0.5} justifyContent="center">
-                          <IconButton
-                            size="small"
-                            onClick={() => handleOpenDialog(customer)}
-                            sx={{ color: '#667eea', p: 0.5, '&:hover': { bgcolor: 'rgba(102, 126, 234, 0.1)' } }}
-                          >
-                            <EditIcon sx={{ fontSize: 16 }} />
-                          </IconButton>
-                          <IconButton
-                            size="small"
-                            onClick={() => handleDelete(customer.id, customer.name)}
-                            sx={{ color: '#ef4444', p: 0.5, '&:hover': { bgcolor: 'rgba(239, 68, 68, 0.1)' } }}
-                          >
-                            <DeleteIcon sx={{ fontSize: 16 }} />
-                          </IconButton>
+                          {hasPermission('edit_customer') && (
+                            <IconButton
+                              size="small"
+                              onClick={() => handleOpenDialog(customer)}
+                              sx={{ color: '#667eea', p: 0.5, '&:hover': { bgcolor: 'rgba(102, 126, 234, 0.1)' } }}
+                            >
+                              <EditIcon sx={{ fontSize: 16 }} />
+                            </IconButton>
+                          )}
+                          {hasPermission('delete_customer') && (
+                            <IconButton
+                              size="small"
+                              onClick={() => handleDelete(customer.id, customer.name)}
+                              sx={{ color: '#ef4444', p: 0.5, '&:hover': { bgcolor: 'rgba(239, 68, 68, 0.1)' } }}
+                            >
+                              <DeleteIcon sx={{ fontSize: 16 }} />
+                            </IconButton>
+                          )}
                         </Stack>
                       </TableCell>
                     </TableRow>

@@ -1,7 +1,7 @@
 // File Path = warehouse-frontend\components\Sidebar.tsx
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import {
   Drawer,
@@ -18,6 +18,8 @@ import {
   Paper,
   Tooltip,
   iconButtonClasses,
+  Snackbar,
+  Alert,
 } from '@mui/material';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ExpandLess, ExpandMore, Close as CloseIcon, Label } from '@mui/icons-material';
@@ -40,6 +42,8 @@ import {
 import path from 'path';
 import { Group as GroupIcon, Logout as LogoutIcon } from '@mui/icons-material';
 import { getStoredUser, logout } from '@/lib/auth';
+import { fetchUserPermissions } from '@/lib/permissions';
+import { usePermissions } from '@/app/context/PermissionsContext';
 
 interface SidebarProps {
   mobileOpen?: boolean;
@@ -50,6 +54,11 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
   const router = useRouter();
   const pathname = usePathname();
   const [userRole, setUserRole] = useState<string>('');
+  const [showNotification, setShowNotification] = useState(false);
+  const [notificationMessage, setNotificationMessage] = useState('');
+
+  // Use PermissionsContext instead of local state
+  const { permissions: userPermissions, loading: permissionsLoading, hasPermission } = usePermissions();
 
   const [collapsed, setCollapsed] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -76,9 +85,22 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
     // Get user role
     const user = getStoredUser();
     if (user) {
+      console.log('🔐 Sidebar - User:', user.username, '| Role:', user.role);
       setUserRole(user.role || '');
+    } else {
+      console.log('⚠️ No user found in storage');
     }
-    return () => window.removeEventListener('resize', checkMobile);
+
+    // Register global notification function
+    (window as any).showPermissionNotification = (message: string) => {
+      setNotificationMessage(message);
+      setShowNotification(true);
+    };
+
+    return () => {
+      window.removeEventListener('resize', checkMobile);
+      delete (window as any).showPermissionNotification;
+    };
   }, [checkMobile]);
 
   const [settingsOpen, setSettingsOpen] = useState(() =>
@@ -109,47 +131,57 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
 
   const drawerWidth = collapsed ? 70 : 230;
 
-  // Filter menu items based on user role
-  const getMainMenu = () => {
+  // Filter menu items based on user permissions - memoized to prevent flickering
+  const mainMenu = useMemo(() => {
     const allItems = [
-      { label: 'Dashboard', icon: DashboardIcon, path: '/dashboard', roles: ['admin', 'manager', 'operator', 'qc', 'picker'] },
-      { label: 'Inbound', icon: InventoryIcon, path: '/inbound', roles: ['admin', 'manager', 'operator'] },
-      { label: 'Processing', icon: CheckIcon, path: '/qc', roles: ['admin', 'manager', 'qc'] },
-      { label: 'Picking', icon: AssignmentIcon, path: '/picking', roles: ['admin', 'manager', 'picker'] },
-      { label: 'Outbound', icon: ShippingIcon, path: '/outbound', roles: ['admin', 'manager', 'operator'] },
-      { label: 'Customers', icon: GroupIcon, path: '/customers', roles: ['admin', 'manager', 'operator'] },
-      { label: 'Reports', icon: ReportsIcon, path: '/reports', roles: ['admin', 'manager'] }
+      { label: 'Dashboard', icon: DashboardIcon, path: '/dashboard', permission: 'view_dashboard' },
+      { label: 'Inbound', icon: InventoryIcon, path: '/inbound', permission: 'view_inbound' },
+      { label: 'Processing', icon: CheckIcon, path: '/qc', permission: 'view_qc' },
+      { label: 'Picking', icon: AssignmentIcon, path: '/picking', permission: 'view_picking' },
+      { label: 'Outbound', icon: ShippingIcon, path: '/outbound', permission: 'view_outbound' },
+      { label: 'Customers', icon: GroupIcon, path: '/customers', permission: 'view_customers' },
+      { label: 'Reports', icon: ReportsIcon, path: '/reports', permission: 'view_reports' }
     ];
 
-    return allItems.filter(item => !userRole || item.roles.includes(userRole));
-  };
-
-  const getSettingsMenu = () => {
+    // Admin sees all
     if (userRole === 'admin') {
-      return [
-        { label: 'Master Data', icon: StorageIcon, path: '/settings/master-data' },
-        { label: 'Warehouses', icon: WarehouseIcon, path: '/settings/warehouses' },
-        { label: 'Racks', icon: CategoryIcon, path: '/settings/racks' },
-        { label: 'Users', icon: PersonIcon, path: '/settings/users' },
-        { label: 'Permissions', icon: SettingsIcon, path: '/settings/permissions' },
-        { label: 'Printers', icon: PrinterIcon, path: '/settings/printers' },
-        { label: 'Backups', icon: StorageIcon, path: '/settings/backups' },
-      ];
-    } else if (userRole === 'manager') {
-      return [
-        { label: 'Master Data', icon: StorageIcon, path: '/settings/master-data' },
-        { label: 'Reports', icon: AssignmentIcon, path: '/settings/reports' },
-      ];
-    } else if (userRole === 'operator') {
-      return [
-        { label: 'Master Data', icon: StorageIcon, path: '/settings/master-data' },
-      ];
+      return allItems;
     }
-    return []; // qc and picker have no settings access
-  };
 
-  const mainMenu = getMainMenu();
-  const settingsMenu = getSettingsMenu();
+    // Don't show any menu items while permissions are loading
+    if (permissionsLoading || !userPermissions) {
+      return [];
+    }
+
+    // Filter based on permissions - use the actual permission values from context
+    const filtered = allItems.filter(item => {
+      const hasPerm = userPermissions[item.permission] === true;
+      return hasPerm;
+    });
+
+    return filtered;
+  }, [userRole, permissionsLoading, userPermissions]);
+
+  const settingsMenu = useMemo(() => {
+    const allSettings = [
+      { label: 'Master Data', icon: StorageIcon, path: '/settings/master-data', permission: 'view_master_data' },
+      { label: 'Warehouses', icon: WarehouseIcon, path: '/settings/warehouses', permission: 'view_warehouses' },
+      { label: 'Racks', icon: CategoryIcon, path: '/settings/racks', permission: 'view_racks' },
+      { label: 'Users', icon: PersonIcon, path: '/settings/users', permission: 'view_users' },
+      { label: 'Permissions', icon: SettingsIcon, path: '/settings/permissions', permission: 'view_permissions' },
+      { label: 'Printers', icon: PrinterIcon, path: '/settings/printers', permission: 'view_printers' },
+      { label: 'Backups', icon: StorageIcon, path: '/settings/backups', permission: 'view_backups' },
+    ];
+
+    // Admin sees all
+    if (userRole === 'admin') return allSettings;
+
+    // Don't show settings while permissions are loading
+    if (permissionsLoading || !userPermissions) return [];
+
+    // Filter based on actual permissions from context
+    return allSettings.filter(item => userPermissions[item.permission] === true);
+  }, [userRole, permissionsLoading, userPermissions]);
 
   const navigate = (path: string) => {
     router.push(path);
@@ -467,6 +499,22 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
           </List>
         </Paper>
       )}
+
+      {/* Permission Update Notification */}
+      <Snackbar
+        open={showNotification}
+        autoHideDuration={3000}
+        onClose={() => setShowNotification(false)}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+      >
+        <Alert
+          onClose={() => setShowNotification(false)}
+          severity="info"
+          sx={{ width: '100%' }}
+        >
+          {notificationMessage}
+        </Alert>
+      </Snackbar>
     </>
   );
 }

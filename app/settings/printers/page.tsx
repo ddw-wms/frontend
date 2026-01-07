@@ -9,7 +9,8 @@ import {
 } from '@mui/material';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorIcon from '@mui/icons-material/Error';
-import { useRoleGuard } from '@/hooks/useRoleGuard';
+import { usePermissionGuard } from '@/hooks/usePermissionGuard';
+import { usePermissions } from '@/app/context/PermissionsContext';
 import PrintIcon from '@mui/icons-material/Print';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import SettingsIcon from '@mui/icons-material/Settings';
@@ -50,7 +51,10 @@ interface PrinterInfo {
 }
 
 export default function PrinterSettingsPage() {
-  useRoleGuard(['admin']);
+  usePermissionGuard('manage_printers');
+
+  // Permission checks
+  const { hasPermission } = usePermissions();
 
   const [settings, setSettings] = useState<PrinterSettings>({
     defaultPrinter: '',

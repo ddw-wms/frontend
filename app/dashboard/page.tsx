@@ -55,6 +55,7 @@ import AppLayout from "@/components/AppLayout";
 import { StandardPageHeader } from '@/components';
 import toast, { Toaster } from "react-hot-toast";
 import * as XLSX from "xlsx";
+import { usePermissions } from "@/app/context/PermissionsContext";
 
 import { AgGridReact } from 'ag-grid-react';
 import { ModuleRegistry, AllCommunityModule, ClientSideRowModelModule } from 'ag-grid-community';
@@ -197,6 +198,9 @@ export default function DashboardPage() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [user, setUser] = useState<User | null>(null);
+
+  // Permission checks for dashboard actions
+  const { hasPermission } = usePermissions();
 
   const handleLogout = () => {
     logout();
@@ -1322,53 +1326,55 @@ export default function DashboardPage() {
             </Box>
 
             {/* Filters toggle (desktop only) */}
-            <Button
-              variant="outlined"
-              size="small"
-              onClick={toggleFilters}
-              sx={{
-                display: { xs: 'none', md: 'inline-flex' },
-                height: 40,
-                minWidth: 120,
-                fontSize: "0.60rem",
-                fontWeight: 600,
-                ml: 0.5,
-                whiteSpace: "nowrap",
-                justifyContent: "space-between",
-                px: 1,
-              }}
-            >
-              <FilterIcon sx={{
-                fontSize: { xs: '1.1rem', sm: '1.15rem' },
-                mr: { xs: 0, sm: 0.4 }
-              }} />
+            {hasPermission('dashboard_filter_warehouse') && (
+              <Button
+                variant="outlined"
+                size="small"
+                onClick={toggleFilters}
+                sx={{
+                  display: { xs: 'none', md: 'inline-flex' },
+                  height: 40,
+                  minWidth: 120,
+                  fontSize: "0.60rem",
+                  fontWeight: 600,
+                  ml: 0.5,
+                  whiteSpace: "nowrap",
+                  justifyContent: "space-between",
+                  px: 1,
+                }}
+              >
+                <FilterIcon sx={{
+                  fontSize: { xs: '1.1rem', sm: '1.15rem' },
+                  mr: { xs: 0, sm: 0.4 }
+                }} />
 
-              <Box component="span" sx={{ mr: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Box component="span">{filtersOpen ? "Hide Filters" : "Show Filters"}</Box>
-                {filtersActive && (
-                  <Tooltip title="Filters active">
-                    <Box sx={{
-                      position: 'absolute',
-                      top: -5,
-                      right: -5,
-                      width: 14,
-                      height: 14,
-                      borderRadius: '50%',
-                      bgcolor: '#10b981',
-                      border: '2px solid white',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center'
-                    }}>
-                      <Typography sx={{ fontSize: '0.5rem', fontWeight: 800, color: 'white' }}>
-                        ●
-                      </Typography>
-                    </Box>
-                  </Tooltip>
-                )}
-              </Box>
-              <ExpandMoreIcon sx={{ transform: filtersOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 200ms" }} />
-            </Button>
+                <Box component="span" sx={{ mr: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Box component="span">{filtersOpen ? "Hide Filters" : "Show Filters"}</Box>
+                  {filtersActive && (
+                    <Tooltip title="Filters active">
+                      <Box sx={{
+                        position: 'absolute',
+                        top: -5,
+                        right: -5,
+                        width: 14,
+                        height: 14,
+                        borderRadius: '50%',
+                        bgcolor: '#10b981',
+                        border: '2px solid white',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}>
+                        <Typography sx={{ fontSize: '0.5rem', fontWeight: 800, color: 'white' }}>
+                          ●
+                        </Typography>
+                      </Box>
+                    </Tooltip>
+                  )}
+                </Box>
+                <ExpandMoreIcon sx={{ transform: filtersOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 200ms" }} />
+              </Button>
+            )}
           </Box>
 
           {/* BODY: collapsible */}
@@ -1592,52 +1598,56 @@ export default function DashboardPage() {
                     <Box component="span" sx={{ fontSize: '0.65rem', fontWeight: 600 }}>GRID</Box>
                   </Button>
 
-                  <Button
-                    variant="outlined"
-                    size="small"
-                    startIcon={<DownloadIcon sx={{ fontSize: 11 }} />}
-                    onClick={() => {
-                      // Prefill export dialog with current active filters (use same stage codes as main filter)
-                      setExportFilters({
-                        dateFrom,
-                        dateTo,
-                        stage: stageFilter || 'all',
-                        brand: brandFilter,
-                        category: categoryFilter,
-                        availableOnly: availableOnly ? 'available' : 'all',
-                      });
+                  {hasPermission('export_dashboard') && (
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      startIcon={<DownloadIcon sx={{ fontSize: 11 }} />}
+                      onClick={() => {
+                        // Prefill export dialog with current active filters (use same stage codes as main filter)
+                        setExportFilters({
+                          dateFrom,
+                          dateTo,
+                          stage: stageFilter || 'all',
+                          brand: brandFilter,
+                          category: categoryFilter,
+                          availableOnly: availableOnly ? 'available' : 'all',
+                        });
 
-                      setExportDialogOpen(true);
-                    }}
-                    sx={{
-                      height: { xs: 34, md: 40 },
-                      px: 1,
-                      fontSize: { xs: '0.62rem', md: '0.65rem' },
-                      fontWeight: 600,
-                      width: "100%",
-                    }}
-                  >
-                    EXPORT
-                  </Button>
+                        setExportDialogOpen(true);
+                      }}
+                      sx={{
+                        height: { xs: 34, md: 40 },
+                        px: 1,
+                        fontSize: { xs: '0.62rem', md: '0.65rem' },
+                        fontWeight: 600,
+                        width: "100%",
+                      }}
+                    >
+                      EXPORT
+                    </Button>
+                  )}
 
-                  <Button
-                    variant="outlined"
-                    size="small"
-                    startIcon={<RefreshIcon sx={{ fontSize: 14 }} />}
-                    onClick={() => {
-                      loadInventoryData();
-                      loadMetrics();
-                    }}
-                    sx={{
-                      height: { xs: 34, md: 40 },
-                      px: 1,
-                      fontSize: { xs: '0.62rem', md: '0.65rem' },
-                      fontWeight: 600,
-                      width: "100%",
-                    }}
-                  >
-                    REFRESH
-                  </Button>
+                  {hasPermission('refresh_dashboard') && (
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      startIcon={<RefreshIcon sx={{ fontSize: 14 }} />}
+                      onClick={() => {
+                        loadInventoryData();
+                        loadMetrics();
+                      }}
+                      sx={{
+                        height: { xs: 34, md: 40 },
+                        px: 1,
+                        fontSize: { xs: '0.62rem', md: '0.65rem' },
+                        fontWeight: 600,
+                        width: "100%",
+                      }}
+                    >
+                      REFRESH
+                    </Button>
+                  )}
 
                   {/* Available Only - inline in the button grid so it stays on same row */}
                   <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', pl: { xs: 0, md: 1 } }}>
@@ -2087,7 +2097,20 @@ export default function DashboardPage() {
               {/* Action buttons */}
               <Box sx={{ display: 'grid', gap: 1, mt: 1, flexWrap: 'wrap', columnCount: 2, gridTemplateColumns: 'repeat(2, 1fr)' }}>
                 <Button variant="outlined" sx={{ width: 170 }} startIcon={<RestartAltIcon />} onClick={resetFilters}>Reset</Button>
-                <Button variant="outlined" sx={{ width: 170 }} startIcon={<DownloadIcon />} onClick={() => { setExportFilters({ dateFrom, dateTo, stage: stageFilter || 'all', brand: brandFilter, category: categoryFilter, availableOnly: availableOnly ? 'available' : 'all' }); setExportDialogOpen(true); }}>Export</Button>
+                {hasPermission('export_dashboard') && (
+                  <Button
+                    variant="outlined"
+                    sx={{ width: 170 }}
+                    startIcon={<DownloadIcon />}
+                    onClick={() => {
+                      console.log('Export button clicked - Mobile Actions Dialog');
+                      setExportFilters({ dateFrom, dateTo, stage: stageFilter || 'all', brand: brandFilter, category: categoryFilter, availableOnly: availableOnly ? 'available' : 'all' });
+                      setExportDialogOpen(true);
+                    }}
+                  >
+                    Export
+                  </Button>
+                )}
 
                 <Button variant="outlined" sx={{ width: 170 }} startIcon={<SettingsIcon />} onClick={() => setColumnDialogOpen(true)}>Columns</Button>
                 <Button variant="outlined" sx={{ width: 170 }} startIcon={<TuneIcon />} onClick={() => setGridSettingsOpen(true)}>Grid</Button>

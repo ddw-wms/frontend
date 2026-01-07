@@ -34,7 +34,8 @@ import Tooltip from '@mui/material/Tooltip';
 import { AgGridReact } from 'ag-grid-react';
 import 'ag-grid-community/styles/ag-theme-quartz.css';
 import { printLabel, isAgentRunning } from '@/lib/printAgent';
-import { useRoleGuard, checkRole } from '@/hooks/useRoleGuard';
+import { usePermissionGuard } from '@/hooks/usePermissionGuard';
+import { usePermissions } from '@/app/context/PermissionsContext';
 
 // Constants
 const DEFAULT_MULTI_COLUMNS = [
@@ -74,7 +75,10 @@ ModuleRegistry.registerModules([AllCommunityModule]);
 
 export default function InboundPage() {
   // Role guard - only admin, manager, operator can access
-  useRoleGuard(['admin', 'manager', 'operator']);
+  const { loading: permissionLoading } = usePermissionGuard('view_inbound');
+
+  // Permission checks
+  const { hasPermission } = usePermissions();
 
   const router = useRouter();
   const { activeWarehouse } = useWarehouse();
@@ -1444,6 +1448,21 @@ export default function InboundPage() {
     setConfirmOpen(false);
   };
 
+  // Show loading state while permissions are being checked
+  if (permissionLoading) {
+    return (
+      <AppLayout>
+        <Box sx={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          height: '100vh'
+        }}>
+          <CircularProgress />
+        </Box>
+      </AppLayout>
+    );
+  }
 
   if (!activeWarehouse) {
     return (
@@ -1857,48 +1876,52 @@ export default function InboundPage() {
                                 GRID
                               </Button>
                             </Stack>
-                            <Button
-                              fullWidth
-                              size="small"
-                              startIcon={<DownloadIcon sx={{ fontSize: '0.9rem' }} />}
-                              variant="contained"
-                              onClick={exportToExcel}
-                              sx={{
-                                height: 34,
-                                fontSize: '0.72rem',
-                                fontWeight: 700,
-                                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                                boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
-                                '&:hover': {
-                                  background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
-                                  boxShadow: '0 6px 16px rgba(16, 185, 129, 0.4)'
-                                }
-                              }}
-                            >
-                              EXPORT
-                            </Button>
-                            <Button
-                              fullWidth
-                              size="small"
-                              startIcon={refreshing ? <CircularProgress size={14} /> : refreshSuccess ? <CheckCircle sx={{ color: '#10b981' }} /> : <RefreshIcon sx={{ fontSize: '0.9rem' }} />}
-                              variant="outlined"
-                              onClick={() => loadInboundList({ buttonRefresh: true })}
-                              disabled={refreshing}
-                              sx={{
-                                height: 34,
-                                fontSize: '0.72rem',
-                                fontWeight: 700,
-                                borderWidth: 2,
-                                borderColor: '#3b82f6',
-                                color: '#3b82f6',
-                                '&:hover': {
+                            {hasPermission('export_inbound') && (
+                              <Button
+                                fullWidth
+                                size="small"
+                                startIcon={<DownloadIcon sx={{ fontSize: '0.9rem' }} />}
+                                variant="contained"
+                                onClick={exportToExcel}
+                                sx={{
+                                  height: 34,
+                                  fontSize: '0.72rem',
+                                  fontWeight: 700,
+                                  background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                                  boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
+                                  '&:hover': {
+                                    background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+                                    boxShadow: '0 6px 16px rgba(16, 185, 129, 0.4)'
+                                  }
+                                }}
+                              >
+                                EXPORT
+                              </Button>
+                            )}
+                            {hasPermission('refresh_inbound') && (
+                              <Button
+                                fullWidth
+                                size="small"
+                                startIcon={refreshing ? <CircularProgress size={14} /> : refreshSuccess ? <CheckCircle sx={{ color: '#10b981' }} /> : <RefreshIcon sx={{ fontSize: '0.9rem' }} />}
+                                variant="outlined"
+                                onClick={() => loadInboundList({ buttonRefresh: true })}
+                                disabled={refreshing}
+                                sx={{
+                                  height: 34,
+                                  fontSize: '0.72rem',
+                                  fontWeight: 700,
                                   borderWidth: 2,
-                                  bgcolor: 'rgba(59, 130, 246, 0.1)'
-                                }
-                              }}
-                            >
-                              {refreshing ? 'Refreshing...' : refreshSuccess ? 'Refreshed' : 'REFRESH'}
-                            </Button>
+                                  borderColor: '#3b82f6',
+                                  color: '#3b82f6',
+                                  '&:hover': {
+                                    borderWidth: 2,
+                                    bgcolor: 'rgba(59, 130, 246, 0.1)'
+                                  }
+                                }}
+                              >
+                                {refreshing ? 'Refreshing...' : refreshSuccess ? 'Refreshed' : 'REFRESH'}
+                              </Button>
+                            )}
                           </Box>
                         </Stack>
                       </CardContent>

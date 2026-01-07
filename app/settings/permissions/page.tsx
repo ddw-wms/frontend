@@ -1,900 +1,935 @@
-// File Path = warehouse-frontend\app\settings\permissions\page.tsx
+// File Path = wms_frontend/app/settings/permissions/page.tsx
 'use client';
 
-import { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
-  Box, Paper, Typography, Table, TableBody, TableCell, TableHead,
-  TableRow, TableContainer, Checkbox, Button, AppBar, Toolbar,
-  Card, CardContent, Stack, Chip, Alert, CircularProgress,
-  Accordion, AccordionSummary, AccordionDetails, Collapse, TextField, InputAdornment,
-  useTheme, useMediaQuery
+    Box,
+    Card,
+    CardContent,
+    Typography,
+    Tabs,
+    Tab,
+    Switch,
+    Table,
+    TableBody,
+    TableCell,
+    TableContainer,
+    TableHead,
+    TableRow,
+    Paper,
+    Button,
+    Alert,
+    CircularProgress,
+    Chip,
+    Accordion,
+    AccordionSummary,
+    AccordionDetails,
+    Select,
+    MenuItem,
+    FormControl,
+    InputLabel,
+    TextField,
+    useTheme,
+    useMediaQuery,
 } from '@mui/material';
 import {
-  Save as SaveIcon, RestartAlt as ResetIcon, CheckCircle as CheckIcon,
-  ExpandMore as ExpandMoreIcon, Search as SearchIcon, Refresh as RefreshIcon,
-  Warning as WarningIcon, Lock as LockIcon
+    ExpandMore as ExpandMoreIcon,
+    People as PeopleIcon,
+    Person as PersonIcon,
+    Save as SaveIcon,
+    RestartAlt as ResetIcon,
+    Search as SearchIcon,
+    CheckBox as CheckBoxIcon,
+    CheckBoxOutlineBlank as CheckBoxOutlineBlankIcon,
 } from '@mui/icons-material';
+import axios from 'axios';
+import { usePermissions } from '@/app/context/PermissionsContext';
 import AppLayout from '@/components/AppLayout';
-import { useWarehouse } from '@/app/context/WarehouseContext';
-import toast, { Toaster } from 'react-hot-toast';
-import { useRoleGuard } from '@/hooks/useRoleGuard';
-import { permissionsAPI } from '@/lib/permissions';
-import { getStoredUser } from '@/lib/auth';
+import { StandardPageHeader, StandardTabs } from '@/components';
 
-// Comprehensive grouped permissions - ALL modules
-const PERMISSION_GROUPS: any = {
-  '📊 Dashboard': [
-    { key: 'view_dashboard', label: 'View Dashboard', description: 'Access main dashboard' },
-    { key: 'view_dashboard_stats', label: 'View Stats', description: 'See statistics' },
-    { key: 'export_dashboard', label: 'Export Data', description: 'Export dashboard data' },
-    { key: 'view_inventory_details', label: 'Inventory Details', description: 'View inventory info' },
-    { key: 'filter_dashboard', label: 'Filter', description: 'Use dashboard filters' },
-    { key: 'refresh_dashboard', label: 'Refresh', description: 'Refresh dashboard data' },
-    { key: 'view_recent_activities', label: 'Recent Activities', description: 'View recent actions' },
-    { key: 'print_dashboard_label', label: 'Print Labels', description: 'Print from dashboard' }
-  ],
-  '📥 Inbound Operations': [
-    { key: 'view_inbound', label: 'View Inbound', description: 'Access inbound page' },
-    { key: 'create_inbound_single', label: 'Single Entry', description: 'Add single inbound' },
-    { key: 'upload_inbound_bulk', label: 'Bulk Upload', description: 'Upload bulk inbound' },
-    { key: 'create_inbound_multi', label: 'Multi Entry', description: 'Multi-row inbound entry' },
-    { key: 'view_inbound_list', label: 'View List', description: 'View inbound records' },
-    { key: 'export_inbound', label: 'Export', description: 'Export inbound data' },
-    { key: 'delete_inbound', label: 'Delete', description: 'Delete inbound records' },
-    { key: 'refresh_inbound', label: 'Refresh', description: 'Refresh inbound data' },
-    { key: 'print_inbound_label', label: 'Print Labels', description: 'Print inbound labels' },
-    { key: 'inbound_column_settings', label: 'Column Settings', description: 'Customize columns' },
-    { key: 'filter_inbound', label: 'Filter', description: 'Filter inbound records' },
-    { key: 'paginate_inbound', label: 'Pagination', description: 'Navigate pages' },
-    { key: 'download_inbound_template', label: 'Download Template', description: 'Get Excel template' },
-    { key: 'view_inbound_master_columns', label: 'Master Columns', description: 'View master data columns' }
-  ],
-  '✅ Quality Control (QC)': [
-    { key: 'view_qc', label: 'View QC', description: 'Access QC page' },
-    { key: 'create_qc_single', label: 'Single Entry', description: 'Add single QC' },
-    { key: 'create_qc_multi', label: 'Multi Entry', description: 'Multi-row QC entry' },
-    { key: 'upload_qc_bulk', label: 'Bulk Upload', description: 'Upload bulk QC' },
-    { key: 'edit_qc', label: 'Edit QC', description: 'Modify QC records' },
-    { key: 'delete_qc', label: 'Delete QC', description: 'Delete QC records' },
-    { key: 'approve_qc', label: 'Approve QC', description: 'Approve/reject items' },
-    { key: 'view_qc_list', label: 'View List', description: 'View QC records' },
-    { key: 'export_qc', label: 'Export', description: 'Export QC data' },
-    { key: 'refresh_qc', label: 'Refresh', description: 'Refresh QC data' },
-    { key: 'qc_column_settings', label: 'Column Settings', description: 'Customize columns' },
-    { key: 'filter_qc', label: 'Filter', description: 'Filter QC records' },
-    { key: 'view_qc_stats', label: 'View Stats', description: 'View QC statistics' },
-    { key: 'download_qc_template', label: 'Download Template', description: 'Get Excel template' },
-    { key: 'change_qc_grade', label: 'Change Grade', description: 'Change QC grade' },
-    { key: 'view_qc_history', label: 'View History', description: 'View QC history' }
-  ],
-  '📦 Picking Operations': [
-    { key: 'view_picking', label: 'View Picking', description: 'Access picking page' },
-    { key: 'create_picking_multi', label: 'Create Picking', description: 'Create picking lists' },
-    { key: 'complete_picking', label: 'Complete Picking', description: 'Mark as picked' },
-    { key: 'view_picking_list', label: 'View List', description: 'View picking records' },
-    { key: 'export_picking', label: 'Export', description: 'Export picking data' },
-    { key: 'delete_picking', label: 'Delete', description: 'Delete picking records' },
-    { key: 'refresh_picking', label: 'Refresh', description: 'Refresh picking data' },
-    { key: 'picking_column_settings', label: 'Column Settings', description: 'Customize columns' },
-    { key: 'filter_picking', label: 'Filter', description: 'Filter picking records' },
-    { key: 'select_picking_customer', label: 'Select Customer', description: 'Choose customer for picking' },
-    { key: 'view_picking_details', label: 'View Details', description: 'View detailed info' },
-    { key: 'edit_picking', label: 'Edit Picking', description: 'Modify picking records' },
-    { key: 'download_picking_template', label: 'Download Template', description: 'Get Excel template' }
-  ],
-  '📤 Outbound Operations': [
-    { key: 'view_outbound', label: 'View Outbound', description: 'Access outbound page' },
-    { key: 'create_outbound_multi', label: 'Create Outbound', description: 'Create dispatch records' },
-    { key: 'upload_outbound_bulk', label: 'Bulk Upload', description: 'Upload bulk outbound' },
-    { key: 'view_outbound_list', label: 'View List', description: 'View outbound records' },
-    { key: 'export_outbound', label: 'Export', description: 'Export outbound data' },
-    { key: 'delete_outbound', label: 'Delete', description: 'Delete outbound records' },
-    { key: 'refresh_outbound', label: 'Refresh', description: 'Refresh outbound data' },
-    { key: 'outbound_column_settings', label: 'Column Settings', description: 'Customize columns' },
-    { key: 'filter_outbound', label: 'Filter', description: 'Filter outbound records' },
-    { key: 'select_outbound_customer', label: 'Select Customer', description: 'Choose customer' },
-    { key: 'view_outbound_stats', label: 'View Stats', description: 'View statistics' },
-    { key: 'download_outbound_template', label: 'Download Template', description: 'Get Excel template' },
-    { key: 'edit_outbound', label: 'Edit Outbound', description: 'Modify outbound records' },
-    { key: 'view_outbound_details', label: 'View Details', description: 'View detailed info' }
-  ],
-  '👥 Customers': [
-    { key: 'view_customers', label: 'View Customers', description: 'Access customers page' },
-    { key: 'create_customer', label: 'Create Customer', description: 'Add new customer' },
-    { key: 'edit_customer', label: 'Edit Customer', description: 'Modify customer info' },
-    { key: 'delete_customer', label: 'Delete Customer', description: 'Remove customer' },
-    { key: 'view_customer_details', label: 'View Details', description: 'View customer details' }
-  ],
-  '📋 Master Data': [
-    { key: 'view_master_data', label: 'View Master Data', description: 'Access master data page' },
-    { key: 'upload_master_data', label: 'Upload', description: 'Upload master data' },
-    { key: 'export_master_data', label: 'Export', description: 'Export master data' },
-    { key: 'delete_master_data', label: 'Delete', description: 'Delete master data records' },
-    { key: 'refresh_master_data', label: 'Refresh', description: 'Refresh data' },
-    { key: 'master_data_column_settings', label: 'Column Settings', description: 'Customize columns' },
-    { key: 'filter_master_data', label: 'Filter', description: 'Filter records' },
-    { key: 'download_master_data_template', label: 'Download Template', description: 'Get Excel template' },
-    { key: 'view_master_data_stats', label: 'View Stats', description: 'View statistics' },
-    { key: 'edit_master_data', label: 'Edit', description: 'Modify master data' },
-    { key: 'bulk_delete_master_data', label: 'Bulk Delete', description: 'Delete multiple records' }
-  ],
-  '👤 Users Management': [
-    { key: 'view_users', label: 'View Users', description: 'Access users page' },
-    { key: 'create_user', label: 'Create User', description: 'Add new user' },
-    { key: 'edit_user', label: 'Edit User', description: 'Modify user info' },
-    { key: 'delete_user', label: 'Delete User', description: 'Remove user' },
-    { key: 'toggle_user_status', label: 'Toggle Status', description: 'Activate/deactivate user' }
-  ],
-  '🏭 Warehouses': [
-    { key: 'view_warehouses', label: 'View Warehouses', description: 'Access warehouses page' },
-    { key: 'create_warehouse', label: 'Create Warehouse', description: 'Add new warehouse' },
-    { key: 'edit_warehouse', label: 'Edit Warehouse', description: 'Modify warehouse info' },
-    { key: 'delete_warehouse', label: 'Delete Warehouse', description: 'Remove warehouse' },
-    { key: 'set_active_warehouse', label: 'Set Active', description: 'Set active warehouse' },
-    { key: 'view_warehouse_details', label: 'View Details', description: 'View warehouse details' }
-  ],
-  '📁 Racks': [
-    { key: 'view_racks', label: 'View Racks', description: 'Access racks page' },
-    { key: 'create_rack', label: 'Create Rack', description: 'Add new rack' },
-    { key: 'edit_rack', label: 'Edit Rack', description: 'Modify rack info' },
-    { key: 'delete_rack', label: 'Delete Rack', description: 'Remove rack' },
-    { key: 'toggle_rack_status', label: 'Toggle Status', description: 'Activate/deactivate rack' },
-    { key: 'upload_racks_bulk', label: 'Bulk Upload', description: 'Upload multiple racks' },
-    { key: 'download_racks_template', label: 'Download Template', description: 'Get Excel template' }
-  ],
-  '🖨️ Printers': [
-    { key: 'view_printers', label: 'View Printers', description: 'Access printer settings' },
-    { key: 'save_printer_settings', label: 'Save Settings', description: 'Save printer config' },
-    { key: 'test_print', label: 'Test Print', description: 'Test printer' },
-    { key: 'refresh_printers', label: 'Refresh', description: 'Refresh printer list' },
-    { key: 'restart_print_agent', label: 'Restart Agent', description: 'Restart print service' },
-    { key: 'view_printer_status', label: 'View Status', description: 'Check printer status' },
-    { key: 'change_printer_settings', label: 'Change Settings', description: 'Modify printer settings' },
-    { key: 'view_print_history', label: 'View History', description: 'View print history' },
-    { key: 'reset_printer_settings', label: 'Reset Settings', description: 'Reset to defaults' }
-  ],
-  '🔒 Permissions': [
-    { key: 'view_permissions', label: 'View Permissions', description: 'Access permissions page' },
-    { key: 'edit_permissions', label: 'Edit Permissions', description: 'Modify permissions' },
-    { key: 'save_permissions', label: 'Save Permissions', description: 'Save permission changes' },
-    { key: 'reset_permissions', label: 'Reset Permissions', description: 'Reset to defaults' }
-  ],
-  '📈 Reports': [
-    { key: 'view_reports', label: 'View Reports', description: 'Access reports page' },
-    { key: 'generate_reports', label: 'Generate Reports', description: 'Create reports' },
-    { key: 'export_reports', label: 'Export Reports', description: 'Export report data' },
-    { key: 'schedule_reports', label: 'Schedule Reports', description: 'Schedule automated reports' },
-    { key: 'view_report_history', label: 'View History', description: 'View report history' }
-  ]
-};
+const api = axios.create({
+    baseURL: `${process.env.NEXT_PUBLIC_API_URL}/api`,
+    headers: { 'Content-Type': 'application/json' },
+    timeout: 60000, // 60 second timeout for bulk operations
+});
 
-const ROLES = ['admin', 'manager', 'operator', 'qc', 'picker'];
+api.interceptors.request.use((config) => {
+    const token = localStorage.getItem('token');
+    if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+});
 
-const ROLE_COLORS: any = {
-  admin: '#ef5350',
-  manager: '#ffa726',
-  operator: '#42a5f5',
-  qc: '#66bb6a',
-  picker: '#ab47bc'
-};
+interface Permission {
+    id: number;
+    permission_key: string;
+    permission_name: string;
+    category: string;
+    description: string;
+    enabled?: boolean;
+    role_permission_id?: number;
+    source?: 'user' | 'role' | 'default';
+}
 
-const ROLE_ICONS: any = {
-  admin: '🔴',
-  manager: '🟡',
-  operator: '🔵',
-  qc: '🟢',
-  picker: '🟣'
-};
+interface Role {
+    role: string;
+    enabled_count: number;
+    total_count: number;
+}
 
-// Lightweight relative time helper for last-refreshed display
-const getRelativeTime = (dateStr: string): string => {
-  try {
-    const date = new Date(dateStr);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
-
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays < 7) return `${diffDays}d ago`;
-    return dateStr;
-  } catch {
-    return dateStr;
-  }
-};
+interface User {
+    id: number;
+    username: string;
+    full_name: string;
+    role: string;
+    email: string;
+}
 
 export default function PermissionsPage() {
-  useRoleGuard(['admin']);
+    const { hasPermission, refreshPermissions } = usePermissions();
+    const theme = useTheme();
+    const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+    const [tabValue, setTabValue] = useState(0);
+    const [loading, setLoading] = useState(false);
+    const [saving, setSaving] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [success, setSuccess] = useState<string | null>(null);
 
-  const [permissions, setPermissions] = useState<any>({});
-  const [originalPermissions, setOriginalPermissions] = useState<any>({});
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
-  const [refreshSuccess, setRefreshSuccess] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [hasChanges, setHasChanges] = useState(false);
-  const [expandedModules, setExpandedModules] = useState<string[]>([]);
-  const { activeWarehouse, setActiveWarehouse } = useWarehouse();
-  const [user, setUser] = useState<any>(null);
+    // Role-based permissions
+    const [roles, setRoles] = useState<Role[]>([]);
+    const [selectedRole, setSelectedRole] = useState<string>('manager');
+    const [rolePermissions, setRolePermissions] = useState<Permission[]>([]);
+    const [roleChanges, setRoleChanges] = useState<Record<string, boolean>>({});
 
-  useEffect(() => {
-    const stored = getStoredUser();
-    if (stored) setUser(stored);
-  }, []);
+    // User-based permissions
+    const [users, setUsers] = useState<User[]>([]);
+    const [selectedUser, setSelectedUser] = useState<User | null>(null);
+    const [userPermissions, setUserPermissions] = useState<Permission[]>([]);
+    const [userChanges, setUserChanges] = useState<Record<string, boolean>>({});
 
+    // Search and filter
+    const [searchQuery, setSearchQuery] = useState('');
+    const [filterCategory, setFilterCategory] = useState<string>('all');
 
-  useEffect(() => {
-    loadPermissions();
-  }, []);
+    // Permission categories
+    const categories = [
+        'all',
+        'dashboard',
+        'inbound',
+        'outbound',
+        'inventory',
+        'picking',
+        'qc',
+        'reports',
+        'customers',
+        'master-data',
+        'warehouses',
+        'racks',
+        'users',
+        'backups',
+        'printers',
+        'settings',
+    ];
 
-  const loadPermissions = async (opts: { showGlobalLoading?: boolean } = { showGlobalLoading: true }) => {
-    const { showGlobalLoading } = opts;
-    if (showGlobalLoading) setLoading(true);
-    else setRefreshing(true);
+    useEffect(() => {
+        loadRoles();
+        loadUsers();
+    }, []);
 
-    try {
-      const response = await permissionsAPI.getAll();
-      const permissionsMap: any = {};
-
-      // Check if response.data is an array
-      const dataArray = Array.isArray(response.data) ? response.data : [];
-
-      if (dataArray.length === 0) {
-        // If this was the initial/global load, clear state; if a refresh, keep existing state to avoid blink
-        if (showGlobalLoading) {
-          setPermissions({});
-          setOriginalPermissions({});
-          toast.error('No permissions found. Please run database migration.');
-        } else {
-          toast.error('No permissions found. Please run database migration.');
+    useEffect(() => {
+        if (selectedRole && tabValue === 0) {
+            loadRolePermissions(selectedRole);
         }
-        return;
-      }
+    }, [selectedRole, tabValue]);
 
-      dataArray.forEach((p: any) => {
-        if (!permissionsMap[p.permission_key]) {
-          permissionsMap[p.permission_key] = {};
+    useEffect(() => {
+        if (selectedUser && tabValue === 1) {
+            loadUserPermissions(selectedUser.id);
         }
-        permissionsMap[p.permission_key][p.role] = p.enabled;
-      });
+    }, [selectedUser, tabValue]);
 
-      setPermissions(permissionsMap);
-      setOriginalPermissions(JSON.parse(JSON.stringify(permissionsMap)));
-
-      // If this was a button refresh (non-global), show inline success
-      if (!showGlobalLoading) {
-        toast.success('✓ Refreshed');
-        setRefreshSuccess(true);
-        setTimeout(() => setRefreshSuccess(false), 1800);
-      }
-    } catch (error: any) {
-      const status = error?.response?.status;
-      if (status === 401) {
-        toast.error('Not authenticated — redirecting to login');
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-        window.location.href = '/login';
-      } else if (status === 403) {
-        toast.error('Access denied: you do not have permissions to view this page');
-      } else {
-        toast.error(error.response?.data?.error || 'Failed to load permissions');
-      }
-      console.error('Load permissions error:', error);
-    } finally {
-      if (showGlobalLoading) setLoading(false);
-      else setRefreshing(false);
-    }
-  };
-
-  const handleToggle = (permissionKey: string, role: string) => {
-    setPermissions((prev: any) => {
-      const updated = { ...prev };
-      if (!updated[permissionKey]) {
-        updated[permissionKey] = {};
-      }
-      updated[permissionKey][role] = !updated[permissionKey][role];
-      return updated;
-    });
-    setHasChanges(true);
-  };
-
-  const handleSave = async () => {
-    setSaving(true);
-    try {
-      const permissionsArray = Object.entries(permissions).flatMap(([key, roles]: any) =>
-        Object.entries(roles).map(([role, enabled]) => ({
-          role,
-          permission_key: key,
-          enabled
-        }))
-      );
-
-      await permissionsAPI.saveAll(permissionsArray);
-      toast.success('✓ Permissions saved successfully');
-      setHasChanges(false);
-      setOriginalPermissions(JSON.parse(JSON.stringify(permissions)));
-    } catch (error) {
-      toast.error('Failed to save permissions');
-      console.error(error);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleReset = () => {
-    if (confirm('Reset all changes? This will discard unsaved modifications.')) {
-      setPermissions(JSON.parse(JSON.stringify(originalPermissions)));
-      setHasChanges(false);
-      toast.success('Changes discarded');
-    }
-  };
-
-  const handleToggleAll = (role: string, enabled: boolean) => {
-    const updatedPermissions = { ...permissions };
-    Object.keys(PERMISSION_GROUPS).forEach(module => {
-      PERMISSION_GROUPS[module].forEach((perm: any) => {
-        if (!updatedPermissions[perm.key]) {
-          updatedPermissions[perm.key] = {};
+    const loadRoles = async () => {
+        try {
+            const response = await api.get('/permissions/roles');
+            setRoles(response.data);
+        } catch (err: any) {
+            console.error('Error loading roles:', err);
         }
-        updatedPermissions[perm.key][role] = enabled;
-      });
-    });
-    setPermissions(updatedPermissions);
-    setHasChanges(true);
-    toast.success(`All permissions ${enabled ? 'enabled' : 'disabled'} for ${role}`);
-  };
+    };
 
-  const toggleModuleExpansion = (module: string) => {
-    setExpandedModules(prev =>
-      prev.includes(module) ? prev.filter(m => m !== module) : [...prev, module]
-    );
-  };
-
-  const handleToggleModuleAll = (module: string, enabled: boolean) => {
-    const updated = { ...permissions };
-    PERMISSION_GROUPS[module].forEach((perm: any) => {
-      if (!updated[perm.key]) updated[perm.key] = {};
-      ROLES.forEach(role => {
-        updated[perm.key][role] = enabled;
-      });
-    });
-    setPermissions(updated);
-    setHasChanges(true);
-    toast.success(`All permissions ${enabled ? 'enabled' : 'disabled'} for module ${module}`);
-  };
-
-  const expandAll = () => {
-    setExpandedModules(Object.keys(PERMISSION_GROUPS));
-  };
-
-  const collapseAll = () => {
-    setExpandedModules([]);
-  };
-
-  const getRoleStats = (role: string) => {
-    let enabled = 0;
-    let total = 0;
-    Object.keys(PERMISSION_GROUPS).forEach(module => {
-      PERMISSION_GROUPS[module].forEach((perm: any) => {
-        total++;
-        if (permissions[perm.key]?.[role]) {
-          enabled++;
+    const loadUsers = async () => {
+        try {
+            const response = await api.get('/users');
+            setUsers(response.data);
+        } catch (err: any) {
+            console.error('Error loading users:', err);
         }
-      });
-    });
-    return { enabled, total, percentage: total > 0 ? Math.round((enabled / total) * 100) : 0 };
-  };
+    };
 
-  const filteredGroups = Object.keys(PERMISSION_GROUPS).reduce((acc: any, module) => {
-    const filtered = PERMISSION_GROUPS[module].filter((perm: any) =>
-      perm.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      perm.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      module.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-    if (filtered.length > 0) {
-      acc[module] = filtered;
-    }
-    return acc;
-  }, {});
+    const loadRolePermissions = async (role: string) => {
+        setLoading(true);
+        setError(null);
+        try {
+            const response = await api.get(`/permissions/roles/${role}`);
+            setRolePermissions(response.data);
+            setRoleChanges({});
+        } catch (err: any) {
+            setError(err.message || 'Failed to load role permissions');
+        } finally {
+            setLoading(false);
+        }
+    };
 
-  if (loading) {
-    return (
-      <AppLayout>
-        <Box display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
-          <Stack alignItems="center" spacing={2}>
-            <CircularProgress size={50} />
-            <Typography color="text.secondary">Loading permissions...</Typography>
-          </Stack>
-        </Box>
-      </AppLayout>
-    );
-  }
+    const loadUserPermissions = async (userId: number) => {
+        setLoading(true);
+        setError(null);
+        try {
+            const response = await api.get(`/permissions/users/${userId}/effective`);
+            setUserPermissions(response.data.permissions);
+            setUserChanges({});
+        } catch (err: any) {
+            setError(err.message || 'Failed to load user permissions');
+        } finally {
+            setLoading(false);
+        }
+    };
 
-  /////////////////////////////////////// UI RENDERING ///////////////////////////////////////
-  return (
-    <AppLayout>
-      <Toaster position="top-right" />
-      <Box sx={{
-        p: { xs: 0.75, md: 1 },
-        background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
-        height: '100%',
-        width: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-        overflowY: 'auto',
-        overflowX: 'hidden'
-      }}>
+    const handleRolePermissionToggle = (permissionKey: string, currentValue: boolean) => {
+        const newValue = !currentValue;
+        setRoleChanges(prev => ({
+            ...prev,
+            [permissionKey]: newValue,
+        }));
 
-        {/* ==================== HEADER SECTION ==================== */}
-        <Box sx={{
-          position: 'sticky',
-          top: 0,
-          zIndex: 1000,
-          mb: 0,
-          px: 2,
-          py: 1.25,
-          pl: { xs: '54px', sm: 2 },
-          background: 'linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%)',
-          borderRadius: 0,
-          boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-        }}>
-          <Box sx={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: { xs: 0.75, sm: 1 }
-          }}>
-            {/* LEFT: Icon + Title */}
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 0.75, sm: 1.25 } }}>
-              <Box sx={{
-                p: { xs: 0.4, sm: 0.7 },
-                bgcolor: 'rgba(255,255,255,0.2)',
-                borderRadius: 1.5,
-                backdropFilter: 'blur(10px)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}>
-                <Typography sx={{ fontSize: { xs: '1rem', sm: '1.5rem' }, lineHeight: 1 }}>🔑</Typography>
-              </Box>
-              <Box>
-                <Typography variant="h4" sx={{
-                  fontWeight: 650,
-                  color: 'white',
-                  fontSize: { xs: '0.85rem', sm: '1rem', md: '1.3rem' },
-                  lineHeight: 1.1,
-                  textShadow: '0 2px 4px rgba(0,0,0,0.1)'
-                }}>
-                  User Permissions
-                </Typography>
-                <Typography variant="caption" sx={{
-                  color: 'rgba(255,255,255,0.9)',
-                  fontSize: { xs: isMobile ? '0.5rem' : '0.2rem', sm: '0.7rem' },
-                  fontWeight: 500,
-                  lineHeight: 1.2,
-                  display: 'block',
-                  mt: 0.25
-                }}>
-                  Manage users permissions
-                </Typography>
-              </Box>
-            </Box>
+        // Update local state
+        setRolePermissions(prev =>
+            prev.map(p =>
+                p.permission_key === permissionKey ? { ...p, enabled: newValue } : p
+            )
+        );
+    };
 
-            {/* RIGHT: Warehouse + User Chips */}
-            <Stack direction="row" spacing={{ xs: 0.5, sm: 0.75 }} alignItems="center">
-              <Chip
-                label={activeWarehouse?.name || '—'}
-                size="small"
-                sx={{
-                  bgcolor: 'rgba(255,255,255,0.2)',
-                  color: 'white',
-                  fontWeight: 700,
-                  height: { xs: 20, sm: 24 },
-                  fontSize: { xs: isMobile ? '0.42rem' : '0.2rem', sm: '0.72rem' },
-                  border: '1.5px solid rgba(255,255,255,0.3)',
-                  backdropFilter: 'blur(10px)',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                  '& .MuiChip-label': { px: { xs: 0.75, sm: 1 } }
-                }}
-              />
-            </Stack>
-          </Box>
-        </Box>
+    const handleUserPermissionToggle = (permissionKey: string, currentValue: boolean) => {
+        const newValue = !currentValue;
+        setUserChanges(prev => ({
+            ...prev,
+            [permissionKey]: newValue,
+        }));
 
-        {/* Fixed Header Section */}
-        <Box sx={{
-          position: 'sticky',
-          top: 0,
-          zIndex: 1000,
-          bgcolor: 'background.default',
-          borderBottom: '1px solid',
-          borderColor: 'divider',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
-        }}>
-          {/* Top Bar with Title and Actions */}
-          <Collapse in={hasChanges} timeout={240}>
-            <Box sx={{
-              bgcolor: 'primary.main',
-              color: 'white',
-              px: { xs: 1.5, sm: 3 },
-              py: { xs: 0.35, sm: 1.2 },
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: { xs: 1, sm: 0 },
-              transition: 'height 200ms ease, padding 200ms ease'
-            }}>
-              <Stack direction="row" spacing={1} alignItems="center">
-                <LockIcon fontSize={isMobile ? 'small' : 'medium'} />
-                <Typography variant="h6" fontWeight="600" sx={{ fontSize: { xs: '0.82rem', sm: '1rem' } }}>
-                  Permissions Management
-                </Typography>
-                <Chip
-                  label={`${Object.keys(permissions).length} Permissions`}
-                  size="small"
-                  sx={{ bgcolor: 'rgba(255,255,255,0.2)', color: 'white', fontSize: { xs: '0.62rem', sm: '0.78rem' }, height: { xs: 20, sm: 24 } }}
-                />
-              </Stack>
+        // Update local state
+        setUserPermissions(prev =>
+            prev.map(p =>
+                p.permission_key === permissionKey ? { ...p, enabled: newValue } : p
+            )
+        );
+    };
 
-              <Stack direction="row" spacing={1}>
-                {hasChanges && (
-                  <Button
-                    variant="outlined"
-                    size="small"
-                    startIcon={<ResetIcon />}
-                    onClick={handleReset}
-                    aria-label="Discard changes"
-                    sx={{
-                      borderColor: 'white',
-                      color: 'white',
-                      px: { xs: 0.5, sm: 1.2 },
-                      py: { xs: 0.25, sm: 0.5 },
-                      minWidth: { xs: 34, sm: 'auto' },
-                      fontSize: { xs: '0.62rem', sm: '0.85rem' },
-                      '&:hover': { borderColor: 'white', bgcolor: 'rgba(255,255,255,0.1)' }
-                    }}
-                  >
-                    {isMobile ? null : 'Discard'}
-                  </Button>
-                )}
-                <Button
-                  variant="contained"
-                  size="small"
-                  startIcon={<SaveIcon />}
-                  onClick={handleSave}
-                  disabled={saving || !hasChanges}
-                  aria-label="Save changes"
-                  sx={{
-                    bgcolor: 'white',
-                    color: 'primary.main',
-                    px: { xs: 0.6, sm: 1.2 },
-                    py: { xs: 0.25, sm: 0.5 },
-                    minWidth: { xs: 34, sm: 'auto' },
-                    fontSize: { xs: '0.62rem', sm: '0.85rem' },
-                    '&:hover': { bgcolor: 'grey.100' },
-                    '&:disabled': { bgcolor: 'grey.300' }
-                  }}
-                >
-                  {saving
-                    ? (isMobile ? <CircularProgress size={12} color="inherit" /> : 'Saving...')
-                    : (isMobile ? null : 'Save Changes')}
-                </Button>
-              </Stack>
-            </Box>
-          </Collapse>
+    const saveRolePermissions = async () => {
+        if (Object.keys(roleChanges).length === 0) {
+            setError('No changes to save');
+            return;
+        }
 
-          {/* Compact Role Summary Cards */}
-          <Box sx={{
-            bgcolor: 'grey.50',
-            px: { xs: 1.5, sm: 3 },
-            py: { xs: 0.5, sm: 1 },
-            display: 'flex',
-            gap: { xs: 1, sm: 1.5 },
-            overflowX: 'auto',
-            '&::-webkit-scrollbar': { height: 6 },
-            '&::-webkit-scrollbar-thumb': { bgcolor: 'grey.400', borderRadius: 3 }
-          }}>
-            {ROLES.map(role => {
-              const stats = getRoleStats(role);
-              return (
-                <Card
-                  key={role}
-                  sx={{
-                    minWidth: { xs: 120, sm: 180 },
-                    borderTop: `3px solid ${ROLE_COLORS[role]}`,
-                    boxShadow: 1
-                  }}
-                >
-                  {/* Desktop / tablet view */}
-                  <CardContent sx={{ display: { xs: 'none', sm: 'block' }, p: { xs: 1, sm: 1.5 }, '&:last-child': { pb: { xs: 1, sm: 1.5 } } }}>
-                    <Stack direction="row" spacing={1} alignItems="center" mb={0.5}>
-                      <Typography fontSize="1.2rem">{ROLE_ICONS[role]}</Typography>
-                      <Typography variant="subtitle2" fontWeight="700" textTransform="capitalize">
-                        {role}
-                      </Typography>
-                    </Stack>
-                    <Stack direction="row" spacing={1} alignItems="baseline">
-                      <Typography variant="h5" fontWeight="700" color={ROLE_COLORS[role]}>
-                        {stats.percentage}%
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {stats.enabled}/{stats.total}
-                      </Typography>
-                    </Stack>
-                    <Stack direction="row" spacing={0.5} mt={1}>
-                      <Button
-                        size="small"
-                        variant="outlined"
-                        onClick={() => handleToggleAll(role, true)}
-                        sx={{
-                          fontSize: '0.7rem',
-                          py: 0.25,
-                          minWidth: 'auto',
-                          flex: 1,
-                          borderColor: ROLE_COLORS[role],
-                          color: ROLE_COLORS[role]
+        setSaving(true);
+        setError(null);
+        setSuccess(null);
+
+        try {
+            const permissions = Object.entries(roleChanges).map(([permission_key, enabled]) => ({
+                permission_key,
+                enabled,
+            }));
+
+            // Optimistic UI update - show success immediately
+            setSuccess(`Saving ${permissions.length} permissions...`);
+
+            await api.post(`/permissions/roles/${selectedRole}/bulk-update`, { permissions });
+
+            setSuccess(`✓ Successfully updated ${permissions.length} permissions for ${selectedRole} role`);
+            setRoleChanges({});
+
+            // Broadcast to all tabs for instant update
+            console.log('📡 Broadcasting permission update to all tabs...');
+            if ((window as any).__PERMISSIONS_HOOK?.forceRefresh) {
+                (window as any).__PERMISSIONS_HOOK.forceRefresh();
+            }
+
+            // Reload the settings page data
+            await loadRoles();
+        } catch (err: any) {
+            setError(err.message || 'Failed to save permissions');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const saveUserPermissions = async () => {
+        if (!selectedUser || Object.keys(userChanges).length === 0) {
+            setError('No changes to save');
+            return;
+        }
+
+        setSaving(true);
+        setError(null);
+        setSuccess(null);
+
+        try {
+            for (const [permission_key, enabled] of Object.entries(userChanges)) {
+                await api.put(`/permissions/users/${selectedUser.id}/${permission_key}`, { enabled });
+            }
+
+            setSuccess(`Successfully updated ${Object.keys(userChanges).length} permissions for ${selectedUser.username}`);
+            setUserChanges({});
+            await loadUserPermissions(selectedUser.id);
+
+            // Trigger instant refresh via window hook
+            if ((window as any).__PERMISSIONS_HOOK?.forceRefresh) {
+                (window as any).__PERMISSIONS_HOOK.forceRefresh();
+            }
+        } catch (err: any) {
+            setError(err.message || 'Failed to save permissions');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const resetRolePermissions = async () => {
+        if (!confirm(`Are you sure you want to reset all permissions for ${selectedRole} role to defaults?`)) {
+            return;
+        }
+
+        setSaving(true);
+        setError(null);
+        setSuccess(null);
+
+        try {
+            await api.post(`/permissions/roles/${selectedRole}/reset`);
+            setSuccess(`Successfully reset permissions for ${selectedRole} role`);
+            setRoleChanges({});
+            await loadRolePermissions(selectedRole);
+            await loadRoles();
+
+            // Trigger instant refresh
+            if ((window as any).__PERMISSIONS_HOOK?.forceRefresh) {
+                (window as any).__PERMISSIONS_HOOK.forceRefresh();
+            }
+        } catch (err: any) {
+            setError(err.message || 'Failed to reset permissions');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const filterPermissions = (permissions: Permission[]) => {
+        return permissions.filter(p => {
+            const matchesSearch = searchQuery === '' ||
+                p.permission_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                p.permission_key.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                p.description?.toLowerCase().includes(searchQuery.toLowerCase());
+
+            const matchesCategory = filterCategory === 'all' || p.category === filterCategory;
+
+            return matchesSearch && matchesCategory;
+        });
+    };
+
+    const groupByCategory = (permissions: Permission[]) => {
+        const grouped: Record<string, Permission[]> = {};
+        permissions.forEach(p => {
+            if (!grouped[p.category]) {
+                grouped[p.category] = [];
+            }
+            grouped[p.category].push(p);
+        });
+        return grouped;
+    };
+
+    // Select/Unselect all permissions
+    const handleSelectAllRole = (enable: boolean) => {
+        const changes: Record<string, boolean> = {};
+        const filteredPermissions = filterPermissions(rolePermissions);
+
+        filteredPermissions.forEach(perm => {
+            changes[perm.permission_key] = enable;
+        });
+
+        setRoleChanges(changes);
+        setRolePermissions(prev =>
+            prev.map(p => {
+                if (filteredPermissions.find(fp => fp.permission_key === p.permission_key)) {
+                    return { ...p, enabled: enable };
+                }
+                return p;
+            })
+        );
+    };
+
+    const handleSelectAllUser = (enable: boolean) => {
+        const changes: Record<string, boolean> = {};
+        const filteredPermissions = filterPermissions(userPermissions);
+
+        filteredPermissions.forEach(perm => {
+            changes[perm.permission_key] = enable;
+        });
+
+        setUserChanges(changes);
+        setUserPermissions(prev =>
+            prev.map(p => {
+                if (filteredPermissions.find(fp => fp.permission_key === p.permission_key)) {
+                    return { ...p, enabled: enable };
+                }
+                return p;
+            })
+        );
+    };
+
+    const handleSelectCategoryRole = (category: string, enable: boolean) => {
+        const categoryPerms = rolePermissions.filter(p => p.category === category);
+        const changes = { ...roleChanges };
+
+        categoryPerms.forEach(perm => {
+            changes[perm.permission_key] = enable;
+        });
+
+        setRoleChanges(changes);
+        setRolePermissions(prev =>
+            prev.map(p => {
+                if (p.category === category) {
+                    return { ...p, enabled: enable };
+                }
+                return p;
+            })
+        );
+    };
+
+    const renderRolePermissions = () => {
+        const filteredPermissions = filterPermissions(rolePermissions);
+        const groupedPermissions = groupByCategory(filteredPermissions);
+        const hasChanges = Object.keys(roleChanges).length > 0;
+        const allEnabled = filteredPermissions.every(p => p.enabled);
+        const allDisabled = filteredPermissions.every(p => !p.enabled);
+
+        return (
+            <Box>
+                {/* Top Controls */}
+                <Box sx={{ mb: 3, display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: 2 }}>
+                    <FormControl sx={{ minWidth: { xs: '100%', md: 200 } }}>
+                        <InputLabel>Role</InputLabel>
+                        <Select
+                            value={selectedRole}
+                            onChange={(e) => {
+                                setSelectedRole(e.target.value);
+                                setRoleChanges({});
+                            }}
+                            label="Role"
+                            size={isMobile ? 'small' : 'medium'}
+                        >
+                            <MenuItem value="admin">Admin</MenuItem>
+                            <MenuItem value="manager">Manager</MenuItem>
+                            <MenuItem value="operator">Operator</MenuItem>
+                            <MenuItem value="qc">QC</MenuItem>
+                            <MenuItem value="picker">Picker</MenuItem>
+                        </Select>
+                    </FormControl>
+
+                    <TextField
+                        placeholder="Search permissions..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        size={isMobile ? 'small' : 'medium'}
+                        InputProps={{
+                            startAdornment: <SearchIcon sx={{ mr: 1, color: 'text.secondary' }} />,
                         }}
-                      >
-                        All
-                      </Button>
-                      <Button
-                        size="small"
-                        variant="outlined"
-                        color="error"
-                        onClick={() => handleToggleAll(role, false)}
-                        sx={{
-                          fontSize: '0.7rem',
-                          py: 0.25,
-                          minWidth: 'auto',
-                          flex: 1
-                        }}
-                      >
-                        None
-                      </Button>
-                    </Stack>
-                  </CardContent>
-
-                  {/* Compact mobile view */}
-                  <CardContent sx={{ display: { xs: 'flex', sm: 'none' }, alignItems: 'center', justifyContent: 'space-between', p: { xs: 0.5 } }}>
-                    <Stack direction="row" spacing={0.5} alignItems="center">
-                      <Typography fontSize="1rem">{ROLE_ICONS[role]}</Typography>
-                      <Typography variant="subtitle2" fontWeight="700" sx={{ fontSize: '0.8rem', textTransform: 'capitalize' }}>
-                        {role}
-                      </Typography>
-                    </Stack>
-                    <Typography variant="subtitle2" fontWeight="700" color={ROLE_COLORS[role]} sx={{ fontSize: '0.9rem' }}>
-                      {stats.percentage}%
-                    </Typography>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </Box>
-
-          {/* Search and Controls Bar */}
-          <Box sx={{
-            bgcolor: 'white',
-            px: { xs: 1.5, sm: 3 },
-            py: { xs: 0.6, sm: 1.5 },
-            borderBottom: '1px solid',
-            borderColor: 'divider'
-          }}>
-            <Stack direction="row" spacing={1} alignItems="center" sx={{ flexWrap: 'nowrap', overflowX: 'auto', gap: { xs: 0.75, sm: 1.5 }, '& > *': { flexShrink: 0 } }}>
-              <TextField
-                placeholder="Search permissions..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                size="small"
-                sx={{ flex: '1 1 auto', minWidth: { xs: 140, sm: 220 }, maxWidth: { sm: 500 } }}
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <SearchIcon fontSize="small" />
-                    </InputAdornment>
-                  )
-                }}
-              />
-              <Button
-                variant="outlined"
-                size="small"
-                onClick={expandAll}
-              >
-                Expand All
-              </Button>
-              <Button
-                variant="outlined"
-                size="small"
-                onClick={collapseAll}
-              >
-                Collapse All
-              </Button>
-              <Button
-                variant="outlined"
-                size="small"
-                startIcon={refreshing ? <CircularProgress size={14} /> : refreshSuccess ? <CheckIcon sx={{ color: '#10b981' }} /> : <RefreshIcon />}
-                onClick={() => loadPermissions({ showGlobalLoading: false })}
-                disabled={refreshing}
-              >
-                {refreshing ? 'Refreshing...' : refreshSuccess ? 'Refreshed' : 'Refresh'}
-              </Button>
-
-
-            </Stack>
-
-            {hasChanges && (
-              <Alert
-                severity="warning"
-                icon={<WarningIcon />}
-                sx={{ mt: 1.5, py: 0.5 }}
-              >
-                Unsaved changes detected
-              </Alert>
-            )}
-          </Box>
-        </Box>
-
-        {/* Scrollable Content */}
-        <Box sx={{ p: 2 }}>
-          {/* Permissions Matrix by Module */}
-          {Object.entries(filteredGroups).map(([module, perms]: any) => {
-            const isExpanded = expandedModules.includes(module);
-            return (
-              <Paper
-                key={module}
-                elevation={2}
-                sx={{
-                  mb: 1,
-                  overflow: 'hidden',
-                  border: isExpanded ? '2px solid' : '1px solid',
-                  borderColor: isExpanded ? 'primary.main' : 'divider'
-                }}
-              >
-                {/* Fixed Header */}
-                <Box
-                  onClick={() => toggleModuleExpansion(module)}
-                  sx={{
-                    bgcolor: 'grey.50',
-                    px: 2,
-                    py: 1.5,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    cursor: 'pointer',
-                    borderBottom: isExpanded ? '2px solid' : 'none',
-                    borderColor: 'primary.main',
-                    '&:hover': {
-                      bgcolor: 'grey.100'
-                    }
-                  }}
-                >
-                  <Stack direction="row" spacing={1} alignItems="center">
-                    <Typography variant="subtitle1" fontWeight="700">
-                      {module}
-                    </Typography>
-                    <Chip
-                      label={perms.length}
-                      size="small"
-                      color="primary"
-                      sx={{ height: 20, fontSize: '0.75rem' }}
+                        sx={{ flexGrow: 1 }}
                     />
-                  </Stack>
-                  <ExpandMoreIcon
-                    sx={{
-                      transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
-                      transition: 'transform 0.3s'
-                    }}
-                  />
+
+                    <FormControl sx={{ minWidth: { xs: '100%', md: 150 } }}>
+                        <InputLabel>Category</InputLabel>
+                        <Select
+                            value={filterCategory}
+                            onChange={(e) => setFilterCategory(e.target.value)}
+                            label="Category"
+                            size={isMobile ? 'small' : 'medium'}
+                        >
+                            {categories.map(cat => (
+                                <MenuItem key={cat} value={cat}>
+                                    {cat === 'all' ? 'All Categories' : cat}
+                                </MenuItem>
+                            ))}
+                        </Select>
+                    </FormControl>
                 </Box>
 
-                {/* Scrollable Content */}
-                {isExpanded && (
-                  <Box sx={{ maxHeight: '400px', overflow: 'auto' }}>
-                    <Table size="small" stickyHeader>
-                      <TableHead>
-                        <TableRow>
-                          <TableCell sx={{
-                            fontWeight: '700',
-                            width: '25%',
-                            py: 1,
-                            bgcolor: 'grey.200',
-                            position: 'sticky',
-                            top: 0,
-                            zIndex: 10
-                          }}>Permission</TableCell>
-                          <TableCell sx={{
-                            fontWeight: '700',
-                            width: '35%',
-                            py: 1,
-                            bgcolor: 'grey.200',
-                            position: 'sticky',
-                            top: 0,
-                            zIndex: 10
-                          }}>Description</TableCell>
-                          {ROLES.map(role => (
-                            <TableCell
-                              key={role}
-                              align="center"
-                              sx={{
-                                fontWeight: '700',
-                                color: ROLE_COLORS[role],
-                                py: 1,
-                                fontSize: '0.75rem',
-                                bgcolor: 'grey.200',
-                                position: 'sticky',
-                                top: 0,
-                                zIndex: 10
-                              }}
-                            >
-                              <Stack alignItems="center" spacing={0.25}>
-                                <Typography fontSize="1rem">{ROLE_ICONS[role]}</Typography>
-                                <Typography fontSize="0.7rem" textTransform="capitalize">
-                                  {role}
-                                </Typography>
-                              </Stack>
-                            </TableCell>
-                          ))}
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {perms.map((perm: any, idx: number) => (
-                          <TableRow
-                            key={perm.key}
-                            hover
-                            sx={{
-                              '&:nth-of-type(odd)': { bgcolor: 'grey.50' },
-                              '&:hover': { bgcolor: 'action.hover' }
-                            }}
-                          >
-                            <TableCell sx={{ py: 0.75 }}>
-                              <Typography variant="body2" fontWeight="600" fontSize="0.85rem">
-                                {perm.label}
-                              </Typography>
-                            </TableCell>
-                            <TableCell sx={{ py: 0.75 }}>
-                              <Typography variant="body2" color="text.secondary" fontSize="0.8rem">
-                                {perm.description}
-                              </Typography>
-                            </TableCell>
-                            {ROLES.map(role => (
-                              <TableCell key={role} align="center" sx={{ py: 0.5 }}>
-                                <Checkbox
-                                  size="small"
-                                  checked={permissions[perm.key]?.[role] || false}
-                                  onChange={() => handleToggle(perm.key, role)}
-                                  sx={{
-                                    color: ROLE_COLORS[role],
-                                    '&.Mui-checked': {
-                                      color: ROLE_COLORS[role]
-                                    },
-                                    p: 0.5
-                                  }}
-                                />
-                              </TableCell>
-                            ))}
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </Box>
-                )}
-              </Paper>
-            );
-          })}
+                {/* Select All / Action Buttons */}
+                <Box sx={{ mb: 2, display: 'flex', flexWrap: 'wrap', gap: 1, alignItems: 'center' }}>
+                    <Button
+                        variant="outlined"
+                        size="small"
+                        onClick={() => handleSelectAllRole(true)}
+                        disabled={allEnabled || selectedRole === 'admin'}
+                        sx={{ fontSize: '0.75rem', py: 0.5 }}
+                    >
+                        All On
+                    </Button>
+                    <Button
+                        variant="outlined"
+                        size="small"
+                        onClick={() => handleSelectAllRole(false)}
+                        disabled={allDisabled || selectedRole === 'admin'}
+                        sx={{ fontSize: '0.75rem', py: 0.5 }}
+                    >
+                        All Off
+                    </Button>
 
-          {Object.keys(filteredGroups).length === 0 && (
-            <Alert severity="info" sx={{ mt: 2 }}>
-              No permissions found matching "{searchQuery}"
-            </Alert>
-          )}
-        </Box>
-      </Box>
-    </AppLayout >
-  );
+                    <Box sx={{ flexGrow: 1 }} />
+
+                    <Button
+                        variant="outlined"
+                        size="small"
+                        startIcon={<ResetIcon fontSize="small" />}
+                        onClick={resetRolePermissions}
+                        disabled={saving || selectedRole === 'admin'}
+                        sx={{ fontSize: '0.75rem', py: 0.5 }}
+                    >
+                        Reset
+                    </Button>
+                    <Button
+                        variant="contained"
+                        size="small"
+                        startIcon={<SaveIcon fontSize="small" />}
+                        onClick={saveRolePermissions}
+                        disabled={!hasChanges || saving}
+                        sx={{ fontSize: '0.75rem', py: 0.5 }}
+                    >
+                        Save {hasChanges && `(${Object.keys(roleChanges).length})`}
+                    </Button>
+                </Box>
+
+                {selectedRole === 'admin' && (
+                    <Alert severity="info" sx={{ mb: 2 }}>
+                        Admin role has all permissions enabled by default and cannot be modified.
+                    </Alert>
+                )}
+
+                {loading ? (
+                    <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+                        <CircularProgress />
+                    </Box>
+                ) : (
+                    <Box>
+                        {Object.entries(groupedPermissions).map(([category, perms]) => {
+                            const allCategoryEnabled = perms.every(p => p.enabled);
+                            const allCategoryDisabled = perms.every(p => !p.enabled);
+
+                            return (
+                                <Accordion
+                                    key={category}
+                                    defaultExpanded={!isMobile}
+                                    sx={{
+                                        '&:before': { display: 'none' },
+                                        boxShadow: 'none',
+                                        border: '1px solid',
+                                        borderColor: 'divider',
+                                        mb: 1
+                                    }}
+                                >
+                                    <AccordionSummary
+                                        expandIcon={<ExpandMoreIcon />}
+                                        sx={{ minHeight: 42, '& .MuiAccordionSummary-content': { my: 0.5 } }}
+                                    >
+                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, width: '100%', flexWrap: 'wrap' }}>
+                                            <Typography variant="subtitle2" sx={{ textTransform: 'capitalize', fontWeight: 600 }}>
+                                                {category.replace('-', ' ')}
+                                            </Typography>
+                                            <Chip
+                                                label={`${perms.filter(p => p.enabled).length}/${perms.length}`}
+                                                size="small"
+                                                color={perms.filter(p => p.enabled).length === perms.length ? 'success' : 'default'}
+                                                sx={{ height: 20, fontSize: '0.7rem' }}
+                                            />
+                                            {!isMobile && selectedRole !== 'admin' && (
+                                                <Box sx={{ display: 'flex', gap: 0.5, ml: 'auto' }}>
+                                                    <Box
+                                                        component="span"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleSelectCategoryRole(category, true);
+                                                        }}
+                                                        sx={{
+                                                            cursor: allCategoryEnabled ? 'default' : 'pointer',
+                                                            opacity: allCategoryEnabled ? 0.5 : 1,
+                                                            display: 'inline-flex',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'center',
+                                                            p: 0.5,
+                                                            borderRadius: 1,
+                                                            '&:hover': !allCategoryEnabled ? {
+                                                                bgcolor: 'action.hover'
+                                                            } : {},
+                                                            pointerEvents: allCategoryEnabled ? 'none' : 'auto'
+                                                        }}
+                                                    >
+                                                        <CheckBoxIcon fontSize="small" />
+                                                    </Box>
+                                                    <Box
+                                                        component="span"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleSelectCategoryRole(category, false);
+                                                        }}
+                                                        sx={{
+                                                            cursor: allCategoryDisabled ? 'default' : 'pointer',
+                                                            opacity: allCategoryDisabled ? 0.5 : 1,
+                                                            display: 'inline-flex',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'center',
+                                                            p: 0.5,
+                                                            borderRadius: 1,
+                                                            '&:hover': !allCategoryDisabled ? {
+                                                                bgcolor: 'action.hover'
+                                                            } : {},
+                                                            pointerEvents: allCategoryDisabled ? 'none' : 'auto'
+                                                        }}
+                                                    >
+                                                        <CheckBoxOutlineBlankIcon fontSize="small" />
+                                                    </Box>
+                                                </Box>
+                                            )}
+                                        </Box>
+                                    </AccordionSummary>
+                                    <AccordionDetails>
+                                        <TableContainer>
+                                            <Table size="small">
+                                                <TableHead>
+                                                    <TableRow>
+                                                        <TableCell>Permission</TableCell>
+                                                        {!isMobile && <TableCell>Description</TableCell>}
+                                                        <TableCell align="center">Enabled</TableCell>
+                                                    </TableRow>
+                                                </TableHead>
+                                                <TableBody>
+                                                    {perms.map((perm) => (
+                                                        <TableRow key={perm.permission_key}>
+                                                            <TableCell>
+                                                                <Typography variant="body2" fontWeight="medium" sx={{ fontSize: { xs: '0.75rem', md: '0.875rem' } }}>
+                                                                    {perm.permission_name}
+                                                                </Typography>
+                                                                {isMobile && (
+                                                                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontSize: '0.7rem' }}>
+                                                                        {perm.description}
+                                                                    </Typography>
+                                                                )}
+                                                                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontSize: '0.65rem' }}>
+                                                                    {perm.permission_key}
+                                                                </Typography>
+                                                            </TableCell>
+                                                            {!isMobile && (
+                                                                <TableCell>
+                                                                    <Typography variant="body2" color="text.secondary">
+                                                                        {perm.description}
+                                                                    </Typography>
+                                                                </TableCell>
+                                                            )}
+                                                            <TableCell align="center">
+                                                                <Switch
+                                                                    checked={perm.enabled || false}
+                                                                    onChange={() => handleRolePermissionToggle(perm.permission_key, perm.enabled || false)}
+                                                                    disabled={selectedRole === 'admin' || saving}
+                                                                    color="primary"
+                                                                    size={isMobile ? 'small' : 'medium'}
+                                                                />
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    ))}
+                                                </TableBody>
+                                            </Table>
+                                        </TableContainer>
+                                    </AccordionDetails>
+                                </Accordion>
+                            );
+                        })}
+                    </Box>
+                )}
+            </Box>
+        );
+    };
+
+    const renderUserPermissions = () => {
+        const filteredPermissions = filterPermissions(userPermissions);
+        const groupedPermissions = groupByCategory(filteredPermissions);
+        const hasChanges = Object.keys(userChanges).length > 0;
+        const allEnabled = filteredPermissions.every(p => p.enabled);
+        const allDisabled = filteredPermissions.every(p => !p.enabled);
+
+        return (
+            <Box>
+                {/* Top Controls */}
+                <Box sx={{ mb: 3, display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: 2 }}>
+                    <FormControl sx={{ minWidth: { xs: '100%', md: 300 } }}>
+                        <InputLabel>User</InputLabel>
+                        <Select
+                            value={selectedUser?.id || ''}
+                            onChange={(e) => {
+                                const user = users.find(u => u.id === e.target.value);
+                                setSelectedUser(user || null);
+                                setUserChanges({});
+                            }}
+                            label="User"
+                            size={isMobile ? 'small' : 'medium'}
+                        >
+                            {users.map(user => (
+                                <MenuItem key={user.id} value={user.id}>
+                                    {user.full_name || user.username} ({user.role})
+                                </MenuItem>
+                            ))}
+                        </Select>
+                    </FormControl>
+
+                    <TextField
+                        placeholder="Search permissions..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        size={isMobile ? 'small' : 'medium'}
+                        InputProps={{
+                            startAdornment: <SearchIcon sx={{ mr: 1, color: 'text.secondary' }} />,
+                        }}
+                        sx={{ flexGrow: 1 }}
+                    />
+
+                    <FormControl sx={{ minWidth: { xs: '100%', md: 150 } }}>
+                        <InputLabel>Category</InputLabel>
+                        <Select
+                            value={filterCategory}
+                            onChange={(e) => setFilterCategory(e.target.value)}
+                            label="Category"
+                            size={isMobile ? 'small' : 'medium'}
+                        >
+                            {categories.map(cat => (
+                                <MenuItem key={cat} value={cat}>
+                                    {cat === 'all' ? 'All Categories' : cat}
+                                </MenuItem>
+                            ))}
+                        </Select>
+                    </FormControl>
+                </Box>
+
+                {/* Select All / Action Buttons */}
+                <Box sx={{ mb: 2, display: 'flex', flexWrap: 'wrap', gap: 1, alignItems: 'center' }}>
+                    <Button
+                        variant="outlined"
+                        size="small"
+                        startIcon={<CheckBoxIcon />}
+                        onClick={() => handleSelectAllUser(true)}
+                        disabled={allEnabled || !selectedUser}
+                    >
+                        Select All
+                    </Button>
+                    <Button
+                        variant="outlined"
+                        size="small"
+                        startIcon={<CheckBoxOutlineBlankIcon />}
+                        onClick={() => handleSelectAllUser(false)}
+                        disabled={allDisabled || !selectedUser}
+                    >
+                        Unselect All
+                    </Button>
+
+                    <Box sx={{ flexGrow: 1 }} />
+
+                    <Button
+                        variant="contained"
+                        size="small"
+                        startIcon={<SaveIcon />}
+                        onClick={saveUserPermissions}
+                        disabled={!hasChanges || saving || !selectedUser}
+                    >
+                        Save {hasChanges && `(${Object.keys(userChanges).length})`}
+                    </Button>
+                </Box>
+
+                {selectedUser && (
+                    <Alert severity="info" sx={{ mb: 2 }}>
+                        Configuring custom permissions for <strong>{selectedUser.full_name || selectedUser.username}</strong> ({selectedUser.role} role).
+                        These will override the default role permissions.
+                    </Alert>
+                )}
+
+                {!selectedUser ? (
+                    <Alert severity="warning">Please select a user to manage their permissions.</Alert>
+                ) : loading ? (
+                    <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+                        <CircularProgress />
+                    </Box>
+                ) : (
+                    <Box>
+                        {Object.entries(groupedPermissions).map(([category, perms]) => (
+                            <Accordion key={category} defaultExpanded={!isMobile}>
+                                <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, width: '100%', flexWrap: 'wrap' }}>
+                                        <Typography variant="h6" sx={{ textTransform: 'capitalize', fontSize: { xs: '1rem', md: '1.25rem' } }}>
+                                            {category}
+                                        </Typography>
+                                        <Chip
+                                            label={`${perms.filter(p => p.enabled).length} / ${perms.length}`}
+                                            size="small"
+                                            color={perms.filter(p => p.enabled).length === perms.length ? 'success' : 'default'}
+                                        />
+                                    </Box>
+                                </AccordionSummary>
+                                <AccordionDetails>
+                                    <TableContainer>
+                                        <Table size="small">
+                                            <TableHead>
+                                                <TableRow>
+                                                    <TableCell>Permission</TableCell>
+                                                    {!isMobile && <TableCell>Description</TableCell>}
+                                                    {!isMobile && <TableCell align="center">Source</TableCell>}
+                                                    <TableCell align="center">Enabled</TableCell>
+                                                </TableRow>
+                                            </TableHead>
+                                            <TableBody>
+                                                {perms.map((perm) => (
+                                                    <TableRow key={perm.permission_key}>
+                                                        <TableCell>
+                                                            <Typography variant="body2" fontWeight="medium" sx={{ fontSize: { xs: '0.75rem', md: '0.875rem' } }}>
+                                                                {perm.permission_name}
+                                                            </Typography>
+                                                            {isMobile && (
+                                                                <>
+                                                                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontSize: '0.7rem' }}>
+                                                                        {perm.description}
+                                                                    </Typography>
+                                                                    <Chip
+                                                                        label={perm.source || 'role'}
+                                                                        size="small"
+                                                                        color={perm.source === 'user' ? 'primary' : 'default'}
+                                                                        sx={{ mt: 0.5, height: 20, fontSize: '0.65rem' }}
+                                                                    />
+                                                                </>
+                                                            )}
+                                                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontSize: '0.65rem' }}>
+                                                                {perm.permission_key}
+                                                            </Typography>
+                                                        </TableCell>
+                                                        {!isMobile && (
+                                                            <TableCell>
+                                                                <Typography variant="body2" color="text.secondary">
+                                                                    {perm.description}
+                                                                </Typography>
+                                                            </TableCell>
+                                                        )}
+                                                        {!isMobile && (
+                                                            <TableCell align="center">
+                                                                <Chip
+                                                                    label={perm.source || 'role'}
+                                                                    size="small"
+                                                                    color={perm.source === 'user' ? 'primary' : 'default'}
+                                                                />
+                                                            </TableCell>
+                                                        )}
+                                                        <TableCell align="center">
+                                                            <Switch
+                                                                checked={perm.enabled || false}
+                                                                onChange={() => handleUserPermissionToggle(perm.permission_key, perm.enabled || false)}
+                                                                disabled={saving}
+                                                                color="primary"
+                                                                size={isMobile ? 'small' : 'medium'}
+                                                            />
+                                                        </TableCell>
+                                                    </TableRow>
+                                                ))}
+                                            </TableBody>
+                                        </Table>
+                                    </TableContainer>
+                                </AccordionDetails>
+                            </Accordion>
+                        ))}
+                    </Box>
+                )}
+            </Box>
+        );
+    };
+
+    if (!hasPermission('view_permissions')) {
+        return (
+            <AppLayout>
+                <Box sx={{ p: 3 }}>
+                    <Alert severity="error">
+                        You need 'View Permissions' permission to access the permissions management page.
+                    </Alert>
+                </Box>
+            </AppLayout>
+        );
+    }
+
+    return (
+        <AppLayout>
+            <Box sx={{
+                height: '100%',
+                width: '100%',
+                display: 'flex',
+                flexDirection: 'column',
+                overflow: 'hidden'
+            }}>
+                {/* Header Section */}
+                <StandardPageHeader
+                    title="Permissions Management"
+                    subtitle="Manage role and user permissions"
+                    icon="🔐"
+                />
+
+                {/* Tabs Section */}
+                <StandardTabs
+                    value={tabValue}
+                    onChange={(event, newValue) => {
+                        setTabValue(newValue);
+                        setSearchQuery('');
+                        setFilterCategory('all');
+                        setError(null);
+                        setSuccess(null);
+                    }}
+                    tabs={['Role Permissions', 'User Permissions']}
+                    color="#667eea"
+                />
+
+                {/* Scrollable Content Wrapper */}
+                <Box sx={{
+                    flex: 1,
+                    overflow: 'auto',
+                    display: 'flex',
+                    flexDirection: 'column',
+                }}>
+                    {/* Main Content Area */}
+                    <Paper sx={{
+                        p: { xs: 2, sm: 3 },
+                        borderRadius: 2,
+                        boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
+                        background: 'white',
+                        flex: 1,
+                        display: 'flex',
+                        flexDirection: 'column',
+                    }}>
+                        {/* Alerts */}
+                        {error && (
+                            <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
+                                {error}
+                            </Alert>
+                        )}
+
+                        {success && (
+                            <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccess(null)}>
+                                {success}
+                            </Alert>
+                        )}
+
+                        {/* Tab Content */}
+                        {tabValue === 0 && renderRolePermissions()}
+                        {tabValue === 1 && renderUserPermissions()}
+                    </Paper>
+                </Box>
+            </Box>
+        </AppLayout>
+    );
 }
