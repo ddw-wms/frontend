@@ -27,7 +27,7 @@ import * as XLSX from 'xlsx';
 import { AgGridReact } from 'ag-grid-react';
 import { ModuleRegistry, AllCommunityModule, ClientSideRowModelModule } from 'ag-grid-community';
 import 'ag-grid-community/styles/ag-theme-quartz.css';
-
+import { usePermissionGuard } from '@/hooks/usePermissionGuard';
 import { usePermissions } from '@/app/context/PermissionsContext';
 import localforage from 'localforage';
 
@@ -97,8 +97,8 @@ const DEFAULT_LIST_COLUMNS = [
 ];
 
 export default function PickingPage() {
-  // Role guard intentionally removed to allow immediate access and submission
-  // (temporary: permissions managed on backend).
+  // Role guard - only admin, manager, picker can access
+  const { loading: permissionLoading } = usePermissionGuard('view_picking');
 
   // Permission checks
   const { hasPermission } = usePermissions();
@@ -649,29 +649,6 @@ export default function PickingPage() {
       return;
     }
 
-    // Compute local duplicates and existing-picked checks so we don't rely on state updates
-    const wsnCounts = new Map<string, number>();
-    validRows.forEach(r => {
-      const wsn = r.wsn.trim().toUpperCase();
-      wsnCounts.set(wsn, (wsnCounts.get(wsn) || 0) + 1);
-    });
-
-    const readyRows = validRows.filter(r => {
-      const wsn = r.wsn.trim().toUpperCase();
-      if (wsnCounts.get(wsn)! > 1) return false; // grid duplicates
-      if (existingPickingWSNs.has(wsn)) return false; // already picked in any warehouse
-      return true;
-    });
-
-    if (validRows.length !== readyRows.length) {
-      toast(`Skipping ${validRows.length - readyRows.length} duplicate/already-picked rows`);
-    }
-
-    if (readyRows.length === 0) {
-      toast.error('No valid rows to submit (remove duplicates or already-picked WSNs)');
-      return;
-    }
-
     if (!pickingDate) {
       toast.error('Please select picking date');
       return;
@@ -687,7 +664,7 @@ export default function PickingPage() {
       return;
     }
 
-    const fixedRows = readyRows.map(row => ({
+    const fixedRows = validRows.map(row => ({
       ...row,
       picking_date: pickingDate,
       customer_name: selectedCustomer,
@@ -697,7 +674,7 @@ export default function PickingPage() {
       warehouse_name: activeWarehouse?.name
     }));
 
-    console.log('Submitting picking entries (ready rows only):', { fixedRows, warehouse_id: activeWarehouse?.id });
+    console.log('Submitting picking entries:', { fixedRows, warehouse_id: activeWarehouse?.id });
 
     setMultiLoading(true);
     try {
@@ -1264,7 +1241,21 @@ export default function PickingPage() {
 
   //////////////////////////////////====UI RENDERING====////////////////////////////////////
 
-
+  // Show loading state while permissions are being checked
+  if (permissionLoading) {
+    return (
+      <AppLayout>
+        <Box sx={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          height: '100vh'
+        }}>
+          <CircularProgress />
+        </Box>
+      </AppLayout>
+    );
+  }
 
   return (
     <AppLayout>
@@ -2905,7 +2896,7 @@ export default function PickingPage() {
               variant="contained"
               size="medium"
               onClick={handleMultiSubmit}
-              disabled={multiLoading || statusCounts.ready === 0}
+              disabled={multiLoading || gridDuplicateWSNs.size > 0 || crossWarehouseWSNs.size > 0}
               sx={{
                 py: 1,
                 borderRadius: 1.5,
@@ -2915,7 +2906,7 @@ export default function PickingPage() {
                 boxShadow: '0 4px 12px rgba(245, 158, 11, 0.3)',
               }}
             >
-              ✓ SUBMIT READY ({statusCounts.ready} rows)
+              ✓ SUBMIT ALL ({multiRows.filter((r) => r.wsn?.trim()).length} rows)
             </Button>
 
             {/* COLUMN SETTINGS DIALOG */}
