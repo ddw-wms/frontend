@@ -54,9 +54,9 @@ export const PermissionsProvider: React.FC<PermissionsProviderProps> = ({ childr
     const [lastUpdated, setLastUpdated] = useState<string | null>(null);
     const broadcastRef = useRef<BroadcastChannel | null>(null);
 
-    const fetchPermissions = async (isInitialFetch = false) => {
-        // Prevent multiple simultaneous fetches
-        if (isFetching) {
+    const fetchPermissions = async (isInitialFetch = false, force = false) => {
+        // Prevent multiple simultaneous fetches unless forced
+        if (isFetching && !force) {
             console.log('⏳ Permissions fetch already in progress, skipping...');
             return;
         }
@@ -68,6 +68,8 @@ export const PermissionsProvider: React.FC<PermissionsProviderProps> = ({ childr
                 setLoading(true);
             }
             setError(null);
+
+            if (force) console.log('🔁 Forcing permissions refresh');
 
             const response = await api.get('/permissions/my-permissions');
 
@@ -159,10 +161,10 @@ export const PermissionsProvider: React.FC<PermissionsProviderProps> = ({ childr
 
         // Expose a debug hook so other components can call refreshPermissions without importing the context directly
         (window as any).__PERMISSIONS_HOOK = {
-            refreshPermissions: fetchPermissions,
+            refreshPermissions: (opts: { force?: boolean } = {}) => fetchPermissions(false, !!opts.force),
             forceRefresh: () => {
-                fetchPermissions();
-                // Broadcast to all tabs
+                // Force a fresh fetch and notify other tabs
+                fetchPermissions(false, true);
                 if (broadcastRef.current) {
                     broadcastRef.current.postMessage('refresh');
                 }
@@ -189,9 +191,9 @@ export const PermissionsProvider: React.FC<PermissionsProviderProps> = ({ childr
     }, []);
 
     // Expose force refresh function
-    const forceRefresh = () => {
-        console.log('🔄 Force refreshing permissions...');
-        fetchPermissions();
+    const forceRefresh = (force = false) => {
+        console.log('🔄 Force refreshing permissions...', force ? '(forced)' : '');
+        fetchPermissions(false, force);
     };
 
     const hasPermission = (permissionKey: string): boolean => {
