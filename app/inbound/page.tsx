@@ -1128,14 +1128,36 @@ export default function InboundPage() {
           return;
         }
 
-        // Use offsetTop for a stable scroll target
-        let targetTop = rowEl.offsetTop - (container.clientHeight - rowsBelow * Math.max(24, rowEl.getBoundingClientRect().height || 36) - rowEl.getBoundingClientRect().height);
-        targetTop = Math.max(0, Math.min(container.scrollHeight - container.clientHeight, Math.round(targetTop)));
+        // Compute whether the row is already comfortably visible; only adjust when needed.
+        const rowTop = rowEl.offsetTop;
+        const rowHeight = Math.max(24, rowEl.getBoundingClientRect().height || 36);
+        const containerTop = container.scrollTop;
+        const containerBottom = containerTop + container.clientHeight;
+        const topPadding = 8;
+        const desiredBottomSpace = rowsBelow * rowHeight + 8; // space to leave below the target row
+        const allowedMaxRowTop = containerBottom - desiredBottomSpace - rowHeight;
 
         const now = Date.now();
         const recent = lastAutoScrollTsRef.current && (now - lastAutoScrollTsRef.current < 300);
 
         lastAutoScrollTsRef.current = now;
+
+        // If row is already comfortably visible, do nothing
+        if (rowTop >= containerTop + topPadding && rowTop <= allowedMaxRowTop) {
+          isAutoScrollingRef.current = false;
+          onComplete?.();
+          return;
+        }
+
+        // Compute targetTop to bring row into view while leaving rowsBelow visible where possible
+        let targetTop: number;
+        if (rowTop < containerTop + topPadding) {
+          // row is above current view — scroll up so row is near top (but keep it visible)
+          targetTop = Math.max(0, rowTop - topPadding);
+        } else {
+          // row is below allowed area — scroll down so rowsBelow remain visible
+          targetTop = Math.max(0, Math.min(container.scrollHeight - container.clientHeight, rowTop - (container.clientHeight - desiredBottomSpace - rowHeight)));
+        }
 
         if (immediate || recent) {
           // For rapid scanner input, jump immediately for best responsiveness
@@ -1145,7 +1167,7 @@ export default function InboundPage() {
           return;
         }
 
-        // Smooth scroll for normal interaction
+        // Smooth scroll for normal interaction and wait until it completes
         container.scrollTo({ top: targetTop, behavior: 'smooth' });
 
         const start = performance.now();
