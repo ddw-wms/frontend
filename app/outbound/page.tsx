@@ -62,6 +62,7 @@ import { getStoredUser } from '@/lib/auth';
 import { usePermissionGuard } from '@/hooks/usePermissionGuard';
 import { usePermissions } from '@/app/context/PermissionsContext';
 import AppLayout from '@/components/AppLayout';
+import localforage from 'localforage';
 import { StandardPageHeader, StandardTabs } from '@/components';
 import toast, { Toaster } from 'react-hot-toast';
 import * as XLSX from 'xlsx';
@@ -238,6 +239,14 @@ export default function OutboundPage() {
     //   const [multiResults, setMultiResults] = useState<any[]>([]);
     const [existingOutboundWSNs, setExistingOutboundWSNs] = useState<Set<string>>(new Set());
     const [duplicateWSNs, setDuplicateWSNs] = useState<Set<string>>(new Set());
+
+    // ---- Draft / Autosave (IndexedDB via localForage) ----
+    const [draftSavedAt, setDraftSavedAt] = useState<number | null>(null);
+    const [draftSaving, setDraftSaving] = useState(false);
+    const [draftExists, setDraftExists] = useState(false);
+    const lastChangeAtRef = useRef<number | null>(null);
+    const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
     const [gridDuplicateWSNs, setGridDuplicateWSNs] = useState<Set<string>>(new Set());
     const [crossWarehouseWSNs, setCrossWarehouseWSNs] = useState<Set<string>>(new Set());
     const [visibleColumns, setVisibleColumns] = useState<string[]>(DEFAULT_MULTI_COLUMNS);
@@ -1057,6 +1066,12 @@ export default function OutboundPage() {
             setSelectedCustomer('');
             setCommonVehicle('');
             loadExistingWSNs();
+
+            // Clear saved draft after successful submit
+            await clearDraft();
+
+            // Clear saved draft after successful submit
+            await clearDraft();
         } catch (err: any) {
             toast.error(err.response?.data?.error || 'Multi entry failed');
             setMultiErrorMessage(err.response?.data?.error || 'Failed to submit');
@@ -1065,6 +1080,95 @@ export default function OutboundPage() {
         }
     };
 
+    // ------------------ Draft helpers & autosave ------------------
+    const getDraftKey = () => {
+        if (!activeWarehouse?.id || !user?.id) return null;
+        return `outboundMultiDraft_${activeWarehouse.id}_${user.id}`;
+    };
+
+    const saveDraftImmediate = async (rowsToSave = multiRows) => {
+        const key = getDraftKey();
+        if (!key) return;
+        setDraftSaving(true);
+        try {
+            await localforage.setItem(key, { rows: rowsToSave, savedAt: Date.now(), version: 1 });
+            setDraftSavedAt(Date.now());
+            setDraftExists(true);
+        } catch (err) {
+            console.error('Failed to save outbound draft', err);
+        } finally {
+            setDraftSaving(false);
+        }
+    };
+
+    const clearDraft = async () => {
+        const key = getDraftKey();
+        if (!key) return;
+        try {
+            await localforage.removeItem(key);
+            setDraftSavedAt(null);
+            setDraftExists(false);
+            toast.success('Draft cleared');
+        } catch (err) {
+            console.error('Failed to clear outbound draft', err);
+        }
+    };
+
+    // Load draft when warehouse/user become available
+    useEffect(() => {
+        let mounted = true;
+        const load = async () => {
+            const key = getDraftKey();
+            if (!key) return;
+            try {
+                const draft: any = await localforage.getItem(key);
+                if (draft && draft.rows && draft.rows.length > 0 && mounted) {
+                    const restored = draft.rows.map((r: any) => ({
+                        dispatch_date: r.dispatch_date || commonDate,
+                        customer_name: r.customer_name || selectedCustomer,
+                        vehicle_no: r.vehicle_no || commonVehicle,
+                        ...r,
+                    }));
+                    setMultiRows(restored);
+                    setDraftSavedAt(draft.savedAt || Date.now());
+                    setDraftExists(true);
+                    toast.success('✓ Draft restored');
+                }
+            } catch (err) {
+                console.error('Failed to load outbound draft', err);
+            }
+        };
+        load();
+        return () => { mounted = false; };
+    }, [activeWarehouse?.id, user?.id]);
+
+    // Autosave (debounced) whenever multiRows change
+    useEffect(() => {
+        lastChangeAtRef.current = Date.now();
+
+        if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+        saveTimeoutRef.current = setTimeout(() => {
+            saveDraftImmediate(multiRows);
+        }, 500);
+
+        return () => {
+            if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+        };
+    }, [multiRows, activeWarehouse?.id, user?.id]);
+
+    // Warn on unload if there are unsaved changes
+    useEffect(() => {
+        const onBeforeUnload = (e: BeforeUnloadEvent) => {
+            const hasData = multiRows.some(r => r.wsn?.trim());
+            if (!hasData) return;
+            if (!draftSavedAt || (lastChangeAtRef.current && draftSavedAt < lastChangeAtRef.current)) {
+                e.preventDefault();
+                e.returnValue = '';
+            }
+        };
+        window.addEventListener('beforeunload', onBeforeUnload);
+        return () => window.removeEventListener('beforeunload', onBeforeUnload);
+    }, [multiRows, draftSavedAt]);
     // ✅ BULK UPLOAD
     const handleBulkFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
@@ -3277,6 +3381,14 @@ export default function OutboundPage() {
                         </Box>
 
                         <Stack direction="row" spacing={1} mt={1} alignItems="center">
+                            <Chip
+                                label={draftSavedAt ? `Draft saved ${new Date(draftSavedAt).toLocaleTimeString()}` : 'No draft'}
+                                color={draftExists ? 'success' : 'default'}
+                                size="small"
+                            />
+                            <Button size="small" variant="outlined" onClick={() => saveDraftImmediate()} disabled={draftSaving}>Save Draft</Button>
+                            <Button size="small" variant="text" onClick={clearDraft} disabled={!draftExists}>Clear Draft</Button>
+                            <Box sx={{ flex: 1 }} />
                             <Button
                                 variant="contained"
                                 onClick={handleMultiSubmit}

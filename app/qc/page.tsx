@@ -66,6 +66,7 @@ import { ModuleRegistry, AllCommunityModule, ClientSideRowModelModule } from 'ag
 import 'ag-grid-community/styles/ag-theme-quartz.css';
 import { debounce } from 'lodash';
 import { Tooltip } from '@mui/material';
+import localforage from 'localforage';
 
 // Register AG Grid modules ONCE (include ClientSideRowModel for client-side features)
 ModuleRegistry.registerModules([AllCommunityModule, ClientSideRowModelModule]);
@@ -367,6 +368,13 @@ export default function QCPage() {
   const [commonQcDate, setCommonQcDate] = useState('');
   const [commonQcByName, setCommonQcByName] = useState('');
 
+  // ---- Draft / Autosave (IndexedDB via localForage) ----
+  const [draftSavedAt, setDraftSavedAt] = useState<number | null>(null);
+  const [draftSaving, setDraftSaving] = useState(false);
+  const [draftExists, setDraftExists] = useState(false);
+  const lastChangeAtRef = useRef<number | null>(null);
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   // Store objects with WSN + warehouse ID
   const [existingQCWSNs, setExistingQCWSNs] = useState<Array<{ wsn: string; warehouseid: number }>>([]);
 
@@ -434,6 +442,98 @@ export default function QCPage() {
     }
     fetchExistingWSNs();
   }, []);
+
+  // ------------------ Draft helpers & autosave ------------------
+  const getDraftKey = () => {
+    if (!activeWarehouse?.id || !user?.id) return null;
+    return `qcMultiDraft_${activeWarehouse.id}_${user.id}`;
+  };
+
+  const saveDraftImmediate = async (rowsToSave = multiRows) => {
+    const key = getDraftKey();
+    if (!key) return;
+    setDraftSaving(true);
+    try {
+      await localforage.setItem(key, { rows: rowsToSave, savedAt: Date.now(), version: 1 });
+      setDraftSavedAt(Date.now());
+      setDraftExists(true);
+    } catch (err) {
+      console.error('Failed to save QC draft', err);
+    } finally {
+      setDraftSaving(false);
+    }
+  };
+
+  const clearDraft = async () => {
+    const key = getDraftKey();
+    if (!key) return;
+    try {
+      await localforage.removeItem(key);
+      setDraftSavedAt(null);
+      setDraftExists(false);
+      toast.success('Draft cleared');
+    } catch (err) {
+      console.error('Failed to clear QC draft', err);
+    }
+  };
+
+  // Load draft when warehouse/user become available
+  useEffect(() => {
+    let mounted = true;
+    const load = async () => {
+      const key = getDraftKey();
+      if (!key) return;
+      try {
+        const draft: any = await localforage.getItem(key);
+        if (draft && draft.rows && draft.rows.length > 0 && mounted) {
+          // Apply defaults for missing fields
+          const restored = draft.rows.map((r: any) => ({
+            qcdate: r.qcdate || commonQcDate,
+            qcbyname: r.qcbyname || commonQcByName,
+            ...r,
+          }));
+          setMultiRows(restored);
+          setDraftSavedAt(draft.savedAt || Date.now());
+          setDraftExists(true);
+          toast.success('✓ Draft restored');
+        }
+      } catch (err) {
+        console.error('Failed to load QC draft', err);
+      }
+    };
+    load();
+    return () => { mounted = false; };
+  }, [activeWarehouse?.id, user?.id]);
+
+  // Autosave (debounced) whenever multiRows change
+  useEffect(() => {
+    // Update last change timestamp
+    lastChangeAtRef.current = Date.now();
+
+    // Debounce save
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    saveTimeoutRef.current = setTimeout(() => {
+      saveDraftImmediate(multiRows);
+    }, 500);
+
+    return () => {
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    };
+  }, [multiRows, activeWarehouse?.id, user?.id]);
+
+  // Warn on unload if there are unsaved changes
+  useEffect(() => {
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      const hasData = multiRows.some(r => r.wsn?.trim());
+      if (!hasData) return;
+      if (!draftSavedAt || (lastChangeAtRef.current && draftSavedAt < lastChangeAtRef.current)) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [multiRows, draftSavedAt]);
 
 
   // Set initial date on client side only (avoid hydration mismatch)
@@ -1296,6 +1396,8 @@ export default function QCPage() {
       // Reset rows
       setMultiRows(generateEmptyRows(10));
 
+      // Clear saved draft after successful submit
+      await clearDraft();
 
       loadQCList();
       loadStats();
@@ -3970,6 +4072,31 @@ export default function QCPage() {
                 </Dialog>
 
 
+
+                {/* DRAFT STATUS + ACTIONS */}
+                <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
+                  <Chip
+                    label={draftSavedAt ? `Draft saved ${new Date(draftSavedAt).toLocaleTimeString()}` : 'No draft'}
+                    color={draftExists ? 'success' : 'default'}
+                    size="small"
+                  />
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    onClick={() => saveDraftImmediate()}
+                    disabled={draftSaving}
+                  >
+                    Save Draft
+                  </Button>
+                  <Button
+                    size="small"
+                    variant="text"
+                    onClick={clearDraft}
+                    disabled={!draftExists}
+                  >
+                    Clear Draft
+                  </Button>
+                </Stack>
 
                 {/* SUBMIT BUTTON */}
                 <Button

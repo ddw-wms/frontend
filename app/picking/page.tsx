@@ -29,6 +29,7 @@ import { ModuleRegistry, AllCommunityModule, ClientSideRowModelModule } from 'ag
 import 'ag-grid-community/styles/ag-theme-quartz.css';
 import { usePermissionGuard } from '@/hooks/usePermissionGuard';
 import { usePermissions } from '@/app/context/PermissionsContext';
+import localforage from 'localforage';
 
 // Register AG Grid modules ONCE (include ClientSideRowModel for client-side features)
 ModuleRegistry.registerModules([AllCommunityModule, ClientSideRowModelModule]);
@@ -181,6 +182,14 @@ export default function PickingPage() {
   const [multiRows, setMultiRows] = useState<any[]>(generateEmptyRows(50));
   const [existingWSNs, setExistingWSNs] = useState<string[]>([]);
   const [multiLoading, setMultiLoading] = useState(false);
+
+  // ---- Draft / Autosave (IndexedDB via localForage) ----
+  const [draftSavedAt, setDraftSavedAt] = useState<number | null>(null);
+  const [draftSaving, setDraftSaving] = useState(false);
+  const [draftExists, setDraftExists] = useState(false);
+  const lastChangeAtRef = useRef<number | null>(null);
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   const [visibleColumns, setVisibleColumns] = useState<string[]>(() => {
     const saved = localStorage.getItem('pickingMultiEntryColumns');
     if (saved) {
@@ -216,6 +225,96 @@ export default function PickingPage() {
       // ignore
     }
   }, [visibleColumns]);
+
+  // ------------------ Draft helpers & autosave ------------------
+  const getDraftKey = () => {
+    if (!activeWarehouse?.id || !user?.id) return null;
+    return `pickingMultiDraft_${activeWarehouse.id}_${user.id}`;
+  };
+
+  const saveDraftImmediate = async (rowsToSave = multiRows) => {
+    const key = getDraftKey();
+    if (!key) return;
+    setDraftSaving(true);
+    try {
+      await localforage.setItem(key, { rows: rowsToSave, savedAt: Date.now(), version: 1 });
+      setDraftSavedAt(Date.now());
+      setDraftExists(true);
+    } catch (err) {
+      console.error('Failed to save picking draft', err);
+    } finally {
+      setDraftSaving(false);
+    }
+  };
+
+  const clearDraft = async () => {
+    const key = getDraftKey();
+    if (!key) return;
+    try {
+      await localforage.removeItem(key);
+      setDraftSavedAt(null);
+      setDraftExists(false);
+      toast.success('Draft cleared');
+    } catch (err) {
+      console.error('Failed to clear picking draft', err);
+    }
+  };
+
+  // Load draft when warehouse/user become available
+  useEffect(() => {
+    let mounted = true;
+    const load = async () => {
+      const key = getDraftKey();
+      if (!key) return;
+      try {
+        const draft: any = await localforage.getItem(key);
+        if (draft && draft.rows && draft.rows.length > 0 && mounted) {
+          const restored = draft.rows.map((r: any) => ({
+            picking_date: r.picking_date || pickingDate,
+            customer_name: r.customer_name || selectedCustomer,
+            picker_name: r.picker_name || pickerName,
+            ...r,
+          }));
+          setMultiRows(restored);
+          setDraftSavedAt(draft.savedAt || Date.now());
+          setDraftExists(true);
+          toast.success('✓ Draft restored');
+        }
+      } catch (err) {
+        console.error('Failed to load picking draft', err);
+      }
+    };
+    load();
+    return () => { mounted = false; };
+  }, [activeWarehouse?.id, user?.id]);
+
+  // Autosave (debounced) whenever multiRows change
+  useEffect(() => {
+    lastChangeAtRef.current = Date.now();
+
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    saveTimeoutRef.current = setTimeout(() => {
+      saveDraftImmediate(multiRows);
+    }, 500);
+
+    return () => {
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    };
+  }, [multiRows, activeWarehouse?.id, user?.id]);
+
+  // Warn on unload if there are unsaved changes
+  useEffect(() => {
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      const hasData = multiRows.some(r => r.wsn?.trim());
+      if (!hasData) return;
+      if (!draftSavedAt || (lastChangeAtRef.current && draftSavedAt < lastChangeAtRef.current)) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [multiRows, draftSavedAt]);
 
   // When switching to Multi Picking tab, auto-size columns so layout looks correct
   useEffect(() => {
@@ -598,6 +697,9 @@ export default function PickingPage() {
       setMultiRows(generateEmptyRows(50));
       setGridDuplicateWSNs(new Set());
       setCrossWarehouseWSNs(new Set());
+
+      // Clear saved draft after successful submit
+      await clearDraft();
 
       // Reload data
       const res = await pickingAPI.getExistingWSNs(activeWarehouse?.id);
@@ -2762,6 +2864,31 @@ export default function PickingPage() {
 
               />
             </Box>
+
+            {/* DRAFT STATUS + ACTIONS */}
+            <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
+              <Chip
+                label={draftSavedAt ? `Draft saved ${new Date(draftSavedAt).toLocaleTimeString()}` : 'No draft'}
+                color={draftExists ? 'success' : 'default'}
+                size="small"
+              />
+              <Button
+                size="small"
+                variant="outlined"
+                onClick={() => saveDraftImmediate()}
+                disabled={draftSaving}
+              >
+                Save Draft
+              </Button>
+              <Button
+                size="small"
+                variant="text"
+                onClick={clearDraft}
+                disabled={!draftExists}
+              >
+                Clear Draft
+              </Button>
+            </Stack>
 
             {/* SUBMIT BUTTON */}
             <Button

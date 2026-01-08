@@ -18,6 +18,7 @@ import {
   Paper,
   Tooltip,
   iconButtonClasses,
+  CircularProgress,
   Snackbar,
   Alert,
 } from '@mui/material';
@@ -184,6 +185,18 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
   }, [userRole, permissionsLoading, userPermissions]);
 
   const navigate = (path: string) => {
+    if (permissionsLoading) {
+      console.log('Sidebar: permissions still loading - ignoring navigation to', path);
+      return;
+    }
+
+    if (pathname === path) {
+      // already on target path — close mobile drawer for better UX
+      if (isMobile && setMobileOpen) setMobileOpen(false);
+      return;
+    }
+
+    console.log('Sidebar navigate ->', path);
     router.push(path);
     if (isMobile && setMobileOpen) setMobileOpen(false);
   };
@@ -221,132 +234,139 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
 
       <Divider sx={{ bgcolor: 'rgba(255,255,255,0.1)' }} />
 
-      <List>
-        {mainMenu.map((item) => {
-          const Icon = item.icon;
-          const active = pathname === item.path;
+      {permissionsLoading ? (
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', p: 3 }}>
+          <CircularProgress size={24} color="inherit" />
+          <Typography variant="body2" sx={{ ml: 1 }}>Loading menu...</Typography>
+        </Box>
+      ) : (
+        <List>
+          {mainMenu.map((item) => {
+            const Icon = item.icon;
+            const active = pathname === item.path;
 
-          return (
-            <ListItem key={item.path} disablePadding>
-              <Tooltip title={collapsed ? item.label : ''} placement="right" arrow>
-                <ListItemButton
-                  onClick={() => navigate(item.path)}
+            return (
+              <ListItem key={item.path} disablePadding>
+                <Tooltip title={collapsed ? item.label : ''} placement="right" arrow>
+                  <ListItemButton
+                    onClick={() => navigate(item.path)}
+                    sx={{
+                      mx: 1,
+                      borderRadius: 1,
+                      bgcolor: active ? 'rgba(59,130,246,0.2)' : 'transparent',
+                      color: active ? '#60a5fa' : 'rgba(255,255,255,0.7)',
+                    }}
+                  >
+                    <ListItemIcon
+                      sx={{
+                        color: 'inherit',
+                        minWidth: collapsed ? 'auto' : 40,
+                        justifyContent: collapsed ? 'center' : 'flex-start',
+                      }}
+                    >
+                      <Icon />
+                    </ListItemIcon>
+
+                    {!collapsed && <ListItemText primary={item.label} />}
+                  </ListItemButton>
+                </Tooltip>
+              </ListItem>
+            );
+          })}
+
+          <Divider sx={{ my: 2, bgcolor: 'rgba(255,255,255,0.1)' }} />
+
+          {/* Only show Settings if user has settings menu items */}
+          {settingsMenu.length > 0 && (
+            <ListItem
+              disablePadding
+              onMouseEnter={() => setSettingsHovered(true)}
+              onMouseLeave={() => setSettingsHovered(false)}
+            >
+              <ListItemButton
+                onClick={() => { if (permissionsLoading) return; setSettingsOpen(!settingsOpen); }}
+                sx={{ mx: 1, borderRadius: 1, color: 'rgba(255,255,255,0.7)' }}
+              >
+                <ListItemIcon
                   sx={{
-                    mx: 1,
-                    borderRadius: 1,
-                    bgcolor: active ? 'rgba(59,130,246,0.2)' : 'transparent',
-                    color: active ? '#60a5fa' : 'rgba(255,255,255,0.7)',
+                    color: 'inherit',
+                    minWidth: collapsed ? 'auto' : 40,
+                    justifyContent: collapsed ? 'center' : 'flex-start',
                   }}
                 >
-                  <ListItemIcon
-                    sx={{
-                      color: 'inherit',
-                      minWidth: collapsed ? 'auto' : 40,
-                      justifyContent: collapsed ? 'center' : 'flex-start',
-                    }}
-                  >
-                    <Icon />
-                  </ListItemIcon>
+                  <SettingsIcon />
+                </ListItemIcon>
 
-                  {!collapsed && <ListItemText primary={item.label} />}
-                </ListItemButton>
-              </Tooltip>
+                {!collapsed && (
+                  <>
+                    <ListItemText primary="Settings" />
+                    {settingsOpen ? <ExpandLess /> : <ExpandMore />}
+                  </>
+                )}
+              </ListItemButton>
             </ListItem>
-          );
-        })}
-
-        <Divider sx={{ my: 2, bgcolor: 'rgba(255,255,255,0.1)' }} />
-
-        {/* Only show Settings if user has settings menu items */}
-        {settingsMenu.length > 0 && (
-          <ListItem
-            disablePadding
-            onMouseEnter={() => setSettingsHovered(true)}
-            onMouseLeave={() => setSettingsHovered(false)}
-          >
-            <ListItemButton
-              onClick={() => setSettingsOpen(!settingsOpen)}
-              sx={{ mx: 1, borderRadius: 1, color: 'rgba(255,255,255,0.7)' }}
-            >
-              <ListItemIcon
-                sx={{
-                  color: 'inherit',
-                  minWidth: collapsed ? 'auto' : 40,
-                  justifyContent: collapsed ? 'center' : 'flex-start',
-                }}
-              >
-                <SettingsIcon />
-              </ListItemIcon>
-
-              {!collapsed && (
-                <>
-                  <ListItemText primary="Settings" />
-                  {settingsOpen ? <ExpandLess /> : <ExpandMore />}
-                </>
-              )}
-            </ListItemButton>
-          </ListItem>
-        )}
-
-        <AnimatePresence>
-          {settingsOpen && (!collapsed || isMobile) && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              style={{ overflow: 'hidden' }}
-            >
-              <List sx={{ pl: 4 }}>
-                {settingsMenu.map((item) => {
-                  const Icon = item.icon;
-                  const active = pathname === item.path;
-
-                  return (
-                    <ListItem key={item.path} disablePadding>
-                      <ListItemButton
-                        onClick={() => navigate(item.path)}
-                        sx={{
-                          borderRadius: 1,
-                          color: active ? '#60a5fa' : 'rgba(255,255,255,0.8)',
-                          bgcolor: active ? 'rgba(59,130,246,0.2)' : 'transparent',
-                          my: 0.5,
-                        }}
-                      >
-                        <ListItemIcon sx={{ color: 'inherit', minWidth: 30 }}>
-                          <Icon fontSize="small" />
-                        </ListItemIcon>
-                        <ListItemText primary={item.label} />
-                      </ListItemButton>
-                    </ListItem>
-                  );
-                })}
-
-                {/* Logout Button */}
-                <ListItem disablePadding>
-                  <ListItemButton
-                    onClick={handleLogout}
-                    sx={{
-                      borderRadius: 1,
-                      color: '#ef4444',
-                      bgcolor: 'transparent',
-                      my: 0.5,
-                      '&:hover': {
-                        bgcolor: 'rgba(239, 68, 68, 0.1)',
-                      }
-                    }}
-                  >
-                    <ListItemIcon sx={{ color: 'inherit', minWidth: 30 }}>
-                      <LogoutIcon fontSize="small" />
-                    </ListItemIcon>
-                    <ListItemText primary="Logout" />
-                  </ListItemButton>
-                </ListItem>
-              </List>
-            </motion.div>
           )}
-        </AnimatePresence>
 
-      </List>
+          <AnimatePresence>
+            {settingsOpen && (!collapsed || isMobile) && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                style={{ overflow: 'hidden' }}
+              >
+                <List sx={{ pl: 4 }}>
+                  {settingsMenu.map((item) => {
+                    const Icon = item.icon;
+                    const active = pathname === item.path;
+
+                    return (
+                      <ListItem key={item.path} disablePadding>
+                        <ListItemButton
+                          onClick={() => navigate(item.path)}
+                          sx={{
+                            borderRadius: 1,
+                            color: active ? '#60a5fa' : 'rgba(255,255,255,0.8)',
+                            bgcolor: active ? 'rgba(59,130,246,0.2)' : 'transparent',
+                            my: 0.5,
+                          }}
+                        >
+                          <ListItemIcon sx={{ color: 'inherit', minWidth: 30 }}>
+                            <Icon fontSize="small" />
+                          </ListItemIcon>
+                          <ListItemText primary={item.label} />
+                        </ListItemButton>
+                      </ListItem>
+                    );
+                  })}
+
+                  {/* Logout Button */}
+                  <ListItem disablePadding>
+                    <ListItemButton
+                      onClick={handleLogout}
+                      sx={{
+                        borderRadius: 1,
+                        color: '#ef4444',
+                        bgcolor: 'transparent',
+                        my: 0.5,
+                        '&:hover': {
+                          bgcolor: 'rgba(239, 68, 68, 0.1)',
+                        }
+                      }}
+                    >
+                      <ListItemIcon sx={{ color: 'inherit', minWidth: 30 }}>
+                        <LogoutIcon fontSize="small" />
+                      </ListItemIcon>
+                      <ListItemText primary="Logout" />
+                    </ListItemButton>
+                  </ListItem>
+                </List>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+        </List>
+      )}
 
       <Box sx={{ flexGrow: 1 }} />
 

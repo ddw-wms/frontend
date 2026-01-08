@@ -69,6 +69,7 @@ const EDITABLE_COLUMNS = ['wsn', 'product_serial_number', 'rack_no', 'unload_rem
 
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
 import React from 'react';
+import localforage from 'localforage';
 
 // Register AG Grid modules ONCE
 ModuleRegistry.registerModules([AllCommunityModule]);
@@ -137,6 +138,13 @@ export default function InboundPage() {
   const [multiLoading, setMultiLoading] = useState(false);
   const [multiResults, setMultiResults] = useState<any[]>([]);
   const [duplicateWSNs, setDuplicateWSNs] = useState<Set<string>>(new Set());
+
+  // ---- Draft / Autosave (IndexedDB via localForage) ----
+  const [draftSavedAt, setDraftSavedAt] = useState<number | null>(null);
+  const [draftSaving, setDraftSaving] = useState(false);
+  const [draftExists, setDraftExists] = useState(false);
+  const lastChangeAtRef = useRef<number | null>(null);
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const [crossWarehouseWSNs, setCrossWarehouseWSNs] = useState<Set<string>>(new Set());
   const [gridDuplicateWSNs, setGridDuplicateWSNs] = useState<Set<string>>(new Set());
@@ -314,6 +322,98 @@ export default function InboundPage() {
 
     setVisibleColumns(DEFAULT_MULTI_COLUMNS);
   }, []);
+
+  // ------------------ Draft helpers & autosave ------------------
+  const getDraftKey = () => {
+    if (!activeWarehouse?.id || !user?.id) return null;
+    return `inboundMultiDraft_${activeWarehouse.id}_${user.id}`;
+  };
+
+  const saveDraftImmediate = async (rowsToSave = multiRows) => {
+    const key = getDraftKey();
+    if (!key) return;
+    setDraftSaving(true);
+    try {
+      await localforage.setItem(key, { rows: rowsToSave, savedAt: Date.now(), version: 1 });
+      setDraftSavedAt(Date.now());
+      setDraftExists(true);
+    } catch (err) {
+      console.error('Failed to save draft', err);
+    } finally {
+      setDraftSaving(false);
+    }
+  };
+
+  const clearDraft = async () => {
+    const key = getDraftKey();
+    if (!key) return;
+    try {
+      await localforage.removeItem(key);
+      setDraftSavedAt(null);
+      setDraftExists(false);
+      toast.success('Draft cleared');
+    } catch (err) {
+      console.error('Failed to clear draft', err);
+    }
+  };
+
+  // Load draft when warehouse/user become available
+  useEffect(() => {
+    let mounted = true;
+    const load = async () => {
+      const key = getDraftKey();
+      if (!key) return;
+      try {
+        const draft: any = await localforage.getItem(key);
+        if (draft && draft.rows && draft.rows.length > 0 && mounted) {
+          // Apply defaults for missing fields
+          const restored = draft.rows.map((r: any) => ({
+            inbound_date: r.inbound_date || commonDate,
+            vehicle_no: r.vehicle_no || commonVehicle,
+            ...r,
+          }));
+          setMultiRows(restored);
+          setDraftSavedAt(draft.savedAt || Date.now());
+          setDraftExists(true);
+          toast.success('✓ Draft restored');
+        }
+      } catch (err) {
+        console.error('Failed to load draft', err);
+      }
+    };
+    load();
+    return () => { mounted = false; };
+  }, [activeWarehouse?.id, user?.id]);
+
+  // Autosave (debounced) whenever multiRows change
+  useEffect(() => {
+    // Update last change timestamp
+    lastChangeAtRef.current = Date.now();
+
+    // Debounce save
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    saveTimeoutRef.current = setTimeout(() => {
+      saveDraftImmediate(multiRows);
+    }, 500);
+
+    return () => {
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    };
+  }, [multiRows, activeWarehouse?.id, user?.id]);
+
+  // Warn on unload if there are unsaved changes
+  useEffect(() => {
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      const hasData = multiRows.some(r => r.wsn?.trim());
+      if (!hasData) return;
+      if (!draftSavedAt || (lastChangeAtRef.current && draftSavedAt < lastChangeAtRef.current)) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [multiRows, draftSavedAt]);
 
   // Add this useEffect after loadCategories function (around line 450)
   useEffect(() => {
@@ -1189,6 +1289,9 @@ export default function InboundPage() {
 
       // Reset grid to 10 rows
       setMultiRows(generateEmptyRows(10));
+
+      // Clear saved draft after successful submit
+      await clearDraft();
 
       loadInboundList();
 
@@ -4030,6 +4133,31 @@ export default function InboundPage() {
                 </Box>
 
 
+
+                {/* DRAFT STATUS + ACTIONS */}
+                <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
+                  <Chip
+                    label={draftSavedAt ? `Draft saved ${new Date(draftSavedAt).toLocaleTimeString()}` : 'No draft'}
+                    color={draftExists ? 'success' : 'default'}
+                    size="small"
+                  />
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    onClick={() => saveDraftImmediate()}
+                    disabled={draftSaving}
+                  >
+                    Save Draft
+                  </Button>
+                  <Button
+                    size="small"
+                    variant="text"
+                    onClick={clearDraft}
+                    disabled={!draftExists}
+                  >
+                    Clear Draft
+                  </Button>
+                </Stack>
 
                 {/* SUBMIT BUTTON */}
                 <Button fullWidth variant="contained" size="medium" onClick={handleMultiSubmit} disabled={

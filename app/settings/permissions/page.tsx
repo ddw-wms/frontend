@@ -404,9 +404,30 @@ export default function PermissionsPage() {
         );
     };
 
+    // Keep only the minimal Dashboard permissions (columns + export) in the UI
+    const sanitizeGroupedPermissions = (grouped: Record<string, Permission[]>) => {
+        const cloned = { ...grouped };
+        if (cloned['dashboard']) {
+            // Prefer one column entry and one export entry (pick first matching)
+            const candidates = cloned['dashboard'].filter(p => /column/i.test(p.permission_key) || /export/i.test(p.permission_key));
+            const kept: Permission[] = [];
+            const seen = new Set<string>();
+            for (const p of candidates) {
+                const type = /column/i.test(p.permission_key) ? 'column' : /export/i.test(p.permission_key) ? 'export' : null;
+                if (type && !seen.has(type)) {
+                    kept.push(p);
+                    seen.add(type);
+                }
+            }
+            cloned['dashboard'] = kept;
+        }
+        return cloned;
+    };
+
     const renderRolePermissions = () => {
         const filteredPermissions = filterPermissions(rolePermissions);
-        const groupedPermissions = groupByCategory(filteredPermissions);
+        let groupedPermissions = groupByCategory(filteredPermissions);
+        groupedPermissions = sanitizeGroupedPermissions(groupedPermissions);
         const hasChanges = Object.keys(roleChanges).length > 0;
         const allEnabled = filteredPermissions.every(p => p.enabled);
         const allDisabled = filteredPermissions.every(p => !p.enabled);
@@ -658,7 +679,8 @@ export default function PermissionsPage() {
 
     const renderUserPermissions = () => {
         const filteredPermissions = filterPermissions(userPermissions);
-        const groupedPermissions = groupByCategory(filteredPermissions);
+        let groupedPermissions = groupByCategory(filteredPermissions);
+        groupedPermissions = sanitizeGroupedPermissions(groupedPermissions);
         const hasChanges = Object.keys(userChanges).length > 0;
         const allEnabled = filteredPermissions.every(p => p.enabled);
         const allDisabled = filteredPermissions.every(p => !p.enabled);
