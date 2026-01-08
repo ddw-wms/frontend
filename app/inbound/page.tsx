@@ -1040,10 +1040,12 @@ export default function InboundPage() {
 
   // ====== MULTI ENTRY FUNCTIONS ======
   // Ensure a row is visible both inside AG Grid and in the outer scroll container
-  function ensureRowVisible(rowIndex: number, position: 'top' | 'middle' | 'bottom' = 'bottom') {
+  // rowsBelow controls how many rows below the target stay visible (helps scanner users)
+  function ensureRowVisible(rowIndex: number, position: 'top' | 'middle' | 'bottom' = 'bottom', rowsBelow = 2) {
     try {
       const api = gridRef.current;
       if (api) {
+        // Make AG Grid reveal the row first
         api.ensureIndexVisible(rowIndex, position);
       }
     } catch (e) { /* ignore AG Grid errors */ }
@@ -1061,14 +1063,27 @@ export default function InboundPage() {
         const rowRect = rowEl.getBoundingClientRect();
         const contRect = container.getBoundingClientRect();
 
-        // If row is above visible area, scroll up so row is near top
-        if (rowRect.top < contRect.top + 8) {
-          container.scrollTop += rowRect.top - contRect.top - 8;
+        const rowHeight = Math.max(24, rowRect.height || 36); // fallback
+
+        // Desired top position to leave `rowsBelow` visible under the target row
+        const desiredTopOffset = rowHeight * rowsBelow;
+
+        // Compute current offset of row relative to container
+        const currentOffset = rowRect.top - contRect.top;
+
+        // If row is too close to top (i.e., above desired top), scroll up
+        if (currentOffset < 8) {
+          const newScroll = container.scrollTop + currentOffset - 8 - desiredTopOffset;
+          container.scrollTop = Math.max(0, newScroll);
+          return;
         }
 
-        // If row is below visible area, scroll down so it's near bottom
-        if (rowRect.bottom > contRect.bottom - 8) {
-          container.scrollTop += rowRect.bottom - contRect.bottom + 8;
+        // If row is too close to bottom (i.e., below container bottom - leave desired rows below visible), scroll down
+        const bottomSpace = contRect.bottom - rowRect.bottom;
+        const minBottomSpace = desiredTopOffset + 8;
+        if (bottomSpace < minBottomSpace) {
+          const diff = minBottomSpace - bottomSpace;
+          container.scrollTop = Math.min(container.scrollHeight, container.scrollTop + diff);
         }
       } catch (e) { /* ignore */ }
     }, 90);
@@ -4252,6 +4267,27 @@ export default function InboundPage() {
                                   console.error('❌ Print error stack:', printError.stack);
                                   toast.error(`Print error: ${printError.message}`, { duration: 3000 });
                                 }
+
+                                // After filling master data, if scanner input or quick entry, move to next WSN and keep a couple rows visible
+                                setTimeout(() => {
+                                  try {
+                                    const nextIndex = rowIndex + 1;
+                                    // If next row exists, make sure it's visible with 2 rows below and start editing
+                                    if (nextIndex < event.api.getDisplayedRowCount()) {
+                                      ensureRowVisible(nextIndex, 'top', 2);
+                                      event.api.startEditingCell({ rowIndex: nextIndex, colKey: 'wsn' });
+                                    } else {
+                                      // If at last row, add one and focus
+                                      addMultiRow();
+                                      setTimeout(() => {
+                                        const newIdx = nextIndex;
+                                        ensureRowVisible(newIdx, 'top', 2);
+                                        try { event.api.startEditingCell({ rowIndex: newIdx, colKey: 'wsn' }); } catch (e) { /* ignore */ }
+                                      }, 120);
+                                    }
+                                  } catch (e) { /* ignore */ }
+                                }, 80);
+
                               } catch (error) {
                                 console.log('WSN not found');
                               }
