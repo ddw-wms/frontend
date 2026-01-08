@@ -93,6 +93,12 @@ export default function InboundPage() {
   const scrollAnimationFrameRef = useRef<number | null>(null);
   const scrollTimeoutRef = useRef<number | null>(null);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Scanner mode detection (for rapid barcode scanner inputs)
+  const scanCountRef = useRef<number>(0);
+  const lastScanTsRef = useRef<number | null>(null);
+  const scanModeTimeoutRef = useRef<number | null>(null);
+  const scanningModeRef = useRef<boolean>(false);
   const [agentReady, setAgentReady] = useState(false);
 
   //state variables for responsive UI
@@ -1042,6 +1048,36 @@ export default function InboundPage() {
   };
 
   // ====== MULTI ENTRY FUNCTIONS ======
+  // Record scanning activity: detect rapid consecutive inputs and enable scanning mode
+  function recordScanActivity() {
+    try {
+      const now = Date.now();
+      if (lastScanTsRef.current && now - lastScanTsRef.current < 600) {
+        scanCountRef.current = (scanCountRef.current || 0) + 1;
+      } else {
+        scanCountRef.current = 1;
+      }
+      lastScanTsRef.current = now;
+
+      if (scanModeTimeoutRef.current) {
+        window.clearTimeout(scanModeTimeoutRef.current);
+        scanModeTimeoutRef.current = null;
+      }
+
+      if (scanCountRef.current >= 3) {
+        scanningModeRef.current = true;
+      }
+
+      // Exit scanning mode after short inactivity
+      scanModeTimeoutRef.current = window.setTimeout(() => {
+        scanCountRef.current = 0;
+        scanningModeRef.current = false;
+        lastScanTsRef.current = null;
+        scanModeTimeoutRef.current = null;
+      }, 1200);
+    } catch (e) { /* ignore */ }
+  }
+
   // Ensure a row is visible both inside AG Grid and in the outer scroll container
   // rowsBelow controls how many rows below the target stay visible (helps scanner users)
   // Accepts an optional callback which is invoked after the scrolling finishes
@@ -1051,8 +1087,12 @@ export default function InboundPage() {
     rowIndex: number,
     position: 'top' | 'middle' | 'bottom' = 'bottom',
     rowsBelow = 3,
-    onComplete?: () => void
+    onComplete?: () => void,
+    immediate = false
   ) {
+    // If scanning mode is active, force immediate behavior
+    if (scanningModeRef.current) immediate = true;
+
     try {
       const api = gridRef.current;
       if (api) {
@@ -1097,7 +1137,7 @@ export default function InboundPage() {
 
         lastAutoScrollTsRef.current = now;
 
-        if (recent) {
+        if (immediate || recent) {
           // For rapid scanner input, jump immediately for best responsiveness
           container.scrollTop = targetTop;
           isAutoScrollingRef.current = false;
@@ -1147,7 +1187,7 @@ export default function InboundPage() {
     // Give React/AG Grid a moment to render, then ensure the new row is visible (Excel-like behavior)
     setTimeout(() => {
       try {
-        ensureRowVisible(newRows.length - 1, 'bottom');
+        ensureRowVisible(newRows.length - 1, 'bottom', 3, undefined, scanningModeRef.current);
       } catch (e) { /* ignore */ }
     }, 80);
   };
@@ -1329,7 +1369,7 @@ export default function InboundPage() {
         } catch (e) { /* ignore */ }
         // Clear the captured key state
         lastKeyDownRef.current = null;
-      });
+      }, scanningModeRef.current);
     } catch (e) {
       // fallback
       setTimeout(() => {
@@ -4049,7 +4089,7 @@ export default function InboundPage() {
                         // Ensure focused cell is visible (fixes cases where navigation doesn't scroll enough)
                         try {
                           if (typeof params.rowIndex === 'number') {
-                            ensureRowVisible(params.rowIndex);
+                            ensureRowVisible(params.rowIndex, 'bottom', 3, undefined, scanningModeRef.current);
                           }
                         } catch (e) { /* ignore */ }
                       }}
@@ -4176,7 +4216,7 @@ export default function InboundPage() {
                                 const targetIndex = rowIndex + 1;
                                 ensureRowVisible(targetIndex, 'bottom', 3, () => {
                                   try { event.api.startEditingCell({ rowIndex: targetIndex, colKey: field }); } catch (e) { /* ignore */ }
-                                });
+                                }, scanningModeRef.current);
                               } catch (e) { /* ignore */ }
                             }, 140);
                           }
@@ -4310,14 +4350,17 @@ export default function InboundPage() {
                                 }
 
                                 // After filling master data, if scanner input or quick entry, move to next WSN and keep a couple rows visible
+                                // Record this as a scan activity so scanner-mode can be detected
+                                try { recordScanActivity(); } catch (e) { /* ignore */ }
+
                                 setTimeout(() => {
                                   try {
                                     const nextIndex = rowIndex + 1;
-                                    // If next row exists, make sure it's visible with 2 rows below and start editing
+                                    // If next row exists, make sure it's visible with 3 rows below and start editing (use immediate when scanning)
                                     if (nextIndex < event.api.getDisplayedRowCount()) {
                                       ensureRowVisible(nextIndex, 'top', 3, () => {
                                         try { event.api.startEditingCell({ rowIndex: nextIndex, colKey: 'wsn' }); } catch (e) { /* ignore */ }
-                                      });
+                                      }, scanningModeRef.current);
                                     } else {
                                       // If at last row, add one and focus
                                       addMultiRow();
@@ -4325,7 +4368,7 @@ export default function InboundPage() {
                                         const newIdx = nextIndex;
                                         ensureRowVisible(newIdx, 'top', 3, () => {
                                           try { event.api.startEditingCell({ rowIndex: newIdx, colKey: 'wsn' }); } catch (e) { /* ignore */ }
-                                        });
+                                        }, scanningModeRef.current);
                                       }, 120);
                                     }
                                   } catch (e) { /* ignore */ }
