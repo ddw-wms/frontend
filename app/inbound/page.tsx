@@ -88,6 +88,7 @@ export default function InboundPage() {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<any>(null);
   const columnApiRef = useRef<any>(null);
+  const lastKeyDownRef = useRef<any>(null);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [agentReady, setAgentReady] = useState(false);
 
@@ -1038,6 +1039,41 @@ export default function InboundPage() {
   };
 
   // ====== MULTI ENTRY FUNCTIONS ======
+  // Ensure a row is visible both inside AG Grid and in the outer scroll container
+  function ensureRowVisible(rowIndex: number, position: 'top' | 'middle' | 'bottom' = 'bottom') {
+    try {
+      const api = gridRef.current;
+      if (api) {
+        api.ensureIndexVisible(rowIndex, position);
+      }
+    } catch (e) { /* ignore AG Grid errors */ }
+
+    // After the grid has had a chance to render the row DOM, adjust outer container scroll if needed
+    setTimeout(() => {
+      try {
+        if (!scrollContainerRef.current) return;
+
+        // Try to find the row DOM element - AG Grid uses data-row and data-col attributes
+        const rowEl = document.querySelector(`[data-row="${rowIndex}"][data-col="0"]`) as HTMLElement | null;
+        if (!rowEl) return;
+
+        const container = scrollContainerRef.current as HTMLElement;
+        const rowRect = rowEl.getBoundingClientRect();
+        const contRect = container.getBoundingClientRect();
+
+        // If row is above visible area, scroll up so row is near top
+        if (rowRect.top < contRect.top + 8) {
+          container.scrollTop += rowRect.top - contRect.top - 8;
+        }
+
+        // If row is below visible area, scroll down so it's near bottom
+        if (rowRect.bottom > contRect.bottom - 8) {
+          container.scrollTop += rowRect.bottom - contRect.bottom + 8;
+        }
+      } catch (e) { /* ignore */ }
+    }, 90);
+  }
+
   const addMultiRow = () => {
     const newRows = [
       ...multiRows,
@@ -1056,12 +1092,9 @@ export default function InboundPage() {
     // Give React/AG Grid a moment to render, then ensure the new row is visible (Excel-like behavior)
     setTimeout(() => {
       try {
-        const api = gridRef.current;
-        if (api && newRows.length > 0) {
-          api.ensureIndexVisible(newRows.length - 1, 'bottom');
-        }
+        ensureRowVisible(newRows.length - 1, 'bottom');
       } catch (e) { /* ignore */ }
-    }, 50);
+    }, 80);
   };
 
   const statusCounts = useMemo(() => {
@@ -1224,17 +1257,21 @@ export default function InboundPage() {
     const column = previousCellPosition.column;
     const rowIndex = previousCellPosition.rowIndex;
 
-    const goingUp = event && event.shiftKey;
+    const goingUp = (event && event.shiftKey) || (lastKeyDownRef.current && lastKeyDownRef.current.shiftKey);
     const newRowIndex = goingUp ? rowIndex - 1 : rowIndex + 1;
 
     if (newRowIndex < 0 || newRowIndex >= api.getDisplayedRowCount()) {
+      // Clear the captured key state
+      lastKeyDownRef.current = null;
       return previousCellPosition;
     }
 
-    // Ensure the destination row is visible (Excel-like behavior)
-    try {
-      api.ensureIndexVisible(newRowIndex, goingUp ? 'top' : 'bottom');
-    } catch (e) { /* ignore */ }
+    // Ensure the destination row is visible AFTER AG Grid processes the navigation
+    setTimeout(() => {
+      try {
+        ensureRowVisible(newRowIndex, goingUp ? 'top' : 'bottom');
+      } catch (e) { /* ignore */ }
+    }, 0);
 
     // Start editing the destination cell shortly after AG Grid navigates to it
     // (scheduling keeps this non-blocking for AG Grid navigation)
@@ -1242,6 +1279,8 @@ export default function InboundPage() {
       try {
         api.startEditingCell({ rowIndex: newRowIndex, colKey: column });
       } catch (e) { /* ignore */ }
+      // Clear the captured key state
+      lastKeyDownRef.current = null;
     }, 50);
 
     return {
@@ -1616,6 +1655,7 @@ export default function InboundPage() {
     setConfirmOpen(false);
   };
 
+
   // Show loading state while permissions are being checked
   if (permissionLoading) {
     return (
@@ -1680,7 +1720,7 @@ export default function InboundPage() {
         />
 
         {/* ✅ NEW: Scrollable Content Wrapper */}
-        <Box sx={{
+        <Box ref={scrollContainerRef} sx={{
           flex: 1,
           overflow: 'auto',
           display: 'flex',
@@ -3946,6 +3986,18 @@ export default function InboundPage() {
                         gridRef.current = params.api;
                         columnApiRef.current = params.columnApi;
                       }}
+                      onCellKeyDown={(params: any) => {
+                        // Capture keyboard events so we can detect Shift+Enter even when AG Grid doesn't forward the event
+                        lastKeyDownRef.current = params.event;
+                      }}
+                      onCellFocused={(params: any) => {
+                        // Ensure focused cell is visible (fixes cases where navigation doesn't scroll enough)
+                        try {
+                          if (typeof params.rowIndex === 'number') {
+                            ensureRowVisible(params.rowIndex);
+                          }
+                        } catch (e) { /* ignore */ }
+                      }}
                       //theme="legacy"
                       rowData={multiRows}
                       columnDefs={columnDefs}
@@ -4067,10 +4119,10 @@ export default function InboundPage() {
                             setTimeout(() => {
                               try {
                                 const targetIndex = rowIndex + 1;
-                                event.api.ensureIndexVisible(targetIndex, 'bottom');
+                                ensureRowVisible(targetIndex, 'bottom');
                                 event.api.startEditingCell({ rowIndex: targetIndex, colKey: field });
                               } catch (e) { /* ignore */ }
-                            }, 120);
+                            }, 140);
                           }
 
                           // If there's a WSN value, first perform a quick remote check to figure out ownership
