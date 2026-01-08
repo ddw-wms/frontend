@@ -89,6 +89,9 @@ export default function InboundPage() {
   const gridRef = useRef<any>(null);
   const columnApiRef = useRef<any>(null);
   const lastKeyDownRef = useRef<any>(null);
+  const isAutoScrollingRef = useRef<boolean>(false);
+  const scrollAnimationFrameRef = useRef<number | null>(null);
+  const scrollTimeoutRef = useRef<number | null>(null);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [agentReady, setAgentReady] = useState(false);
 
@@ -1041,52 +1044,83 @@ export default function InboundPage() {
   // ====== MULTI ENTRY FUNCTIONS ======
   // Ensure a row is visible both inside AG Grid and in the outer scroll container
   // rowsBelow controls how many rows below the target stay visible (helps scanner users)
-  function ensureRowVisible(rowIndex: number, position: 'top' | 'middle' | 'bottom' = 'bottom', rowsBelow = 2) {
+  // Accepts an optional callback which is invoked after the scrolling finishes
+  function ensureRowVisible(
+    rowIndex: number,
+    position: 'top' | 'middle' | 'bottom' = 'bottom',
+    rowsBelow = 3,
+    onComplete?: () => void
+  ) {
     try {
       const api = gridRef.current;
       if (api) {
-        // Make AG Grid reveal the row first
+        // First ask AG Grid to reveal the index
         api.ensureIndexVisible(rowIndex, position);
       }
     } catch (e) { /* ignore AG Grid errors */ }
 
-    // After the grid has had a chance to render the row DOM, adjust outer container scroll if needed
-    setTimeout(() => {
+    // Cancel any ongoing smooth-scroll checks
+    if (scrollAnimationFrameRef.current) {
+      cancelAnimationFrame(scrollAnimationFrameRef.current);
+      scrollAnimationFrameRef.current = null;
+    }
+    if (scrollTimeoutRef.current) {
+      window.clearTimeout(scrollTimeoutRef.current);
+      scrollTimeoutRef.current = null;
+    }
+
+    isAutoScrollingRef.current = true;
+
+    // After AG Grid rendered the row DOM, compute desired scrollTop and perform smooth scroll
+    scrollTimeoutRef.current = window.setTimeout(() => {
       try {
-        if (!scrollContainerRef.current) return;
-
-        // Try to find the row DOM element - AG Grid uses data-row and data-col attributes
-        const rowEl = document.querySelector(`[data-row="${rowIndex}"][data-col="0"]`) as HTMLElement | null;
-        if (!rowEl) return;
-
-        const container = scrollContainerRef.current as HTMLElement;
-        const rowRect = rowEl.getBoundingClientRect();
-        const contRect = container.getBoundingClientRect();
-
-        const rowHeight = Math.max(24, rowRect.height || 36); // fallback
-
-        // Desired top position to leave `rowsBelow` visible under the target row
-        const desiredTopOffset = rowHeight * rowsBelow;
-
-        // Compute current offset of row relative to container
-        const currentOffset = rowRect.top - contRect.top;
-
-        // If row is too close to top (i.e., above desired top), scroll up
-        if (currentOffset < 8) {
-          const newScroll = container.scrollTop + currentOffset - 8 - desiredTopOffset;
-          container.scrollTop = Math.max(0, newScroll);
+        const container = scrollContainerRef.current as HTMLElement | null;
+        if (!container) {
+          isAutoScrollingRef.current = false;
+          onComplete?.();
           return;
         }
 
-        // If row is too close to bottom (i.e., below container bottom - leave desired rows below visible), scroll down
-        const bottomSpace = contRect.bottom - rowRect.bottom;
-        const minBottomSpace = desiredTopOffset + 8;
-        if (bottomSpace < minBottomSpace) {
-          const diff = minBottomSpace - bottomSpace;
-          container.scrollTop = Math.min(container.scrollHeight, container.scrollTop + diff);
+        const rowEl = document.querySelector(`[data-row="${rowIndex}"][data-col="0"]`) as HTMLElement | null;
+        if (!rowEl) {
+          isAutoScrollingRef.current = false;
+          onComplete?.();
+          return;
         }
-      } catch (e) { /* ignore */ }
-    }, 90);
+
+        const rowRect = rowEl.getBoundingClientRect();
+        const contRect = container.getBoundingClientRect();
+        const rowHeight = Math.max(24, rowRect.height || 36);
+
+        // Calculate desired scrollTop so that `rowsBelow` remain visible below the target row
+        const desiredTopOffset = rowHeight * rowsBelow;
+        const desiredTop = container.scrollTop + (rowRect.top - contRect.top) - (container.clientHeight - desiredTopOffset - rowHeight);
+
+        // Clamp
+        const targetTop = Math.max(0, Math.min(container.scrollHeight - container.clientHeight, Math.round(desiredTop)));
+
+        // Use smooth scroll and then monitor until position is reached (or timeout)
+        container.scrollTo({ top: targetTop, behavior: 'smooth' });
+
+        const start = performance.now();
+        const timeoutMs = 500; // maximum wait for smooth scroll
+
+        const check = () => {
+          const curTop = container.scrollTop;
+          if (Math.abs(curTop - targetTop) <= 2 || performance.now() - start > timeoutMs) {
+            isAutoScrollingRef.current = false;
+            onComplete?.();
+            return;
+          }
+          scrollAnimationFrameRef.current = requestAnimationFrame(check);
+        };
+
+        scrollAnimationFrameRef.current = requestAnimationFrame(check);
+      } catch (e) {
+        isAutoScrollingRef.current = false;
+        onComplete?.();
+      }
+    }, 60);
   }
 
   const addMultiRow = () => {
@@ -1282,21 +1316,21 @@ export default function InboundPage() {
     }
 
     // Ensure the destination row is visible AFTER AG Grid processes the navigation
-    setTimeout(() => {
-      try {
-        ensureRowVisible(newRowIndex, goingUp ? 'top' : 'bottom');
-      } catch (e) { /* ignore */ }
-    }, 0);
-
-    // Start editing the destination cell shortly after AG Grid navigates to it
-    // (scheduling keeps this non-blocking for AG Grid navigation)
-    setTimeout(() => {
-      try {
-        api.startEditingCell({ rowIndex: newRowIndex, colKey: column });
-      } catch (e) { /* ignore */ }
-      // Clear the captured key state
-      lastKeyDownRef.current = null;
-    }, 50);
+    try {
+      ensureRowVisible(newRowIndex, goingUp ? 'top' : 'bottom', 3, () => {
+        try {
+          api.startEditingCell({ rowIndex: newRowIndex, colKey: column });
+        } catch (e) { /* ignore */ }
+        // Clear the captured key state
+        lastKeyDownRef.current = null;
+      });
+    } catch (e) {
+      // fallback
+      setTimeout(() => {
+        try { api.startEditingCell({ rowIndex: newRowIndex, colKey: column }); } catch (e) { /* ignore */ }
+        lastKeyDownRef.current = null;
+      }, 50);
+    }
 
     return {
       rowIndex: newRowIndex,
@@ -4134,8 +4168,9 @@ export default function InboundPage() {
                             setTimeout(() => {
                               try {
                                 const targetIndex = rowIndex + 1;
-                                ensureRowVisible(targetIndex, 'bottom');
-                                event.api.startEditingCell({ rowIndex: targetIndex, colKey: field });
+                                ensureRowVisible(targetIndex, 'bottom', 3, () => {
+                                  try { event.api.startEditingCell({ rowIndex: targetIndex, colKey: field }); } catch (e) { /* ignore */ }
+                                });
                               } catch (e) { /* ignore */ }
                             }, 140);
                           }
@@ -4274,15 +4309,17 @@ export default function InboundPage() {
                                     const nextIndex = rowIndex + 1;
                                     // If next row exists, make sure it's visible with 2 rows below and start editing
                                     if (nextIndex < event.api.getDisplayedRowCount()) {
-                                      ensureRowVisible(nextIndex, 'top', 2);
-                                      event.api.startEditingCell({ rowIndex: nextIndex, colKey: 'wsn' });
+                                      ensureRowVisible(nextIndex, 'top', 3, () => {
+                                        try { event.api.startEditingCell({ rowIndex: nextIndex, colKey: 'wsn' }); } catch (e) { /* ignore */ }
+                                      });
                                     } else {
                                       // If at last row, add one and focus
                                       addMultiRow();
                                       setTimeout(() => {
                                         const newIdx = nextIndex;
-                                        ensureRowVisible(newIdx, 'top', 2);
-                                        try { event.api.startEditingCell({ rowIndex: newIdx, colKey: 'wsn' }); } catch (e) { /* ignore */ }
+                                        ensureRowVisible(newIdx, 'top', 3, () => {
+                                          try { event.api.startEditingCell({ rowIndex: newIdx, colKey: 'wsn' }); } catch (e) { /* ignore */ }
+                                        });
                                       }, 120);
                                     }
                                   } catch (e) { /* ignore */ }
