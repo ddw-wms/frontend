@@ -1083,6 +1083,20 @@ export default function InboundPage() {
   // Accepts an optional callback which is invoked after the scrolling finishes
   // Uses offsetTop for stable calculations and does immediate jumps for rapid scanner input
   const lastAutoScrollTsRef = useRef<number | null>(null);
+
+  // Wait for AG Grid to render the row element (up to timeoutMs). Returns the element or null.
+  function waitForRowElement(rowIndex: number, timeoutMs = 600): Promise<HTMLElement | null> {
+    return new Promise((resolve) => {
+      const start = performance.now();
+      const check = () => {
+        const el = document.querySelector(`[data-row=\"${rowIndex}\"][data-col=\"0\"]`) as HTMLElement | null;
+        if (el) { resolve(el); return; }
+        if (performance.now() - start > timeoutMs) { resolve(null); return; }
+        requestAnimationFrame(check);
+      };
+      check();
+    });
+  }
   function ensureRowVisible(
     rowIndex: number,
     position: 'top' | 'middle' | 'bottom' = 'bottom',
@@ -1112,7 +1126,7 @@ export default function InboundPage() {
 
     isAutoScrollingRef.current = true;
 
-    scrollTimeoutRef.current = window.setTimeout(() => {
+    scrollTimeoutRef.current = window.setTimeout(async () => {
       try {
         const container = scrollContainerRef.current as HTMLElement | null;
         if (!container) {
@@ -1121,7 +1135,7 @@ export default function InboundPage() {
           return;
         }
 
-        const rowEl = document.querySelector(`[data-row="${rowIndex}"][data-col="0"]`) as HTMLElement | null;
+        const rowEl = await waitForRowElement(rowIndex, 700);
         if (!rowEl) {
           isAutoScrollingRef.current = false;
           onComplete?.();
@@ -1133,7 +1147,9 @@ export default function InboundPage() {
         const rowHeight = Math.max(24, rowEl.getBoundingClientRect().height || 36);
         const containerTop = container.scrollTop;
         const containerBottom = containerTop + container.clientHeight;
-        const topPadding = 8;
+        const headerEl = container.querySelector('.ag-header') as HTMLElement | null;
+        const headerHeight = headerEl ? Math.ceil(headerEl.getBoundingClientRect().height) : 0;
+        const topPadding = headerHeight + 8;
         const desiredBottomSpace = rowsBelow * rowHeight + 8; // space to leave below the target row
         const allowedMaxRowTop = containerBottom - desiredBottomSpace - rowHeight;
 
@@ -4110,8 +4126,8 @@ export default function InboundPage() {
                       onCellFocused={(params: any) => {
                         // Ensure focused cell is visible (fixes cases where navigation doesn't scroll enough)
                         try {
-                          if (typeof params.rowIndex === 'number') {
-                            ensureRowVisible(params.rowIndex, 'bottom', 3, undefined, scanningModeRef.current);
+                          if (typeof params.rowIndex === 'number' && !scanningModeRef.current) {
+                            ensureRowVisible(params.rowIndex, 'bottom', 3);
                           }
                         } catch (e) { /* ignore */ }
                       }}
