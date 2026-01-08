@@ -27,7 +27,7 @@ import * as XLSX from 'xlsx';
 import { AgGridReact } from 'ag-grid-react';
 import { ModuleRegistry, AllCommunityModule, ClientSideRowModelModule } from 'ag-grid-community';
 import 'ag-grid-community/styles/ag-theme-quartz.css';
-import { usePermissionGuard } from '@/hooks/usePermissionGuard';
+
 import { usePermissions } from '@/app/context/PermissionsContext';
 import localforage from 'localforage';
 
@@ -97,8 +97,8 @@ const DEFAULT_LIST_COLUMNS = [
 ];
 
 export default function PickingPage() {
-  // Role guard - only admin, manager, picker can access
-  const { loading: permissionLoading } = usePermissionGuard('view_picking');
+  // Role guard intentionally removed to allow immediate access and submission
+  // (temporary: permissions managed on backend).
 
   // Permission checks
   const { hasPermission } = usePermissions();
@@ -642,12 +642,6 @@ export default function PickingPage() {
 
   // Submit multi entry
   const handleMultiSubmit = async () => {
-    // Permission guard: prevent requests when user lacks backend permission
-    if (!hasPermission('create_picking_multi')) {
-      toast.error('You do not have permission to create picking entries');
-      return;
-    }
-
     const validRows = multiRows.filter(r => r.wsn?.trim());
 
     if (validRows.length === 0) {
@@ -1270,21 +1264,7 @@ export default function PickingPage() {
 
   //////////////////////////////////====UI RENDERING====////////////////////////////////////
 
-  // Show loading state while permissions are being checked
-  if (permissionLoading) {
-    return (
-      <AppLayout>
-        <Box sx={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          height: '100vh'
-        }}>
-          <CircularProgress />
-        </Box>
-      </AppLayout>
-    );
-  }
+
 
   return (
     <AppLayout>
@@ -2920,27 +2900,23 @@ export default function PickingPage() {
             </Stack>
 
             {/* SUBMIT BUTTON */}
-            <Tooltip title={!hasPermission('create_picking_multi') ? 'Permission required: create_picking_multi' : ''} arrow>
-              <span style={{ width: '100%' }}>
-                <Button
-                  fullWidth
-                  variant="contained"
-                  size="medium"
-                  onClick={handleMultiSubmit}
-                  disabled={multiLoading || statusCounts.ready === 0 || !hasPermission('create_picking_multi')}
-                  sx={{
-                    py: 1,
-                    borderRadius: 1.5,
-                    fontWeight: 800,
-                    fontSize: '0.8rem',
-                    background: 'linear-gradient(135deg, #f59e0b 0%, #ea580c 100%)',
-                    boxShadow: '0 4px 12px rgba(245, 158, 11, 0.3)',
-                  }}
-                >
-                  {hasPermission('create_picking_multi') ? `✓ SUBMIT READY (${statusCounts.ready} rows)` : 'Permission required'}
-                </Button>
-              </span>
-            </Tooltip>
+            <Button
+              fullWidth
+              variant="contained"
+              size="medium"
+              onClick={handleMultiSubmit}
+              disabled={multiLoading || statusCounts.ready === 0}
+              sx={{
+                py: 1,
+                borderRadius: 1.5,
+                fontWeight: 800,
+                fontSize: '0.8rem',
+                background: 'linear-gradient(135deg, #f59e0b 0%, #ea580c 100%)',
+                boxShadow: '0 4px 12px rgba(245, 158, 11, 0.3)',
+              }}
+            >
+              ✓ SUBMIT READY ({statusCounts.ready} rows)
+            </Button>
 
             {/* COLUMN SETTINGS DIALOG */}
             <Dialog
