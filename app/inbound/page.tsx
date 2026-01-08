@@ -1066,17 +1066,16 @@ export default function InboundPage() {
         scanModeTimeoutRef.current = null;
       }
 
-      if (scanCountRef.current >= 3) {
-        scanningModeRef.current = true;
-      }
+      // Enable scanning mode immediately for responsiveness
+      scanningModeRef.current = true;
 
-      // Exit scanning mode after short inactivity
+      // Exit scanning mode after a longer inactivity window (3s) to be robust for long runs
       scanModeTimeoutRef.current = window.setTimeout(() => {
         scanCountRef.current = 0;
         scanningModeRef.current = false;
         lastScanTsRef.current = null;
         scanModeTimeoutRef.current = null;
-      }, 1200);
+      }, 3000);
     } catch (e) { /* ignore */ }
   }
 
@@ -1177,9 +1176,10 @@ export default function InboundPage() {
           targetTop = Math.max(0, Math.min(container.scrollHeight - container.clientHeight, rowTop - (container.clientHeight - desiredBottomSpace - rowHeight)));
         }
 
-        if (immediate || recent) {
-          // For rapid scanner input, jump immediately for best responsiveness
-          container.scrollTop = targetTop;
+        // If immediate/recent or scanning mode, snap so the row is visible and positioned about 25% from the top
+        if (immediate || recent || scanningModeRef.current) {
+          const snapTop = Math.max(0, Math.min(container.scrollHeight - container.clientHeight, Math.round(rowTop - Math.floor(container.clientHeight * 0.25))));
+          container.scrollTop = snapTop;
           isAutoScrollingRef.current = false;
           onComplete?.();
           return;
