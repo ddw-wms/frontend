@@ -1045,6 +1045,8 @@ export default function InboundPage() {
   // Ensure a row is visible both inside AG Grid and in the outer scroll container
   // rowsBelow controls how many rows below the target stay visible (helps scanner users)
   // Accepts an optional callback which is invoked after the scrolling finishes
+  // Uses offsetTop for stable calculations and does immediate jumps for rapid scanner input
+  const lastAutoScrollTsRef = useRef<number | null>(null);
   function ensureRowVisible(
     rowIndex: number,
     position: 'top' | 'middle' | 'bottom' = 'bottom',
@@ -1054,7 +1056,6 @@ export default function InboundPage() {
     try {
       const api = gridRef.current;
       if (api) {
-        // First ask AG Grid to reveal the index
         api.ensureIndexVisible(rowIndex, position);
       }
     } catch (e) { /* ignore AG Grid errors */ }
@@ -1071,7 +1072,6 @@ export default function InboundPage() {
 
     isAutoScrollingRef.current = true;
 
-    // After AG Grid rendered the row DOM, compute desired scrollTop and perform smooth scroll
     scrollTimeoutRef.current = window.setTimeout(() => {
       try {
         const container = scrollContainerRef.current as HTMLElement | null;
@@ -1088,22 +1088,28 @@ export default function InboundPage() {
           return;
         }
 
-        const rowRect = rowEl.getBoundingClientRect();
-        const contRect = container.getBoundingClientRect();
-        const rowHeight = Math.max(24, rowRect.height || 36);
+        // Use offsetTop for a stable scroll target
+        let targetTop = rowEl.offsetTop - (container.clientHeight - rowsBelow * Math.max(24, rowEl.getBoundingClientRect().height || 36) - rowEl.getBoundingClientRect().height);
+        targetTop = Math.max(0, Math.min(container.scrollHeight - container.clientHeight, Math.round(targetTop)));
 
-        // Calculate desired scrollTop so that `rowsBelow` remain visible below the target row
-        const desiredTopOffset = rowHeight * rowsBelow;
-        const desiredTop = container.scrollTop + (rowRect.top - contRect.top) - (container.clientHeight - desiredTopOffset - rowHeight);
+        const now = Date.now();
+        const recent = lastAutoScrollTsRef.current && (now - lastAutoScrollTsRef.current < 300);
 
-        // Clamp
-        const targetTop = Math.max(0, Math.min(container.scrollHeight - container.clientHeight, Math.round(desiredTop)));
+        lastAutoScrollTsRef.current = now;
 
-        // Use smooth scroll and then monitor until position is reached (or timeout)
+        if (recent) {
+          // For rapid scanner input, jump immediately for best responsiveness
+          container.scrollTop = targetTop;
+          isAutoScrollingRef.current = false;
+          onComplete?.();
+          return;
+        }
+
+        // Smooth scroll for normal interaction
         container.scrollTo({ top: targetTop, behavior: 'smooth' });
 
         const start = performance.now();
-        const timeoutMs = 500; // maximum wait for smooth scroll
+        const timeoutMs = 700; // allow a bit longer for smooth scroll
 
         const check = () => {
           const curTop = container.scrollTop;
@@ -1120,7 +1126,7 @@ export default function InboundPage() {
         isAutoScrollingRef.current = false;
         onComplete?.();
       }
-    }, 60);
+    }, 40);
   }
 
   const addMultiRow = () => {
