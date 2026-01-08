@@ -1039,7 +1039,7 @@ export default function InboundPage() {
 
   // ====== MULTI ENTRY FUNCTIONS ======
   const addMultiRow = () => {
-    setMultiRows([
+    const newRows = [
       ...multiRows,
       {
         wsn: '',
@@ -1049,7 +1049,19 @@ export default function InboundPage() {
         rack_no: '',
         unload_remarks: ''
       }
-    ]);
+    ];
+
+    setMultiRows(newRows);
+
+    // Give React/AG Grid a moment to render, then ensure the new row is visible (Excel-like behavior)
+    setTimeout(() => {
+      try {
+        const api = gridRef.current;
+        if (api && newRows.length > 0) {
+          api.ensureIndexVisible(newRows.length - 1, 'bottom');
+        }
+      } catch (e) { /* ignore */ }
+    }, 50);
   };
 
   const statusCounts = useMemo(() => {
@@ -1489,6 +1501,27 @@ export default function InboundPage() {
             cellRenderer: (params: any) => {
 
               if (col !== 'wsn') {
+                // Make the FKT_LINK column clickable (open in new tab) while keeping other columns simple
+                if (col === 'fkt_link') {
+                  return (
+                    <a
+                      href={params.value}
+                      target="_blank"
+                      rel="noreferrer"
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        if (params.value) window.open(params.value, '_blank');
+                      }}
+                      style={{ color: '#2563eb', textDecoration: 'underline' }}
+                      title={params.value}
+                    >
+                      {params.value ?? ''}
+                    </a>
+                  );
+                }
+
                 return (
                   <span title={params.value}>
                     {params.value ?? ''}
@@ -1503,8 +1536,27 @@ export default function InboundPage() {
 
 
               return (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span style={{ fontWeight: 700 }}>{params.value ?? ''}</span>
+
+                  {/* Clickable product link if available */}
+                  {params.data?.fkt_link && (
+                    <a
+                      href={params.data.fkt_link}
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        try { window.open(params.data.fkt_link, '_blank'); } catch (err) { /* ignore */ }
+                      }}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{ fontSize: 14, color: '#2563eb', textDecoration: 'none', marginLeft: 4, cursor: 'pointer' }}
+                      title="Open product link"
+                    >
+                      🔗
+                    </a>
+                  )}
 
                   {isCross && (
                     <Tooltip title="Already inbound in another warehouse">
@@ -3876,6 +3928,11 @@ export default function InboundPage() {
                 >
                   <div style={{ height: '100%', width: '100%' }} className="ag-theme-quartz">
                     <AgGridReact
+                      ref={gridRef}
+                      onGridReady={(params: any) => {
+                        gridRef.current = params.api;
+                        columnApiRef.current = params.columnApi;
+                      }}
                       //theme="legacy"
                       rowData={multiRows}
                       columnDefs={columnDefs}
