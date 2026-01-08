@@ -1231,6 +1231,19 @@ export default function InboundPage() {
       return previousCellPosition;
     }
 
+    // Ensure the destination row is visible (Excel-like behavior)
+    try {
+      api.ensureIndexVisible(newRowIndex, goingUp ? 'top' : 'bottom');
+    } catch (e) { /* ignore */ }
+
+    // Start editing the destination cell shortly after AG Grid navigates to it
+    // (scheduling keeps this non-blocking for AG Grid navigation)
+    setTimeout(() => {
+      try {
+        api.startEditingCell({ rowIndex: newRowIndex, colKey: column });
+      } catch (e) { /* ignore */ }
+    }, 50);
+
     return {
       rowIndex: newRowIndex,
       column,
@@ -4049,6 +4062,15 @@ export default function InboundPage() {
                           // ➕ Last row → auto add new row
                           if (rowIndex === event.api.getDisplayedRowCount() - 1) {
                             addMultiRow();
+
+                            // After row added, scroll to it and start editing the same column (Excel-like)
+                            setTimeout(() => {
+                              try {
+                                const targetIndex = rowIndex + 1;
+                                event.api.ensureIndexVisible(targetIndex, 'bottom');
+                                event.api.startEditingCell({ rowIndex: targetIndex, colKey: field });
+                              } catch (e) { /* ignore */ }
+                            }, 120);
                           }
 
                           // If there's a WSN value, first perform a quick remote check to figure out ownership
