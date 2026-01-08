@@ -642,10 +642,39 @@ export default function PickingPage() {
 
   // Submit multi entry
   const handleMultiSubmit = async () => {
+    // Permission guard: prevent requests when user lacks backend permission
+    if (!hasPermission('create_picking_multi')) {
+      toast.error('You do not have permission to create picking entries');
+      return;
+    }
+
     const validRows = multiRows.filter(r => r.wsn?.trim());
 
     if (validRows.length === 0) {
       toast.error('At least 1 WSN required');
+      return;
+    }
+
+    // Compute local duplicates and existing-picked checks so we don't rely on state updates
+    const wsnCounts = new Map<string, number>();
+    validRows.forEach(r => {
+      const wsn = r.wsn.trim().toUpperCase();
+      wsnCounts.set(wsn, (wsnCounts.get(wsn) || 0) + 1);
+    });
+
+    const readyRows = validRows.filter(r => {
+      const wsn = r.wsn.trim().toUpperCase();
+      if (wsnCounts.get(wsn)! > 1) return false; // grid duplicates
+      if (existingPickingWSNs.has(wsn)) return false; // already picked in any warehouse
+      return true;
+    });
+
+    if (validRows.length !== readyRows.length) {
+      toast(`Skipping ${validRows.length - readyRows.length} duplicate/already-picked rows`);
+    }
+
+    if (readyRows.length === 0) {
+      toast.error('No valid rows to submit (remove duplicates or already-picked WSNs)');
       return;
     }
 
@@ -664,7 +693,7 @@ export default function PickingPage() {
       return;
     }
 
-    const fixedRows = validRows.map(row => ({
+    const fixedRows = readyRows.map(row => ({
       ...row,
       picking_date: pickingDate,
       customer_name: selectedCustomer,
@@ -674,7 +703,7 @@ export default function PickingPage() {
       warehouse_name: activeWarehouse?.name
     }));
 
-    console.log('Submitting picking entries:', { fixedRows, warehouse_id: activeWarehouse?.id });
+    console.log('Submitting picking entries (ready rows only):', { fixedRows, warehouse_id: activeWarehouse?.id });
 
     setMultiLoading(true);
     try {
@@ -2891,23 +2920,27 @@ export default function PickingPage() {
             </Stack>
 
             {/* SUBMIT BUTTON */}
-            <Button
-              fullWidth
-              variant="contained"
-              size="medium"
-              onClick={handleMultiSubmit}
-              disabled={multiLoading || gridDuplicateWSNs.size > 0 || crossWarehouseWSNs.size > 0}
-              sx={{
-                py: 1,
-                borderRadius: 1.5,
-                fontWeight: 800,
-                fontSize: '0.8rem',
-                background: 'linear-gradient(135deg, #f59e0b 0%, #ea580c 100%)',
-                boxShadow: '0 4px 12px rgba(245, 158, 11, 0.3)',
-              }}
-            >
-              ✓ SUBMIT ALL ({multiRows.filter((r) => r.wsn?.trim()).length} rows)
-            </Button>
+            <Tooltip title={!hasPermission('create_picking_multi') ? 'Permission required: create_picking_multi' : ''} arrow>
+              <span style={{ width: '100%' }}>
+                <Button
+                  fullWidth
+                  variant="contained"
+                  size="medium"
+                  onClick={handleMultiSubmit}
+                  disabled={multiLoading || statusCounts.ready === 0 || !hasPermission('create_picking_multi')}
+                  sx={{
+                    py: 1,
+                    borderRadius: 1.5,
+                    fontWeight: 800,
+                    fontSize: '0.8rem',
+                    background: 'linear-gradient(135deg, #f59e0b 0%, #ea580c 100%)',
+                    boxShadow: '0 4px 12px rgba(245, 158, 11, 0.3)',
+                  }}
+                >
+                  {hasPermission('create_picking_multi') ? `✓ SUBMIT READY (${statusCounts.ready} rows)` : 'Permission required'}
+                </Button>
+              </span>
+            </Tooltip>
 
             {/* COLUMN SETTINGS DIALOG */}
             <Dialog

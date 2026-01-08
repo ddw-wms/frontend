@@ -1167,12 +1167,12 @@ export default function DashboardPage() {
         >
 
           {[
-            { label: "Master Data", value: metrics.total, color: "#6366f1", icon: <DashboardRounded /> },
-            { label: "Available", value: inventorySummary.available_stock, color: "#6366f1", icon: <InventoryRounded /> },
-            { label: "Inbound", value: metrics.inbound, color: "#3b82f6", icon: <LoginRounded /> },
-            { label: "QC", value: (metrics.qcPassed || 0) + (metrics.qcDone || 0), color: "#10b981", icon: <CheckCircleRounded /> },
-            { label: "Picking", value: metrics.pickingCompleted, color: "#f59e0b", icon: <LocalShippingRounded /> },
-            { label: "Dispatch", value: metrics.outboundDispatched, color: "#ef4444", icon: <SendRounded /> },
+            { label: "Master Data", value: metrics.total, color: "#222367", icon: <DashboardRounded /> },
+            { label: "Available", value: inventorySummary.available_stock, color: "#636711", icon: <InventoryRounded /> },
+            { label: "Inbounded", value: metrics.inbound, color: "#3b82f6", icon: <LoginRounded /> },
+            { label: "Processed", value: (metrics.qcPassed || 0) + (metrics.qcDone || 0), color: "#10b981", icon: <CheckCircleRounded /> },
+            { label: "Picked", value: metrics.pickingCompleted, color: "#f59e0b", icon: <LocalShippingRounded /> },
+            { label: "Dispatched", value: metrics.outboundDispatched, color: "#ef4444", icon: <SendRounded /> },
           ].map((m, index) => (
 
             <Card

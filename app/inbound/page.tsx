@@ -429,6 +429,29 @@ export default function InboundPage() {
 
   // Add this useEffect after loadCategories function (around line 450)
   useEffect(() => {
+    if (tabValue !== 3) return;
+    const t = setTimeout(() => {
+      try {
+        const colApi = columnApiRef.current;
+        const api = gridRef.current;
+        if (!colApi || !api) return;
+        const allCols = colApi.getAllColumns ? colApi.getAllColumns().map((c: any) => c.getColId()) : [];
+        if (!allCols || allCols.length === 0) return;
+        colApi.autoSizeColumns(allCols, false);
+        let total = 0;
+        for (const id of allCols) {
+          const col = colApi.getColumn(id);
+          total += col?.getActualWidth ? col.getActualWidth() : 0;
+        }
+        const dims = api.getSize ? api.getSize() : (api.gridPanel && api.gridPanel.getBodyClientRect && api.gridPanel.getBodyClientRect());
+        const gridW = dims?.width || 0;
+        if (gridW && total < gridW) api.sizeColumnsToFit();
+      } catch (e) { /* ignore */ }
+    }, 50);
+    return () => clearTimeout(t);
+  }, [tabValue, visibleColumns, multiRows]);
+
+  useEffect(() => {
     if (brandFilter) {
       // Filter categories based on selected brand
       const filtered = listData
@@ -1379,51 +1402,34 @@ export default function InboundPage() {
     }
   };
 
-  const navigateToNextCell = (params: any) => {
-    const { key, previousCellPosition, nextCellPosition, event } = params;
+  // ✅ NAVIGATE TO NEXT CELL (AG GRID) - move right across visible columns, then down to next row like Picking page
+  const navigateToNextCell = useCallback((params: any) => {
+    const { previousCellPosition, nextCellPosition, key } = params;
 
-    // Tab / arrow keys default behaviour
-    if (key !== 'Enter') {
-      return nextCellPosition;
+    if (key === 'Enter') {
+      const currentCol = previousCellPosition.column.getColId();
+      const currentRow = previousCellPosition.rowIndex;
+
+      if (currentCol === visibleColumns[visibleColumns.length - 1]) {
+        // Last column → move to first column of next row
+        return {
+          rowIndex: currentRow + 1,
+          column: params.api.getColumns()![0],
+        };
+      } else {
+        // Same row, next visible column
+        const colIndex = visibleColumns.indexOf(currentCol);
+        const nextColId = visibleColumns[colIndex + 1];
+        const nextCol = params.api.getColumns()!.find((c: any) => c.getColId() === nextColId);
+        return {
+          rowIndex: currentRow,
+          column: nextCol,
+        };
+      }
     }
 
-    // Enter: same column, next/prev row
-    const api = params.api;
-    const column = previousCellPosition.column;
-    const rowIndex = previousCellPosition.rowIndex;
-
-    const goingUp = (event && event.shiftKey) || (lastKeyDownRef.current && lastKeyDownRef.current.shiftKey);
-    const newRowIndex = goingUp ? rowIndex - 1 : rowIndex + 1;
-
-    if (newRowIndex < 0 || newRowIndex >= api.getDisplayedRowCount()) {
-      // Clear the captured key state
-      lastKeyDownRef.current = null;
-      return previousCellPosition;
-    }
-
-    // Ensure the destination row is visible AFTER AG Grid processes the navigation
-    try {
-      ensureRowVisible(newRowIndex, goingUp ? 'top' : 'bottom', 3, () => {
-        try {
-          api.startEditingCell({ rowIndex: newRowIndex, colKey: column });
-        } catch (e) { /* ignore */ }
-        // Clear the captured key state
-        lastKeyDownRef.current = null;
-      }, scanningModeRef.current);
-    } catch (e) {
-      // fallback
-      setTimeout(() => {
-        try { api.startEditingCell({ rowIndex: newRowIndex, colKey: column }); } catch (e) { /* ignore */ }
-        lastKeyDownRef.current = null;
-      }, 50);
-    }
-
-    return {
-      rowIndex: newRowIndex,
-      column,
-      rowPinned: null,
-    };
-  };
+    return nextCellPosition;
+  }, [visibleColumns]);
 
 
 
@@ -2482,6 +2488,10 @@ export default function InboundPage() {
                       rowData={listData}
                       columnDefs={inboundColumnDefs}
                       defaultColDef={inboundDefaultColDef}
+
+                      suppressScrollOnNewData={false}
+                      ensureDomOrder={true}
+                      suppressRowTransform={true}
                       onGridReady={(params: any) => {
                         columnApiRef.current = params.columnApi;
                         try {
@@ -4137,10 +4147,7 @@ export default function InboundPage() {
                           }
                         } catch (e) { /* ignore */ }
                       }}
-                      onCellKeyDown={(params: any) => {
-                        // Capture keyboard events so we can detect Shift+Enter even when AG Grid doesn't forward the event
-                        lastKeyDownRef.current = params.event;
-                      }}
+
                       onCellFocused={(params: any) => {
                         // Ensure focused cell is visible (fixes cases where navigation doesn't scroll enough)
                         try {
@@ -4191,15 +4198,20 @@ export default function InboundPage() {
                       suppressRowClickSelection={true}
                       suppressMovableColumns={true}
                       rowBuffer={5}
-                      onCellValueChanged={(event: any) => {
+
+
+
+                      onCellValueChanged={(event) => {
                         const { colDef, newValue, rowIndex } = event;
                         const field = colDef?.field;
-                        if (!field) return;
+
+                        // ✅ NULL SAFETY: Return early if field or rowIndex is null
+                        if (!field || rowIndex === null || rowIndex === undefined) return;
 
                         const newRows = [...multiRows];
 
-                        // WSN clear -> master clear
-                        if (field === 'wsn' && (!newValue || newValue.trim() === '')) {
+                        // WSN clear - master clear
+                        if (field === 'wsn' && (!newValue || !newValue.trim())) {
                           newRows[rowIndex] = { ...newRows[rowIndex], [field]: newValue };
                           ALL_MASTER_COLUMNS.forEach((col) => {
                             newRows[rowIndex][col] = null;
@@ -4212,22 +4224,39 @@ export default function InboundPage() {
                         newRows[rowIndex] = { ...newRows[rowIndex], [field]: newValue };
                         setMultiRows(newRows);
 
-                        // If user entered a WSN, start scan activity detection and remember the row to keep visible
-                        if (field === 'wsn' && newValue?.trim()) {
-                          try { recordScanActivity(); } catch (e) { /* ignore */ }
-                          // Remember the row that was last edited so we can enforce visibility during scanning
-                          desiredRowIndexRef.current = rowIndex;
-                          // Clear the desired row after a short delay when not scanning
-                          setTimeout(() => {
-                            if (!scanningModeRef.current) desiredRowIndexRef.current = null;
-                          }, 1400);
+                        // ⚡ EXCEL AUTO-SCROLL: When any value entered, ensure next row visible
+                        if (newValue?.trim()) {
+                          const nextRowIndex = rowIndex + 1;
+                          const totalRows = event.api.getDisplayedRowCount();
+
+                          if (nextRowIndex < totalRows) {
+                            setTimeout(() => {
+                              try {
+                                ensureRowVisible(nextRowIndex, 'bottom', 4, undefined, scanningModeRef.current);
+                              } catch (e) { /* ignore */ }
+                            }, 50);
+                          }
                         }
 
-                        if (field === 'wsn') {
-                          // Calculate duplicates immediately for instant feedback (don't wait on checkDuplicates)
-                          const wsn = newValue?.trim()?.toUpperCase();
+                        // If user entered a WSN, start scan activity detection
+                        if (field === 'wsn' && newValue?.trim()) {
+                          try {
+                            recordScanActivity();
+                          } catch (e) { /* ignore */ }
 
+                          // Remember the row that was last edited
+                          desiredRowIndexRef.current = rowIndex;
+
+                          setTimeout(() => {
+                            if (!scanningModeRef.current) {
+                              desiredRowIndexRef.current = null;
+                            }
+                          }, 1400);
+
+                          // Calculate duplicates immediately
+                          const wsn = newValue?.trim()?.toUpperCase();
                           const immediateCounts = new Map<string, number>();
+
                           newRows.forEach((r: any) => {
                             const rv = r.wsn?.trim()?.toUpperCase();
                             if (rv) immediateCounts.set(rv, (immediateCounts.get(rv) || 0) + 1);
@@ -4235,9 +4264,7 @@ export default function InboundPage() {
 
                           const isGridDuplicateImmediate = (immediateCounts.get(wsn) || 0) > 1;
 
-
-
-                          // 🟡 Grid duplicate → clear cell + toast (match QC behaviour)
+                          // Grid duplicate → clear cell + toast
                           if (isGridDuplicateImmediate) {
                             toast(`Duplicate WSN in grid: ${wsn}`, {
                               duration: 2500,
@@ -4253,16 +4280,13 @@ export default function InboundPage() {
                               icon: '⚠️',
                             });
 
-                            // Clear the cell and master columns like QC
                             newRows[rowIndex].wsn = '';
                             ALL_MASTER_COLUMNS.forEach((col) => {
                               newRows[rowIndex][col] = null;
                             });
                             setMultiRows(newRows);
                             checkDuplicates(newRows);
-                            checkDuplicates(newRows);
 
-                            // Re-focus same cell for quick correction
                             setTimeout(() => {
                               event.api.startEditingCell({
                                 rowIndex: rowIndex,
@@ -4273,184 +4297,216 @@ export default function InboundPage() {
                             return;
                           }
 
-                          // ➕ Last row → auto add new row
-                          if (rowIndex === event.api.getDisplayedRowCount() - 1) {
-                            addMultiRow();
+                          // Remote ownership check
+                          setTimeout(async () => {
+                            try {
+                              const wsnCheck = newValue.trim().toUpperCase();
+                              const ownerResp = await inboundAPI.getAll(1, 1, { search: wsnCheck });
+                              const ownerItem = ownerResp?.data?.data?.[0] || ownerResp?.data?.[0] || null;
 
-                            // After row added, remember the new row and scroll to it and start editing the same column (Excel-like)
-                            setTimeout(() => {
-                              try {
-                                const targetIndex = rowIndex + 1;
-                                desiredRowIndexRef.current = targetIndex;
-                                ensureRowVisible(targetIndex, 'bottom', 3, () => {
-                                  try { event.api.startEditingCell({ rowIndex: targetIndex, colKey: field }); } catch (e) { /* ignore */ }
-                                }, scanningModeRef.current);
-                              } catch (e) { /* ignore */ }
-                            }, 140);
-                          }
+                              if (ownerItem) {
+                                const ownerWarehouseId = ownerItem.warehouse_id ?? ownerItem.warehouseId ?? ownerItem.warehouseid ?? null;
 
-                          // If there's a WSN value, first perform a quick remote check to figure out ownership
-                          if (newValue?.trim()) {
-                            // Run the ownership check immediately (no delay) so we can clear bad WSNs early
-                            setTimeout(async () => {
-                              try {
-                                const wsnCheck = newValue.trim().toUpperCase();
-                                const ownerResp = await inboundAPI.getAll(1, 1, { search: wsnCheck });
-                                const ownerItem = ownerResp?.data?.data?.[0] || ownerResp?.data?.[0] || null;
+                                if (ownerWarehouseId && ownerWarehouseId !== activeWarehouse?.id) {
+                                  toast.error(`WSN ${wsnCheck} already inbound in another warehouse`, {
+                                    duration: 3000,
+                                    style: {
+                                      background: '#ffffff',
+                                      color: '#dc2626',
+                                      border: '2px solid #dc2626',
+                                      borderRadius: '8px',
+                                      padding: '12px 16px',
+                                      fontWeight: 600,
+                                      fontSize: '14px',
+                                    },
+                                    icon: '❌',
+                                  });
 
-                                if (ownerItem) {
-                                  const ownerWarehouseId = ownerItem.warehouse_id ?? ownerItem.warehouseId ?? ownerItem.warehouseid ?? null;
+                                  newRows[rowIndex].wsn = '';
+                                  ALL_MASTER_COLUMNS.forEach((col) => {
+                                    newRows[rowIndex][col] = null;
+                                  });
+                                  setMultiRows(newRows);
+                                  await checkDuplicates(newRows);
 
-                                  if (ownerWarehouseId && ownerWarehouseId !== activeWarehouse?.id) {
-                                    // Cross-warehouse → error and clear
-                                    toast.error(`WSN ${wsnCheck} already inbound in another warehouse`, {
-                                      duration: 3000,
-                                      style: {
-                                        background: '#ffffff',
-                                        color: '#dc2626',
-                                        border: '2px solid #dc2626',
-                                        borderRadius: '8px',
-                                        padding: '12px 16px',
-                                        fontWeight: 600,
-                                        fontSize: '14px',
-                                      },
-                                      icon: '🚫',
+                                  setTimeout(() => {
+                                    event.api.startEditingCell({
+                                      rowIndex: rowIndex,
+                                      colKey: 'wsn',
                                     });
+                                  }, 100);
 
-                                    newRows[rowIndex].wsn = '';
-                                    ALL_MASTER_COLUMNS.forEach((col) => {
-                                      newRows[rowIndex][col] = null;
-                                    });
-                                    setMultiRows(newRows);
-                                    await checkDuplicates(newRows);
-
-                                    setTimeout(() => {
-                                      event.api.startEditingCell({ rowIndex: rowIndex, colKey: 'wsn' });
-                                    }, 100);
-
-                                    return;
-                                  }
-
-                                  if (ownerWarehouseId && ownerWarehouseId === activeWarehouse?.id) {
-                                    // Same-warehouse duplicate → warn + clear (match QC behavior)
-                                    toast(`WSN ${wsnCheck} already inbound in this warehouse`, {
-                                      duration: 2500,
-                                      style: {
-                                        background: '#ffffff',
-                                        color: '#d97706',
-                                        border: '2px solid #f59e0b',
-                                        borderRadius: '8px',
-                                        padding: '12px 16px',
-                                        fontWeight: 600,
-                                        fontSize: '14px',
-                                      },
-                                      icon: '⚠️',
-                                    });
-
-                                    newRows[rowIndex].wsn = '';
-                                    ALL_MASTER_COLUMNS.forEach((col) => {
-                                      newRows[rowIndex][col] = null;
-                                    });
-                                    setMultiRows(newRows);
-                                    await checkDuplicates(newRows);
-
-                                    setTimeout(() => {
-                                      event.api.startEditingCell({ rowIndex: rowIndex, colKey: 'wsn' });
-                                    }, 100);
-
-                                    return;
-                                  }
-                                }
-                              } catch (err) {
-                                // ignore remote lookup errors and continue to master data fetch
-                              }
-                            }, 0);
-
-                            // Continue with the regular master-data fetch (delayed)
-                            setTimeout(async () => {
-                              try {
-                                const wsnUpper = newValue.trim().toUpperCase();
-
-                                // GUARD: if the cell was cleared (duplicate or owner) skip master data fetch
-                                if (!newRows[rowIndex].wsn || newRows[rowIndex].wsn.trim().toUpperCase() !== wsnUpper) {
                                   return;
                                 }
 
-                                const response = await inboundAPI.getMasterDataByWSN(wsnUpper);
-                                const masterInfo = response.data;
-                                setMultiRows((prevRows) => {
-                                  const updatedRows = [...prevRows];
-                                  updatedRows[rowIndex] = { ...updatedRows[rowIndex] };
-                                  ALL_MASTER_COLUMNS.forEach((masterCol) => {
-                                    updatedRows[rowIndex][masterCol] =
-                                      masterInfo[masterCol] || null;
+                                if (ownerWarehouseId && ownerWarehouseId === activeWarehouse?.id) {
+                                  toast(`WSN ${wsnCheck} already inbound in this warehouse`, {
+                                    duration: 2500,
+                                    style: {
+                                      background: '#ffffff',
+                                      color: '#d97706',
+                                      border: '2px solid #f59e0b',
+                                      borderRadius: '8px',
+                                      padding: '12px 16px',
+                                      fontWeight: 600,
+                                      fontSize: '14px',
+                                    },
+                                    icon: '⚠️',
                                   });
-                                  return updatedRows;
-                                });
 
-                                // 🖨️ AUTO-PRINT label for valid WSN
-                                console.log('🖨️ Attempting to print label for:', wsnUpper);
-                                try {
-                                  const printPayload = {
-                                    wsn: newValue,
-                                    fsn: masterInfo.fsn || '',
-                                    product_title: masterInfo.product_title || '',
-                                    brand: masterInfo.brand || '',
-                                    mrp: masterInfo.mrp || '',
-                                    fsp: masterInfo.fsp || '',
-                                    copies: 1,
-                                  };
-                                  console.log('📋 Print payload:', printPayload);
+                                  newRows[rowIndex].wsn = '';
+                                  ALL_MASTER_COLUMNS.forEach((col) => {
+                                    newRows[rowIndex][col] = null;
+                                  });
+                                  setMultiRows(newRows);
+                                  await checkDuplicates(newRows);
 
-                                  const printSuccess = await printLabel(printPayload);
-                                  console.log('📊 Print result:', printSuccess);
+                                  setTimeout(() => {
+                                    event.api.startEditingCell({
+                                      rowIndex: rowIndex,
+                                      colKey: 'wsn',
+                                    });
+                                  }, 100);
 
-                                  if (printSuccess) {
-                                    console.log(`✅ Label printed for WSN: ${newValue}`);
-                                    toast.success(`🖨️ Label printed: ${newValue}`, { duration: 2000 });
-                                  }
-                                  // If printSuccess is false, printing is disabled or agent not running
-                                  // Check console logs to determine reason - no toast needed
-                                } catch (printError: any) {
-                                  console.error('❌ Print error:', printError);
-                                  console.error('❌ Print error stack:', printError.stack);
-                                  toast.error(`Print error: ${printError.message}`, { duration: 3000 });
+                                  return;
                                 }
-
-                                // After filling master data, if scanner input or quick entry, move to next WSN and keep a couple rows visible
-                                // Record this as a scan activity so scanner-mode can be detected
-                                try { recordScanActivity(); } catch (e) { /* ignore */ }
-
-                                setTimeout(() => {
-                                  try {
-                                    const nextIndex = rowIndex + 1;
-                                    // If next row exists, make sure it's visible with 3 rows below and start editing (use immediate when scanning)
-                                    if (nextIndex < event.api.getDisplayedRowCount()) {
-                                      desiredRowIndexRef.current = nextIndex;
-                                      ensureRowVisible(nextIndex, 'top', 3, () => {
-                                        try { event.api.startEditingCell({ rowIndex: nextIndex, colKey: 'wsn' }); } catch (e) { /* ignore */ }
-                                      }, scanningModeRef.current);
-                                    } else {
-                                      // If at last row, add one and focus
-                                      addMultiRow();
-                                      setTimeout(() => {
-                                        const newIdx = nextIndex;
-                                        desiredRowIndexRef.current = newIdx;
-                                        ensureRowVisible(newIdx, 'top', 3, () => {
-                                          try { event.api.startEditingCell({ rowIndex: newIdx, colKey: 'wsn' }); } catch (e) { /* ignore */ }
-                                        }, scanningModeRef.current);
-                                      }, 120);
-                                    }
-                                  } catch (e) { /* ignore */ }
-                                }, 80);
-
-                              } catch (error) {
-                                console.log('WSN not found');
                               }
-                            }, 500);
+                            } catch (err) {
+                              /* ignore remote lookup errors */
+                            }
+                          }, 0);
+
+                          // Fetch master data
+                          setTimeout(async () => {
+                            try {
+                              const wsnUpper = newValue.trim().toUpperCase();
+
+                              if (!newRows[rowIndex].wsn || newRows[rowIndex].wsn.trim().toUpperCase() !== wsnUpper) {
+                                return;
+                              }
+
+                              const response = await inboundAPI.getMasterDataByWSN(wsnUpper);
+                              const masterInfo = response.data;
+
+                              setMultiRows((prevRows) => {
+                                const updatedRows = [...prevRows];
+                                updatedRows[rowIndex] = { ...updatedRows[rowIndex] };
+                                ALL_MASTER_COLUMNS.forEach((masterCol) => {
+                                  updatedRows[rowIndex][masterCol] = masterInfo[masterCol] || null;
+                                });
+                                return updatedRows;
+                              });
+
+                              console.log('✅ Attempting to print label for', wsnUpper);
+
+                              try {
+                                const printPayload = {
+                                  wsn: newValue,
+                                  fsn: masterInfo.fsn || '',
+                                  product_title: masterInfo.product_title || '',
+                                  brand: masterInfo.brand || '',
+                                  mrp: masterInfo.mrp || '',
+                                  fsp: masterInfo.fsp || '',
+                                  copies: 1,
+                                };
+
+                                console.log('📄 Print payload:', printPayload);
+
+                                const printSuccess = await printLabel(printPayload);
+                                console.log('🖨️ Print result:', printSuccess);
+
+                                if (printSuccess) {
+                                  console.log('✅ Label printed for WSN:', newValue);
+                                  toast.success(`✓ Label printed: ${newValue}`, { duration: 2000 });
+                                }
+                              } catch (printError: any) {
+                                console.error('❌ Print error:', printError);
+                                console.error('❌ Print error stack:', printError.stack);
+                                toast.error(`Print error: ${printError.message}`, { duration: 3000 });
+                              }
+
+                              // ⚡ Move to next row after filling data
+                              try {
+                                recordScanActivity();
+                              } catch (e) { /* ignore */ }
+
+                              setTimeout(() => {
+                                try {
+                                  const nextIndex = rowIndex + 1;
+
+                                  if (nextIndex < event.api.getDisplayedRowCount()) {
+                                    desiredRowIndexRef.current = nextIndex;
+                                    ensureRowVisible(nextIndex, 'bottom', 4, () => {
+                                      try {
+                                        event.api.startEditingCell({
+                                          rowIndex: nextIndex,
+                                          colKey: 'wsn',
+                                        });
+                                      } catch (e) { /* ignore */ }
+                                    }, scanningModeRef.current);
+                                  } else {
+                                    addMultiRow();
+                                    setTimeout(() => {
+                                      const newIdx = nextIndex;
+                                      desiredRowIndexRef.current = newIdx;
+                                      ensureRowVisible(newIdx, 'bottom', 4, () => {
+                                        try {
+                                          event.api.startEditingCell({
+                                            rowIndex: newIdx,
+                                            colKey: 'wsn',
+                                          });
+                                        } catch (e) { /* ignore */ }
+                                      }, scanningModeRef.current);
+                                    }, 120);
+                                  }
+                                } catch (e) { /* ignore */ }
+                              }, 80);
+                            } catch (error) {
+                              console.log('WSN not found');
+                            }
+                          }, 500);
+                        }
+
+                        // Only fetch master data for WSN
+                        if (field !== 'wsn') {
+                          if (debounceTimerRef.current) {
+                            clearTimeout(debounceTimerRef.current);
+                          }
+
+                          debounceTimerRef.current = setTimeout(() => {
+                            checkDuplicates(newRows);
+                          }, 200);
+                        }
+                      }}
+
+                      onCellKeyDown={(event) => {
+                        // ✅ FIX: event.event is AG Grid's wrapper - access the native keyboard event
+                        const nativeEvent = event.event as KeyboardEvent | undefined;
+                        const key = nativeEvent?.key;
+                        const rowIndex = event.rowIndex;
+
+                        // ✅ NULL SAFETY: Check rowIndex
+                        if (rowIndex === null || rowIndex === undefined) return;
+
+                        // When user presses Enter or Tab to move to next row
+                        if (key === 'Enter' || key === 'Tab') {
+                          const nextRowIndex = rowIndex + 1;
+                          const totalRows = event.api.getDisplayedRowCount();
+
+                          // ⚡ Immediately scroll to show next row (Excel behavior)
+                          if (nextRowIndex < totalRows) {
+                            setTimeout(() => {
+                              try {
+                                ensureRowVisible(nextRowIndex, 'bottom', 4, undefined, true);
+                              } catch (e) { /* ignore */ }
+                            }, 50);
                           }
                         }
                       }}
+
+
+
+
                     />
                   </div>
                 </Box>
