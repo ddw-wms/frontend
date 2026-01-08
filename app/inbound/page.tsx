@@ -93,6 +93,14 @@ export default function InboundPage() {
   const scrollAnimationFrameRef = useRef<number | null>(null);
   const scrollTimeoutRef = useRef<number | null>(null);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Scanner mode detection (for rapid barcode scanner inputs)
+  const scanCountRef = useRef<number>(0);
+  const lastScanTsRef = useRef<number | null>(null);
+  const scanModeTimeoutRef = useRef<number | null>(null);
+  const scanningModeRef = useRef<boolean>(false);
+  // Track a desired row index to keep visible during scanning sessions
+  const desiredRowIndexRef = useRef<number | null>(null);
   const [agentReady, setAgentReady] = useState(false);
 
   //state variables for responsive UI
@@ -4108,6 +4116,39 @@ export default function InboundPage() {
                 >
                   <div style={{ height: '100%', width: '100%' }} className="ag-theme-quartz">
                     <AgGridReact
+                      ref={gridRef}
+                      onGridReady={(params: any) => {
+                        gridRef.current = params.api;
+                        columnApiRef.current = params.columnApi;
+                      }}
+                      onModelUpdated={(params: any) => {
+                        try {
+                          const desired = desiredRowIndexRef.current;
+                          if (scanningModeRef.current && typeof desired === 'number') {
+                            ensureRowVisible(desired, 'bottom', 3, undefined, true);
+                          }
+                        } catch (e) { /* ignore */ }
+                      }}
+                      onFirstDataRendered={(params: any) => {
+                        try {
+                          const desired = desiredRowIndexRef.current;
+                          if (scanningModeRef.current && typeof desired === 'number') {
+                            ensureRowVisible(desired, 'bottom', 3, undefined, true);
+                          }
+                        } catch (e) { /* ignore */ }
+                      }}
+                      onCellKeyDown={(params: any) => {
+                        // Capture keyboard events so we can detect Shift+Enter even when AG Grid doesn't forward the event
+                        lastKeyDownRef.current = params.event;
+                      }}
+                      onCellFocused={(params: any) => {
+                        // Ensure focused cell is visible (fixes cases where navigation doesn't scroll enough)
+                        try {
+                          if (typeof params.rowIndex === 'number' && !scanningModeRef.current) {
+                            ensureRowVisible(params.rowIndex, 'bottom', 3);
+                          }
+                        } catch (e) { /* ignore */ }
+                      }}
                       //theme="legacy"
                       rowData={multiRows}
                       columnDefs={columnDefs}
@@ -4235,6 +4276,17 @@ export default function InboundPage() {
                           // ➕ Last row → auto add new row
                           if (rowIndex === event.api.getDisplayedRowCount() - 1) {
                             addMultiRow();
+
+                            // After row added, remember the new row and scroll to it and start editing the same column (Excel-like)
+                            setTimeout(() => {
+                              try {
+                                const targetIndex = rowIndex + 1;
+                                desiredRowIndexRef.current = targetIndex;
+                                ensureRowVisible(targetIndex, 'bottom', 3, () => {
+                                  try { event.api.startEditingCell({ rowIndex: targetIndex, colKey: field }); } catch (e) { /* ignore */ }
+                                }, scanningModeRef.current);
+                              } catch (e) { /* ignore */ }
+                            }, 140);
                           }
 
                           // If there's a WSN value, first perform a quick remote check to figure out ownership
@@ -4364,6 +4416,34 @@ export default function InboundPage() {
                                   console.error('❌ Print error stack:', printError.stack);
                                   toast.error(`Print error: ${printError.message}`, { duration: 3000 });
                                 }
+
+                                // After filling master data, if scanner input or quick entry, move to next WSN and keep a couple rows visible
+                                // Record this as a scan activity so scanner-mode can be detected
+                                try { recordScanActivity(); } catch (e) { /* ignore */ }
+
+                                setTimeout(() => {
+                                  try {
+                                    const nextIndex = rowIndex + 1;
+                                    // If next row exists, make sure it's visible with 3 rows below and start editing (use immediate when scanning)
+                                    if (nextIndex < event.api.getDisplayedRowCount()) {
+                                      desiredRowIndexRef.current = nextIndex;
+                                      ensureRowVisible(nextIndex, 'top', 3, () => {
+                                        try { event.api.startEditingCell({ rowIndex: nextIndex, colKey: 'wsn' }); } catch (e) { /* ignore */ }
+                                      }, scanningModeRef.current);
+                                    } else {
+                                      // If at last row, add one and focus
+                                      addMultiRow();
+                                      setTimeout(() => {
+                                        const newIdx = nextIndex;
+                                        desiredRowIndexRef.current = newIdx;
+                                        ensureRowVisible(newIdx, 'top', 3, () => {
+                                          try { event.api.startEditingCell({ rowIndex: newIdx, colKey: 'wsn' }); } catch (e) { /* ignore */ }
+                                        }, scanningModeRef.current);
+                                      }, 120);
+                                    }
+                                  } catch (e) { /* ignore */ }
+                                }, 80);
+
                               } catch (error) {
                                 console.log('WSN not found');
                               }
