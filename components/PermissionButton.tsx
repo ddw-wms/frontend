@@ -21,20 +21,20 @@ export function PermissionButton({
     children,
     ...buttonProps
 }: PermissionButtonProps) {
-    const { hasPermission, isVisible, isSuperAdmin, isLoading } = usePermissions();
+    const { canAccess, canSee, isAdmin, isLoading } = usePermissions();
 
-    // Super admin can do everything
-    if (isSuperAdmin) {
+    // Admin can do everything
+    if (isAdmin) {
         return <Button {...buttonProps}>{children}</Button>;
     }
 
     // Check if permission is visible
-    if (!isVisible(permissionCode)) {
+    if (!canSee(permissionCode)) {
         return null;
     }
 
     // Check if user has permission
-    const canAccess = hasPermission(permissionCode);
+    const hasAccess = canAccess(permissionCode);
 
     // Hide button if no access and hideWhenDisabled is true
     if (!canAccess && hideWhenDisabled) {
@@ -75,10 +75,10 @@ export function PermissionIconButton({
     children,
     ...iconButtonProps
 }: PermissionIconButtonProps) {
-    const { hasPermission, isVisible, isSuperAdmin } = usePermissions();
+    const { canAccess, canSee, isAdmin } = usePermissions();
 
-    // Super admin can do everything
-    if (isSuperAdmin) {
+    // Admin can do everything
+    if (isAdmin) {
         if (tooltip) {
             return (
                 <Tooltip title={tooltip}>
@@ -90,20 +90,20 @@ export function PermissionIconButton({
     }
 
     // Check if permission is visible
-    if (!isVisible(permissionCode)) {
+    if (!canSee(permissionCode)) {
         return null;
     }
 
     // Check if user has permission
-    const canAccess = hasPermission(permissionCode);
+    const hasAccess = canAccess(permissionCode);
 
     // Hide button if no access and hideWhenDisabled is true
-    if (!canAccess && hideWhenDisabled) {
+    if (!hasAccess && hideWhenDisabled) {
         return null;
     }
 
     // Show disabled button with tooltip if no access
-    if (!canAccess) {
+    if (!hasAccess) {
         return (
             <Tooltip title={disabledTooltip}>
                 <span>
