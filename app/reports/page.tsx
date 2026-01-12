@@ -728,7 +728,7 @@ export default function ReportsPage() {
                 )}
 
                 <StandardPageHeader
-                    title="Reports & Analytics"
+                    title="Analytics"
                     subtitle={`${activeWarehouse?.name || 'Select Warehouse'} - Business Intelligence`}
                     icon="📊"
                     warehouseName={activeWarehouse?.name}

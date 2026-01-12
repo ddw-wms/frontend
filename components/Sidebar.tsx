@@ -139,7 +139,7 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
     { label: 'Picking', icon: AssignmentIcon, path: '/picking', code: 'menu:picking' },
     { label: 'Outbound', icon: ShippingIcon, path: '/outbound', code: 'menu:outbound' },
     { label: 'Customers', icon: GroupIcon, path: '/customers', code: 'menu:customers' },
-    { label: 'Reports', icon: ReportsIcon, path: '/reports', code: 'menu:reports' }
+    { label: 'Analytics', icon: ReportsIcon, path: '/reports', code: 'menu:reports' }
   ], []);
 
   // Settings menu items with permission codes

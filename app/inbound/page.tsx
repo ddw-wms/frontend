@@ -9,7 +9,7 @@ import {
   DialogContent, DialogActions, TextField, MenuItem, Chip, Stack, Tab, Tabs,
   CircularProgress, Alert, Card, CardContent, LinearProgress, Divider,
   Select, FormControl, InputLabel, InputAdornment, Checkbox, FormControlLabel,
-  Collapse, IconButton, AppBar, Toolbar, useMediaQuery, useTheme // Add these
+  Collapse, IconButton, AppBar, Toolbar, useMediaQuery, useTheme, Switch // Add these
 } from '@mui/material';
 
 import {
@@ -44,7 +44,7 @@ const DEFAULT_MULTI_COLUMNS = [
   'unload_remarks'
 ];
 
-const ALL_MASTER_COLUMNS = ['wid', 'fsn', 'order_id', 'product_title', 'brand', 'mrp', 'fsp', 'hsn_sac', 'igst_rate', 'cms_vertical', 'fkt_link', 'p_type', 'p_size', 'vrp', 'yield_value'];
+const ALL_MASTER_COLUMNS = ['wid', 'fsn', 'order_id', 'product_title', 'brand', 'mrp', 'fsp', 'hsn_sac', 'igst_rate', 'cms_vertical', 'fkt_link', 'p_type', 'p_size', 'vrp', 'yield_value', 'fk_grade', 'fkqc_remark'];
 const INBOUND_LIST_COLUMNS = [
   'wsn',
   'product_title',
@@ -113,6 +113,22 @@ export default function InboundPage() {
   const desiredRowIndexRef = useRef<number | null>(null);
   const [agentReady, setAgentReady] = useState(false);
 
+  // ====== PRINT TOGGLE STATE ======
+  const [singlePrintEnabled, setSinglePrintEnabled] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('inbound_singlePrintEnabled');
+      return saved !== 'false'; // Default to true
+    }
+    return true;
+  });
+  const [multiPrintEnabled, setMultiPrintEnabled] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('inbound_multiPrintEnabled');
+      return saved !== 'false'; // Default to true
+    }
+    return true;
+  });
+
   //state variables for responsive UI
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
@@ -161,6 +177,16 @@ export default function InboundPage() {
   const [multiLoading, setMultiLoading] = useState(false);
   const [multiResults, setMultiResults] = useState<any[]>([]);
   const [duplicateWSNs, setDuplicateWSNs] = useState<Set<string>>(new Set());
+
+  // ====== EXCEL-LIKE ENHANCEMENTS ======
+  // Row highlighting for newly added/scanned rows
+  const [highlightedRows, setHighlightedRows] = useState<Set<number>>(new Set());
+  const highlightTimeoutRefs = useRef<Map<number, NodeJS.Timeout>>(new Map());
+
+  // Undo/Redo history for Excel-like behavior
+  const undoStackRef = useRef<any[][]>([]);
+  const redoStackRef = useRef<any[][]>([]);
+  const MAX_UNDO_HISTORY = 50;
 
   // ---- Draft / Autosave (IndexedDB via localForage) ----
   const [draftSavedAt, setDraftSavedAt] = useState<number | null>(null);
@@ -271,6 +297,15 @@ export default function InboundPage() {
 
   const [gridSettingsOpen, setGridSettingsOpen] = useState(false);
 
+  // ====== MULTI ENTRY GRID SETTINGS (SEPARATE) ======
+  const [multiGridSettings, setMultiGridSettings] = useState({
+    sortable: true,
+    filter: true,
+    resizable: true,
+    editable: true,
+  });
+  const [multiGridSettingsOpen, setMultiGridSettingsOpen] = useState(false);
+
   // ✅ LOAD Grid Settings from localStorage on mount
   useEffect(() => {
     const savedSettings = localStorage.getItem('qc_grid_settings');
@@ -283,6 +318,17 @@ export default function InboundPage() {
         console.log('Failed to parse grid settings');
       }
     }
+    // Load Multi Entry grid settings
+    const savedMultiSettings = localStorage.getItem('inbound_multi_grid_settings');
+    if (savedMultiSettings) {
+      try {
+        const parsed = JSON.parse(savedMultiSettings);
+        setMultiGridSettings(parsed);
+        console.log('✅ Multi Entry Grid settings loaded:', parsed);
+      } catch (e) {
+        console.log('Failed to parse multi grid settings');
+      }
+    }
   }, []);
 
   // ✅ SAVE to localStorage whenever settings change
@@ -290,6 +336,13 @@ export default function InboundPage() {
     setGridSettings(newSettings);
     localStorage.setItem('qc_grid_settings', JSON.stringify(newSettings));
     console.log('💾 Grid settings saved:', newSettings);
+  };
+
+  // ✅ SAVE Multi Entry grid settings
+  const updateMultiGridSettings = (newSettings: typeof multiGridSettings) => {
+    setMultiGridSettings(newSettings);
+    localStorage.setItem('inbound_multi_grid_settings', JSON.stringify(newSettings));
+    console.log('💾 Multi Entry Grid settings saved:', newSettings);
   };
 
   useEffect(() => {
@@ -487,6 +540,19 @@ export default function InboundPage() {
       setFilteredBrands(brands);
     }
   }, [categoryFilter, listData, brands]);
+
+  // ====== SAVE PRINT TOGGLE SETTINGS ======
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('inbound_singlePrintEnabled', String(singlePrintEnabled));
+    }
+  }, [singlePrintEnabled]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('inbound_multiPrintEnabled', String(multiPrintEnabled));
+    }
+  }, [multiPrintEnabled]);
 
   // ====== PRINT AGENT CHECK ======
   useEffect(() => {
@@ -760,6 +826,7 @@ export default function InboundPage() {
 
   // ====== LOAD DATA ON TAB CHANGE ======
   const currentTabCode = visibleTabCodes[tabValue];
+
   useEffect(() => {
     if (activeWarehouse && (currentTabCode === 'list' || currentTabCode === 'single')) {
       loadRacks();
@@ -827,13 +894,15 @@ export default function InboundPage() {
         return;
       }
 
-      console.log(`🖨️ Printing WSN: ${wsn}`);
+      // Ensure WSN is always uppercase for printing
+      const wsnUpper = wsn.toUpperCase();
+      console.log(`🖨️ Printing WSN: ${wsnUpper}`);
 
       // Get copy count from settings (fallback to 1)
       const copies = 1;
 
       const success = await printLabel({
-        wsn,
+        wsn: wsnUpper,
         product_title: masterData?.product_title || '',
         brand: masterData?.brand || '',
         mrp: masterData?.mrp || '',
@@ -958,8 +1027,8 @@ export default function InboundPage() {
         toast.success('✓ Inbound entry created successfully!');
         saveVehicleNumber(singleForm.vehicle_no);
 
-        // Trigger print if agent is ready
-        if (agentReady && masterData) {
+        // Trigger print if agent is ready AND print is enabled
+        if (singlePrintEnabled && agentReady && masterData) {
           await triggerPrint(singleWSN, masterData);
         }
 
@@ -1085,6 +1154,169 @@ export default function InboundPage() {
   };
 
   // ====== MULTI ENTRY FUNCTIONS ======
+
+  // ✅ EXCEL ENHANCEMENT: Highlight newly added row for visual confirmation
+  const highlightRow = useCallback((rowIndex: number, duration = 1500) => {
+    // Clear any existing timeout for this row
+    const existingTimeout = highlightTimeoutRefs.current.get(rowIndex);
+    if (existingTimeout) {
+      clearTimeout(existingTimeout);
+    }
+
+    // Add row to highlighted set
+    setHighlightedRows(prev => {
+      const newSet = new Set(Array.from(prev));
+      newSet.add(rowIndex);
+      return newSet;
+    });
+
+    // Remove highlight after duration
+    const timeout = setTimeout(() => {
+      setHighlightedRows(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(rowIndex);
+        return newSet;
+      });
+      highlightTimeoutRefs.current.delete(rowIndex);
+    }, duration);
+
+    highlightTimeoutRefs.current.set(rowIndex, timeout);
+  }, []);
+
+  // ✅ EXCEL ENHANCEMENT: Save state for undo
+  const saveToUndoStack = useCallback((rows: any[]) => {
+    undoStackRef.current.push(JSON.parse(JSON.stringify(rows)));
+    if (undoStackRef.current.length > MAX_UNDO_HISTORY) {
+      undoStackRef.current.shift();
+    }
+    // Clear redo stack when new action is performed
+    redoStackRef.current = [];
+  }, []);
+
+  // ✅ EXCEL ENHANCEMENT: Undo last change (Ctrl+Z)
+  const handleUndo = useCallback(() => {
+    if (undoStackRef.current.length === 0) {
+      toast('Nothing to undo', { icon: 'ℹ️', duration: 1500 });
+      return;
+    }
+
+    // Save current state to redo stack
+    redoStackRef.current.push(JSON.parse(JSON.stringify(multiRows)));
+
+    // Pop from undo stack and apply
+    const previousState = undoStackRef.current.pop()!;
+    setMultiRows(previousState);
+    toast.success('Undo successful', { duration: 1500 });
+  }, [multiRows]);
+
+  // ✅ EXCEL ENHANCEMENT: Redo last undone change (Ctrl+Y)
+  const handleRedo = useCallback(() => {
+    if (redoStackRef.current.length === 0) {
+      toast('Nothing to redo', { icon: 'ℹ️', duration: 1500 });
+      return;
+    }
+
+    // Save current state to undo stack
+    undoStackRef.current.push(JSON.parse(JSON.stringify(multiRows)));
+
+    // Pop from redo stack and apply
+    const nextState = redoStackRef.current.pop()!;
+    setMultiRows(nextState);
+    toast.success('Redo successful', { duration: 1500 });
+  }, [multiRows]);
+
+  // ✅ EXCEL ENHANCEMENT: Fill Down (Ctrl+D) - copy value from cell above
+  const handleFillDown = useCallback(() => {
+    const api = gridRef.current;
+    if (!api) return;
+
+    const focusedCell = api.getFocusedCell();
+    if (!focusedCell) {
+      toast('Select a cell first', { icon: 'ℹ️', duration: 1500 });
+      return;
+    }
+
+    const { rowIndex, column } = focusedCell;
+    const colId = column.getColId();
+
+    if (rowIndex === 0) {
+      toast('No cell above to copy from', { icon: 'ℹ️', duration: 1500 });
+      return;
+    }
+
+    // Check if column is editable
+    if (!EDITABLE_COLUMNS.includes(colId)) {
+      toast('Cannot fill down in this column', { icon: '⚠️', duration: 1500 });
+      return;
+    }
+
+    const valueAbove = multiRows[rowIndex - 1]?.[colId];
+    if (valueAbove === undefined || valueAbove === null || valueAbove === '') {
+      toast('No value above to copy', { icon: 'ℹ️', duration: 1500 });
+      return;
+    }
+
+    // Save to undo stack before modification
+    saveToUndoStack(multiRows);
+
+    const newRows = [...multiRows];
+    newRows[rowIndex] = { ...newRows[rowIndex], [colId]: valueAbove };
+    setMultiRows(newRows);
+
+    // Refresh cell
+    api.refreshCells({ rowNodes: [api.getRowNode(String(rowIndex))], columns: [colId] });
+    toast.success(`Filled: ${valueAbove}`, { duration: 1500 });
+  }, [multiRows, saveToUndoStack]);
+
+  // ⚡ EXCEL-LIKE KEYBOARD SHORTCUTS (Global listener for Multi Entry tab)
+  useEffect(() => {
+    if (currentTabCode !== 'multi') return;
+
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      const ctrlKey = e.ctrlKey || e.metaKey;
+
+      // Only handle shortcuts when Multi Entry tab is active
+      if (currentTabCode !== 'multi') return;
+
+      // Ctrl+Z → Undo (global, works even outside grid)
+      if (ctrlKey && e.key.toLowerCase() === 'z' && !e.shiftKey) {
+        // Don't prevent default if user is editing a text input
+        const activeEl = document.activeElement;
+        if (activeEl?.tagName === 'INPUT' || activeEl?.tagName === 'TEXTAREA') return;
+
+        e.preventDefault();
+        handleUndo();
+        return;
+      }
+
+      // Ctrl+Y or Ctrl+Shift+Z → Redo
+      if (ctrlKey && (e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey))) {
+        const activeEl = document.activeElement;
+        if (activeEl?.tagName === 'INPUT' || activeEl?.tagName === 'TEXTAREA') return;
+
+        e.preventDefault();
+        handleRedo();
+        return;
+      }
+
+      // Ctrl+D → Fill Down
+      if (ctrlKey && e.key.toLowerCase() === 'd') {
+        const api = gridRef.current;
+        if (!api) return;
+
+        const focusedCell = api.getFocusedCell();
+        if (!focusedCell) return;
+
+        e.preventDefault();
+        handleFillDown();
+        return;
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [currentTabCode, handleUndo, handleRedo, handleFillDown]);
+
   // Record scanning activity: detect rapid consecutive inputs and enable scanning mode
   function recordScanActivity() {
     try {
@@ -1245,6 +1477,7 @@ export default function InboundPage() {
   }
 
   const addMultiRow = () => {
+    const newRowIndex = multiRows.length;
     const newRows = [
       ...multiRows,
       {
@@ -1259,10 +1492,22 @@ export default function InboundPage() {
 
     setMultiRows(newRows);
 
+    // ⚡ EXCEL ENHANCEMENT: Highlight newly added row
+    highlightRow(newRowIndex, 1500);
+
     // Give React/AG Grid a moment to render, then ensure the new row is visible (Excel-like behavior)
     setTimeout(() => {
       try {
         ensureRowVisible(newRows.length - 1, 'bottom', 3, undefined, scanningModeRef.current);
+
+        // Auto-focus the WSN cell of the new row
+        const api = gridRef.current;
+        if (api) {
+          api.startEditingCell({
+            rowIndex: newRowIndex,
+            colKey: 'wsn',
+          });
+        }
       } catch (e) { /* ignore */ }
     }, 80);
   };
@@ -1373,12 +1618,12 @@ export default function InboundPage() {
             return updatedRows;
           });
 
-          // Auto-print if no duplicates
+          // Auto-print if no duplicates AND print is enabled
           const wsn = wsnUpper;
           const isGridDup = gridDuplicateWSNs.has(wsn);
           const isCrossWh = crossWarehouseWSNs.has(wsn);
 
-          if (!isGridDup && !isCrossWh && agentReady) {
+          if (multiPrintEnabled && !isGridDup && !isCrossWh && agentReady) {
             // Trigger print for this WSN
             triggerPrint(wsn, masterInfo);
           }
@@ -1442,6 +1687,62 @@ export default function InboundPage() {
 
     return nextCellPosition;
   }, [visibleColumns]);
+
+  // ✅ EXCEL-LIKE TAB NAVIGATION - move through editable cells like Excel
+  const tabToNextCell = useCallback((params: any) => {
+    const { previousCellPosition, nextCellPosition, backwards } = params;
+
+    if (!previousCellPosition) return nextCellPosition;
+
+    const currentRow = previousCellPosition.rowIndex;
+    const currentCol = previousCellPosition.column.getColId();
+    const api = params.api;
+    const allColumns = api.getAllDisplayedColumns();
+    const editableColumnIds = allColumns
+      .map((c: any) => c.getColId())
+      .filter((id: string) => EDITABLE_COLUMNS.includes(id));
+
+    const currentColIndex = editableColumnIds.indexOf(currentCol);
+
+    if (backwards) {
+      // Shift+Tab - go backwards
+      if (currentColIndex > 0) {
+        // Move to previous editable column in same row
+        const prevColId = editableColumnIds[currentColIndex - 1];
+        const prevCol = allColumns.find((c: any) => c.getColId() === prevColId);
+        return { rowIndex: currentRow, column: prevCol };
+      } else if (currentRow > 0) {
+        // Move to last editable column of previous row
+        const lastColId = editableColumnIds[editableColumnIds.length - 1];
+        const lastCol = allColumns.find((c: any) => c.getColId() === lastColId);
+        return { rowIndex: currentRow - 1, column: lastCol };
+      }
+    } else {
+      // Tab - go forwards
+      if (currentColIndex < editableColumnIds.length - 1) {
+        // Move to next editable column in same row
+        const nextColId = editableColumnIds[currentColIndex + 1];
+        const nextCol = allColumns.find((c: any) => c.getColId() === nextColId);
+        return { rowIndex: currentRow, column: nextCol };
+      } else {
+        // Move to first editable column of next row
+        const firstColId = editableColumnIds[0];
+        const firstCol = allColumns.find((c: any) => c.getColId() === firstColId);
+
+        // Auto-scroll to next row
+        const nextRow = currentRow + 1;
+        setTimeout(() => {
+          try {
+            ensureRowVisible(nextRow, 'bottom', 4, undefined, true);
+          } catch (e) { /* ignore */ }
+        }, 50);
+
+        return { rowIndex: nextRow, column: firstCol };
+      }
+    }
+
+    return nextCellPosition;
+  }, [ensureRowVisible]);
 
 
 
@@ -1703,7 +2004,42 @@ export default function InboundPage() {
             ...baseColDef,
             ...columnWidthConfig,
 
+            // ⚡ Add cellStyle for fkqc_remark color formatting
+            ...(col === 'fkqc_remark' ? {
+              cellStyle: (params: any) => {
+                const value = params.value?.trim()?.toUpperCase();
+                if (value === 'CX') {
+                  return { backgroundColor: '#fee2e2', color: '#dc2626', fontWeight: 700 }; // Light red for CX
+                } else if (value === 'NTF') {
+                  return { backgroundColor: '#dcfce7', color: '#16a34a', fontWeight: 700 }; // Light green for NTF
+                }
+                return {};
+              }
+            } : {}),
+
             cellRenderer: (params: any) => {
+
+              // Special rendering for fkqc_remark column
+              if (col === 'fkqc_remark') {
+                const value = params.value?.trim()?.toUpperCase();
+                const isCX = value === 'CX';
+                const isNTF = value === 'NTF';
+
+                return (
+                  <span
+                    style={{
+                      fontWeight: 700,
+                      padding: '2px 8px',
+                      borderRadius: '4px',
+                      backgroundColor: isCX ? '#fee2e2' : isNTF ? '#dcfce7' : 'transparent',
+                      color: isCX ? '#dc2626' : isNTF ? '#16a34a' : 'inherit'
+                    }}
+                    title={params.value}
+                  >
+                    {params.value ?? '-'}
+                  </span>
+                );
+              }
 
               if (col !== 'wsn') {
                 // Make the FKT_LINK column clickable (open in new tab) while keeping other columns simple
@@ -3260,17 +3596,36 @@ export default function InboundPage() {
                   overflow: { xs: 'auto', lg: 'visible' }
                 }}>
                   <CardContent sx={{ p: { xs: 1.2, sm: 1.5, md: 2 } }}>
-                    <Typography
-                      variant="subtitle1"
-                      sx={{
-                        fontWeight: 700,
-                        mb: { xs: 1, sm: 1.5 },
-                        color: '#1a237e',
-                        fontSize: { xs: '0.85rem', sm: '0.9rem', md: '0.95rem' }
-                      }}
-                    >
-                      📝 Entry Form
-                    </Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: { xs: 1, sm: 1.5 } }}>
+                      <Typography
+                        variant="subtitle1"
+                        sx={{
+                          fontWeight: 700,
+                          color: '#1a237e',
+                          fontSize: { xs: '0.85rem', sm: '0.9rem', md: '0.95rem' }
+                        }}
+                      >
+                        📝 Entry Form
+                      </Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Typography variant="caption" sx={{ color: singlePrintEnabled ? '#16a34a' : '#dc2626', fontWeight: 600 }}>
+                          {singlePrintEnabled ? '🖨️ Print ON' : '🖨️ Print OFF'}
+                        </Typography>
+                        <Switch
+                          size="small"
+                          checked={singlePrintEnabled}
+                          onChange={(e) => setSinglePrintEnabled(e.target.checked)}
+                          sx={{
+                            '& .MuiSwitch-switchBase.Mui-checked': {
+                              color: '#16a34a',
+                            },
+                            '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+                              backgroundColor: '#16a34a',
+                            },
+                          }}
+                        />
+                      </Box>
+                    </Box>
 
                     <Stack spacing={{ xs: 1, sm: 1.2, md: 1.5 }}>
                       <TextField
@@ -3891,13 +4246,13 @@ export default function InboundPage() {
                               + 30 ROWS
                             </Button>
 
-                            {/* ✅ NEW: Grid Settings Button */}
+                            {/* ✅ Multi Entry Grid Settings Button */}
                             <Button
                               type="button"
                               size="small"
                               variant="outlined"
                               startIcon={<SettingsIcon sx={{ fontSize: '0.85rem' }} />}
-                              onClick={(e) => { e.stopPropagation(); setGridSettingsOpen(true); }}
+                              onClick={(e) => { e.stopPropagation(); setMultiGridSettingsOpen(true); }}
                               sx={{
                                 fontSize: '0.7rem',
                                 fontWeight: 700,
@@ -3912,6 +4267,41 @@ export default function InboundPage() {
                             >
                               Grid
                             </Button>
+
+                            {/* Print Toggle */}
+                            <Box
+                              sx={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 0.5,
+                                border: `2px solid ${multiPrintEnabled ? '#16a34a' : '#dc2626'}`,
+                                borderRadius: 1,
+                                px: 1,
+                                py: 0.25,
+                                height: 32
+                              }}
+                            >
+                              <Typography
+                                variant="caption"
+                                sx={{
+                                  color: multiPrintEnabled ? '#16a34a' : '#dc2626',
+                                  fontWeight: 700,
+                                  fontSize: '0.7rem'
+                                }}
+                              >
+                                🖨️ {multiPrintEnabled ? 'ON' : 'OFF'}
+                              </Typography>
+                              <Switch
+                                size="small"
+                                checked={multiPrintEnabled}
+                                onChange={(e) => setMultiPrintEnabled(e.target.checked)}
+                                sx={{
+                                  transform: 'scale(0.8)',
+                                  '& .MuiSwitch-switchBase.Mui-checked': { color: '#16a34a' },
+                                  '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { backgroundColor: '#16a34a' },
+                                }}
+                              />
+                            </Box>
                           </Stack>
                         </Stack>
                       </Stack>
@@ -4013,12 +4403,12 @@ export default function InboundPage() {
                             >
                               + 30 ROWS
                             </Button>
-                            {/* ✅ NEW: Grid Settings Button */}
+                            {/* ✅ Multi Entry Grid Settings Button (Mobile) */}
                             <Button
                               type="button"
                               size="small"
                               variant="outlined"
-                              onClick={(e) => { e.stopPropagation(); setGridSettingsOpen(true); }}
+                              onClick={(e) => { e.stopPropagation(); setMultiGridSettingsOpen(true); }}
                               sx={{
                                 fontSize: '0.6rem',
                                 fontWeight: 700,
@@ -4035,6 +4425,79 @@ export default function InboundPage() {
                             >
                               <SettingsIcon sx={{ fontSize: '0.85rem' }} /> Grid
                             </Button>
+
+                            {/* Print Toggle (Mobile) */}
+                            <Box
+                              onClick={() => setMultiPrintEnabled(!multiPrintEnabled)}
+                              sx={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                border: `2px solid ${multiPrintEnabled ? '#16a34a' : '#dc2626'}`,
+                                borderRadius: 1,
+                                px: 1,
+                                height: 28,
+                                minWidth: 65,
+                                cursor: 'pointer',
+                                '&:hover': { opacity: 0.8 }
+                              }}
+                            >
+                              <Typography
+                                variant="caption"
+                                sx={{
+                                  color: multiPrintEnabled ? '#16a34a' : '#dc2626',
+                                  fontWeight: 700,
+                                  fontSize: '0.6rem'
+                                }}
+                              >
+                                🖨️ {multiPrintEnabled ? 'ON' : 'OFF'}
+                              </Typography>
+                            </Box>
+
+                            {/* ⚡ EXCEL SHORTCUTS HELP */}
+                            <Tooltip
+                              title={
+                                <Box sx={{ p: 0.5, fontSize: '11px', lineHeight: 1.5 }}>
+                                  <Typography sx={{ fontWeight: 700, mb: 0.5, fontSize: '12px' }}>⌨️ Excel Shortcuts</Typography>
+                                  <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0.5 }}>
+                                    <span><b>Ctrl+C</b> Copy</span>
+                                    <span><b>Ctrl+V</b> Paste</span>
+                                    <span><b>Ctrl+X</b> Cut</span>
+                                    <span><b>Ctrl+Z</b> Undo</span>
+                                    <span><b>Ctrl+Y</b> Redo</span>
+                                    <span><b>Ctrl+D</b> Fill Down</span>
+                                    <span><b>Enter</b> Next Row</span>
+                                    <span><b>Tab</b> Next Cell</span>
+                                    <span><b>Ctrl+↑↓</b> Jump</span>
+                                    <span><b>Shift+↑↓</b> Select</span>
+                                  </Box>
+                                </Box>
+                              }
+                              arrow
+                              placement="bottom"
+                            >
+                              <Button
+                                type="button"
+                                size="small"
+                                variant="outlined"
+                                sx={{
+                                  fontSize: '0.6rem',
+                                  fontWeight: 700,
+                                  minWidth: 32,
+                                  width: 32,
+                                  height: 28,
+                                  px: 0,
+                                  borderColor: '#10b981',
+                                  color: '#10b981',
+                                  '&:hover': {
+                                    borderColor: '#10b981',
+                                    bgcolor: 'rgba(16, 185, 129, 0.08)'
+                                  }
+                                }}
+                              >
+                                ⌨️
+                              </Button>
+                            </Tooltip>
 
                           </Stack>
                         </Stack>
@@ -4104,6 +4567,17 @@ export default function InboundPage() {
                     '& .ag-row-even': { backgroundColor: '#ffffff' },
                     '& .ag-row-odd': { backgroundColor: '#f9fafb' },
 
+                    // ⚡ EXCEL ENHANCEMENT: Highlight animation for newly added rows
+                    '& .ag-row-highlight-new': {
+                      animation: 'rowHighlightPulse 1.5s ease-out',
+                      backgroundColor: '#dcfce7 !important',
+                    },
+                    '@keyframes rowHighlightPulse': {
+                      '0%': { backgroundColor: '#86efac' },
+                      '50%': { backgroundColor: '#bbf7d0' },
+                      '100%': { backgroundColor: '#dcfce7' },
+                    },
+
                     // Active (focused) cell – Excel जैसी नीली border
                     '& .ag-cell-focus': {
                       border: '2px solid #2563eb !important',
@@ -4167,12 +4641,12 @@ export default function InboundPage() {
                       overlayNoRowsTemplate='<span style="padding: 20px; font-size: 14px; color: #666;">Click on any cell to start entering data</span>'
 
                       defaultColDef={{
-                        sortable: gridSettings.sortable,  // ✅ Dynamic
-                        filter: gridSettings.filter,      // ✅ Dynamic
-                        resizable: gridSettings.resizable, // ✅ Dynamic
+                        sortable: multiGridSettings.sortable,  // ✅ Multi Entry Settings
+                        filter: multiGridSettings.filter,      // ✅ Multi Entry Settings
+                        resizable: multiGridSettings.resizable, // ✅ Multi Entry Settings
                         editable: (params) => {
-                          // ✅ Check grid settings first
-                          if (!gridSettings.editable) return false;
+                          // ✅ Check multi grid settings first
+                          if (!multiGridSettings.editable) return false;
 
                           const field = params.colDef.field as string;
                           const wsn = params.data?.wsn?.trim()?.toUpperCase();
@@ -4192,24 +4666,71 @@ export default function InboundPage() {
                         },
                       }}
 
+                      // ⚡ EXCEL-LIKE CLIPBOARD & SELECTION FEATURES
+                      enableCellTextSelection={true}
+                      suppressCopyRowsToClipboard={false}
+                      clipboardDelimiter="\t"
+                      rowSelection="multiple"
+                      suppressRowDeselection={false}
+
+                      // ⚡ EXCEL-LIKE: Process clipboard paste from Excel
+                      processCellFromClipboard={(params) => {
+                        // Allow pasting into editable columns only
+                        const colId = params.column.getColId();
+                        if (!EDITABLE_COLUMNS.includes(colId)) {
+                          return params.node?.data?.[colId]; // Return original value
+                        }
+                        return params.value;
+                      }}
+
+                      // ⚡ EXCEL-LIKE: Handle paste start for undo support
+                      onPasteStart={(params) => {
+                        // Save current state before paste for undo
+                        saveToUndoStack(multiRows);
+                      }}
+
+                      // ⚡ EXCEL-LIKE: Handle paste end for notifications
+                      onPasteEnd={(params) => {
+                        toast.success(`Pasted data successfully`, { duration: 1500 });
+                        // Refresh grid to ensure all cells are updated
+                        const api = gridRef.current;
+                        if (api) {
+                          api.refreshCells({ force: true });
+                        }
+                      }}
+
                       // keyboard navigation
                       stopEditingWhenCellsLoseFocus={true}
                       enterNavigatesVertically={true}
                       enterNavigatesVerticallyAfterEdit={true}
                       navigateToNextCell={navigateToNextCell}
+                      tabToNextCell={tabToNextCell}
                       ensureDomOrder={true}
                       suppressRowClickSelection={true}
                       suppressMovableColumns={true}
                       rowBuffer={5}
 
+                      // ⚡ EXCEL-LIKE: Get row class for highlighting newly added rows
+                      getRowClass={(params) => {
+                        if (highlightedRows.has(params.rowIndex)) {
+                          return 'ag-row-highlight-new';
+                        }
+                        return undefined;
+                      }}
+
 
 
                       onCellValueChanged={(event) => {
-                        const { colDef, newValue, rowIndex } = event;
+                        const { colDef, newValue, rowIndex, oldValue } = event;
                         const field = colDef?.field;
 
                         // ✅ NULL SAFETY: Return early if field or rowIndex is null
                         if (!field || rowIndex === null || rowIndex === undefined) return;
+
+                        // ⚡ EXCEL ENHANCEMENT: Save to undo stack for any meaningful change
+                        if (oldValue !== newValue) {
+                          saveToUndoStack(multiRows);
+                        }
 
                         const newRows = [...multiRows];
 
@@ -4224,11 +4745,13 @@ export default function InboundPage() {
                           return;
                         }
 
-                        newRows[rowIndex] = { ...newRows[rowIndex], [field]: newValue };
+                        // ⚡ Convert WSN to uppercase
+                        const processedValue = field === 'wsn' && newValue ? newValue.toUpperCase() : newValue;
+                        newRows[rowIndex] = { ...newRows[rowIndex], [field]: processedValue };
                         setMultiRows(newRows);
 
                         // ⚡ EXCEL AUTO-SCROLL: When any value entered, ensure next row visible
-                        if (newValue?.trim()) {
+                        if (processedValue?.trim()) {
                           const nextRowIndex = rowIndex + 1;
                           const totalRows = event.api.getDisplayedRowCount();
 
@@ -4243,6 +4766,9 @@ export default function InboundPage() {
 
                         // If user entered a WSN, start scan activity detection
                         if (field === 'wsn' && newValue?.trim()) {
+                          // ⚡ EXCEL ENHANCEMENT: Highlight the row being scanned
+                          highlightRow(rowIndex, 1500);
+
                           try {
                             recordScanActivity();
                           } catch (e) { /* ignore */ }
@@ -4400,32 +4926,37 @@ export default function InboundPage() {
                                 return updatedRows;
                               });
 
-                              console.log('✅ Attempting to print label for', wsnUpper);
+                              // ✅ AUTO-PRINT: Only if multiPrintEnabled is ON
+                              if (multiPrintEnabled) {
+                                console.log('✅ Attempting to print label for', wsnUpper);
 
-                              try {
-                                const printPayload = {
-                                  wsn: newValue,
-                                  fsn: masterInfo.fsn || '',
-                                  product_title: masterInfo.product_title || '',
-                                  brand: masterInfo.brand || '',
-                                  mrp: masterInfo.mrp || '',
-                                  fsp: masterInfo.fsp || '',
-                                  copies: 1,
-                                };
+                                try {
+                                  const printPayload = {
+                                    wsn: wsnUpper,
+                                    fsn: masterInfo.fsn || '',
+                                    product_title: masterInfo.product_title || '',
+                                    brand: masterInfo.brand || '',
+                                    mrp: masterInfo.mrp || '',
+                                    fsp: masterInfo.fsp || '',
+                                    copies: 1,
+                                  };
 
-                                console.log('📄 Print payload:', printPayload);
+                                  console.log('📄 Print payload:', printPayload);
 
-                                const printSuccess = await printLabel(printPayload);
-                                console.log('🖨️ Print result:', printSuccess);
+                                  const printSuccess = await printLabel(printPayload);
+                                  console.log('🖨️ Print result:', printSuccess);
 
-                                if (printSuccess) {
-                                  console.log('✅ Label printed for WSN:', newValue);
-                                  toast.success(`✓ Label printed: ${newValue}`, { duration: 2000 });
+                                  if (printSuccess) {
+                                    console.log('✅ Label printed for WSN:', wsnUpper);
+                                    toast.success(`✓ Label printed: ${wsnUpper}`, { duration: 2000 });
+                                  }
+                                } catch (printError: any) {
+                                  console.error('❌ Print error:', printError);
+                                  console.error('❌ Print error stack:', printError.stack);
+                                  toast.error(`Print error: ${printError.message}`, { duration: 3000 });
                                 }
-                              } catch (printError: any) {
-                                console.error('❌ Print error:', printError);
-                                console.error('❌ Print error stack:', printError.stack);
-                                toast.error(`Print error: ${printError.message}`, { duration: 3000 });
+                              } else {
+                                console.log('⏸️ Print skipped - multiPrintEnabled is OFF');
                               }
 
                               // ⚡ Move to next row after filling data
@@ -4491,6 +5022,30 @@ export default function InboundPage() {
                         // ✅ NULL SAFETY: Check rowIndex
                         if (rowIndex === null || rowIndex === undefined) return;
 
+                        // ⚡ EXCEL-LIKE KEYBOARD SHORTCUTS
+                        const ctrlKey = nativeEvent?.ctrlKey || nativeEvent?.metaKey;
+
+                        // Ctrl+Z → Undo
+                        if (ctrlKey && key?.toLowerCase() === 'z' && !nativeEvent?.shiftKey) {
+                          nativeEvent?.preventDefault();
+                          handleUndo();
+                          return;
+                        }
+
+                        // Ctrl+Y or Ctrl+Shift+Z → Redo
+                        if (ctrlKey && (key?.toLowerCase() === 'y' || (key?.toLowerCase() === 'z' && nativeEvent?.shiftKey))) {
+                          nativeEvent?.preventDefault();
+                          handleRedo();
+                          return;
+                        }
+
+                        // Ctrl+D → Fill Down (copy value from cell above)
+                        if (ctrlKey && key?.toLowerCase() === 'd') {
+                          nativeEvent?.preventDefault();
+                          handleFillDown();
+                          return;
+                        }
+
                         // When user presses Enter or Tab to move to next row
                         if (key === 'Enter' || key === 'Tab') {
                           const nextRowIndex = rowIndex + 1;
@@ -4504,6 +5059,46 @@ export default function InboundPage() {
                               } catch (e) { /* ignore */ }
                             }, 50);
                           }
+                        }
+
+                        // Arrow key navigation with Ctrl → Jump to edge of data
+                        if (ctrlKey && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(key || '')) {
+                          nativeEvent?.preventDefault();
+                          const api = event.api;
+                          const focusedCell = api.getFocusedCell();
+                          if (!focusedCell) return;
+
+                          const currentRow = focusedCell.rowIndex;
+                          const currentCol = focusedCell.column;
+                          const colId = currentCol.getColId();
+                          const totalRows = api.getDisplayedRowCount();
+                          const allColumns = api.getAllDisplayedColumns();
+
+                          let targetRow = currentRow;
+                          let targetCol = currentCol;
+
+                          if (key === 'ArrowUp') {
+                            // Jump to first row with data in this column
+                            targetRow = 0;
+                          } else if (key === 'ArrowDown') {
+                            // Jump to last row with data
+                            for (let i = totalRows - 1; i >= 0; i--) {
+                              const rowData = api.getDisplayedRowAtIndex(i)?.data;
+                              if (rowData?.wsn?.trim()) {
+                                targetRow = i;
+                                break;
+                              }
+                            }
+                          } else if (key === 'ArrowLeft') {
+                            // Jump to first column
+                            targetCol = allColumns[0];
+                          } else if (key === 'ArrowRight') {
+                            // Jump to last column
+                            targetCol = allColumns[allColumns.length - 1];
+                          }
+
+                          api.setFocusedCell(targetRow, targetCol);
+                          ensureRowVisible(targetRow, 'middle', 3, undefined, true);
                         }
                       }}
 
@@ -4674,6 +5269,186 @@ export default function InboundPage() {
                       sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', fontWeight: 700 }}
                     >
                       Done
+                    </Button>
+                  </DialogActions>
+                </Dialog>
+
+                {/* MULTI ENTRY GRID SETTINGS DIALOG */}
+                <Dialog
+                  open={multiGridSettingsOpen}
+                  onClose={() => setMultiGridSettingsOpen(false)}
+                  maxWidth="xs"
+                  fullWidth
+                  PaperProps={{
+                    sx: {
+                      borderRadius: 2,
+                      boxShadow: '0 8px 32px rgba(0,0,0,0.15)'
+                    }
+                  }}
+                >
+                  <DialogTitle sx={{
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    color: 'white',
+                    fontWeight: 800,
+                    fontSize: '1.1rem',
+                    py: 1.5
+                  }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <SettingsIcon />
+                      Multi Entry Grid Settings
+                    </Box>
+                  </DialogTitle>
+
+                  <DialogContent sx={{ mt: 2, pb: 1 }}>
+                    <Stack spacing={2.5}>
+                      <Alert severity="info" sx={{ fontSize: '0.8rem', py: 0.5 }}>
+                        Settings auto-save and persist after reload 💾
+                      </Alert>
+
+                      {/* SORTABLE */}
+                      <Box>
+                        <FormControlLabel
+                          control={
+                            <Checkbox
+                              checked={multiGridSettings.sortable}
+                              onChange={(e) => updateMultiGridSettings({ ...multiGridSettings, sortable: e.target.checked })}
+                              sx={{
+                                '&.Mui-checked': { color: '#667eea' }
+                              }}
+                            />
+                          }
+                          label={
+                            <Box>
+                              <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#1e293b' }}>
+                                ⬆️ Enable Sorting
+                              </Typography>
+                              <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem' }}>
+                                Click column headers to sort ascending/descending
+                              </Typography>
+                            </Box>
+                          }
+                        />
+                      </Box>
+
+                      <Divider sx={{ my: 0.5 }} />
+
+                      {/* FILTER */}
+                      <Box>
+                        <FormControlLabel
+                          control={
+                            <Checkbox
+                              checked={multiGridSettings.filter}
+                              onChange={(e) => updateMultiGridSettings({ ...multiGridSettings, filter: e.target.checked })}
+                              sx={{
+                                '&.Mui-checked': { color: '#667eea' }
+                              }}
+                            />
+                          }
+                          label={
+                            <Box>
+                              <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#1e293b' }}>
+                                🔍 Enable Filtering
+                              </Typography>
+                              <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem' }}>
+                                Filter icon appears in column headers for quick search
+                              </Typography>
+                            </Box>
+                          }
+                        />
+                      </Box>
+
+                      <Divider sx={{ my: 0.5 }} />
+
+                      {/* RESIZABLE */}
+                      <Box>
+                        <FormControlLabel
+                          control={
+                            <Checkbox
+                              checked={multiGridSettings.resizable}
+                              onChange={(e) => updateMultiGridSettings({ ...multiGridSettings, resizable: e.target.checked })}
+                              sx={{
+                                '&.Mui-checked': { color: '#667eea' }
+                              }}
+                            />
+                          }
+                          label={
+                            <Box>
+                              <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#1e293b' }}>
+                                ↔️ Enable Column Resize
+                              </Typography>
+                              <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem' }}>
+                                Drag column borders to adjust width
+                              </Typography>
+                            </Box>
+                          }
+                        />
+                      </Box>
+
+                      <Divider sx={{ my: 0.5 }} />
+
+                      {/* EDITABLE */}
+                      <Box>
+                        <FormControlLabel
+                          control={
+                            <Checkbox
+                              checked={multiGridSettings.editable}
+                              onChange={(e) => updateMultiGridSettings({ ...multiGridSettings, editable: e.target.checked })}
+                              sx={{
+                                '&.Mui-checked': { color: '#667eea' }
+                              }}
+                            />
+                          }
+                          label={
+                            <Box>
+                              <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#1e293b' }}>
+                                ✏️ Enable Cell Editing
+                              </Typography>
+                              <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem' }}>
+                                Double-click or type to edit cell values
+                              </Typography>
+                            </Box>
+                          }
+                        />
+                      </Box>
+                    </Stack>
+                  </DialogContent>
+
+                  <DialogActions sx={{ p: 2, pt: 1, background: '#f9fafb', gap: 1 }}>
+                    <Button
+                      onClick={() => {
+                        const defaultSettings = {
+                          sortable: true,
+                          filter: true,
+                          resizable: true,
+                          editable: true,
+                        };
+                        updateMultiGridSettings(defaultSettings);
+                        toast.success('Settings reset to default');
+                      }}
+                      sx={{
+                        fontWeight: 700,
+                        color: '#78716c',
+                        '&:hover': {
+                          bgcolor: 'rgba(120, 113, 108, 0.1)'
+                        }
+                      }}
+                    >
+                      🔄 Reset All
+                    </Button>
+                    <Box sx={{ flex: 1 }} />
+                    <Button
+                      variant="contained"
+                      onClick={() => setMultiGridSettingsOpen(false)}
+                      sx={{
+                        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                        fontWeight: 700,
+                        boxShadow: '0 4px 12px rgba(102, 126, 234, 0.3)',
+                        '&:hover': {
+                          background: 'linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%)',
+                        }
+                      }}
+                    >
+                      Close
                     </Button>
                   </DialogActions>
                 </Dialog>
