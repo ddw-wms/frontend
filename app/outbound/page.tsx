@@ -59,8 +59,7 @@ import {
 import { outboundAPI, customerAPI } from '@/lib/api';
 import { useWarehouse } from '@/app/context/WarehouseContext';
 import { getStoredUser } from '@/lib/auth';
-import { usePermissionGuard } from '@/hooks/usePermissionGuard';
-import { usePermissions } from '@/app/context/PermissionsContext';
+
 import AppLayout from '@/components/AppLayout';
 import localforage from 'localforage';
 import { StandardPageHeader, StandardTabs } from '@/components';
@@ -72,6 +71,11 @@ import 'ag-grid-community/styles/ag-theme-quartz.css';
 
 // Register AG Grid modules ONCE (include ClientSideRowModel for client-side features)
 ModuleRegistry.registerModules([AllCommunityModule, ClientSideRowModelModule]);
+import { useOutboundPermissions } from '@/hooks/usePagePermissions';
+
+// Tab definitions with permission codes
+const ALL_TABS = ['Outbound List', 'Single Entry', 'Bulk Upload', 'Multi Entry', 'Batch Management'];
+const TAB_CODES = ['list', 'single', 'bulk', 'multi', 'batches'];
 
 const formatDate = (dateStr?: string) => {
     if (!dateStr) return '-';
@@ -182,16 +186,23 @@ interface Batch {
 }
 
 export default function OutboundPage() {
-    // Role guard - only admin, manager, operator can access
-    const { loading: permissionLoading } = usePermissionGuard('view_outbound');
-
-    // Permission checks
-    const { hasPermission } = usePermissions();
 
     const router = useRouter();
     const { activeWarehouse } = useWarehouse();
     const [user, setUser] = useState<any>(null);
+
+    // Permission hook
+    const { filterTabs, canSeeTab, canSeeButton, isAdmin, isLoading: permLoading } = useOutboundPermissions();
+
+    // Get visible tabs based on permissions
+    const visibleTabs = useMemo(() => filterTabs(ALL_TABS, TAB_CODES), [filterTabs]);
+    const visibleTabCodes = useMemo(() => {
+        if (isAdmin) return TAB_CODES;
+        return TAB_CODES.filter((code) => canSeeTab(code));
+    }, [canSeeTab, isAdmin]);
+
     const [tabValue, setTabValue] = useState(0);
+    const currentTabCode = visibleTabCodes[tabValue];
     const gridRef = useRef<any>(null);
     const columnApiRef = useRef<any>(null);
     const wsnInputRef = useRef<HTMLInputElement>(null);
@@ -210,6 +221,8 @@ export default function OutboundPage() {
     const [singleLoading, setSingleLoading] = useState(false);
     const [duplicateWSN, setDuplicateWSN] = useState<any>(null);
     const [updateMode, setUpdateMode] = useState(false);
+
+
 
     // ====== MULTI ENTRY STATE (AG GRID) ======
     const generateEmptyRows = (count: number) => {
@@ -379,12 +392,12 @@ export default function OutboundPage() {
         setFiltersExpanded(false);
     }, []);
 
-    // Ensure filters are collapsed whenever user navigates to the Outbound List tab (tab index 0)
+    // Ensure filters are collapsed whenever user navigates to the Outbound List tab
     useEffect(() => {
-        if (tabValue === 0) {
+        if (currentTabCode === 'list') {
             setFiltersExpanded(false);
         }
-    }, [tabValue]);
+    }, [currentTabCode]);
 
     // ====== EXPORT STATE ======
     const [exportDialogOpen, setExportDialogOpen] = useState(false);
@@ -438,7 +451,7 @@ export default function OutboundPage() {
 
     // Auto-size columns whenever Multi Entry tab opens, visibleColumns changes, or rows change
     useEffect(() => {
-        if (tabValue !== 3) return;
+        if (currentTabCode !== 'multi') return;
         const colApi = columnApiRef.current;
         if (!colApi) return;
 
@@ -450,22 +463,22 @@ export default function OutboundPage() {
                 gridRef.current?.api.sizeColumnsToFit();
             }
         }, 80);
-    }, [tabValue, visibleColumns, multiRows.length]);
+    }, [currentTabCode, visibleColumns, multiRows.length]);
     // ====== LOAD DATA ON TAB CHANGE ======
     useEffect(() => {
         if (activeWarehouse) {
-            if (tabValue === 0) {
+            if (currentTabCode === 'list') {
                 loadOutboundList();
                 loadBrands();
                 loadCategories();
-            } else if (tabValue === 1 || tabValue === 3) {
+            } else if (currentTabCode === 'single' || currentTabCode === 'multi') {
                 loadExistingWSNs();
                 loadCustomers();
-            } else if (tabValue === 4) {
+            } else if (currentTabCode === 'batches') {
                 loadBatches();
             }
         }
-    }, [activeWarehouse, tabValue]);
+    }, [activeWarehouse, currentTabCode]);
 
     // Debounced auto-fetch for single WSN (mimic inbound behaviour)
     useEffect(() => {
@@ -1132,7 +1145,7 @@ export default function OutboundPage() {
                     setMultiRows(restored);
                     setDraftSavedAt(draft.savedAt || Date.now());
                     setDraftExists(true);
-                    toast.success('✓ Draft restored');
+                    // toast.success('✓ Draft restored');
                 }
             } catch (err) {
                 console.error('Failed to load outbound draft', err);
@@ -1787,21 +1800,6 @@ export default function OutboundPage() {
         return <CircularProgress />;
     }
 
-    // Show loading state while permissions are being checked
-    if (permissionLoading) {
-        return (
-            <AppLayout>
-                <Box sx={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    height: '100vh'
-                }}>
-                    <CircularProgress />
-                </Box>
-            </AppLayout>
-        );
-    }
 
     if (!activeWarehouse) {
         return (
@@ -1839,14 +1837,14 @@ export default function OutboundPage() {
                 <StandardTabs
                     value={tabValue}
                     onChange={(e, v) => setTabValue(v)}
-                    tabs={['Outbound List', 'Single Entry', 'Bulk Upload', 'Multi Entry', 'Batch Management']}
+                    tabs={visibleTabs}
                     color="#667eea"
                 />
 
 
 
-                {/* TAB 0: OUTBOUND LIST */}
-                {tabValue === 0 && (
+                {/* TAB: OUTBOUND LIST */}
+                {currentTabCode === 'list' && (
                     <Box sx={{ display: 'flex', flexDirection: 'column', height: 'calc(110vh - 200px)' }}>
                         {/* SEARCH + FILTERS TOGGLE */}
                         <Box sx={{ mb: 0.5 }}>
@@ -1971,9 +1969,13 @@ export default function OutboundPage() {
 
                                                     <Stack direction="row" spacing={0.5} justifyContent="flex-end" sx={{ width: '100%' }}>
                                                         <Button size="small" variant="outlined" onClick={handleListReset} sx={{ height: 36, fontSize: '0.7rem', fontWeight: 600 }}>RESET</Button>
-                                                        <Button size="small" startIcon={<SettingsIcon sx={{ fontSize: 14 }} />} variant="outlined" onClick={() => setListColumnSettingsOpen(true)} sx={{ height: 36, fontSize: '0.7rem', fontWeight: 600 }}>COLS</Button>
+                                                        {canSeeButton('list:columns') && (
+                                                            <Button size="small" startIcon={<SettingsIcon sx={{ fontSize: 14 }} />} variant="outlined" onClick={() => setListColumnSettingsOpen(true)} sx={{ height: 36, fontSize: '0.7rem', fontWeight: 600 }}>COLUMNS</Button>
+                                                        )}
                                                         <Button size="small" startIcon={<SettingsIcon sx={{ fontSize: 14 }} />} variant="outlined" onClick={() => setGridSettingsOpen(true)} sx={{ height: 36, fontSize: '0.7rem', fontWeight: 600 }}>GRID</Button>
-                                                        <Button size="small" startIcon={<DownloadIcon sx={{ fontSize: 14 }} />} variant="contained" onClick={() => setExportDialogOpen(true)} sx={{ height: 36, fontSize: '0.7rem', fontWeight: 600, background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)' }}>EXPORT</Button>
+                                                        {canSeeButton('list:export') && (
+                                                            <Button size="small" startIcon={<DownloadIcon sx={{ fontSize: 14 }} />} variant="contained" onClick={() => setExportDialogOpen(true)} sx={{ height: 36, fontSize: '0.7rem', fontWeight: 600, background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)' }}>EXPORT</Button>
+                                                        )}
                                                         <Button
                                                             size="small"
                                                             startIcon={refreshing ? <CircularProgress size={14} /> : (refreshSuccess ? <CheckCircle sx={{ color: 'success.main' }} /> : <RefreshIcon sx={{ fontSize: 14 }} />)}
@@ -2560,7 +2562,7 @@ export default function OutboundPage() {
                                     <Button variant="outlined" sx={{ width: 170 }} onClick={() => { handleListReset(); }}>Reset</Button>
                                     <Button variant="outlined" sx={{ width: 170 }} startIcon={<DownloadIcon />} onClick={() => { setExportStartDate(startDateFilter); setExportEndDate(endDateFilter); setExportCustomer(customerFilter); setExportBatchId(batchFilter); setExportSource(sourceFilter); setExportDialogOpen(true); }}>Export</Button>
 
-                                    <Button variant="outlined" sx={{ width: 170 }} startIcon={<SettingsIcon />} onClick={() => setListColumnSettingsOpen(true)}>Columns</Button>
+                                    <Button variant="outlined" sx={{ width: 170 }} startIcon={<SettingsIcon />} onClick={() => setListColumnSettingsOpen(true)} disabled={!true}>Columns</Button>
                                     <Button variant="outlined" sx={{ width: 170 }} startIcon={<TuneIcon />} onClick={() => setGridSettingsOpen(true)}>Grid</Button>
                                 </Box>
 
@@ -2702,7 +2704,7 @@ export default function OutboundPage() {
                 </Dialog>
 
                 {/* ====== TAB 1: SINGLE ENTRY ====== */}
-                {tabValue === 1 && (
+                {currentTabCode === 'single' && (
                     <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '1fr 1fr' }, gap: 2 }}>
                         <Card sx={{ borderRadius: 1.5, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
                             <CardContent sx={{ p: 2 }}>
@@ -2894,7 +2896,7 @@ export default function OutboundPage() {
                 )}
 
                 {/* TAB 2 - BULK UPLOAD */}
-                {tabValue === 2 && (
+                {currentTabCode === 'bulk' && (
                     <Box sx={{ p: { xs: 1, sm: 1.5, md: 2 } }}>
                         {/* ✅ REMOVE maxWidth - full width card */}
                         <Card sx={{ borderRadius: 1.5, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
@@ -3042,7 +3044,7 @@ export default function OutboundPage() {
 
 
                 {/* ====== TAB 3: MULTI ENTRY (AG GRID) ====== */}
-                {tabValue === 3 && (
+                {currentTabCode === 'multi' && (
                     <Box sx={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 200px)' }}>
 
                         {/* Common Fields */}
@@ -3108,7 +3110,7 @@ export default function OutboundPage() {
                                                 variant="outlined"
                                                 sx={{ height: 32, fontSize: '0.7rem', fontWeight: 600, px: 1 }}
                                             >
-                                                COLS
+                                                COLUMNS
                                             </Button>
                                         </Box>
                                     </Box>
@@ -3460,7 +3462,7 @@ export default function OutboundPage() {
                 )}
 
                 {/* ====== TAB 4: BATCH MANAGEMENT ====== */}
-                {tabValue === 4 && (
+                {currentTabCode === 'batches' && (
                     <Box sx={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 230px)' }}>
                         <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
                             <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#1a237e', fontSize: '0.9rem' }}>📦 Batch Management</Typography>
@@ -3509,16 +3511,18 @@ export default function OutboundPage() {
                                                             >
                                                                 VIEW
                                                             </Button>
-                                                            <Button
-                                                                size="small"
-                                                                color="error"
-                                                                onClick={() => handleDeleteBatch(batch.batch_id)}
-                                                                startIcon={<DeleteIcon sx={{ fontSize: 14 }} />}
-                                                                variant="outlined"
-                                                                sx={{ height: 30, fontSize: '0.7rem', fontWeight: 600 }}
-                                                            >
-                                                                DELETE
-                                                            </Button>
+                                                            {canSeeButton('batches:delete') && (
+                                                                <Button
+                                                                    size="small"
+                                                                    color="error"
+                                                                    onClick={() => handleDeleteBatch(batch.batch_id)}
+                                                                    startIcon={<DeleteIcon sx={{ fontSize: 14 }} />}
+                                                                    variant="outlined"
+                                                                    sx={{ height: 30, fontSize: '0.7rem', fontWeight: 600 }}
+                                                                >
+                                                                    DELETE
+                                                                </Button>
+                                                            )}
                                                         </Stack>
                                                     </TableCell>
                                                 </TableRow>

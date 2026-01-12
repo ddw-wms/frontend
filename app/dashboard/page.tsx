@@ -51,11 +51,12 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { dashboardAPI, inventoryAPI, inboundAPI, pickingAPI, outboundAPI } from "@/lib/api";
 import { useWarehouse } from "@/app/context/WarehouseContext";
 import { getStoredUser, logout } from "@/lib/auth";
+import { useDashboardPermissions } from '@/hooks/usePagePermissions';
+
 import AppLayout from "@/components/AppLayout";
 import { StandardPageHeader } from '@/components';
 import toast, { Toaster } from "react-hot-toast";
 import * as XLSX from "xlsx";
-import { usePermissions } from "@/app/context/PermissionsContext";
 
 import { AgGridReact } from 'ag-grid-react';
 import { ModuleRegistry, AllCommunityModule, ClientSideRowModelModule } from 'ag-grid-community';
@@ -199,8 +200,8 @@ export default function DashboardPage() {
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [user, setUser] = useState<User | null>(null);
 
-  // Permission checks for dashboard actions
-  const { hasPermission } = usePermissions();
+  // Permission hook - import at top of file
+  const { canSeeButton, isAdmin, isLoading: permLoading } = useDashboardPermissions();
 
   const handleLogout = () => {
     logout();
@@ -1563,12 +1564,13 @@ export default function DashboardPage() {
                     RESET
                   </Button>
 
-                  {hasPermission('dashboard_columns') && (
+
+                  {canSeeButton('columns') && (
                     <Button
                       size="small"
                       startIcon={<SettingsIcon sx={{ fontSize: 11 }} />}
                       variant="outlined"
-                      onClick={() => hasPermission('dashboard_columns') && setColumnDialogOpen(true)}
+                      onClick={() => true && setColumnDialogOpen(true)}
                       sx={{
                         height: { xs: 34, md: 40 },
                         px: 1,
@@ -1580,6 +1582,7 @@ export default function DashboardPage() {
                       COLUMNS
                     </Button>
                   )}
+
 
                   <Button
                     size="small"
@@ -1598,7 +1601,7 @@ export default function DashboardPage() {
                     <Box component="span" sx={{ fontSize: '0.65rem', fontWeight: 600 }}>GRID</Box>
                   </Button>
 
-                  {hasPermission('export_dashboard') && (
+                  {canSeeButton('export') && (
                     <Button
                       variant="outlined"
                       size="small"
@@ -2095,7 +2098,7 @@ export default function DashboardPage() {
               {/* Action buttons */}
               <Box sx={{ display: 'grid', gap: 1, mt: 1, flexWrap: 'wrap', columnCount: 2, gridTemplateColumns: 'repeat(2, 1fr)' }}>
                 <Button variant="outlined" sx={{ width: 170 }} startIcon={<RestartAltIcon />} onClick={resetFilters}>Reset</Button>
-                {hasPermission('export_dashboard') && (
+                {true && (
                   <Button
                     variant="outlined"
                     sx={{ width: 170 }}
@@ -2111,7 +2114,7 @@ export default function DashboardPage() {
                   </Button>
                 )}
 
-                {hasPermission('dashboard_columns') && (
+                {true && (
                   <Button
                     variant="outlined"
                     sx={{ width: 170 }}
@@ -2350,7 +2353,7 @@ export default function DashboardPage() {
 
       {/* COLUMNS DIALOG */}
       <Dialog
-        open={columnDialogOpen && hasPermission('dashboard_columns')}
+        open={columnDialogOpen && true}
         onClose={() => setColumnDialogOpen(false)}
         maxWidth="sm"
         fullWidth

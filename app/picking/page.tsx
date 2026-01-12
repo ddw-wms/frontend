@@ -27,12 +27,16 @@ import * as XLSX from 'xlsx';
 import { AgGridReact } from 'ag-grid-react';
 import { ModuleRegistry, AllCommunityModule, ClientSideRowModelModule } from 'ag-grid-community';
 import 'ag-grid-community/styles/ag-theme-quartz.css';
-import { usePermissionGuard } from '@/hooks/usePermissionGuard';
-import { usePermissions } from '@/app/context/PermissionsContext';
+
 import localforage from 'localforage';
 
 // Register AG Grid modules ONCE (include ClientSideRowModel for client-side features)
 ModuleRegistry.registerModules([AllCommunityModule, ClientSideRowModelModule]);
+import { usePickingPermissions } from '@/hooks/usePagePermissions';
+
+// Tab definitions with permission codes
+const ALL_TABS = ['Picking List', 'Multi Picking', 'Batch Manager'];
+const TAB_CODES = ['list', 'multi', 'batches'];
 
 // Format date helper
 const formatDate = (dateStr?: string) => {
@@ -97,11 +101,7 @@ const DEFAULT_LIST_COLUMNS = [
 ];
 
 export default function PickingPage() {
-  // Role guard - only admin, manager, picker can access
-  const { loading: permissionLoading } = usePermissionGuard('view_picking');
 
-  // Permission checks
-  const { hasPermission } = usePermissions();
 
   const router = useRouter();
   const { activeWarehouse } = useWarehouse();
@@ -109,9 +109,19 @@ export default function PickingPage() {
   const gridRef = useRef<any>(null);
   const columnApiRef = useRef<any>(null);
 
+  // Permission hook
+  const { filterTabs, canSeeTab, canSeeButton, isAdmin, isLoading: permLoading } = usePickingPermissions();
+
+  // Get visible tabs based on permissions
+  const visibleTabs = useMemo(() => filterTabs(ALL_TABS, TAB_CODES), [filterTabs]);
+  const visibleTabCodes = useMemo(() => {
+    if (isAdmin) return TAB_CODES;
+    return TAB_CODES.filter((code) => canSeeTab(code));
+  }, [canSeeTab, isAdmin]);
 
   // Tab state
   const [tabValue, setTabValue] = useState(0);
+  const currentTabCode = visibleTabCodes[tabValue];
 
   // Multi Entry Header state
   const [pickingDate, setPickingDate] = useState<string>(new Date().toISOString().split('T')[0]);
@@ -278,7 +288,7 @@ export default function PickingPage() {
           setMultiRows(restored);
           setDraftSavedAt(draft.savedAt || Date.now());
           setDraftExists(true);
-          toast.success('✓ Draft restored');
+          // toast.success('✓ Draft restored');
         }
       } catch (err) {
         console.error('Failed to load picking draft', err);
@@ -318,7 +328,7 @@ export default function PickingPage() {
 
   // When switching to Multi Picking tab, auto-size columns so layout looks correct
   useEffect(() => {
-    if (tabValue !== 1) return;
+    if (currentTabCode !== 'multi') return;
     const t = setTimeout(() => {
       try {
         const colApi = columnApiRef.current;
@@ -510,17 +520,17 @@ export default function PickingPage() {
 
   // Load picking list when filters change
   useEffect(() => {
-    if (activeWarehouse && tabValue === 0) {
+    if (activeWarehouse && currentTabCode === 'list') {
       loadPickingList();
     }
-  }, [activeWarehouse, tabValue, page, limit, searchDebounced, brandFilter, categoryFilter, sourceFilter]);
+  }, [activeWarehouse, currentTabCode, page, limit, searchDebounced, brandFilter, categoryFilter, sourceFilter]);
 
   // Load batches when batch tab opens
   useEffect(() => {
-    if (activeWarehouse && tabValue === 2) {
+    if (activeWarehouse && currentTabCode === 'batches') {
       loadBatches();
     }
-  }, [activeWarehouse, tabValue]);
+  }, [activeWarehouse, currentTabCode]);
 
   // Load list columns from localStorage with validation
   useEffect(() => {
@@ -1241,22 +1251,6 @@ export default function PickingPage() {
 
   //////////////////////////////////====UI RENDERING====////////////////////////////////////
 
-  // Show loading state while permissions are being checked
-  if (permissionLoading) {
-    return (
-      <AppLayout>
-        <Box sx={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          height: '100vh'
-        }}>
-          <CircularProgress />
-        </Box>
-      </AppLayout>
-    );
-  }
-
   return (
     <AppLayout>
       <Toaster position="top-right" toastOptions={{
@@ -1291,12 +1285,12 @@ export default function PickingPage() {
         <StandardTabs
           value={tabValue}
           onChange={(_, v) => setTabValue(v)}
-          tabs={['Picking List', 'Multi Picking', 'Batch Manager']}
+          tabs={visibleTabs}
           color="#f59e0b"
         />
 
-        {/* ========== TAB 0: PICKING LIST ========== */}
-        {tabValue === 0 && (
+        {/* ========== TAB: PICKING LIST ========== */}
+        {currentTabCode === 'list' && (
           <Box sx={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 230px)' }}>
             {/* FILTERS */}
             <Card sx={{ mb: { xs: 0, md: 1 }, borderRadius: 1.5, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', background: 'rgba(255, 255, 255, 0.98)' }}>
@@ -1386,9 +1380,13 @@ export default function PickingPage() {
 
                         <Stack direction="row" spacing={0.5} sx={{ ml: 'auto', alignItems: 'center' }}>
                           <Button size="small" variant="outlined" onClick={handleListReset} sx={{ height: 40, minWidth: 70, fontSize: '0.7rem', fontWeight: 700 }}>Clear</Button>
-                          <Button size="small" variant="outlined" startIcon={<SettingsIcon />} onClick={() => setListColumnSettingsOpen(true)} sx={{ height: 40, fontSize: '0.7rem', fontWeight: 700 }}>Columns</Button>
+                          {canSeeButton('list:columns') && (
+                            <Button size="small" variant="outlined" startIcon={<SettingsIcon />} onClick={() => setListColumnSettingsOpen(true)} sx={{ height: 40, fontSize: '0.7rem', fontWeight: 700 }}>Columns</Button>
+                          )}
                           <Button size="small" variant="outlined" startIcon={<SettingsIcon />} onClick={() => setGridSettingsOpen(true)} sx={{ height: 40, fontSize: '0.7rem', fontWeight: 700 }}>Grid</Button>
-                          <Button size="small" variant="outlined" startIcon={<DownloadIcon />} onClick={() => setExportDialogOpen(true)} sx={{ height: 40, fontSize: '0.7rem', fontWeight: 700 }}>Export</Button>
+                          {canSeeButton('list:export') && (
+                            <Button size="small" variant="outlined" startIcon={<DownloadIcon />} onClick={() => setExportDialogOpen(true)} sx={{ height: 40, fontSize: '0.7rem', fontWeight: 700 }}>Export</Button>
+                          )}
                           <Button
                             size="small"
                             variant="outlined"
@@ -1396,6 +1394,7 @@ export default function PickingPage() {
                             onClick={() => loadPickingList({ buttonRefresh: true })}
                             disabled={refreshing}
                             sx={{ height: 40, fontSize: '0.7rem', fontWeight: 700 }}
+
                           >
                             {refreshing ? 'Refreshing...' : refreshSuccess ? 'Refreshed' : 'Refresh'}
                           </Button>
@@ -2000,6 +1999,8 @@ export default function PickingPage() {
                         startIcon={<SettingsIcon />}
                         onClick={() => { setListColumnSettingsOpen(true); }}
                         sx={{ height: 44, fontSize: '0.85rem' }}
+                        disabled={!true}
+
                       >
                         Columns
                       </Button>
@@ -2009,6 +2010,8 @@ export default function PickingPage() {
                         startIcon={<SettingsIcon />}
                         onClick={() => { setGridSettingsOpen(true); }}
                         sx={{ height: 44, fontSize: '0.85rem' }}
+                        disabled={!true}
+
                       >
                         Grid
                       </Button>
@@ -2018,6 +2021,8 @@ export default function PickingPage() {
                         startIcon={<DownloadIcon />}
                         onClick={() => { setExportDialogOpen(true); setMobileActionsOpen(false); }}
                         sx={{ height: 44, fontSize: '0.85rem' }}
+                        disabled={!true}
+
                       >
                         Export
                       </Button>
@@ -2026,8 +2031,9 @@ export default function PickingPage() {
                         variant="outlined"
                         startIcon={refreshing ? <CircularProgress size={14} /> : refreshSuccess ? <CheckIcon sx={{ color: '#10b981' }} /> : <RefreshIcon />}
                         onClick={() => loadPickingList({ buttonRefresh: true })}
-                        disabled={refreshing}
+                        disabled={refreshing || !true}
                         sx={{ height: 44, fontSize: '0.85rem', gridColumn: 'span 2' }}
+
                       >
                         {refreshing ? 'Refreshing...' : refreshSuccess ? 'Refreshed' : 'Refresh'}
                       </Button>
@@ -2319,7 +2325,7 @@ export default function PickingPage() {
         )}
 
         {/* ========== TAB 1: MULTI PICKING (AG GRID) ========== */}
-        {tabValue === 1 && (
+        {currentTabCode === 'multi' && (
           <Box sx={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 175px)', gap: 1, mt: 0 }}>
             {/* HEADER */}
             <Card sx={{ borderRadius: 1, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
@@ -2896,7 +2902,7 @@ export default function PickingPage() {
               variant="contained"
               size="medium"
               onClick={handleMultiSubmit}
-              disabled={multiLoading || gridDuplicateWSNs.size > 0 || crossWarehouseWSNs.size > 0}
+              disabled={multiLoading || gridDuplicateWSNs.size > 0 || crossWarehouseWSNs.size > 0 || !true}
               sx={{
                 py: 1,
                 borderRadius: 1.5,
@@ -2905,6 +2911,7 @@ export default function PickingPage() {
                 background: 'linear-gradient(135deg, #f59e0b 0%, #ea580c 100%)',
                 boxShadow: '0 4px 12px rgba(245, 158, 11, 0.3)',
               }}
+
             >
               ✓ SUBMIT ALL ({multiRows.filter((r) => r.wsn?.trim()).length} rows)
             </Button>
@@ -2992,7 +2999,7 @@ export default function PickingPage() {
         )}
 
         {/* ========== TAB 2: BATCH MANAGEMENT ========== */}
-        {tabValue === 2 && (
+        {currentTabCode === 'batches' && (
           <Paper elevation={3} sx={{ borderRadius: 3, overflow: 'hidden' }}>
             <Box sx={{ p: 2, bgcolor: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
               <Typography variant="h6" sx={{ fontWeight: 700 }}>Batch Management</Typography>
@@ -3027,15 +3034,17 @@ export default function PickingPage() {
                         <TableCell sx={{ fontSize: '0.8rem' }}>{batch.count}</TableCell>
                         <TableCell sx={{ fontSize: '0.8rem' }}>{formatDateFull(batch.created_at)}</TableCell>
                         <TableCell sx={{ textAlign: 'center' }}>
-                          <Button
-                            size="small"
-                            color="error"
-                            variant="outlined"
-                            startIcon={<DeleteIcon />}
-                            onClick={() => handleDeleteBatch(batch.batch_id)}
-                          >
-                            Delete
-                          </Button>
+                          {canSeeButton('batches:delete') && (
+                            <Button
+                              size="small"
+                              color="error"
+                              variant="outlined"
+                              startIcon={<DeleteIcon />}
+                              onClick={() => handleDeleteBatch(batch.batch_id)}
+                            >
+                              Delete
+                            </Button>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))

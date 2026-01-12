@@ -46,8 +46,7 @@ import {
     MoreVert as MoreVertIcon,
     Close as CloseIcon
 } from '@mui/icons-material';
-import { usePermissionGuard } from '@/hooks/usePermissionGuard';
-import { usePermissions } from '@/app/context/PermissionsContext';
+
 import AppLayout from '@/components/AppLayout';
 import api from '@/lib/api';
 import toast, { Toaster } from 'react-hot-toast';
@@ -105,10 +104,6 @@ interface HealthStats {
 }
 
 export default function BackupPage() {
-    const { loading: permissionLoading } = usePermissionGuard('view_backups');
-
-    // Permission checks
-    const { hasPermission } = usePermissions();
 
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -130,15 +125,7 @@ export default function BackupPage() {
     const [scheduleFormOpen, setScheduleFormOpen] = useState(false);
     const [currentSchedule, setCurrentSchedule] = useState<Partial<BackupSchedule> | null>(null);
 
-    useEffect(() => {
-        // Only load data after permissions are checked
-        if (!permissionLoading) {
-            loadBackups();
-            loadDatabaseStats();
-            loadHealthStats();
-            loadSchedules();
-        }
-    }, [permissionLoading]);
+
 
     const loadBackups = async () => {
         try {
@@ -294,8 +281,17 @@ export default function BackupPage() {
         }
     };
 
-    // Show loading state while permissions are being checked
-    if (permissionLoading) {
+    // Load initial data on mount
+    useEffect(() => {
+        loadBackups();
+        loadDatabaseStats();
+        loadHealthStats();
+        loadSchedules();
+    }, []);
+
+
+
+    if (loading) {
         return (
             <AppLayout>
                 <Box sx={{
@@ -309,6 +305,7 @@ export default function BackupPage() {
             </AppLayout>
         );
     }
+
 
     /////////////////////// UI Render ///////////////////////
     return (
@@ -521,10 +518,10 @@ export default function BackupPage() {
                                             Success Rate
                                         </Typography>
                                         <Typography variant="h4" fontWeight={700} color="success.main" sx={{ my: 0.5 }}>
-                                            {Number(healthStats.success_rate || 0).toFixed(1)}%
+                                            {Number(healthStats?.success_rate ?? 0).toFixed(1)}%
                                         </Typography>
                                         <Typography variant="caption" color="text.secondary">
-                                            {healthStats.successful_backups}/{healthStats.total_backups} successful
+                                            {healthStats?.successful_backups ?? 0}/{healthStats?.total_backups ?? 0} successful
                                         </Typography>
                                     </CardContent>
                                 </Card>
@@ -535,10 +532,10 @@ export default function BackupPage() {
                                             Total Storage
                                         </Typography>
                                         <Typography variant="h5" fontWeight={700} color="primary.main" sx={{ my: 0.5, fontSize: { xs: '1.25rem', sm: '1.5rem' } }}>
-                                            {healthStats.total_storage_used_formatted}
+                                            {healthStats?.total_storage_used_formatted ?? '0 B'}
                                         </Typography>
                                         <Typography variant="caption" color="text.secondary">
-                                            Avg: {healthStats.average_backup_size_formatted}
+                                            Avg: {healthStats?.average_backup_size_formatted ?? '0 B'}
                                         </Typography>
                                     </CardContent>
                                 </Card>
@@ -549,10 +546,10 @@ export default function BackupPage() {
                                             Last Backup
                                         </Typography>
                                         <Typography variant="body1" fontWeight={600} sx={{ my: 0.5, fontSize: { xs: '0.85rem', sm: '1rem' } }}>
-                                            {healthStats.last_backup_at ? new Date(healthStats.last_backup_at).toLocaleDateString() : 'Never'}
+                                            {healthStats?.last_backup_at ? new Date(String(healthStats!.last_backup_at)).toLocaleDateString() : 'Never'}
                                         </Typography>
                                         <Typography variant="caption" color="text.secondary">
-                                            {healthStats.last_backup_size_formatted}
+                                            {healthStats?.last_backup_size_formatted ?? '0 B'}
                                         </Typography>
                                     </CardContent>
                                 </Card>
@@ -1073,10 +1070,10 @@ export default function BackupPage() {
                                             BACKUP TO RESTORE:
                                         </Typography>
                                         <Stack spacing={0.5}>
-                                            <Typography variant="body2"><strong>File:</strong> {selectedBackup.file_name}</Typography>
-                                            <Typography variant="body2"><strong>Type:</strong> {selectedBackup.backup_type.toUpperCase()}</Typography>
-                                            <Typography variant="body2"><strong>Date:</strong> {formatDate(selectedBackup.created_at)}</Typography>
-                                            <Typography variant="body2"><strong>Size:</strong> {selectedBackup.file_size_mb} MB</Typography>
+                                            <Typography variant="body2"><strong>File:</strong> {selectedBackup?.file_name ?? ''}</Typography>
+                                            <Typography variant="body2"><strong>Type:</strong> {selectedBackup?.backup_type?.toUpperCase() ?? ''}</Typography>
+                                            <Typography variant="body2"><strong>Date:</strong> {formatDate(selectedBackup?.created_at ?? '')}</Typography>
+                                            <Typography variant="body2"><strong>Size:</strong> {selectedBackup?.file_size_mb ?? 0} MB</Typography>
                                         </Stack>
                                     </Paper>
                                 )}
@@ -1161,7 +1158,7 @@ export default function BackupPage() {
                                             Total Size
                                         </Typography>
                                         <Typography variant={isMobile ? 'h6' : 'h5'} fontWeight={700} sx={{ lineHeight: 1 }}>
-                                            {dbStats.total_database_size}
+                                            {dbStats?.total_database_size}
                                         </Typography>
                                     </Stack>
                                 )}
@@ -1202,7 +1199,7 @@ export default function BackupPage() {
                                             </Box>
                                             {/* Rows */}
                                             <Box sx={{ overflow: 'auto' }}>
-                                                {dbStats.tables.map((table, index) => (
+                                                {dbStats?.tables?.map((table, index) => (
                                                     <Box
                                                         key={`${table.schema}.${table.table_name}-${index}`}
                                                         sx={{
@@ -1210,7 +1207,7 @@ export default function BackupPage() {
                                                             alignItems: 'center',
                                                             py: 0.75,
                                                             px: 1.25,
-                                                            borderBottom: index < dbStats.tables.length - 1 ? '1px solid' : 'none',
+                                                            borderBottom: index < (dbStats?.tables?.length ?? 0) - 1 ? '1px solid' : 'none',
                                                             borderColor: 'divider',
                                                             '&:active': {
                                                                 bgcolor: 'action.selected'
@@ -1281,7 +1278,7 @@ export default function BackupPage() {
                                                     </TableRow>
                                                 </TableHead>
                                                 <TableBody>
-                                                    {dbStats.tables.map((table, index) => (
+                                                    {dbStats?.tables?.map((table, index) => (
                                                         <TableRow
                                                             key={`${table.schema}.${table.table_name}-${index}`}
                                                             hover

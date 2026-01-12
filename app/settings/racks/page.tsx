@@ -19,16 +19,12 @@ import { useWarehouse } from '@/app/context/WarehouseContext';
 import { getStoredUser } from '@/lib/auth';
 import AppLayout from '@/components/AppLayout';
 import toast, { Toaster } from 'react-hot-toast';
-import { usePermissionGuard } from '@/hooks/usePermissionGuard';
-import { usePermissions } from '@/app/context/PermissionsContext';
+import { useRacksPermissions } from '@/hooks/usePagePermissions';
+
 
 export default function RacksPage() {
-  // Role guard - only admin can access
-  usePermissionGuard('view_racks');
 
-  // Permission checks
-  const { hasPermission } = usePermissions();
-
+  const { canSeeButton, isAdmin, isLoading: permLoading } = useRacksPermissions();
   const [bulkFile, setBulkFile] = useState<File | null>(null);
   const [bulkUploading, setBulkUploading] = useState(false);
   const [confirmDownloadOpen, setConfirmDownloadOpen] = useState(false);
@@ -364,15 +360,17 @@ export default function RacksPage() {
         </Box>
         <Box sx={{ marginBottom: 1.5, mt: 1.5, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
           <Box sx={{ display: 'flex', gap: 1, mt: 1, alignItems: 'center', overflowX: 'auto', whiteSpace: 'nowrap', pb: { xs: 0.5, sm: 0 } }}>
-            <Button
-              variant="contained"
-              startIcon={<AddIcon sx={{ fontSize: { xs: 16, sm: 20 } }} />}
-              size="small"
-              onClick={() => handleOpenDialog()}
-              sx={{ height: { xs: 32, sm: 40 }, px: { xs: 1, sm: 2 }, fontSize: { xs: '0.7rem', sm: '0.9rem' } }}
-            >
-              {isMobile ? 'Add' : 'Add Rack'}
-            </Button>
+            {canSeeButton('add') && (
+              <Button
+                variant="contained"
+                startIcon={<AddIcon sx={{ fontSize: { xs: 16, sm: 20 } }} />}
+                size="small"
+                onClick={() => handleOpenDialog()}
+                sx={{ height: { xs: 32, sm: 40 }, px: { xs: 1, sm: 2 }, fontSize: { xs: '0.7rem', sm: '0.9rem' } }}
+              >
+                {isMobile ? 'Add' : 'Add Rack'}
+              </Button>
+            )}
 
             <Button
               variant="outlined"
@@ -383,14 +381,16 @@ export default function RacksPage() {
             >
               {isMobile ? 'Template' : 'Download Template'}
             </Button>
-            <Button
-              variant="outlined"
-              startIcon={<UploadIcon sx={{ fontSize: { xs: 16, sm: 20 } }} />}
-              size="small"
-              sx={{ height: { xs: 32, sm: 36 }, px: { xs: 1, sm: 2 }, fontSize: { xs: '0.66rem', sm: '0.82rem' }, ml: 1 }}
-              onClick={() => setBulkDialogOpen(true)}>
-              {isMobile ? 'Bulk' : 'Bulk Upload'}
-            </Button>
+            {canSeeButton('bulk') && (
+              <Button
+                variant="outlined"
+                startIcon={<UploadIcon sx={{ fontSize: { xs: 16, sm: 20 } }} />}
+                size="small"
+                sx={{ height: { xs: 32, sm: 36 }, px: { xs: 1, sm: 2 }, fontSize: { xs: '0.66rem', sm: '0.82rem' }, ml: 1 }}
+                onClick={() => setBulkDialogOpen(true)}>
+                {isMobile ? 'Bulk' : 'Bulk Upload'}
+              </Button>
+            )}
 
             <Button
               variant="outlined"
@@ -447,20 +447,24 @@ export default function RacksPage() {
                       </TableCell>
                       <TableCell sx={{ textAlign: 'center' }}>
                         <Stack direction="row" spacing={0.5} justifyContent="center">
-                          <IconButton
-                            size="small"
-                            onClick={() => handleOpenDialog(rack)}
-                            sx={{ color: '#667eea', p: 0.5, '&:hover': { bgcolor: 'rgba(102, 126, 234, 0.1)' } }}
-                          >
-                            <EditIcon sx={{ fontSize: 16 }} />
-                          </IconButton>
-                          <IconButton
-                            size="small"
-                            onClick={() => handleDelete(rack.id)}
-                            sx={{ color: '#ef4444', p: 0.5, '&:hover': { bgcolor: 'rgba(239, 68, 68, 0.1)' } }}
-                          >
-                            <DeleteIcon sx={{ fontSize: 16 }} />
-                          </IconButton>
+                          {canSeeButton('edit') && (
+                            <IconButton
+                              size="small"
+                              onClick={() => handleOpenDialog(rack)}
+                              sx={{ color: '#667eea', p: 0.5, '&:hover': { bgcolor: 'rgba(102, 126, 234, 0.1)' } }}
+                            >
+                              <EditIcon sx={{ fontSize: 16 }} />
+                            </IconButton>
+                          )}
+                          {canSeeButton('delete') && (
+                            <IconButton
+                              size="small"
+                              onClick={() => handleDelete(rack.id)}
+                              sx={{ color: '#ef4444', p: 0.5, '&:hover': { bgcolor: 'rgba(239, 68, 68, 0.1)' } }}
+                            >
+                              <DeleteIcon sx={{ fontSize: 16 }} />
+                            </IconButton>
+                          )}
                           <IconButton
                             size="small"
                             onClick={() => handleToggleStatus(rack.id)}

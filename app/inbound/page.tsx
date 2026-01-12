@@ -34,8 +34,7 @@ import Tooltip from '@mui/material/Tooltip';
 import { AgGridReact } from 'ag-grid-react';
 import 'ag-grid-community/styles/ag-theme-quartz.css';
 import { printLabel, isAgentRunning } from '@/lib/printAgent';
-import { usePermissionGuard } from '@/hooks/usePermissionGuard';
-import { usePermissions } from '@/app/context/PermissionsContext';
+
 
 // Constants
 const DEFAULT_MULTI_COLUMNS = [
@@ -70,20 +69,31 @@ const EDITABLE_COLUMNS = ['wsn', 'product_serial_number', 'rack_no', 'unload_rem
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
 import React from 'react';
 import localforage from 'localforage';
+import { useInboundPermissions } from '@/hooks/usePagePermissions';
 
 // Register AG Grid modules ONCE
 ModuleRegistry.registerModules([AllCommunityModule]);
 
-export default function InboundPage() {
-  // Role guard - only admin, manager, operator can access
-  const { loading: permissionLoading } = usePermissionGuard('view_inbound');
+// Tab definitions with permission codes
+const ALL_TABS = ['Inbound List', 'Single Entry', 'Bulk Upload', 'Multi Entry', 'Batch Manager'];
+const TAB_CODES = ['list', 'single', 'bulk', 'multi', 'batches'];
 
-  // Permission checks
-  const { hasPermission } = usePermissions();
+export default function InboundPage() {
 
   const router = useRouter();
   const { activeWarehouse } = useWarehouse();
   const [user, setUser] = useState<any>(null);
+
+  // Permission hook
+  const { filterTabs, canSeeTab, canSeeButton, isAdmin, isLoading: permLoading } = useInboundPermissions();
+
+  // Get visible tabs based on permissions
+  const visibleTabs = useMemo(() => filterTabs(ALL_TABS, TAB_CODES), [filterTabs]);
+  const visibleTabCodes = useMemo(() => {
+    if (isAdmin) return TAB_CODES;
+    return TAB_CODES.filter((code) => canSeeTab(code));
+  }, [canSeeTab, isAdmin]);
+
   const [tabValue, setTabValue] = useState(0);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<any>(null);
@@ -107,6 +117,7 @@ export default function InboundPage() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const isTablet = useMediaQuery(theme.breakpoints.between('sm', 'md'));
+
   // Keep filters collapsed by default for a cleaner list view
   const [filtersExpanded, setFiltersExpanded] = useState(false);
   // Mobile full-screen Actions dialog (filters + actions)
@@ -387,7 +398,7 @@ export default function InboundPage() {
           setMultiRows(restored);
           setDraftSavedAt(draft.savedAt || Date.now());
           setDraftExists(true);
-          toast.success('✓ Draft restored');
+          //toast.success('✓ Draft restored');
         }
       } catch (err) {
         console.error('Failed to load draft', err);
@@ -429,7 +440,7 @@ export default function InboundPage() {
 
   // Add this useEffect after loadCategories function (around line 450)
   useEffect(() => {
-    if (tabValue !== 3) return;
+    if (currentTabCode !== 'multi') return;
     const t = setTimeout(() => {
       try {
         const colApi = columnApiRef.current;
@@ -576,7 +587,7 @@ export default function InboundPage() {
   }, [listLoading, listData]);
 
   useEffect(() => {
-    if (tabValue !== 0) return;
+    if (currentTabCode !== 'list') return;
     const colApi = columnApiRef.current;
     if (!colApi) return;
 
@@ -748,18 +759,19 @@ export default function InboundPage() {
   }, [activeWarehouse?.id]);
 
   // ====== LOAD DATA ON TAB CHANGE ======
+  const currentTabCode = visibleTabCodes[tabValue];
   useEffect(() => {
-    if (activeWarehouse && (tabValue === 0 || tabValue === 1)) {
+    if (activeWarehouse && (currentTabCode === 'list' || currentTabCode === 'single')) {
       loadRacks();
       loadBatches();
       loadBrands();
       loadCategories();
-      if (tabValue === 0) loadInboundList();
+      if (currentTabCode === 'list') loadInboundList();
     }
-  }, [activeWarehouse, tabValue, loadRacks, loadBatches, loadBrands, loadCategories, loadInboundList]);
+  }, [activeWarehouse, currentTabCode, loadRacks, loadBatches, loadBrands, loadCategories, loadInboundList]);
 
   useEffect(() => {
-    if (activeWarehouse && tabValue === 0) {
+    if (activeWarehouse && currentTabCode === 'list') {
       // Debounce list loads when filters/search/page change to avoid rapid overlay flicker
       if (listLoadDebounceRef.current) clearTimeout(listLoadDebounceRef.current);
       listLoadDebounceRef.current = setTimeout(() => {
@@ -1797,21 +1809,6 @@ export default function InboundPage() {
   };
 
 
-  // Show loading state while permissions are being checked
-  if (permissionLoading) {
-    return (
-      <AppLayout>
-        <Box sx={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          height: '100vh'
-        }}>
-          <CircularProgress />
-        </Box>
-      </AppLayout>
-    );
-  }
 
   if (!activeWarehouse) {
     return (
@@ -1856,7 +1853,7 @@ export default function InboundPage() {
         <StandardTabs
           value={tabValue}
           onChange={(event, newValue) => setTabValue(newValue)}
-          tabs={['Inbound List', 'Single Entry', 'Bulk Upload', 'Multi Entry', 'Batch Manager']}
+          tabs={visibleTabs}
           color="#667eea"
         />
 
@@ -1881,8 +1878,8 @@ export default function InboundPage() {
               //overflow: 'hidden',
             }}
           >
-            {/* ==================== TAB 0: INBOUND LIST ==================== */}
-            {tabValue === 0 && (
+            {/* ==================== TAB: INBOUND LIST ==================== */}
+            {visibleTabCodes[tabValue] === 'list' && (
               <Box
                 sx={{
                   display: 'flex',
@@ -2180,27 +2177,29 @@ export default function InboundPage() {
                               🔄 RESET
                             </Button>
                             <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-                              <Button
-                                fullWidth
-                                size="small"
-                                startIcon={<SettingsIcon sx={{ fontSize: '0.9rem' }} />}
-                                variant="outlined"
-                                onClick={() => setListColumnSettingsOpen(true)}
-                                sx={{
-                                  height: 34,
-                                  fontSize: '0.72rem',
-                                  fontWeight: 700,
-                                  borderWidth: 2,
-                                  borderColor: '#667eea',
-                                  color: '#667eea',
-                                  '&:hover': {
+                              {canSeeButton('list:columns') && (
+                                <Button
+                                  fullWidth
+                                  size="small"
+                                  startIcon={<SettingsIcon sx={{ fontSize: '0.9rem' }} />}
+                                  variant="outlined"
+                                  onClick={() => setListColumnSettingsOpen(true)}
+                                  sx={{
+                                    height: 34,
+                                    fontSize: '0.72rem',
+                                    fontWeight: 700,
                                     borderWidth: 2,
-                                    bgcolor: 'rgba(102, 126, 234, 0.1)'
-                                  }
-                                }}
-                              >
-                                COLUMNS
-                              </Button>
+                                    borderColor: '#667eea',
+                                    color: '#667eea',
+                                    '&:hover': {
+                                      borderWidth: 2,
+                                      bgcolor: 'rgba(102, 126, 234, 0.1)'
+                                    }
+                                  }}
+                                >
+                                  COLUMNS
+                                </Button>
+                              )}
 
                               <Button
                                 type="button"
@@ -2209,6 +2208,8 @@ export default function InboundPage() {
                                 startIcon={<SettingsIcon sx={{ fontSize: '0.9rem' }} />}
                                 variant="outlined"
                                 onClick={(e) => { e.stopPropagation(); setGridSettingsOpen(true); }}
+                                disabled={!true}
+
                                 sx={{
                                   height: 34,
                                   fontSize: '0.72rem',
@@ -2225,7 +2226,7 @@ export default function InboundPage() {
                                 GRID
                               </Button>
                             </Stack>
-                            {hasPermission('export_inbound') && (
+                            {canSeeButton('list:export') && (
                               <Button
                                 fullWidth
                                 size="small"
@@ -2247,7 +2248,7 @@ export default function InboundPage() {
                                 EXPORT
                               </Button>
                             )}
-                            {hasPermission('refresh_inbound') && (
+                            {true && (
                               <Button
                                 fullWidth
                                 size="small"
@@ -2319,7 +2320,7 @@ export default function InboundPage() {
 
                           <Box sx={{ display: 'grid', gap: 1, mt: 1, gridTemplateColumns: 'repeat(2, 1fr)' }}>
                             <Button variant="outlined" onClick={() => { setSearchInput(''); setBrandFilter(''); setCategoryFilter(''); setDateFromFilter(''); setDateToFilter(''); setPage(1); }}>Reset</Button>
-                            <Button variant="outlined" onClick={() => { setListColumnSettingsOpen(true); }}>Columns</Button>
+                            <Button variant="outlined" onClick={() => { setListColumnSettingsOpen(true); }} disabled={!true}>Columns</Button>
                             <Button variant="outlined" onClick={() => { setGridSettingsOpen(true); }}>Grid</Button>
                             <Button variant="outlined" onClick={() => { setExportDialogOpen(true); }}>Export</Button>
                           </Box>
@@ -2947,6 +2948,8 @@ export default function InboundPage() {
                       size="small"
                       variant="outlined"
                       onClick={(e) => { e.stopPropagation(); setGridSettingsOpen(true); }}
+                      disabled={!true}
+
                       sx={{ ml: 'auto', height: 30, borderColor: '#94a3b8', color: '#fff', bgcolor: 'rgba(255,255,255,0.08)', borderWidth: 1 }}
                     >
                       Grid Settings
@@ -3237,9 +3240,9 @@ export default function InboundPage() {
             }
           </Paper >
 
-          {/* TAB 1: SINGLE ENTRY */}
+          {/* TAB: SINGLE ENTRY */}
           {
-            tabValue === 1 && (
+            visibleTabCodes[tabValue] === 'single' && (
               <Box sx={{
                 display: 'grid',
                 gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' },
@@ -3664,9 +3667,9 @@ export default function InboundPage() {
 
 
 
-          {/* TAB 2: BULK UPLOAD */}
+          {/* TAB: BULK UPLOAD */}
           {
-            tabValue === 2 && (
+            visibleTabCodes[tabValue] === 'bulk' && (
               <Box
                 sx={{
                   display: 'flex',
@@ -3773,9 +3776,9 @@ export default function InboundPage() {
           }
 
 
-          {/* TAB 3: MULTI ENTRY */}
+          {/* TAB: MULTI ENTRY */}
           {
-            tabValue === 3 && (
+            visibleTabCodes[tabValue] === 'multi' && (
               <Box sx={{
                 display: 'flex',
                 flexDirection: 'column',
@@ -4678,9 +4681,9 @@ export default function InboundPage() {
             )
           }
 
-          {/* TAB 4: BATCH MANAGER */}
+          {/* TAB: BATCH MANAGER */}
           {
-            tabValue === 4 && (
+            visibleTabCodes[tabValue] === 'batches' && (
               <Box
                 sx={{
                   display: 'flex',
@@ -4746,15 +4749,17 @@ export default function InboundPage() {
                                   })}
                                 </TableCell>
                                 <TableCell>
-                                  <Button
-                                    size="small"
-                                    color="error"
-                                    variant="outlined"
-                                    startIcon={<DeleteIcon />}
-                                    onClick={() => deleteBatch(batch.batch_id)}
-                                  >
-                                    Delete
-                                  </Button>
+                                  {canSeeButton('batches:delete') && (
+                                    <Button
+                                      size="small"
+                                      color="error"
+                                      variant="outlined"
+                                      startIcon={<DeleteIcon />}
+                                      onClick={() => deleteBatch(batch.batch_id)}
+                                    >
+                                      Delete
+                                    </Button>
+                                  )}
                                 </TableCell>
                               </TableRow>
                             ))}

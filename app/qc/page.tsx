@@ -57,8 +57,7 @@ import { useWarehouse } from '@/app/context/WarehouseContext';
 import { getStoredUser } from '@/lib/auth';
 import AppLayout from '@/components/AppLayout';
 import { StandardPageHeader, StandardTabs } from '@/components';
-import { usePermissionGuard } from '@/hooks/usePermissionGuard';
-import { usePermissions } from '@/app/context/PermissionsContext';
+
 import toast, { Toaster } from 'react-hot-toast';
 import * as XLSX from 'xlsx';
 import { AgGridReact } from 'ag-grid-react';
@@ -70,6 +69,11 @@ import localforage from 'localforage';
 
 // Register AG Grid modules ONCE (include ClientSideRowModel for client-side features)
 ModuleRegistry.registerModules([AllCommunityModule, ClientSideRowModelModule]);
+import { useQCPermissions } from '@/hooks/usePagePermissions';
+
+// Tab definitions with permission codes
+const ALL_TABS = ['QC List', 'Single QC', 'Multi QC', 'Bulk Upload', 'Batches'];
+const TAB_CODES = ['list', 'single', 'multi', 'bulk', 'batches'];
 
 let QC_GRADES = ['A', 'B', 'C', 'D'];
 const QC_STATUSES = ['Pending', 'Done', 'Pass', 'Fail', 'Hold'];
@@ -202,17 +206,25 @@ interface Batch {
 }
 
 export default function QCPage() {
-  // Role guard - only admin, manager, qc can access
-  const { loading: permissionLoading } = usePermissionGuard('view_qc');
 
-  // Permission checks
-  const { hasPermission } = usePermissions();
 
   const router = useRouter();
   const { activeWarehouse } = useWarehouse();
   const isMobile = useMediaQuery('(max-width:600px)');
   const [user, setUser] = useState<any>(null);
+
+  // Permission hook
+  const { filterTabs, canSeeTab, canSeeButton, isAdmin, isLoading: permLoading } = useQCPermissions();
+
+  // Get visible tabs based on permissions
+  const visibleTabs = useMemo(() => filterTabs(ALL_TABS, TAB_CODES), [filterTabs]);
+  const visibleTabCodes = useMemo(() => {
+    if (isAdmin) return TAB_CODES;
+    return TAB_CODES.filter((code) => canSeeTab(code));
+  }, [canSeeTab, isAdmin]);
+
   const [tabValue, setTabValue] = useState(0);
+  const currentTabCode = visibleTabCodes[tabValue];
   const [multiQCSubTab, setMultiQCSubTab] = useState(0); // Sub-tab for Multi QC (0: Grid, 1: Bulk Upload)
 
   // AG Grid refs
@@ -495,7 +507,7 @@ export default function QCPage() {
           setMultiRows(restored);
           setDraftSavedAt(draft.savedAt || Date.now());
           setDraftExists(true);
-          toast.success('✓ Draft restored');
+          //toast.success('✓ Draft restored');
         }
       } catch (err) {
         console.error('Failed to load QC draft', err);
@@ -777,14 +789,14 @@ export default function QCPage() {
     // Debug log
     console.log('🔍 Search Filter Changed:', searchFilter);
 
-    if (tabValue === 0) {
+    if (currentTabCode === 'list') {
       loadQCList();
       loadStats();
-    } else if (tabValue === 1) {
+    } else if (currentTabCode === 'single') {
       loadRacks();
-    } else if (tabValue === 2) {
+    } else if (currentTabCode === 'multi' || currentTabCode === 'bulk') {
       loadRacks();
-    } else if (tabValue === 4) {
+    } else if (currentTabCode === 'batches') {
       loadBatches();
       loadStats();
     }
@@ -792,7 +804,7 @@ export default function QCPage() {
     loadCategories();
   }, [
     activeWarehouse,
-    tabValue,
+    currentTabCode,
     page,
     limit,
     searchFilter,
@@ -1485,22 +1497,6 @@ export default function QCPage() {
     }
   };
 
-  // Show loading state while permissions are being checked
-  if (permissionLoading) {
-    return (
-      <AppLayout>
-        <Box sx={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          height: '100vh'
-        }}>
-          <CircularProgress />
-        </Box>
-      </AppLayout>
-    );
-  }
-
   if (!activeWarehouse) {
     return <AppLayout>⚠️ No warehouse selected</AppLayout>;
   }
@@ -1541,7 +1537,7 @@ export default function QCPage() {
         <StandardTabs
           value={tabValue}
           onChange={(event, newValue) => setTabValue(newValue)}
-          tabs={['QC List', 'Single QC', 'Multi QC', 'Bulk Upload', 'Batches']}
+          tabs={visibleTabs}
           color="#667eea"
         />
 
@@ -1560,7 +1556,7 @@ export default function QCPage() {
         >
 
           {/* ========== TAB 0: QC LIST ========== */}
-          {tabValue === 0 && (
+          {currentTabCode === 'list' && (
             <Box
               sx={{
                 display: 'flex',
@@ -1901,27 +1897,29 @@ export default function QCPage() {
                           >
                             🔄 RESET
                           </Button>
-                          <Button
-                            fullWidth
-                            size="small"
-                            startIcon={<SettingsIcon sx={{ fontSize: '0.9rem' }} />}
-                            variant="outlined"
-                            onClick={() => setListColumnSettingsOpen(true)}
-                            sx={{
-                              height: 34,
-                              fontSize: '0.72rem',
-                              fontWeight: 700,
-                              borderWidth: 2,
-                              borderColor: '#667eea',
-                              color: '#667eea',
-                              '&:hover': {
+                          {canSeeButton('list:columns') && (
+                            <Button
+                              fullWidth
+                              size="small"
+                              startIcon={<SettingsIcon sx={{ fontSize: '0.9rem' }} />}
+                              variant="outlined"
+                              onClick={() => setListColumnSettingsOpen(true)}
+                              sx={{
+                                height: 34,
+                                fontSize: '0.72rem',
+                                fontWeight: 700,
                                 borderWidth: 2,
-                                bgcolor: 'rgba(102, 126, 234, 0.1)'
-                              }
-                            }}
-                          >
-                            COLUMNS
-                          </Button>
+                                borderColor: '#667eea',
+                                color: '#667eea',
+                                '&:hover': {
+                                  borderWidth: 2,
+                                  bgcolor: 'rgba(102, 126, 234, 0.1)'
+                                }
+                              }}
+                            >
+                              COLUMNS
+                            </Button>
+                          )}
                           <Button
                             fullWidth
                             size="small"
@@ -1943,26 +1941,28 @@ export default function QCPage() {
                           >
                             GRID
                           </Button>
-                          <Button
-                            fullWidth
-                            size="small"
-                            startIcon={<DownloadIcon sx={{ fontSize: '0.9rem' }} />}
-                            variant="contained"
-                            onClick={() => setExportDialogOpen(true)}
-                            sx={{
-                              height: 34,
-                              fontSize: '0.72rem',
-                              fontWeight: 700,
-                              background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                              boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
-                              '&:hover': {
-                                background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
-                                boxShadow: '0 6px 16px rgba(16, 185, 129, 0.4)'
-                              }
-                            }}
-                          >
-                            EXPORT
-                          </Button>
+                          {canSeeButton('list:export') && (
+                            <Button
+                              fullWidth
+                              size="small"
+                              startIcon={<DownloadIcon sx={{ fontSize: '0.9rem' }} />}
+                              variant="contained"
+                              onClick={() => setExportDialogOpen(true)}
+                              sx={{
+                                height: 34,
+                                fontSize: '0.72rem',
+                                fontWeight: 700,
+                                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                                boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
+                                '&:hover': {
+                                  background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+                                  boxShadow: '0 6px 16px rgba(16, 185, 129, 0.4)'
+                                }
+                              }}
+                            >
+                              EXPORT
+                            </Button>
+                          )}
                           <Button
                             fullWidth
                             size="small"
@@ -2686,7 +2686,7 @@ export default function QCPage() {
           </Dialog>
 
           {/* ========== TAB 1: SINGLE QC ========== */}
-          {tabValue === 1 && (
+          {currentTabCode === 'single' && (
             <Box sx={{
               gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' },
               gap: { xs: 1.5, sm: 2, lg: 2.5 },
@@ -3308,7 +3308,7 @@ export default function QCPage() {
           }
 
           {/* ========== TAB 2: MULTI QC ========== */}
-          {tabValue === 2 && (() => {
+          {currentTabCode === 'multi' && (() => {
             // Column definitions for AG Grid
             const columnDefs = visibleColumns.map((field: string) => {
               // Normalize the field (remove underscores and lowercase) to match COLUMN_WIDTHS / ALL_MASTER_COLUMNS keys
@@ -4252,7 +4252,7 @@ export default function QCPage() {
           })()}
 
           {/* ========== TAB 3: BULK UPLOAD ========== */}
-          {tabValue === 3 && (
+          {currentTabCode === 'bulk' && (
             <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', p: { xs: 1, sm: 1.5, md: 2 }, overflow: 'auto' }}>
               <Card sx={{ borderRadius: 1.5, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
                 <CardContent sx={{ p: 2 }}>
@@ -4375,7 +4375,7 @@ export default function QCPage() {
 
           {/* ========== TAB 4: BATCH MANAGER ========== */}
           {
-            tabValue === 4 && (
+            currentTabCode === 'batches' && (
               <Box
                 sx={{
                   display: 'flex',
@@ -4501,28 +4501,30 @@ export default function QCPage() {
                                     {formatDate(batch.created_at)}
                                   </TableCell>
                                   <TableCell>
-                                    <Button
-                                      size="small"
-                                      variant="outlined"
-                                      color="error"
-                                      onClick={() => handleDeleteBatch(batch.batch_id)}
-                                      sx={{
-                                        fontSize: '0.7rem',
-                                        fontWeight: 700,
-                                        borderWidth: 2,
-                                        borderColor: '#dc2626',
-                                        color: '#dc2626',
-                                        minWidth: 'auto',
-                                        px: 1.5,
-                                        '&:hover': {
+                                    {canSeeButton('batches:delete') && (
+                                      <Button
+                                        size="small"
+                                        variant="outlined"
+                                        color="error"
+                                        onClick={() => handleDeleteBatch(batch.batch_id)}
+                                        sx={{
+                                          fontSize: '0.7rem',
+                                          fontWeight: 700,
                                           borderWidth: 2,
-                                          bgcolor: 'rgba(220, 38, 38, 0.1)',
-                                          borderColor: '#b91c1c'
-                                        }
-                                      }}
-                                    >
-                                      🗑️ Delete
-                                    </Button>
+                                          borderColor: '#dc2626',
+                                          color: '#dc2626',
+                                          minWidth: 'auto',
+                                          px: 1.5,
+                                          '&:hover': {
+                                            borderWidth: 2,
+                                            bgcolor: 'rgba(220, 38, 38, 0.1)',
+                                            borderColor: '#b91c1c'
+                                          }
+                                        }}
+                                      >
+                                        🗑️ Delete
+                                      </Button>
+                                    )}
                                   </TableCell>
                                 </TableRow>
                               ))

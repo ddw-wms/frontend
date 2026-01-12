@@ -23,8 +23,8 @@ import { getStoredUser, logout } from '@/lib/auth';
 import { masterDataAPI } from '@/lib/api';
 import AppLayout from '@/components/AppLayout';
 import * as XLSX from 'xlsx';
-import { usePermissionGuard } from '@/hooks/usePermissionGuard';
-import { usePermissions } from '@/app/context/PermissionsContext';
+import { useMasterDataPermissions } from '@/hooks/usePagePermissions';
+
 import FilterListIcon from '@mui/icons-material/FilterList';
 
 import { AgGridReact } from 'ag-grid-react';
@@ -34,9 +34,6 @@ import 'ag-grid-community/styles/ag-theme-quartz.css';
 // Register AG Grid modules
 ModuleRegistry.registerModules([AllCommunityModule, ClientSideRowModelModule]);
 
-
-
-// ✅ ISSUE #3 FIX: Format date to IST timezone - Hydration Safe
 const formatDateToIST = (dateString: any, format: 'date' | 'datetime' = 'datetime'): string => {
   if (!dateString) return '-';
 
@@ -67,8 +64,6 @@ const formatDateToIST = (dateString: any, format: 'date' | 'datetime' = 'datetim
     return '-';
   }
 };
-
-
 
 // ✅ Helper function to safely format numbers - Hydration Safe
 const formatNumber = (value: any): string => {
@@ -161,7 +156,7 @@ const MasterDataRow = memo(({
       {columnVisibility.yield_value && <TableCell sx={cellStyle}>{row.yield_value || '-'}</TableCell>}
       {columnVisibility.p_type && <TableCell sx={cellStyle}>{row.p_type || '-'}</TableCell>}
       {columnVisibility.p_size && <TableCell sx={cellStyle}>{row.p_size || '-'}</TableCell>}
-      {columnVisibility.batch_id && <TableCell sx={cellStyle}><Chip label={row.batch_id || '-'} size="small" variant="outlined" color="primary" sx={{ height: 20, fontSize: '0.7rem' }} /></TableCell>}
+      {columnVisibility.batch_id && <TableCell sx={cellStyle}>{row.batch_id || '-'}</TableCell>}
       {columnVisibility.actual_received && <TableCell sx={cellStyle}>
         <Chip
           label={row.actual_received || 'Pending'}
@@ -182,11 +177,7 @@ const MasterDataRow = memo(({
 MasterDataRow.displayName = 'MasterDataRow';
 
 export default function MasterDataPage() {
-  // Role guard - admin, manager, operator can access
-  usePermissionGuard('view_master_data');
 
-  // Permission checks
-  const { hasPermission } = usePermissions();
 
   const router = useRouter();
   const theme = useTheme();
@@ -194,6 +185,9 @@ export default function MasterDataPage() {
   const progressIntervalRef = useRef<any>(null);
   const loadingTimeoutRef = useRef<any>(null);
   const [isClient, setIsClient] = useState(false);
+
+  // Permission hook
+  const { filterTabs, canSeeTab, canSeeButton, isAdmin, isLoading: permLoading } = useMasterDataPermissions();
 
   const [user, setUser] = useState<any>(null);
   const [masterData, setMasterData] = useState<any[]>([]);
@@ -1160,805 +1154,838 @@ export default function MasterDataPage() {
         {/* Scrollable Content Area */}
         <Box sx={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
           {/* Tabs */}
-          <Paper elevation={0} sx={{ borderBottom: '1px solid #e0e0e0' }}>
-            <Tabs value={tabValue} onChange={(e, v) => setTabValue(v)} sx={{ minHeight: 42 }}>
-              <Tab label="📋 Master Data" sx={{ minHeight: 42, py: 0 }} />
-              <Tab label="📦 Batches" sx={{ minHeight: 42, py: 0 }} />
-            </Tabs>
-          </Paper>
+          {(() => {
+            // Define all tabs with their permission codes
+            const allTabs = [
+              { label: '📋 Master Data', code: 'list' },
+              { label: '📦 Batches', code: 'batches' }
+            ];
 
-          {/* Tab 1: Master Data List */}
-          {tabValue === 0 ? (
-            <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
-              {/* Quick Search + Action Buttons Row */}
-              <Paper elevation={0} sx={{ p: { xs: 0.5, sm: 0.75 }, borderBottom: '2px solid #e0e0e0', bgcolor: '#fafafa' }}>
-                {/* DESKTOP LAYOUT - Exactly 2 Rows with auto-responsive sizing */}
-                <Box sx={{ display: { xs: 'none', md: 'block' } }}>
-                  {/* Row 1: Search + Filter Toggle + Refresh - Always visible */}
-                  <Box sx={{
-                    display: 'grid',
-                    gridTemplateColumns: '1fr auto auto',
-                    gap: 0.5,
-                    mb: 0.5,
-                    alignItems: 'center'
-                  }}>
-                    {/* Search Field - Takes remaining space */}
-                    <TextField
-                      size="small"
-                      placeholder="🔍 Search..."
-                      value={searchQuery}
-                      onChange={(e) => { setSearchQuery(e.target.value); setLoading(true); }}
-                      sx={{
-                        minWidth: 0,
-                        '& .MuiInputBase-root': { height: 32 },
-                        '& .MuiOutlinedInput-root': {
-                          borderRadius: 0.5,
-                          fontSize: { md: '0.75rem', lg: '0.85rem' },
-                          '&:hover fieldset': { borderColor: '#1976d2' }
-                        }
-                      }}
-                    />
+            // Filter visible tabs based on permissions
+            const visibleTabs = allTabs.filter(tab => canSeeTab(tab.code));
 
-                    {/* Filter Toggle Button */}
-                    <Button
-                      size="small"
-                      variant={showAdvancedFilters ? "contained" : "outlined"}
-                      onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-                      sx={{
-                        height: 32,
-                        minWidth: { md: 110, lg: 130 },
-                        fontSize: { md: '0.7rem', lg: '0.75rem' },
-                        whiteSpace: 'nowrap',
-                        px: { md: 1, lg: 1.5 },
-                        fontWeight: 600,
-                        position: 'relative',
-                        borderWidth: 2,
-                        borderColor: showAdvancedFilters ? '#667eea' : '#cbd5e1',
-                        bgcolor: showAdvancedFilters ? 'rgba(102, 126, 234, 0.1)' : 'white',
-                        color: showAdvancedFilters ? '#667eea' : '#64748b',
-                      }}
-                    >
-                      <FilterListIcon sx={{ fontSize: 16, mr: { md: 0.3, lg: 0.5 } }} />
-                      {showAdvancedFilters ? 'Hide' : 'Show'} Filters
-                      {(filterBatchId || filterStatus !== 'All' || filterBrand || filterCategory) && (
-                        <Box sx={{
-                          position: 'absolute',
-                          top: -6,
-                          right: -6,
-                          width: 14,
-                          height: 14,
-                          borderRadius: '50%',
-                          bgcolor: '#10b981',
-                          border: '2px solid white',
-                        }} />
-                      )}
-                    </Button>
+            // Map visible tab index to actual tab index
+            const getActualTabIndex = (visibleIndex: number) => {
+              const visibleTab = visibleTabs[visibleIndex];
+              return allTabs.findIndex(t => t.code === visibleTab?.code);
+            };
 
-                    {/* Refresh Button */}
-                    <Button
-                      variant="outlined"
-                      size="small"
-                      startIcon={refreshing ? <CircularProgress size={14} /> : refreshSuccess ? <CheckCircle sx={{ color: '#10b981' }} /> : <RefreshIcon fontSize="small" />}
-                      onClick={() => loadMasterData({ buttonRefresh: true })}
-                      disabled={refreshing || loading}
-                      sx={{
-                        height: 32,
-                        fontSize: { md: '0.7rem', lg: '0.75rem' },
-                        px: { md: 1, lg: 1.5 },
-                        whiteSpace: 'nowrap',
-                        minWidth: { md: 85, lg: 100 }
-                      }}
-                    >
-                      {refreshing ? 'Refreshing...' : refreshSuccess ? 'Refreshed' : 'Refresh'}
-                    </Button>
+            // Current actual tab index
+            const actualTabIndex = getActualTabIndex(tabValue);
 
-
-                  </Box>
-
-                  {/* Row 2: All Filters + Action Buttons - Collapsible with auto-responsive grid */}
-                  <Collapse in={showAdvancedFilters} timeout="auto">
-                    <Box sx={{
-                      display: 'grid',
-                      gridTemplateColumns: {
-                        md: 'repeat(auto-fit, minmax(100px, 1fr))',
-                        lg: 'repeat(10, 1fr)'
-                      },
-                      gap: 0.5,
-                      alignItems: 'center'
-                    }}>
-                      {/* Batch ID Filter */}
-                      <FormControl size="small" sx={{ minWidth: 0 }}>
-                        <InputLabel sx={{ fontSize: { md: '0.75rem', lg: '0.85rem' }, '&.Mui-focused': { color: '#1976d2' } }}>Batch ID</InputLabel>
-                        <Select
-                          value={filterBatchId}
-                          label="Batch ID"
-                          onChange={(e) => { setFilterBatchId(e.target.value); setPage(0); }}
-                          sx={{ height: 32, fontSize: { md: '0.75rem', lg: '0.85rem' } }}
-                        >
-                          <MenuItem value="">All</MenuItem>
-                          {batches.map(b => (
-                            <MenuItem key={b.batch_id} value={b.batch_id}>{b.batch_id} ({formatNumber(b.count)})</MenuItem>
-                          ))}
-                        </Select>
-                      </FormControl>
-
-                      {/* Status Filter */}
-                      <FormControl size="small" sx={{ minWidth: 0 }}>
-                        <InputLabel sx={{ fontSize: { md: '0.75rem', lg: '0.85rem' }, '&.Mui-focused': { color: '#1976d2' } }}>Status</InputLabel>
-                        <Select
-                          value={filterStatus}
-                          label="Status"
-                          onChange={(e) => { setFilterStatus(e.target.value); setPage(0); }}
-                          sx={{ height: 32, fontSize: { md: '0.75rem', lg: '0.85rem' } }}
-                        >
-                          <MenuItem value="All">All</MenuItem>
-                          <MenuItem value="Received">✅ Received</MenuItem>
-                          <MenuItem value="Pending">❌ Pending</MenuItem>
-                        </Select>
-                      </FormControl>
-
-                      {/* Brand Filter */}
-                      <FormControl size="small" sx={{ minWidth: 0 }}>
-                        <InputLabel sx={{ fontSize: { md: '0.75rem', lg: '0.85rem' }, '&.Mui-focused': { color: '#1976d2' } }}>Brand</InputLabel>
-                        <Select
-                          value={filterBrand}
-                          label="Brand"
-                          onChange={(e) => { setFilterBrand(e.target.value); setPage(0); }}
-                          sx={{ height: 32, fontSize: { md: '0.75rem', lg: '0.85rem' } }}
-                        >
-                          <MenuItem value="">All</MenuItem>
-                          {Array.from(new Set(masterData.map(d => d.brand).filter(Boolean))).map(brand => (
-                            <MenuItem key={brand} value={brand}>{brand}</MenuItem>
-                          ))}
-                        </Select>
-                      </FormControl>
-
-                      {/* Category Filter */}
-                      <FormControl size="small" sx={{ minWidth: 0 }}>
-                        <InputLabel sx={{ fontSize: { md: '0.75rem', lg: '0.85rem' }, '&.Mui-focused': { color: '#1976d2' } }}>Category</InputLabel>
-                        <Select
-                          value={filterCategory}
-                          label="Category"
-                          onChange={(e) => { setFilterCategory(e.target.value); setPage(0); }}
-                          sx={{ height: 32, fontSize: { md: '0.75rem', lg: '0.85rem' } }}
-                        >
-                          <MenuItem value="">All</MenuItem>
-                          {Array.from(new Set(masterData.map(d => d.cms_vertical).filter(Boolean))).map(category => (
-                            <MenuItem key={category} value={category}>{category}</MenuItem>
-                          ))}
-                        </Select>
-                      </FormControl>
-
-                      {/* Upload Button */}
-                      <Button
-                        variant="contained"
-                        size="small"
-                        startIcon={<UploadIcon fontSize="small" sx={{ display: { md: 'none', lg: 'inline-flex' } }} />}
-                        onClick={() => setUploadDialogOpen(true)}
-                        sx={{
-                          height: 32,
-                          fontSize: { md: '0.7rem', lg: '0.75rem' },
-                          px: { md: 0.5, lg: 1.25 },
-                          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                          '&:hover': { boxShadow: 2 },
-                          whiteSpace: 'nowrap',
-                          minWidth: 0
-                        }}
-                      >
-                        <Box component="span" sx={{ display: { md: 'none', lg: 'inline' } }}>Upload</Box>
-                        <Box component="span" sx={{ display: { md: 'inline', lg: 'none' } }}>Upld</Box>
-                      </Button>
-
-                      {/* Template Button */}
-                      <Button
-                        variant="outlined"
-                        size="small"
-                        startIcon={<DownloadIcon fontSize="small" sx={{ display: { md: 'none', lg: 'inline-flex' } }} />}
-                        onClick={handleDownloadTemplate}
-                        sx={{
-                          height: 32,
-                          fontSize: { md: '0.7rem', lg: '0.75rem' },
-                          px: { md: 0.5, lg: 1.25 },
-                          whiteSpace: 'nowrap',
-                          minWidth: 0
-                        }}
-                      >
-                        <Box component="span" sx={{ display: { md: 'none', lg: 'inline' } }}>Template</Box>
-                        <Box component="span" sx={{ display: { md: 'inline', lg: 'none' } }}>Tmpl</Box>
-                      </Button>
-
-                      {/* Export Button */}
-                      <Button
-                        variant="outlined"
-                        size="small"
-                        startIcon={<ExportIcon fontSize="small" sx={{ display: { md: 'none', lg: 'inline-flex' } }} />}
-                        onClick={() => setExportDialogOpen(true)}
-                        sx={{
-                          height: 32,
-                          fontSize: { md: '0.7rem', lg: '0.75rem' },
-                          px: { md: 0.5, lg: 1.25 },
-                          whiteSpace: 'nowrap',
-                          minWidth: 0
-                        }}
-                      >
-                        <Box component="span" sx={{ display: { md: 'none', lg: 'inline' } }}>Export</Box>
-                        <Box component="span" sx={{ display: { md: 'inline', lg: 'none' } }}>Exp</Box>
-                      </Button>
-
-                      {/* Columns Button */}
-                      <Button
-                        variant="outlined"
-                        size="small"
-                        startIcon={<VisibilityIcon fontSize="small" sx={{ display: { md: 'none', lg: 'inline-flex' } }} />}
-                        onClick={(e) => setColumnMenuAnchor(e.currentTarget)}
-                        sx={{
-                          height: 32,
-                          fontSize: { md: '0.7rem', lg: '0.75rem' },
-                          px: { md: 0.5, lg: 1.25 },
-                          whiteSpace: 'nowrap',
-                          minWidth: 0
-                        }}
-                      >
-                        <Box component="span" sx={{ display: { md: 'none', lg: 'inline' } }}>Columns</Box>
-                        <Box component="span" sx={{ display: { md: 'inline', lg: 'none' } }}>Cols</Box>
-                      </Button>
-
-                      {/* Grid Settings Button */}
-                      <Button
-                        variant="outlined"
-                        size="small"
-                        startIcon={<TuneIcon fontSize="small" sx={{ display: { md: 'none', lg: 'inline-flex' } }} />}
-                        onClick={() => setGridSettingsOpen(true)}
-                        sx={{
-                          height: 32,
-                          fontSize: { md: '0.7rem', lg: '0.75rem' },
-                          px: { md: 0.5, lg: 1.25 },
-                          whiteSpace: 'nowrap',
-                          minWidth: 0
-                        }}
-                      >
-                        <Box component="span" sx={{ display: { md: 'none', lg: 'inline' } }}>Grid</Box>
-                        <Box component="span" sx={{ display: { md: 'inline', lg: 'none' } }}>Grid</Box>
-                      </Button>
-
-                      {/* Reset Button */}
-                      <Button
-                        variant="outlined"
-                        size="small"
-                        startIcon={<ClearIcon fontSize="small" sx={{ display: { md: 'none', lg: 'inline-flex' } }} />}
-                        onClick={resetFilters}
-                        sx={{
-                          height: 32,
-                          fontSize: { md: '0.7rem', lg: '0.75rem' },
-                          px: { md: 0.5, lg: 1.25 },
-                          color: '#d32f2f',
-                          borderColor: '#d32f2f',
-                          '&:hover': { borderColor: '#b71c1c', bgcolor: '#ffebee' },
-                          whiteSpace: 'nowrap',
-                          minWidth: 0
-                        }}
-                      >
-                        <Box component="span" sx={{ display: { md: 'none', lg: 'inline' } }}>Reset</Box>
-                        <Box component="span" sx={{ display: { md: 'inline', lg: 'none' } }}>Rst</Box>
-                      </Button>
-                    </Box>
-                  </Collapse>
-                </Box>
-
-                {/* MOBILE LAYOUT */}
-                <Box sx={{ display: { xs: 'block', md: 'none' } }}>
-                  <Stack direction="row" spacing={0.5} alignItems="center" sx={{ gap: 0.5 }}>
-                    {/* Search Field */}
-                    <TextField
-                      size="small"
-                      placeholder="🔍 Search..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      sx={{
-                        flex: 1,
-                        minWidth: 0,
-                        '& .MuiInputBase-root': { height: 36 },
-                        '& .MuiOutlinedInput-root': {
-                          borderRadius: 0.5,
-                          fontSize: '0.8rem',
-                          '&:hover fieldset': { borderColor: '#1976d2' }
-                        }
-                      }}
-                      InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" sx={{ color: '#1976d2' }} /></InputAdornment> }}
-                    />
-
-                    {/* Mobile Actions Button */}
-                    <Button
-                      variant="contained"
-                      color="primary"
-                      startIcon={<TuneIcon />}
-                      sx={{
-                        height: 36,
-                        px: 2,
-                        textTransform: 'none',
-                        whiteSpace: 'nowrap'
-                      }}
-                      onClick={() => setMobileActionsOpen(true)}
-                    >
-                      Actions
-                    </Button>
-
-                    {/* Refresh Button */}
-                    <Button
-                      variant="outlined"
-                      size="small"
-                      onClick={() => loadMasterData({ buttonRefresh: true })}
-                      disabled={refreshing || loading}
-                      sx={{
-                        height: 36,
-                        minWidth: 36,
-                        px: 0.5,
-                        whiteSpace: 'nowrap'
-                      }}
-                    >
-                      {refreshing ? <CircularProgress size={16} /> : refreshSuccess ? <CheckCircle sx={{ color: '#10b981' }} fontSize="small" /> : <RefreshIcon fontSize="small" />}
-                    </Button>
-                  </Stack>
-                </Box>
-              </Paper>
-
-              {/* Advanced Filters - Mobile Only Collapsible (Unchanged) */}
-              <Collapse in={showAdvancedFilters} timeout="auto">
-                <Paper elevation={0} sx={{ p: 0.5, borderBottom: '1px solid #e0e0e0', bgcolor: '#f9f9f9', display: { xs: 'block', md: 'none' } }}>
-                  <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 0.5 }}>
-                    {/* Row 1: Batch ID, Status, Brand */}
-                    <FormControl size="small" fullWidth>
-                      <InputLabel sx={{ fontSize: '0.7rem' }}>Batch ID</InputLabel>
-                      <Select
-                        value={filterBatchId}
-                        label="Batch ID"
-                        onChange={(e) => { setFilterBatchId(e.target.value); setPage(0); }}
-                        sx={{ height: 36, fontSize: '0.7rem' }}
-                      >
-                        <MenuItem value="">All</MenuItem>
-                        {batches.map(b => (
-                          <MenuItem key={b.batch_id} value={b.batch_id}>{b.batch_id} ({formatNumber(b.count)})</MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-
-                    <FormControl size="small" fullWidth>
-                      <InputLabel sx={{ fontSize: '0.7rem' }}>Status</InputLabel>
-                      <Select
-                        value={filterStatus}
-                        label="Status"
-                        onChange={(e) => { setFilterStatus(e.target.value); setPage(0); }}
-                        sx={{ height: 36, fontSize: '0.7rem' }}
-                      >
-                        <MenuItem value="All">All</MenuItem>
-                        <MenuItem value="Received">✅ Received</MenuItem>
-                        <MenuItem value="Pending">❌ Pending</MenuItem>
-                      </Select>
-                    </FormControl>
-
-                    <FormControl size="small" fullWidth>
-                      <InputLabel sx={{ fontSize: '0.7rem' }}>Brand</InputLabel>
-                      <Select
-                        value={filterBrand}
-                        label="Brand"
-                        onChange={(e) => { setFilterBrand(e.target.value); setPage(0); }}
-                        sx={{ height: 36, fontSize: '0.7rem' }}
-                      >
-                        <MenuItem value="">All</MenuItem>
-                        {Array.from(new Set(masterData.map(d => d.brand).filter(Boolean))).map(brand => (
-                          <MenuItem key={brand} value={brand}>{brand}</MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-
-                    {/* Row 2: Category, Upload, Export */}
-                    <FormControl size="small" fullWidth>
-                      <InputLabel sx={{ fontSize: '0.7rem' }}>Category</InputLabel>
-                      <Select
-                        value={filterCategory}
-                        label="Category"
-                        onChange={(e) => { setFilterCategory(e.target.value); setPage(0); }}
-                        sx={{ height: 36, fontSize: '0.7rem' }}
-                      >
-                        <MenuItem value="">All</MenuItem>
-                        {Array.from(new Set(masterData.map(d => d.cms_vertical).filter(Boolean))).map(category => (
-                          <MenuItem key={category} value={category}>{category}</MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-
-                    <Button
-                      variant="contained"
-                      size="small"
-                      onClick={() => setUploadDialogOpen(true)}
-                      sx={{
-                        height: 36,
-                        fontSize: '0.65rem',
-                        px: 0.5,
-                        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        lineHeight: 1,
-                        minWidth: 0
-                      }}
-                    >
-                      <UploadIcon sx={{ fontSize: 16 }} />
-                      <Box sx={{ fontSize: '0.55rem', fontWeight: 600, mt: 0.1 }}>Upload</Box>
-                    </Button>
-
-                    <Button
-                      variant="outlined"
-                      size="small"
-                      onClick={() => setExportDialogOpen(true)}
-                      sx={{
-                        height: 36,
-                        fontSize: '0.65rem',
-                        px: 0.5,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        lineHeight: 1,
-                        minWidth: 0
-                      }}
-                    >
-                      <ExportIcon sx={{ fontSize: 16 }} />
-                      <Box sx={{ fontSize: '0.55rem', fontWeight: 600, mt: 0.1 }}>Export</Box>
-                    </Button>
-
-                    {/* Row 3: Template, Columns, Grid, Reset */}
-                    <Button
-                      variant="outlined"
-                      size="small"
-                      onClick={handleDownloadTemplate}
-                      sx={{
-                        height: 36,
-                        fontSize: '0.65rem',
-                        px: 0.5,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        lineHeight: 1,
-                        minWidth: 0
-                      }}
-                    >
-                      <DownloadIcon sx={{ fontSize: 16 }} />
-                      <Box sx={{ fontSize: '0.55rem', fontWeight: 600, mt: 0.1 }}>Template</Box>
-                    </Button>
-
-                    <Button
-                      variant="outlined"
-                      size="small"
-                      onClick={(e) => setColumnMenuAnchor(e.currentTarget)}
-                      sx={{
-                        height: 36,
-                        fontSize: '0.65rem',
-                        px: 0.5,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        lineHeight: 1,
-                        minWidth: 0
-                      }}
-                    >
-                      <VisibilityIcon sx={{ fontSize: 16 }} />
-                      <Box sx={{ fontSize: '0.55rem', fontWeight: 600, mt: 0.1 }}>Columns</Box>
-                    </Button>
-
-                    <Button
-                      variant="outlined"
-                      size="small"
-                      onClick={() => setGridSettingsOpen(true)}
-                      sx={{
-                        height: 36,
-                        fontSize: '0.65rem',
-                        px: 0.5,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        lineHeight: 1,
-                        minWidth: 0
-                      }}
-                    >
-                      <TuneIcon sx={{ fontSize: 16 }} />
-                      <Box sx={{ fontSize: '0.55rem', fontWeight: 600, mt: 0.1 }}>Grid</Box>
-                    </Button>
-
-                    <Button
-                      variant="outlined"
-                      size="small"
-                      onClick={resetFilters}
-                      sx={{
-                        height: 36,
-                        fontSize: '0.65rem',
-                        px: 0.5,
-                        color: '#d32f2f',
-                        borderColor: '#d32f2f',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        lineHeight: 1,
-                        minWidth: 0
-                      }}
-                    >
-                      <ClearIcon sx={{ fontSize: 16 }} />
-                      <Box sx={{ fontSize: '0.55rem', fontWeight: 600, mt: 0.1 }}>Reset</Box>
-                    </Button>
-                  </Box>
+            return (
+              <>
+                <Paper elevation={0} sx={{ borderBottom: '1px solid #e0e0e0' }}>
+                  <Tabs value={tabValue} onChange={(e, v) => setTabValue(v)} sx={{ minHeight: 42 }}>
+                    {visibleTabs.map((tab, idx) => (
+                      <Tab key={tab.code} label={tab.label} sx={{ minHeight: 42, py: 0 }} />
+                    ))}
+                  </Tabs>
                 </Paper>
-              </Collapse>
+
+                {/* Tab 1: Master Data List */}
+                {actualTabIndex === 0 && (
+                  <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+                    {/* Quick Search + Action Buttons Row */}
+                    <Paper elevation={0} sx={{ p: { xs: 0.5, sm: 0.75 }, borderBottom: '2px solid #e0e0e0', bgcolor: '#fafafa' }}>
+                      {/* DESKTOP LAYOUT - Exactly 2 Rows with auto-responsive sizing */}
+                      <Box sx={{ display: { xs: 'none', md: 'block' } }}>
+                        {/* Row 1: Search + Filter Toggle + Refresh - Always visible */}
+                        <Box sx={{
+                          display: 'grid',
+                          gridTemplateColumns: '1fr auto auto',
+                          gap: 0.5,
+                          mb: 0.5,
+                          alignItems: 'center'
+                        }}>
+                          {/* Search Field - Takes remaining space */}
+                          <TextField
+                            size="small"
+                            placeholder="🔍 Search..."
+                            value={searchQuery}
+                            onChange={(e) => { setSearchQuery(e.target.value); setLoading(true); }}
+                            sx={{
+                              minWidth: 0,
+                              '& .MuiInputBase-root': { height: 32 },
+                              '& .MuiOutlinedInput-root': {
+                                borderRadius: 0.5,
+                                fontSize: { md: '0.75rem', lg: '0.85rem' },
+                                '&:hover fieldset': { borderColor: '#1976d2' }
+                              }
+                            }}
+                          />
+
+                          {/* Filter Toggle Button */}
+                          <Button
+                            size="small"
+                            variant={showAdvancedFilters ? "contained" : "outlined"}
+                            onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                            sx={{
+                              height: 32,
+                              minWidth: { md: 110, lg: 130 },
+                              fontSize: { md: '0.7rem', lg: '0.75rem' },
+                              whiteSpace: 'nowrap',
+                              px: { md: 1, lg: 1.5 },
+                              fontWeight: 600,
+                              position: 'relative',
+                              borderWidth: 2,
+                              borderColor: showAdvancedFilters ? '#667eea' : '#cbd5e1',
+                              bgcolor: showAdvancedFilters ? 'rgba(102, 126, 234, 0.1)' : 'white',
+                              color: showAdvancedFilters ? '#667eea' : '#64748b',
+                            }}
+                          >
+                            <FilterListIcon sx={{ fontSize: 16, mr: { md: 0.3, lg: 0.5 } }} />
+                            {showAdvancedFilters ? 'Hide' : 'Show'} Filters
+                            {(filterBatchId || filterStatus !== 'All' || filterBrand || filterCategory) && (
+                              <Box sx={{
+                                position: 'absolute',
+                                top: -6,
+                                right: -6,
+                                width: 14,
+                                height: 14,
+                                borderRadius: '50%',
+                                bgcolor: '#10b981',
+                                border: '2px solid white',
+                              }} />
+                            )}
+                          </Button>
+
+                          {/* Refresh Button */}
+                          <Button
+                            variant="outlined"
+                            size="small"
+                            startIcon={refreshing ? <CircularProgress size={14} /> : refreshSuccess ? <CheckCircle sx={{ color: '#10b981' }} /> : <RefreshIcon fontSize="small" />}
+                            onClick={() => loadMasterData({ buttonRefresh: true })}
+                            disabled={refreshing || loading}
+                            sx={{
+                              height: 32,
+                              fontSize: { md: '0.7rem', lg: '0.75rem' },
+                              px: { md: 1, lg: 1.5 },
+                              whiteSpace: 'nowrap',
+                              minWidth: { md: 85, lg: 100 }
+                            }}
+                          >
+                            {refreshing ? 'Refreshing...' : refreshSuccess ? 'Refreshed' : 'Refresh'}
+                          </Button>
+
+
+                        </Box>
+
+                        {/* Row 2: All Filters + Action Buttons - Collapsible with auto-responsive grid */}
+                        <Collapse in={showAdvancedFilters} timeout="auto">
+                          <Box sx={{
+                            display: 'grid',
+                            gridTemplateColumns: {
+                              md: 'repeat(auto-fit, minmax(100px, 1fr))',
+                              lg: 'repeat(10, 1fr)'
+                            },
+                            gap: 0.5,
+                            alignItems: 'center'
+                          }}>
+                            {/* Batch ID Filter */}
+                            <FormControl size="small" sx={{ minWidth: 0 }}>
+                              <InputLabel sx={{ fontSize: { md: '0.75rem', lg: '0.85rem' }, '&.Mui-focused': { color: '#1976d2' } }}>Batch ID</InputLabel>
+                              <Select
+                                value={filterBatchId}
+                                label="Batch ID"
+                                onChange={(e) => { setFilterBatchId(e.target.value); setPage(0); }}
+                                sx={{ height: 32, fontSize: { md: '0.75rem', lg: '0.85rem' } }}
+                              >
+                                <MenuItem value="">All</MenuItem>
+                                {batches.map(b => (
+                                  <MenuItem key={b.batch_id} value={b.batch_id}>{b.batch_id} ({formatNumber(b.count)})</MenuItem>
+                                ))}
+                              </Select>
+                            </FormControl>
+
+                            {/* Status Filter */}
+                            <FormControl size="small" sx={{ minWidth: 0 }}>
+                              <InputLabel sx={{ fontSize: { md: '0.75rem', lg: '0.85rem' }, '&.Mui-focused': { color: '#1976d2' } }}>Status</InputLabel>
+                              <Select
+                                value={filterStatus}
+                                label="Status"
+                                onChange={(e) => { setFilterStatus(e.target.value); setPage(0); }}
+                                sx={{ height: 32, fontSize: { md: '0.75rem', lg: '0.85rem' } }}
+                              >
+                                <MenuItem value="All">All</MenuItem>
+                                <MenuItem value="Received">✅ Received</MenuItem>
+                                <MenuItem value="Pending">❌ Pending</MenuItem>
+                              </Select>
+                            </FormControl>
+
+                            {/* Brand Filter */}
+                            <FormControl size="small" sx={{ minWidth: 0 }}>
+                              <InputLabel sx={{ fontSize: { md: '0.75rem', lg: '0.85rem' }, '&.Mui-focused': { color: '#1976d2' } }}>Brand</InputLabel>
+                              <Select
+                                value={filterBrand}
+                                label="Brand"
+                                onChange={(e) => { setFilterBrand(e.target.value); setPage(0); }}
+                                sx={{ height: 32, fontSize: { md: '0.75rem', lg: '0.85rem' } }}
+                              >
+                                <MenuItem value="">All</MenuItem>
+                                {Array.from(new Set(masterData.map(d => d.brand).filter(Boolean))).map(brand => (
+                                  <MenuItem key={brand} value={brand}>{brand}</MenuItem>
+                                ))}
+                              </Select>
+                            </FormControl>
+
+                            {/* Category Filter */}
+                            <FormControl size="small" sx={{ minWidth: 0 }}>
+                              <InputLabel sx={{ fontSize: { md: '0.75rem', lg: '0.85rem' }, '&.Mui-focused': { color: '#1976d2' } }}>Category</InputLabel>
+                              <Select
+                                value={filterCategory}
+                                label="Category"
+                                onChange={(e) => { setFilterCategory(e.target.value); setPage(0); }}
+                                sx={{ height: 32, fontSize: { md: '0.75rem', lg: '0.85rem' } }}
+                              >
+                                <MenuItem value="">All</MenuItem>
+                                {Array.from(new Set(masterData.map(d => d.cms_vertical).filter(Boolean))).map(category => (
+                                  <MenuItem key={category} value={category}>{category}</MenuItem>
+                                ))}
+                              </Select>
+                            </FormControl>
+
+                            {/* Upload Button */}
+                            {canSeeButton('upload') && (
+                              <Button
+                                variant="contained"
+                                size="small"
+                                startIcon={<UploadIcon fontSize="small" sx={{ display: { md: 'none', lg: 'inline-flex' } }} />}
+                                onClick={() => setUploadDialogOpen(true)}
+                                sx={{
+                                  height: 32,
+                                  fontSize: { md: '0.7rem', lg: '0.75rem' },
+                                  px: { md: 0.5, lg: 1.25 },
+                                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                                  '&:hover': { boxShadow: 2 },
+                                  whiteSpace: 'nowrap',
+                                  minWidth: 0
+                                }}
+                              >
+                                <Box component="span" sx={{ display: { md: 'none', lg: 'inline' } }}>Upload</Box>
+                                <Box component="span" sx={{ display: { md: 'inline', lg: 'none' } }}>Upld</Box>
+                              </Button>
+                            )}
+
+                            {/* Template Button */}
+                            <Button
+                              variant="outlined"
+                              size="small"
+                              startIcon={<DownloadIcon fontSize="small" sx={{ display: { md: 'none', lg: 'inline-flex' } }} />}
+                              onClick={handleDownloadTemplate}
+                              sx={{
+                                height: 32,
+                                fontSize: { md: '0.7rem', lg: '0.75rem' },
+                                px: { md: 0.5, lg: 1.25 },
+                                whiteSpace: 'nowrap',
+                                minWidth: 0
+                              }}
+                            >
+                              <Box component="span" sx={{ display: { md: 'none', lg: 'inline' } }}>Template</Box>
+                              <Box component="span" sx={{ display: { md: 'inline', lg: 'none' } }}>Tmpl</Box>
+                            </Button>
+
+                            {/* Export Button */}
+                            {canSeeButton('export') && (
+                              <Button
+                                variant="outlined"
+                                size="small"
+                                startIcon={<ExportIcon fontSize="small" sx={{ display: { md: 'none', lg: 'inline-flex' } }} />}
+                                onClick={() => setExportDialogOpen(true)}
+                                sx={{
+                                  height: 32,
+                                  fontSize: { md: '0.7rem', lg: '0.75rem' },
+                                  px: { md: 0.5, lg: 1.25 },
+                                  whiteSpace: 'nowrap',
+                                  minWidth: 0
+                                }}
+                              >
+                                <Box component="span" sx={{ display: { md: 'none', lg: 'inline' } }}>Export</Box>
+                                <Box component="span" sx={{ display: { md: 'inline', lg: 'none' } }}>Exp</Box>
+                              </Button>
+                            )}
+
+                            {/* Columns Button */}
+                            {canSeeButton('columns') && (
+                              <Button
+                                variant="outlined"
+                                size="small"
+                                startIcon={<VisibilityIcon fontSize="small" sx={{ display: { md: 'none', lg: 'inline-flex' } }} />}
+                                onClick={(e) => setColumnMenuAnchor(e.currentTarget)}
+                                sx={{
+                                  height: 32,
+                                  fontSize: { md: '0.7rem', lg: '0.75rem' },
+                                  px: { md: 0.5, lg: 1.25 },
+                                  whiteSpace: 'nowrap',
+                                  minWidth: 0
+                                }}
+                              >
+                                <Box component="span" sx={{ display: { md: 'none', lg: 'inline' } }}>Columns</Box>
+                                <Box component="span" sx={{ display: { md: 'inline', lg: 'none' } }}>Cols</Box>
+                              </Button>
+                            )}
+
+                            {/* Grid Settings Button */}
+                            <Button
+                              variant="outlined"
+                              size="small"
+                              startIcon={<TuneIcon fontSize="small" sx={{ display: { md: 'none', lg: 'inline-flex' } }} />}
+                              onClick={() => setGridSettingsOpen(true)}
+                              sx={{
+                                height: 32,
+                                fontSize: { md: '0.7rem', lg: '0.75rem' },
+                                px: { md: 0.5, lg: 1.25 },
+                                whiteSpace: 'nowrap',
+                                minWidth: 0
+                              }}
+                            >
+                              <Box component="span" sx={{ display: { md: 'none', lg: 'inline' } }}>Grid</Box>
+                              <Box component="span" sx={{ display: { md: 'inline', lg: 'none' } }}>Grid</Box>
+                            </Button>
+
+                            {/* Reset Button */}
+                            <Button
+                              variant="outlined"
+                              size="small"
+                              startIcon={<ClearIcon fontSize="small" sx={{ display: { md: 'none', lg: 'inline-flex' } }} />}
+                              onClick={resetFilters}
+                              sx={{
+                                height: 32,
+                                fontSize: { md: '0.7rem', lg: '0.75rem' },
+                                px: { md: 0.5, lg: 1.25 },
+                                color: '#d32f2f',
+                                borderColor: '#d32f2f',
+                                '&:hover': { borderColor: '#b71c1c', bgcolor: '#ffebee' },
+                                whiteSpace: 'nowrap',
+                                minWidth: 0
+                              }}
+                            >
+                              <Box component="span" sx={{ display: { md: 'none', lg: 'inline' } }}>Reset</Box>
+                              <Box component="span" sx={{ display: { md: 'inline', lg: 'none' } }}>Rst</Box>
+                            </Button>
+                          </Box>
+                        </Collapse>
+                      </Box>
+
+                      {/* MOBILE LAYOUT */}
+                      <Box sx={{ display: { xs: 'block', md: 'none' } }}>
+                        <Stack direction="row" spacing={0.5} alignItems="center" sx={{ gap: 0.5 }}>
+                          {/* Search Field */}
+                          <TextField
+                            size="small"
+                            placeholder="🔍 Search..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            sx={{
+                              flex: 1,
+                              minWidth: 0,
+                              '& .MuiInputBase-root': { height: 36 },
+                              '& .MuiOutlinedInput-root': {
+                                borderRadius: 0.5,
+                                fontSize: '0.8rem',
+                                '&:hover fieldset': { borderColor: '#1976d2' }
+                              }
+                            }}
+                            InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" sx={{ color: '#1976d2' }} /></InputAdornment> }}
+                          />
+
+                          {/* Mobile Actions Button */}
+                          <Button
+                            variant="contained"
+                            color="primary"
+                            startIcon={<TuneIcon />}
+                            sx={{
+                              height: 36,
+                              px: 2,
+                              textTransform: 'none',
+                              whiteSpace: 'nowrap'
+                            }}
+                            onClick={() => setMobileActionsOpen(true)}
+                          >
+                            Actions
+                          </Button>
+
+                          {/* Refresh Button */}
+                          <Button
+                            variant="outlined"
+                            size="small"
+                            onClick={() => loadMasterData({ buttonRefresh: true })}
+                            disabled={refreshing || loading}
+                            sx={{
+                              height: 36,
+                              minWidth: 36,
+                              px: 0.5,
+                              whiteSpace: 'nowrap'
+                            }}
+                          >
+                            {refreshing ? <CircularProgress size={16} /> : refreshSuccess ? <CheckCircle sx={{ color: '#10b981' }} fontSize="small" /> : <RefreshIcon fontSize="small" />}
+                          </Button>
+                        </Stack>
+                      </Box>
+                    </Paper>
+
+                    {/* Advanced Filters - Mobile Only Collapsible (Unchanged) */}
+                    <Collapse in={showAdvancedFilters} timeout="auto">
+                      <Paper elevation={0} sx={{ p: 0.5, borderBottom: '1px solid #e0e0e0', bgcolor: '#f9f9f9', display: { xs: 'block', md: 'none' } }}>
+                        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 0.5 }}>
+                          {/* Row 1: Batch ID, Status, Brand */}
+                          <FormControl size="small" fullWidth>
+                            <InputLabel sx={{ fontSize: '0.7rem' }}>Batch ID</InputLabel>
+                            <Select
+                              value={filterBatchId}
+                              label="Batch ID"
+                              onChange={(e) => { setFilterBatchId(e.target.value); setPage(0); }}
+                              sx={{ height: 36, fontSize: '0.7rem' }}
+                            >
+                              <MenuItem value="">All</MenuItem>
+                              {batches.map(b => (
+                                <MenuItem key={b.batch_id} value={b.batch_id}>{b.batch_id} ({formatNumber(b.count)})</MenuItem>
+                              ))}
+                            </Select>
+                          </FormControl>
+
+                          <FormControl size="small" fullWidth>
+                            <InputLabel sx={{ fontSize: '0.7rem' }}>Status</InputLabel>
+                            <Select
+                              value={filterStatus}
+                              label="Status"
+                              onChange={(e) => { setFilterStatus(e.target.value); setPage(0); }}
+                              sx={{ height: 36, fontSize: '0.7rem' }}
+                            >
+                              <MenuItem value="All">All</MenuItem>
+                              <MenuItem value="Received">✅ Received</MenuItem>
+                              <MenuItem value="Pending">❌ Pending</MenuItem>
+                            </Select>
+                          </FormControl>
+
+                          <FormControl size="small" fullWidth>
+                            <InputLabel sx={{ fontSize: '0.7rem' }}>Brand</InputLabel>
+                            <Select
+                              value={filterBrand}
+                              label="Brand"
+                              onChange={(e) => { setFilterBrand(e.target.value); setPage(0); }}
+                              sx={{ height: 36, fontSize: '0.7rem' }}
+                            >
+                              <MenuItem value="">All</MenuItem>
+                              {Array.from(new Set(masterData.map(d => d.brand).filter(Boolean))).map(brand => (
+                                <MenuItem key={brand} value={brand}>{brand}</MenuItem>
+                              ))}
+                            </Select>
+                          </FormControl>
+
+                          {/* Row 2: Category, Upload, Export */}
+                          <FormControl size="small" fullWidth>
+                            <InputLabel sx={{ fontSize: '0.7rem' }}>Category</InputLabel>
+                            <Select
+                              value={filterCategory}
+                              label="Category"
+                              onChange={(e) => { setFilterCategory(e.target.value); setPage(0); }}
+                              sx={{ height: 36, fontSize: '0.7rem' }}
+                            >
+                              <MenuItem value="">All</MenuItem>
+                              {Array.from(new Set(masterData.map(d => d.cms_vertical).filter(Boolean))).map(category => (
+                                <MenuItem key={category} value={category}>{category}</MenuItem>
+                              ))}
+                            </Select>
+                          </FormControl>
+
+                          <Button
+                            variant="contained"
+                            size="small"
+                            onClick={() => setUploadDialogOpen(true)}
+                            sx={{
+                              height: 36,
+                              fontSize: '0.65rem',
+                              px: 0.5,
+                              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              lineHeight: 1,
+                              minWidth: 0
+                            }}
+                          >
+                            <UploadIcon sx={{ fontSize: 16 }} />
+                            <Box sx={{ fontSize: '0.55rem', fontWeight: 600, mt: 0.1 }}>Upload</Box>
+                          </Button>
+
+                          <Button
+                            variant="outlined"
+                            size="small"
+                            onClick={() => setExportDialogOpen(true)}
+                            sx={{
+                              height: 36,
+                              fontSize: '0.65rem',
+                              px: 0.5,
+                              display: 'flex',
+                              flexDirection: 'column',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              lineHeight: 1,
+                              minWidth: 0
+                            }}
+                          >
+                            <ExportIcon sx={{ fontSize: 16 }} />
+                            <Box sx={{ fontSize: '0.55rem', fontWeight: 600, mt: 0.1 }}>Export</Box>
+                          </Button>
+
+                          {/* Row 3: Template, Columns, Grid, Reset */}
+                          <Button
+                            variant="outlined"
+                            size="small"
+                            onClick={handleDownloadTemplate}
+                            sx={{
+                              height: 36,
+                              fontSize: '0.65rem',
+                              px: 0.5,
+                              display: 'flex',
+                              flexDirection: 'column',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              lineHeight: 1,
+                              minWidth: 0
+                            }}
+                          >
+                            <DownloadIcon sx={{ fontSize: 16 }} />
+                            <Box sx={{ fontSize: '0.55rem', fontWeight: 600, mt: 0.1 }}>Template</Box>
+                          </Button>
+
+                          <Button
+                            variant="outlined"
+                            size="small"
+                            onClick={(e) => setColumnMenuAnchor(e.currentTarget)}
+                            sx={{
+                              height: 36,
+                              fontSize: '0.65rem',
+                              px: 0.5,
+                              display: 'flex',
+                              flexDirection: 'column',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              lineHeight: 1,
+                              minWidth: 0
+                            }}
+                          >
+                            <VisibilityIcon sx={{ fontSize: 16 }} />
+                            <Box sx={{ fontSize: '0.55rem', fontWeight: 600, mt: 0.1 }}>Columns</Box>
+                          </Button>
+
+                          <Button
+                            variant="outlined"
+                            size="small"
+                            onClick={() => setGridSettingsOpen(true)}
+                            sx={{
+                              height: 36,
+                              fontSize: '0.65rem',
+                              px: 0.5,
+                              display: 'flex',
+                              flexDirection: 'column',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              lineHeight: 1,
+                              minWidth: 0
+                            }}
+                          >
+                            <TuneIcon sx={{ fontSize: 16 }} />
+                            <Box sx={{ fontSize: '0.55rem', fontWeight: 600, mt: 0.1 }}>Grid</Box>
+                          </Button>
+
+                          <Button
+                            variant="outlined"
+                            size="small"
+                            onClick={resetFilters}
+                            sx={{
+                              height: 36,
+                              fontSize: '0.65rem',
+                              px: 0.5,
+                              color: '#d32f2f',
+                              borderColor: '#d32f2f',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              lineHeight: 1,
+                              minWidth: 0
+                            }}
+                          >
+                            <ClearIcon sx={{ fontSize: 16 }} />
+                            <Box sx={{ fontSize: '0.55rem', fontWeight: 600, mt: 0.1 }}>Reset</Box>
+                          </Button>
+                        </Box>
+                      </Paper>
+                    </Collapse>
 
 
 
 
-              {/* AG Grid Table */}
-              <Box sx={{
-                flex: 1,
-                overflow: 'hidden',
-                display: 'flex',
-                flexDirection: 'column',
-                borderLeft: '1px solid #e0e0e0',
-                borderRight: '1px solid #e0e0e0',
-                position: 'relative'
-              }}>
-
-                {/* Loading Overlay with Spinner */}
-                {loading && (
-                  <Box sx={{
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    backgroundColor: 'rgba(255, 255, 255, 0.7)',
-                    backdropFilter: 'blur(2px)',
-                    zIndex: 10,
-                    '@keyframes spin': {
-                      '0%': { transform: 'rotate(0deg)' },
-                      '100%': { transform: 'rotate(360deg)' }
-                    },
-                    '@keyframes pulse': {
-                      '0%, 100%': { opacity: 1 },
-                      '50%': { opacity: 0.5 }
-                    }
-                  }}>
-                    <Box sx={{ textAlign: 'center' }}>
-                      <CircularProgress
-                        size={48}
-                        thickness={3.5}
-                        sx={{
-                          color: '#1976d2',
-                          animation: 'pulse 1.5s ease-in-out infinite'
-                        }}
-                      />
-                    </Box>
-                  </Box>
-                )}
-
-                {/* Empty State Overlay */}
-                {!loading && (!masterData || masterData.length === 0) && (
-                  <Box sx={{
-                    position: 'absolute',
-                    top: 60,
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                    zIndex: 5,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}>
+                    {/* AG Grid Table */}
                     <Box sx={{
-                      textAlign: 'center',
-                      p: 4,
+                      flex: 1,
+                      overflow: 'hidden',
                       display: 'flex',
                       flexDirection: 'column',
-                      alignItems: 'center',
-                      gap: 2
+                      borderLeft: '1px solid #e0e0e0',
+                      borderRight: '1px solid #e0e0e0',
+                      position: 'relative'
                     }}>
+
+                      {/* Loading Overlay with Spinner */}
+                      {loading && (
+                        <Box sx={{
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          backgroundColor: 'rgba(255, 255, 255, 0.7)',
+                          backdropFilter: 'blur(2px)',
+                          zIndex: 10,
+                          '@keyframes spin': {
+                            '0%': { transform: 'rotate(0deg)' },
+                            '100%': { transform: 'rotate(360deg)' }
+                          },
+                          '@keyframes pulse': {
+                            '0%, 100%': { opacity: 1 },
+                            '50%': { opacity: 0.5 }
+                          }
+                        }}>
+                          <Box sx={{ textAlign: 'center' }}>
+                            <CircularProgress
+                              size={48}
+                              thickness={3.5}
+                              sx={{
+                                color: '#1976d2',
+                                animation: 'pulse 1.5s ease-in-out infinite'
+                              }}
+                            />
+                          </Box>
+                        </Box>
+                      )}
+
+                      {/* Empty State Overlay */}
+                      {!loading && (!masterData || masterData.length === 0) && (
+                        <Box sx={{
+                          position: 'absolute',
+                          top: 60,
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                          zIndex: 5,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}>
+                          <Box sx={{
+                            textAlign: 'center',
+                            p: 4,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            gap: 2
+                          }}>
+                            <Box sx={{
+                              fontSize: '4rem',
+                              opacity: 0.3,
+                              mb: 1
+                            }}>
+                              📭
+                            </Box>
+                            <Typography variant="h5" sx={{ fontWeight: 600, color: '#6b7280', mb: 0.5 }}>
+                              No Data Found
+                            </Typography>
+                            <Typography variant="body2" sx={{ color: '#9ca3af', maxWidth: 400 }}>
+                              No master data items match your current filters. Try adjusting your search criteria or reset filters to see all items.
+                            </Typography>
+                          </Box>
+                        </Box>
+                      )}
+
                       <Box sx={{
-                        fontSize: '4rem',
-                        opacity: 0.3,
-                        mb: 1
+                        flex: 1,
+                        overflow: 'hidden',
+                        px: 1,
+                        pb: 1,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        '& .ag-root-wrapper': { height: '100%' },
+                        '& .ag-row': { height: 36 },
+                        '& .ag-row-even': { backgroundColor: '#ffffff' },
+                        '& .ag-row-odd': { backgroundColor: '#f9fafb' },
+                        '& .ag-cell-focus': { border: '2px solid #2563eb !important' },
+                        '& .ag-row-hover': { backgroundColor: '#e5f3ff !important' },
+                        '& .ag-header-cell': {
+                          backgroundColor: '#1565c0',
+                          color: 'white',
+                          fontWeight: 700,
+                          fontSize: '0.8rem',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.3px',
+                          opacity: '1 !important'
+                        },
+                        '& .ag-header': {
+                          opacity: '1 !important',
+                          zIndex: 15,
+                          position: 'relative'
+                        },
+                        '& .ag-body-viewport': {
+                          opacity: loading ? 0.3 : 1,
+                          transition: 'opacity 0.2s ease-in-out'
+                        }
                       }}>
-                        📭
+                        <div className="ag-theme-quartz" style={{ height: '100%', width: '100%' }}>
+                          <AgGridReact
+                            ref={gridRef}
+                            rowData={masterData}
+                            columnDefs={columnDefs}
+                            defaultColDef={defaultColDef}
+                            rowSelection="single"
+                            suppressRowClickSelection={true}
+                            suppressLoadingOverlay={true}
+                            suppressNoRowsOverlay={true}
+                            getRowId={(params: any) => params.data?.id || params.data?.wsn || String(params.rowIndex)}
+                            onGridReady={(params: any) => {
+                              gridRef.current = params.api;
+                              columnApiRef.current = params.columnApi;
+
+                              // Restore saved column state immediately
+                              try {
+                                const savedState = localStorage.getItem('masterdata_columnState');
+                                if (savedState && params.api) {
+                                  const state = JSON.parse(savedState);
+                                  // Apply saved column state using the main API
+                                  params.api.applyColumnState({
+                                    state: state,
+                                    applyOrder: true,
+                                  });
+                                  console.log('Column state restored from localStorage', state);
+                                }
+                              } catch (err) {
+                                console.error('Failed to restore column state:', err);
+                              }
+                            }}
+                            onColumnResized={(params: any) => {
+                              // Save column state when resized
+                              if (params.finished && params.api) {
+                                try {
+                                  const columnState = params.api.getColumnState();
+                                  localStorage.setItem('masterdata_columnState', JSON.stringify(columnState));
+                                  console.log('Column widths saved to localStorage', columnState);
+                                } catch (err) {
+                                  console.error('Failed to save column state:', err);
+                                }
+                              }
+                            }}
+                            onColumnMoved={(params: any) => {
+                              // Save column state when moved
+                              if (params.finished && params.api) {
+                                try {
+                                  const columnState = params.api.getColumnState();
+                                  localStorage.setItem('masterdata_columnState', JSON.stringify(columnState));
+                                  console.log('Column order saved to localStorage', columnState);
+                                } catch (err) {
+                                  console.error('Failed to save column state:', err);
+                                }
+                              }
+                            }}
+                            animateRows={false}
+                            rowBuffer={10}
+                            rowHeight={36}
+                            headerHeight={isMobile ? 40 : 48}
+                            pagination={false}
+                            suppressPaginationPanel={true}
+                            domLayout="normal"
+                          />
+                        </div>
                       </Box>
-                      <Typography variant="h5" sx={{ fontWeight: 600, color: '#6b7280', mb: 0.5 }}>
-                        No Data Found
-                      </Typography>
-                      <Typography variant="body2" sx={{ color: '#9ca3af', maxWidth: 400 }}>
-                        No master data items match your current filters. Try adjusting your search criteria or reset filters to see all items.
-                      </Typography>
+
+                      <Box sx={{ borderTop: '2px solid #1565c0', bgcolor: '#f5f5f5', py: 0.25 }}>
+                        <TablePagination
+                          component="div"
+                          count={totalRecords}
+                          page={page}
+                          onPageChange={(e, newPage) => setPage(newPage)}
+                          rowsPerPage={rowsPerPage}
+                          onRowsPerPageChange={(e) => { const value = parseInt(e.target.value, 10); setRowsPerPage(Math.min(value, 1000)); setPage(0); }}
+                          rowsPerPageOptions={[100, 500, 1000]}
+                          labelRowsPerPage="Rows:"
+                          sx={{
+                            '& .MuiTablePagination-toolbar': {
+                              minHeight: 40,
+                              px: { xs: 1, sm: 2 },
+                              py: 0.25,
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 0.5
+                            },
+                            '& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows': {
+                              fontSize: '0.85rem',
+                              fontWeight: 500,
+                              margin: 0
+                            },
+                            '& .MuiTablePagination-select': {
+                              borderRadius: 1
+                            }
+                          }}
+                          labelDisplayedRows={({ from, to, count }) => `${formatNumber(from)}–${formatNumber(to)} of ${formatNumber(count)}`}
+                        />
+                      </Box>
                     </Box>
                   </Box>
                 )}
 
-                <Box sx={{
-                  flex: 1,
-                  overflow: 'hidden',
-                  px: 1,
-                  pb: 1,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  '& .ag-root-wrapper': { height: '100%' },
-                  '& .ag-row': { height: 36 },
-                  '& .ag-row-even': { backgroundColor: '#ffffff' },
-                  '& .ag-row-odd': { backgroundColor: '#f9fafb' },
-                  '& .ag-cell-focus': { border: '2px solid #2563eb !important' },
-                  '& .ag-row-hover': { backgroundColor: '#e5f3ff !important' },
-                  '& .ag-header-cell': {
-                    backgroundColor: '#1565c0',
-                    color: 'white',
-                    fontWeight: 700,
-                    fontSize: '0.8rem',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.3px',
-                    opacity: '1 !important'
-                  },
-                  '& .ag-header': {
-                    opacity: '1 !important',
-                    zIndex: 15,
-                    position: 'relative'
-                  },
-                  '& .ag-body-viewport': {
-                    opacity: loading ? 0.3 : 1,
-                    transition: 'opacity 0.2s ease-in-out'
-                  }
-                }}>
-                  <div className="ag-theme-quartz" style={{ height: '100%', width: '100%' }}>
-                    <AgGridReact
-                      ref={gridRef}
-                      rowData={masterData}
-                      columnDefs={columnDefs}
-                      defaultColDef={defaultColDef}
-                      rowSelection="single"
-                      suppressRowClickSelection={true}
-                      suppressLoadingOverlay={true}
-                      suppressNoRowsOverlay={true}
-                      getRowId={(params: any) => params.data?.id || params.data?.wsn || String(params.rowIndex)}
-                      onGridReady={(params: any) => {
-                        gridRef.current = params.api;
-                        columnApiRef.current = params.columnApi;
+                {/* Tab 2: Batch Management */}
+                {actualTabIndex === 1 && (
+                  <Paper sx={{ m: { xs: 0.5, sm: 1 }, p: { xs: 1, sm: 1.5 }, flex: 1, overflow: 'auto', borderRadius: { xs: 0, sm: 1 } }}>
+                    <TableContainer sx={{ overflowX: 'auto' }}>
 
-                        // Restore saved column state immediately
-                        try {
-                          const savedState = localStorage.getItem('masterdata_columnState');
-                          if (savedState && params.api) {
-                            const state = JSON.parse(savedState);
-                            // Apply saved column state using the main API
-                            params.api.applyColumnState({
-                              state: state,
-                              applyOrder: true,
-                            });
-                            console.log('Column state restored from localStorage', state);
-                          }
-                        } catch (err) {
-                          console.error('Failed to restore column state:', err);
-                        }
-                      }}
-                      onColumnResized={(params: any) => {
-                        // Save column state when resized
-                        if (params.finished && params.api) {
-                          try {
-                            const columnState = params.api.getColumnState();
-                            localStorage.setItem('masterdata_columnState', JSON.stringify(columnState));
-                            console.log('Column widths saved to localStorage', columnState);
-                          } catch (err) {
-                            console.error('Failed to save column state:', err);
-                          }
-                        }
-                      }}
-                      onColumnMoved={(params: any) => {
-                        // Save column state when moved
-                        if (params.finished && params.api) {
-                          try {
-                            const columnState = params.api.getColumnState();
-                            localStorage.setItem('masterdata_columnState', JSON.stringify(columnState));
-                            console.log('Column order saved to localStorage', columnState);
-                          } catch (err) {
-                            console.error('Failed to save column state:', err);
-                          }
-                        }
-                      }}
-                      animateRows={false}
-                      rowBuffer={10}
-                      rowHeight={36}
-                      headerHeight={isMobile ? 40 : 48}
-                      pagination={false}
-                      suppressPaginationPanel={true}
-                      domLayout="normal"
-                    />
-                  </div>
-                </Box>
+                      <Table size="small" sx={{ minWidth: 600 }}>
+                        <TableHead>
+                          <TableRow>
+                            <TableCell sx={{ bgcolor: '#1565c0', color: 'white', fontWeight: '700', py: 1, fontSize: '0.95rem', textTransform: 'uppercase', letterSpacing: '0.5px', border: '1px solid #1565c0' }}>Batch ID</TableCell>
+                            <TableCell sx={{ bgcolor: '#1565c0', color: 'white', fontWeight: '700', py: 1, fontSize: '0.95rem', textTransform: 'uppercase', letterSpacing: '0.5px', border: '1px solid #1565c0' }}>Records</TableCell>
+                            <TableCell sx={{ bgcolor: '#1565c0', color: 'white', fontWeight: '700', py: 1, fontSize: '0.95rem', textTransform: 'uppercase', letterSpacing: '0.5px', border: '1px solid #1565c0' }}>Last Updated</TableCell>
+                            <TableCell sx={{ bgcolor: '#1565c0', color: 'white', fontWeight: '700', py: 1, fontSize: '0.95rem', textTransform: 'uppercase', letterSpacing: '0.5px', border: '1px solid #1565c0' }} align="center">Actions</TableCell>
+                          </TableRow>
+                        </TableHead>
 
-                <Box sx={{ borderTop: '2px solid #1565c0', bgcolor: '#f5f5f5', py: 0.25 }}>
-                  <TablePagination
-                    component="div"
-                    count={totalRecords}
-                    page={page}
-                    onPageChange={(e, newPage) => setPage(newPage)}
-                    rowsPerPage={rowsPerPage}
-                    onRowsPerPageChange={(e) => { const value = parseInt(e.target.value, 10); setRowsPerPage(Math.min(value, 1000)); setPage(0); }}
-                    rowsPerPageOptions={[100, 500, 1000]}
-                    labelRowsPerPage="Rows:"
-                    sx={{
-                      '& .MuiTablePagination-toolbar': {
-                        minHeight: 40,
-                        px: { xs: 1, sm: 2 },
-                        py: 0.25,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 0.5
-                      },
-                      '& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows': {
-                        fontSize: '0.85rem',
-                        fontWeight: 500,
-                        margin: 0
-                      },
-                      '& .MuiTablePagination-select': {
-                        borderRadius: 1
-                      }
-                    }}
-                    labelDisplayedRows={({ from, to, count }) => `${formatNumber(from)}–${formatNumber(to)} of ${formatNumber(count)}`}
-                  />
-                </Box>
-              </Box>
-            </Box>
-          ) : null}
-
-          {/* Tab 2: Batch Management */}
-          {tabValue === 1 ? (
-            <Paper sx={{ m: { xs: 0.5, sm: 1 }, p: { xs: 1, sm: 1.5 }, flex: 1, overflow: 'auto', borderRadius: { xs: 0, sm: 1 } }}>
-              <TableContainer sx={{ overflowX: 'auto' }}>
-
-                <Table size="small" sx={{ minWidth: 600 }}>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell sx={{ bgcolor: '#1565c0', color: 'white', fontWeight: '700', py: 1, fontSize: '0.95rem', textTransform: 'uppercase', letterSpacing: '0.5px', border: '1px solid #1565c0' }}>Batch ID</TableCell>
-                      <TableCell sx={{ bgcolor: '#1565c0', color: 'white', fontWeight: '700', py: 1, fontSize: '0.95rem', textTransform: 'uppercase', letterSpacing: '0.5px', border: '1px solid #1565c0' }}>Records</TableCell>
-                      <TableCell sx={{ bgcolor: '#1565c0', color: 'white', fontWeight: '700', py: 1, fontSize: '0.95rem', textTransform: 'uppercase', letterSpacing: '0.5px', border: '1px solid #1565c0' }}>Last Updated</TableCell>
-                      <TableCell sx={{ bgcolor: '#1565c0', color: 'white', fontWeight: '700', py: 1, fontSize: '0.95rem', textTransform: 'uppercase', letterSpacing: '0.5px', border: '1px solid #1565c0' }} align="center">Actions</TableCell>
-                    </TableRow>
-                  </TableHead>
-
-                  <TableBody>
-                    {batches && batches.length > 0 ? (
-                      batches.map(batch => (
-                        <TableRow key={batch.batch_id} hover sx={{ '&:hover': { bgcolor: '#e3f2fd' } }}>
-                          <TableCell sx={{ fontWeight: '600', py: 1.2 }}>{batch.batch_id || '-'}</TableCell>
-                          <TableCell sx={{ py: 1.2 }}><Chip label={formatNumber(batch.count || 0)} size="small" variant="outlined" color="primary" /></TableCell>
-                          <TableCell>
-                            {batch.lastupdated_display ? batch.lastupdated_display : '-'}
-                          </TableCell>
-                          <TableCell align="center">
-                            <IconButton size="small" color="error" onClick={() => handleDeleteBatch(batch.batch_id)}>
-                              <DeleteSweepIcon />   Delete Batch
-                            </IconButton>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    ) : (
-                      <TableRow>
-                        <TableCell colSpan={4} align="center" sx={{ py: 3, color: 'text.secondary' }}>
-                          No batches available
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            </Paper>
-          ) : null}
+                        <TableBody>
+                          {batches && batches.length > 0 ? (
+                            batches.map(batch => (
+                              <TableRow key={batch.batch_id} hover sx={{ '&:hover': { bgcolor: '#e3f2fd' } }}>
+                                <TableCell sx={{ fontWeight: '600', py: 1.2 }}>{batch.batch_id || '-'}</TableCell>
+                                <TableCell sx={{ py: 1.2 }}><Chip label={formatNumber(batch.count || 0)} size="small" variant="outlined" color="primary" /></TableCell>
+                                <TableCell>
+                                  {batch.lastupdated_display ? batch.lastupdated_display : '-'}
+                                </TableCell>
+                                <TableCell align="center">
+                                  {canSeeButton('batches:delete') && (
+                                    <IconButton size="small" color="error" onClick={() => handleDeleteBatch(batch.batch_id)}>
+                                      <DeleteSweepIcon />   Delete Batch
+                                    </IconButton>
+                                  )}
+                                </TableCell>
+                              </TableRow>
+                            ))
+                          ) : (
+                            <TableRow>
+                              <TableCell colSpan={4} align="center" sx={{ py: 3, color: 'text.secondary' }}>
+                                No batches available
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  </Paper>
+                )}
+              </>
+            );
+          })()}
         </Box>
 
         {/* COLUMNS DIALOG */}

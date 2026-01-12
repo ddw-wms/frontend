@@ -1,50 +1,3 @@
-// // File Path = warehouse-frontend\components\AppLayout.tsx
-// 'use client';
-
-// import { ReactNode } from 'react';
-// import { Box, CssBaseline } from '@mui/material';
-// import Sidebar from './Sidebar';
-
-// interface AppLayoutProps {
-//   children: ReactNode;
-// }
-
-// export default function AppLayout({ children }: AppLayoutProps) {
-//   return (
-//     <Box
-//       sx={{
-//         position: 'absolute',
-//         inset: 0,
-//         display: 'flex',
-//         flexDirection: 'row',
-//         overflow: 'hidden',
-//       }}
-//     >
-//       <CssBaseline />
-
-//       {/* Sidebar */}
-//       <Box sx={{ height: '100%', flexShrink: 0 }}>
-//         <Sidebar />
-//       </Box>
-
-//       {/* Main Content */}
-//       <Box
-//         component="main"
-//         sx={{
-//           flex: 1,
-//           height: '100%',
-//           bgcolor: '#f5f5f5',
-//           overflowY: 'auto',
-//           overflowX: 'hidden',
-//           WebkitOverflowScrolling: 'touch',
-//         }}
-//       >
-//         {children}
-//       </Box>
-//     </Box>
-//   );
-// }
-
 // File Path = warehouse-frontend\components\AppLayout.tsx
 
 'use client';
@@ -52,17 +5,20 @@ import { ReactNode, useState } from 'react';
 import { Box, CssBaseline, useTheme, useMediaQuery, IconButton } from '@mui/material';
 import { Menu as MenuIcon } from '@mui/icons-material';
 import Sidebar from './Sidebar';
+import RouteGuard from './RouteGuard';
 
 interface AppLayoutProps {
   children: ReactNode;
+  requiredPermission?: string;
+  skipRouteGuard?: boolean;
 }
 
-export default function AppLayout({ children }: AppLayoutProps) {
+export default function AppLayout({ children, requiredPermission, skipRouteGuard = false }: AppLayoutProps) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  return (
+  const content = (
     <Box sx={{ display: 'flex', height: '100vh', overflow: 'hidden', position: 'relative' }}>
       <CssBaseline />
 
@@ -122,6 +78,17 @@ export default function AppLayout({ children }: AppLayoutProps) {
         {children}
       </Box>
     </Box>
+  );
+
+  // Skip route guard if specified or wrap with protection
+  if (skipRouteGuard) {
+    return content;
+  }
+
+  return (
+    <RouteGuard requiredPermission={requiredPermission}>
+      {content}
+    </RouteGuard>
   );
 }
 

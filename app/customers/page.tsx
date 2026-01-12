@@ -23,21 +23,20 @@ import StandardPageLayout from '@/components/StandardPageLayout';
 
 import toast, { Toaster } from 'react-hot-toast';
 import { customerAPI } from '@/lib/api';
-import { usePermissionGuard } from '@/hooks/usePermissionGuard';
-import { usePermissions } from '@/app/context/PermissionsContext';
+import { useCustomersPermissions } from '@/hooks/usePagePermissions';
+
 
 export default function CustomersPage() {
-  // Role guard - only admin, manager, operator can access
-  usePermissionGuard('view_customers');
 
-  // Permission checks
-  const { hasPermission } = usePermissions();
 
   const router = useRouter();
   const { activeWarehouse } = useWarehouse();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [user, setUser] = useState<any>(null);
+
+  // Permission hook
+  const { canSeeButton, isAdmin, isLoading: permLoading } = useCustomersPermissions();
   const [customers, setCustomers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -366,14 +365,16 @@ export default function CustomersPage() {
           alignItems: 'center'
         }}>
           <Box sx={{ display: 'flex', gap: 1 }}>
-            {hasPermission('create_customer') && (
+            {canSeeButton('add') && (
               <Button size="small" startIcon={<AddIcon sx={{ fontSize: 14 }} />} variant="contained" onClick={() => handleOpenDialog()} sx={{ height: 36, fontSize: '0.75rem', fontWeight: 600, background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
                 ADD
               </Button>
             )}
-            <Button size="small" startIcon={<DownloadIcon sx={{ fontSize: 14 }} />} variant="contained" onClick={handleExport} sx={{ height: 36, fontSize: '0.75rem', fontWeight: 600, background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)' }}>
-              EXPORT
-            </Button>
+            {canSeeButton('export') && (
+              <Button size="small" startIcon={<DownloadIcon sx={{ fontSize: 14 }} />} variant="contained" onClick={handleExport} sx={{ height: 36, fontSize: '0.75rem', fontWeight: 600, background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)' }}>
+                EXPORT
+              </Button>
+            )}
             <Button size="small" startIcon={<RefreshIcon sx={{ fontSize: 14 }} />} variant="outlined" onClick={loadCustomers} sx={{ height: 36, fontSize: '0.75rem', fontWeight: 600 }}>
               REFRESH
             </Button>
@@ -426,7 +427,7 @@ export default function CustomersPage() {
                       </TableCell>
                       <TableCell sx={{ textAlign: 'center' }}>
                         <Stack direction="row" spacing={0.5} justifyContent="center">
-                          {hasPermission('edit_customer') && (
+                          {canSeeButton('edit') && (
                             <IconButton
                               size="small"
                               onClick={() => handleOpenDialog(customer)}
@@ -435,7 +436,7 @@ export default function CustomersPage() {
                               <EditIcon sx={{ fontSize: 16 }} />
                             </IconButton>
                           )}
-                          {hasPermission('delete_customer') && (
+                          {canSeeButton('delete') && (
                             <IconButton
                               size="small"
                               onClick={() => handleDelete(customer.id, customer.name)}

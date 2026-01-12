@@ -12,19 +12,14 @@ import { Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon, Key as KeyIcon 
 import { usersAPI } from '@/lib/api';
 import AppLayout from '@/components/AppLayout';
 import toast, { Toaster } from 'react-hot-toast';
-import { usePermissionGuard } from '@/hooks/usePermissionGuard';
-import { usePermissions } from '@/app/context/PermissionsContext';
 import { useWarehouse } from '@/app/context/WarehouseContext';
 import { getStoredUser } from '@/lib/auth';
+import { useUsersPermissions } from '@/hooks/usePagePermissions';
 
 export default function UsersPage() {
-  // Role guard - only admin can access
-  const { loading: permissionLoading } = usePermissionGuard('view_users');
-
-  // Permission checks
-  const { hasPermission } = usePermissions();
 
   const { activeWarehouse, setActiveWarehouse } = useWarehouse();
+  const { canSeeButton, isAdmin, isLoading: permLoading } = useUsersPermissions();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [users, setUsers] = useState<any[]>([]);
@@ -63,27 +58,9 @@ export default function UsersPage() {
   };
 
   useEffect(() => {
-    // Only load data after permissions are checked
-    if (!permissionLoading) {
-      loadUsers();
-    }
-  }, [permissionLoading]);
+    loadUsers();
+  },);
 
-  // Show loading state while permissions are being checked
-  if (permissionLoading) {
-    return (
-      <AppLayout>
-        <Box sx={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          height: '100vh'
-        }}>
-          <CircularProgress />
-        </Box>
-      </AppLayout>
-    );
-  }
 
   const handleDialogOpen = (item?: any) => {
     setEditItem(item || null);
@@ -307,9 +284,11 @@ export default function UsersPage() {
         </Box>
         <Box sx={{ marginBottom: 1.5, mt: 1.5, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
           <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
-            <Button variant="contained" startIcon={<AddIcon />} onClick={() => handleDialogOpen()} size="small" sx={{ height: 36, fontWeight: 600, background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
-              Add User
-            </Button>
+            {canSeeButton('add') && (
+              <Button variant="contained" startIcon={<AddIcon />} onClick={() => handleDialogOpen()} size="small" sx={{ height: 36, fontWeight: 600, background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
+                Add User
+              </Button>
+            )}
           </Box>
         </Box>
 
@@ -366,30 +345,36 @@ export default function UsersPage() {
                       </TableCell>
                       <TableCell sx={{ textAlign: 'center' }}>
                         <Stack direction="row" spacing={0.5} justifyContent="center">
-                          <IconButton
-                            size="small"
-                            onClick={() => handleDialogOpen(user)}
-                            title="Edit"
-                            sx={{ color: '#667eea', p: 0.5, '&:hover': { bgcolor: 'rgba(102, 126, 234, 0.1)' } }}
-                          >
-                            <EditIcon sx={{ fontSize: 16 }} />
-                          </IconButton>
-                          <IconButton
-                            size="small"
-                            onClick={() => handleOpenPasswordDialog(user)}
-                            title="Change Password"
-                            sx={{ color: '#10b981', p: 0.5, '&:hover': { bgcolor: 'rgba(16, 185, 129, 0.1)' } }}
-                          >
-                            <KeyIcon sx={{ fontSize: 16 }} />
-                          </IconButton>
-                          <IconButton
-                            size="small"
-                            onClick={() => handleDelete(user.id)}
-                            title="Delete"
-                            sx={{ color: '#ef4444', p: 0.5, '&:hover': { bgcolor: 'rgba(239, 68, 68, 0.1)' } }}
-                          >
-                            <DeleteIcon sx={{ fontSize: 16 }} />
-                          </IconButton>
+                          {canSeeButton('edit') && (
+                            <IconButton
+                              size="small"
+                              onClick={() => handleDialogOpen(user)}
+                              title="Edit"
+                              sx={{ color: '#667eea', p: 0.5, '&:hover': { bgcolor: 'rgba(102, 126, 234, 0.1)' } }}
+                            >
+                              <EditIcon sx={{ fontSize: 16 }} />
+                            </IconButton>
+                          )}
+                          {canSeeButton('changepassword') && (
+                            <IconButton
+                              size="small"
+                              onClick={() => handleOpenPasswordDialog(user)}
+                              title="Change Password"
+                              sx={{ color: '#10b981', p: 0.5, '&:hover': { bgcolor: 'rgba(16, 185, 129, 0.1)' } }}
+                            >
+                              <KeyIcon sx={{ fontSize: 16 }} />
+                            </IconButton>
+                          )}
+                          {canSeeButton('delete') && (
+                            <IconButton
+                              size="small"
+                              onClick={() => handleDelete(user.id)}
+                              title="Delete"
+                              sx={{ color: '#ef4444', p: 0.5, '&:hover': { bgcolor: 'rgba(239, 68, 68, 0.1)' } }}
+                            >
+                              <DeleteIcon sx={{ fontSize: 16 }} />
+                            </IconButton>
+                          )}
                         </Stack>
                       </TableCell>
                     </TableRow>

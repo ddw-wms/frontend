@@ -1,135 +1,175 @@
-// File Path = wms_frontend/components/PermissionButton.tsx
 'use client';
+// File Path = warehouse-frontend/components/PermissionButton.tsx
 
 import React from 'react';
-import { Button, IconButton, Tooltip, ButtonProps } from '@mui/material';
-import { usePermissions } from '@/app/context/PermissionsContext';
+import { Button, ButtonProps, IconButton, IconButtonProps, Tooltip } from '@mui/material';
+import { usePermissions } from '@/app/context/PermissionContext';
 
 interface PermissionButtonProps extends ButtonProps {
-    permission?: string | string[];
-    requireAll?: boolean;
-    hideIfNoPermission?: boolean;
-    showTooltipOnDisabled?: boolean;
-    children: React.ReactNode;
+    permissionCode: string;
+    hideWhenDisabled?: boolean;
+    disabledTooltip?: string;
 }
 
 /**
- * Button component that automatically handles permission checks
- * - Disables button if user doesn't have permission
- * - Optionally hides button if user doesn't have permission
+ * Button that is conditionally rendered/disabled based on user permissions
  */
-export const PermissionButton: React.FC<PermissionButtonProps> = ({
-    permission,
-    requireAll = false,
-    hideIfNoPermission = false,
-    showTooltipOnDisabled = true,
-    disabled,
+export function PermissionButton({
+    permissionCode,
+    hideWhenDisabled = false,
+    disabledTooltip = 'You do not have permission to perform this action',
     children,
     ...buttonProps
-}) => {
-    const { hasPermission, hasAnyPermission, hasAllPermissions, loading } = usePermissions();
+}: PermissionButtonProps) {
+    const { hasPermission, isVisible, isSuperAdmin, isLoading } = usePermissions();
 
-    // If no permission specified, render normal button
-    if (!permission) {
-        return <Button {...buttonProps} disabled={disabled || loading}>{children}</Button>;
+    // Super admin can do everything
+    if (isSuperAdmin) {
+        return <Button {...buttonProps}>{children}</Button>;
     }
 
-    // Check permissions
-    let hasAccess = false;
-    if (Array.isArray(permission)) {
-        hasAccess = requireAll ? hasAllPermissions(permission) : hasAnyPermission(permission);
-    } else {
-        hasAccess = hasPermission(permission);
-    }
-
-    // Hide button if no permission and hideIfNoPermission is true
-    if (!hasAccess && hideIfNoPermission) {
+    // Check if permission is visible
+    if (!isVisible(permissionCode)) {
         return null;
     }
 
-    // Disable button if no permission
-    const isDisabled = disabled || loading || !hasAccess;
+    // Check if user has permission
+    const canAccess = hasPermission(permissionCode);
 
-    const button = (
-        <Button {...buttonProps} disabled={isDisabled}>
-            {children}
-        </Button>
-    );
+    // Hide button if no access and hideWhenDisabled is true
+    if (!canAccess && hideWhenDisabled) {
+        return null;
+    }
 
-    // Show tooltip if disabled due to permissions
-    if (!hasAccess && showTooltipOnDisabled && !disabled) {
+    // Show disabled button with tooltip if no access
+    if (!canAccess) {
         return (
-            <Tooltip title="You don't have permission to perform this action" arrow>
-                <span>{button}</span>
+            <Tooltip title={disabledTooltip}>
+                <span>
+                    <Button {...buttonProps} disabled>
+                        {children}
+                    </Button>
+                </span>
             </Tooltip>
         );
     }
 
-    return button;
-};
-
-// Icon Button version
-interface PermissionIconButtonProps extends ButtonProps {
-    permission?: string | string[];
-    requireAll?: boolean;
-    hideIfNoPermission?: boolean;
-    icon: React.ReactNode;
-    tooltip?: string;
-    size?: 'small' | 'medium' | 'large';
+    return <Button {...buttonProps}>{children}</Button>;
 }
 
-export const PermissionIconButton: React.FC<PermissionIconButtonProps> = ({
-    permission,
-    requireAll = false,
-    hideIfNoPermission = false,
-    disabled,
-    icon,
-    tooltip,
-    size = 'medium',
-    ...buttonProps
-}) => {
-    const { hasPermission, hasAnyPermission, hasAllPermissions, loading } = usePermissions();
+interface PermissionIconButtonProps extends IconButtonProps {
+    permissionCode: string;
+    hideWhenDisabled?: boolean;
+    disabledTooltip?: string;
+    tooltip?: string;
+}
 
-    // If no permission specified, render normal button
-    if (!permission) {
+/**
+ * IconButton that is conditionally rendered/disabled based on user permissions
+ */
+export function PermissionIconButton({
+    permissionCode,
+    hideWhenDisabled = true, // Icon buttons usually hide when no permission
+    disabledTooltip = 'You do not have permission',
+    tooltip,
+    children,
+    ...iconButtonProps
+}: PermissionIconButtonProps) {
+    const { hasPermission, isVisible, isSuperAdmin } = usePermissions();
+
+    // Super admin can do everything
+    if (isSuperAdmin) {
+        if (tooltip) {
+            return (
+                <Tooltip title={tooltip}>
+                    <IconButton {...iconButtonProps}>{children}</IconButton>
+                </Tooltip>
+            );
+        }
+        return <IconButton {...iconButtonProps}>{children}</IconButton>;
+    }
+
+    // Check if permission is visible
+    if (!isVisible(permissionCode)) {
+        return null;
+    }
+
+    // Check if user has permission
+    const canAccess = hasPermission(permissionCode);
+
+    // Hide button if no access and hideWhenDisabled is true
+    if (!canAccess && hideWhenDisabled) {
+        return null;
+    }
+
+    // Show disabled button with tooltip if no access
+    if (!canAccess) {
         return (
-            <Tooltip title={tooltip || ''} arrow>
+            <Tooltip title={disabledTooltip}>
                 <span>
-                    <IconButton {...buttonProps as any} disabled={disabled || loading} size={size}>
-                        {icon}
+                    <IconButton {...iconButtonProps} disabled>
+                        {children}
                     </IconButton>
                 </span>
             </Tooltip>
         );
     }
 
-    // Check permissions
-    let hasAccess = false;
-    if (Array.isArray(permission)) {
-        hasAccess = requireAll ? hasAllPermissions(permission) : hasAnyPermission(permission);
-    } else {
-        hasAccess = hasPermission(permission);
+    if (tooltip) {
+        return (
+            <Tooltip title={tooltip}>
+                <IconButton {...iconButtonProps}>{children}</IconButton>
+            </Tooltip>
+        );
     }
 
-    // Hide button if no permission and hideIfNoPermission is true
-    if (!hasAccess && hideIfNoPermission) {
-        return null;
-    }
+    return <IconButton {...iconButtonProps}>{children}</IconButton>;
+}
 
-    // Disable button if no permission
-    const isDisabled = disabled || loading || !hasAccess;
+/**
+ * Common action button types with preset permissions
+ */
+export function CreateButton({ resource, ...props }: Omit<PermissionButtonProps, 'permissionCode'> & { resource: string }) {
+    return <PermissionButton permissionCode={`feature:${resource}:create`} {...props} />;
+}
 
-    const tooltipText = !hasAccess && !disabled
-        ? "You don't have permission to perform this action"
-        : tooltip || '';
+export function EditButton({ resource, ...props }: Omit<PermissionButtonProps, 'permissionCode'> & { resource: string }) {
+    return <PermissionButton permissionCode={`feature:${resource}:edit`} {...props} />;
+}
 
-    return (
-        <Tooltip title={tooltipText} arrow>
-            <span>
-                <IconButton {...buttonProps as any} disabled={isDisabled} size={size}>
-                    {icon}
-                </IconButton>
-            </span>
-        </Tooltip>
-    );
-};
+export function DeleteButton({ resource, ...props }: Omit<PermissionButtonProps, 'permissionCode'> & { resource: string }) {
+    return <PermissionButton permissionCode={`feature:${resource}:delete`} {...props} />;
+}
+
+export function ExportButton({ resource, ...props }: Omit<PermissionButtonProps, 'permissionCode'> & { resource: string }) {
+    return <PermissionButton permissionCode={`feature:${resource}:export`} {...props} />;
+}
+
+export function UploadButton({ resource, ...props }: Omit<PermissionButtonProps, 'permissionCode'> & { resource: string }) {
+    return <PermissionButton permissionCode={`feature:${resource}:upload`} {...props} />;
+}
+
+/**
+ * Icon button variants
+ */
+export function CreateIconButton({ resource, ...props }: Omit<PermissionIconButtonProps, 'permissionCode'> & { resource: string }) {
+    return <PermissionIconButton permissionCode={`feature:${resource}:create`} tooltip="Create new" {...props} />;
+}
+
+export function EditIconButton({ resource, ...props }: Omit<PermissionIconButtonProps, 'permissionCode'> & { resource: string }) {
+    return <PermissionIconButton permissionCode={`feature:${resource}:edit`} tooltip="Edit" {...props} />;
+}
+
+export function DeleteIconButton({ resource, ...props }: Omit<PermissionIconButtonProps, 'permissionCode'> & { resource: string }) {
+    return <PermissionIconButton permissionCode={`feature:${resource}:delete`} tooltip="Delete" {...props} />;
+}
+
+export function PrintIconButton(props: Omit<PermissionIconButtonProps, 'permissionCode'>) {
+    return <PermissionIconButton permissionCode="action:print" tooltip="Print" {...props} />;
+}
+
+export function ExportExcelIconButton(props: Omit<PermissionIconButtonProps, 'permissionCode'>) {
+    return <PermissionIconButton permissionCode="action:export-excel" tooltip="Export to Excel" {...props} />;
+}
+
+export default PermissionButton;

@@ -1,6 +1,18 @@
 // File Path = warehouse-frontend\lib\auth.ts
 import { authAPI } from './api';
 
+export interface Permission {
+  can_access: boolean;
+  is_visible: boolean;
+}
+
+export interface WarehouseAccess {
+  warehouse_id: number;
+  warehouse_name: string;
+  warehouse_code: string;
+  is_default: boolean;
+}
+
 export interface User {
   id: number;
   username: string;
@@ -8,6 +20,9 @@ export interface User {
   email: string;
   role: string;
   warehouseId?: number;
+  permissions?: Record<string, Permission>;
+  warehouses?: WarehouseAccess[];
+  defaultWarehouseId?: number;
 }
 
 export interface AuthToken {
@@ -22,8 +37,16 @@ export const login = async (username: string, password: string): Promise<AuthTok
   if (typeof window !== 'undefined') {
     localStorage.setItem('token', token);
     localStorage.setItem('user', JSON.stringify(user));
-    // Clear permissions cache to force reload on next check
+    // Store permissions separately for quick access
+    if (user.permissions) {
+      localStorage.setItem('permissions', JSON.stringify(user.permissions));
+    }
+    if (user.warehouses) {
+      localStorage.setItem('warehouses', JSON.stringify(user.warehouses));
+    }
 
+    // Dispatch custom event to notify PermissionContext of login
+    window.dispatchEvent(new CustomEvent('user-login'));
   }
 
   return { token, user };
@@ -33,6 +56,8 @@ export const logout = () => {
   if (typeof window !== 'undefined') {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    localStorage.removeItem('permissions');
+    localStorage.removeItem('warehouses');
   }
 };
 
@@ -50,4 +75,131 @@ export const getStoredToken = (): string | null => {
 export const isAuthenticated = (): boolean => {
   if (typeof window === 'undefined') return false;
   return !!getStoredToken();
+};
+
+export const getStoredPermissions = (): Record<string, Permission> | null => {
+  if (typeof window === 'undefined') return null;
+  const permissions = localStorage.getItem('permissions');
+  return permissions ? JSON.parse(permissions) : null;
+};
+
+export const getStoredWarehouses = (): WarehouseAccess[] | null => {
+  if (typeof window === 'undefined') return null;
+  const warehouses = localStorage.getItem('warehouses');
+  return warehouses ? JSON.parse(warehouses) : null;
+};
+
+/**
+ * Check if user has a specific permission
+ */
+export const hasPermission = (permissionCode: string): boolean => {
+  const user = getStoredUser();
+
+  // Super admin has all permissions
+  if (user?.role === 'super_admin') {
+    return true;
+  }
+
+  const permissions = getStoredPermissions() || user?.permissions;
+  if (!permissions) return false;
+
+  return permissions[permissionCode]?.can_access === true;
+};
+
+/**
+ * Check if permission is visible (for UI rendering)
+ */
+export const isPermissionVisible = (permissionCode: string): boolean => {
+  const user = getStoredUser();
+
+  // Super admin sees everything
+  if (user?.role === 'super_admin') {
+    return true;
+  }
+
+  const permissions = getStoredPermissions() || user?.permissions;
+  if (!permissions) return false;
+
+  return permissions[permissionCode]?.is_visible === true;
+};
+
+/**
+ * Check if user can access a page
+ */
+export const canAccessPage = (pageName: string): boolean => {
+  return hasPermission(`page:${pageName}`);
+};
+
+/**
+ * Check if user can access a feature
+ */
+export const canAccessFeature = (resource: string, action: string): boolean => {
+  return hasPermission(`feature:${resource}:${action}`);
+};
+
+/**
+ * Check if user can perform an action
+ */
+export const canPerformAction = (actionCode: string): boolean => {
+  return hasPermission(`action:${actionCode}`);
+};
+
+/**
+ * Check if user can access a warehouse
+ */
+export const canAccessWarehouse = (warehouseId: number): boolean => {
+  const user = getStoredUser();
+
+  // Super admin can access all warehouses
+  if (user?.role === 'super_admin') {
+    return true;
+  }
+
+  const warehouses = getStoredWarehouses() || user?.warehouses;
+  if (!warehouses) return false;
+
+  return warehouses.some(w => w.warehouse_id === warehouseId);
+};
+
+/**
+ * Get user's accessible warehouse IDs
+ */
+export const getAccessibleWarehouseIds = (): number[] => {
+  const user = getStoredUser();
+  const warehouses = getStoredWarehouses() || user?.warehouses;
+
+  if (!warehouses) {
+    // Fallback to legacy single warehouse
+    return user?.warehouseId ? [user.warehouseId] : [];
+  }
+
+  return warehouses.map(w => w.warehouse_id);
+};
+
+/**
+ * Refresh permissions from API
+ */
+export const refreshPermissions = async (): Promise<void> => {
+  try {
+    const { permissionsAPI } = await import('./api');
+    const response = await permissionsAPI.getMyPermissions();
+    const { permissions, warehouses } = response.data;
+
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('permissions', JSON.stringify(permissions));
+      if (warehouses) {
+        localStorage.setItem('warehouses', JSON.stringify(warehouses));
+      }
+
+      // Update user object
+      const user = getStoredUser();
+      if (user) {
+        user.permissions = permissions;
+        user.warehouses = warehouses;
+        localStorage.setItem('user', JSON.stringify(user));
+      }
+    }
+  } catch (error) {
+    console.error('Failed to refresh permissions:', error);
+  }
 };

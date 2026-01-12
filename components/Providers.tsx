@@ -2,20 +2,21 @@
 'use client';
 
 import { WarehouseProvider } from '@/app/context/WarehouseContext';
-import { PermissionsProvider } from '@/app/context/PermissionsContext';
+import { PermissionProvider } from '@/app/context/PermissionContext';
 import ThemeRegistry from './ThemeRegistry';
 import OnboardingWrapper from './OnboardingWrapper';
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <ThemeRegistry>
-      <WarehouseProvider>
-        <PermissionsProvider>
+      <PermissionProvider>
+        <WarehouseProvider>
           <OnboardingWrapper>
             {children}
           </OnboardingWrapper>
-        </PermissionsProvider>
-      </WarehouseProvider>
+        </WarehouseProvider>
+      </PermissionProvider>
     </ThemeRegistry>
   );
 }
+

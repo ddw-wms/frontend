@@ -32,6 +32,7 @@ import {
   LocalShipping as ShippingIcon,
   Assignment as AssignmentIcon,
   Settings as SettingsIcon,
+  Security as SecurityIcon,
   Storage as StorageIcon,
   Warehouse as WarehouseIcon,
   Person as PersonIcon,
@@ -39,12 +40,12 @@ import {
   LocalPrintshop as PrinterIcon,
   Menu as MenuIcon,
   Assessment as ReportsIcon,
+  AdminPanelSettings as PermissionsIcon,
 } from '@mui/icons-material';
 import path from 'path';
 import { Group as GroupIcon, Logout as LogoutIcon } from '@mui/icons-material';
 import { getStoredUser, logout } from '@/lib/auth';
-import { fetchUserPermissions } from '@/lib/permissions';
-import { usePermissions } from '@/app/context/PermissionsContext';
+import { usePermissions } from '@/app/context/PermissionContext';
 
 interface SidebarProps {
   mobileOpen?: boolean;
@@ -58,8 +59,8 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
   const [showNotification, setShowNotification] = useState(false);
   const [notificationMessage, setNotificationMessage] = useState('');
 
-  // Use PermissionsContext instead of local state
-  const { permissions: userPermissions, loading: permissionsLoading, hasPermission } = usePermissions();
+  // Use Permission context
+  const { canSeeMenu, isAdmin, isLoading: permissionsLoading } = usePermissions();
 
   const [collapsed, setCollapsed] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -71,6 +72,7 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
   // --------------------------------------
   // MOBILE DETECTION (SCREEN WIDTH)
   // --------------------------------------
+
   const [isMobile, setIsMobile] = useState(false);
 
   const checkMobile = useCallback(() => {
@@ -92,21 +94,18 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
       console.log('⚠️ No user found in storage');
     }
 
-    // Register global notification function
-    (window as any).showPermissionNotification = (message: string) => {
-      setNotificationMessage(message);
-      setShowNotification(true);
-    };
+
 
     return () => {
       window.removeEventListener('resize', checkMobile);
-      delete (window as any).showPermissionNotification;
     };
   }, [checkMobile]);
 
   const [settingsOpen, setSettingsOpen] = useState(() =>
     pathname.startsWith('/settings')
   );
+
+
 
   const [flyoutVisible, setFlyoutVisible] = useState(false);
   const [settingsHovered, setSettingsHovered] = useState(false);
@@ -132,63 +131,60 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
 
   const drawerWidth = collapsed ? 70 : 230;
 
-  // Filter menu items based on user permissions - memoized to prevent flickering
+  // Main menu items with UI access codes
+  const allMainMenuItems = useMemo(() => [
+    { label: 'Dashboard', icon: DashboardIcon, path: '/dashboard', code: 'menu:dashboard' },
+    { label: 'Inbound', icon: InventoryIcon, path: '/inbound', code: 'menu:inbound' },
+    { label: 'Processing', icon: CheckIcon, path: '/qc', code: 'menu:qc' },
+    { label: 'Picking', icon: AssignmentIcon, path: '/picking', code: 'menu:picking' },
+    { label: 'Outbound', icon: ShippingIcon, path: '/outbound', code: 'menu:outbound' },
+    { label: 'Customers', icon: GroupIcon, path: '/customers', code: 'menu:customers' },
+    { label: 'Reports', icon: ReportsIcon, path: '/reports', code: 'menu:reports' }
+  ], []);
+
+  // Settings menu items with permission codes
+  const allSettingsMenuItems = useMemo(() => [
+    { label: 'Master Data', icon: StorageIcon, path: '/settings/master-data', code: 'menu:settings:masterdata' },
+    { label: 'Warehouses', icon: WarehouseIcon, path: '/settings/warehouses', code: 'menu:settings:warehouses' },
+    { label: 'Racks', icon: CategoryIcon, path: '/settings/racks', code: 'menu:settings:racks' },
+    { label: 'Users', icon: PersonIcon, path: '/settings/users', code: 'menu:settings:users' },
+    { label: 'Printers', icon: PrinterIcon, path: '/settings/printers', code: 'menu:settings:printers' },
+    { label: 'Backups', icon: StorageIcon, path: '/settings/backups', code: 'menu:settings:backups' },
+    { label: 'Permissions', icon: PermissionsIcon, path: '/settings/permissions', code: 'menu:settings:permissions' },
+  ], []);
+
+  // Filter menu items based on permissions
   const mainMenu = useMemo(() => {
-    const allItems = [
-      { label: 'Dashboard', icon: DashboardIcon, path: '/dashboard', permission: 'view_dashboard' },
-      { label: 'Inbound', icon: InventoryIcon, path: '/inbound', permission: 'view_inbound' },
-      { label: 'Processing', icon: CheckIcon, path: '/qc', permission: 'view_qc' },
-      { label: 'Picking', icon: AssignmentIcon, path: '/picking', permission: 'view_picking' },
-      { label: 'Outbound', icon: ShippingIcon, path: '/outbound', permission: 'view_outbound' },
-      { label: 'Customers', icon: GroupIcon, path: '/customers', permission: 'view_customers' },
-      { label: 'Reports', icon: ReportsIcon, path: '/reports', permission: 'view_reports' }
-    ];
+    // Get user from storage for immediate admin check
+    const user = getStoredUser();
+    const isUserAdmin = user?.role === 'admin' || user?.role === 'super_admin';
 
-    // Admin sees all
-    if (userRole === 'admin') {
-      return allItems;
+    // Admin gets all menu items immediately (no waiting for permissions to load)
+    if (isAdmin || isUserAdmin) {
+      return allMainMenuItems;
     }
 
-    // Don't show any menu items while permissions are loading
-    if (permissionsLoading || !userPermissions) {
-      return [];
-    }
-
-    // Filter based on permissions - use the actual permission values from context
-    const filtered = allItems.filter(item => {
-      const hasPerm = userPermissions[item.permission] === true;
-      return hasPerm;
-    });
-
-    return filtered;
-  }, [userRole, permissionsLoading, userPermissions]);
+    // Non-admin: wait for permissions to load
+    if (permissionsLoading) return [];
+    return allMainMenuItems.filter(item => canSeeMenu(item.code));
+  }, [allMainMenuItems, canSeeMenu, isAdmin, permissionsLoading]);
 
   const settingsMenu = useMemo(() => {
-    const allSettings = [
-      { label: 'Master Data', icon: StorageIcon, path: '/settings/master-data', permission: 'view_master_data' },
-      { label: 'Warehouses', icon: WarehouseIcon, path: '/settings/warehouses', permission: 'view_warehouses' },
-      { label: 'Racks', icon: CategoryIcon, path: '/settings/racks', permission: 'view_racks' },
-      { label: 'Users', icon: PersonIcon, path: '/settings/users', permission: 'view_users' },
-      { label: 'Permissions', icon: SettingsIcon, path: '/settings/permissions', permission: 'view_permissions' },
-      { label: 'Printers', icon: PrinterIcon, path: '/settings/printers', permission: 'view_printers' },
-      { label: 'Backups', icon: StorageIcon, path: '/settings/backups', permission: 'view_backups' },
-    ];
+    // Get user from storage for immediate admin check
+    const user = getStoredUser();
+    const isUserAdmin = user?.role === 'admin' || user?.role === 'super_admin';
 
-    // Admin sees all
-    if (userRole === 'admin') return allSettings;
+    // Admin gets all menu items immediately
+    if (isAdmin || isUserAdmin) {
+      return allSettingsMenuItems;
+    }
 
-    // Don't show settings while permissions are loading
-    if (permissionsLoading || !userPermissions) return [];
-
-    // Filter based on actual permissions from context
-    return allSettings.filter(item => userPermissions[item.permission] === true);
-  }, [userRole, permissionsLoading, userPermissions]);
+    // Non-admin: wait for permissions to load
+    if (permissionsLoading) return [];
+    return allSettingsMenuItems.filter(item => canSeeMenu(item.code));
+  }, [allSettingsMenuItems, canSeeMenu, isAdmin, permissionsLoading]);
 
   const navigate = (path: string) => {
-    if (permissionsLoading) {
-      console.log('Sidebar: permissions still loading - ignoring navigation to', path);
-      return;
-    }
 
     if (pathname === path) {
       // already on target path — close mobile drawer for better UX
@@ -234,139 +230,132 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
 
       <Divider sx={{ bgcolor: 'rgba(255,255,255,0.1)' }} />
 
-      {permissionsLoading ? (
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', p: 3 }}>
-          <CircularProgress size={24} color="inherit" />
-          <Typography variant="body2" sx={{ ml: 1 }}>Loading menu...</Typography>
-        </Box>
-      ) : (
-        <List>
-          {mainMenu.map((item) => {
-            const Icon = item.icon;
-            const active = pathname === item.path;
+      <List>
+        {mainMenu.map((item) => {
+          const Icon = item.icon;
+          const active = pathname === item.path;
 
-            return (
-              <ListItem key={item.path} disablePadding>
-                <Tooltip title={collapsed ? item.label : ''} placement="right" arrow>
-                  <ListItemButton
-                    onClick={() => navigate(item.path)}
-                    sx={{
-                      mx: 1,
-                      borderRadius: 1,
-                      bgcolor: active ? 'rgba(59,130,246,0.2)' : 'transparent',
-                      color: active ? '#60a5fa' : 'rgba(255,255,255,0.7)',
-                    }}
-                  >
-                    <ListItemIcon
-                      sx={{
-                        color: 'inherit',
-                        minWidth: collapsed ? 'auto' : 40,
-                        justifyContent: collapsed ? 'center' : 'flex-start',
-                      }}
-                    >
-                      <Icon />
-                    </ListItemIcon>
-
-                    {!collapsed && <ListItemText primary={item.label} />}
-                  </ListItemButton>
-                </Tooltip>
-              </ListItem>
-            );
-          })}
-
-          <Divider sx={{ my: 2, bgcolor: 'rgba(255,255,255,0.1)' }} />
-
-          {/* Only show Settings if user has settings menu items */}
-          {settingsMenu.length > 0 && (
-            <ListItem
-              disablePadding
-              onMouseEnter={() => setSettingsHovered(true)}
-              onMouseLeave={() => setSettingsHovered(false)}
-            >
-              <ListItemButton
-                onClick={() => { if (permissionsLoading) return; setSettingsOpen(!settingsOpen); }}
-                sx={{ mx: 1, borderRadius: 1, color: 'rgba(255,255,255,0.7)' }}
-              >
-                <ListItemIcon
+          return (
+            <ListItem key={item.path} disablePadding>
+              <Tooltip title={collapsed ? item.label : ''} placement="right" arrow>
+                <ListItemButton
+                  onClick={() => navigate(item.path)}
                   sx={{
-                    color: 'inherit',
-                    minWidth: collapsed ? 'auto' : 40,
-                    justifyContent: collapsed ? 'center' : 'flex-start',
+                    mx: 1,
+                    borderRadius: 1,
+                    bgcolor: active ? 'rgba(59,130,246,0.2)' : 'transparent',
+                    color: active ? '#60a5fa' : 'rgba(255,255,255,0.7)',
                   }}
                 >
-                  <SettingsIcon />
-                </ListItemIcon>
+                  <ListItemIcon
+                    sx={{
+                      color: 'inherit',
+                      minWidth: collapsed ? 'auto' : 40,
+                      justifyContent: collapsed ? 'center' : 'flex-start',
+                    }}
+                  >
+                    <Icon />
+                  </ListItemIcon>
 
-                {!collapsed && (
-                  <>
-                    <ListItemText primary="Settings" />
-                    {settingsOpen ? <ExpandLess /> : <ExpandMore />}
-                  </>
-                )}
-              </ListItemButton>
+                  {!collapsed && <ListItemText primary={item.label} />}
+                </ListItemButton>
+              </Tooltip>
             </ListItem>
-          )}
+          );
+        })}
 
-          <AnimatePresence>
-            {settingsOpen && (!collapsed || isMobile) && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: 'auto', opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                style={{ overflow: 'hidden' }}
+        <Divider sx={{ my: 2, bgcolor: 'rgba(255,255,255,0.1)' }} />
+
+        {/* Only show Settings if user has settings menu items */}
+        {settingsMenu.length > 0 && (
+          <ListItem
+            disablePadding
+            onMouseEnter={() => setSettingsHovered(true)}
+            onMouseLeave={() => setSettingsHovered(false)}
+          >
+            <ListItemButton
+              onClick={() => { setSettingsOpen(!settingsOpen); }}
+              sx={{ mx: 1, borderRadius: 1, color: 'rgba(255,255,255,0.7)' }}
+            >
+              <ListItemIcon
+                sx={{
+                  color: 'inherit',
+                  minWidth: collapsed ? 'auto' : 40,
+                  justifyContent: collapsed ? 'center' : 'flex-start',
+                }}
               >
-                <List sx={{ pl: 4 }}>
-                  {settingsMenu.map((item) => {
-                    const Icon = item.icon;
-                    const active = pathname === item.path;
+                <SettingsIcon />
+              </ListItemIcon>
 
-                    return (
-                      <ListItem key={item.path} disablePadding>
-                        <ListItemButton
-                          onClick={() => navigate(item.path)}
-                          sx={{
-                            borderRadius: 1,
-                            color: active ? '#60a5fa' : 'rgba(255,255,255,0.8)',
-                            bgcolor: active ? 'rgba(59,130,246,0.2)' : 'transparent',
-                            my: 0.5,
-                          }}
-                        >
-                          <ListItemIcon sx={{ color: 'inherit', minWidth: 30 }}>
-                            <Icon fontSize="small" />
-                          </ListItemIcon>
-                          <ListItemText primary={item.label} />
-                        </ListItemButton>
-                      </ListItem>
-                    );
-                  })}
+              {!collapsed && (
+                <>
+                  <ListItemText primary="Settings" />
+                  {settingsOpen ? <ExpandLess /> : <ExpandMore />}
+                </>
+              )}
+            </ListItemButton>
+          </ListItem>
+        )}
 
-                  {/* Logout Button */}
-                  <ListItem disablePadding>
-                    <ListItemButton
-                      onClick={handleLogout}
-                      sx={{
-                        borderRadius: 1,
-                        color: '#ef4444',
-                        bgcolor: 'transparent',
-                        my: 0.5,
-                        '&:hover': {
-                          bgcolor: 'rgba(239, 68, 68, 0.1)',
-                        }
-                      }}
-                    >
-                      <ListItemIcon sx={{ color: 'inherit', minWidth: 30 }}>
-                        <LogoutIcon fontSize="small" />
-                      </ListItemIcon>
-                      <ListItemText primary="Logout" />
-                    </ListItemButton>
-                  </ListItem>
-                </List>
-              </motion.div>
-            )}
-          </AnimatePresence>
+        <AnimatePresence>
+          {settingsOpen && (!collapsed || isMobile) && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              style={{ overflow: 'hidden' }}
+            >
+              <List sx={{ pl: 4 }}>
+                {settingsMenu.map((item) => {
+                  const Icon = item.icon;
+                  const active = pathname === item.path;
 
-        </List>
-      )}
+                  return (
+                    <ListItem key={item.path} disablePadding>
+                      <ListItemButton
+                        onClick={() => navigate(item.path)}
+                        sx={{
+                          borderRadius: 1,
+                          color: active ? '#60a5fa' : 'rgba(255,255,255,0.8)',
+                          bgcolor: active ? 'rgba(59,130,246,0.2)' : 'transparent',
+                          my: 0.5,
+                        }}
+                      >
+                        <ListItemIcon sx={{ color: 'inherit', minWidth: 30 }}>
+                          <Icon fontSize="small" />
+                        </ListItemIcon>
+                        <ListItemText primary={item.label} />
+                      </ListItemButton>
+                    </ListItem>
+                  );
+                })}
+
+                {/* Logout Button */}
+                <ListItem disablePadding>
+                  <ListItemButton
+                    onClick={handleLogout}
+                    sx={{
+                      borderRadius: 1,
+                      color: '#ef4444',
+                      bgcolor: 'transparent',
+                      my: 0.5,
+                      '&:hover': {
+                        bgcolor: 'rgba(239, 68, 68, 0.1)',
+                      }
+                    }}
+                  >
+                    <ListItemIcon sx={{ color: 'inherit', minWidth: 30 }}>
+                      <LogoutIcon fontSize="small" />
+                    </ListItemIcon>
+                    <ListItemText primary="Logout" />
+                  </ListItemButton>
+                </ListItem>
+              </List>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+      </List>
 
       <Box sx={{ flexGrow: 1 }} />
 
@@ -520,7 +509,7 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
         </Paper>
       )}
 
-      {/* Permission Update Notification */}
+
       <Snackbar
         open={showNotification}
         autoHideDuration={3000}

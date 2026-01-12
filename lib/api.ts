@@ -455,5 +455,33 @@ export const dashboardAPI = {
 
 // ================= Reports API =======================
 
+// ================= Permissions API =======================
+export const permissionsAPI = {
+  // Get current user's permissions
+  getMyPermissions: () => api.get('/permissions/me'),
+
+  // Check specific permission
+  checkPermission: (code: string) => api.get(`/permissions/check/${code}`),
+
+  // Get all permissions (master list)
+  getAll: () => api.get('/permissions'),
+
+  // Roles
+  getRoles: () => api.get('/permissions/roles'),
+  getRolePermissions: (roleId: number) => api.get(`/permissions/roles/${roleId}/permissions`),
+  updateRolePermissions: (roleId: number, permissions: { code: string; is_enabled: boolean; is_visible: boolean }[]) =>
+    api.put(`/permissions/roles/${roleId}/permissions`, { permissions }),
+
+  // User overrides
+  getUserOverrides: (userId: number) => api.get(`/permissions/users/${userId}/overrides`),
+  updateUserOverrides: (userId: number, overrides: { code: string; is_enabled: boolean | null; is_visible: boolean | null }[]) =>
+    api.put(`/permissions/users/${userId}/overrides`, { overrides }),
+
+  // User warehouses
+  getUserWarehouses: (userId: number) => api.get(`/permissions/users/${userId}/warehouses`),
+  updateUserWarehouses: (userId: number, warehouse_ids: number[], default_warehouse_id?: number) =>
+    api.put(`/permissions/users/${userId}/warehouses`, { warehouse_ids, default_warehouse_id }),
+};
+
 
 export default api;

@@ -67,14 +67,41 @@ export default function OnboardingWizard({ open, onComplete }: OnboardingWizardP
     const loadWarehouses = async () => {
         try {
             setLoading(true);
-            const response = await warehousesAPI.getAll();
-            const data = response.data;
-            setWarehouses(Array.isArray(data) ? data : []);
 
-            // Auto-select if only one warehouse
-            if (data.length === 1) {
-                setSelectedWarehouse(data[0].id);
-                setCanSkip(true);
+            // First check if user has restricted warehouse access
+            const storedWarehouses = localStorage.getItem('warehouses');
+            let userWarehouses = storedWarehouses ? JSON.parse(storedWarehouses) : null;
+
+            if (userWarehouses && userWarehouses.length > 0) {
+                // User has restricted access - only show their warehouses
+                const formattedWarehouses = userWarehouses.map((w: any) => ({
+                    id: w.warehouse_id,
+                    name: w.warehouse_name,
+                    code: w.warehouse_code,
+                    is_default: w.is_default
+                }));
+                setWarehouses(formattedWarehouses);
+
+                // Auto-select default warehouse or first one
+                const defaultWh = formattedWarehouses.find((w: any) => w.is_default);
+                if (defaultWh) {
+                    setSelectedWarehouse(defaultWh.id);
+                    setCanSkip(true);
+                } else if (formattedWarehouses.length === 1) {
+                    setSelectedWarehouse(formattedWarehouses[0].id);
+                    setCanSkip(true);
+                }
+            } else {
+                // No restrictions - fetch all warehouses
+                const response = await warehousesAPI.getAll();
+                const data = response.data;
+                setWarehouses(Array.isArray(data) ? data : []);
+
+                // Auto-select if only one warehouse
+                if (data.length === 1) {
+                    setSelectedWarehouse(data[0].id);
+                    setCanSkip(true);
+                }
             }
         } catch (error) {
             console.error('Failed to load warehouses:', error);

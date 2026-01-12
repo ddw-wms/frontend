@@ -12,19 +12,15 @@ import { warehousesAPI } from '@/lib/api';
 import AppLayout from '@/components/AppLayout';
 import { useWarehouse } from '@/app/context/WarehouseContext';
 import toast, { Toaster } from 'react-hot-toast';
-import { usePermissionGuard } from '@/hooks/usePermissionGuard';
-import { usePermissions } from '@/app/context/PermissionsContext';
 import { ArrowBack as BackIcon, Download as DownloadIcon, Refresh as RefreshIcon } from '@mui/icons-material';
+import { useWarehousesPermissions } from '@/hooks/usePagePermissions';
 
 export default function WarehousesPage() {
-  // Role guard - only admin can access
-  usePermissionGuard('view_warehouses');
-
-  // Permission checks
-  const { hasPermission } = usePermissions();
 
   const { activeWarehouse, setActiveWarehouse } = useWarehouse();
+  const { canSeeButton, isAdmin, isLoading: permLoading } = useWarehousesPermissions();
   const [warehouses, setWarehouses] = useState<any[]>([]);
+  const [userAccessibleIds, setUserAccessibleIds] = useState<number[] | null>(null); // null = all access
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [filterCity, setFilterCity] = useState('');
   const [openDialog, setOpenDialog] = useState(false);
@@ -34,6 +30,47 @@ export default function WarehousesPage() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [user, setUser] = useState<any>(null);
+
+  // Check user's warehouse access restrictions
+  useEffect(() => {
+    // First check if user is admin
+    const userStr = localStorage.getItem('user');
+    if (userStr) {
+      const userData = JSON.parse(userStr);
+      if (userData.role === 'admin' || userData.role === 'super_admin') {
+        // Admin has access to all - set null
+        setUserAccessibleIds(null);
+        return;
+      }
+    }
+
+    const storedWarehouses = localStorage.getItem('warehouses');
+    if (storedWarehouses) {
+      try {
+        const userWarehouses = JSON.parse(storedWarehouses);
+        if (Array.isArray(userWarehouses) && userWarehouses.length > 0) {
+          // User has specific warehouse access
+          setUserAccessibleIds(userWarehouses.map((w: any) => w.warehouse_id));
+        } else {
+          // Empty array means no restrictions - can access all
+          setUserAccessibleIds(null);
+        }
+      } catch {
+        // Parse error - allow all
+        setUserAccessibleIds(null);
+      }
+    } else {
+      // No warehouses key in localStorage - means no restrictions
+      setUserAccessibleIds(null);
+    }
+  }, []);
+
+  // Check if user can access a specific warehouse
+  const canAccessWarehouse = (warehouseId: number): boolean => {
+    if (isAdmin) return true; // Admin can access all
+    if (userAccessibleIds === null) return true; // No restrictions
+    return userAccessibleIds.includes(warehouseId);
+  };
 
   const loadWarehouses = async () => {
     try {
@@ -96,6 +133,11 @@ export default function WarehousesPage() {
   };
 
   const handleSetActive = async (warehouse: any) => {
+    // Validate user has access to this warehouse
+    if (!canAccessWarehouse(warehouse.id)) {
+      toast.error('You do not have access to this warehouse');
+      return;
+    }
     try {
       setActiveWarehouse(warehouse);
       toast.success(`✓ ${warehouse.name} is now active`);
@@ -232,15 +274,17 @@ export default function WarehousesPage() {
         </Box>
         <Box sx={{ marginBottom: 1.5, mt: 1.5, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
           <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
-            <Button variant="contained"
-              startIcon={<AddIcon />} onClick={() => handleDialogOpen()}
-              size="small" sx={{
-                height: 36,
-                fontWeight: 600,
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
-              }}
-            >Add Warehouse
-            </Button>
+            {canSeeButton('add') && (
+              <Button variant="contained"
+                startIcon={<AddIcon />} onClick={() => handleDialogOpen()}
+                size="small" sx={{
+                  height: 36,
+                  fontWeight: 600,
+                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+                }}
+              >Add Warehouse
+              </Button>
+            )}
           </Box>
         </Box>
 
@@ -286,13 +330,17 @@ export default function WarehousesPage() {
                     </TableCell>
                     <TableCell align="center">
                       <Stack direction="row" spacing={1} justifyContent="center">
-                        <IconButton size="small" onClick={() => handleDialogOpen(w)} title="Edit">
-                          <EditIcon fontSize="small" />
-                        </IconButton>
-                        <IconButton size="small" color="error" onClick={() => handleDelete(w.id)} title="Delete">
-                          <DeleteIcon fontSize="small" />
-                        </IconButton>
-                        {activeWarehouse?.id !== w.id && (
+                        {canSeeButton('edit') && (
+                          <IconButton size="small" onClick={() => handleDialogOpen(w)} title="Edit">
+                            <EditIcon fontSize="small" />
+                          </IconButton>
+                        )}
+                        {canSeeButton('delete') && (
+                          <IconButton size="small" color="error" onClick={() => handleDelete(w.id)} title="Delete">
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        )}
+                        {canSeeButton('setactive') && activeWarehouse?.id !== w.id && canAccessWarehouse(w.id) && (
                           <Button
                             size="small"
                             variant="outlined"
@@ -301,6 +349,9 @@ export default function WarehousesPage() {
                           >
                             Set Active
                           </Button>
+                        )}
+                        {!canAccessWarehouse(w.id) && !isAdmin && (
+                          <Chip label="No Access" size="small" color="default" variant="outlined" />
                         )}
                       </Stack>
                     </TableCell>
