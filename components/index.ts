@@ -21,6 +21,9 @@ export { default as ErrorBoundary } from './ErrorBoundary';
 // Confirmation Dialog (replacement for window.confirm)
 export { default as ConfirmDialog } from './ConfirmDialog';
 
+// Bulk Upload component for consistent file uploads
+export { default as BulkUploadCard } from './BulkUploadCard';
+
 // Permission-related components
 export { default as RouteGuard, withRouteGuard, useRouteAccess } from './RouteGuard';
 export {

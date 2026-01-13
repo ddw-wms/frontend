@@ -70,6 +70,7 @@ import localforage from 'localforage';
 // Register AG Grid modules ONCE (include ClientSideRowModel for client-side features)
 ModuleRegistry.registerModules([AllCommunityModule, ClientSideRowModelModule]);
 import { useQCPermissions } from '@/hooks/usePagePermissions';
+import BulkUploadCard from '@/components/BulkUploadCard';
 
 // Tab definitions with permission codes
 const ALL_TABS = ['QC List', 'Single QC', 'Multi QC', 'Bulk Upload', 'Batches'];
@@ -323,18 +324,6 @@ export default function QCPage() {
   const [singleLoading, setSingleLoading] = useState(false);
   const [racks, setRacks] = useState<Rack[]>([]);
   const [duplicateQC, setDuplicateQC] = useState<any>(null);
-
-  // BULK UPLOAD STATE
-  const [bulkFile, setBulkFile] = useState<File | null>(null);
-  const [bulkLoading, setBulkLoading] = useState(false);
-  const [bulkProgress, setBulkProgress] = useState<BulkProgressType>({
-    show: false,
-    processed: 0,
-    total: 0,
-    successCount: 0,
-    errorCount: 0,
-    batchId: '',
-  });
 
   // ✅ ADD THIS - Template download confirmation
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -1273,47 +1262,7 @@ export default function QCPage() {
   };
 
   // TAB 2: BULK UPLOAD ACTIONS
-  const handleBulkUpload = async () => {
-    if (!bulkFile) {
-      toast.error('Please select a file');
-      return;
-    }
-
-    setBulkLoading(true);
-    try {
-      const response = await qcAPI.bulkUpload(bulkFile, activeWarehouse?.id);
-      setBulkProgress({
-        show: true,
-        processed: 0,
-        total: response.data?.totalRows || 0,
-        successCount: 0,
-        errorCount: 0,
-        batchId: response.data?.batchId || '',
-      });
-      toast.success(`Upload started! Processing ${response.data?.totalRows || 0} rows...`);
-      setBulkFile(null);
-
-      setTimeout(() => {
-        loadQCList();
-        loadStats();
-        loadBatches();  // ← ADD THIS LINE
-        setBulkProgress((prev) => ({ ...prev, show: false }));
-      }, 3000);
-
-
-    } catch (error: any) {
-      toast.error(error.response?.data?.error || 'Upload failed');
-    } finally {
-      setBulkLoading(false);
-    }
-  };
-
-  // ✅ NEW - Opens confirmation dialog first
-  const downloadBulkTemplate = () => {
-    setConfirmOpen(true); // Open dialog instead of direct download
-  };
-
-  // ✅ ADD THIS - Actual download after confirmation
+  // ✅ ADD THIS - Actual download after confirmation (used by BulkUploadCard)
   const handleConfirmDownload = () => {
     const template = [
       {
@@ -1332,7 +1281,6 @@ export default function QCPage() {
     XLSX.utils.book_append_sheet(wb, ws, 'Template');
     XLSX.writeFile(wb, 'QCBulkTemplate.xlsx');
     toast.success('Template downloaded');
-    setConfirmOpen(false); // Close dialog
   };
 
 
@@ -4254,122 +4202,19 @@ export default function QCPage() {
           {/* ========== TAB 3: BULK UPLOAD ========== */}
           {currentTabCode === 'bulk' && (
             <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', p: { xs: 1, sm: 1.5, md: 2 }, overflow: 'auto' }}>
-              <Card sx={{ borderRadius: 1.5, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-                <CardContent sx={{ p: 2 }}>
-                  <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 2, color: '#1a237e' }}>
-                    📤 Bulk Upload
-                  </Typography>
-
-                  <Stack spacing={2}>
-                    {/* DOWNLOAD TEMPLATE BUTTON */}
-                    <Button
-                      variant="outlined"
-                      startIcon={<DownloadIcon />}
-                      onClick={downloadBulkTemplate}
-                      sx={{ py: 1.5 }}
-                    >
-                      📥 DOWNLOAD TEMPLATE
-                    </Button>
-
-                    {/* Confirmation Dialog for Download */}
-                    <Dialog
-                      open={confirmOpen}
-                      onClose={() => setConfirmOpen(false)}
-                      maxWidth="xs"
-                      fullWidth
-                    >
-                      <DialogTitle sx={{ fontWeight: 700, color: '#1a237e' }}>
-                        Confirm Download
-                      </DialogTitle>
-
-                      <DialogContent>
-                        <Typography sx={{ color: '#334155', mb: 2 }}>
-                          Would you like to proceed with downloading the template?
-                        </Typography>
-                      </DialogContent>
-
-                      <DialogActions sx={{ p: 2 }}>
-                        <Button onClick={() => setConfirmOpen(false)}>Cancel</Button>
-                        <Button
-                          variant="contained"
-                          onClick={handleConfirmDownload}
-                          sx={{
-                            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
-                          }}
-                        >
-                          Yes, Download
-                        </Button>
-                      </DialogActions>
-                    </Dialog>
-
-                    {/* FILE UPLOAD SECTION */}
-                    <Box
-                      sx={{
-                        border: '2px dashed #667eea',
-                        borderRadius: 2,
-                        p: 3,
-                        textAlign: 'center',
-                        cursor: 'pointer',
-                        background: 'rgba(102, 126, 234, 0.05)',
-                        transition: 'all 0.3s',
-                        '&:hover': {
-                          background: 'rgba(102, 126, 234, 0.1)',
-                          borderColor: '#764ba2',
-                        },
-                      }}
-                    >
-                      <input
-                        type="file"
-                        accept=".xlsx,.xls"
-                        onChange={(e) => setBulkFile(e.target.files?.[0] || null)}
-                        style={{ display: 'none' }}
-                        id="bulk-file"
-                      />
-                      <label htmlFor="bulk-file" style={{ cursor: 'pointer', display: 'block' }}>
-                        <CloudUploadIcon sx={{ fontSize: 40, color: '#667eea', mb: 1 }} />
-                        <Typography sx={{ fontWeight: 700 }}>Click to upload file</Typography>
-                        <Typography variant="caption" sx={{ color: '#94a3b8' }}>
-                          {bulkFile?.name || 'No file selected'}
-                        </Typography>
-                      </label>
-                    </Box>
-
-                    {/* UPLOAD BUTTON */}
-                    <Button
-                      variant="contained"
-                      onClick={handleBulkUpload}
-                      disabled={bulkLoading || !bulkFile}
-                      sx={{
-                        py: 1.5,
-                        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                      }}
-                    >
-                      {bulkLoading ? <CircularProgress size={20} sx={{ mr: 1 }} /> : <CloudUploadIcon sx={{ mr: 1 }} />}
-                      Upload
-                    </Button>
-                  </Stack>
-
-                  {/* PROGRESS INDICATOR */}
-                  {bulkProgress.show && (
-                    <Card sx={{ background: 'linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)', border: '2px solid #3b82f6', mt: 2 }}>
-                      <CardContent>
-                        <Stack spacing={2}>
-                          <Box>
-                            <Typography variant="caption" sx={{ fontWeight: 700, color: '#1e40af' }}>BATCH ID</Typography>
-                            <Typography sx={{ fontWeight: 700, color: '#1e3a8a' }}>{bulkProgress.batchId}</Typography>
-                          </Box>
-                          <Box>
-                            <Typography variant="caption" sx={{ fontWeight: 700, color: '#1e40af' }}>TOTAL ROWS</Typography>
-                            <Typography sx={{ fontWeight: 700, color: '#1e3a8a' }}>{bulkProgress.total}</Typography>
-                          </Box>
-                          <LinearProgress variant="determinate" value={50} sx={{ height: 8, borderRadius: 4 }} />
-                          <Typography variant="caption" sx={{ color: '#1e40af', fontWeight: 600 }}>Processing...</Typography>
-                        </Stack>
-                      </CardContent>
-                    </Card>
-                  )}
-                </CardContent>
-              </Card>
+              <BulkUploadCard
+                module="qc"
+                warehouseId={activeWarehouse?.id || 0}
+                userId={user?.id}
+                onUploadComplete={() => {
+                  loadQCList();
+                  loadStats();
+                  loadBatches();
+                }}
+                onDownloadTemplate={handleConfirmDownload}
+                templateColumns={['WSN', 'QCBYNAME', 'QCDATE', 'GRADE', 'QCREMARKS', 'OTHERREMARKS', 'PRODUCTSERIALNUMBER', 'RACKNO']}
+                title="📤 Bulk QC Upload"
+              />
             </Box>
           )}
 

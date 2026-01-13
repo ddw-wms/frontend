@@ -72,6 +72,7 @@ import 'ag-grid-community/styles/ag-theme-quartz.css';
 // Register AG Grid modules ONCE (include ClientSideRowModel for client-side features)
 ModuleRegistry.registerModules([AllCommunityModule, ClientSideRowModelModule]);
 import { useOutboundPermissions } from '@/hooks/usePagePermissions';
+import BulkUploadCard from '@/components/BulkUploadCard';
 
 // Tab definitions with permission codes
 const ALL_TABS = ['Outbound List', 'Single Entry', 'Bulk Upload', 'Multi Entry', 'Batch Management'];
@@ -269,22 +270,6 @@ export default function OutboundPage() {
     const [commonVehicle, setCommonVehicle] = useState('');
     const [multiErrorMessage, setMultiErrorMessage] = useState('');
     const [selectedCustomer, setSelectedCustomer] = useState('');
-
-    // ====== BULK UPLOAD STATE ======
-    const [bulkFile, setBulkFile] = useState<File | null>(null);
-    const [bulkLoading, setBulkLoading] = useState(false);
-    const [bulkProgress, setBulkProgress] = useState<BulkProgressType>({
-        show: false,
-        processed: 0,
-        total: 0,
-        successCount: 0,
-        errorCount: 0,
-        batchId: '',
-    });
-    const [bulkErrors, setBulkErrors] = useState<any[]>([]);
-    const [bulkErrorsOpen, setBulkErrorsOpen] = useState(false);
-    // Template download confirmation
-    const [confirmOpen, setConfirmOpen] = useState(false);
 
     // ====== OUTBOUND LIST STATE ======
     const [listData, setListData] = useState<OutboundItem[]>([]);
@@ -1182,60 +1167,8 @@ export default function OutboundPage() {
         window.addEventListener('beforeunload', onBeforeUnload);
         return () => window.removeEventListener('beforeunload', onBeforeUnload);
     }, [multiRows, draftSavedAt]);
-    // ✅ BULK UPLOAD
-    const handleBulkFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files[0]) {
-            setBulkFile(e.target.files[0]);
-            setBulkProgress({ show: false, processed: 0, total: 0, successCount: 0, errorCount: 0, batchId: '' });
-            setBulkErrors([]);
-        }
-    };
 
-    const handleBulkUpload = async () => {
-        if (!bulkFile || !activeWarehouse) {
-            toast.error('Please select a file');
-            return;
-        }
-
-        setBulkLoading(true);
-        setBulkProgress({ show: false, processed: 0, total: 0, successCount: 0, errorCount: 0, batchId: '' });
-        setBulkErrors([]);
-
-        try {
-            const formData = new FormData();
-            formData.append('file', bulkFile);
-            formData.append('warehouse_id', activeWarehouse.id.toString());
-
-            const res = await outboundAPI.bulkUpload(formData);
-
-            setBulkProgress({
-                show: true,
-                processed: res.data.totalRows,
-                total: res.data.totalRows,
-                successCount: res.data.successCount,
-                errorCount: res.data.errorCount,
-                batchId: res.data.batchId,
-            });
-
-            if (res.data.errors && res.data.errors.length > 0) {
-                setBulkErrors(res.data.errors);
-            }
-
-            toast.success(`✓ Bulk upload completed: ${res.data.successCount}/${res.data.totalRows} success`);
-            setBulkFile(null);
-            loadExistingWSNs();
-        } catch (err: any) {
-            toast.error(err.response?.data?.error || 'Bulk upload failed');
-        } finally {
-            setBulkLoading(false);
-        }
-    };
-
-    const downloadBulkTemplate = () => {
-        setConfirmOpen(true);
-    };
-
-    //  Actual download after confirmation
+    // Template download function (used by BulkUploadCard)
     const handleConfirmDownload = () => {
         const template = [
             {
@@ -1252,7 +1185,6 @@ export default function OutboundPage() {
             exportJsonAsCsv('outbound_bulk_template.csv', template);
         });
         toast.success('Template downloaded (CSV)');
-        setConfirmOpen(false);
     };
 
     // ====== OUTBOUND LIST ======
@@ -2898,148 +2830,20 @@ export default function OutboundPage() {
                 {/* TAB 2 - BULK UPLOAD */}
                 {currentTabCode === 'bulk' && (
                     <Box sx={{ p: { xs: 1, sm: 1.5, md: 2 } }}>
-                        {/* ✅ REMOVE maxWidth - full width card */}
-                        <Card sx={{ borderRadius: 1.5, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-                            <CardContent sx={{ p: 2 }}>
-                                <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 2, color: '#1a237e', fontSize: '0.9rem' }}>
-                                    📤 Bulk Upload
-                                </Typography>
-
-                                <Stack spacing={2}>
-                                    {/* DOWNLOAD TEMPLATE BUTTON */}
-                                    <Button
-                                        variant="outlined"
-                                        onClick={downloadBulkTemplate}
-                                        startIcon={<DownloadIcon />}
-                                        sx={{ py: 1.5 }}
-                                    >
-                                        📥 DOWNLOAD TEMPLATE
-                                    </Button>
-
-                                    {/* FILE UPLOAD BOX */}
-                                    <Box
-                                        sx={{
-                                            border: '2px dashed #cbd5e1',
-                                            borderRadius: 2,
-                                            p: 4,
-                                            textAlign: 'center',
-                                            cursor: 'pointer',
-                                            background: '#f8fafc',
-                                            transition: 'all 0.3s',
-                                            '&:hover': {
-                                                borderColor: '#667eea',
-                                                background: 'rgba(102, 126, 234, 0.05)',
-                                            },
-                                        }}
-                                    >
-                                        <input
-                                            type="file"
-                                            accept=".xlsx,.xls"
-                                            onChange={handleBulkFileChange}
-                                            style={{ display: 'none' }}
-                                            id="bulk-file-outbound"
-                                        />
-                                        <label htmlFor="bulk-file-outbound" style={{ cursor: 'pointer', display: 'block' }}>
-                                            <UploadIcon sx={{ fontSize: 48, color: '#667eea', mb: 1 }} />
-                                            <Typography sx={{ fontWeight: 700, fontSize: '1rem', mb: 0.5 }}>
-                                                Click to upload file
-                                            </Typography>
-                                            <Typography variant="caption" sx={{ color: '#64748b' }}>
-                                                {bulkFile?.name || 'No file selected'}
-                                            </Typography>
-                                        </label>
-                                    </Box>
-
-                                    {/* UPLOAD BUTTON */}
-                                    <Button
-                                        variant="contained"
-                                        onClick={handleBulkUpload}
-                                        disabled={!bulkFile || bulkLoading || !activeWarehouse}
-                                        startIcon={bulkLoading ? <CircularProgress size={18} sx={{ color: 'white' }} /> : <UploadIcon />}
-                                        fullWidth
-                                        sx={{
-                                            py: 1.5,
-                                            fontSize: '0.85rem',
-                                            fontWeight: 700,
-                                            background: !bulkFile || bulkLoading ? '#9ca3af' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                                            '&:hover': {
-                                                background: 'linear-gradient(135deg, #764ba2 0%, #667eea 100%)',
-                                            },
-                                            '&.Mui-disabled': {
-                                                background: '#9ca3af',
-                                            },
-                                        }}
-                                    >
-                                        {bulkLoading ? 'Processing...' : 'UPLOAD'}
-                                    </Button>
-                                </Stack>
-
-                                {/* PROGRESS CARD */}
-                                {bulkProgress.show && (
-                                    <Card sx={{ mt: 2, borderRadius: 1.5, border: '2px solid #e5e7eb', bgcolor: '#f9fafb' }}>
-                                        <CardContent sx={{ p: 2 }}>
-                                            <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1.5, color: '#1f2937', fontSize: '0.85rem' }}>
-                                                Upload Result
-                                            </Typography>
-                                            <Stack spacing={1}>
-                                                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                                                    <Typography variant="body2" sx={{ fontWeight: 600 }}>Batch ID</Typography>
-                                                    <Chip label={bulkProgress.batchId} size="small" sx={{ fontWeight: 700, bgcolor: '#dbeafe', color: '#1e40af' }} />
-                                                </Box>
-                                                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                                                    <Typography variant="body2" sx={{ fontWeight: 600 }}>Total Rows</Typography>
-                                                    <Typography variant="body2" sx={{ fontWeight: 700 }}>{bulkProgress.total}</Typography>
-                                                </Box>
-                                                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                                                    <Typography variant="body2" sx={{ fontWeight: 600, color: '#10b981' }}>Success</Typography>
-                                                    <Typography variant="body2" sx={{ fontWeight: 700, color: '#10b981' }}>{bulkProgress.successCount}</Typography>
-                                                </Box>
-                                                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                                                    <Typography variant="body2" sx={{ fontWeight: 600, color: '#ef4444' }}>Errors</Typography>
-                                                    <Typography variant="body2" sx={{ fontWeight: 700, color: '#ef4444' }}>{bulkProgress.errorCount}</Typography>
-                                                </Box>
-                                                {bulkErrors.length > 0 && (
-                                                    <Button size="small" onClick={() => setBulkErrorsOpen(true)} color="error" variant="outlined">
-                                                        VIEW ERRORS ({bulkErrors.length})
-                                                    </Button>
-                                                )}
-                                            </Stack>
-                                        </CardContent>
-                                    </Card>
-                                )}
-                            </CardContent>
-                        </Card>
+                        <BulkUploadCard
+                            module="outbound"
+                            warehouseId={activeWarehouse?.id || 0}
+                            userId={user?.id}
+                            onUploadComplete={() => {
+                                loadExistingWSNs();
+                                loadOutboundList();
+                            }}
+                            onDownloadTemplate={handleConfirmDownload}
+                            templateColumns={['WSN', 'DISPATCHDATE', 'CUSTOMERNAME', 'VEHICLENO', 'DISPATCHREMARKS', 'OTHERREMARKS']}
+                            title="📤 Bulk Outbound Upload"
+                        />
                     </Box>
                 )}
-
-                {/* TEMPLATE DOWNLOAD CONFIRMATION DIALOG */}
-                <Dialog
-                    open={confirmOpen}
-                    onClose={() => setConfirmOpen(false)}
-                    maxWidth="xs"
-                    fullWidth
-                >
-                    <DialogTitle sx={{ fontWeight: 700, color: '#1a237e' }}>
-                        Confirm Download
-                    </DialogTitle>
-                    <DialogContent>
-                        <Typography sx={{ color: '#334155', mb: 2 }}>
-                            Would you like to proceed with downloading the outbound template?
-                        </Typography>
-                    </DialogContent>
-                    <DialogActions sx={{ p: 2 }}>
-                        <Button onClick={() => setConfirmOpen(false)}>
-                            Cancel
-                        </Button>
-                        <Button
-                            variant="contained"
-                            onClick={handleConfirmDownload}
-                            sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}
-                        >
-                            Yes, Download
-                        </Button>
-                    </DialogActions>
-                </Dialog>
 
 
 

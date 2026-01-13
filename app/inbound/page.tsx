@@ -70,6 +70,7 @@ import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
 import React from 'react';
 import localforage from 'localforage';
 import { useInboundPermissions } from '@/hooks/usePagePermissions';
+import BulkUploadCard from '@/components/BulkUploadCard';
 import {
   getMasterDataByWSN as getLocalMasterData,
   prewarmCache,
@@ -163,13 +164,6 @@ export default function InboundPage() {
   const [singleLoading, setSingleLoading] = useState(false);
   const [duplicateWSN, setDuplicateWSN] = useState<any>(null);
   const [racks, setRacks] = useState<any[]>([]);
-
-  // ====== BULK UPLOAD STATE ======
-  const [bulkFile, setBulkFile] = useState<File | null>(null);
-  const [bulkLoading, setBulkLoading] = useState(false);
-  const [bulkCurrentBatch, setBulkCurrentBatch] = useState<any>(null);
-  const [bulkErrors, setBulkErrors] = useState<any[]>([]);
-  const [bulkErrorsOpen, setBulkErrorsOpen] = useState(false);
 
   // ====== MULTI ENTRY STATE ======
   // ⚡ PERFORMANCE: Track unique row ID counter for efficient AG Grid updates
@@ -1323,47 +1317,6 @@ export default function InboundPage() {
     XLSX.utils.book_append_sheet(wb, ws, 'Template');
     XLSX.writeFile(wb, 'Bulk_Inbound_Template.xlsx');
     toast.success('✓ Template downloaded');
-  };
-
-  const handleBulkUpload = async () => {
-    if (!bulkFile) {
-      toast.error('Please select a file');
-      return;
-    }
-
-    const formData = new FormData();
-    formData.append('file', bulkFile);
-    formData.append('warehouse_id', activeWarehouse?.id?.toString() || '');
-    formData.append('created_by', user?.id?.toString() || '');
-
-    setBulkLoading(true);
-    setBulkErrors([]);
-    try {
-      const response = await inboundAPI.bulkUpload(formData);
-      setBulkCurrentBatch({
-        id: response.data.batchId,
-        total: response.data.totalRows,
-        timestamp: response.data.timestamp
-      });
-
-      toast.success(`✓ Batch started: ${response.data.batchId}`);
-      setBulkFile(null);
-
-      setTimeout(() => {
-        setBulkCurrentBatch(null);
-        loadBatches();
-        loadInboundList();
-      }, 5000);
-    } catch (error: any) {
-      const errorMsg = error.response?.data?.error || 'Upload failed';
-      toast.error(errorMsg);
-      if (error.response?.data?.errors) {
-        setBulkErrors(error.response.data.errors);
-        setBulkErrorsOpen(true);
-      }
-    } finally {
-      setBulkLoading(false);
-    }
   };
 
   // ====== MULTI ENTRY FUNCTIONS ======
@@ -4885,98 +4838,18 @@ export default function InboundPage() {
                   overflow: 'auto',
                 }}
               >
-                <Card sx={{ borderRadius: 1.5, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-                  <CardContent sx={{ p: 2 }}>
-                    <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 2, color: '#1a237e' }}>📤 Bulk Upload</Typography>
-                    <Stack spacing={2}>
-                      <Button
-                        variant="outlined"
-                        startIcon={<DownloadIcon />}
-                        onClick={() => setConfirmOpen(true)}
-                        sx={{ py: 1.5 }}
-                      >
-                        Download Template
-                      </Button>
-
-                      {/* Confirmation Dialog for Download */}
-                      <Dialog
-                        open={confirmOpen}
-                        onClose={() => setConfirmOpen(false)}
-                        maxWidth="xs"
-                        fullWidth
-                      >
-                        <DialogTitle sx={{ fontWeight: 700, color: '#1a237e' }}>
-                          Confirm Download
-                        </DialogTitle>
-
-                        <DialogContent>
-                          <Typography sx={{ color: '#334155', mb: 2 }}>
-                            Would you like to proceed with downloading the template?
-                          </Typography>
-                        </DialogContent>
-
-                        <DialogActions sx={{ p: 2 }}>
-                          <Button onClick={() => setConfirmOpen(false)}>Cancel</Button>
-                          <Button
-                            variant="contained"
-                            onClick={handleConfirmDownload}
-                            sx={{
-                              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
-                            }}
-                          >
-                            Yes, Download
-                          </Button>
-                        </DialogActions>
-                      </Dialog>
-
-                      <Box sx={{ border: '2px dashed #667eea', borderRadius: 2, p: 3, textAlign: 'center', cursor: 'pointer', background: 'rgba(102, 126, 234, 0.05)', transition: 'all 0.3s', '&:hover': { background: 'rgba(102, 126, 234, 0.1)', borderColor: '#764ba2' } }}>
-                        <input type="file" accept=".xlsx,.xls" onChange={(e) => setBulkFile(e.target.files?.[0] || null)} style={{ display: 'none' }} id="bulk-file" />
-                        <label htmlFor="bulk-file" style={{ cursor: 'pointer', display: 'block' }}>
-                          <UploadIcon sx={{ fontSize: 40, color: '#667eea', mb: 1 }} />
-                          <Typography sx={{ fontWeight: 700 }}>Click to upload file</Typography>
-                          <Typography variant="caption" sx={{ color: '#94a3b8' }}>{bulkFile?.name || 'No file selected'}</Typography>
-                        </label>
-                      </Box>
-
-                      <Button variant="contained" onClick={handleBulkUpload} disabled={bulkLoading || !bulkFile} sx={{ py: 1.5, background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
-                        {bulkLoading ? <CircularProgress size={20} sx={{ mr: 1 }} /> : <UploadIcon sx={{ mr: 1 }} />}
-                        Upload
-                      </Button>
-                    </Stack>
-                  </CardContent>
-                </Card>
-
-                {bulkCurrentBatch && (
-                  <Card sx={{ background: 'linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)', border: '2px solid #3b82f6' }}>
-                    <CardContent>
-                      <Stack spacing={2}>
-                        <Box>
-                          <Typography variant="caption" sx={{ fontWeight: 700, color: '#1e40af' }}>BATCH ID</Typography>
-                          <Typography sx={{ fontWeight: 700, color: '#1e3a8a' }}>{bulkCurrentBatch.id}</Typography>
-                        </Box>
-                        <Box>
-                          <Typography variant="caption" sx={{ fontWeight: 700, color: '#1e40af' }}>TOTAL ROWS</Typography>
-                          <Typography sx={{ fontWeight: 700, color: '#1e3a8a' }}>{bulkCurrentBatch.total}</Typography>
-                        </Box>
-                        <LinearProgress variant="determinate" value={50} sx={{ height: 8, borderRadius: 4 }} />
-                        <Typography variant="caption" sx={{ color: '#1e40af', fontWeight: 600 }}>Processing...</Typography>
-                      </Stack>
-                    </CardContent>
-                  </Card>
-                )}
-
-                {bulkErrors.length > 0 && (
-                  <Dialog open={bulkErrorsOpen} onClose={() => setBulkErrorsOpen(false)} maxWidth="md" fullWidth>
-                    <DialogTitle>❌ Upload Errors</DialogTitle>
-                    <DialogContent sx={{ maxHeight: 400, overflow: 'auto' }}>
-                      {bulkErrors.map((err, idx) => (
-                        <Alert key={idx} severity="error" sx={{ mb: 1 }}>
-                          Row {err.row}: {err.message}
-                        </Alert>
-                      ))}
-                    </DialogContent>
-                  </Dialog>
-                )}
+                <BulkUploadCard
+                  module="inbound"
+                  warehouseId={activeWarehouse?.id || 0}
+                  userId={user?.id}
+                  onUploadComplete={() => {
+                    loadBatches();
+                    loadInboundList();
+                  }}
+                  onDownloadTemplate={downloadTemplate}
+                  templateColumns={['WSN', 'INBOUND_DATE', 'VEHICLE_NO', 'PRODUCT_SERIAL_NUMBER', 'RACK_NO', 'UNLOAD_REMARKS']}
+                  title="📤 Bulk Inbound Upload"
+                />
               </Box>
             )
           }

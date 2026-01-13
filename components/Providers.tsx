@@ -3,6 +3,7 @@
 
 import { WarehouseProvider } from '@/app/context/WarehouseContext';
 import { PermissionProvider } from '@/app/context/PermissionContext';
+import { BulkUploadProvider } from '@/app/context/BulkUploadContext';
 import ThemeRegistry from './ThemeRegistry';
 import OnboardingWrapper from './OnboardingWrapper';
 import ErrorBoundary from './ErrorBoundary';
@@ -13,9 +14,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <ErrorBoundary>
         <PermissionProvider>
           <WarehouseProvider>
-            <OnboardingWrapper>
-              {children}
-            </OnboardingWrapper>
+            <BulkUploadProvider>
+              <OnboardingWrapper>
+                {children}
+              </OnboardingWrapper>
+            </BulkUploadProvider>
           </WarehouseProvider>
         </PermissionProvider>
       </ErrorBoundary>

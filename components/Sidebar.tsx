@@ -374,7 +374,7 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
       {!collapsed && (
         <Box sx={{ p: 2 }}>
           <Typography variant="caption" color="rgba(255,255,255,0.6)">
-            Looged in as {userName}
+            Logged in as {userName}
           </Typography>
         </Box>
       )}
