@@ -1,16 +1,18 @@
 // File Path = arehouse-frontend\app\settings\users\page.tsx
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import {
   Box, Button, Dialog, DialogActions, DialogContent, DialogTitle,
   TextField, Paper, Typography, Table, TableBody, TableCell, TableHead,
   TableRow, TableContainer, Chip, IconButton, Stack,
-  FormControl, InputLabel, Select, MenuItem, Switch, FormControlLabel, useMediaQuery, useTheme, CircularProgress
+  FormControl, InputLabel, Select, MenuItem, Switch, FormControlLabel, useMediaQuery, useTheme, CircularProgress,
+  Tooltip, Badge
 } from '@mui/material';
-import { Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon, Key as KeyIcon } from '@mui/icons-material';
-import { usersAPI } from '@/lib/api';
+import { Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon, Key as KeyIcon, Logout as LogoutIcon, Circle as CircleIcon } from '@mui/icons-material';
+import { usersAPI, sessionsAPI } from '@/lib/api';
 import AppLayout from '@/components/AppLayout';
+import ConfirmDialog from '@/components/ConfirmDialog';
 import toast, { Toaster } from 'react-hot-toast';
 import { useWarehouse } from '@/app/context/WarehouseContext';
 import { getStoredUser } from '@/lib/auth';
@@ -43,6 +45,52 @@ export default function UsersPage() {
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [user, setUser] = useState<any>(null);
 
+  // Delete confirmation dialog
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<any>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
+  // Online users tracking
+  const [onlineUserIds, setOnlineUserIds] = useState<number[]>([]);
+  const [logoutDialogOpen, setLogoutDialogOpen] = useState(false);
+  const [userToLogout, setUserToLogout] = useState<any>(null);
+  const [logoutLoading, setLogoutLoading] = useState(false);
+  const [logoutAllDialogOpen, setLogoutAllDialogOpen] = useState(false);
+
+  // Current logged-in user
+  const currentUser = user;
+  const isSuperAdmin = currentUser?.role === 'super_admin';
+  const isCurrentAdmin = currentUser?.role === 'admin' || currentUser?.role === 'super_admin';
+
+  // Check if current user can modify target user
+  const canModifyUser = (targetUser: any): boolean => {
+    // Can't modify yourself (for delete)
+    if (targetUser.id === currentUser?.id) return false;
+    // Only super_admin can modify another super_admin
+    if (targetUser.role === 'super_admin' && !isSuperAdmin) return false;
+    return true;
+  };
+
+  // Check if current user can edit target user (self-edit allowed)
+  const canEditUser = (targetUser: any): boolean => {
+    // Super admin can only be edited by super_admin
+    if (targetUser.role === 'super_admin' && !isSuperAdmin) return false;
+    return true;
+  };
+
+  // Check if current user can logout target user
+  const canLogoutUser = (targetUser: any): boolean => {
+    // Can't logout yourself from here
+    if (targetUser.id === currentUser?.id) return false;
+    // Must be admin or super_admin to logout others
+    if (!isCurrentAdmin) return false;
+    // Admin can only logout regular users (not admins or super_admin)
+    if (currentUser?.role === 'admin') {
+      if (targetUser.role === 'admin' || targetUser.role === 'super_admin') return false;
+    }
+    return true;
+  };
+
   useEffect(() => {
     const storedUser = getStoredUser();
     if (storedUser) setUser(storedUser);
@@ -57,9 +105,68 @@ export default function UsersPage() {
     }
   };
 
+  // Fetch online users
+  const loadOnlineUsers = useCallback(async () => {
+    if (!isCurrentAdmin) return;
+    try {
+      const res = await sessionsAPI.getOnlineUsers();
+      setOnlineUserIds(res.data.userIds || []);
+    } catch (e) {
+      // Silently fail - table might not exist yet
+      console.debug('Could not fetch online users');
+    }
+  }, [isCurrentAdmin]);
+
   useEffect(() => {
     loadUsers();
-  },);
+  }, []);
+
+  // Load online users when admin/super_admin
+  useEffect(() => {
+    if (isCurrentAdmin) {
+      loadOnlineUsers();
+      // Refresh online status every 30 seconds
+      const interval = setInterval(loadOnlineUsers, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [isCurrentAdmin, loadOnlineUsers]);
+
+  // Logout single user
+  const handleLogoutUser = async () => {
+    if (!userToLogout) return;
+    try {
+      setLogoutLoading(true);
+      await sessionsAPI.logoutUser(userToLogout.id);
+      toast.success(`${userToLogout.username} has been logged out`);
+      setLogoutDialogOpen(false);
+      setUserToLogout(null);
+      loadOnlineUsers();
+    } catch (e: any) {
+      toast.error(e.response?.data?.error || 'Failed to logout user');
+    } finally {
+      setLogoutLoading(false);
+    }
+  };
+
+  // Logout all users
+  const handleLogoutAll = async () => {
+    try {
+      setLogoutLoading(true);
+      await sessionsAPI.logoutAll(true); // exclude self
+      toast.success('All users have been logged out');
+      setLogoutAllDialogOpen(false);
+      loadOnlineUsers();
+    } catch (e: any) {
+      toast.error(e.response?.data?.error || 'Failed to logout all users');
+    } finally {
+      setLogoutLoading(false);
+    }
+  };
+
+  const openLogoutDialog = (user: any) => {
+    setUserToLogout(user);
+    setLogoutDialogOpen(true);
+  };
 
 
   const handleDialogOpen = (item?: any) => {
@@ -141,14 +248,23 @@ export default function UsersPage() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('Delete this user?')) return;
+    setDeleteLoading(true);
     try {
       await usersAPI.delete(id);
       loadUsers();
       toast.success('✓ User deleted');
     } catch {
       toast.error('Failed to delete');
+    } finally {
+      setDeleteLoading(false);
+      setDeleteDialogOpen(false);
+      setUserToDelete(null);
     }
+  };
+
+  const openDeleteDialog = (user: any) => {
+    setUserToDelete(user);
+    setDeleteDialogOpen(true);
   };
 
   const handleOpenPasswordDialog = (user: any) => {
@@ -164,8 +280,21 @@ export default function UsersPage() {
   };
 
   const handleChangePassword = async () => {
-    if (!newPassword || newPassword.length < 6) {
-      toast.error('Password must be at least 6 characters');
+    // Strong password validation
+    if (!newPassword || newPassword.length < 8) {
+      toast.error('Password must be at least 8 characters');
+      return;
+    }
+    if (!/[A-Z]/.test(newPassword)) {
+      toast.error('Password must contain at least one uppercase letter');
+      return;
+    }
+    if (!/[a-z]/.test(newPassword)) {
+      toast.error('Password must contain at least one lowercase letter');
+      return;
+    }
+    if (!/[0-9]/.test(newPassword)) {
+      toast.error('Password must contain at least one number');
       return;
     }
 
@@ -290,6 +419,30 @@ export default function UsersPage() {
               </Button>
             )}
           </Box>
+          {/* Online status and Logout All button */}
+          {isCurrentAdmin && (
+            <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+              <Chip
+                icon={<CircleIcon sx={{ fontSize: 10, color: '#22c55e !important' }} />}
+                label={`${onlineUserIds.length} Online`}
+                size="small"
+                variant="outlined"
+                sx={{ borderColor: '#22c55e', color: '#22c55e', fontWeight: 600 }}
+              />
+              {isSuperAdmin && onlineUserIds.length > 1 && (
+                <Button
+                  variant="outlined"
+                  color="warning"
+                  size="small"
+                  startIcon={<LogoutIcon />}
+                  onClick={() => setLogoutAllDialogOpen(true)}
+                  sx={{ height: 32, fontWeight: 600 }}
+                >
+                  Logout All
+                </Button>
+              )}
+            </Box>
+          )}
         </Box>
 
         <Box sx={{ flex: 1, overflow: 'auto', minHeight: 0, border: '1px solid #d1d5db', position: 'relative' }}>
@@ -304,6 +457,9 @@ export default function UsersPage() {
                   <TableCell sx={{ color: '#1f2937', fontWeight: 700, background: '#e5e7eb', fontSize: '0.75rem', textTransform: 'uppercase', py: 0.8, whiteSpace: 'nowrap', minWidth: 120 }}>PHONE</TableCell>
                   <TableCell sx={{ color: '#1f2937', fontWeight: 700, background: '#e5e7eb', fontSize: '0.75rem', textTransform: 'uppercase', py: 0.8, whiteSpace: 'nowrap', minWidth: 100 }}>ROLE</TableCell>
                   <TableCell sx={{ color: '#1f2937', fontWeight: 700, background: '#e5e7eb', fontSize: '0.75rem', textTransform: 'uppercase', py: 0.8, whiteSpace: 'nowrap', minWidth: 100 }}>STATUS</TableCell>
+                  {isCurrentAdmin && (
+                    <TableCell sx={{ color: '#1f2937', fontWeight: 700, background: '#e5e7eb', fontSize: '0.75rem', textTransform: 'uppercase', py: 0.8, whiteSpace: 'nowrap', minWidth: 80, textAlign: 'center' }}>ONLINE</TableCell>
+                  )}
                   <TableCell sx={{ color: '#1f2937', fontWeight: 700, background: '#e5e7eb', fontSize: '0.75rem', textTransform: 'uppercase', py: 0.8, whiteSpace: 'nowrap', minWidth: 120, textAlign: 'center' }}>ACTIONS</TableCell>
                 </TableRow>
               </TableHead>
@@ -321,64 +477,91 @@ export default function UsersPage() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  users.map((user, idx) => (
-                    <TableRow key={user.id} sx={{ bgcolor: idx % 2 === 0 ? '#ffffff' : '#f9fafb', '&:hover': { bgcolor: '#f0f0f0' } }}>
-                      <TableCell sx={{ fontWeight: 700, width: 60, fontSize: '0.75rem' }}>{idx + 1}</TableCell>
-                      <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem', whiteSpace: 'nowrap' }}>{user.full_name || '-'}</TableCell>
-                      <TableCell sx={{ fontWeight: 500, fontSize: '0.75rem', whiteSpace: 'nowrap' }}>{user.username}</TableCell>
-                      <TableCell sx={{ fontWeight: 500, fontSize: '0.75rem', whiteSpace: 'nowrap' }}>{user.email || '-'}</TableCell>
-                      <TableCell sx={{ fontWeight: 500, fontSize: '0.75rem', whiteSpace: 'nowrap' }}>{user.phone || '-'}</TableCell>
-                      <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                        <Chip
-                          label={user.role.toUpperCase()}
-                          size="small"
-                          color={getRoleColor(user.role)}
-                          variant="outlined"
-                        />
-                      </TableCell>
-                      <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                        {user.is_active ? (
-                          <Chip label="Active" color="success" size="small" />
-                        ) : (
-                          <Chip label="Inactive" size="small" />
+                  users.map((user, idx) => {
+                    const isOnline = onlineUserIds.includes(user.id);
+                    return (
+                      <TableRow key={user.id} sx={{ bgcolor: idx % 2 === 0 ? '#ffffff' : '#f9fafb', '&:hover': { bgcolor: '#f0f0f0' } }}>
+                        <TableCell sx={{ fontWeight: 700, width: 60, fontSize: '0.75rem' }}>{idx + 1}</TableCell>
+                        <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem', whiteSpace: 'nowrap' }}>{user.full_name || '-'}</TableCell>
+                        <TableCell sx={{ fontWeight: 500, fontSize: '0.75rem', whiteSpace: 'nowrap' }}>{user.username}</TableCell>
+                        <TableCell sx={{ fontWeight: 500, fontSize: '0.75rem', whiteSpace: 'nowrap' }}>{user.email || '-'}</TableCell>
+                        <TableCell sx={{ fontWeight: 500, fontSize: '0.75rem', whiteSpace: 'nowrap' }}>{user.phone || '-'}</TableCell>
+                        <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                          <Chip
+                            label={user.role.toUpperCase()}
+                            size="small"
+                            color={getRoleColor(user.role)}
+                            variant="outlined"
+                          />
+                        </TableCell>
+                        <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                          {user.is_active ? (
+                            <Chip label="Active" color="success" size="small" />
+                          ) : (
+                            <Chip label="Inactive" size="small" />
+                          )}
+                        </TableCell>
+                        {isCurrentAdmin && (
+                          <TableCell sx={{ textAlign: 'center' }}>
+                            <Tooltip title={isOnline ? 'Online' : 'Offline'}>
+                              <CircleIcon
+                                sx={{
+                                  fontSize: 12,
+                                  color: isOnline ? '#22c55e' : '#d1d5db',
+                                  filter: isOnline ? 'drop-shadow(0 0 3px #22c55e)' : 'none'
+                                }}
+                              />
+                            </Tooltip>
+                          </TableCell>
                         )}
-                      </TableCell>
-                      <TableCell sx={{ textAlign: 'center' }}>
-                        <Stack direction="row" spacing={0.5} justifyContent="center">
-                          {canSeeButton('edit') && (
-                            <IconButton
-                              size="small"
-                              onClick={() => handleDialogOpen(user)}
-                              title="Edit"
-                              sx={{ color: '#667eea', p: 0.5, '&:hover': { bgcolor: 'rgba(102, 126, 234, 0.1)' } }}
-                            >
-                              <EditIcon sx={{ fontSize: 16 }} />
-                            </IconButton>
-                          )}
-                          {canSeeButton('changepassword') && (
-                            <IconButton
-                              size="small"
-                              onClick={() => handleOpenPasswordDialog(user)}
-                              title="Change Password"
-                              sx={{ color: '#10b981', p: 0.5, '&:hover': { bgcolor: 'rgba(16, 185, 129, 0.1)' } }}
-                            >
-                              <KeyIcon sx={{ fontSize: 16 }} />
-                            </IconButton>
-                          )}
-                          {canSeeButton('delete') && (
-                            <IconButton
-                              size="small"
-                              onClick={() => handleDelete(user.id)}
-                              title="Delete"
-                              sx={{ color: '#ef4444', p: 0.5, '&:hover': { bgcolor: 'rgba(239, 68, 68, 0.1)' } }}
-                            >
-                              <DeleteIcon sx={{ fontSize: 16 }} />
-                            </IconButton>
-                          )}
-                        </Stack>
-                      </TableCell>
-                    </TableRow>
-                  ))
+                        <TableCell sx={{ textAlign: 'center' }}>
+                          <Stack direction="row" spacing={0.5} justifyContent="center">
+                            {canSeeButton('edit') && canEditUser(user) && (
+                              <IconButton
+                                size="small"
+                                onClick={() => handleDialogOpen(user)}
+                                title="Edit"
+                                sx={{ color: '#667eea', p: 0.5, '&:hover': { bgcolor: 'rgba(102, 126, 234, 0.1)' } }}
+                              >
+                                <EditIcon sx={{ fontSize: 16 }} />
+                              </IconButton>
+                            )}
+                            {canSeeButton('changepassword') && canEditUser(user) && (
+                              <IconButton
+                                size="small"
+                                onClick={() => handleOpenPasswordDialog(user)}
+                                title="Change Password"
+                                sx={{ color: '#10b981', p: 0.5, '&:hover': { bgcolor: 'rgba(16, 185, 129, 0.1)' } }}
+                              >
+                                <KeyIcon sx={{ fontSize: 16 }} />
+                              </IconButton>
+                            )}
+                            {isOnline && canLogoutUser(user) && (
+                              <Tooltip title="Force Logout">
+                                <IconButton
+                                  size="small"
+                                  onClick={() => openLogoutDialog(user)}
+                                  sx={{ color: '#f97316', p: 0.5, '&:hover': { bgcolor: 'rgba(249, 115, 22, 0.1)' } }}
+                                >
+                                  <LogoutIcon sx={{ fontSize: 16 }} />
+                                </IconButton>
+                              </Tooltip>
+                            )}
+                            {canSeeButton('delete') && canModifyUser(user) && (
+                              <IconButton
+                                size="small"
+                                onClick={() => openDeleteDialog(user)}
+                                title="Delete"
+                                sx={{ color: '#ef4444', p: 0.5, '&:hover': { bgcolor: 'rgba(239, 68, 68, 0.1)' } }}
+                              >
+                                <DeleteIcon sx={{ fontSize: 16 }} />
+                              </IconButton>
+                            )}
+                          </Stack>
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })
                 )}
               </TableBody>
             </Table>
@@ -481,7 +664,7 @@ export default function UsersPage() {
             type="password"
             value={newPassword}
             onChange={e => setNewPassword(e.target.value)}
-            placeholder="Minimum 6 characters"
+            placeholder="Minimum 8 characters with uppercase, lowercase, and number"
             autoFocus
           />
         </DialogContent>
@@ -498,6 +681,48 @@ export default function UsersPage() {
           </Button>
         </DialogActions >
       </Dialog >
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDialog
+        open={deleteDialogOpen}
+        title="Delete User"
+        message={`Are you sure you want to delete user "${userToDelete?.username}"? This action cannot be undone.`}
+        confirmText="Delete"
+        confirmColor="error"
+        loading={deleteLoading}
+        onConfirm={() => handleDelete(userToDelete?.id)}
+        onCancel={() => {
+          setDeleteDialogOpen(false);
+          setUserToDelete(null);
+        }}
+      />
+
+      {/* Logout User Confirmation Dialog */}
+      <ConfirmDialog
+        open={logoutDialogOpen}
+        title="Force Logout User"
+        message={`Are you sure you want to logout "${userToLogout?.username}"? They will be disconnected immediately and need to login again.`}
+        confirmText="Logout"
+        confirmColor="warning"
+        loading={logoutLoading}
+        onConfirm={handleLogoutUser}
+        onCancel={() => {
+          setLogoutDialogOpen(false);
+          setUserToLogout(null);
+        }}
+      />
+
+      {/* Logout All Confirmation Dialog */}
+      <ConfirmDialog
+        open={logoutAllDialogOpen}
+        title="Logout All Users"
+        message={`Are you sure you want to logout all ${onlineUserIds.length - 1} other online users? They will be disconnected immediately.`}
+        confirmText="Logout All"
+        confirmColor="warning"
+        loading={logoutLoading}
+        onConfirm={handleLogoutAll}
+        onCancel={() => setLogoutAllDialogOpen(false)}
+      />
     </AppLayout >
   );
 }

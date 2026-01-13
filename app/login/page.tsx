@@ -94,7 +94,6 @@ export default function LoginPage() {
 
       const errorMsg = error.response?.data?.error || 'Login failed';
       toast.error('✗ ' + errorMsg);
-      console.error('Login error:', error);
 
     } finally {
       setLoading(false);

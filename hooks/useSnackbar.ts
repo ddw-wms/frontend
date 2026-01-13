@@ -15,10 +15,15 @@ export const useSnackbar = () => {
     const showSnackbar = useCallback(
         (message: string, severity: 'success' | 'error' | 'warning' | 'info' = 'info') => {
             setSnackbar({ open: true, message, severity });
-            setTimeout(() => setSnackbar({ ...snackbar, open: false }), 3000);
+            // Use functional update to avoid stale closure
+            setTimeout(() => setSnackbar(prev => ({ ...prev, open: false })), 3000);
         },
-        [snackbar]
+        [] // No dependencies needed with functional update
     );
 
-    return { snackbar, showSnackbar };
+    const closeSnackbar = useCallback(() => {
+        setSnackbar(prev => ({ ...prev, open: false }));
+    }, []);
+
+    return { snackbar, showSnackbar, closeSnackbar };
 };

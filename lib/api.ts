@@ -68,6 +68,16 @@ export const usersAPI = {
   changePassword: (id: number, newPassword: string) => api.patch(`users/${id}/change-password`, { newPassword }),
 };
 
+// ================= Sessions API (Admin only) =======================
+export const sessionsAPI = {
+  getOnlineUsers: () => api.get('sessions/online-users'),
+  getOnlineCount: () => api.get('sessions/online-count'),
+  getAllSessions: () => api.get('sessions'),
+  logoutUser: (userId: number) => api.post(`sessions/logout-user/${userId}`),
+  logoutAll: (excludeSelf: boolean = true) => api.post('sessions/logout-all', { excludeSelf }),
+  cleanup: () => api.delete('sessions/cleanup'),
+};
+
 // ====================Master Data API===================
 // export const masterDataAPI = {
 //   getAll: (
@@ -493,6 +503,14 @@ export const permissionsAPI = {
   getUserWarehouses: (userId: number) => api.get(`/permissions/users/${userId}/warehouses`),
   updateUserWarehouses: (userId: number, warehouse_ids: number[], default_warehouse_id?: number) =>
     api.put(`/permissions/users/${userId}/warehouses`, { warehouse_ids, default_warehouse_id }),
+};
+
+// ================= Error Logs API (Super Admin Only) =======================
+export const errorLogsAPI = {
+  getAll: () => api.get('/error-logs'),
+  getCount: () => api.get('/error-logs/count'),
+  clearAll: () => api.delete('/error-logs/clear'),
+  cleanup: (days: number) => api.delete(`/error-logs/cleanup/${days}`),
 };
 
 

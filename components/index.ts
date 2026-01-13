@@ -15,6 +15,12 @@ export { default as StandardPageHeader } from './StandardPageHeader';
 // export { default as ActionButtonBar } from './ActionButtonBar';
 export { default as StandardTabs } from './StandardTabs';
 
+// Error Boundary for catching runtime errors
+export { default as ErrorBoundary } from './ErrorBoundary';
+
+// Confirmation Dialog (replacement for window.confirm)
+export { default as ConfirmDialog } from './ConfirmDialog';
+
 // Permission-related components
 export { default as RouteGuard, withRouteGuard, useRouteAccess } from './RouteGuard';
 export {

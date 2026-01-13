@@ -41,11 +41,13 @@ import {
   Menu as MenuIcon,
   Assessment as ReportsIcon,
   AdminPanelSettings as PermissionsIcon,
+  Group as GroupIcon,
+  Logout as LogoutIcon,
+  BugReport as ErrorLogsIcon,
 } from '@mui/icons-material';
-import path from 'path';
-import { Group as GroupIcon, Logout as LogoutIcon } from '@mui/icons-material';
 import { getStoredUser, logout } from '@/lib/auth';
 import { usePermissions } from '@/app/context/PermissionContext';
+import ConfirmDialog from './ConfirmDialog';
 
 interface SidebarProps {
   username?: string;
@@ -60,6 +62,7 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
   const [userName, setUserName] = useState<string>('');
   const [showNotification, setShowNotification] = useState(false);
   const [notificationMessage, setNotificationMessage] = useState('');
+  const [logoutDialogOpen, setLogoutDialogOpen] = useState(false);
 
 
   // Use Permission context
@@ -91,11 +94,8 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
     // Get user role
     const user = getStoredUser();
     if (user) {
-      console.log('🔐 Sidebar - User:', user.username, '| Role:', user.role);
       setUserRole(user.role || '');
       setUserName(user.fullName || user.username || '');
-    } else {
-      console.log('⚠️ No user found in storage');
     }
 
 
@@ -155,6 +155,7 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
     { label: 'Printers', icon: PrinterIcon, path: '/settings/printers', code: 'menu:settings:printers' },
     { label: 'Backups', icon: StorageIcon, path: '/settings/backups', code: 'menu:settings:backups' },
     { label: 'Permissions', icon: PermissionsIcon, path: '/settings/permissions', code: 'menu:settings:permissions' },
+    { label: 'Error Logs', icon: ErrorLogsIcon, path: '/settings/error-logs', code: 'super_admin_only', superAdminOnly: true },
   ], []);
 
   // Filter menu items based on permissions
@@ -177,15 +178,21 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
     // Get user from storage for immediate admin check
     const user = getStoredUser();
     const isUserAdmin = user?.role === 'admin' || user?.role === 'super_admin';
+    const isSuperAdmin = user?.role === 'super_admin';
 
-    // Admin gets all menu items immediately
+    // Filter items based on role
+    const filterSuperAdminItems = (items: typeof allSettingsMenuItems) => {
+      return items.filter(item => !item.superAdminOnly || isSuperAdmin);
+    };
+
+    // Admin gets all menu items immediately (but super_admin-only items filtered)
     if (isAdmin || isUserAdmin) {
-      return allSettingsMenuItems;
+      return filterSuperAdminItems(allSettingsMenuItems);
     }
 
     // Non-admin: wait for permissions to load
     if (permissionsLoading) return [];
-    return allSettingsMenuItems.filter(item => canSeeMenu(item.code));
+    return filterSuperAdminItems(allSettingsMenuItems.filter(item => canSeeMenu(item.code)));
   }, [allSettingsMenuItems, canSeeMenu, isAdmin, permissionsLoading]);
 
   const navigate = (path: string) => {
@@ -196,16 +203,17 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
       return;
     }
 
-    console.log('Sidebar navigate ->', path);
     router.push(path);
     if (isMobile && setMobileOpen) setMobileOpen(false);
   };
 
   const handleLogout = () => {
-    if (confirm('Are you sure you want to logout?')) {
-      logout();
-      router.push('/login');
-    }
+    setLogoutDialogOpen(true);
+  };
+
+  const confirmLogout = () => {
+    logout();
+    router.push('/login');
   };
 
   const drawerContent = (
@@ -528,6 +536,17 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
           {notificationMessage}
         </Alert>
       </Snackbar>
+
+      {/* Logout Confirmation Dialog */}
+      <ConfirmDialog
+        open={logoutDialogOpen}
+        title="Logout"
+        message="Are you sure you want to logout?"
+        confirmText="Logout"
+        confirmColor="primary"
+        onConfirm={confirmLogout}
+        onCancel={() => setLogoutDialogOpen(false)}
+      />
     </>
   );
 }
