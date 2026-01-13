@@ -9,14 +9,14 @@ import {
   Dialog, DialogTitle, DialogContent, DialogActions, Chip, CircularProgress,
   LinearProgress, IconButton, Tabs, Tab, Menu, MenuItem, Checkbox, ListItemText,
   TextField, FormControl, InputLabel, Select, InputAdornment, Badge, useTheme, useMediaQuery,
-  Collapse, Tooltip, FormControlLabel, Divider
+  Collapse, Tooltip, FormControlLabel, Divider, Grid
 } from '@mui/material';
 import {
   Upload as UploadIcon, Refresh as RefreshIcon, Logout as LogoutIcon,
   GetApp as ExportIcon, Visibility as VisibilityIcon, Cancel as CancelIcon,
   DeleteSweep as DeleteSweepIcon, Download as DownloadIcon, Search as SearchIcon,
   Speed as SpeedIcon, Clear as ClearIcon, CheckCircle, Settings as SettingsIcon,
-  Tune as TuneIcon
+  Tune as TuneIcon, Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon
 } from '@mui/icons-material';
 import toast, { Toaster } from 'react-hot-toast';
 import { getStoredUser, logout } from '@/lib/auth';
@@ -176,6 +176,44 @@ const MasterDataRow = memo(({
 
 MasterDataRow.displayName = 'MasterDataRow';
 
+// Actions Cell Renderer Component for AG Grid
+const ActionsCellRenderer = memo((props: any) => {
+  const { data, context } = props;
+  if (!data) return null;
+
+  return (
+    <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'center', alignItems: 'center', height: '100%' }}>
+      <IconButton
+        size="small"
+        onClick={() => context?.onEdit?.(data)}
+        sx={{
+          bgcolor: '#e3f2fd',
+          borderRadius: 1,
+          p: 0.5,
+          '&:hover': { bgcolor: '#bbdefb' }
+        }}
+        title="Edit"
+      >
+        <EditIcon sx={{ fontSize: 16, color: '#1976d2' }} />
+      </IconButton>
+      <IconButton
+        size="small"
+        onClick={() => context?.onDelete?.(data)}
+        sx={{
+          bgcolor: '#ffebee',
+          borderRadius: 1,
+          p: 0.5,
+          '&:hover': { bgcolor: '#ffcdd2' }
+        }}
+        title="Delete"
+      >
+        <DeleteIcon sx={{ fontSize: 16, color: '#d32f2f' }} />
+      </IconButton>
+    </Box>
+  );
+});
+ActionsCellRenderer.displayName = 'ActionsCellRenderer';
+
 export default function MasterDataPage() {
 
 
@@ -226,13 +264,34 @@ export default function MasterDataPage() {
     batchId: ''
   });
 
-  // Column visibility - Hide less critical columns by default to maximize table space
+  // Search field ref for keyboard shortcut
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Column visibility - Hide less critical columns by default to maximize table space  
   const [columnVisibility, setColumnVisibility] = useState({
-    wsn: true, wid: false, fsn: false, order_id: true, fkqc_remark: false,
-    fk_grade: true, product_title: true, hsn_sac: false, igst_rate: false,
-    fsp: false, mrp: false, invoice_date: false, fkt_link: false,
-    wh_location: false, brand: true, cms_vertical: true, vrp: false,
-    yield_value: false, p_type: false, p_size: false, batch_id: true, actual_received: true, created_at: false
+    wsn: true,              // ✅ Visible by default
+    wid: true,              // ✅ Ab visible hoga
+    fsn: true,              // ✅ Ab visible hoga
+    order_id: true,         // ✅ Visible
+    fkqc_remark: true,     // ✅ Visible
+    fk_grade: false,         // ❌ Hidden
+    product_title: true,    // ✅ Visible
+    hsn_sac: true,          // ✅ Ab visible hoga
+    igst_rate: true,       // ✅ Visible
+    fsp: true,              // ✅ Ab visible hoga
+    mrp: true,              // ✅ Ab visible hoga
+    invoice_date: false,     // ❌ Hidden
+    fkt_link: false,        // ❌ Hidden
+    wh_location: true,      // ✅ Ab visible hoga
+    brand: true,            // ✅ Visible
+    cms_vertical: true,     // ✅ Visible
+    vrp: false,             // ❌ Hidden
+    yield_value: false,     // ❌ Hidden
+    p_type: false,          // ❌ Hidden
+    p_size: false,          // ❌ Hidden
+    batch_id: false,         // ❌ Hidden
+    actual_received: true,  // ✅ Visible
+    created_at: false        // ❌ Hidden
   });
 
   // ✅ NEW: Filters for batch, status, brand, and category
@@ -243,10 +302,25 @@ export default function MasterDataPage() {
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [mobileActionsOpen, setMobileActionsOpen] = useState(false);
 
+  // Add/Edit Product Dialog States
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<any>(null);
+  const [productFormData, setProductFormData] = useState({
+    wsn: '', wid: '', fsn: '', order_id: '', fkqc_remark: '', fk_grade: '',
+    product_title: '', hsn_sac: '', igst_rate: '', fsp: '', mrp: '',
+    invoice_date: '', fkt_link: '', wh_location: '', brand: '', cms_vertical: '',
+    vrp: '', yield_value: '', p_type: '', p_size: ''
+  });
+  const [formSubmitting, setFormSubmitting] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deletingProduct, setDeletingProduct] = useState<any>(null);
+
   // AG Grid refs and state
   const gridRef = useRef<any>(null);
   const columnApiRef = useRef<any>(null);
   const [columnDefs, setColumnDefs] = useState<any[]>([]);
+  const hasAutoFittedRef = useRef(false); // Track if auto-fit has been done
   const [topLoading, setTopLoading] = useState(false);
   const [gridSettingsOpen, setGridSettingsOpen] = useState(false);
   const overlayTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -270,8 +344,10 @@ export default function MasterDataPage() {
     sortable: !!enableSorting,
     resizable: !!enableColumnResize,
     filter: !!enableColumnFilters,
-    minWidth: 100,
+    minWidth: 80,
     tooltipComponentParams: { color: '#ececec' },
+    wrapHeaderText: true,
+    autoHeaderHeight: true,
   }), [enableSorting, enableColumnFilters, enableColumnResize]);
 
   const columns = [
@@ -281,7 +357,7 @@ export default function MasterDataPage() {
     { id: 'order_id', label: 'Order ID', width: 130 },
     { id: 'fkqc_remark', label: 'FKQC Remark', width: 150 },
     { id: 'fk_grade', label: 'Grade', width: 100 },
-    { id: 'product_title', label: 'Product Title', width: 250 },
+    { id: 'product_title', label: 'Product Title', width: 450, flex: 1 },
     { id: 'hsn_sac', label: 'HSN/SAC', width: 110 },
     { id: 'igst_rate', label: 'IGST Rate', width: 100 },
     { id: 'fsp', label: 'FSP', width: 90 },
@@ -289,33 +365,35 @@ export default function MasterDataPage() {
     { id: 'invoice_date', label: 'Invoice Date', width: 120 },
     { id: 'fkt_link', label: 'Fkt Link', width: 150 },
     { id: 'wh_location', label: 'Location', width: 120 },
-    { id: 'brand', label: 'Brand', width: 120 },
-    { id: 'cms_vertical', label: 'Category', width: 120 },
+    { id: 'brand', label: 'Brand', width: 140 },
+    { id: 'cms_vertical', label: 'Category', width: 150 },
     { id: 'vrp', label: 'VRP', width: 90 },
     { id: 'yield_value', label: 'Yield', width: 90 },
     { id: 'p_type', label: 'Type', width: 100 },
     { id: 'p_size', label: 'Size', width: 100 },
-    { id: 'batch_id', label: 'Batch ID', width: 150 },
+    { id: 'batch_id', label: 'Batch ID', width: 200 },
     { id: 'actual_received', label: 'Actual Received', width: 130 },
     { id: 'created_at', label: 'Created', width: 150 }
   ];
 
   // AG Grid column sizing helper
   const getColumnSizing = useCallback((col: string) => {
-    const colConfig = columns.find(c => c.id === col);
-    if (!colConfig) return { minWidth: 50 };
+    const colConfig = columns.find(c => c.id === col) as any;
+    if (!colConfig) return { minWidth: 80 };
 
-    if (isMobile) {
-      return {
-        width: Math.max(70, Math.round(colConfig.width * 0.7)),
-        minWidth: 50,
-      };
+    const sizing: any = {
+      minWidth: 80,
+    };
+
+    // Add flex for columns that should expand (like product_title)
+    if (colConfig.flex) {
+      sizing.flex = colConfig.flex;
+      sizing.minWidth = colConfig.width || 200;
+    } else {
+      sizing.width = isMobile ? Math.max(70, Math.round(colConfig.width * 0.7)) : colConfig.width;
     }
 
-    return {
-      width: colConfig.width,
-      minWidth: 50,
-    };
+    return sizing;
   }, [isMobile]);
 
   // Build column definitions for AG Grid
@@ -341,7 +419,7 @@ export default function MasterDataPage() {
         };
       }
 
-      // Actual received column - chip style
+      // Actual received column - plain text with color
       if (col.id === 'actual_received') {
         return {
           ...base,
@@ -350,39 +428,23 @@ export default function MasterDataPage() {
             const status = p.value || 'Pending';
             const color = status === 'Received' ? '#4caf50' : '#ff9800';
             return {
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '2px 8px',
-              borderRadius: '12px',
-              fontSize: '0.75rem',
-              fontWeight: 'bold',
-              border: `1px solid ${color}`,
               color: color,
-              backgroundColor: 'transparent'
+              fontWeight: 600,
+              fontSize: '0.8rem'
             };
           },
         };
       }
 
-      // Batch ID column - chip style
+      // Batch ID column - plain text
       if (col.id === 'batch_id') {
         return {
           ...base,
           valueFormatter: (p: any) => p.value || '-',
-          cellStyle: (p: any) => {
-            if (!p.value) return {};
-            return {
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '2px 8px',
-              borderRadius: '12px',
-              fontSize: '0.7rem',
-              border: '1px solid #1976d2',
-              color: '#1976d2',
-              backgroundColor: 'transparent'
-            };
+          cellStyle: {
+            color: '#1976d2',
+            fontWeight: 500,
+            fontSize: '0.8rem'
           },
         };
       }
@@ -417,6 +479,19 @@ export default function MasterDataPage() {
       return base;
     });
 
+    // Add Actions column at the end
+    defs.push({
+      headerName: 'Actions',
+      field: 'actions',
+      sortable: false,
+      filter: false,
+      resizable: true,
+      width: 100,
+      minWidth: 100,
+      maxWidth: 120,
+      cellRenderer: ActionsCellRenderer
+    });
+
     setColumnDefs(defs);
   }, [columnVisibility, enableSorting, enableColumnFilters, enableColumnResize, isMobile]);
 
@@ -428,6 +503,25 @@ export default function MasterDataPage() {
       localStorage.setItem('masterdata_enableColumnResize', String(enableColumnResize));
     } catch { }
   }, [enableSorting, enableColumnFilters, enableColumnResize]);
+
+  // ✅ Keyboard shortcut: Ctrl/Cmd + K to focus search
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ctrl+K or Cmd+K to focus search
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+      }
+      // Escape to clear search and blur
+      if (e.key === 'Escape' && document.activeElement === searchInputRef.current) {
+        setSearchQuery('');
+        searchInputRef.current?.blur();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   // ✅ CRITICAL: Set isClient on mount
   useEffect(() => {
@@ -460,12 +554,12 @@ export default function MasterDataPage() {
     };
   }, [router]);
 
-  // ✅ Debounced search effect (500ms delay)
+  // ✅ Debounced search effect (150ms delay for near-instant results)
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(searchQuery);
       setPage(0); // Reset to first page on search
-    }, 500);
+    }, 150);
 
     return () => clearTimeout(timer);
   }, [searchQuery]);
@@ -741,6 +835,130 @@ export default function MasterDataPage() {
     setSearchQuery('');
     setPage(0);
     toast('✓ Filters reset', { icon: '🔄' });
+  };
+
+  // ✅ Reset product form
+  const resetProductForm = () => {
+    setProductFormData({
+      wsn: '', wid: '', fsn: '', order_id: '', fkqc_remark: '', fk_grade: '',
+      product_title: '', hsn_sac: '', igst_rate: '', fsp: '', mrp: '',
+      invoice_date: '', fkt_link: '', wh_location: '', brand: '', cms_vertical: '',
+      vrp: '', yield_value: '', p_type: '', p_size: ''
+    });
+  };
+
+  // ✅ Open Add Product Dialog
+  const handleOpenAddDialog = () => {
+    resetProductForm();
+    setAddDialogOpen(true);
+  };
+
+  // ✅ Open Edit Product Dialog
+  const handleOpenEditDialog = (product: any) => {
+    setEditingProduct(product);
+    setProductFormData({
+      wsn: product.wsn || '',
+      wid: product.wid || '',
+      fsn: product.fsn || '',
+      order_id: product.order_id || '',
+      fkqc_remark: product.fkqc_remark || '',
+      fk_grade: product.fk_grade || '',
+      product_title: product.product_title || '',
+      hsn_sac: product.hsn_sac || '',
+      igst_rate: product.igst_rate || '',
+      fsp: product.fsp || '',
+      mrp: product.mrp || '',
+      invoice_date: product.invoice_date || '',
+      fkt_link: product.fkt_link || '',
+      wh_location: product.wh_location || '',
+      brand: product.brand || '',
+      cms_vertical: product.cms_vertical || '',
+      vrp: product.vrp || '',
+      yield_value: product.yield_value || '',
+      p_type: product.p_type || '',
+      p_size: product.p_size || ''
+    });
+    setEditDialogOpen(true);
+  };
+
+  // ✅ Handle Add Product Submit
+  const handleAddProduct = async () => {
+    if (!productFormData.wsn.trim()) {
+      toast.error('WSN is required');
+      return;
+    }
+
+    setFormSubmitting(true);
+    try {
+      await masterDataAPI.create(productFormData);
+      toast.success('✅ Product added successfully!');
+      setAddDialogOpen(false);
+      resetProductForm();
+      loadMasterData({ buttonRefresh: true });
+      loadBatches();
+    } catch (error: any) {
+      const errorMsg = error.response?.data?.error || error.message || 'Failed to add product';
+      toast.error(errorMsg);
+    } finally {
+      setFormSubmitting(false);
+    }
+  };
+
+  // ✅ Handle Edit Product Submit
+  const handleEditProduct = async () => {
+    if (!editingProduct?.id) {
+      toast.error('Invalid product');
+      return;
+    }
+
+    if (!productFormData.wsn.trim()) {
+      toast.error('WSN is required');
+      return;
+    }
+
+    setFormSubmitting(true);
+    try {
+      await masterDataAPI.update(editingProduct.id, productFormData);
+      toast.success('✅ Product updated successfully!');
+      setEditDialogOpen(false);
+      setEditingProduct(null);
+      resetProductForm();
+      loadMasterData({ buttonRefresh: true });
+    } catch (error: any) {
+      const errorMsg = error.response?.data?.error || error.message || 'Failed to update product';
+      toast.error(errorMsg);
+    } finally {
+      setFormSubmitting(false);
+    }
+  };
+
+  // ✅ Handle Delete Product
+  const handleDeleteProduct = async () => {
+    if (!deletingProduct?.id) {
+      toast.error('Invalid product');
+      return;
+    }
+
+    setFormSubmitting(true);
+    try {
+      await masterDataAPI.delete(deletingProduct.id);
+      toast.success('✅ Product deleted successfully!');
+      setDeleteConfirmOpen(false);
+      setDeletingProduct(null);
+      loadMasterData({ buttonRefresh: true });
+      loadBatches();
+    } catch (error: any) {
+      const errorMsg = error.response?.data?.error || error.message || 'Failed to delete product';
+      toast.error(errorMsg);
+    } finally {
+      setFormSubmitting(false);
+    }
+  };
+
+  // ✅ Open Delete Confirmation
+  const handleOpenDeleteConfirm = (product: any) => {
+    setDeletingProduct(product);
+    setDeleteConfirmOpen(true);
   };
 
   // ✅ ISSUE #5 FIX: Download template function
@@ -1188,283 +1406,221 @@ export default function MasterDataPage() {
                   <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
                     {/* Quick Search + Action Buttons Row */}
                     <Paper elevation={0} sx={{ p: { xs: 0.5, sm: 0.75 }, borderBottom: '2px solid #e0e0e0', bgcolor: '#fafafa' }}>
-                      {/* DESKTOP LAYOUT - Exactly 2 Rows with auto-responsive sizing */}
+                      {/* DESKTOP LAYOUT - Responsive 2 Rows */}
                       <Box sx={{ display: { xs: 'none', md: 'block' } }}>
-                        {/* Row 1: Search + Filter Toggle + Refresh - Always visible */}
+                        {/* Row 1: Search + Filters */}
                         <Box sx={{
-                          display: 'grid',
-                          gridTemplateColumns: '1fr auto auto',
-                          gap: 0.5,
-                          mb: 0.5,
-                          alignItems: 'center'
+                          display: 'flex',
+                          gap: 0.75,
+                          mb: 0.75,
+                          alignItems: 'center',
+                          flexWrap: 'wrap'
                         }}>
-                          {/* Search Field - Takes remaining space */}
-                          <TextField
-                            size="small"
-                            placeholder="🔍 Search..."
-                            value={searchQuery}
-                            onChange={(e) => { setSearchQuery(e.target.value); setLoading(true); }}
-                            sx={{
-                              minWidth: 0,
-                              '& .MuiInputBase-root': { height: 32 },
-                              '& .MuiOutlinedInput-root': {
-                                borderRadius: 0.5,
-                                fontSize: { md: '0.75rem', lg: '0.85rem' },
-                                '&:hover fieldset': { borderColor: '#1976d2' }
-                              }
-                            }}
-                          />
+                          {/* Search Field with Keyboard Shortcut */}
+                          <Tooltip title="Press Ctrl+K to focus (Esc to clear)" arrow>
+                            <TextField
+                              size="small"
+                              placeholder="🔍 Search (Ctrl+K)"
+                              value={searchQuery}
+                              onChange={(e) => setSearchQuery(e.target.value)}
+                              inputRef={searchInputRef}
+                              sx={{
+                                width: { md: 160, lg: 200 },
+                                flex: { md: '0 0 auto' },
+                                '& .MuiInputBase-root': { height: 34 },
+                                '& .MuiOutlinedInput-root': {
+                                  borderRadius: 0.5,
+                                  fontSize: '0.8rem',
+                                  '&:hover fieldset': { borderColor: '#1976d2' },
+                                  '&.Mui-focused fieldset': { borderColor: '#1976d2', borderWidth: 2 }
+                                }
+                              }}
+                            />
+                          </Tooltip>
 
-                          {/* Filter Toggle Button */}
+                          {/* Batch ID Filter */}
+                          <FormControl size="small" sx={{ width: { md: 110, lg: 130 } }}>
+                            <InputLabel sx={{ fontSize: '0.8rem' }}>Batch ID</InputLabel>
+                            <Select
+                              value={filterBatchId}
+                              label="Batch ID"
+                              onChange={(e) => { setFilterBatchId(e.target.value); setPage(0); }}
+                              sx={{ height: 34, fontSize: '0.8rem' }}
+                            >
+                              <MenuItem value="">All</MenuItem>
+                              {batches.map(b => (
+                                <MenuItem key={b.batch_id} value={b.batch_id}>{b.batch_id} ({formatNumber(b.count)})</MenuItem>
+                              ))}
+                            </Select>
+                          </FormControl>
+
+                          {/* Status Filter */}
+                          <FormControl size="small" sx={{ width: { md: 85, lg: 100 } }}>
+                            <InputLabel sx={{ fontSize: '0.8rem' }}>Status</InputLabel>
+                            <Select
+                              value={filterStatus}
+                              label="Status"
+                              onChange={(e) => { setFilterStatus(e.target.value); setPage(0); }}
+                              sx={{ height: 34, fontSize: '0.8rem' }}
+                            >
+                              <MenuItem value="All">All</MenuItem>
+                              <MenuItem value="Received">Received</MenuItem>
+                              <MenuItem value="Pending">Pending</MenuItem>
+                            </Select>
+                          </FormControl>
+
+                          {/* Brand Filter */}
+                          <FormControl size="small" sx={{ width: { md: 95, lg: 110 } }}>
+                            <InputLabel sx={{ fontSize: '0.8rem' }}>Brand</InputLabel>
+                            <Select
+                              value={filterBrand}
+                              label="Brand"
+                              onChange={(e) => { setFilterBrand(e.target.value); setPage(0); }}
+                              sx={{ height: 34, fontSize: '0.8rem' }}
+                            >
+                              <MenuItem value="">All</MenuItem>
+                              {Array.from(new Set(masterData.map(d => d.brand).filter(Boolean))).map(brand => (
+                                <MenuItem key={brand} value={brand}>{brand}</MenuItem>
+                              ))}
+                            </Select>
+                          </FormControl>
+
+                          {/* Category Filter */}
+                          <FormControl size="small" sx={{ width: { md: 95, lg: 110 } }}>
+                            <InputLabel sx={{ fontSize: '0.8rem' }}>Category</InputLabel>
+                            <Select
+                              value={filterCategory}
+                              label="Category"
+                              onChange={(e) => { setFilterCategory(e.target.value); setPage(0); }}
+                              sx={{ height: 34, fontSize: '0.8rem' }}
+                            >
+                              <MenuItem value="">All</MenuItem>
+                              {Array.from(new Set(masterData.map(d => d.cms_vertical).filter(Boolean))).map(category => (
+                                <MenuItem key={category} value={category}>{category}</MenuItem>
+                              ))}
+                            </Select>
+                          </FormControl>
+
+                          {/* Add Product Button */}
                           <Button
+                            variant="contained"
                             size="small"
-                            variant={showAdvancedFilters ? "contained" : "outlined"}
-                            onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                            startIcon={<AddIcon sx={{ fontSize: { md: 14, lg: 18 } }} />}
+                            onClick={handleOpenAddDialog}
                             sx={{
-                              height: 32,
-                              minWidth: { md: 110, lg: 130 },
-                              fontSize: { md: '0.7rem', lg: '0.75rem' },
-                              whiteSpace: 'nowrap',
+                              height: 34,
+                              fontSize: { md: '0.7rem', lg: '0.8rem' },
                               px: { md: 1, lg: 1.5 },
-                              fontWeight: 600,
-                              position: 'relative',
-                              borderWidth: 2,
-                              borderColor: showAdvancedFilters ? '#667eea' : '#cbd5e1',
-                              bgcolor: showAdvancedFilters ? 'rgba(102, 126, 234, 0.1)' : 'white',
-                              color: showAdvancedFilters ? '#667eea' : '#64748b',
+                              background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                              '&:hover': { boxShadow: 2, background: 'linear-gradient(135deg, #059669 0%, #047857 100%)' },
+                              whiteSpace: 'nowrap'
                             }}
                           >
-                            <FilterListIcon sx={{ fontSize: 16, mr: { md: 0.3, lg: 0.5 } }} />
-                            {showAdvancedFilters ? 'Hide' : 'Show'} Filters
-                            {(filterBatchId || filterStatus !== 'All' || filterBrand || filterCategory) && (
-                              <Box sx={{
-                                position: 'absolute',
-                                top: -6,
-                                right: -6,
-                                width: 14,
-                                height: 14,
-                                borderRadius: '50%',
-                                bgcolor: '#10b981',
-                                border: '2px solid white',
-                              }} />
-                            )}
+                            + Add
                           </Button>
+
+                          {/* Upload Button */}
+                          {canSeeButton('upload') && (
+                            <Button
+                              variant="contained"
+                              size="small"
+                              startIcon={<UploadIcon sx={{ fontSize: { md: 14, lg: 18 } }} />}
+                              onClick={() => setUploadDialogOpen(true)}
+                              sx={{
+                                height: 34,
+                                fontSize: { md: '0.7rem', lg: '0.8rem' },
+                                px: { md: 1, lg: 1.5 },
+                                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                                '&:hover': { boxShadow: 2 },
+                                whiteSpace: 'nowrap'
+                              }}
+                            >
+                              Upload
+                            </Button>
+                          )}
+
+                          {/* Template Button */}
+                          <Button
+                            variant="outlined"
+                            size="small"
+                            startIcon={<DownloadIcon sx={{ fontSize: { md: 14, lg: 18 } }} />}
+                            onClick={handleDownloadTemplate}
+                            sx={{ height: 34, fontSize: { md: '0.7rem', lg: '0.8rem' }, px: { md: 0.75, lg: 1.25 }, whiteSpace: 'nowrap' }}
+                          >
+                            Template
+                          </Button>
+
+                          {/* Export Button */}
+                          {canSeeButton('export') && (
+                            <Button
+                              variant="outlined"
+                              size="small"
+                              startIcon={<ExportIcon sx={{ fontSize: { md: 14, lg: 18 } }} />}
+                              onClick={() => setExportDialogOpen(true)}
+                              sx={{ height: 34, fontSize: { md: '0.7rem', lg: '0.8rem' }, px: { md: 0.75, lg: 1.25 }, whiteSpace: 'nowrap' }}
+                            >
+                              Export
+                            </Button>
+                          )}
+
+                          {/* Columns Button */}
+                          {canSeeButton('columns') && (
+                            <Button
+                              variant="outlined"
+                              size="small"
+                              startIcon={<VisibilityIcon sx={{ fontSize: { md: 14, lg: 18 } }} />}
+                              onClick={(e) => setColumnMenuAnchor(e.currentTarget)}
+                              sx={{ height: 34, fontSize: { md: '0.7rem', lg: '0.8rem' }, px: { md: 0.75, lg: 1.25 }, whiteSpace: 'nowrap' }}
+                            >
+                              Columns
+                            </Button>
+                          )}
+
+                          {/* Grid Settings Button */}
+                          <Button
+                            variant="outlined"
+                            size="small"
+                            startIcon={<TuneIcon sx={{ fontSize: { md: 14, lg: 18 } }} />}
+                            onClick={() => setGridSettingsOpen(true)}
+                            sx={{ height: 34, fontSize: { md: '0.7rem', lg: '0.8rem' }, px: { md: 0.75, lg: 1.25 }, whiteSpace: 'nowrap' }}
+                          >
+                            Grid
+                          </Button>
+
+                          {/* Reset Button */}
+                          <Button
+                            variant="outlined"
+                            size="small"
+                            startIcon={<ClearIcon sx={{ fontSize: { md: 14, lg: 18 } }} />}
+                            onClick={resetFilters}
+                            sx={{
+                              height: 34,
+                              fontSize: { md: '0.7rem', lg: '0.8rem' },
+                              px: { md: 0.75, lg: 1.25 },
+                              color: '#d32f2f',
+                              borderColor: '#d32f2f',
+                              '&:hover': { borderColor: '#b71c1c', bgcolor: '#ffebee' },
+                              whiteSpace: 'nowrap'
+                            }}
+                          >
+                            Reset
+                          </Button>
+
+                          {/* Spacer - only on large screens */}
+                          <Box sx={{ flex: 1, display: { md: 'none', lg: 'block' }, minWidth: 8 }} />
 
                           {/* Refresh Button */}
                           <Button
                             variant="outlined"
                             size="small"
-                            startIcon={refreshing ? <CircularProgress size={14} /> : refreshSuccess ? <CheckCircle sx={{ color: '#10b981' }} /> : <RefreshIcon fontSize="small" />}
+                            startIcon={refreshing ? <CircularProgress size={14} /> : refreshSuccess ? <CheckCircle sx={{ color: '#10b981', fontSize: 16 }} /> : <RefreshIcon sx={{ fontSize: { md: 14, lg: 18 } }} />}
                             onClick={() => loadMasterData({ buttonRefresh: true })}
                             disabled={refreshing || loading}
-                            sx={{
-                              height: 32,
-                              fontSize: { md: '0.7rem', lg: '0.75rem' },
-                              px: { md: 1, lg: 1.5 },
-                              whiteSpace: 'nowrap',
-                              minWidth: { md: 85, lg: 100 }
-                            }}
+                            sx={{ height: 34, fontSize: { md: '0.7rem', lg: '0.8rem' }, px: { md: 0.75, lg: 1.25 }, whiteSpace: 'nowrap', ml: 'auto' }}
                           >
-                            {refreshing ? 'Refreshing...' : refreshSuccess ? 'Refreshed' : 'Refresh'}
+                            Refresh
                           </Button>
-
-
                         </Box>
-
-                        {/* Row 2: All Filters + Action Buttons - Collapsible with auto-responsive grid */}
-                        <Collapse in={showAdvancedFilters} timeout="auto">
-                          <Box sx={{
-                            display: 'grid',
-                            gridTemplateColumns: {
-                              md: 'repeat(auto-fit, minmax(100px, 1fr))',
-                              lg: 'repeat(10, 1fr)'
-                            },
-                            gap: 0.5,
-                            alignItems: 'center'
-                          }}>
-                            {/* Batch ID Filter */}
-                            <FormControl size="small" sx={{ minWidth: 0 }}>
-                              <InputLabel sx={{ fontSize: { md: '0.75rem', lg: '0.85rem' }, '&.Mui-focused': { color: '#1976d2' } }}>Batch ID</InputLabel>
-                              <Select
-                                value={filterBatchId}
-                                label="Batch ID"
-                                onChange={(e) => { setFilterBatchId(e.target.value); setPage(0); }}
-                                sx={{ height: 32, fontSize: { md: '0.75rem', lg: '0.85rem' } }}
-                              >
-                                <MenuItem value="">All</MenuItem>
-                                {batches.map(b => (
-                                  <MenuItem key={b.batch_id} value={b.batch_id}>{b.batch_id} ({formatNumber(b.count)})</MenuItem>
-                                ))}
-                              </Select>
-                            </FormControl>
-
-                            {/* Status Filter */}
-                            <FormControl size="small" sx={{ minWidth: 0 }}>
-                              <InputLabel sx={{ fontSize: { md: '0.75rem', lg: '0.85rem' }, '&.Mui-focused': { color: '#1976d2' } }}>Status</InputLabel>
-                              <Select
-                                value={filterStatus}
-                                label="Status"
-                                onChange={(e) => { setFilterStatus(e.target.value); setPage(0); }}
-                                sx={{ height: 32, fontSize: { md: '0.75rem', lg: '0.85rem' } }}
-                              >
-                                <MenuItem value="All">All</MenuItem>
-                                <MenuItem value="Received">✅ Received</MenuItem>
-                                <MenuItem value="Pending">❌ Pending</MenuItem>
-                              </Select>
-                            </FormControl>
-
-                            {/* Brand Filter */}
-                            <FormControl size="small" sx={{ minWidth: 0 }}>
-                              <InputLabel sx={{ fontSize: { md: '0.75rem', lg: '0.85rem' }, '&.Mui-focused': { color: '#1976d2' } }}>Brand</InputLabel>
-                              <Select
-                                value={filterBrand}
-                                label="Brand"
-                                onChange={(e) => { setFilterBrand(e.target.value); setPage(0); }}
-                                sx={{ height: 32, fontSize: { md: '0.75rem', lg: '0.85rem' } }}
-                              >
-                                <MenuItem value="">All</MenuItem>
-                                {Array.from(new Set(masterData.map(d => d.brand).filter(Boolean))).map(brand => (
-                                  <MenuItem key={brand} value={brand}>{brand}</MenuItem>
-                                ))}
-                              </Select>
-                            </FormControl>
-
-                            {/* Category Filter */}
-                            <FormControl size="small" sx={{ minWidth: 0 }}>
-                              <InputLabel sx={{ fontSize: { md: '0.75rem', lg: '0.85rem' }, '&.Mui-focused': { color: '#1976d2' } }}>Category</InputLabel>
-                              <Select
-                                value={filterCategory}
-                                label="Category"
-                                onChange={(e) => { setFilterCategory(e.target.value); setPage(0); }}
-                                sx={{ height: 32, fontSize: { md: '0.75rem', lg: '0.85rem' } }}
-                              >
-                                <MenuItem value="">All</MenuItem>
-                                {Array.from(new Set(masterData.map(d => d.cms_vertical).filter(Boolean))).map(category => (
-                                  <MenuItem key={category} value={category}>{category}</MenuItem>
-                                ))}
-                              </Select>
-                            </FormControl>
-
-                            {/* Upload Button */}
-                            {canSeeButton('upload') && (
-                              <Button
-                                variant="contained"
-                                size="small"
-                                startIcon={<UploadIcon fontSize="small" sx={{ display: { md: 'none', lg: 'inline-flex' } }} />}
-                                onClick={() => setUploadDialogOpen(true)}
-                                sx={{
-                                  height: 32,
-                                  fontSize: { md: '0.7rem', lg: '0.75rem' },
-                                  px: { md: 0.5, lg: 1.25 },
-                                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                                  '&:hover': { boxShadow: 2 },
-                                  whiteSpace: 'nowrap',
-                                  minWidth: 0
-                                }}
-                              >
-                                <Box component="span" sx={{ display: { md: 'none', lg: 'inline' } }}>Upload</Box>
-                                <Box component="span" sx={{ display: { md: 'inline', lg: 'none' } }}>Upld</Box>
-                              </Button>
-                            )}
-
-                            {/* Template Button */}
-                            <Button
-                              variant="outlined"
-                              size="small"
-                              startIcon={<DownloadIcon fontSize="small" sx={{ display: { md: 'none', lg: 'inline-flex' } }} />}
-                              onClick={handleDownloadTemplate}
-                              sx={{
-                                height: 32,
-                                fontSize: { md: '0.7rem', lg: '0.75rem' },
-                                px: { md: 0.5, lg: 1.25 },
-                                whiteSpace: 'nowrap',
-                                minWidth: 0
-                              }}
-                            >
-                              <Box component="span" sx={{ display: { md: 'none', lg: 'inline' } }}>Template</Box>
-                              <Box component="span" sx={{ display: { md: 'inline', lg: 'none' } }}>Tmpl</Box>
-                            </Button>
-
-                            {/* Export Button */}
-                            {canSeeButton('export') && (
-                              <Button
-                                variant="outlined"
-                                size="small"
-                                startIcon={<ExportIcon fontSize="small" sx={{ display: { md: 'none', lg: 'inline-flex' } }} />}
-                                onClick={() => setExportDialogOpen(true)}
-                                sx={{
-                                  height: 32,
-                                  fontSize: { md: '0.7rem', lg: '0.75rem' },
-                                  px: { md: 0.5, lg: 1.25 },
-                                  whiteSpace: 'nowrap',
-                                  minWidth: 0
-                                }}
-                              >
-                                <Box component="span" sx={{ display: { md: 'none', lg: 'inline' } }}>Export</Box>
-                                <Box component="span" sx={{ display: { md: 'inline', lg: 'none' } }}>Exp</Box>
-                              </Button>
-                            )}
-
-                            {/* Columns Button */}
-                            {canSeeButton('columns') && (
-                              <Button
-                                variant="outlined"
-                                size="small"
-                                startIcon={<VisibilityIcon fontSize="small" sx={{ display: { md: 'none', lg: 'inline-flex' } }} />}
-                                onClick={(e) => setColumnMenuAnchor(e.currentTarget)}
-                                sx={{
-                                  height: 32,
-                                  fontSize: { md: '0.7rem', lg: '0.75rem' },
-                                  px: { md: 0.5, lg: 1.25 },
-                                  whiteSpace: 'nowrap',
-                                  minWidth: 0
-                                }}
-                              >
-                                <Box component="span" sx={{ display: { md: 'none', lg: 'inline' } }}>Columns</Box>
-                                <Box component="span" sx={{ display: { md: 'inline', lg: 'none' } }}>Cols</Box>
-                              </Button>
-                            )}
-
-                            {/* Grid Settings Button */}
-                            <Button
-                              variant="outlined"
-                              size="small"
-                              startIcon={<TuneIcon fontSize="small" sx={{ display: { md: 'none', lg: 'inline-flex' } }} />}
-                              onClick={() => setGridSettingsOpen(true)}
-                              sx={{
-                                height: 32,
-                                fontSize: { md: '0.7rem', lg: '0.75rem' },
-                                px: { md: 0.5, lg: 1.25 },
-                                whiteSpace: 'nowrap',
-                                minWidth: 0
-                              }}
-                            >
-                              <Box component="span" sx={{ display: { md: 'none', lg: 'inline' } }}>Grid</Box>
-                              <Box component="span" sx={{ display: { md: 'inline', lg: 'none' } }}>Grid</Box>
-                            </Button>
-
-                            {/* Reset Button */}
-                            <Button
-                              variant="outlined"
-                              size="small"
-                              startIcon={<ClearIcon fontSize="small" sx={{ display: { md: 'none', lg: 'inline-flex' } }} />}
-                              onClick={resetFilters}
-                              sx={{
-                                height: 32,
-                                fontSize: { md: '0.7rem', lg: '0.75rem' },
-                                px: { md: 0.5, lg: 1.25 },
-                                color: '#d32f2f',
-                                borderColor: '#d32f2f',
-                                '&:hover': { borderColor: '#b71c1c', bgcolor: '#ffebee' },
-                                whiteSpace: 'nowrap',
-                                minWidth: 0
-                              }}
-                            >
-                              <Box component="span" sx={{ display: { md: 'none', lg: 'inline' } }}>Reset</Box>
-                              <Box component="span" sx={{ display: { md: 'inline', lg: 'none' } }}>Rst</Box>
-                            </Button>
-                          </Box>
-                        </Collapse>
                       </Box>
 
                       {/* MOBILE LAYOUT */}
@@ -1847,46 +2003,71 @@ export default function MasterDataPage() {
                             suppressRowClickSelection={true}
                             suppressLoadingOverlay={true}
                             suppressNoRowsOverlay={true}
+                            context={{
+                              onEdit: handleOpenEditDialog,
+                              onDelete: handleOpenDeleteConfirm
+                            }}
                             getRowId={(params: any) => params.data?.id || params.data?.wsn || String(params.rowIndex)}
                             onGridReady={(params: any) => {
                               gridRef.current = params.api;
                               columnApiRef.current = params.columnApi;
 
-                              // Restore saved column state immediately
+                              // Check if user has saved column state (v2 = new improved widths)
                               try {
-                                const savedState = localStorage.getItem('masterdata_columnState');
+                                const savedState = localStorage.getItem('masterdata_columnState_v2');
                                 if (savedState && params.api) {
                                   const state = JSON.parse(savedState);
-                                  // Apply saved column state using the main API
+                                  // Apply saved column state (user's custom widths)
                                   params.api.applyColumnState({
                                     state: state,
                                     applyOrder: true,
                                   });
-                                  console.log('Column state restored from localStorage', state);
+                                  hasAutoFittedRef.current = true; // Mark as fitted
+                                  console.log('Column state restored from localStorage');
+                                } else {
+                                  // Clear old v1 state if exists
+                                  localStorage.removeItem('masterdata_columnState');
                                 }
                               } catch (err) {
                                 console.error('Failed to restore column state:', err);
                               }
                             }}
+                            onFirstDataRendered={(params: any) => {
+                              // Auto-fit columns on first data load ONLY if no saved state
+                              if (!hasAutoFittedRef.current && params.api) {
+                                try {
+                                  // Auto-size all columns to fit content (skip pinned actions column)
+                                  const allColIds = params.api.getColumns()
+                                    ?.filter((col: any) => col.getColId() !== 'actions')
+                                    .map((col: any) => col.getColId()) || [];
+
+                                  if (allColIds.length > 0) {
+                                    params.api.autoSizeColumns(allColIds);
+                                  }
+                                  hasAutoFittedRef.current = true;
+                                  console.log('Columns auto-fitted to content');
+                                } catch (err) {
+                                  console.error('Failed to auto-fit columns:', err);
+                                }
+                              }
+                            }}
                             onColumnResized={(params: any) => {
-                              // Save column state when resized
+                              // Save column state when resized (use v2 key)
                               if (params.finished && params.api) {
                                 try {
                                   const columnState = params.api.getColumnState();
-                                  localStorage.setItem('masterdata_columnState', JSON.stringify(columnState));
-                                  console.log('Column widths saved to localStorage', columnState);
+                                  localStorage.setItem('masterdata_columnState_v2', JSON.stringify(columnState));
                                 } catch (err) {
                                   console.error('Failed to save column state:', err);
                                 }
                               }
                             }}
                             onColumnMoved={(params: any) => {
-                              // Save column state when moved
+                              // Save column state when moved (use v2 key)
                               if (params.finished && params.api) {
                                 try {
                                   const columnState = params.api.getColumnState();
-                                  localStorage.setItem('masterdata_columnState', JSON.stringify(columnState));
-                                  console.log('Column order saved to localStorage', columnState);
+                                  localStorage.setItem('masterdata_columnState_v2', JSON.stringify(columnState));
                                 } catch (err) {
                                   console.error('Failed to save column state:', err);
                                 }
@@ -2117,6 +2298,50 @@ export default function MasterDataPage() {
                     </Box>
                   }
                 />
+              </Box>
+
+              <Divider sx={{ my: 0.5 }} />
+
+              {/* RESET COLUMN WIDTHS */}
+              <Box>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  onClick={() => {
+                    // Clear saved column state and auto-fit
+                    try {
+                      localStorage.removeItem('masterdata_columnState_v2');
+                      localStorage.removeItem('masterdata_columnState');
+                      hasAutoFittedRef.current = false;
+                      if (gridRef.current) {
+                        // Auto-size all columns except actions
+                        const allColIds = gridRef.current.getColumns()
+                          ?.filter((col: any) => col.getColId() !== 'actions')
+                          .map((col: any) => col.getColId()) || [];
+
+                        if (allColIds.length > 0) {
+                          gridRef.current.autoSizeColumns(allColIds);
+                        }
+                      }
+                      toast.success('Column widths reset to auto-fit');
+                    } catch (err) {
+                      console.error('Failed to reset column widths:', err);
+                    }
+                  }}
+                  sx={{
+                    width: '100%',
+                    py: 1,
+                    fontWeight: 600,
+                    color: '#0ea5e9',
+                    borderColor: '#0ea5e9',
+                    '&:hover': { bgcolor: '#e0f2fe', borderColor: '#0284c7' }
+                  }}
+                >
+                  📐 Reset Column Widths (Auto-fit)
+                </Button>
+                <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.7rem', display: 'block', mt: 0.5 }}>
+                  Clears saved column widths and auto-fits to content
+                </Typography>
               </Box>
 
             </Stack>
@@ -2482,6 +2707,18 @@ export default function MasterDataPage() {
               {/* Action buttons */}
               <Box sx={{ display: 'grid', gap: 1, mt: 2, gridTemplateColumns: 'repeat(2, 1fr)' }}>
                 <Button
+                  variant="contained"
+                  startIcon={<AddIcon />}
+                  onClick={() => { handleOpenAddDialog(); setMobileActionsOpen(false); }}
+                  fullWidth
+                  sx={{
+                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                    '&:hover': { background: 'linear-gradient(135deg, #059669 0%, #047857 100%)' }
+                  }}
+                >
+                  Add Product
+                </Button>
+                <Button
                   variant="outlined"
                   startIcon={<UploadIcon />}
                   onClick={() => { setUploadDialogOpen(true); setMobileActionsOpen(false); }}
@@ -2782,6 +3019,463 @@ export default function MasterDataPage() {
               }}
             >
               {loading ? 'Exporting...' : 'Export Data'}
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* ✅ ADD PRODUCT DIALOG */}
+        <Dialog
+          open={addDialogOpen}
+          onClose={() => !formSubmitting && setAddDialogOpen(false)}
+          maxWidth="md"
+          fullWidth
+          PaperProps={{ sx: { borderRadius: 2, maxHeight: '90vh' } }}
+        >
+          <DialogTitle sx={{
+            background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+            color: 'white',
+            fontWeight: 700,
+            py: 2
+          }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <AddIcon />
+              Add New Product
+            </Box>
+          </DialogTitle>
+          <DialogContent sx={{ pt: 3 }}>
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: '1fr 1fr 1fr' }, gap: 2, mt: 1 }}>
+              <TextField
+                label="WSN *"
+                value={productFormData.wsn}
+                onChange={(e) => setProductFormData({ ...productFormData, wsn: e.target.value })}
+                size="small"
+                fullWidth
+                required
+                error={!productFormData.wsn.trim()}
+                helperText={!productFormData.wsn.trim() ? 'Required' : ''}
+              />
+              <TextField
+                label="WID"
+                value={productFormData.wid}
+                onChange={(e) => setProductFormData({ ...productFormData, wid: e.target.value })}
+                size="small"
+                fullWidth
+              />
+              <TextField
+                label="FSN"
+                value={productFormData.fsn}
+                onChange={(e) => setProductFormData({ ...productFormData, fsn: e.target.value })}
+                size="small"
+                fullWidth
+              />
+              <TextField
+                label="Order ID"
+                value={productFormData.order_id}
+                onChange={(e) => setProductFormData({ ...productFormData, order_id: e.target.value })}
+                size="small"
+                fullWidth
+              />
+              <TextField
+                label="Product Title"
+                value={productFormData.product_title}
+                onChange={(e) => setProductFormData({ ...productFormData, product_title: e.target.value })}
+                size="small"
+                fullWidth
+                sx={{ gridColumn: { sm: 'span 2', md: 'span 2' } }}
+              />
+              <TextField
+                label="Brand"
+                value={productFormData.brand}
+                onChange={(e) => setProductFormData({ ...productFormData, brand: e.target.value })}
+                size="small"
+                fullWidth
+              />
+              <TextField
+                label="Category (CMS Vertical)"
+                value={productFormData.cms_vertical}
+                onChange={(e) => setProductFormData({ ...productFormData, cms_vertical: e.target.value })}
+                size="small"
+                fullWidth
+              />
+              <TextField
+                label="Grade"
+                value={productFormData.fk_grade}
+                onChange={(e) => setProductFormData({ ...productFormData, fk_grade: e.target.value })}
+                size="small"
+                fullWidth
+              />
+              <TextField
+                label="FKQC Remark"
+                value={productFormData.fkqc_remark}
+                onChange={(e) => setProductFormData({ ...productFormData, fkqc_remark: e.target.value })}
+                size="small"
+                fullWidth
+              />
+              <TextField
+                label="MRP"
+                value={productFormData.mrp}
+                onChange={(e) => setProductFormData({ ...productFormData, mrp: e.target.value })}
+                size="small"
+                fullWidth
+                type="number"
+              />
+              <TextField
+                label="FSP"
+                value={productFormData.fsp}
+                onChange={(e) => setProductFormData({ ...productFormData, fsp: e.target.value })}
+                size="small"
+                fullWidth
+                type="number"
+              />
+              <TextField
+                label="VRP"
+                value={productFormData.vrp}
+                onChange={(e) => setProductFormData({ ...productFormData, vrp: e.target.value })}
+                size="small"
+                fullWidth
+                type="number"
+              />
+              <TextField
+                label="HSN/SAC"
+                value={productFormData.hsn_sac}
+                onChange={(e) => setProductFormData({ ...productFormData, hsn_sac: e.target.value })}
+                size="small"
+                fullWidth
+              />
+              <TextField
+                label="IGST Rate"
+                value={productFormData.igst_rate}
+                onChange={(e) => setProductFormData({ ...productFormData, igst_rate: e.target.value })}
+                size="small"
+                fullWidth
+              />
+              <TextField
+                label="Invoice Date"
+                value={productFormData.invoice_date}
+                onChange={(e) => setProductFormData({ ...productFormData, invoice_date: e.target.value })}
+                size="small"
+                fullWidth
+                type="date"
+                InputLabelProps={{ shrink: true }}
+              />
+              <TextField
+                label="FKT Link"
+                value={productFormData.fkt_link}
+                onChange={(e) => setProductFormData({ ...productFormData, fkt_link: e.target.value })}
+                size="small"
+                fullWidth
+              />
+              <TextField
+                label="WH Location"
+                value={productFormData.wh_location}
+                onChange={(e) => setProductFormData({ ...productFormData, wh_location: e.target.value })}
+                size="small"
+                fullWidth
+              />
+              <TextField
+                label="Yield Value"
+                value={productFormData.yield_value}
+                onChange={(e) => setProductFormData({ ...productFormData, yield_value: e.target.value })}
+                size="small"
+                fullWidth
+              />
+              <TextField
+                label="Product Type"
+                value={productFormData.p_type}
+                onChange={(e) => setProductFormData({ ...productFormData, p_type: e.target.value })}
+                size="small"
+                fullWidth
+              />
+              <TextField
+                label="Product Size"
+                value={productFormData.p_size}
+                onChange={(e) => setProductFormData({ ...productFormData, p_size: e.target.value })}
+                size="small"
+                fullWidth
+              />
+            </Box>
+          </DialogContent>
+          <DialogActions sx={{ p: 2, borderTop: '1px solid #e0e0e0', gap: 1 }}>
+            <Button
+              onClick={() => { setAddDialogOpen(false); resetProductForm(); }}
+              disabled={formSubmitting}
+              variant="outlined"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleAddProduct}
+              disabled={formSubmitting || !productFormData.wsn.trim()}
+              variant="contained"
+              startIcon={formSubmitting ? <CircularProgress size={18} color="inherit" /> : <AddIcon />}
+              sx={{
+                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                '&:hover': { background: 'linear-gradient(135deg, #059669 0%, #047857 100%)' }
+              }}
+            >
+              {formSubmitting ? 'Adding...' : 'Add Product'}
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* ✅ EDIT PRODUCT DIALOG */}
+        <Dialog
+          open={editDialogOpen}
+          onClose={() => !formSubmitting && setEditDialogOpen(false)}
+          maxWidth="md"
+          fullWidth
+          PaperProps={{ sx: { borderRadius: 2, maxHeight: '90vh' } }}
+        >
+          <DialogTitle sx={{
+            background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
+            color: 'white',
+            fontWeight: 700,
+            py: 2
+          }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <EditIcon />
+              Edit Product
+              {editingProduct?.wsn && (
+                <Chip label={editingProduct.wsn} size="small" sx={{ ml: 1, bgcolor: 'rgba(255,255,255,0.2)', color: 'white' }} />
+              )}
+            </Box>
+          </DialogTitle>
+          <DialogContent sx={{ pt: 3 }}>
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: '1fr 1fr 1fr' }, gap: 2, mt: 1 }}>
+              <TextField
+                label="WSN *"
+                value={productFormData.wsn}
+                onChange={(e) => setProductFormData({ ...productFormData, wsn: e.target.value })}
+                size="small"
+                fullWidth
+                required
+                error={!productFormData.wsn.trim()}
+                helperText={!productFormData.wsn.trim() ? 'Required' : ''}
+              />
+              <TextField
+                label="WID"
+                value={productFormData.wid}
+                onChange={(e) => setProductFormData({ ...productFormData, wid: e.target.value })}
+                size="small"
+                fullWidth
+              />
+              <TextField
+                label="FSN"
+                value={productFormData.fsn}
+                onChange={(e) => setProductFormData({ ...productFormData, fsn: e.target.value })}
+                size="small"
+                fullWidth
+              />
+              <TextField
+                label="Order ID"
+                value={productFormData.order_id}
+                onChange={(e) => setProductFormData({ ...productFormData, order_id: e.target.value })}
+                size="small"
+                fullWidth
+              />
+              <TextField
+                label="Product Title"
+                value={productFormData.product_title}
+                onChange={(e) => setProductFormData({ ...productFormData, product_title: e.target.value })}
+                size="small"
+                fullWidth
+                sx={{ gridColumn: { sm: 'span 2', md: 'span 2' } }}
+              />
+              <TextField
+                label="Brand"
+                value={productFormData.brand}
+                onChange={(e) => setProductFormData({ ...productFormData, brand: e.target.value })}
+                size="small"
+                fullWidth
+              />
+              <TextField
+                label="Category (CMS Vertical)"
+                value={productFormData.cms_vertical}
+                onChange={(e) => setProductFormData({ ...productFormData, cms_vertical: e.target.value })}
+                size="small"
+                fullWidth
+              />
+              <TextField
+                label="Grade"
+                value={productFormData.fk_grade}
+                onChange={(e) => setProductFormData({ ...productFormData, fk_grade: e.target.value })}
+                size="small"
+                fullWidth
+              />
+              <TextField
+                label="FKQC Remark"
+                value={productFormData.fkqc_remark}
+                onChange={(e) => setProductFormData({ ...productFormData, fkqc_remark: e.target.value })}
+                size="small"
+                fullWidth
+              />
+              <TextField
+                label="MRP"
+                value={productFormData.mrp}
+                onChange={(e) => setProductFormData({ ...productFormData, mrp: e.target.value })}
+                size="small"
+                fullWidth
+                type="number"
+              />
+              <TextField
+                label="FSP"
+                value={productFormData.fsp}
+                onChange={(e) => setProductFormData({ ...productFormData, fsp: e.target.value })}
+                size="small"
+                fullWidth
+                type="number"
+              />
+              <TextField
+                label="VRP"
+                value={productFormData.vrp}
+                onChange={(e) => setProductFormData({ ...productFormData, vrp: e.target.value })}
+                size="small"
+                fullWidth
+                type="number"
+              />
+              <TextField
+                label="HSN/SAC"
+                value={productFormData.hsn_sac}
+                onChange={(e) => setProductFormData({ ...productFormData, hsn_sac: e.target.value })}
+                size="small"
+                fullWidth
+              />
+              <TextField
+                label="IGST Rate"
+                value={productFormData.igst_rate}
+                onChange={(e) => setProductFormData({ ...productFormData, igst_rate: e.target.value })}
+                size="small"
+                fullWidth
+              />
+              <TextField
+                label="Invoice Date"
+                value={productFormData.invoice_date}
+                onChange={(e) => setProductFormData({ ...productFormData, invoice_date: e.target.value })}
+                size="small"
+                fullWidth
+                type="date"
+                InputLabelProps={{ shrink: true }}
+              />
+              <TextField
+                label="FKT Link"
+                value={productFormData.fkt_link}
+                onChange={(e) => setProductFormData({ ...productFormData, fkt_link: e.target.value })}
+                size="small"
+                fullWidth
+              />
+              <TextField
+                label="WH Location"
+                value={productFormData.wh_location}
+                onChange={(e) => setProductFormData({ ...productFormData, wh_location: e.target.value })}
+                size="small"
+                fullWidth
+              />
+              <TextField
+                label="Yield Value"
+                value={productFormData.yield_value}
+                onChange={(e) => setProductFormData({ ...productFormData, yield_value: e.target.value })}
+                size="small"
+                fullWidth
+              />
+              <TextField
+                label="Product Type"
+                value={productFormData.p_type}
+                onChange={(e) => setProductFormData({ ...productFormData, p_type: e.target.value })}
+                size="small"
+                fullWidth
+              />
+              <TextField
+                label="Product Size"
+                value={productFormData.p_size}
+                onChange={(e) => setProductFormData({ ...productFormData, p_size: e.target.value })}
+                size="small"
+                fullWidth
+              />
+            </Box>
+          </DialogContent>
+          <DialogActions sx={{ p: 2, borderTop: '1px solid #e0e0e0', gap: 1 }}>
+            <Button
+              onClick={() => { setEditDialogOpen(false); setEditingProduct(null); resetProductForm(); }}
+              disabled={formSubmitting}
+              variant="outlined"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleEditProduct}
+              disabled={formSubmitting || !productFormData.wsn.trim()}
+              variant="contained"
+              startIcon={formSubmitting ? <CircularProgress size={18} color="inherit" /> : <EditIcon />}
+              sx={{
+                background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
+                '&:hover': { background: 'linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%)' }
+              }}
+            >
+              {formSubmitting ? 'Updating...' : 'Update Product'}
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* ✅ DELETE CONFIRMATION DIALOG */}
+        <Dialog
+          open={deleteConfirmOpen}
+          onClose={() => !formSubmitting && setDeleteConfirmOpen(false)}
+          maxWidth="xs"
+          fullWidth
+          PaperProps={{ sx: { borderRadius: 2 } }}
+        >
+          <DialogTitle sx={{
+            background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+            color: 'white',
+            fontWeight: 700,
+            py: 2
+          }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <DeleteIcon />
+              Delete Product
+            </Box>
+          </DialogTitle>
+          <DialogContent sx={{ pt: 3 }}>
+            <Typography variant="body1" sx={{ mb: 2 }}>
+              Are you sure you want to delete this product?
+            </Typography>
+            {deletingProduct && (
+              <Paper sx={{ p: 2, bgcolor: '#fef2f2', border: '1px solid #fecaca', borderRadius: 1 }}>
+                <Typography variant="body2" fontWeight="600" color="error.main">
+                  WSN: {deletingProduct.wsn}
+                </Typography>
+                {deletingProduct.product_title && (
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                    {deletingProduct.product_title}
+                  </Typography>
+                )}
+                {deletingProduct.brand && (
+                  <Typography variant="caption" color="text.secondary">
+                    Brand: {deletingProduct.brand}
+                  </Typography>
+                )}
+              </Paper>
+            )}
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 2 }}>
+              ⚠️ This action cannot be undone.
+            </Typography>
+          </DialogContent>
+          <DialogActions sx={{ p: 2, borderTop: '1px solid #e0e0e0', gap: 1 }}>
+            <Button
+              onClick={() => { setDeleteConfirmOpen(false); setDeletingProduct(null); }}
+              disabled={formSubmitting}
+              variant="outlined"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleDeleteProduct}
+              disabled={formSubmitting}
+              variant="contained"
+              color="error"
+              startIcon={formSubmitting ? <CircularProgress size={18} color="inherit" /> : <DeleteIcon />}
+            >
+              {formSubmitting ? 'Deleting...' : 'Delete'}
             </Button>
           </DialogActions>
         </Dialog>

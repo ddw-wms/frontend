@@ -104,6 +104,10 @@ export const masterDataAPI = {
         category: filters?.category
       },
     }),
+  // Create single product
+  create: (data: any) => api.post('master-data', data),
+  // Update product
+  update: (id: number, data: any) => api.put(`master-data/${id}`, data),
   upload: (formData: FormData) =>
     api.post('master-data/upload', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
@@ -129,6 +133,14 @@ export const masterDataAPI = {
 export const inboundAPI = {
   createSingle: (data: any) => api.post('inbound', data),
   getMasterDataByWSN: (wsn: string) => api.get(`inbound/master-data/${wsn}`),
+  // Master data cache APIs
+  getMasterDataCount: () => api.get('master-data/count'),
+  getMasterDataBatch: (page: number, limit: number) =>
+    api.get('master-data/batch', { params: { page, limit } }),
+  // Batch-specific cache APIs
+  getMasterDataBatchList: () => api.get('master-data/batch-list'),
+  getMasterDataByBatchIds: (batchIds: string[]) =>
+    api.get('master-data/by-batch', { params: { batchIds: batchIds.join(',') } }),
   bulkUpload: (formData: FormData) => api.post('inbound/bulk-upload', formData, {
     headers: { 'Content-Type': 'multipart/form-data' }
   }),

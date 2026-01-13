@@ -48,6 +48,7 @@ import { getStoredUser, logout } from '@/lib/auth';
 import { usePermissions } from '@/app/context/PermissionContext';
 
 interface SidebarProps {
+  username: string;
   mobileOpen?: boolean;
   setMobileOpen?: (open: boolean) => void;
 }
@@ -56,8 +57,10 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
   const router = useRouter();
   const pathname = usePathname();
   const [userRole, setUserRole] = useState<string>('');
+  const [userName, setUserName] = useState<string>('');
   const [showNotification, setShowNotification] = useState(false);
   const [notificationMessage, setNotificationMessage] = useState('');
+
 
   // Use Permission context
   const { canSeeMenu, isAdmin, isLoading: permissionsLoading } = usePermissions();
@@ -90,6 +93,7 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
     if (user) {
       console.log('🔐 Sidebar - User:', user.username, '| Role:', user.role);
       setUserRole(user.role || '');
+      setUserName(user.fullName || user.username || '');
     } else {
       console.log('⚠️ No user found in storage');
     }
@@ -362,7 +366,7 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
       {!collapsed && (
         <Box sx={{ p: 2 }}>
           <Typography variant="caption" color="rgba(255,255,255,0.6)">
-            WMS v1.0.0
+            Looged in as {userName}
           </Typography>
         </Box>
       )}

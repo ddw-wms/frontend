@@ -70,6 +70,16 @@ import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
 import React from 'react';
 import localforage from 'localforage';
 import { useInboundPermissions } from '@/hooks/usePagePermissions';
+import {
+  getMasterDataByWSN as getLocalMasterData,
+  prewarmCache,
+  getCacheStats,
+  getBatchList,
+  cacheBatchData,
+  isWSNInCachedBatches,
+  getBatchCacheStats,
+  BatchInfo
+} from '@/lib/masterDataCache';
 
 // Register AG Grid modules ONCE
 ModuleRegistry.registerModules([AllCommunityModule]);
@@ -162,15 +172,22 @@ export default function InboundPage() {
   const [bulkErrorsOpen, setBulkErrorsOpen] = useState(false);
 
   // ====== MULTI ENTRY STATE ======
+  // ⚡ PERFORMANCE: Track unique row ID counter for efficient AG Grid updates
+  const rowIdCounterRef = useRef(0);
+
   const generateEmptyRows = (count: number) => {
-    return Array.from({ length: count }, () => ({
-      wsn: '',
-      inbound_date: new Date().toISOString().split('T')[0],
-      vehicle_no: '',
-      product_serial_number: '',
-      rack_no: '',
-      unload_remarks: ''
-    }));
+    return Array.from({ length: count }, () => {
+      rowIdCounterRef.current += 1;
+      return {
+        _rowId: `row_${rowIdCounterRef.current}_${Date.now()}`, // ⚡ Unique row ID for AG Grid
+        wsn: '',
+        inbound_date: new Date().toISOString().split('T')[0],
+        vehicle_no: '',
+        product_serial_number: '',
+        rack_no: '',
+        unload_remarks: ''
+      };
+    });
   };
 
   const [multiRows, setMultiRows] = useState<any[]>(generateEmptyRows(50));
@@ -359,6 +376,126 @@ export default function InboundPage() {
     console.log('💾 Multi Entry Grid settings saved:', newSettings);
   };
 
+  // ====== MASTER DATA CACHE STATE ======
+  const [cacheStats, setCacheStats] = useState<{ totalRecords: number; isReady: boolean } | null>(null);
+  const [cacheLoading, setCacheLoading] = useState(false);
+
+  // ====== BATCH-SPECIFIC CACHING STATE ======
+  const [availableBatches, setAvailableBatches] = useState<BatchInfo[]>([]);
+  const [selectedBatchIds, setSelectedBatchIds] = useState<string[]>([]);
+  const [batchCacheLoading, setBatchCacheLoading] = useState(false);
+  const [batchCacheProgress, setBatchCacheProgress] = useState<{ loaded: number; total: number; message: string } | null>(null);
+  const [batchSelectorOpen, setBatchSelectorOpen] = useState(false);
+  // Confirmation dialog for WSN not in batch
+  const [wsnNotInBatchDialog, setWsnNotInBatchDialog] = useState<{
+    open: boolean;
+    wsn: string;
+    rowIndex: number;
+    masterData: any;
+  } | null>(null);
+
+  // Load available batches on mount
+  useEffect(() => {
+    const loadBatches = async () => {
+      try {
+        const batches = await getBatchList();
+        setAvailableBatches(batches);
+        console.log(`📦 Loaded ${batches.length} available batches`);
+      } catch (error) {
+        console.error('Failed to load batch list:', error);
+      }
+    };
+    loadBatches();
+  }, []);
+
+  // Restore selected batches from localStorage
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('inbound_selected_batches');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setSelectedBatchIds(parsed);
+        }
+      }
+    } catch (e) { /* ignore */ }
+  }, []);
+
+  // Auto-load batch cache when batches are selected
+  useEffect(() => {
+    if (selectedBatchIds.length > 0) {
+      localStorage.setItem('inbound_selected_batches', JSON.stringify(selectedBatchIds));
+
+      // Cache the selected batches
+      const loadBatchCache = async () => {
+        setBatchCacheLoading(true);
+        setBatchCacheProgress({ loaded: 0, total: 1, message: 'Loading batch data...' });
+
+        try {
+          const result = await cacheBatchData(selectedBatchIds, true, (loaded, total, message) => {
+            setBatchCacheProgress({ loaded, total, message });
+          });
+
+          if (result.success) {
+            setCacheStats({ totalRecords: result.count, isReady: true });
+            toast.success(`✅ Cached ${result.count.toLocaleString()} products from ${selectedBatchIds.length} batch(es)`);
+          } else {
+            toast.error('Failed to cache batch data');
+          }
+        } catch (error) {
+          console.error('Batch cache error:', error);
+          toast.error('Failed to cache batch data');
+        } finally {
+          setBatchCacheLoading(false);
+          setBatchCacheProgress(null);
+        }
+      };
+
+      loadBatchCache();
+    } else {
+      // Clear cache stats when no batches selected
+      localStorage.removeItem('inbound_selected_batches');
+    }
+  }, [selectedBatchIds]);
+
+  // Prewarm cache on mount (ONLY if no batch mode)
+  useEffect(() => {
+    // Skip full cache prewarm if batch mode is being used
+    if (selectedBatchIds.length > 0) return;
+
+    const initCache = async () => {
+      try {
+        setCacheLoading(true);
+        // Start prewarming in background
+        prewarmCache();
+
+        // Get initial stats
+        const stats = await getCacheStats();
+        setCacheStats({ totalRecords: stats.totalRecords, isReady: stats.isReady });
+
+        if (stats.isReady) {
+          console.log(`✅ Master data cache ready: ${stats.totalRecords} records`);
+        }
+      } catch (error) {
+        console.error('Cache init error:', error);
+      } finally {
+        setCacheLoading(false);
+      }
+    };
+
+    initCache();
+
+    // Refresh cache stats periodically
+    const interval = setInterval(async () => {
+      try {
+        const stats = await getCacheStats();
+        setCacheStats({ totalRecords: stats.totalRecords, isReady: stats.isReady });
+      } catch (e) { /* ignore */ }
+    }, 30000); // Every 30 seconds
+
+    return () => clearInterval(interval);
+  }, [selectedBatchIds.length]);
+
   useEffect(() => {
     async function fetchExistingWSNs() {
       try {
@@ -470,12 +607,18 @@ export default function InboundPage() {
       try {
         const draft: any = await localforage.getItem(key);
         if (draft && draft.rows && draft.rows.length > 0 && mounted) {
-          // Apply defaults for missing fields
-          const restored = draft.rows.map((r: any) => ({
-            inbound_date: r.inbound_date || commonDate,
-            vehicle_no: r.vehicle_no || commonVehicle,
-            ...r,
-          }));
+          // Apply defaults for missing fields and ensure _rowId exists
+          const restored = draft.rows.map((r: any, index: number) => {
+            // ⚡ PERFORMANCE: Ensure each row has a unique _rowId
+            const rowId = r._rowId || `restored_${index}_${Date.now()}`;
+            rowIdCounterRef.current = Math.max(rowIdCounterRef.current, index + 1);
+            return {
+              _rowId: rowId,
+              inbound_date: r.inbound_date || commonDate,
+              vehicle_no: r.vehicle_no || commonVehicle,
+              ...r,
+            };
+          });
           setMultiRows(restored);
           setDraftSavedAt(draft.savedAt || Date.now());
           setDraftExists(true);
@@ -2127,9 +2270,12 @@ export default function InboundPage() {
 
   const addMultiRow = () => {
     const newRowIndex = multiRows.length;
+    // ⚡ PERFORMANCE: Generate unique row ID for new row
+    rowIdCounterRef.current += 1;
     const newRows = [
       ...multiRows,
       {
+        _rowId: `row_${rowIdCounterRef.current}_${Date.now()}`,
         wsn: '',
         inbound_date: commonDate,
         vehicle_no: commonVehicle,
@@ -5007,6 +5153,55 @@ export default function InboundPage() {
                                 }}
                               />
                             </Box>
+
+                            {/* Cache Status Indicator */}
+                            <Chip
+                              size="small"
+                              onClick={() => setBatchSelectorOpen(true)}
+                              label={
+                                batchCacheLoading
+                                  ? `🔄 ${batchCacheProgress?.message || 'Loading...'}`
+                                  : selectedBatchIds.length > 0
+                                    ? `📦 ${selectedBatchIds.length} batch (${cacheStats?.totalRecords?.toLocaleString() || 0})`
+                                    : cacheLoading
+                                      ? '🔄 Syncing...'
+                                      : cacheStats
+                                        ? `✅ ${cacheStats.totalRecords.toLocaleString()} WSN`
+                                        : '⏳ Loading...'
+                              }
+                              sx={{
+                                height: 28,
+                                fontSize: '0.65rem',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                bgcolor: selectedBatchIds.length > 0
+                                  ? 'rgba(139, 92, 246, 0.1)'
+                                  : batchCacheLoading || cacheLoading
+                                    ? 'rgba(59, 130, 246, 0.1)'
+                                    : cacheStats && cacheStats.totalRecords > 0
+                                      ? 'rgba(16, 185, 129, 0.1)'
+                                      : 'rgba(156, 163, 175, 0.1)',
+                                color: selectedBatchIds.length > 0
+                                  ? '#8b5cf6'
+                                  : batchCacheLoading || cacheLoading
+                                    ? '#3b82f6'
+                                    : cacheStats && cacheStats.totalRecords > 0
+                                      ? '#10b981'
+                                      : '#6b7280',
+                                border: `1px solid ${selectedBatchIds.length > 0
+                                  ? '#8b5cf6'
+                                  : batchCacheLoading || cacheLoading
+                                    ? '#3b82f6'
+                                    : cacheStats && cacheStats.totalRecords > 0
+                                      ? '#10b981'
+                                      : '#9ca3af'}`,
+                                '&:hover': {
+                                  bgcolor: selectedBatchIds.length > 0
+                                    ? 'rgba(139, 92, 246, 0.2)'
+                                    : 'rgba(16, 185, 129, 0.2)',
+                                }
+                              }}
+                            />
                           </Stack>
                         </Stack>
                       </Stack>
@@ -5158,6 +5353,49 @@ export default function InboundPage() {
                                 🖨️ {multiPrintEnabled ? 'ON' : 'OFF'}
                               </Typography>
                             </Box>
+
+                            {/* Cache Status Indicator (Mobile) */}
+                            <Chip
+                              size="small"
+                              onClick={() => setBatchSelectorOpen(true)}
+                              label={
+                                batchCacheLoading
+                                  ? '🔄'
+                                  : selectedBatchIds.length > 0
+                                    ? `📦 ${cacheStats?.totalRecords?.toLocaleString() || 0}`
+                                    : cacheStats
+                                      ? `✅ ${cacheStats.totalRecords.toLocaleString()}`
+                                      : '⏳'
+                              }
+                              sx={{
+                                height: 24,
+                                fontSize: '0.55rem',
+                                fontWeight: 600,
+                                minWidth: 40,
+                                cursor: 'pointer',
+                                bgcolor: selectedBatchIds.length > 0
+                                  ? 'rgba(139, 92, 246, 0.1)'
+                                  : batchCacheLoading || cacheLoading
+                                    ? 'rgba(59, 130, 246, 0.1)'
+                                    : cacheStats && cacheStats.totalRecords > 0
+                                      ? 'rgba(16, 185, 129, 0.1)'
+                                      : 'rgba(156, 163, 175, 0.1)',
+                                color: selectedBatchIds.length > 0
+                                  ? '#8b5cf6'
+                                  : batchCacheLoading || cacheLoading
+                                    ? '#3b82f6'
+                                    : cacheStats && cacheStats.totalRecords > 0
+                                      ? '#10b981'
+                                      : '#6b7280',
+                                border: `1px solid ${selectedBatchIds.length > 0
+                                  ? '#8b5cf6'
+                                  : batchCacheLoading || cacheLoading
+                                    ? '#3b82f6'
+                                    : cacheStats && cacheStats.totalRecords > 0
+                                      ? '#10b981'
+                                      : '#9ca3af'}`,
+                              }}
+                            />
 
                             {/* ⚡ EXCEL SHORTCUTS HELP */}
                             <Tooltip
@@ -5346,6 +5584,8 @@ export default function InboundPage() {
                   <div style={{ height: '100%', width: '100%' }} className="ag-theme-quartz">
                     <AgGridReact
                       ref={gridRef}
+                      // ⚡ PERFORMANCE: getRowId for efficient row tracking and updates
+                      getRowId={(params) => params.data._rowId}
                       onGridReady={(params: any) => {
                         gridRef.current = params.api;
                         columnApiRef.current = params.columnApi;
@@ -5473,9 +5713,14 @@ export default function InboundPage() {
                       ensureDomOrder={true}
                       suppressRowClickSelection={true}
                       suppressMovableColumns={true}
-                      rowBuffer={10}
+                      // ⚡ PERFORMANCE: Increase row buffer for smoother scrolling
+                      rowBuffer={20}
                       animateRows={false}
                       suppressScrollOnNewData={true}
+                      // ⚡ PERFORMANCE: Additional optimizations for large datasets
+                      debounceVerticalScrollbar={true}
+                      suppressPropertyNamesCheck={true}
+                      suppressRowVirtualisation={false}
 
                       // ⚡ EXCEL-LIKE: Handle cell mouse down for drag selection start
                       onCellMouseDown={(event) => {
@@ -5657,13 +5902,15 @@ export default function InboundPage() {
                             return;
                           }
 
-                          // ⚡ FAST FETCH: Run ownership check and master data fetch in PARALLEL
+                          // ⚡ FAST FETCH: Use LOCAL CACHE first, then API fallback
                           const wsnUpper = newValue.trim().toUpperCase();
                           wsnFetchMapRef.current.set(rowIndex, wsnUpper);
 
-                          // Start both API calls immediately in parallel
+                          // Start ownership check in parallel (this still needs API)
                           const ownershipPromise = inboundAPI.getAll(1, 1, { search: wsnUpper }).catch(() => null);
-                          const masterDataPromise = inboundAPI.getMasterDataByWSN(wsnUpper).catch(() => null);
+
+                          // Use LOCAL CACHE for master data (instant if cached)
+                          const masterDataPromise = getLocalMasterData(wsnUpper).catch(() => null);
 
                           // Process results as they come
                           (async () => {
@@ -5783,22 +6030,36 @@ export default function InboundPage() {
                                 }
                               }
 
-                              // Now get master data result
-                              const masterResp = await masterDataPromise;
-                              if (!masterResp) {
+                              // Now get master data result (from local cache or API)
+                              const masterInfo = await masterDataPromise;
+                              if (!masterInfo) {
                                 console.log('WSN not found in master data');
                                 // Still move to next row even if not found
                                 moveToNextRow();
                                 return;
                               }
 
-                              const masterInfo = masterResp.data;
-
                               // Check if this is still the latest fetch for this row
                               const latestWSN = wsnFetchMapRef.current.get(rowIndex);
                               if (latestWSN !== wsnUpper) {
                                 console.log(`⏭️ Skipping stale fetch for row ${rowIndex}: ${wsnUpper} (latest: ${latestWSN})`);
                                 return;
+                              }
+
+                              // ⚡ BATCH MODE: Check if WSN is in selected batch(es)
+                              if (selectedBatchIds.length > 0) {
+                                const wsnBatch = await isWSNInCachedBatches(wsnUpper);
+                                if (!wsnBatch) {
+                                  // WSN not in selected batch - show confirmation dialog
+                                  setWsnNotInBatchDialog({
+                                    open: true,
+                                    wsn: wsnUpper,
+                                    rowIndex,
+                                    masterData: masterInfo
+                                  });
+                                  // Don't auto-apply master data - wait for user confirmation
+                                  return;
+                                }
                               }
 
                               // Update master data in grid
@@ -5824,8 +6085,8 @@ export default function InboundPage() {
                                     fsn: masterInfo.fsn || '',
                                     product_title: masterInfo.product_title || '',
                                     brand: masterInfo.brand || '',
-                                    mrp: masterInfo.mrp || '',
-                                    fsp: masterInfo.fsp || '',
+                                    mrp: String(masterInfo.mrp || ''),
+                                    fsp: String(masterInfo.fsp || ''),
                                     copies: 1,
                                   };
 
@@ -6310,6 +6571,245 @@ export default function InboundPage() {
                       }}
                     >
                       Close
+                    </Button>
+                  </DialogActions>
+                </Dialog>
+
+                {/* ====== BATCH SELECTOR DIALOG ====== */}
+                <Dialog
+                  open={batchSelectorOpen}
+                  onClose={() => setBatchSelectorOpen(false)}
+                  maxWidth="sm"
+                  fullWidth
+                  PaperProps={{
+                    sx: {
+                      borderRadius: 2,
+                      maxHeight: '80vh'
+                    }
+                  }}
+                >
+                  <DialogTitle sx={{
+                    background: 'linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%)',
+                    color: 'white',
+                    fontWeight: 700,
+                    py: 1.5
+                  }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      📦 Select Master Data Batch(es)
+                    </Box>
+                  </DialogTitle>
+                  <DialogContent sx={{ mt: 2, pb: 1 }}>
+                    <Alert severity="info" sx={{ mb: 2, fontSize: '0.8rem' }}>
+                      Select batch(es) to cache locally for instant WSN lookup. Only selected batch data will be cached (~1000 products = 2-3 seconds).
+                    </Alert>
+
+                    {/* Batch loading progress */}
+                    {batchCacheLoading && batchCacheProgress && (
+                      <Box sx={{ mb: 2 }}>
+                        <Typography variant="caption" sx={{ color: '#6366f1', fontWeight: 600 }}>
+                          {batchCacheProgress.message}
+                        </Typography>
+                        <LinearProgress
+                          variant="determinate"
+                          value={(batchCacheProgress.loaded / Math.max(batchCacheProgress.total, 1)) * 100}
+                          sx={{ mt: 0.5, height: 6, borderRadius: 3 }}
+                        />
+                      </Box>
+                    )}
+
+                    {/* Refresh batches button */}
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#374151' }}>
+                        Available Batches ({availableBatches.length})
+                      </Typography>
+                      <Button
+                        size="small"
+                        startIcon={<RefreshIcon sx={{ fontSize: '0.9rem' }} />}
+                        onClick={async () => {
+                          const batches = await getBatchList();
+                          setAvailableBatches(batches);
+                          toast.success(`Refreshed: ${batches.length} batches`);
+                        }}
+                        sx={{ fontSize: '0.7rem', textTransform: 'none' }}
+                      >
+                        Refresh
+                      </Button>
+                    </Box>
+
+                    {/* Batch list */}
+                    <Stack spacing={1} sx={{ maxHeight: 350, overflow: 'auto' }}>
+                      {availableBatches.length === 0 ? (
+                        <Alert severity="warning">No batches found. Upload master data first.</Alert>
+                      ) : (
+                        availableBatches.map((batch) => (
+                          <Box
+                            key={batch.batch_id}
+                            onClick={() => {
+                              setSelectedBatchIds(prev =>
+                                prev.includes(batch.batch_id)
+                                  ? prev.filter(id => id !== batch.batch_id)
+                                  : [...prev, batch.batch_id]
+                              );
+                            }}
+                            sx={{
+                              p: 1.5,
+                              borderRadius: 1.5,
+                              border: `2px solid ${selectedBatchIds.includes(batch.batch_id) ? '#8b5cf6' : '#e5e7eb'}`,
+                              bgcolor: selectedBatchIds.includes(batch.batch_id) ? 'rgba(139, 92, 246, 0.08)' : 'white',
+                              cursor: 'pointer',
+                              transition: 'all 0.2s',
+                              '&:hover': {
+                                borderColor: '#8b5cf6',
+                                bgcolor: 'rgba(139, 92, 246, 0.05)'
+                              }
+                            }}
+                          >
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <Checkbox
+                                  size="small"
+                                  checked={selectedBatchIds.includes(batch.batch_id)}
+                                  sx={{
+                                    p: 0,
+                                    color: '#8b5cf6',
+                                    '&.Mui-checked': { color: '#8b5cf6' }
+                                  }}
+                                />
+                                <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', fontFamily: 'monospace' }}>
+                                  {batch.batch_id}
+                                </Typography>
+                              </Box>
+                              <Chip
+                                size="small"
+                                label={`${batch.count.toLocaleString()} items`}
+                                sx={{
+                                  bgcolor: '#dbeafe',
+                                  color: '#1e40af',
+                                  fontWeight: 600,
+                                  fontSize: '0.7rem'
+                                }}
+                              />
+                            </Box>
+                            <Typography variant="caption" sx={{ color: '#6b7280', ml: 3.5 }}>
+                              Created: {new Date(batch.created_at).toLocaleDateString('en-IN', {
+                                day: '2-digit',
+                                month: 'short',
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </Typography>
+                          </Box>
+                        ))
+                      )}
+                    </Stack>
+
+                    {/* Selected summary */}
+                    {selectedBatchIds.length > 0 && (
+                      <Box sx={{ mt: 2, p: 1.5, bgcolor: 'rgba(139, 92, 246, 0.1)', borderRadius: 1.5 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 600, color: '#8b5cf6' }}>
+                          ✅ {selectedBatchIds.length} batch(es) selected
+                          {cacheStats && ` • ${cacheStats.totalRecords.toLocaleString()} products cached`}
+                        </Typography>
+                      </Box>
+                    )}
+                  </DialogContent>
+                  <DialogActions sx={{ p: 2, pt: 1, background: '#f9fafb', gap: 1 }}>
+                    <Button
+                      onClick={() => {
+                        setSelectedBatchIds([]);
+                        localStorage.removeItem('inbound_selected_batches');
+                        toast.success('Batch selection cleared');
+                      }}
+                      disabled={selectedBatchIds.length === 0}
+                      sx={{
+                        color: '#dc2626',
+                        fontWeight: 600,
+                        fontSize: '0.8rem'
+                      }}
+                    >
+                      Clear Selection
+                    </Button>
+                    <Box sx={{ flex: 1 }} />
+                    <Button
+                      variant="contained"
+                      onClick={() => setBatchSelectorOpen(false)}
+                      sx={{
+                        background: 'linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%)',
+                        fontWeight: 700,
+                        boxShadow: '0 4px 12px rgba(139, 92, 246, 0.3)',
+                        '&:hover': {
+                          background: 'linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%)',
+                        }
+                      }}
+                    >
+                      Done
+                    </Button>
+                  </DialogActions>
+                </Dialog>
+
+                {/* ====== WSN NOT IN BATCH CONFIRMATION DIALOG ====== */}
+                <Dialog
+                  open={Boolean(wsnNotInBatchDialog?.open)}
+                  onClose={() => setWsnNotInBatchDialog(null)}
+                  maxWidth="xs"
+                  fullWidth
+                  PaperProps={{ sx: { borderRadius: 2 } }}
+                >
+                  <DialogTitle sx={{
+                    background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                    color: 'white',
+                    fontWeight: 700,
+                    py: 1.5
+                  }}>
+                    ⚠️ WSN Not In Selected Batch
+                  </DialogTitle>
+                  <DialogContent sx={{ mt: 2 }}>
+                    <Alert severity="warning" sx={{ mb: 2 }}>
+                      The scanned WSN <strong>{wsnNotInBatchDialog?.wsn}</strong> was not found in the selected batch(es).
+                    </Alert>
+                    <Typography variant="body2" sx={{ color: '#374151' }}>
+                      Do you want to continue with this WSN anyway? Product details will be fetched from the database.
+                    </Typography>
+                  </DialogContent>
+                  <DialogActions sx={{ p: 2, gap: 1 }}>
+                    <Button
+                      onClick={() => {
+                        // Clear the WSN and close dialog
+                        if (wsnNotInBatchDialog) {
+                          const newRows = [...multiRows];
+                          newRows[wsnNotInBatchDialog.rowIndex].wsn = '';
+                          ALL_MASTER_COLUMNS.forEach((col) => {
+                            newRows[wsnNotInBatchDialog.rowIndex][col] = null;
+                          });
+                          setMultiRows(newRows);
+                        }
+                        setWsnNotInBatchDialog(null);
+                      }}
+                      sx={{ color: '#dc2626', fontWeight: 600 }}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      variant="contained"
+                      onClick={() => {
+                        // Apply the master data and continue
+                        if (wsnNotInBatchDialog?.masterData) {
+                          const newRows = [...multiRows];
+                          ALL_MASTER_COLUMNS.forEach((col) => {
+                            newRows[wsnNotInBatchDialog.rowIndex][col] = wsnNotInBatchDialog.masterData[col] ?? null;
+                          });
+                          setMultiRows(newRows);
+                          toast.success(`Applied product details for ${wsnNotInBatchDialog.wsn}`);
+                        }
+                        setWsnNotInBatchDialog(null);
+                      }}
+                      sx={{
+                        background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                        fontWeight: 700
+                      }}
+                    >
+                      Continue Anyway
                     </Button>
                   </DialogActions>
                 </Dialog>

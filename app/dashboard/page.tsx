@@ -1147,7 +1147,6 @@ export default function DashboardPage() {
         {/* ================= HEADER ================= */}
         <StandardPageHeader
           title="Dashboard"
-          subtitle="All warehouse operations"
           icon="📊"
           warehouseName={activeWarehouse?.name}
           userName={user?.fullName}
