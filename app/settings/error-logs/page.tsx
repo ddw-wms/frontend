@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, Fragment } from 'react';
 import {
     Box,
     Button,
@@ -24,11 +24,14 @@ import {
     DialogContent,
     DialogActions,
     TextField,
+    Collapse,
 } from '@mui/material';
 import {
     Delete as DeleteIcon,
     Refresh as RefreshIcon,
     CleaningServices as CleanupIcon,
+    KeyboardArrowDown as ExpandIcon,
+    KeyboardArrowUp as CollapseIcon,
 } from '@mui/icons-material';
 
 import AppLayout from '@/components/AppLayout';
@@ -41,7 +44,9 @@ interface ErrorLog {
     id: number;
     message: string;
     endpoint: string | null;
+    method: string | null;
     username: string | null;
+    stack_trace: string | null;
     created_at: string;
 }
 
@@ -55,6 +60,7 @@ export default function ErrorLogsPage() {
     const [cleanupDialogOpen, setCleanupDialogOpen] = useState(false);
     const [cleanupDays, setCleanupDays] = useState('7');
     const [actionLoading, setActionLoading] = useState(false);
+    const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
 
     // Check if user is super_admin
     useEffect(() => {
@@ -132,6 +138,29 @@ export default function ErrorLogsPage() {
             minute: '2-digit',
             second: '2-digit',
         });
+    };
+
+    const toggleRow = (id: number) => {
+        setExpandedRows(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(id)) {
+                newSet.delete(id);
+            } else {
+                newSet.add(id);
+            }
+            return newSet;
+        });
+    };
+
+    const getMethodColor = (method: string | null) => {
+        const colors: Record<string, 'error' | 'success' | 'warning' | 'info' | 'default'> = {
+            GET: 'success',
+            POST: 'info',
+            PUT: 'warning',
+            DELETE: 'error',
+            PATCH: 'warning',
+        };
+        return colors[method || ''] || 'default';
     };
 
     return (
@@ -220,45 +249,109 @@ export default function ErrorLogsPage() {
                             <Table stickyHeader size="small">
                                 <TableHead>
                                     <TableRow>
-                                        <TableCell sx={{ fontWeight: 600, width: 60 }}>ID</TableCell>
-                                        <TableCell sx={{ fontWeight: 600, width: 170 }}>Time</TableCell>
-                                        <TableCell sx={{ fontWeight: 600, width: 120 }}>User</TableCell>
-                                        <TableCell sx={{ fontWeight: 600, width: 200 }}>Endpoint</TableCell>
+                                        <TableCell sx={{ fontWeight: 600, width: 50 }}></TableCell>
+                                        <TableCell sx={{ fontWeight: 600, width: 50 }}>ID</TableCell>
+                                        <TableCell sx={{ fontWeight: 600, width: 160 }}>Time</TableCell>
+                                        <TableCell sx={{ fontWeight: 600, width: 80 }}>Method</TableCell>
+                                        <TableCell sx={{ fontWeight: 600, width: 100 }}>User</TableCell>
+                                        <TableCell sx={{ fontWeight: 600, width: 180 }}>Endpoint</TableCell>
                                         <TableCell sx={{ fontWeight: 600 }}>Error Message</TableCell>
                                     </TableRow>
                                 </TableHead>
                                 <TableBody>
                                     {logs.map((log) => (
-                                        <TableRow key={log.id} hover>
-                                            <TableCell>{log.id}</TableCell>
-                                            <TableCell sx={{ fontSize: '0.8rem' }}>
-                                                {formatDate(log.created_at)}
-                                            </TableCell>
-                                            <TableCell>
-                                                <Chip
-                                                    label={log.username || 'System'}
-                                                    size="small"
-                                                    variant="outlined"
-                                                />
-                                            </TableCell>
-                                            <TableCell sx={{ fontSize: '0.8rem', fontFamily: 'monospace' }}>
-                                                {log.endpoint || '-'}
-                                            </TableCell>
-                                            <TableCell
+                                        <Fragment key={log.id}>
+                                            <TableRow
+                                                hover
                                                 sx={{
-                                                    maxWidth: 400,
-                                                    overflow: 'hidden',
-                                                    textOverflow: 'ellipsis',
-                                                    whiteSpace: 'nowrap',
-                                                    color: 'error.main',
-                                                    fontSize: '0.85rem',
+                                                    cursor: log.stack_trace ? 'pointer' : 'default',
+                                                    '& > *': { borderBottom: expandedRows.has(log.id) ? 'none' : undefined }
                                                 }}
+                                                onClick={() => log.stack_trace && toggleRow(log.id)}
                                             >
-                                                <Tooltip title={log.message} arrow>
-                                                    <span>{log.message}</span>
-                                                </Tooltip>
-                                            </TableCell>
-                                        </TableRow>
+                                                <TableCell>
+                                                    {log.stack_trace && (
+                                                        <IconButton size="small">
+                                                            {expandedRows.has(log.id) ? <CollapseIcon /> : <ExpandIcon />}
+                                                        </IconButton>
+                                                    )}
+                                                </TableCell>
+                                                <TableCell>{log.id}</TableCell>
+                                                <TableCell sx={{ fontSize: '0.75rem' }}>
+                                                    {formatDate(log.created_at)}
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Chip
+                                                        label={log.method || 'N/A'}
+                                                        size="small"
+                                                        color={getMethodColor(log.method)}
+                                                        sx={{ fontWeight: 600, fontSize: '0.7rem' }}
+                                                    />
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Chip
+                                                        label={log.username || 'System'}
+                                                        size="small"
+                                                        variant="outlined"
+                                                        sx={{ fontSize: '0.7rem' }}
+                                                    />
+                                                </TableCell>
+                                                <TableCell sx={{ fontSize: '0.75rem', fontFamily: 'monospace' }}>
+                                                    {log.endpoint || '-'}
+                                                </TableCell>
+                                                <TableCell
+                                                    sx={{
+                                                        color: 'error.main',
+                                                        fontSize: '0.8rem',
+                                                        fontWeight: 500,
+                                                    }}
+                                                >
+                                                    {log.message}
+                                                </TableCell>
+                                            </TableRow>
+                                            {/* Expandable Stack Trace Row */}
+                                            {log.stack_trace && (
+                                                <TableRow>
+                                                    <TableCell colSpan={7} sx={{ py: 0 }}>
+                                                        <Collapse in={expandedRows.has(log.id)} timeout="auto" unmountOnExit>
+                                                            <Box sx={{
+                                                                p: 2,
+                                                                bgcolor: '#1e1e1e',
+                                                                borderRadius: 1,
+                                                                my: 1,
+                                                                mx: 2
+                                                            }}>
+                                                                <Typography
+                                                                    variant="caption"
+                                                                    sx={{
+                                                                        color: '#569cd6',
+                                                                        fontWeight: 600,
+                                                                        display: 'block',
+                                                                        mb: 1
+                                                                    }}
+                                                                >
+                                                                    📍 Stack Trace:
+                                                                </Typography>
+                                                                <Typography
+                                                                    component="pre"
+                                                                    sx={{
+                                                                        fontFamily: 'Consolas, Monaco, "Courier New", monospace',
+                                                                        fontSize: '0.75rem',
+                                                                        color: '#d4d4d4',
+                                                                        whiteSpace: 'pre-wrap',
+                                                                        wordBreak: 'break-all',
+                                                                        m: 0,
+                                                                        lineHeight: 1.6,
+                                                                    }}
+                                                                >
+                                                                    {log.stack_trace}
+                                                                </Typography>
+                                                            </Box>
+                                                        </Collapse>
+                                                    </TableCell>
+                                                </TableRow>
+                                            )}
+                                        </Fragment>
                                     ))}
                                 </TableBody>
                             </Table>
