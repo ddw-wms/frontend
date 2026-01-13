@@ -48,7 +48,7 @@ import { getStoredUser, logout } from '@/lib/auth';
 import { usePermissions } from '@/app/context/PermissionContext';
 
 interface SidebarProps {
-  username: string;
+  username?: string;
   mobileOpen?: boolean;
   setMobileOpen?: (open: boolean) => void;
 }
