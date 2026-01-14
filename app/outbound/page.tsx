@@ -1724,7 +1724,7 @@ export default function OutboundPage() {
         sortable: !!enableSorting,
         resizable: !!enableColumnResize,
         filter: !!enableColumnFilters,
-        suppressMenu: false,
+        suppressHeaderMenuButton: false,
         minWidth: 100,
     }), [enableSorting, enableColumnFilters, enableColumnResize]);
 
@@ -2268,12 +2268,11 @@ export default function OutboundPage() {
                                             rowData={listData}
                                             columnDefs={listColumnDefs}
                                             defaultColDef={listDefaultColDef}
-                                            rowSelection="single"
-                                            suppressRowClickSelection={true}
-                                            suppressLoadingOverlay={true}
+                                            rowSelection={{ mode: 'singleRow', enableClickSelection: false }}
+                                            loading={false}
                                             suppressNoRowsOverlay={true}
                                             animateRows={false}
-                                            gridOptions={{ getRowId: (params: any) => params.data?.wsn || params.data?.wid || params.data?.id || String(params.rowIndex), suppressRowTransform: true }}
+                                            gridOptions={{ getRowId: (params: any) => String(params.data?.wsn || params.data?.wid || params.data?.id || params.rowIndex), suppressRowTransform: true }}
                                             onGridReady={(params: any) => { gridRef.current = params.api; columnApiRef.current = params.columnApi; try { const savedState = localStorage.getItem('outbound_columnState'); if (savedState && params.api) { params.api.applyColumnState({ state: JSON.parse(savedState), applyOrder: true }); } } catch (e) { /* ignore */ } }}
                                             onColumnResized={(params: any) => { if (params.finished && params.api) { try { localStorage.setItem('outbound_columnState', JSON.stringify(params.api.getColumnState())); } catch { /* ignore */ } } }}
                                             onColumnMoved={(params: any) => { if (params.finished && params.api) { try { localStorage.setItem('outbound_columnState', JSON.stringify(params.api.getColumnState())); } catch { /* ignore */ } } }}
@@ -3144,7 +3143,6 @@ export default function OutboundPage() {
                                 enterNavigatesVertically={true}
                                 enterNavigatesVerticallyAfterEdit={true}
                                 ensureDomOrder={true}
-                                suppressRowClickSelection={true}
                                 suppressMovableColumns={true}
                                 rowBuffer={5}
                                 containerStyle={{ height: '100%', width: '100%' }}

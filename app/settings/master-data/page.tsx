@@ -2044,15 +2044,14 @@ export default function MasterDataPage() {
                             rowData={masterData}
                             columnDefs={columnDefs}
                             defaultColDef={defaultColDef}
-                            rowSelection="single"
-                            suppressRowClickSelection={true}
-                            suppressLoadingOverlay={true}
+                            rowSelection={{ mode: 'singleRow', enableClickSelection: false }}
+                            loading={false}
                             suppressNoRowsOverlay={true}
                             context={{
                               onEdit: handleOpenEditDialog,
                               onDelete: handleOpenDeleteConfirm
                             }}
-                            getRowId={(params: any) => params.data?.id || params.data?.wsn || String(params.rowIndex)}
+                            getRowId={(params: any) => String(params.data?.id || params.data?.wsn || params.rowIndex)}
                             onGridReady={(params: any) => {
                               gridRef.current = params.api;
                               columnApiRef.current = params.columnApi;

@@ -356,7 +356,7 @@ export default function DashboardPage() {
               />
             );
           },
-          suppressMenu: true,
+          suppressHeaderMenuButton: true,
           ...getColumnSizing(col),
         };
       }
@@ -369,7 +369,7 @@ export default function DashboardPage() {
           cellRenderer: (p: any) => (
             <Chip label={p.value || '-'} color={getStageColor(p.value) as any} size="small" variant="outlined" />
           ),
-          suppressMenu: true,
+          suppressHeaderMenuButton: true,
           ...getColumnSizing(col),
         };
       }
@@ -413,7 +413,7 @@ export default function DashboardPage() {
         </IconButton>
       ),
       width: 90,
-      suppressMenu: true,
+      suppressHeaderMenuButton: true,
       resizable: enableColumnResize,
       sortable: false,
     });
@@ -1928,11 +1928,10 @@ export default function DashboardPage() {
                     rowData={filteredData}
                     columnDefs={columnDefs}
                     defaultColDef={defaultColDef}
-                    rowSelection="single"
-                    suppressRowClickSelection={true}
-                    suppressLoadingOverlay={true}
+                    rowSelection={{ mode: 'singleRow', enableClickSelection: false }}
+                    loading={false}
                     suppressNoRowsOverlay={true}
-                    getRowId={(params: any) => params.data?.wsn || params.data?.wid || String(params.rowIndex)}
+                    getRowId={(params: any) => String(params.data?.wsn || params.data?.wid || params.rowIndex)}
                     onGridReady={(params: any) => {
                       gridRef.current = params.api;
                       columnApiRef.current = params.columnApi;

@@ -1184,7 +1184,7 @@ export default function PickingPage() {
     sortable: !!enableSorting,
     resizable: !!enableColumnResize,
     filter: !!enableColumnFilters,
-    suppressMenu: false,
+    suppressHeaderMenuButton: false,
     minWidth: 100,
   }), [enableSorting, enableColumnFilters, enableColumnResize]);
 
@@ -1730,12 +1730,11 @@ export default function PickingPage() {
                       rowData={pickingList}
                       columnDefs={listColumnDefs}
                       defaultColDef={listDefaultColDef}
-                      rowSelection="single"
-                      suppressRowClickSelection={true}
-                      suppressLoadingOverlay={true}
+                      rowSelection={{ mode: 'singleRow', enableClickSelection: false }}
+                      loading={false}
                       suppressNoRowsOverlay={true}
                       animateRows={false}
-                      gridOptions={{ getRowId: (params: any) => params.data?.wsn || params.data?.id || String(params.rowIndex), suppressRowTransform: true }}
+                      gridOptions={{ getRowId: (params: any) => String(params.data?.wsn || params.data?.id || params.rowIndex), suppressRowTransform: true }}
                       onGridReady={(params: any) => { gridRef.current = params.api; columnApiRef.current = params.columnApi; try { const savedState = localStorage.getItem('picking_columnState'); if (savedState && params.api) { params.api.applyColumnState({ state: JSON.parse(savedState), applyOrder: true }); } } catch (e) { /* ignore */ } }}
                       onColumnResized={(params: any) => { if (params.finished && params.api) { try { localStorage.setItem('picking_columnState', JSON.stringify(params.api.getColumnState())); } catch { /* ignore */ } } }}
                       onColumnMoved={(params: any) => { if (params.finished && params.api) { try { localStorage.setItem('picking_columnState', JSON.stringify(params.api.getColumnState())); } catch { /* ignore */ } } }}
@@ -2490,7 +2489,7 @@ export default function PickingPage() {
                 rowData={multiRows}
                 columnDefs={columnDefs}
                 rowHeight={26}
-                getRowId={(params) => params.data.id}
+                getRowId={(params) => String(params.data.id)}
                 defaultColDef={{
                   sortable: false,
                   filter: false,
@@ -2510,7 +2509,6 @@ export default function PickingPage() {
                 enterNavigatesVerticallyAfterEdit={true}
                 navigateToNextCell={navigateToNextCell}
                 ensureDomOrder={true}
-                suppressRowClickSelection={true}
                 suppressMovableColumns={true}
                 rowBuffer={5}
                 //theme="legacy"

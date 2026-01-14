@@ -937,7 +937,7 @@ export default function QCPage() {
     sortable: !!enableSorting,
     resizable: !!enableColumnResize,
     filter: !!enableColumnFilters,
-    suppressMenu: false,
+    suppressHeaderMenuButton: false,
     minWidth: 100,
   }), [enableSorting, enableColumnFilters, enableColumnResize]);
 
@@ -2379,12 +2379,11 @@ export default function QCPage() {
                         rowData={qcList}
                         columnDefs={listColumnDefs}
                         defaultColDef={listDefaultColDef}
-                        rowSelection="single"
-                        suppressRowClickSelection={true}
-                        suppressLoadingOverlay={true}
+                        rowSelection={{ mode: 'singleRow', enableClickSelection: false }}
+                        loading={false}
                         suppressNoRowsOverlay={true}
                         animateRows={false}
-                        gridOptions={{ getRowId: (params: any) => params.data?.id || params.data?.wsn || String(params.rowIndex), suppressRowTransform: true }}
+                        gridOptions={{ getRowId: (params: any) => String(params.data?.id || params.data?.wsn || params.rowIndex), suppressRowTransform: true }}
                         onGridReady={(params: any) => { gridRef.current = params.api; columnApiRef.current = params.columnApi; try { const savedState = localStorage.getItem('qc_columnState'); if (savedState && params.api) { params.api.applyColumnState({ state: JSON.parse(savedState), applyOrder: true }); } } catch (e) { /* ignore */ } }}
                         onColumnResized={(params: any) => { if (params.finished && params.api) { try { localStorage.setItem('qc_columnState', JSON.stringify(params.api.getColumnState())); } catch { /* ignore */ } } }}
                         onColumnMoved={(params: any) => { if (params.finished && params.api) { try { localStorage.setItem('qc_columnState', JSON.stringify(params.api.getColumnState())); } catch { /* ignore */ } } }}
@@ -3652,7 +3651,6 @@ export default function QCPage() {
                     enterNavigatesVerticallyAfterEdit={true}
                     navigateToNextCell={navigateToNextCell}
                     ensureDomOrder={true}
-                    suppressRowClickSelection={true}
                     suppressMovableColumns={true}
                     rowBuffer={5}
                     //theme="legacy"

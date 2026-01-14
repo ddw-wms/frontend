@@ -3679,9 +3679,8 @@ export default function InboundPage() {
                         }
                       }}
                       animateRows={false}
-                      suppressRowClickSelection={true}
-                      rowSelection="single"
-                      suppressLoadingOverlay={true}
+                      rowSelection={{ mode: 'singleRow', enableClickSelection: false }}
+                      loading={false}
                       suppressNoRowsOverlay={true}
                       containerStyle={{ height: '100%', width: '100%' }}
                     />
@@ -5556,7 +5555,7 @@ export default function InboundPage() {
                       enableCellTextSelection={true}
                       suppressCopyRowsToClipboard={false}
                       clipboardDelimiter="\t"
-                      rowSelection="multiple"
+                      rowSelection={{ mode: 'multiRow', enableClickSelection: false }}
                       suppressRowDeselection={false}
 
                       // ⚡ EXCEL-LIKE: Process clipboard paste from Excel
@@ -5586,7 +5585,6 @@ export default function InboundPage() {
                       navigateToNextCell={navigateToNextCell}
                       tabToNextCell={tabToNextCell}
                       ensureDomOrder={true}
-                      suppressRowClickSelection={true}
                       suppressMovableColumns={true}
                       // ⚡ PERFORMANCE: Increase row buffer for smoother scrolling
                       rowBuffer={20}
