@@ -1148,6 +1148,7 @@ export default function DashboardPage() {
         {/* ================= HEADER ================= */}
         <StandardPageHeader
           title="Dashboard"
+          subtitle="Welcome to WMS"
           icon="📊"
           warehouseName={activeWarehouse?.name}
           userName={user?.fullName}
