@@ -1214,7 +1214,6 @@ export default function DashboardPage() {
                   transform: { xs: "none", md: "translateY(-3px)" },
                   boxShadow: { xs: "0 1px 3px rgba(0,0,0,0.04)", md: `0 8px 20px ${m.color}20` },
                   border: { xs: `1px solid ${m.color}25`, md: `1px solid ${m.color}40` },
-                  border: { xs: `1px solid ${m.color}25`, md: `1px solid ${m.color}40` },
                 },
               }}
             >

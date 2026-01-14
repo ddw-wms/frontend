@@ -108,8 +108,7 @@ export default function LoginPage() {
 
       <Box
         sx={{
-          minHeight: '100vh',
-          minHeight: '100dvh', // Dynamic viewport height for mobile
+          minHeight: '100dvh',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
