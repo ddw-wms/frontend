@@ -31,7 +31,6 @@ import {
     CircularProgress,
     Tooltip,
     Stack,
-    Grid,
     Divider,
     Collapse
 } from '@mui/material';
@@ -1208,49 +1207,52 @@ export default function BackupPage() {
                                                 {selectedTables.length === backupModules.length ? 'Deselect All' : 'Select All'}
                                             </Button>
                                         </Stack>
-                                        <Grid container spacing={1.5}>
+                                        <Box sx={{
+                                            display: 'grid',
+                                            gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)' },
+                                            gap: 1.5
+                                        }}>
                                             {backupModules.map((module) => (
-                                                <Grid item xs={6} sm={4} key={module.id}>
-                                                    <Card
-                                                        onClick={() => {
-                                                            setSelectedTables(prev =>
-                                                                prev.includes(module.id)
-                                                                    ? prev.filter(t => t !== module.id)
-                                                                    : [...prev, module.id]
-                                                            );
-                                                        }}
-                                                        sx={{
-                                                            cursor: 'pointer',
-                                                            border: selectedTables.includes(module.id)
-                                                                ? '2px solid #10b981'
-                                                                : '1px solid #e2e8f0',
-                                                            bgcolor: selectedTables.includes(module.id)
-                                                                ? 'rgba(16, 185, 129, 0.08)'
-                                                                : 'white',
-                                                            transition: 'all 0.15s',
-                                                            '&:hover': {
-                                                                borderColor: '#10b981',
-                                                                transform: 'scale(1.02)'
-                                                            }
-                                                        }}
-                                                    >
-                                                        <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
-                                                            <Stack direction="row" spacing={1} alignItems="center">
-                                                                <Typography fontSize="1.2rem">{module.icon}</Typography>
-                                                                <Box>
-                                                                    <Typography variant="body2" fontWeight={500} noWrap>
-                                                                        {module.name}
-                                                                    </Typography>
-                                                                    <Typography variant="caption" color="text.secondary" noWrap>
-                                                                        {module.description}
-                                                                    </Typography>
-                                                                </Box>
-                                                            </Stack>
-                                                        </CardContent>
-                                                    </Card>
-                                                </Grid>
+                                                <Card
+                                                    key={module.id}
+                                                    onClick={() => {
+                                                        setSelectedTables(prev =>
+                                                            prev.includes(module.id)
+                                                                ? prev.filter(t => t !== module.id)
+                                                                : [...prev, module.id]
+                                                        );
+                                                    }}
+                                                    sx={{
+                                                        cursor: 'pointer',
+                                                        border: selectedTables.includes(module.id)
+                                                            ? '2px solid #10b981'
+                                                            : '1px solid #e2e8f0',
+                                                        bgcolor: selectedTables.includes(module.id)
+                                                            ? 'rgba(16, 185, 129, 0.08)'
+                                                            : 'white',
+                                                        transition: 'all 0.15s',
+                                                        '&:hover': {
+                                                            borderColor: '#10b981',
+                                                            transform: 'scale(1.02)'
+                                                        }
+                                                    }}
+                                                >
+                                                    <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+                                                        <Stack direction="row" spacing={1} alignItems="center">
+                                                            <Typography fontSize="1.2rem">{module.icon}</Typography>
+                                                            <Box>
+                                                                <Typography variant="body2" fontWeight={500} noWrap>
+                                                                    {module.name}
+                                                                </Typography>
+                                                                <Typography variant="caption" color="text.secondary" noWrap>
+                                                                    {module.description}
+                                                                </Typography>
+                                                            </Box>
+                                                        </Stack>
+                                                    </CardContent>
+                                                </Card>
                                             ))}
-                                        </Grid>
+                                        </Box>
                                     </Box>
                                 )}
 
