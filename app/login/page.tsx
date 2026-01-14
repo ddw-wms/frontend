@@ -61,7 +61,7 @@ export default function LoginPage() {
 
     // Timer: If login takes longer than 4 seconds → show wake-up message
     const wakeUpTimer = setTimeout(() => {
-      toast.loading('⏳ Waking up the server... Render free plan may take 20–40 seconds', {
+      toast.loading('⏳ Waking up the server... it may take 20–40 seconds', {
         id: 'wake-msg',
       });
     }, 4000); // 4 seconds
