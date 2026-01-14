@@ -246,10 +246,10 @@ export default function CustomersPage() {
           <Box
             sx={{
               p: 5,
-              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
               borderRadius: 4,
               color: 'white',
-              boxShadow: '0 20px 60px rgba(102, 126, 234, 0.4)',
+              boxShadow: '0 20px 60px rgba(30, 64, 175, 0.4)',
             }}
           >
             <Typography variant="h5" sx={{ fontWeight: 700, mb: 1 }}>
@@ -366,7 +366,7 @@ export default function CustomersPage() {
         }}>
           <Box sx={{ display: 'flex', gap: 1 }}>
             {canSeeButton('add') && (
-              <Button size="small" startIcon={<AddIcon sx={{ fontSize: 14 }} />} variant="contained" onClick={() => handleOpenDialog()} sx={{ height: 36, fontSize: '0.75rem', fontWeight: 600, background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
+              <Button size="small" startIcon={<AddIcon sx={{ fontSize: 14 }} />} variant="contained" onClick={() => handleOpenDialog()} sx={{ height: 36, fontSize: '0.75rem', fontWeight: 600, background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)' }}>
                 ADD
               </Button>
             )}
@@ -431,7 +431,7 @@ export default function CustomersPage() {
                             <IconButton
                               size="small"
                               onClick={() => handleOpenDialog(customer)}
-                              sx={{ color: '#667eea', p: 0.5, '&:hover': { bgcolor: 'rgba(102, 126, 234, 0.1)' } }}
+                              sx={{ color: '#1e40af', p: 0.5, '&:hover': { bgcolor: 'rgba(30, 64, 175, 0.1)' } }}
                             >
                               <EditIcon sx={{ fontSize: 16 }} />
                             </IconButton>
@@ -541,10 +541,10 @@ export default function CustomersPage() {
               borderRadius: 2,
               fontWeight: 700,
               px: 4,
-              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-              boxShadow: '0 6px 20px rgba(102, 126, 234, 0.3)',
+              background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
+              boxShadow: '0 6px 20px rgba(30, 64, 175, 0.3)',
               '&:hover': {
-                boxShadow: '0 8px 25px rgba(102, 126, 234, 0.4)'
+                boxShadow: '0 8px 25px rgba(30, 64, 175, 0.4)'
               },
               '&:disabled': {
                 background: 'rgba(0,0,0,0.12)'

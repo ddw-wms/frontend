@@ -370,7 +370,7 @@ export default function OnboardingWizard({ open, onComplete }: OnboardingWizardP
                 sx: {
                     borderRadius: 4,
                     overflow: 'hidden',
-                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
                     p: 0.5,
                     maxHeight: '90vh',
                     m: 2,
@@ -386,7 +386,7 @@ export default function OnboardingWizard({ open, onComplete }: OnboardingWizardP
             }}>
                 {/* Header */}
                 <Box sx={{
-                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
                     px: { xs: 2, md: 3 },
                     py: { xs: 1.5, md: 2 },
                     color: 'white',
@@ -449,7 +449,7 @@ export default function OnboardingWizard({ open, onComplete }: OnboardingWizardP
                                 '& .MuiStepIcon-root': {
                                     fontSize: { xs: '1.15rem', md: '1.5rem' },
                                     '&.Mui-active': {
-                                        color: '#667eea',
+                                        color: '#1e40af',
                                     },
                                     '&.Mui-completed': {
                                         color: '#10b981',
@@ -538,11 +538,11 @@ export default function OnboardingWizard({ open, onComplete }: OnboardingWizardP
                                 borderRadius: 3,
                                 fontWeight: 700,
                                 fontSize: { xs: '0.8rem', md: '0.9rem' },
-                                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                                boxShadow: '0 4px 14px rgba(102, 126, 234, 0.4)',
+                                background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
+                                boxShadow: '0 4px 14px rgba(30, 64, 175, 0.4)',
                                 '&:hover': {
                                     background: 'linear-gradient(135deg, #5568d3 0%, #63408b 100%)',
-                                    boxShadow: '0 6px 20px rgba(102, 126, 234, 0.5)',
+                                    boxShadow: '0 6px 20px rgba(30, 64, 175, 0.5)',
                                     transform: 'translateY(-1px)'
                                 },
                                 '&:disabled': {

@@ -2,7 +2,7 @@
 
 'use client';
 import { ReactNode, useState } from 'react';
-import { Box, CssBaseline, useTheme, useMediaQuery, IconButton } from '@mui/material';
+import { Box, CssBaseline, useTheme, useMediaQuery, IconButton, Fab } from '@mui/material';
 import { Menu as MenuIcon } from '@mui/icons-material';
 import Sidebar from './Sidebar';
 import RouteGuard from './RouteGuard';
@@ -19,32 +19,44 @@ export default function AppLayout({ children, requiredPermission, skipRouteGuard
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const content = (
-    <Box sx={{ display: 'flex', height: '100vh', overflow: 'hidden', position: 'relative' }}>
+    <Box sx={{
+      display: 'flex',
+      height: '100vh',
+      overflow: 'hidden',
+      position: 'relative',
+      bgcolor: '#f5f7fa',
+    }}>
       <CssBaseline />
 
-      {/* Mobile Menu Button */}
+      {/* Mobile Menu Button - Floating Action Button Style */}
       {isMobile && (
-        <IconButton
+        <Fab
+          size="medium"
           onClick={() => setMobileOpen(true)}
           sx={{
             position: 'fixed',
-            top: 10,
-            left: 10,
-            zIndex: 10000,
-            bgcolor: '#052457',
+            top: { xs: 12, sm: 14 },
+            left: { xs: 12, sm: 14 },
+            zIndex: 1100,
+            bgcolor: '#1e40af',
             color: 'white',
-            width: 36,
-            height: 36,
-            boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
-            border: '1.5px solid rgba(255,255,255,0.25)',
+            width: { xs: 40, sm: 44 },
+            height: { xs: 40, sm: 44 },
+            minHeight: 'auto',
+            boxShadow: '0 4px 14px rgba(30, 64, 175, 0.4)',
             display: mobileOpen ? 'none' : 'flex',
+            transition: 'all 0.2s ease',
             '&:hover': {
-              bgcolor: '#063272',
+              bgcolor: '#1e3a8a',
+              transform: 'scale(1.05)',
+            },
+            '&:active': {
+              transform: 'scale(0.98)',
             },
           }}
         >
-          <MenuIcon sx={{ fontSize: 22 }} />
-        </IconButton>
+          <MenuIcon sx={{ fontSize: { xs: 22, sm: 24 } }} />
+        </Fab>
       )}
 
       {/* Sidebar */}
@@ -68,11 +80,25 @@ export default function AppLayout({ children, requiredPermission, skipRouteGuard
           overflowX: 'hidden',
           display: 'flex',
           flexDirection: 'column',
-          bgcolor: 'background.default',
+          bgcolor: '#f5f7fa',
           WebkitOverflowScrolling: 'touch',
           position: 'relative',
-          pl: isMobile ? 0 : 0,
-          pt: isMobile ? 0 : 0,
+          // Smooth scrolling
+          scrollBehavior: 'smooth',
+          // Custom scrollbar
+          '&::-webkit-scrollbar': {
+            width: '8px',
+          },
+          '&::-webkit-scrollbar-track': {
+            background: 'transparent',
+          },
+          '&::-webkit-scrollbar-thumb': {
+            background: 'rgba(0,0,0,0.1)',
+            borderRadius: '4px',
+            '&:hover': {
+              background: 'rgba(0,0,0,0.15)',
+            },
+          },
         }}
       >
         {children}

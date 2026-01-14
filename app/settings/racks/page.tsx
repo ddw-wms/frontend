@@ -166,10 +166,10 @@ export default function RacksPage() {
           <Box
             sx={{
               p: 5,
-              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
               borderRadius: 4,
               color: 'white',
-              boxShadow: '0 20px 60px rgba(102, 126, 234, 0.4)',
+              boxShadow: '0 20px 60px rgba(30, 64, 175, 0.4)',
             }}
           >
             <Typography variant="h5" sx={{ fontWeight: 700, mb: 1 }}>
@@ -451,7 +451,7 @@ export default function RacksPage() {
                             <IconButton
                               size="small"
                               onClick={() => handleOpenDialog(rack)}
-                              sx={{ color: '#667eea', p: 0.5, '&:hover': { bgcolor: 'rgba(102, 126, 234, 0.1)' } }}
+                              sx={{ color: '#1e40af', p: 0.5, '&:hover': { bgcolor: 'rgba(30, 64, 175, 0.1)' } }}
                             >
                               <EditIcon sx={{ fontSize: 16 }} />
                             </IconButton>
@@ -544,7 +544,7 @@ export default function RacksPage() {
                 id="bulk-rack-upload"
               />
               <label htmlFor="bulk-rack-upload" style={{ display: 'block', cursor: 'pointer' }}>
-                <UploadIcon sx={{ fontSize: 40, color: '#667eea', mb: 1 }} />
+                <UploadIcon sx={{ fontSize: 40, color: '#1e40af', mb: 1 }} />
                 <Typography sx={{ fontWeight: 700 }}>{bulkFile?.name || 'Click to choose a file'}</Typography>
                 <Typography variant="caption" sx={{ color: '#64748b' }}>Accepts .xlsx or .xls</Typography>
               </label>
@@ -600,7 +600,7 @@ export default function RacksPage() {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setConfirmDownloadOpen(false)}>Cancel</Button>
-          <Button variant="contained" onClick={handleConfirmDownload} sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>Yes, Download</Button>
+          <Button variant="contained" onClick={handleConfirmDownload} sx={{ background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)' }}>Yes, Download</Button>
         </DialogActions>
       </Dialog>
 
@@ -612,7 +612,7 @@ export default function RacksPage() {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setExportConfirmOpen(false)}>Cancel</Button>
-          <Button variant="contained" onClick={() => { exportRacks(); setExportConfirmOpen(false); }} sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>Yes, Export</Button>
+          <Button variant="contained" onClick={() => { exportRacks(); setExportConfirmOpen(false); }} sx={{ background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)' }}>Yes, Export</Button>
         </DialogActions>
       </Dialog>
 

@@ -1627,7 +1627,7 @@ export default function PickingPage() {
                         size={56}
                         thickness={3.5}
                         sx={{
-                          color: '#1976d2',
+                          color: '#1e40af',
                           filter: 'drop-shadow(0 2px 8px rgba(25, 118, 210, 0.2))'
                         }}
                       />
@@ -1639,7 +1639,7 @@ export default function PickingPage() {
                         width: 44,
                         height: 44,
                         borderRadius: '50%',
-                        background: 'linear-gradient(135deg, #1976d2 0%, #42a5f5 100%)',
+                        background: 'linear-gradient(135deg, #1e40af 0%, #60a5fa 100%)',
                         opacity: 0.15,
                         animation: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
                         '@keyframes pulse': {
@@ -1836,7 +1836,7 @@ export default function PickingPage() {
                   setListColumns(DEFAULT_LIST_COLUMNS);
                   localStorage.setItem('pickingListColumns', JSON.stringify(DEFAULT_LIST_COLUMNS));
                 }} variant="outlined">Reset</Button>
-                <Button onClick={() => setListColumnSettingsOpen(false)} variant="contained" sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: '#fff' }}>DONE</Button>
+                <Button onClick={() => setListColumnSettingsOpen(false)} variant="contained" sx={{ background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)', color: '#fff' }}>DONE</Button>
               </DialogActions>
             </Dialog>
 
@@ -1963,7 +1963,7 @@ export default function PickingPage() {
                 <Box sx={{ flex: 1 }} />
 
                 <Button onClick={() => setGridSettingsOpen(false)} sx={{ fontWeight: 700 }}>Close</Button>
-                <Button onClick={() => setGridSettingsOpen(false)} variant="contained" sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: '#fff' }}>Done</Button>
+                <Button onClick={() => setGridSettingsOpen(false)} variant="contained" sx={{ background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)', color: '#fff' }}>Done</Button>
               </DialogActions>
             </Dialog>
 

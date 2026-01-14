@@ -414,7 +414,7 @@ export default function UsersPage() {
         <Box sx={{ marginBottom: 1.5, mt: 1.5, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
           <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
             {canSeeButton('add') && (
-              <Button variant="contained" startIcon={<AddIcon />} onClick={() => handleDialogOpen()} size="small" sx={{ height: 36, fontWeight: 600, background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
+              <Button variant="contained" startIcon={<AddIcon />} onClick={() => handleDialogOpen()} size="small" sx={{ height: 36, fontWeight: 600, background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)' }}>
                 Add User
               </Button>
             )}
@@ -521,7 +521,7 @@ export default function UsersPage() {
                                 size="small"
                                 onClick={() => handleDialogOpen(user)}
                                 title="Edit"
-                                sx={{ color: '#667eea', p: 0.5, '&:hover': { bgcolor: 'rgba(102, 126, 234, 0.1)' } }}
+                                sx={{ color: '#1e40af', p: 0.5, '&:hover': { bgcolor: 'rgba(30, 64, 175, 0.1)' } }}
                               >
                                 <EditIcon sx={{ fontSize: 16 }} />
                               </IconButton>

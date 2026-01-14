@@ -109,11 +109,14 @@ export default function LoginPage() {
       <Box
         sx={{
           minHeight: '100vh',
+          minHeight: '100dvh', // Dynamic viewport height for mobile
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-          padding: 2,
+          background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 50%, #1e3a8a 100%)',
+          padding: { xs: 2, sm: 3 },
+          paddingTop: { xs: 'env(safe-area-inset-top)', sm: 3 },
+          paddingBottom: { xs: 'env(safe-area-inset-bottom)', sm: 3 },
           position: 'relative',
           overflow: 'hidden',
           '&::before': {
@@ -123,7 +126,7 @@ export default function LoginPage() {
             left: 0,
             right: 0,
             bottom: 0,
-            background: 'radial-gradient(circle at 20% 50%, rgba(255,255,255,0.1) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(255,255,255,0.08) 0%, transparent 50%)',
+            background: 'radial-gradient(circle at 20% 50%, rgba(255,255,255,0.15) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(255,255,255,0.1) 0%, transparent 50%)',
             animation: 'pulse 8s ease-in-out infinite',
           },
           '&::after': {
@@ -132,21 +135,21 @@ export default function LoginPage() {
             width: '100%',
             height: '100%',
             background: `
-              radial-gradient(circle, rgba(255, 255, 255, 0.1) 1px, transparent 1px),
-              radial-gradient(circle, rgba(255, 255, 255, 0.1) 1px, transparent 1px)
+              radial-gradient(circle, rgba(255, 255, 255, 0.08) 1px, transparent 1px),
+              radial-gradient(circle, rgba(255, 255, 255, 0.08) 1px, transparent 1px)
             `,
-            backgroundSize: '50px 50px',
-            backgroundPosition: '0 0, 25px 25px',
-            opacity: 0.3,
-            animation: 'drift 20s linear infinite',
+            backgroundSize: '60px 60px',
+            backgroundPosition: '0 0, 30px 30px',
+            opacity: 0.4,
+            animation: 'drift 25s linear infinite',
           },
           '@keyframes pulse': {
             '0%, 100%': { opacity: 1 },
-            '50%': { opacity: 0.8 },
+            '50%': { opacity: 0.7 },
           },
           '@keyframes drift': {
             '0%': { transform: 'translate(0, 0)' },
-            '100%': { transform: 'translate(50px, 50px)' },
+            '100%': { transform: 'translate(60px, 60px)' },
           },
           '@keyframes slideUp': {
             from: { opacity: 0, transform: 'translateY(30px)' },
@@ -158,28 +161,34 @@ export default function LoginPage() {
           },
           '@keyframes float': {
             '0%, 100%': { transform: 'translateY(0px)' },
-            '50%': { transform: 'translateY(-10px)' },
+            '50%': { transform: 'translateY(-8px)' },
           },
           '@keyframes shimmer': {
             '0%': { backgroundPosition: '-1000px 0' },
             '100%': { backgroundPosition: '1000px 0' },
           },
           '@keyframes glow': {
-            '0%, 100%': { boxShadow: '0 0 20px rgba(102, 126, 234, 0.5), 0 0 40px rgba(118, 75, 162, 0.3)' },
-            '50%': { boxShadow: '0 0 40px rgba(102, 126, 234, 0.8), 0 0 80px rgba(118, 75, 162, 0.5)' },
+            '0%, 100%': { boxShadow: '0 0 20px rgba(30, 64, 175, 0.4), 0 0 40px rgba(59, 130, 246, 0.2)' },
+            '50%': { boxShadow: '0 0 40px rgba(30, 64, 175, 0.6), 0 0 80px rgba(59, 130, 246, 0.3)' },
           },
         }}
       >
-        <Container maxWidth="sm" sx={{ animation: 'slideUp 0.6s ease-out', position: 'relative', zIndex: 1 }}>
-          {/* Decorative Floating Shapes */}
+        <Container maxWidth="sm" sx={{
+          animation: 'slideUp 0.6s ease-out',
+          position: 'relative',
+          zIndex: 1,
+          px: { xs: 1, sm: 2, md: 3 },
+        }}>
+          {/* Decorative Floating Shapes - Hidden on mobile for performance */}
           <Box
             sx={{
+              display: { xs: 'none', md: 'block' },
               position: 'absolute',
               top: -40,
               left: -40,
               width: 80,
               height: 80,
-              background: 'linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%)',
+              background: 'linear-gradient(135deg, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0.05) 100%)',
               borderRadius: '50%',
               animation: 'float 6s ease-in-out infinite',
               filter: 'blur(1px)',
@@ -187,12 +196,13 @@ export default function LoginPage() {
           />
           <Box
             sx={{
+              display: { xs: 'none', md: 'block' },
               position: 'absolute',
               bottom: -30,
               right: -30,
               width: 60,
               height: 60,
-              background: 'linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.03) 100%)',
+              background: 'linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.03) 100%)',
               borderRadius: '50%',
               animation: 'float 8s ease-in-out infinite',
               animationDelay: '1s',
@@ -201,14 +211,14 @@ export default function LoginPage() {
           />
 
           <Paper
-            elevation={24}
+            elevation={0}
             sx={{
-              p: 4,
-              borderRadius: 3,
-              background: 'rgba(255, 255, 255, 0.95)',
-              backdropFilter: 'blur(20px)',
-              border: '1px solid rgba(255, 255, 255, 0.2)',
-              boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.37), 0 0 80px rgba(102, 126, 234, 0.2)',
+              p: { xs: 3, sm: 4 },
+              borderRadius: { xs: 3, sm: 4 },
+              background: 'rgba(255, 255, 255, 0.97)',
+              backdropFilter: 'blur(24px)',
+              border: '1px solid rgba(255, 255, 255, 0.3)',
+              boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.12), 0 0 80px rgba(30, 64, 175, 0.15)',
               transition: 'all 0.3s ease',
               position: 'relative',
               '&::before': {
@@ -218,33 +228,33 @@ export default function LoginPage() {
                 left: 0,
                 right: 0,
                 bottom: 0,
-                borderRadius: 3,
+                borderRadius: { xs: 3, sm: 4 },
                 padding: '2px',
-                background: 'linear-gradient(135deg, rgba(102, 126, 234, 0.3), rgba(118, 75, 162, 0.3))',
+                background: 'linear-gradient(135deg, rgba(30, 64, 175, 0.2), rgba(59, 130, 246, 0.2))',
                 WebkitMask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)',
                 WebkitMaskComposite: 'xor',
                 maskComposite: 'exclude',
-                animation: 'glow 3s ease-in-out infinite',
+                animation: { xs: 'none', md: 'glow 3s ease-in-out infinite' },
               },
               '&:hover': {
-                boxShadow: '0 12px 48px 0 rgba(31, 38, 135, 0.45), 0 0 100px rgba(102, 126, 234, 0.3)',
-                transform: 'translateY(-5px)',
+                boxShadow: { xs: '0 8px 32px 0 rgba(0, 0, 0, 0.12)', md: '0 12px 48px 0 rgba(0, 0, 0, 0.18), 0 0 100px rgba(30, 64, 175, 0.2)' },
+                transform: { xs: 'none', md: 'translateY(-5px)' },
               },
             }}
           >
             {/* Logo & Title */}
-            <Box sx={{ textAlign: 'center', mb: 4, animation: 'fadeIn 0.8s ease-out' }}>
+            <Box sx={{ textAlign: 'center', mb: { xs: 3, sm: 4 }, animation: 'fadeIn 0.8s ease-out' }}>
               <WarehouseIcon
                 sx={{
-                  fontSize: 64,
+                  fontSize: { xs: 52, sm: 64 },
                   color: 'primary.main',
                   mb: 2,
-                  animation: 'float 3s ease-in-out infinite',
-                  filter: 'drop-shadow(0 4px 8px rgba(102, 126, 234, 0.3))',
+                  animation: { xs: 'none', md: 'float 3s ease-in-out infinite' },
+                  filter: 'drop-shadow(0 4px 8px rgba(30, 64, 175, 0.25))',
                   transition: 'all 0.3s ease',
                   '&:hover': {
                     transform: 'scale(1.1) rotate(5deg)',
-                    filter: 'drop-shadow(0 8px 16px rgba(102, 126, 234, 0.5))',
+                    filter: 'drop-shadow(0 8px 16px rgba(30, 64, 175, 0.4))',
                   },
                 }}
               />
@@ -254,19 +264,23 @@ export default function LoginPage() {
                 fontWeight="bold"
                 gutterBottom
                 sx={{
-                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  fontSize: { xs: '1.5rem', sm: '2rem' },
+                  background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
                   backgroundClip: 'text',
                   WebkitBackgroundClip: 'text',
                   WebkitTextFillColor: 'transparent',
                   animation: 'fadeIn 1s ease-out 0.2s backwards',
                 }}
               >
-                Warehouse Management
+                Divine WMS
               </Typography>
               <Typography
                 variant="body2"
                 color="text.secondary"
-                sx={{ animation: 'fadeIn 1s ease-out 0.4s backwards' }}
+                sx={{
+                  animation: 'fadeIn 1s ease-out 0.4s backwards',
+                  fontSize: { xs: '0.8rem', sm: '0.875rem' },
+                }}
               >
                 Multi-Warehouse Inventory System
               </Typography>
@@ -274,7 +288,7 @@ export default function LoginPage() {
 
             {/* Login Form */}
             <form onSubmit={handleLogin}>
-              <Box sx={{ mb: 3, animation: 'fadeIn 1s ease-out 0.6s backwards' }}>
+              <Box sx={{ mb: { xs: 2.5, sm: 3 }, animation: 'fadeIn 1s ease-out 0.6s backwards' }}>
                 <TextField
                   fullWidth
                   label="Username"
@@ -287,30 +301,25 @@ export default function LoginPage() {
                   sx={{
                     mb: 2,
                     '& .MuiOutlinedInput-root': {
+                      height: { xs: 52, sm: 56 },
                       transition: 'all 0.3s ease',
-                      position: 'relative',
-                      overflow: 'hidden',
-                      '&::before': {
-                        content: '""',
-                        position: 'absolute',
-                        top: 0,
-                        left: '-100%',
-                        width: '100%',
-                        height: '100%',
-                        background: 'linear-gradient(90deg, transparent, rgba(102, 126, 234, 0.2), transparent)',
-                        transition: 'left 0.5s',
-                      },
+                      borderRadius: 2.5,
+                      bgcolor: '#f8fafc',
                       '&:hover': {
-                        boxShadow: '0 4px 12px rgba(102, 126, 234, 0.15)',
-                        transform: 'translateY(-2px)',
+                        bgcolor: '#f1f5f9',
+                        boxShadow: '0 2px 8px rgba(30, 64, 175, 0.1)',
                       },
                       '&.Mui-focused': {
-                        boxShadow: '0 6px 20px rgba(102, 126, 234, 0.25)',
-                        transform: 'translateY(-2px)',
-                        '&::before': {
-                          left: '100%',
+                        bgcolor: 'white',
+                        boxShadow: '0 4px 16px rgba(30, 64, 175, 0.15)',
+                        '& .MuiOutlinedInput-notchedOutline': {
+                          borderColor: 'primary.main',
+                          borderWidth: 2,
                         },
                       },
+                    },
+                    '& .MuiInputLabel-root': {
+                      fontWeight: 500,
                     },
                   }}
                 />
@@ -326,30 +335,25 @@ export default function LoginPage() {
                   placeholder="Enter your password"
                   sx={{
                     '& .MuiOutlinedInput-root': {
+                      height: { xs: 52, sm: 56 },
                       transition: 'all 0.3s ease',
-                      position: 'relative',
-                      overflow: 'hidden',
-                      '&::before': {
-                        content: '""',
-                        position: 'absolute',
-                        top: 0,
-                        left: '-100%',
-                        width: '100%',
-                        height: '100%',
-                        background: 'linear-gradient(90deg, transparent, rgba(102, 126, 234, 0.2), transparent)',
-                        transition: 'left 0.5s',
-                      },
+                      borderRadius: 2.5,
+                      bgcolor: '#f8fafc',
                       '&:hover': {
-                        boxShadow: '0 4px 12px rgba(102, 126, 234, 0.15)',
-                        transform: 'translateY(-2px)',
+                        bgcolor: '#f1f5f9',
+                        boxShadow: '0 2px 8px rgba(30, 64, 175, 0.1)',
                       },
                       '&.Mui-focused': {
-                        boxShadow: '0 6px 20px rgba(102, 126, 234, 0.25)',
-                        transform: 'translateY(-2px)',
-                        '&::before': {
-                          left: '100%',
+                        bgcolor: 'white',
+                        boxShadow: '0 4px 16px rgba(30, 64, 175, 0.15)',
+                        '& .MuiOutlinedInput-notchedOutline': {
+                          borderColor: 'primary.main',
+                          borderWidth: 2,
                         },
                       },
+                    },
+                    '& .MuiInputLabel-root': {
+                      fontWeight: 500,
                     },
                   }}
                   InputProps={{
@@ -359,10 +363,11 @@ export default function LoginPage() {
                           onClick={() => setShowPassword(!showPassword)}
                           edge="end"
                           sx={{
+                            width: 44,
+                            height: 44,
                             transition: 'all 0.2s ease',
                             '&:hover': {
-                              backgroundColor: 'rgba(102, 126, 234, 0.1)',
-                              transform: 'scale(1.1)',
+                              backgroundColor: 'rgba(30, 64, 175, 0.08)',
                             },
                           }}
                         >
@@ -374,7 +379,15 @@ export default function LoginPage() {
                 />
               </Box>
               {/* Remember Me & Forgot Password */}
-              <Box sx={{ mb: 3, display: 'flex', alignItems: 'center', justifyContent: 'space-between', animation: 'fadeIn 1s ease-out 0.8s backwards' }}>
+              <Box sx={{
+                mb: { xs: 2.5, sm: 3 },
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                animation: 'fadeIn 1s ease-out 0.8s backwards',
+                flexWrap: 'wrap',
+                gap: 1,
+              }}>
                 <FormControlLabel
                   control={
                     <Checkbox
@@ -382,10 +395,15 @@ export default function LoginPage() {
                       onChange={(e) => setRememberMe(e.target.checked)}
                       disabled={loading}
                       size="small"
+                      sx={{
+                        '&.Mui-checked': {
+                          color: 'primary.main',
+                        },
+                      }}
                     />
                   }
                   label={
-                    <Typography variant="body2" color="text.secondary">
+                    <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' } }}>
                       Remember me
                     </Typography>
                   }
@@ -398,6 +416,8 @@ export default function LoginPage() {
                     color: 'primary.main',
                     cursor: 'pointer',
                     transition: 'all 0.2s ease',
+                    fontSize: { xs: '0.8rem', sm: '0.875rem' },
+                    fontWeight: 500,
                     '&:hover': {
                       color: 'primary.dark',
                       transform: 'translateX(3px)',
@@ -419,40 +439,26 @@ export default function LoginPage() {
                 disabled={loading}
                 startIcon={loading ? <CircularProgress size={20} sx={{ color: 'white' }} /> : <LoginIcon />}
                 sx={{
-                  py: 1.5,
-                  fontSize: '1rem',
+                  py: { xs: 1.5, sm: 1.75 },
+                  fontSize: { xs: '0.95rem', sm: '1rem' },
                   fontWeight: 600,
-                  background: 'linear-gradient(45deg, #667eea 30%, #764ba2 90%)',
+                  borderRadius: 2.5,
+                  background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
                   backgroundSize: '200% auto',
-                  boxShadow: '0 4px 20px rgba(102, 126, 234, 0.4)',
+                  boxShadow: '0 4px 16px rgba(30, 64, 175, 0.35)',
                   transition: 'all 0.3s ease',
                   animation: 'fadeIn 1s ease-out 1s backwards',
+                  minHeight: { xs: 52, sm: 56 },
                   position: 'relative',
                   overflow: 'hidden',
-                  '&::before': {
-                    content: '""',
-                    position: 'absolute',
-                    top: '50%',
-                    left: '50%',
-                    width: 0,
-                    height: 0,
-                    borderRadius: '50%',
-                    background: 'rgba(255, 255, 255, 0.3)',
-                    transform: 'translate(-50%, -50%)',
-                    transition: 'width 0.6s, height 0.6s',
-                  },
                   '&:hover': {
-                    background: 'linear-gradient(45deg, #5568d3 30%, #65408b 90%)',
+                    background: 'linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%)',
                     backgroundSize: '200% auto',
-                    boxShadow: '0 6px 30px rgba(102, 126, 234, 0.6)',
-                    transform: 'translateY(-3px)',
-                    '&::before': {
-                      width: '300px',
-                      height: '300px',
-                    },
+                    boxShadow: '0 6px 24px rgba(30, 64, 175, 0.45)',
+                    transform: { xs: 'none', md: 'translateY(-2px)' },
                   },
                   '&:active': {
-                    transform: 'translateY(-1px)',
+                    transform: 'translateY(0)',
                   },
                   '&:disabled': {
                     background: 'rgba(0,0,0,0.12)',
@@ -470,17 +476,18 @@ export default function LoginPage() {
               color="text.secondary"
               align="center"
               display="block"
-              mt={3}
+              mt={{ xs: 2.5, sm: 3 }}
               sx={{
                 animation: 'fadeIn 1s ease-out 1.2s backwards',
-                opacity: 0.7,
+                opacity: 0.6,
                 transition: 'opacity 0.3s ease',
+                fontSize: { xs: '0.7rem', sm: '0.75rem' },
                 '&:hover': {
-                  opacity: 1,
+                  opacity: 0.8,
                 },
               }}
             >
-              Warehouse Management System v1.0.0
+              Divine WMS © {new Date().getFullYear()}
             </Typography>
           </Paper>
         </Container>

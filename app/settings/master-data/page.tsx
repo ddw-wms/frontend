@@ -136,7 +136,7 @@ const MasterDataRow = memo(({
   return (
     <TableRow hover sx={{ '&:hover': { bgcolor: '#f5f5f5' }, height: 30 }}>
       <TableCell sx={{ ...cellStyle, fontWeight: 500, bgcolor: '#fafafa', py: 0.25 }}>{page * rowsPerPage + idx + 1}</TableCell>
-      {columnVisibility.wsn && <TableCell sx={{ ...cellStyle, fontWeight: 600, color: '#1976d2' }}>{row.wsn || '-'}</TableCell>}
+      {columnVisibility.wsn && <TableCell sx={{ ...cellStyle, fontWeight: 600, color: '#1e40af' }}>{row.wsn || '-'}</TableCell>}
       {columnVisibility.wid && <TableCell sx={cellStyle}>{row.wid || '-'}</TableCell>}
       {columnVisibility.fsn && <TableCell sx={cellStyle}>{row.fsn || '-'}</TableCell>}
       {columnVisibility.order_id && <TableCell sx={cellStyle}>{row.order_id || '-'}</TableCell>}
@@ -194,7 +194,7 @@ const ActionsCellRenderer = memo((props: any) => {
         }}
         title="Edit"
       >
-        <EditIcon sx={{ fontSize: 16, color: '#1976d2' }} />
+        <EditIcon sx={{ fontSize: 16, color: '#1e40af' }} />
       </IconButton>
       <IconButton
         size="small"
@@ -446,7 +446,7 @@ export default function MasterDataPage() {
           ...base,
           valueFormatter: (p: any) => p.value || '-',
           cellStyle: {
-            color: '#1976d2',
+            color: '#1e40af',
             fontWeight: 500,
             fontSize: '0.8rem'
           },
@@ -1476,8 +1476,8 @@ export default function MasterDataPage() {
                                 '& .MuiOutlinedInput-root': {
                                   borderRadius: 0.5,
                                   fontSize: '0.8rem',
-                                  '&:hover fieldset': { borderColor: '#1976d2' },
-                                  '&.Mui-focused fieldset': { borderColor: '#1976d2', borderWidth: 2 }
+                                  '&:hover fieldset': { borderColor: '#1e40af' },
+                                  '&.Mui-focused fieldset': { borderColor: '#1e40af', borderWidth: 2 }
                                 }
                               }}
                             />
@@ -1575,7 +1575,7 @@ export default function MasterDataPage() {
                                 height: 34,
                                 fontSize: { md: '0.7rem', lg: '0.8rem' },
                                 px: { md: 1, lg: 1.5 },
-                                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                                background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
                                 '&:hover': { boxShadow: 2 },
                                 whiteSpace: 'nowrap'
                               }}
@@ -1684,10 +1684,10 @@ export default function MasterDataPage() {
                               '& .MuiOutlinedInput-root': {
                                 borderRadius: 0.5,
                                 fontSize: '0.8rem',
-                                '&:hover fieldset': { borderColor: '#1976d2' }
+                                '&:hover fieldset': { borderColor: '#1e40af' }
                               }
                             }}
-                            InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" sx={{ color: '#1976d2' }} /></InputAdornment> }}
+                            InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" sx={{ color: '#1e40af' }} /></InputAdornment> }}
                           />
 
                           {/* Mobile Actions Button */}
@@ -1798,7 +1798,7 @@ export default function MasterDataPage() {
                               height: 36,
                               fontSize: '0.65rem',
                               px: 0.5,
-                              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                              background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
                               display: 'flex',
                               flexDirection: 'column',
                               alignItems: 'center',
@@ -1959,7 +1959,7 @@ export default function MasterDataPage() {
                               size={48}
                               thickness={3.5}
                               sx={{
-                                color: '#1976d2',
+                                color: '#1e40af',
                                 animation: 'pulse 1.5s ease-in-out infinite'
                               }}
                             />
@@ -2440,7 +2440,7 @@ export default function MasterDataPage() {
           // ✅ Prevent closing by clicking outside if uploading
           disableEscapeKeyDown={loading || uploadProgress.show}
         >
-          <DialogTitle fontWeight="bold" sx={{ borderBottom: '2px solid #1976d2', pb: 1.5 }}>
+          <DialogTitle fontWeight="bold" sx={{ borderBottom: '2px solid #1e40af', pb: 1.5 }}>
             📤 Upload Excel File
           </DialogTitle>
 
@@ -2659,7 +2659,7 @@ export default function MasterDataPage() {
               onClick={handleFileUpload}
               disabled={!selectedFile || loading || !!fileValidationError}
               sx={{
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
                 '&:hover': {
                   background: 'linear-gradient(135deg, #5568d3 0%, #63408b 100%)',
                 }

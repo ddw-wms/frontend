@@ -318,11 +318,11 @@ export default function BulkUploadCard({
                         sx={{
                             py: { xs: 1, sm: 1.5 },
                             fontSize: { xs: '0.8rem', sm: '0.875rem' },
-                            borderColor: '#667eea',
-                            color: '#667eea',
+                            borderColor: '#1e40af',
+                            color: '#1e40af',
                             '&:hover': {
-                                borderColor: '#764ba2',
-                                bgcolor: 'rgba(102, 126, 234, 0.04)',
+                                borderColor: '#3b82f6',
+                                bgcolor: 'rgba(30, 64, 175, 0.04)',
                             },
                         }}
                     >
@@ -370,7 +370,7 @@ export default function BulkUploadCard({
                         onDrop={handleDrop}
                         onClick={() => !isUploading && fileInputRef.current?.click()}
                         sx={{
-                            border: `2px dashed ${isDragOver ? '#764ba2' : validationResult?.valid === false ? '#ef4444' : '#667eea'}`,
+                            border: `2px dashed ${isDragOver ? '#3b82f6' : validationResult?.valid === false ? '#ef4444' : '#1e40af'}`,
                             borderRadius: 2,
                             p: { xs: 2, sm: 3, md: 4 },
                             textAlign: 'center',
@@ -379,12 +379,12 @@ export default function BulkUploadCard({
                                 ? 'rgba(118, 75, 162, 0.1)'
                                 : validationResult?.valid === false
                                     ? 'rgba(239, 68, 68, 0.05)'
-                                    : 'rgba(102, 126, 234, 0.03)',
+                                    : 'rgba(30, 64, 175, 0.03)',
                             transition: 'all 0.3s ease',
                             opacity: isUploading ? 0.6 : 1,
                             '&:hover': !isUploading ? {
-                                background: 'rgba(102, 126, 234, 0.08)',
-                                borderColor: '#764ba2',
+                                background: 'rgba(30, 64, 175, 0.08)',
+                                borderColor: '#3b82f6',
                             } : {},
                         }}
                     >
@@ -399,8 +399,8 @@ export default function BulkUploadCard({
 
                         {isValidating ? (
                             <>
-                                <CircularProgress size={40} sx={{ color: '#667eea', mb: 1 }} />
-                                <Typography sx={{ fontWeight: 600, color: '#667eea' }}>Validating file...</Typography>
+                                <CircularProgress size={40} sx={{ color: '#1e40af', mb: 1 }} />
+                                <Typography sx={{ fontWeight: 600, color: '#1e40af' }}>Validating file...</Typography>
                             </>
                         ) : selectedFile ? (
                             <>
@@ -447,7 +447,7 @@ export default function BulkUploadCard({
                             </>
                         ) : (
                             <>
-                                <UploadIcon sx={{ fontSize: { xs: 36, sm: 48 }, color: '#667eea', mb: 1 }} />
+                                <UploadIcon sx={{ fontSize: { xs: 36, sm: 48 }, color: '#1e40af', mb: 1 }} />
                                 <Typography sx={{ fontWeight: 700, fontSize: { xs: '0.85rem', sm: '1rem' } }}>
                                     {isMobile ? 'Tap to select file' : 'Click or drag file here'}
                                 </Typography>
@@ -494,9 +494,9 @@ export default function BulkUploadCard({
                                 fontWeight: 700,
                                 background: (!selectedFile || !validationResult?.valid || isUploading)
                                     ? '#9ca3af'
-                                    : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                                    : 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
                                 '&:hover': {
-                                    background: 'linear-gradient(135deg, #764ba2 0%, #667eea 100%)',
+                                    background: 'linear-gradient(135deg, #3b82f6 0%, #1e40af 100%)',
                                 },
                                 '&.Mui-disabled': {
                                     background: '#d1d5db',
@@ -770,7 +770,7 @@ export default function BulkUploadCard({
                         variant="contained"
                         onClick={handleConfirmDownload}
                         sx={{
-                            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                            background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
                             fontSize: { xs: '0.8rem', sm: '0.875rem' },
                         }}
                     >

@@ -411,7 +411,7 @@ export default function DashboardPage() {
             setSelectedItem(p.data);
             setDetailsDialogOpen(true);
           }}
-          sx={{ color: "#667eea", p: 0.5 }}
+          sx={{ color: "#1e40af", p: 0.5 }}
         >
           <FilterIcon fontSize="small" />
         </IconButton>
@@ -1162,18 +1162,19 @@ export default function DashboardPage() {
           sx={{
             display: "grid",
             gridTemplateColumns: {
-              xs: "repeat(6, 1fr)",
+              xs: "repeat(3, 1fr)",
+              sm: "repeat(6, 1fr)",
               md: "repeat(6, 1fr)",
             },
-            gap: { xs: 0.5, md: 2 },
-            p: { xs: 0.3, md: 1 },
+            gap: { xs: 1, sm: 1.5, md: 2 },
+            p: { xs: 1.5, sm: 2, md: 2 },
             overflowX: "visible",
           }}
         >
 
           {[
-            { label: "Master Data", value: metrics.total, color: "#222367", icon: <DashboardRounded /> },
-            { label: "Available", value: inventorySummary.available_stock, color: "#636711", icon: <InventoryRounded /> },
+            { label: "Master Data", value: metrics.total, color: "#1e40af", icon: <DashboardRounded /> },
+            { label: "Available", value: inventorySummary.available_stock, color: "#059669", icon: <InventoryRounded /> },
             { label: "Inbounded", value: metrics.inbound, color: "#3b82f6", icon: <LoginRounded /> },
             { label: "Processed", value: (metrics.qcPassed || 0) + (metrics.qcDone || 0), color: "#10b981", icon: <CheckCircleRounded /> },
             { label: "Picked", value: metrics.pickingCompleted, color: "#f59e0b", icon: <LocalShippingRounded /> },
@@ -1182,23 +1183,38 @@ export default function DashboardPage() {
 
             <Card
               key={index}
+              elevation={0}
               sx={{
-                p: { xs: 0.25, md: 1.2 },
-                height: { xs: 44, md: 80 },
+                p: { xs: 1.25, sm: 1.5, md: 2 },
+                height: { xs: 72, sm: 80, md: 100 },
                 width: "100%",
                 textAlign: "center",
                 display: "flex",
                 flexDirection: "column",
                 justifyContent: "center",
-                borderRadius: 2,
-                background: `linear-gradient(135deg, ${m.color}15, ${m.color}35)`,
-                border: `2px solid ${m.color}`,
-                boxShadow: { xs: "0 1px 3px rgba(0,0,0,0.05)", md: "0 2px 6px rgba(0,0,0,0.08)" },
-                transition: "all 0.2s ease",
+                alignItems: "center",
+                borderRadius: { xs: 2, md: 3 },
+                background: `linear-gradient(135deg, ${m.color}08, ${m.color}15)`,
+                border: `1px solid ${m.color}25`,
+                boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+                transition: "all 0.25s ease",
+                position: "relative",
+                overflow: "hidden",
+                "&::before": {
+                  content: '""',
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  height: "3px",
+                  background: m.color,
+                  borderRadius: "3px 3px 0 0",
+                },
                 "&:hover": {
-                  transform: { xs: "none", md: "translateY(-2px)" },
-                  boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-                  borderColor: m.color,
+                  transform: { xs: "none", md: "translateY(-3px)" },
+                  boxShadow: { xs: "0 1px 3px rgba(0,0,0,0.04)", md: `0 8px 20px ${m.color}20` },
+                  border: { xs: `1px solid ${m.color}25`, md: `1px solid ${m.color}40` },
+                  border: { xs: `1px solid ${m.color}25`, md: `1px solid ${m.color}40` },
                 },
               }}
             >
@@ -1207,10 +1223,11 @@ export default function DashboardPage() {
                 sx={{
                   display: "flex",
                   justifyContent: "center",
-                  mb: 0.05,
+                  mb: { xs: 0.5, md: 0.75 },
                   "& svg": {
-                    fontSize: { xs: "0.7rem", md: "1.4rem" },
+                    fontSize: { xs: "1.1rem", sm: "1.25rem", md: "1.5rem" },
                     color: m.color,
+                    opacity: 0.9,
                   },
                 }}
               >
@@ -1221,21 +1238,24 @@ export default function DashboardPage() {
               <Typography
                 sx={{
                   fontWeight: 700,
-                  fontSize: { xs: "0.75rem", md: "1.4rem" },
+                  fontSize: { xs: "1.1rem", sm: "1.25rem", md: "1.75rem" },
                   lineHeight: 1,
                   color: m.color,
+                  letterSpacing: "-0.02em",
                 }}
               >
-                {m.value}
+                {m.value.toLocaleString()}
               </Typography>
 
               {/* LABEL */}
               <Typography
                 sx={{
-                  fontSize: { xs: "0.5rem", md: "0.75rem" },
-                  mt: 0.05,
+                  fontSize: { xs: "0.65rem", sm: "0.7rem", md: "0.8rem" },
+                  mt: { xs: 0.25, md: 0.5 },
                   fontWeight: 600,
-                  color: "#666",
+                  color: "#64748b",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.03em",
                 }}
               >
                 {m.label}
@@ -1249,12 +1269,13 @@ export default function DashboardPage() {
         <Box
           sx={{
             background: "white",
-            px: { xs: 1, md: 2 },
-            py: { xs: 1, md: 1.5 },
+            px: { xs: 1.5, sm: 2, md: 2 },
+            py: { xs: 1.25, sm: 1.5, md: 2 },
             display: "flex",
             flexDirection: "column",
-            gap: { xs: 0.75, md: 1 },
+            gap: { xs: 1, md: 1.5 },
             flexShrink: 0,
+            borderBottom: "1px solid rgba(0,0,0,0.06)",
           }}
         >
           {/* TOP ROW: Search + Dates (desktop) + Filters toggle (mobile) */}
@@ -1262,7 +1283,7 @@ export default function DashboardPage() {
             sx={{
               display: "flex",
               flexDirection: { xs: "row", md: "row" },
-              gap: { xs: 0.5, md: 1 },
+              gap: { xs: 0.75, md: 1.5 },
               alignItems: "center",
             }}
           >
@@ -1270,14 +1291,34 @@ export default function DashboardPage() {
             <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', width: '100%' }}>
               <TextField
                 size="small"
-                placeholder="Search WSN or Product"
+                placeholder="🔍 Search WSN or Product"
                 value={searchWSN}
                 onChange={(e) => {
                   setSearchWSN(e.target.value);
                   setPage(1);
                 }}
                 fullWidth
-                sx={{ "& .MuiOutlinedInput-root": { height: 40 } }}
+                sx={{
+                  "& .MuiOutlinedInput-root": {
+                    height: { xs: 44, sm: 42 },
+                    bgcolor: "#f8fafc",
+                    borderRadius: 2.5,
+                    transition: "all 0.2s ease",
+                    "&:hover": {
+                      bgcolor: "#f1f5f9",
+                    },
+                    "&.Mui-focused": {
+                      bgcolor: "white",
+                      "& .MuiOutlinedInput-notchedOutline": {
+                        borderColor: "primary.main",
+                        borderWidth: 2,
+                      },
+                    },
+                  },
+                  "& .MuiOutlinedInput-notchedOutline": {
+                    borderColor: "rgba(0,0,0,0.08)",
+                  },
+                }}
               />
 
               {/* Mobile Actions button: opens a full-screen dialog with filters + actions */}
@@ -1287,7 +1328,13 @@ export default function DashboardPage() {
                 startIcon={<TuneIcon />}
                 sx={{
                   display: { xs: 'inline-flex', md: 'none' },
-                  size: 'small', height: 40, px: 2.5, textTransform: 'none'
+                  height: 44,
+                  px: 2,
+                  textTransform: 'none',
+                  fontWeight: 600,
+                  borderRadius: 2.5,
+                  boxShadow: "0 2px 8px rgba(30,64,175,0.25)",
+                  whiteSpace: "nowrap",
                 }}
                 onClick={() => setMobileActionsOpen(true)}
               >
@@ -1313,7 +1360,16 @@ export default function DashboardPage() {
                   setDateFrom(e.target.value);
                   setPage(1);
                 }}
-                sx={{ "& .MuiOutlinedInput-root": { height: 40, fontSize: "0.875rem" } }}
+                sx={{
+                  "& .MuiOutlinedInput-root": {
+                    height: 42,
+                    fontSize: "0.875rem",
+                    bgcolor: "#f8fafc",
+                    borderRadius: 2,
+                    "&:hover": { bgcolor: "#f1f5f9" },
+                    "&.Mui-focused": { bgcolor: "white" },
+                  }
+                }}
               />
               <TextField
                 label="To Date"
@@ -1326,57 +1382,72 @@ export default function DashboardPage() {
                   setDateTo(e.target.value);
                   setPage(1);
                 }}
-                sx={{ "& .MuiOutlinedInput-root": { height: 40, fontSize: "0.875rem" } }}
+                sx={{
+                  "& .MuiOutlinedInput-root": {
+                    height: 42,
+                    fontSize: "0.875rem",
+                    bgcolor: "#f8fafc",
+                    borderRadius: 2,
+                    "&:hover": { bgcolor: "#f1f5f9" },
+                    "&.Mui-focused": { bgcolor: "white" },
+                  }
+                }}
               />
             </Box>
 
             {/* Filters toggle (desktop only) */}
             <Button
-              variant="outlined"
+              variant={filtersOpen ? "contained" : "outlined"}
               size="small"
               onClick={toggleFilters}
               sx={{
                 display: { xs: 'none', md: 'inline-flex' },
-                height: 40,
-                minWidth: 120,
-                fontSize: "0.60rem",
+                height: 42,
+                minWidth: 130,
+                fontSize: "0.75rem",
                 fontWeight: 600,
                 ml: 0.5,
                 whiteSpace: "nowrap",
                 justifyContent: "space-between",
-                px: 1,
+                px: 2,
+                borderRadius: 2.5,
+                position: "relative",
+                ...(filtersOpen ? {
+                  background: "linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%)",
+                } : {
+                  borderWidth: 1.5,
+                  "&:hover": { borderWidth: 1.5 },
+                }),
               }}
             >
               <FilterIcon sx={{
-                fontSize: { xs: '1.1rem', sm: '1.15rem' },
-                mr: { xs: 0, sm: 0.4 }
+                fontSize: '1.1rem',
+                mr: 0.75,
               }} />
 
-              <Box component="span" sx={{ mr: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Box component="span">{filtersOpen ? "Hide Filters" : "Show Filters"}</Box>
-                {filtersActive && (
+              <Box component="span" sx={{ mr: 0.5, display: 'flex', alignItems: 'center' }}>
+                <Box component="span">{filtersOpen ? "Hide" : "Filters"}</Box>
+                {filtersActive && !filtersOpen && (
                   <Tooltip title="Filters active">
                     <Box sx={{
                       position: 'absolute',
-                      top: -5,
-                      right: -5,
-                      width: 14,
-                      height: 14,
+                      top: -4,
+                      right: -4,
+                      width: 12,
+                      height: 12,
                       borderRadius: '50%',
                       bgcolor: '#10b981',
                       border: '2px solid white',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center'
-                    }}>
-                      <Typography sx={{ fontSize: '0.5rem', fontWeight: 800, color: 'white' }}>
-                        ●
-                      </Typography>
-                    </Box>
+                      boxShadow: "0 2px 4px rgba(16,185,129,0.3)",
+                    }} />
                   </Tooltip>
                 )}
               </Box>
-              <ExpandMoreIcon sx={{ transform: filtersOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 200ms" }} />
+              <ExpandMoreIcon sx={{
+                transform: filtersOpen ? "rotate(180deg)" : "rotate(0deg)",
+                transition: "transform 200ms",
+                fontSize: "1.1rem",
+              }} />
             </Button>
           </Box>
 
@@ -1434,7 +1505,7 @@ export default function DashboardPage() {
                           }
                           setPage(1);
                         }}
-                        sx={{ color: '#1976d2', '&.Mui-checked': { color: '#1976d2' } }}
+                        sx={{ color: '#1e40af', '&.Mui-checked': { color: '#1e40af' } }}
                       />
                     }
                     label={<Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: '#424242' }}>Available</Typography>}
@@ -1670,9 +1741,9 @@ export default function DashboardPage() {
                             setPage(1);
                           }}
                           sx={{
-                            color: "#1976d2",
+                            color: "#1e40af",
                             '&.Mui-checked': {
-                              color: "#1976d2",
+                              color: "#1e40af",
                             },
                             transform: { xs: 'scale(0.9)', md: 'scale(1)' },
                             mr: { xs: 0.4, md: 0.8 }
@@ -1726,7 +1797,7 @@ export default function DashboardPage() {
                   right: 0,
                   bottom: 0,
                   backgroundColor: 'rgba(255, 255, 255, 0.9)',
-                  backdropFilter: 'blur(3px)',
+                  backdropFilter: 'blur(4px)',
                   zIndex: 5,
                   display: 'flex',
                   alignItems: 'center',
@@ -1736,19 +1807,19 @@ export default function DashboardPage() {
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'center',
-                    gap: 3,
-                    p: 4,
+                    gap: 2.5,
+                    p: { xs: 3, md: 4 },
                     bgcolor: 'white',
                     borderRadius: 3,
-                    boxShadow: '0 8px 24px rgba(0,0,0,0.12)'
+                    boxShadow: '0 8px 32px rgba(0,0,0,0.1)'
                   }}>
                     <Box sx={{ position: 'relative' }}>
                       <CircularProgress
-                        size={56}
-                        thickness={3.5}
+                        size={52}
+                        thickness={4}
                         sx={{
-                          color: '#1976d2',
-                          filter: 'drop-shadow(0 2px 8px rgba(25, 118, 210, 0.2))'
+                          color: '#1e40af',
+                          filter: 'drop-shadow(0 2px 8px rgba(30, 64, 175, 0.2))'
                         }}
                       />
                       <Box sx={{
@@ -1756,30 +1827,30 @@ export default function DashboardPage() {
                         top: '50%',
                         left: '50%',
                         transform: 'translate(-50%, -50%)',
-                        width: 44,
-                        height: 44,
+                        width: 40,
+                        height: 40,
                         borderRadius: '50%',
-                        background: 'linear-gradient(135deg, #1976d2 0%, #42a5f5 100%)',
-                        opacity: 0.15,
+                        background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
+                        opacity: 0.12,
                         animation: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
                         '@keyframes pulse': {
                           '0%, 100%': {
                             transform: 'translate(-50%, -50%) scale(1)',
-                            opacity: 0.15
+                            opacity: 0.12
                           },
                           '50%': {
-                            transform: 'translate(-50%, -50%) scale(1.15)',
-                            opacity: 0.05
+                            transform: 'translate(-50%, -50%) scale(1.2)',
+                            opacity: 0.04
                           }
                         }
                       }} />
                     </Box>
                     <Typography
                       sx={{
-                        fontSize: '0.95rem',
+                        fontSize: '0.9rem',
                         fontWeight: 500,
-                        color: '#546e7a',
-                        letterSpacing: 0.3,
+                        color: '#64748b',
+                        letterSpacing: 0.2,
                         textAlign: 'center'
                       }}
                     >
@@ -1797,7 +1868,8 @@ export default function DashboardPage() {
                   left: 0,
                   right: 0,
                   bottom: 0,
-                  backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                  backgroundColor: 'rgba(255, 255, 255, 0.97)',
+                  backdropFilter: 'blur(4px)',
                   zIndex: 5,
                   display: 'flex',
                   alignItems: 'center',
@@ -1805,7 +1877,7 @@ export default function DashboardPage() {
                 }}>
                   <Box
                     sx={{
-                      p: 5,
+                      p: { xs: 3, md: 5 },
                       textAlign: 'center',
                       display: 'flex',
                       alignItems: 'center',
@@ -1815,17 +1887,17 @@ export default function DashboardPage() {
                   >
                     <Box
                       sx={{
-                        p: 5,
-                        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                        p: { xs: 3, md: 5 },
+                        background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
                         borderRadius: 4,
                         color: 'white',
-                        boxShadow: '0 20px 60px rgba(102, 126, 234, 0.4)',
+                        boxShadow: '0 20px 60px rgba(30, 64, 175, 0.35)',
                       }}
                     >
-                      <Typography variant="h5" sx={{ fontWeight: 700, mb: 1 }}>
+                      <Typography variant="h5" sx={{ fontWeight: 700, mb: 1, fontSize: { xs: '1.1rem', md: '1.5rem' } }}>
                         No active warehouse selected
                       </Typography>
-                      <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                      <Typography variant="body2" sx={{ opacity: 0.9, fontSize: { xs: '0.8rem', md: '0.875rem' } }}>
                         Please go to Settings &gt; Warehouses to set one
                       </Typography>
                     </Box>
@@ -1840,7 +1912,8 @@ export default function DashboardPage() {
                   left: 0,
                   right: 0,
                   bottom: 0,
-                  backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                  backgroundColor: 'rgba(255, 255, 255, 0.97)',
+                  backdropFilter: 'blur(4px)',
                   zIndex: 5,
                   display: 'flex',
                   alignItems: 'center',
@@ -1848,23 +1921,23 @@ export default function DashboardPage() {
                 }}>
                   <Box sx={{
                     textAlign: 'center',
-                    p: 4,
+                    p: { xs: 3, md: 4 },
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'center',
-                    gap: 2
+                    gap: 1.5
                   }}>
                     <Box sx={{
-                      fontSize: '4rem',
-                      opacity: 0.3,
-                      mb: 1
+                      fontSize: { xs: '3rem', md: '4rem' },
+                      opacity: 0.25,
+                      mb: 0.5
                     }}>
                       📭
                     </Box>
-                    <Typography variant="h5" sx={{ fontWeight: 600, color: '#6b7280', mb: 0.5 }}>
+                    <Typography variant="h5" sx={{ fontWeight: 600, color: '#475569', mb: 0.5, fontSize: { xs: '1.1rem', md: '1.5rem' } }}>
                       No Data Found
                     </Typography>
-                    <Typography variant="body2" sx={{ color: '#9ca3af', maxWidth: 400 }}>
+                    <Typography variant="body2" sx={{ color: '#94a3b8', maxWidth: 400, fontSize: { xs: '0.8rem', md: '0.875rem' } }}>
                       No items match your current filters. Try adjusting your search criteria or reset filters to see all items.
                     </Typography>
                   </Box>
@@ -1879,12 +1952,13 @@ export default function DashboardPage() {
                 flexDirection: 'column',
                 '& .ag-root-wrapper': {
                   height: '100%',
-                  borderRadius: '4px',
-                  overflow: 'hidden'
+                  borderRadius: { xs: 0, md: '12px' },
+                  overflow: 'hidden',
+                  border: { xs: 'none', md: '1px solid rgba(0,0,0,0.06)' },
                 },
                 '& .ag-header': {
-                  backgroundColor: '#f8f9fa',
-                  borderBottom: '2px solid #e9ecef',
+                  backgroundColor: '#f8fafc',
+                  borderBottom: '1px solid rgba(0,0,0,0.08)',
                   fontWeight: 600,
                   opacity: '1 !important',
                   zIndex: 15,
@@ -1892,38 +1966,41 @@ export default function DashboardPage() {
                 },
                 '& .ag-header-cell': {
                   padding: '0 12px',
-                  opacity: '1 !important'
+                  opacity: '1 !important',
+                  fontWeight: 600,
+                  letterSpacing: '0.01em',
                 },
                 '& .ag-body-viewport': {
                   opacity: loading ? 0.3 : 1,
                   transition: 'opacity 0.2s ease-in-out'
                 },
                 '& .ag-row': {
-                  height: 26,
+                  height: { xs: 40, md: 26 },
                   overflow: 'visible',
-                  transition: 'background-color 0.15s ease'
+                  transition: 'background-color 0.15s ease',
+                  borderBottom: '1px solid rgba(0,0,0,0.04)',
                 },
                 '& .ag-row-even': {
                   backgroundColor: '#ffffff',
                 },
                 '& .ag-row-odd': {
-                  backgroundColor: '#fafbfc',
+                  backgroundColor: 'rgba(248,250,252,0.5)',
                 },
                 '& .ag-cell': {
                   display: 'flex',
                   alignItems: 'center',
-                  lineHeight: '26px',
+                  lineHeight: { xs: '40px', md: '26px' },
                 },
                 '& .ag-cell-focus': {
-                  border: '2px solid #1976d2 !important',
+                  border: '2px solid #1e40af !important',
                   boxSizing: 'border-box',
                   outline: 'none'
                 },
                 '& .ag-cell-range-selected': {
-                  backgroundColor: '#e3f2fd !important',
+                  backgroundColor: 'rgba(30,64,175,0.08) !important',
                 },
                 '& .ag-row-hover': {
-                  backgroundColor: '#f0f7ff !important',
+                  backgroundColor: 'rgba(30,64,175,0.04) !important',
                   transition: 'background-color 0.1s ease'
                 },
               }}>

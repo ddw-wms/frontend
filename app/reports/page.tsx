@@ -29,7 +29,7 @@ import {
 import dayjs from 'dayjs';
 import api from '@/lib/api';
 
-const COLORS = ['#667eea', '#f093fb', '#4facfe', '#43e97b', '#fa709a'];
+const COLORS = ['#1e40af', '#f093fb', '#4facfe', '#43e97b', '#fa709a'];
 
 export default function ReportsPage() {
 
@@ -141,7 +141,7 @@ export default function ReportsPage() {
                     gap: { xs: 1, md: 1.5 },
                     mb: { xs: 2, md: 2.5 }
                 }}>
-                    <Card sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white' }}>
+                    <Card sx={{ background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)', color: 'white' }}>
                         <CardContent sx={{ p: { xs: 1, md: 1.5 }, '&:last-child': { pb: { xs: 1, md: 1.5 } } }}>
                             <Typography variant="caption" sx={{ opacity: 0.9, fontSize: { xs: '0.65rem', md: '0.75rem' }, display: 'block', mb: 0.5 }}>
                                 Inbound (7 Days)
@@ -238,7 +238,7 @@ export default function ReportsPage() {
                             labelFormatter={(date) => dayjs(date).format('MMM DD, YYYY')}
                         />
                         <Legend wrapperStyle={{ fontSize: isMobile ? '11px' : '14px' }} />
-                        <Line type="monotone" dataKey="inbound" stroke="#667eea" strokeWidth={isMobile ? 1.5 : 2} name="Inbound" />
+                        <Line type="monotone" dataKey="inbound" stroke="#1e40af" strokeWidth={isMobile ? 1.5 : 2} name="Inbound" />
                         <Line type="monotone" dataKey="qc" stroke="#f093fb" strokeWidth={isMobile ? 1.5 : 2} name="QC" />
                         <Line type="monotone" dataKey="picking" stroke="#4facfe" strokeWidth={isMobile ? 1.5 : 2} name="Picking" />
                         <Line type="monotone" dataKey="outbound" stroke="#43e97b" strokeWidth={isMobile ? 1.5 : 2} name="Outbound" />
@@ -319,7 +319,7 @@ export default function ReportsPage() {
                         <YAxis fontSize={isMobile ? 10 : 12} />
                         <Tooltip />
                         <Legend wrapperStyle={{ fontSize: isMobile ? '10px' : '12px' }} />
-                        <Bar dataKey="inbound" fill="#667eea" name="Inbound" />
+                        <Bar dataKey="inbound" fill="#1e40af" name="Inbound" />
                         <Bar dataKey="qc" fill="#f093fb" name="QC" />
                         <Bar dataKey="picking" fill="#4facfe" name="Picking" />
                     </BarChart>

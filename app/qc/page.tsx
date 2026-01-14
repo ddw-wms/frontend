@@ -1504,7 +1504,7 @@ export default function QCPage() {
           value={tabValue}
           onChange={(event, newValue) => setTabValue(newValue)}
           tabs={visibleTabs}
-          color="#667eea"
+          color="#1e40af"
         />
 
         {/* ==================== MAIN CONTENT AREA ==================== */}
@@ -1567,8 +1567,8 @@ export default function QCPage() {
                           boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
                         },
                         '&.Mui-focused': {
-                          borderColor: '#667eea',
-                          boxShadow: '0 4px 16px rgba(102, 126, 234, 0.2)'
+                          borderColor: '#1e40af',
+                          boxShadow: '0 4px 16px rgba(30, 64, 175, 0.2)'
                         },
                         '& fieldset': {
                           border: 'none'
@@ -1588,9 +1588,9 @@ export default function QCPage() {
                         minWidth: { xs: 42, sm: 115 },
                         height: 38,
                         borderWidth: 2,
-                        borderColor: filtersExpanded ? '#667eea' : '#cbd5e1',
-                        bgcolor: filtersExpanded ? 'rgba(102, 126, 234, 0.1)' : 'white',
-                        color: filtersExpanded ? '#667eea' : '#64748b',
+                        borderColor: filtersExpanded ? '#1e40af' : '#cbd5e1',
+                        bgcolor: filtersExpanded ? 'rgba(30, 64, 175, 0.1)' : 'white',
+                        color: filtersExpanded ? '#1e40af' : '#64748b',
                         fontWeight: 700,
                         fontSize: { xs: '0.7rem', sm: '0.78rem' },
                         borderRadius: 1.5,
@@ -1599,9 +1599,9 @@ export default function QCPage() {
                         px: { xs: 1, sm: 1.5 },
                         '&:hover': {
                           borderWidth: 2,
-                          borderColor: '#667eea',
-                          bgcolor: 'rgba(102, 126, 234, 0.15)',
-                          boxShadow: '0 4px 12px rgba(102, 126, 234, 0.2)'
+                          borderColor: '#1e40af',
+                          bgcolor: 'rgba(30, 64, 175, 0.15)',
+                          boxShadow: '0 4px 12px rgba(30, 64, 175, 0.2)'
                         },
                         position: 'relative'
                       }}
@@ -1655,8 +1655,8 @@ export default function QCPage() {
                         boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
                         '&:hover': {
                           borderWidth: 2,
-                          borderColor: '#667eea',
-                          bgcolor: 'rgba(102, 126, 234, 0.08)'
+                          borderColor: '#1e40af',
+                          bgcolor: 'rgba(30, 64, 175, 0.08)'
                         },
                         position: 'relative'
                       }}
@@ -1721,8 +1721,8 @@ export default function QCPage() {
                                 height: 36,
                                 fontSize: '0.8rem',
                                 bgcolor: 'white',
-                                '&:hover fieldset': { borderColor: '#667eea' },
-                                '&.Mui-focused fieldset': { borderColor: '#667eea' }
+                                '&:hover fieldset': { borderColor: '#1e40af' },
+                                '&.Mui-focused fieldset': { borderColor: '#1e40af' }
                               },
                               '& .MuiInputLabel-root': {
                                 fontSize: '0.75rem'
@@ -1741,8 +1741,8 @@ export default function QCPage() {
                                 height: 36,
                                 fontSize: '0.8rem',
                                 bgcolor: 'white',
-                                '&:hover fieldset': { borderColor: '#667eea' },
-                                '&.Mui-focused fieldset': { borderColor: '#667eea' }
+                                '&:hover fieldset': { borderColor: '#1e40af' },
+                                '&.Mui-focused fieldset': { borderColor: '#1e40af' }
                               },
                               '& .MuiInputLabel-root': {
                                 fontSize: '0.75rem'
@@ -1759,8 +1759,8 @@ export default function QCPage() {
                                 height: 36,
                                 fontSize: '0.8rem',
                                 bgcolor: 'white',
-                                '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#667eea' },
-                                '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#667eea' }
+                                '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#1e40af' },
+                                '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#1e40af' }
                               }}
                             >
                               <MenuItem value="">All Status</MenuItem>
@@ -1777,8 +1777,8 @@ export default function QCPage() {
                                 height: 36,
                                 fontSize: '0.8rem',
                                 bgcolor: 'white',
-                                '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#667eea' },
-                                '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#667eea' }
+                                '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#1e40af' },
+                                '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#1e40af' }
                               }}
                             >
                               <MenuItem value="">All Grades</MenuItem>
@@ -1795,8 +1795,8 @@ export default function QCPage() {
                                 height: 36,
                                 fontSize: '0.8rem',
                                 bgcolor: 'white',
-                                '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#667eea' },
-                                '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#667eea' }
+                                '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#1e40af' },
+                                '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#1e40af' }
                               }}
                             >
                               <MenuItem value="">All Brands</MenuItem>
@@ -1813,8 +1813,8 @@ export default function QCPage() {
                                 height: 36,
                                 fontSize: '0.8rem',
                                 bgcolor: 'white',
-                                '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#667eea' },
-                                '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#667eea' }
+                                '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#1e40af' },
+                                '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#1e40af' }
                               }}
                             >
                               <MenuItem value="">All Categories</MenuItem>
@@ -1871,11 +1871,11 @@ export default function QCPage() {
                                 fontSize: '0.72rem',
                                 fontWeight: 700,
                                 borderWidth: 2,
-                                borderColor: '#667eea',
-                                color: '#667eea',
+                                borderColor: '#1e40af',
+                                color: '#1e40af',
                                 '&:hover': {
                                   borderWidth: 2,
-                                  bgcolor: 'rgba(102, 126, 234, 0.1)'
+                                  bgcolor: 'rgba(30, 64, 175, 0.1)'
                                 }
                               }}
                             >
@@ -1996,8 +1996,8 @@ export default function QCPage() {
                                 height: 36,
                                 fontSize: '0.8rem',
                                 bgcolor: 'white',
-                                '&:hover fieldset': { borderColor: '#667eea' },
-                                '&.Mui-focused fieldset': { borderColor: '#667eea' }
+                                '&:hover fieldset': { borderColor: '#1e40af' },
+                                '&.Mui-focused fieldset': { borderColor: '#1e40af' }
                               },
                               '& .MuiInputLabel-root': {
                                 fontSize: '0.75rem'
@@ -2016,8 +2016,8 @@ export default function QCPage() {
                                 height: 36,
                                 fontSize: '0.8rem',
                                 bgcolor: 'white',
-                                '&:hover fieldset': { borderColor: '#667eea' },
-                                '&.Mui-focused fieldset': { borderColor: '#667eea' }
+                                '&:hover fieldset': { borderColor: '#1e40af' },
+                                '&.Mui-focused fieldset': { borderColor: '#1e40af' }
                               },
                               '& .MuiInputLabel-root': {
                                 fontSize: '0.75rem'
@@ -2034,8 +2034,8 @@ export default function QCPage() {
                                 height: 36,
                                 fontSize: '0.8rem',
                                 bgcolor: 'white',
-                                '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#667eea' },
-                                '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#667eea' }
+                                '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#1e40af' },
+                                '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#1e40af' }
                               }}
                             >
                               <MenuItem value="">All Status</MenuItem>
@@ -2052,8 +2052,8 @@ export default function QCPage() {
                                 height: 36,
                                 fontSize: '0.8rem',
                                 bgcolor: 'white',
-                                '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#667eea' },
-                                '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#667eea' }
+                                '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#1e40af' },
+                                '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#1e40af' }
                               }}
                             >
                               <MenuItem value="">All Grades</MenuItem>
@@ -2070,8 +2070,8 @@ export default function QCPage() {
                                 height: 36,
                                 fontSize: '0.8rem',
                                 bgcolor: 'white',
-                                '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#667eea' },
-                                '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#667eea' }
+                                '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#1e40af' },
+                                '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#1e40af' }
                               }}
                             >
                               <MenuItem value="">All Brands</MenuItem>
@@ -2088,8 +2088,8 @@ export default function QCPage() {
                                 height: 36,
                                 fontSize: '0.8rem',
                                 bgcolor: 'white',
-                                '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#667eea' },
-                                '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#667eea' }
+                                '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#1e40af' },
+                                '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#1e40af' }
                               }}
                             >
                               <MenuItem value="">All Categories</MenuItem>
@@ -2144,11 +2144,11 @@ export default function QCPage() {
                               fontSize: '0.72rem',
                               fontWeight: 700,
                               borderWidth: 2,
-                              borderColor: '#667eea',
-                              color: '#667eea',
+                              borderColor: '#1e40af',
+                              color: '#1e40af',
                               '&:hover': {
                                 borderWidth: 2,
-                                bgcolor: 'rgba(102, 126, 234, 0.1)'
+                                bgcolor: 'rgba(30, 64, 175, 0.1)'
                               }
                             }}
                           >
@@ -2276,7 +2276,7 @@ export default function QCPage() {
                           size={56}
                           thickness={3.5}
                           sx={{
-                            color: '#1976d2',
+                            color: '#1e40af',
                             filter: 'drop-shadow(0 2px 8px rgba(25, 118, 210, 0.2))'
                           }}
                         />
@@ -2288,7 +2288,7 @@ export default function QCPage() {
                           width: 44,
                           height: 44,
                           borderRadius: '50%',
-                          background: 'linear-gradient(135deg, #1976d2 0%, #42a5f5 100%)',
+                          background: 'linear-gradient(135deg, #1e40af 0%, #60a5fa 100%)',
                           opacity: 0.15,
                           animation: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
                           '@keyframes pulse': {
@@ -2484,12 +2484,12 @@ export default function QCPage() {
                       minWidth: { xs: 40, sm: 65 },
                       height: { xs: 26, sm: 30 },
                       borderWidth: 2,
-                      borderColor: '#667eea',
-                      color: '#667eea',
+                      borderColor: '#1e40af',
+                      color: '#1e40af',
                       px: { xs: 0.25, sm: 1 },
                       '&:hover': {
                         borderWidth: 2,
-                        bgcolor: 'rgba(102, 126, 234, 0.1)'
+                        bgcolor: 'rgba(30, 64, 175, 0.1)'
                       },
                       '&.Mui-disabled': {
                         borderWidth: 2,
@@ -2504,15 +2504,15 @@ export default function QCPage() {
                   <Box sx={{
                     px: { xs: 1, sm: 1.5 },
                     py: { xs: 0.25, sm: 0.4 },
-                    border: '2px solid #667eea',
+                    border: '2px solid #1e40af',
                     borderRadius: 1,
-                    background: 'linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%)',
+                    background: 'linear-gradient(135deg, rgba(30, 64, 175, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%)',
                     minWidth: { xs: 50, sm: 60 },
                     textAlign: 'center'
                   }}>
                     <Typography sx={{
                       fontWeight: 800,
-                      color: '#667eea',
+                      color: '#1e40af',
                       fontSize: { xs: '0.68rem', sm: '0.75rem' },
                       lineHeight: 1.1
                     }}>
@@ -2531,12 +2531,12 @@ export default function QCPage() {
                       minWidth: { xs: 40, sm: 65 },
                       height: { xs: 26, sm: 30 },
                       borderWidth: 2,
-                      borderColor: '#667eea',
-                      color: '#667eea',
+                      borderColor: '#1e40af',
+                      color: '#1e40af',
                       px: { xs: 0.25, sm: 1 },
                       '&:hover': {
                         borderWidth: 2,
-                        bgcolor: 'rgba(102, 126, 234, 0.1)'
+                        bgcolor: 'rgba(30, 64, 175, 0.1)'
                       },
                       '&.Mui-disabled': {
                         borderWidth: 2,
@@ -2675,7 +2675,7 @@ export default function QCPage() {
               <Box sx={{ flex: 1 }} />
 
               <Button onClick={() => setGridSettingsOpen(false)} sx={{ fontWeight: 700 }}>Close</Button>
-              <Button onClick={() => setGridSettingsOpen(false)} variant="contained" sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: '#fff' }}>Done</Button>
+              <Button onClick={() => setGridSettingsOpen(false)} variant="contained" sx={{ background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)', color: '#fff' }}>Done</Button>
             </DialogActions>
           </Dialog>
 
@@ -2756,8 +2756,8 @@ export default function QCPage() {
                               height: 40,
                               fontSize: '0.85rem',
                               bgcolor: 'white',
-                              '&:hover fieldset': { borderColor: '#667eea' },
-                              '&.Mui-focused fieldset': { borderColor: '#667eea' }
+                              '&:hover fieldset': { borderColor: '#1e40af' },
+                              '&.Mui-focused fieldset': { borderColor: '#1e40af' }
                             },
                             '& .MuiInputLabel-root': {
                               fontSize: '0.8rem',
@@ -2777,8 +2777,8 @@ export default function QCPage() {
                               height: 40,
                               fontSize: '0.85rem',
                               bgcolor: 'white',
-                              '&:hover fieldset': { borderColor: '#667eea' },
-                              '&.Mui-focused fieldset': { borderColor: '#667eea' }
+                              '&:hover fieldset': { borderColor: '#1e40af' },
+                              '&.Mui-focused fieldset': { borderColor: '#1e40af' }
                             },
                             '& .MuiInputLabel-root': {
                               fontSize: '0.8rem',
@@ -2800,8 +2800,8 @@ export default function QCPage() {
                               height: 40,
                               fontSize: '0.85rem',
                               bgcolor: 'white',
-                              '&:hover fieldset': { borderColor: '#667eea' },
-                              '&.Mui-focused fieldset': { borderColor: '#667eea' }
+                              '&:hover fieldset': { borderColor: '#1e40af' },
+                              '&.Mui-focused fieldset': { borderColor: '#1e40af' }
                             },
                             '& .MuiInputLabel-root': {
                               fontSize: '0.8rem',
@@ -2821,8 +2821,8 @@ export default function QCPage() {
                               height: 40,
                               fontSize: '0.85rem',
                               bgcolor: 'white',
-                              '&:hover fieldset': { borderColor: '#667eea' },
-                              '&.Mui-focused fieldset': { borderColor: '#667eea' }
+                              '&:hover fieldset': { borderColor: '#1e40af' },
+                              '&.Mui-focused fieldset': { borderColor: '#1e40af' }
                             },
                             '& .MuiInputLabel-root': {
                               fontSize: '0.8rem',
@@ -2841,8 +2841,8 @@ export default function QCPage() {
                               height: 40,
                               fontSize: '0.85rem',
                               bgcolor: 'white',
-                              '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#667eea' },
-                              '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#667eea' }
+                              '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#1e40af' },
+                              '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#1e40af' }
                             }}
                           >
                             <MenuItem value="" sx={{ fontSize: '0.85rem' }}>Select Grade</MenuItem>
@@ -2864,8 +2864,8 @@ export default function QCPage() {
                               height: 40,
                               fontSize: '0.85rem',
                               bgcolor: 'white',
-                              '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#667eea' },
-                              '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#667eea' }
+                              '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#1e40af' },
+                              '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#1e40af' }
                             }}
                           >
                             <MenuItem value="" sx={{ fontSize: '0.85rem' }}>Select Rack</MenuItem>
@@ -2889,8 +2889,8 @@ export default function QCPage() {
                             '& .MuiOutlinedInput-root': {
                               fontSize: '0.85rem',
                               bgcolor: 'white',
-                              '&:hover fieldset': { borderColor: '#667eea' },
-                              '&.Mui-focused fieldset': { borderColor: '#667eea' }
+                              '&:hover fieldset': { borderColor: '#1e40af' },
+                              '&.Mui-focused fieldset': { borderColor: '#1e40af' }
                             },
                             '& .MuiInputLabel-root': {
                               fontSize: '0.8rem',
@@ -2911,8 +2911,8 @@ export default function QCPage() {
                             '& .MuiOutlinedInput-root': {
                               fontSize: '0.85rem',
                               bgcolor: 'white',
-                              '&:hover fieldset': { borderColor: '#667eea' },
-                              '&.Mui-focused fieldset': { borderColor: '#667eea' }
+                              '&:hover fieldset': { borderColor: '#1e40af' },
+                              '&.Mui-focused fieldset': { borderColor: '#1e40af' }
                             },
                             '& .MuiInputLabel-root': {
                               fontSize: '0.8rem',
@@ -2958,11 +2958,11 @@ export default function QCPage() {
                               fontSize: '0.85rem',
                               fontWeight: 700,
                               borderWidth: 2,
-                              borderColor: '#667eea',
-                              color: '#667eea',
+                              borderColor: '#1e40af',
+                              color: '#1e40af',
                               '&:hover': {
                                 borderWidth: 2,
-                                bgcolor: 'rgba(102, 126, 234, 0.1)'
+                                bgcolor: 'rgba(30, 64, 175, 0.1)'
                               }
                             }}
                           >
@@ -3005,11 +3005,11 @@ export default function QCPage() {
                               borderWidth: 2,
                               height: 36,
                               minWidth: 100,
-                              borderColor: '#667eea',
-                              color: '#667eea',
+                              borderColor: '#1e40af',
+                              color: '#1e40af',
                               '&:hover': {
                                 borderWidth: 2,
-                                bgcolor: 'rgba(102, 126, 234, 0.1)'
+                                bgcolor: 'rgba(30, 64, 175, 0.1)'
                               }
                             }}
                           >
@@ -3284,7 +3284,7 @@ export default function QCPage() {
                           <Chip
                             label={stats.total}
                             sx={{
-                              bgcolor: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                              bgcolor: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
                               color: 'white',
                               fontWeight: 800,
                               fontSize: '0.8rem',
@@ -4122,7 +4122,7 @@ export default function QCPage() {
                   <DialogTitle
                     sx={{
                       fontWeight: 800,
-                      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                      background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
                       color: 'white',
                       py: 2,
                     }}
@@ -4135,7 +4135,7 @@ export default function QCPage() {
                       sx={{
                         mb: 2,
                         fontWeight: 800,
-                        color: '#667eea',
+                        color: '#1e40af',
                         textTransform: 'uppercase',
                         fontSize: '0.75rem',
                       }}
@@ -4186,7 +4186,7 @@ export default function QCPage() {
                       sx={{
                         mb: 2,
                         fontWeight: 800,
-                        color: '#764ba2',
+                        color: '#3b82f6',
                         textTransform: 'uppercase',
                         fontSize: '0.75rem',
                       }}
@@ -4234,7 +4234,7 @@ export default function QCPage() {
                     <Button
                       variant="contained"
                       onClick={() => setColumnSettingsOpen(false)}
-                      sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', fontWeight: 700 }}
+                      sx={{ background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)', fontWeight: 700 }}
                     >
                       Done
                     </Button>
@@ -4335,7 +4335,7 @@ export default function QCPage() {
                             {batchLoading ? (
                               <TableRow>
                                 <TableCell colSpan={4} align="center" sx={{ py: { xs: 5, sm: 8 } }}>
-                                  <CircularProgress size={isMobile ? 35 : 50} sx={{ color: '#667eea' }} />
+                                  <CircularProgress size={isMobile ? 35 : 50} sx={{ color: '#1e40af' }} />
                                   <Typography sx={{ mt: 1.5, fontWeight: 600, color: '#64748b', fontSize: '0.85rem' }}>
                                     Loading batches...
                                   </Typography>
@@ -4380,8 +4380,8 @@ export default function QCPage() {
                                     <Chip
                                       label={batch.count}
                                       sx={{
-                                        bgcolor: 'rgba(102, 126, 234, 0.1)',
-                                        color: '#667eea',
+                                        bgcolor: 'rgba(30, 64, 175, 0.1)',
+                                        color: '#1e40af',
                                         fontWeight: 700,
                                         fontSize: '0.75rem'
                                       }}

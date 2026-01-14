@@ -10,12 +10,14 @@ import {
     Collapse,
     IconButton,
     Tooltip,
-    Stack
+    Stack,
+    InputAdornment
 } from '@mui/material';
 import {
     FilterList as FilterListIcon,
     ExpandMore as ExpandMoreIcon,
-    RestartAlt as RestartAltIcon
+    RestartAlt as RestartAltIcon,
+    Search as SearchIcon
 } from '@mui/icons-material';
 
 export interface FilterOption {
@@ -42,7 +44,7 @@ interface StandardFilterBarProps {
 export default function StandardFilterBar({
     searchValue,
     onSearchChange,
-    searchPlaceholder = '🔍 Search...',
+    searchPlaceholder = 'Search...',
     filters,
     onReset,
     filtersExpanded = false,
@@ -52,17 +54,22 @@ export default function StandardFilterBar({
 }: StandardFilterBarProps) {
     return (
         <Card sx={{
-            mb: { xs: 0, md: 1 },
-            borderRadius: 1.5,
-            boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
-            background: 'rgba(255, 255, 255, 0.98)'
+            mb: { xs: 0, md: 1.5 },
+            borderRadius: { xs: 0, md: 3 },
+            boxShadow: { xs: 'none', md: '0 1px 3px rgba(0,0,0,0.05), 0 4px 6px rgba(0,0,0,0.03)' },
+            background: 'white',
+            border: { xs: 'none', md: '1px solid rgba(0,0,0,0.04)' },
+            borderBottom: { xs: '1px solid rgba(0,0,0,0.06)', md: 'none' },
         }}>
-            <CardContent sx={{ p: { xs: 1, md: 1.5 }, '&:last-child': { pb: { xs: 1, md: 1.5 } } }}>
-                <Stack spacing={1}>
+            <CardContent sx={{
+                p: { xs: 1.25, sm: 1.5, md: 2 },
+                '&:last-child': { pb: { xs: 1.25, sm: 1.5, md: 2 } }
+            }}>
+                <Stack spacing={{ xs: 1, md: 1.5 }}>
                     {/* Search + Mobile Actions */}
                     <Box sx={{
                         display: 'flex',
-                        gap: 0.75,
+                        gap: { xs: 0.75, sm: 1 },
                         alignItems: 'center',
                         width: '100%'
                     }}>
@@ -71,18 +78,36 @@ export default function StandardFilterBar({
                             placeholder={searchPlaceholder}
                             value={searchValue}
                             onChange={(e) => onSearchChange(e.target.value)}
+                            InputProps={{
+                                startAdornment: (
+                                    <InputAdornment position="start">
+                                        <SearchIcon sx={{ color: 'primary.main', fontSize: 20 }} />
+                                    </InputAdornment>
+                                ),
+                            }}
                             sx={{
                                 flex: '1 1 auto',
                                 flexGrow: 1,
                                 minWidth: 0,
                                 '& .MuiOutlinedInput-root': {
-                                    height: 40,
-                                    bgcolor: 'white',
-                                    borderRadius: 1.5,
+                                    height: { xs: 44, sm: 42 },
+                                    bgcolor: { xs: '#f8fafc', md: 'white' },
+                                    borderRadius: 2.5,
+                                    transition: 'all 0.2s ease',
                                     '&:hover': {
-                                        bgcolor: '#f9fafb'
-                                    }
-                                }
+                                        bgcolor: '#f8fafc',
+                                    },
+                                    '&.Mui-focused': {
+                                        bgcolor: 'white',
+                                        '& .MuiOutlinedInput-notchedOutline': {
+                                            borderColor: 'primary.main',
+                                            borderWidth: 2,
+                                        },
+                                    },
+                                },
+                                '& .MuiOutlinedInput-notchedOutline': {
+                                    borderColor: 'rgba(0,0,0,0.08)',
+                                },
                             }}
                         />
 
@@ -96,25 +121,34 @@ export default function StandardFilterBar({
                         {/* Desktop Filter Toggle */}
                         {onToggleFilters && (
                             <Button
-                                variant="outlined"
+                                variant={filtersExpanded ? "contained" : "outlined"}
                                 size="small"
                                 onClick={onToggleFilters}
                                 startIcon={<FilterListIcon />}
-                                endIcon={<ExpandMoreIcon sx={{
-                                    transform: filtersExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
-                                    transition: 'transform 200ms'
-                                }} />}
+                                endIcon={
+                                    <ExpandMoreIcon sx={{
+                                        transform: filtersExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                                        transition: 'transform 0.2s ease'
+                                    }} />
+                                }
                                 sx={{
                                     display: { xs: 'none', md: 'inline-flex' },
-                                    height: 40,
-                                    px: 2,
+                                    height: 42,
+                                    px: 2.5,
                                     fontWeight: 600,
                                     textTransform: 'none',
-                                    borderWidth: 2,
+                                    borderRadius: 2.5,
                                     position: 'relative',
-                                    '&:hover': {
-                                        borderWidth: 2
-                                    }
+                                    minWidth: 110,
+                                    ...(filtersExpanded ? {
+                                        background: 'linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%)',
+                                    } : {
+                                        borderWidth: 1.5,
+                                        '&:hover': {
+                                            borderWidth: 1.5,
+                                            bgcolor: 'rgba(30, 64, 175, 0.04)',
+                                        },
+                                    }),
                                 }}
                             >
                                 Filters
@@ -123,11 +157,12 @@ export default function StandardFilterBar({
                                         position: 'absolute',
                                         top: -4,
                                         right: -4,
-                                        width: 10,
-                                        height: 10,
+                                        width: 12,
+                                        height: 12,
                                         borderRadius: '50%',
                                         bgcolor: '#10b981',
-                                        border: '2px solid white'
+                                        border: '2px solid white',
+                                        boxShadow: '0 2px 4px rgba(16, 185, 129, 0.3)',
                                     }} />
                                 )}
                             </Button>
@@ -140,25 +175,31 @@ export default function StandardFilterBar({
                                 size="small"
                                 sx={{
                                     display: { xs: 'none', md: 'inline-flex' },
-                                    bgcolor: 'rgba(239, 68, 68, 0.1)',
-                                    color: '#ef4444',
+                                    width: 42,
+                                    height: 42,
+                                    bgcolor: 'rgba(239, 68, 68, 0.08)',
+                                    color: '#dc2626',
+                                    borderRadius: 2.5,
+                                    transition: 'all 0.2s ease',
                                     '&:hover': {
-                                        bgcolor: 'rgba(239, 68, 68, 0.2)'
+                                        bgcolor: 'rgba(239, 68, 68, 0.15)',
+                                        transform: 'scale(1.05)',
                                     }
                                 }}
                             >
-                                <RestartAltIcon />
+                                <RestartAltIcon sx={{ fontSize: 20 }} />
                             </IconButton>
                         </Tooltip>
                     </Box>
 
                     {/* Desktop Filters */}
-                    <Collapse in={filtersExpanded} timeout={300}>
+                    <Collapse in={filtersExpanded} timeout={250}>
                         <Box sx={{
                             display: { xs: 'none', md: 'flex' },
-                            gap: 1,
+                            gap: 1.5,
                             flexWrap: 'wrap',
-                            pt: 0.5
+                            pt: 1,
+                            pb: 0.5,
                         }}>
                             {filters.map((filter, index) => (
                                 <TextField
@@ -170,12 +211,22 @@ export default function StandardFilterBar({
                                     value={filter.currentValue}
                                     onChange={(e) => filter.onChange(e.target.value)}
                                     sx={{
-                                        minWidth: 150,
+                                        minWidth: 160,
                                         '& .MuiOutlinedInput-root': {
-                                            height: 40,
-                                            bgcolor: 'white',
-                                            borderRadius: 1.5
-                                        }
+                                            height: 42,
+                                            bgcolor: '#f8fafc',
+                                            borderRadius: 2,
+                                            transition: 'all 0.2s ease',
+                                            '&:hover': {
+                                                bgcolor: '#f1f5f9',
+                                            },
+                                            '&.Mui-focused': {
+                                                bgcolor: 'white',
+                                            },
+                                        },
+                                        '& .MuiInputLabel-root': {
+                                            fontWeight: 500,
+                                        },
                                     }}
                                     InputLabelProps={filter.type === 'date' ? { shrink: true } : undefined}
                                 >

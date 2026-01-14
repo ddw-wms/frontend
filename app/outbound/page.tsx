@@ -1738,7 +1738,7 @@ export default function OutboundPage() {
         return (
             <AppLayout>
                 <Box sx={{ p: 3, minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <Box sx={{ p: 5, background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', borderRadius: 4, color: 'white', boxShadow: '0 20px 60px rgba(102, 126, 234, 0.4)' }}>
+                    <Box sx={{ p: 5, background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)', borderRadius: 4, color: 'white', boxShadow: '0 20px 60px rgba(30, 64, 175, 0.4)' }}>
                         <Typography variant="h5" sx={{ fontWeight: 700, mb: 1 }}>⚠️ No active warehouse selected.</Typography>
                         <Typography variant="body2" sx={{ opacity: 0.9 }}>Please go to Settings → Warehouses to set one.</Typography>
                     </Box>
@@ -1771,7 +1771,7 @@ export default function OutboundPage() {
                     value={tabValue}
                     onChange={(e, v) => setTabValue(v)}
                     tabs={visibleTabs}
-                    color="#667eea"
+                    color="#1e40af"
                 />
 
 
@@ -1806,9 +1806,9 @@ export default function OutboundPage() {
                                         height: 36,
 
                                         borderWidth: 2,
-                                        borderColor: filtersExpanded ? '#667eea' : '#cbd5e1',
-                                        bgcolor: filtersExpanded ? 'rgba(102, 126, 234, 0.06)' : 'white',
-                                        color: filtersExpanded ? '#667eea' : '#64748b',
+                                        borderColor: filtersExpanded ? '#1e40af' : '#cbd5e1',
+                                        bgcolor: filtersExpanded ? 'rgba(30, 64, 175, 0.06)' : 'white',
+                                        color: filtersExpanded ? '#1e40af' : '#64748b',
                                         fontWeight: 700,
                                         fontSize: '0.68rem',
                                         borderRadius: 1.5,
@@ -2165,7 +2165,7 @@ export default function OutboundPage() {
                                                 size={56}
                                                 thickness={3.5}
                                                 sx={{
-                                                    color: '#1976d2',
+                                                    color: '#1e40af',
                                                     filter: 'drop-shadow(0 2px 8px rgba(25, 118, 210, 0.2))'
                                                 }}
                                             />
@@ -2177,7 +2177,7 @@ export default function OutboundPage() {
                                                 width: 44,
                                                 height: 44,
                                                 borderRadius: '50%',
-                                                background: 'linear-gradient(135deg, #1976d2 0%, #42a5f5 100%)',
+                                                background: 'linear-gradient(135deg, #1e40af 0%, #60a5fa 100%)',
                                                 opacity: 0.15,
                                                 animation: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
                                                 '@keyframes pulse': {
@@ -2381,7 +2381,7 @@ export default function OutboundPage() {
                             </DialogContent>
                             <DialogActions sx={{ justifyContent: 'space-between' }}>
                                 <Button onClick={() => setListColumnSettingsOpen(false)}>CLOSE</Button>
-                                <Button onClick={() => setListColumnSettingsOpen(false)} variant="contained" sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: '#fff' }}>DONE</Button>
+                                <Button onClick={() => setListColumnSettingsOpen(false)} variant="contained" sx={{ background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)', color: '#fff' }}>DONE</Button>
                             </DialogActions>
                         </Dialog>
 
@@ -2664,7 +2664,7 @@ export default function OutboundPage() {
                         <Box sx={{ flex: 1 }} />
 
                         <Button onClick={() => setGridSettingsOpen(false)} sx={{ fontWeight: 700 }}>Close</Button>
-                        <Button onClick={() => setGridSettingsOpen(false)} variant="contained" sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: '#fff' }}>Done</Button>
+                        <Button onClick={() => setGridSettingsOpen(false)} variant="contained" sx={{ background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)', color: '#fff' }}>Done</Button>
                     </DialogActions>
                 </Dialog>
 
@@ -2766,7 +2766,7 @@ export default function OutboundPage() {
                                             size="small"
                                             onClick={handleSingleSubmit}
                                             disabled={singleLoading}
-                                            sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', py: 1 }}
+                                            sx={{ background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)', py: 1 }}
                                         >
                                             {singleLoading ? <CircularProgress size={20} /> : '✓ Dispatch'}
                                         </Button>
@@ -3034,7 +3034,7 @@ export default function OutboundPage() {
                             <DialogTitle
                                 sx={{
                                     fontWeight: 800,
-                                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                                    background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
                                     color: 'white',
                                     py: 2,
                                 }}
@@ -3047,7 +3047,7 @@ export default function OutboundPage() {
                                     sx={{
                                         mb: 2,
                                         fontWeight: 800,
-                                        color: '#667eea',
+                                        color: '#1e40af',
                                         textTransform: 'uppercase',
                                         fontSize: '0.75rem',
                                     }}
@@ -3089,7 +3089,7 @@ export default function OutboundPage() {
                                     sx={{
                                         mb: 2,
                                         fontWeight: 800,
-                                        color: '#764ba2',
+                                        color: '#3b82f6',
                                         textTransform: 'uppercase',
                                         fontSize: '0.75rem',
                                     }}
@@ -3132,7 +3132,7 @@ export default function OutboundPage() {
                                 <Button
                                     variant="contained"
                                     onClick={() => setColumnSettingsOpen(false)}
-                                    sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', fontWeight: 700 }}
+                                    sx={{ background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)', fontWeight: 700 }}
                                 >
                                     Done
                                 </Button>
@@ -3232,7 +3232,7 @@ export default function OutboundPage() {
                                 onClick={handleMultiSubmit}
                                 disabled={multiLoading || !activeWarehouse || duplicateWSNs.size > 0}
                                 startIcon={multiLoading ? <CircularProgress size={18} sx={{ color: 'white' }} /> : <CheckCircle sx={{ fontSize: 18 }} />}
-                                sx={{ height: 40, fontSize: '0.75rem', fontWeight: 600, background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}
+                                sx={{ height: 40, fontSize: '0.75rem', fontWeight: 600, background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)' }}
                             >
                                 SUBMIT ALL ({multiRows.filter((r) => r.wsn?.trim()).length} rows)
                             </Button>
@@ -3291,7 +3291,7 @@ export default function OutboundPage() {
                             </DialogContent>
                             <DialogActions sx={{ justifyContent: 'space-between' }}>
                                 <Button onClick={() => setColumnSettingsOpen(false)}>CLOSE</Button>
-                                <Button onClick={() => setColumnSettingsOpen(false)} variant="contained" sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: '#fff' }}>DONE</Button>
+                                <Button onClick={() => setColumnSettingsOpen(false)} variant="contained" sx={{ background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)', color: '#fff' }}>DONE</Button>
                             </DialogActions>
                         </Dialog>
                     </Box>

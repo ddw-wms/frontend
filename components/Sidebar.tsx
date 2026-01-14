@@ -218,21 +218,50 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
 
   const drawerContent = (
     <>
-      <Toolbar sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+      <Toolbar sx={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 1.5,
+        minHeight: { xs: 56, sm: 64 },
+        px: { xs: 1.5, sm: 2 },
+      }}>
         <IconButton
           onClick={() => (isMobile ? (setMobileOpen && setMobileOpen(false)) : setCollapsed(!collapsed))}
-          sx={{ color: 'white', margin: -1 }}
+          sx={{
+            color: 'white',
+            ml: -0.5,
+            '&:hover': {
+              bgcolor: 'rgba(255,255,255,0.1)',
+            },
+          }}
         >
           <MenuIcon />
         </IconButton>
 
         {!collapsed && (
-          <Typography fontWeight="bold">Divine WMS</Typography>
+          <Typography
+            fontWeight="bold"
+            sx={{
+              fontSize: { xs: '1rem', sm: '1.1rem' },
+              background: 'linear-gradient(90deg, #fff 0%, rgba(255,255,255,0.9) 100%)',
+              backgroundClip: 'text',
+              WebkitBackgroundClip: 'text',
+              letterSpacing: '0.5px',
+            }}
+          >
+            Divine WMS
+          </Typography>
         )}
 
         {isMobile && (
           <IconButton
-            sx={{ marginLeft: 'auto', color: 'white' }}
+            sx={{
+              marginLeft: 'auto',
+              color: 'white',
+              '&:hover': {
+                bgcolor: 'rgba(255,255,255,0.1)',
+              },
+            }}
             onClick={() => setMobileOpen && setMobileOpen(false)}
           >
             <CloseIcon />
@@ -240,23 +269,29 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
         )}
       </Toolbar>
 
-      <Divider sx={{ bgcolor: 'rgba(255,255,255,0.1)' }} />
+      <Divider sx={{ bgcolor: 'rgba(255,255,255,0.08)' }} />
 
-      <List>
+      <List sx={{ px: 0.5, py: 1 }}>
         {mainMenu.map((item) => {
           const Icon = item.icon;
           const active = pathname === item.path;
 
           return (
-            <ListItem key={item.path} disablePadding>
+            <ListItem key={item.path} disablePadding sx={{ mb: 0.25 }}>
               <Tooltip title={collapsed ? item.label : ''} placement="right" arrow>
                 <ListItemButton
                   onClick={() => navigate(item.path)}
                   sx={{
-                    mx: 1,
-                    borderRadius: 1,
+                    mx: 0.75,
+                    py: { xs: 1.25, sm: 1 },
+                    borderRadius: 2,
                     bgcolor: active ? 'rgba(59,130,246,0.2)' : 'transparent',
-                    color: active ? '#60a5fa' : 'rgba(255,255,255,0.7)',
+                    color: active ? '#93c5fd' : 'rgba(255,255,255,0.75)',
+                    transition: 'all 0.2s ease',
+                    '&:hover': {
+                      bgcolor: active ? 'rgba(59,130,246,0.25)' : 'rgba(255,255,255,0.08)',
+                      transform: 'translateX(4px)',
+                    },
                   }}
                 >
                   <ListItemIcon
@@ -266,17 +301,25 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
                       justifyContent: collapsed ? 'center' : 'flex-start',
                     }}
                   >
-                    <Icon />
+                    <Icon sx={{ fontSize: { xs: 22, sm: 24 } }} />
                   </ListItemIcon>
 
-                  {!collapsed && <ListItemText primary={item.label} />}
+                  {!collapsed && (
+                    <ListItemText
+                      primary={item.label}
+                      primaryTypographyProps={{
+                        fontSize: { xs: '0.875rem', sm: '0.9rem' },
+                        fontWeight: active ? 600 : 500,
+                      }}
+                    />
+                  )}
                 </ListItemButton>
               </Tooltip>
             </ListItem>
           );
         })}
 
-        <Divider sx={{ my: 2, bgcolor: 'rgba(255,255,255,0.1)' }} />
+        <Divider sx={{ my: 1.5, bgcolor: 'rgba(255,255,255,0.08)' }} />
 
         {/* Only show Settings if user has settings menu items */}
         {settingsMenu.length > 0 && (
@@ -284,10 +327,20 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
             disablePadding
             onMouseEnter={() => setSettingsHovered(true)}
             onMouseLeave={() => setSettingsHovered(false)}
+            sx={{ mb: 0.25 }}
           >
             <ListItemButton
               onClick={() => { setSettingsOpen(!settingsOpen); }}
-              sx={{ mx: 1, borderRadius: 1, color: 'rgba(255,255,255,0.7)' }}
+              sx={{
+                mx: 0.75,
+                py: { xs: 1.25, sm: 1 },
+                borderRadius: 2,
+                color: 'rgba(255,255,255,0.75)',
+                transition: 'all 0.2s ease',
+                '&:hover': {
+                  bgcolor: 'rgba(255,255,255,0.08)',
+                },
+              }}
             >
               <ListItemIcon
                 sx={{
@@ -296,12 +349,18 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
                   justifyContent: collapsed ? 'center' : 'flex-start',
                 }}
               >
-                <SettingsIcon />
+                <SettingsIcon sx={{ fontSize: { xs: 22, sm: 24 } }} />
               </ListItemIcon>
 
               {!collapsed && (
                 <>
-                  <ListItemText primary="Settings" />
+                  <ListItemText
+                    primary="Settings"
+                    primaryTypographyProps={{
+                      fontSize: { xs: '0.875rem', sm: '0.9rem' },
+                      fontWeight: 500,
+                    }}
+                  />
                   {settingsOpen ? <ExpandLess /> : <ExpandMore />}
                 </>
               )}
@@ -315,51 +374,70 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.2 }}
               style={{ overflow: 'hidden' }}
             >
-              <List sx={{ pl: 4 }}>
+              <List sx={{ pl: { xs: 2.5, sm: 3 }, pr: 0.5, py: 0.5 }}>
                 {settingsMenu.map((item) => {
                   const Icon = item.icon;
                   const active = pathname === item.path;
 
                   return (
-                    <ListItem key={item.path} disablePadding>
+                    <ListItem key={item.path} disablePadding sx={{ mb: 0.25 }}>
                       <ListItemButton
                         onClick={() => navigate(item.path)}
                         sx={{
-                          borderRadius: 1,
-                          color: active ? '#60a5fa' : 'rgba(255,255,255,0.8)',
+                          py: { xs: 1, sm: 0.75 },
+                          borderRadius: 1.5,
+                          color: active ? '#93c5fd' : 'rgba(255,255,255,0.7)',
                           bgcolor: active ? 'rgba(59,130,246,0.2)' : 'transparent',
-                          my: 0.5,
+                          transition: 'all 0.2s ease',
+                          '&:hover': {
+                            bgcolor: active ? 'rgba(59,130,246,0.25)' : 'rgba(255,255,255,0.06)',
+                          },
                         }}
                       >
-                        <ListItemIcon sx={{ color: 'inherit', minWidth: 30 }}>
-                          <Icon fontSize="small" />
+                        <ListItemIcon sx={{ color: 'inherit', minWidth: 32 }}>
+                          <Icon sx={{ fontSize: 18 }} />
                         </ListItemIcon>
-                        <ListItemText primary={item.label} />
+                        <ListItemText
+                          primary={item.label}
+                          primaryTypographyProps={{
+                            fontSize: { xs: '0.8125rem', sm: '0.85rem' },
+                            fontWeight: active ? 600 : 400,
+                          }}
+                        />
                       </ListItemButton>
                     </ListItem>
                   );
                 })}
 
                 {/* Logout Button */}
-                <ListItem disablePadding>
+                <ListItem disablePadding sx={{ mt: 0.5 }}>
                   <ListItemButton
                     onClick={handleLogout}
                     sx={{
-                      borderRadius: 1,
-                      color: '#ef4444',
+                      py: { xs: 1, sm: 0.75 },
+                      borderRadius: 1.5,
+                      color: '#fca5a5',
                       bgcolor: 'transparent',
-                      my: 0.5,
+                      transition: 'all 0.2s ease',
                       '&:hover': {
-                        bgcolor: 'rgba(239, 68, 68, 0.1)',
+                        bgcolor: 'rgba(239, 68, 68, 0.15)',
+                        color: '#fecaca',
                       }
                     }}
                   >
-                    <ListItemIcon sx={{ color: 'inherit', minWidth: 30 }}>
-                      <LogoutIcon fontSize="small" />
+                    <ListItemIcon sx={{ color: 'inherit', minWidth: 32 }}>
+                      <LogoutIcon sx={{ fontSize: 18 }} />
                     </ListItemIcon>
-                    <ListItemText primary="Logout" />
+                    <ListItemText
+                      primary="Logout"
+                      primaryTypographyProps={{
+                        fontSize: { xs: '0.8125rem', sm: '0.85rem' },
+                        fontWeight: 500,
+                      }}
+                    />
                   </ListItemButton>
                 </ListItem>
               </List>
@@ -372,9 +450,30 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
       <Box sx={{ flexGrow: 1 }} />
 
       {!collapsed && (
-        <Box sx={{ p: 2 }}>
-          <Typography variant="caption" color="rgba(255,255,255,0.6)">
-            Logged in as {userName}
+        <Box sx={{
+          p: 2,
+          borderTop: '1px solid rgba(255,255,255,0.08)',
+          pb: { xs: 'calc(16px + env(safe-area-inset-bottom))', sm: 2 },
+        }}>
+          <Typography
+            variant="caption"
+            sx={{
+              color: 'rgba(255,255,255,0.5)',
+              fontSize: '0.75rem',
+              display: 'block',
+            }}
+          >
+            Logged in as
+          </Typography>
+          <Typography
+            variant="body2"
+            sx={{
+              color: 'rgba(255,255,255,0.8)',
+              fontWeight: 600,
+              fontSize: '0.8125rem',
+            }}
+          >
+            {userName}
           </Typography>
         </Box>
       )}
@@ -393,22 +492,28 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
             ModalProps={{ keepMounted: true }}
             sx={{
               '& .MuiDrawer-paper': {
-                width: 230,
-                background: "linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%)",
+                width: 260,
+                background: "linear-gradient(180deg, #0f172a 0%, #1e293b 50%, #334155 100%)",
                 color: 'white',
                 left: 0,
                 position: 'fixed',
                 borderRight: 'none',
+                boxShadow: '4px 0 30px rgba(0,0,0,0.3)',
+                paddingBottom: 'env(safe-area-inset-bottom)',
                 scrollbarWidth: 'thin',
-                scrollbarColor: 'rgba(255,255,255,0.3) transparent',
+                scrollbarColor: 'rgba(255,255,255,0.2) transparent',
                 '&::-webkit-scrollbar': {
                   width: '4px',
                 },
                 '&::-webkit-scrollbar-thumb': {
-                  backgroundColor: 'rgba(255,255,255,0.3)',
+                  backgroundColor: 'rgba(255,255,255,0.2)',
                   borderRadius: '10px',
                 },
               },
+            }}
+            transitionDuration={{
+              enter: 250,
+              exit: 200,
             }}
           >
             {drawerContent}
@@ -423,9 +528,9 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
             height: '100vh',
             '& .MuiDrawer-paper': {
               width: drawerWidth,
-              background: "linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%)",
+              background: "linear-gradient(180deg, #0f172a 0%, #1e293b 50%, #334155 100%)",
               color: 'white',
-              transition: 'width 0.3s',
+              transition: 'width 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
               overflowX: 'hidden',
               overflowY: 'auto',
               position: 'relative',
@@ -434,19 +539,20 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
               display: 'flex',
               flexDirection: 'column',
               borderRight: 'none',
+              boxShadow: '2px 0 20px rgba(0,0,0,0.1)',
               scrollbarWidth: 'thin',
-              scrollbarColor: 'rgba(255,255,255,0.3) transparent',
+              scrollbarColor: 'rgba(255,255,255,0.2) transparent',
               '&::-webkit-scrollbar': {
-                width: '6px',
+                width: '5px',
               },
               '&::-webkit-scrollbar-track': {
                 background: 'transparent',
               },
               '&::-webkit-scrollbar-thumb': {
-                backgroundColor: 'rgba(255,255,255,0.3)',
+                backgroundColor: 'rgba(255,255,255,0.2)',
                 borderRadius: '10px',
                 '&:hover': {
-                  backgroundColor: 'rgba(255,255,255,0.5)',
+                  backgroundColor: 'rgba(255,255,255,0.3)',
                 },
               },
             },
@@ -468,53 +574,69 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
             top: 70,
             left: drawerWidth,
             width: 220,
-            background: "linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%)",
+            background: "linear-gradient(180deg, #0f172a 0%, #1e293b 100%)",
             color: 'white',
-            p: 1,
-            borderRadius: 1,
+            p: 1.5,
+            borderRadius: 2,
             zIndex: 2000,
-            boxShadow: '0 8px 24px rgba(2,6,23,0.6)',
-            border: '1px solid rgba(255,255,255,0.04)'
+            boxShadow: '0 10px 40px rgba(0,0,0,0.3)',
+            border: '1px solid rgba(255,255,255,0.08)'
           }}
         >
-          <Typography sx={{ px: 1, pb: 1, fontSize: 13, opacity: 0.7 }}>
+          <Typography sx={{ px: 1, pb: 1.5, fontSize: 12, fontWeight: 600, opacity: 0.6, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
             Settings
           </Typography>
 
-          <List>
+          <List sx={{ py: 0 }}>
             {settingsMenu.map((item) => {
               const Icon = item.icon;
               return (
-                <ListItem key={item.path} disablePadding>
+                <ListItem key={item.path} disablePadding sx={{ mb: 0.25 }}>
                   <ListItemButton
                     onClick={() => navigate(item.path)}
-                    sx={{ borderRadius: 1, color: 'rgba(255,255,255,0.8)' }}
+                    sx={{
+                      borderRadius: 1.5,
+                      color: 'rgba(255,255,255,0.8)',
+                      py: 0.875,
+                      transition: 'all 0.15s ease',
+                      '&:hover': {
+                        bgcolor: 'rgba(255,255,255,0.08)',
+                      },
+                    }}
                   >
-                    <ListItemIcon sx={{ color: 'inherit' }}>
-                      <Icon fontSize="small" />
+                    <ListItemIcon sx={{ color: 'inherit', minWidth: 32 }}>
+                      <Icon sx={{ fontSize: 18 }} />
                     </ListItemIcon>
-                    <ListItemText primary={item.label} />
+                    <ListItemText
+                      primary={item.label}
+                      primaryTypographyProps={{ fontSize: '0.85rem' }}
+                    />
                   </ListItemButton>
                 </ListItem>
               );
             })}
 
             {/* Logout Button */}
-            <ListItem disablePadding>
+            <ListItem disablePadding sx={{ mt: 0.5 }}>
               <ListItemButton
                 onClick={handleLogout}
                 sx={{
-                  borderRadius: 1,
-                  color: '#ef4444',
+                  borderRadius: 1.5,
+                  color: '#fca5a5',
+                  py: 0.875,
+                  transition: 'all 0.15s ease',
                   '&:hover': {
-                    bgcolor: 'rgba(239, 68, 68, 0.1)',
+                    bgcolor: 'rgba(239, 68, 68, 0.15)',
                   }
                 }}
               >
-                <ListItemIcon sx={{ color: 'inherit' }}>
-                  <LogoutIcon fontSize="small" />
+                <ListItemIcon sx={{ color: 'inherit', minWidth: 32 }}>
+                  <LogoutIcon sx={{ fontSize: 18 }} />
                 </ListItemIcon>
-                <ListItemText primary="Logout" />
+                <ListItemText
+                  primary="Logout"
+                  primaryTypographyProps={{ fontSize: '0.85rem' }}
+                />
               </ListItemButton>
             </ListItem>
           </List>

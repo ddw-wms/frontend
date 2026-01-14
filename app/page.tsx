@@ -39,7 +39,7 @@ export default function Home() {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+        background: "linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)",
       }}
     >
       <div className="text-center text-white">

@@ -19,59 +19,93 @@ export default function StandardPageHeader({
     userName,
     userRole
 }: StandardPageHeaderProps) {
-    const isMobile = useMediaQuery('(max-width:600px)');
+    const isMobile = useMediaQuery('(max-width:640px)');
+    const isTablet = useMediaQuery('(max-width:900px)');
 
     return (
         <Box sx={{
-            background: 'linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%)',
+            background: 'linear-gradient(135deg, #0f172a 0%, #1e3a8a 50%, #1e40af 100%)',
             color: 'white',
-            px: 2,
-            py: 1.25,
-            pl: { xs: '54px', sm: 2 },
+            px: { xs: 1.5, sm: 2.5, md: 3 },
+            py: { xs: 1, sm: 1.25, md: 1.5 },
+            pl: { xs: '56px', sm: 2.5, md: 3 },
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            gap: { xs: 0.75, sm: 1 },
+            gap: { xs: 1, sm: 1.5 },
             borderRadius: 0,
-            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.15)',
             position: 'sticky',
             top: 0,
             zIndex: 1000,
             flexShrink: 0,
-            mb: 0
+            mb: 0,
+            minHeight: { xs: 52, sm: 60, md: 64 },
+            // Subtle gradient overlay for depth
+            '&::before': {
+                content: '""',
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                background: 'linear-gradient(180deg, rgba(255,255,255,0.05) 0%, transparent 100%)',
+                pointerEvents: 'none',
+            },
         }}>
             {/* LEFT: Icon + Title */}
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 0.75, sm: 1.25 } }}>
+            <Box sx={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: { xs: 1, sm: 1.5 },
+                position: 'relative',
+                zIndex: 1,
+            }}>
                 <Box sx={{
-                    p: { xs: 0.4, sm: 0.7 },
-                    bgcolor: 'rgba(255,255,255,0.2)',
-                    borderRadius: 1.5,
+                    p: { xs: 0.75, sm: 1 },
+                    bgcolor: 'rgba(255,255,255,0.15)',
+                    borderRadius: { xs: 1.5, sm: 2 },
                     backdropFilter: 'blur(10px)',
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'center'
+                    justifyContent: 'center',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                    border: '1px solid rgba(255,255,255,0.1)',
                 }}>
-                    <Typography sx={{ fontSize: { xs: '1rem', sm: '1.5rem' }, lineHeight: 1 }}>{icon}</Typography>
+                    <Typography sx={{
+                        fontSize: { xs: '1.125rem', sm: '1.375rem', md: '1.5rem' },
+                        lineHeight: 1,
+                        filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.1))',
+                    }}>
+                        {icon}
+                    </Typography>
                 </Box>
                 <Box>
-                    <Typography variant="h4" sx={{
-                        fontWeight: 650,
-                        color: 'white',
-                        fontSize: { xs: '0.85rem', sm: '1rem', md: '1.3rem' },
-                        lineHeight: 1.1,
-                        textShadow: '0 2px 4px rgba(0,0,0,0.1)'
-                    }}>
+                    <Typography
+                        variant="h4"
+                        sx={{
+                            fontWeight: 700,
+                            color: 'white',
+                            fontSize: { xs: '0.9375rem', sm: '1.125rem', md: '1.375rem' },
+                            lineHeight: 1.2,
+                            textShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                            letterSpacing: '-0.01em',
+                        }}
+                    >
                         {title}
                     </Typography>
                     {subtitle && (
-                        <Typography variant="caption" sx={{
-                            color: 'rgba(255,255,255,0.9)',
-                            fontSize: { xs: '0.5rem', sm: '0.7rem' },
-                            fontWeight: 500,
-                            lineHeight: 1.2,
-                            display: 'block',
-                            mt: 0.25
-                        }}>
+                        <Typography
+                            variant="caption"
+                            sx={{
+                                color: 'rgba(255,255,255,0.8)',
+                                fontSize: { xs: '0.6875rem', sm: '0.75rem' },
+                                fontWeight: 500,
+                                lineHeight: 1.3,
+                                display: 'block',
+                                mt: 0.25,
+                            }}
+                        >
                             {subtitle}
                         </Typography>
                     )}
@@ -79,53 +113,74 @@ export default function StandardPageHeader({
             </Box>
 
             {/* RIGHT: Warehouse + User Chips */}
-            <Stack direction="row" spacing={{ xs: 0.5, sm: 0.75 }} alignItems="center">
+            <Stack
+                direction="row"
+                spacing={{ xs: 0.75, sm: 1 }}
+                alignItems="center"
+                sx={{ position: 'relative', zIndex: 1 }}
+            >
                 {warehouseName && (
                     <Chip
-                        label={warehouseName}
+                        label={isMobile && warehouseName.length > 10 ? warehouseName.slice(0, 10) + '…' : warehouseName}
                         size="small"
                         sx={{
-                            bgcolor: 'rgba(255,255,255,0.2)',
+                            bgcolor: 'rgba(255,255,255,0.15)',
                             color: 'white',
                             fontWeight: 700,
-                            height: { xs: 20, sm: 24 },
-                            fontSize: { xs: '0.42rem', sm: '0.72rem' },
-                            border: '1.5px solid rgba(255,255,255,0.3)',
+                            height: { xs: 26, sm: 30 },
+                            fontSize: { xs: '0.6875rem', sm: '0.75rem' },
+                            border: '1px solid rgba(255,255,255,0.2)',
                             backdropFilter: 'blur(10px)',
                             boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                            '& .MuiChip-label': { px: { xs: 0.75, sm: 1 } }
+                            transition: 'all 0.2s ease',
+                            '& .MuiChip-label': {
+                                px: { xs: 1, sm: 1.25 }
+                            },
+                            '&:hover': {
+                                bgcolor: 'rgba(255,255,255,0.2)',
+                            },
                         }}
                     />
                 )}
                 {userName && (
                     <Chip
-                        label={userName}
+                        label={isMobile && userName.length > 8 ? userName.slice(0, 8) + '…' : userName}
                         size="small"
-                        avatar={<Box sx={{
-                            bgcolor: 'rgba(255,255,255,0.3)',
-                            width: { xs: 14, sm: 16 },
-                            height: { xs: 14, sm: 16 },
-                            borderRadius: '50%',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            fontSize: { xs: '0.55rem', sm: '0.6rem' }
-                        }}>👤</Box>}
+                        avatar={
+                            <Box sx={{
+                                bgcolor: 'rgba(255,255,255,0.25)',
+                                width: { xs: 18, sm: 20 },
+                                height: { xs: 18, sm: 20 },
+                                borderRadius: '50%',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: { xs: '0.625rem', sm: '0.6875rem' },
+                                ml: '4px !important',
+                            }}>
+                                👤
+                            </Box>
+                        }
                         sx={{
-                            bgcolor: 'rgba(255,255,255,0.2)',
+                            bgcolor: 'rgba(255,255,255,0.15)',
                             color: 'white',
                             fontWeight: 600,
-                            height: { xs: 20, sm: 24 },
-                            fontSize: { xs: '0.62rem', sm: '0.72rem' },
-                            border: '1.5px solid rgba(255,255,255,0.3)',
+                            height: { xs: 26, sm: 30 },
+                            fontSize: { xs: '0.6875rem', sm: '0.75rem' },
+                            border: '1px solid rgba(255,255,255,0.2)',
                             backdropFilter: 'blur(10px)',
                             boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                            '& .MuiChip-label': { px: { xs: 0.75, sm: 1 } },
+                            transition: 'all 0.2s ease',
+                            '& .MuiChip-label': {
+                                px: { xs: 0.75, sm: 1 }
+                            },
                             '& .MuiChip-avatar': {
-                                width: { xs: 14, sm: 16 },
-                                height: { xs: 14, sm: 16 },
-                                ml: { xs: 0.5, sm: 0.75 }
-                            }
+                                width: { xs: 18, sm: 20 },
+                                height: { xs: 18, sm: 20 },
+                            },
+                            '&:hover': {
+                                bgcolor: 'rgba(255,255,255,0.2)',
+                            },
                         }}
                     />
                 )}

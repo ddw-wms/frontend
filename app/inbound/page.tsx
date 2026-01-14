@@ -2986,7 +2986,7 @@ export default function InboundPage() {
     return (
       <AppLayout>
         <Box sx={{ p: 6, textAlign: 'center', minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column' }}>
-          <Box sx={{ p: 5, background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', borderRadius: 4, color: 'white', boxShadow: '0 20px 60px rgba(102, 126, 234, 0.4)' }}>
+          <Box sx={{ p: 5, background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)', borderRadius: 4, color: 'white', boxShadow: '0 20px 60px rgba(30, 64, 175, 0.4)' }}>
             <Typography variant="h5" sx={{ fontWeight: 700, mb: 1 }}>⚠️ No active warehouse selected.</Typography>
             <Typography variant="body2" sx={{ opacity: 0.9 }}>Please go to Settings → Warehouses to set one.</Typography>
           </Box>
@@ -3026,7 +3026,7 @@ export default function InboundPage() {
           value={tabValue}
           onChange={(event, newValue) => setTabValue(newValue)}
           tabs={visibleTabs}
-          color="#667eea"
+          color="#1e40af"
         />
 
         {/* ✅ NEW: Scrollable Content Wrapper */}
@@ -3106,8 +3106,8 @@ export default function InboundPage() {
                             boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
                           },
                           '&.Mui-focused': {
-                            borderColor: '#667eea',
-                            boxShadow: '0 4px 16px rgba(102, 126, 234, 0.2)'
+                            borderColor: '#1e40af',
+                            boxShadow: '0 4px 16px rgba(30, 64, 175, 0.2)'
                           },
                           '& fieldset': {
                             border: 'none'
@@ -3141,9 +3141,9 @@ export default function InboundPage() {
                         minWidth: { xs: 42, sm: 115 },
                         height: 38,
                         borderWidth: 2,
-                        borderColor: filtersExpanded ? '#667eea' : '#cbd5e1',
-                        bgcolor: filtersExpanded ? 'rgba(102, 126, 234, 0.1)' : 'white',
-                        color: filtersExpanded ? '#667eea' : '#64748b',
+                        borderColor: filtersExpanded ? '#1e40af' : '#cbd5e1',
+                        bgcolor: filtersExpanded ? 'rgba(30, 64, 175, 0.1)' : 'white',
+                        color: filtersExpanded ? '#1e40af' : '#64748b',
                         fontWeight: 700,
                         fontSize: { xs: '0.7rem', sm: '0.78rem' },
                         borderRadius: 1.5,
@@ -3152,9 +3152,9 @@ export default function InboundPage() {
                         px: { xs: 1, sm: 1.5 },
                         '&:hover': {
                           borderWidth: 2,
-                          borderColor: '#667eea',
-                          bgcolor: 'rgba(102, 126, 234, 0.15)',
-                          boxShadow: '0 4px 12px rgba(102, 126, 234, 0.2)'
+                          borderColor: '#1e40af',
+                          bgcolor: 'rgba(30, 64, 175, 0.15)',
+                          boxShadow: '0 4px 12px rgba(30, 64, 175, 0.2)'
                         },
                         position: 'relative'
                       }}
@@ -3221,8 +3221,8 @@ export default function InboundPage() {
                                   height: 36,
                                   fontSize: '0.8rem',
                                   bgcolor: 'white',
-                                  '&:hover fieldset': { borderColor: '#667eea' },
-                                  '&.Mui-focused fieldset': { borderColor: '#667eea' }
+                                  '&:hover fieldset': { borderColor: '#1e40af' },
+                                  '&.Mui-focused fieldset': { borderColor: '#1e40af' }
                                 },
                                 '& .MuiInputLabel-root': {
                                   fontSize: '0.75rem'
@@ -3241,8 +3241,8 @@ export default function InboundPage() {
                                   height: 36,
                                   fontSize: '0.8rem',
                                   bgcolor: 'white',
-                                  '&:hover fieldset': { borderColor: '#667eea' },
-                                  '&.Mui-focused fieldset': { borderColor: '#667eea' }
+                                  '&:hover fieldset': { borderColor: '#1e40af' },
+                                  '&.Mui-focused fieldset': { borderColor: '#1e40af' }
                                 },
                                 '& .MuiInputLabel-root': {
                                   fontSize: '0.75rem'
@@ -3270,8 +3270,8 @@ export default function InboundPage() {
                                   height: 36,
                                   fontSize: '0.8rem',
                                   bgcolor: 'white',
-                                  '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#667eea' },
-                                  '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#667eea' }
+                                  '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#1e40af' },
+                                  '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#1e40af' }
                                 }}
                               >
                                 <MenuItem value="">All Brands</MenuItem>
@@ -3301,8 +3301,8 @@ export default function InboundPage() {
                                   height: 36,
                                   fontSize: '0.8rem',
                                   bgcolor: 'white',
-                                  '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#667eea' },
-                                  '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#667eea' }
+                                  '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#1e40af' },
+                                  '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#1e40af' }
                                 }}
                               >
                                 <MenuItem value="">All Categories</MenuItem>
@@ -3361,11 +3361,11 @@ export default function InboundPage() {
                                     fontSize: '0.72rem',
                                     fontWeight: 700,
                                     borderWidth: 2,
-                                    borderColor: '#667eea',
-                                    color: '#667eea',
+                                    borderColor: '#1e40af',
+                                    color: '#1e40af',
                                     '&:hover': {
                                       borderWidth: 2,
-                                      bgcolor: 'rgba(102, 126, 234, 0.1)'
+                                      bgcolor: 'rgba(30, 64, 175, 0.1)'
                                     }
                                   }}
                                 >
@@ -3550,7 +3550,7 @@ export default function InboundPage() {
                             size={56}
                             thickness={3.5}
                             sx={{
-                              color: '#1976d2',
+                              color: '#1e40af',
                               filter: 'drop-shadow(0 2px 8px rgba(25, 118, 210, 0.2))'
                             }}
                           />
@@ -3562,7 +3562,7 @@ export default function InboundPage() {
                             width: 44,
                             height: 44,
                             borderRadius: '50%',
-                            background: 'linear-gradient(135deg, #1976d2 0%, #42a5f5 100%)',
+                            background: 'linear-gradient(135deg, #1e40af 0%, #60a5fa 100%)',
                             opacity: 0.15,
                             animation: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
                             '@keyframes pulse': {
@@ -3779,12 +3779,12 @@ export default function InboundPage() {
                         minWidth: { xs: 40, sm: 65 },
                         height: { xs: 26, sm: 30 },
                         borderWidth: 2,
-                        borderColor: '#667eea',
-                        color: '#667eea',
+                        borderColor: '#1e40af',
+                        color: '#1e40af',
                         px: { xs: 0.25, sm: 1 },
                         '&:hover': {
                           borderWidth: 2,
-                          bgcolor: 'rgba(102, 126, 234, 0.1)'
+                          bgcolor: 'rgba(30, 64, 175, 0.1)'
                         },
                         '&.Mui-disabled': {
                           borderWidth: 2,
@@ -3799,15 +3799,15 @@ export default function InboundPage() {
                     <Box sx={{
                       px: { xs: 1, sm: 1.5 },
                       py: { xs: 0.25, sm: 0.4 },
-                      border: '2px solid #667eea',
+                      border: '2px solid #1e40af',
                       borderRadius: 1,
-                      background: 'linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%)',
+                      background: 'linear-gradient(135deg, rgba(30, 64, 175, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%)',
                       minWidth: { xs: 50, sm: 60 },
                       textAlign: 'center'
                     }}>
                       <Typography sx={{
                         fontWeight: 800,
-                        color: '#667eea',
+                        color: '#1e40af',
                         fontSize: { xs: '0.68rem', sm: '0.75rem' },
                         lineHeight: 1.1
                       }}>
@@ -3826,12 +3826,12 @@ export default function InboundPage() {
                         minWidth: { xs: 40, sm: 65 },
                         height: { xs: 26, sm: 30 },
                         borderWidth: 2,
-                        borderColor: '#667eea',
-                        color: '#667eea',
+                        borderColor: '#1e40af',
+                        color: '#1e40af',
                         px: { xs: 0.25, sm: 1 },
                         '&:hover': {
                           borderWidth: 2,
-                          bgcolor: 'rgba(102, 126, 234, 0.1)'
+                          bgcolor: 'rgba(30, 64, 175, 0.1)'
                         },
                         '&.Mui-disabled': {
                           borderWidth: 2,
@@ -4097,7 +4097,7 @@ export default function InboundPage() {
                   <DialogTitle
                     sx={{
                       fontWeight: 800,
-                      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                      background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
                       color: 'white',
                       py: 2.5,
                       display: 'flex',
@@ -4124,7 +4124,7 @@ export default function InboundPage() {
                         variant="subtitle2"
                         sx={{
                           fontWeight: 800,
-                          color: '#667eea',
+                          color: '#1e40af',
                           fontSize: '0.8rem',
                           textTransform: 'uppercase',
                         }}
@@ -4167,7 +4167,7 @@ export default function InboundPage() {
                       <Divider sx={{ my: 1.5 }} />
                       <Typography
                         variant="caption"
-                        sx={{ fontWeight: 600, color: '#764ba2', fontSize: '0.7rem' }}
+                        sx={{ fontWeight: 600, color: '#3b82f6', fontSize: '0.7rem' }}
                       >
                         Additional Master Data
                       </Typography>
@@ -4210,7 +4210,7 @@ export default function InboundPage() {
                     <Button
                       variant="contained"
                       onClick={() => setListColumnSettingsOpen(false)}
-                      sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}
+                      sx={{ background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)' }}
                     >
                       Done
                     </Button>
@@ -4606,7 +4606,7 @@ export default function InboundPage() {
                           onClick={handleSingleSubmit}
                           disabled={singleLoading}
                           sx={{
-                            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                            background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
                             py: { xs: 0.9, sm: 0.8 },
                             fontSize: { xs: '0.75rem', sm: '0.8rem' },
                             fontWeight: 700
@@ -4966,11 +4966,11 @@ export default function InboundPage() {
                                 minWidth: 75,
                                 height: 32,
                                 px: 1.5,
-                                borderColor: '#667eea',
-                                color: '#667eea',
+                                borderColor: '#1e40af',
+                                color: '#1e40af',
                                 '&:hover': {
-                                  borderColor: '#667eea',
-                                  bgcolor: 'rgba(102, 126, 234, 0.08)'
+                                  borderColor: '#1e40af',
+                                  bgcolor: 'rgba(30, 64, 175, 0.08)'
                                 }
                               }}
                             >
@@ -5168,11 +5168,11 @@ export default function InboundPage() {
                                 width: 105,
                                 height: 28,
                                 px: 0.75,
-                                borderColor: '#667eea',
-                                color: '#667eea',
+                                borderColor: '#1e40af',
+                                color: '#1e40af',
                                 '&:hover': {
-                                  borderColor: '#667eea',
-                                  bgcolor: 'rgba(102, 126, 234, 0.08)'
+                                  borderColor: '#1e40af',
+                                  bgcolor: 'rgba(30, 64, 175, 0.08)'
                                 }
                               }}
                             >
@@ -5188,11 +5188,11 @@ export default function InboundPage() {
                                 width: 105,
                                 height: 28,
                                 px: 0.75,
-                                borderColor: '#667eea',
-                                color: '#667eea',
+                                borderColor: '#1e40af',
+                                color: '#1e40af',
                                 '&:hover': {
-                                  borderColor: '#667eea',
-                                  bgcolor: 'rgba(102, 126, 234, 0.08)'
+                                  borderColor: '#1e40af',
+                                  bgcolor: 'rgba(30, 64, 175, 0.08)'
                                 }
                               }}
 
@@ -5211,11 +5211,11 @@ export default function InboundPage() {
                                 width: 105,
                                 height: 28,
                                 px: 0.75,
-                                borderColor: '#667eea',
-                                color: '#667eea',
+                                borderColor: '#1e40af',
+                                color: '#1e40af',
                                 '&:hover': {
-                                  borderColor: '#667eea',
-                                  bgcolor: 'rgba(102, 126, 234, 0.08)'
+                                  borderColor: '#1e40af',
+                                  bgcolor: 'rgba(30, 64, 175, 0.08)'
                                 }
                               }}
                             >
@@ -6183,7 +6183,7 @@ export default function InboundPage() {
                   <DialogTitle
                     sx={{
                       fontWeight: 800,
-                      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                      background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
                       color: 'white',
                       py: 2,
                     }}
@@ -6196,7 +6196,7 @@ export default function InboundPage() {
                       sx={{
                         mb: 2,
                         fontWeight: 800,
-                        color: '#667eea',
+                        color: '#1e40af',
                         textTransform: 'uppercase',
                         fontSize: '0.75rem',
                       }}
@@ -6238,7 +6238,7 @@ export default function InboundPage() {
                       sx={{
                         mb: 2,
                         fontWeight: 800,
-                        color: '#764ba2',
+                        color: '#3b82f6',
                         textTransform: 'uppercase',
                         fontSize: '0.75rem',
                       }}
@@ -6283,7 +6283,7 @@ export default function InboundPage() {
                     <Button
                       variant="contained"
                       onClick={() => setColumnSettingsOpen(false)}
-                      sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', fontWeight: 700 }}
+                      sx={{ background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)', fontWeight: 700 }}
                     >
                       Done
                     </Button>
@@ -6304,7 +6304,7 @@ export default function InboundPage() {
                   }}
                 >
                   <DialogTitle sx={{
-                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
                     color: 'white',
                     fontWeight: 800,
                     fontSize: '1.1rem',
@@ -6330,7 +6330,7 @@ export default function InboundPage() {
                               checked={multiGridSettings.sortable}
                               onChange={(e) => updateMultiGridSettings({ ...multiGridSettings, sortable: e.target.checked })}
                               sx={{
-                                '&.Mui-checked': { color: '#667eea' }
+                                '&.Mui-checked': { color: '#1e40af' }
                               }}
                             />
                           }
@@ -6357,7 +6357,7 @@ export default function InboundPage() {
                               checked={multiGridSettings.filter}
                               onChange={(e) => updateMultiGridSettings({ ...multiGridSettings, filter: e.target.checked })}
                               sx={{
-                                '&.Mui-checked': { color: '#667eea' }
+                                '&.Mui-checked': { color: '#1e40af' }
                               }}
                             />
                           }
@@ -6384,7 +6384,7 @@ export default function InboundPage() {
                               checked={multiGridSettings.resizable}
                               onChange={(e) => updateMultiGridSettings({ ...multiGridSettings, resizable: e.target.checked })}
                               sx={{
-                                '&.Mui-checked': { color: '#667eea' }
+                                '&.Mui-checked': { color: '#1e40af' }
                               }}
                             />
                           }
@@ -6411,7 +6411,7 @@ export default function InboundPage() {
                               checked={multiGridSettings.editable}
                               onChange={(e) => updateMultiGridSettings({ ...multiGridSettings, editable: e.target.checked })}
                               sx={{
-                                '&.Mui-checked': { color: '#667eea' }
+                                '&.Mui-checked': { color: '#1e40af' }
                               }}
                             />
                           }
@@ -6457,9 +6457,9 @@ export default function InboundPage() {
                       variant="contained"
                       onClick={() => setMultiGridSettingsOpen(false)}
                       sx={{
-                        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                        background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
                         fontWeight: 700,
-                        boxShadow: '0 4px 12px rgba(102, 126, 234, 0.3)',
+                        boxShadow: '0 4px 12px rgba(30, 64, 175, 0.3)',
                         '&:hover': {
                           background: 'linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%)',
                         }

@@ -1,6 +1,6 @@
 'use client';
 import React from 'react';
-import { Paper, Tabs, Tab } from '@mui/material';
+import { Paper, Tabs, Tab, useTheme, useMediaQuery } from '@mui/material';
 
 interface StandardTabsProps {
     value: number;
@@ -13,17 +13,22 @@ export default function StandardTabs({
     value,
     onChange,
     tabs,
-    color = '#3b82f6'
+    color = '#1e40af'
 }: StandardTabsProps) {
+    const theme = useTheme();
+    const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+
     return (
         <Paper
+            elevation={0}
             sx={{
                 position: 'sticky',
                 top: { xs: 38, md: 42 },
                 zIndex: 90,
                 borderRadius: 0,
-                boxShadow: '0 2px 4px rgba(0,0,0,0.08)',
-                bgcolor: 'white'
+                boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                bgcolor: 'white',
+                borderBottom: '1px solid rgba(0,0,0,0.06)',
             }}
         >
             <Tabs
@@ -31,29 +36,38 @@ export default function StandardTabs({
                 onChange={onChange}
                 variant="scrollable"
                 scrollButtons="auto"
+                allowScrollButtonsMobile
                 sx={{
+                    minHeight: { xs: 48, md: 52 },
+                    '& .MuiTabs-scrollButtons': {
+                        width: 32,
+                        '&.Mui-disabled': {
+                            opacity: 0.3,
+                        },
+                    },
                     '& .MuiTabs-indicator': {
                         height: 3,
-                        background: `linear-gradient(90deg, ${color} 0%, ${color}dd 100%)`,
-                        borderRadius: '2px 2px 0 0'
+                        background: `linear-gradient(90deg, ${color} 0%, #3b82f6 100%)`,
+                        borderRadius: '3px 3px 0 0',
                     },
                     '& .MuiTab-root': {
                         fontWeight: 600,
-                        fontSize: '0.8rem',
+                        fontSize: { xs: '0.8rem', sm: '0.85rem' },
                         textTransform: 'none',
-                        minHeight: 44,
-                        py: 1,
-                        px: 2,
+                        minHeight: { xs: 48, md: 52 },
+                        py: 1.5,
+                        px: { xs: 1.5, sm: 2.5 },
                         color: '#64748b',
+                        transition: 'all 0.2s ease',
                         '&.Mui-selected': {
                             color: color,
-                            fontWeight: 700
+                            fontWeight: 700,
                         },
                         '&:hover': {
                             color: color,
-                            bgcolor: 'rgba(59, 130, 246, 0.04)'
-                        }
-                    }
+                            bgcolor: 'rgba(30, 64, 175, 0.04)',
+                        },
+                    },
                 }}
             >
                 {tabs.map((label, index) => (
