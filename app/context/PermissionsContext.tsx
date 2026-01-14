@@ -51,7 +51,7 @@ export const PermissionsProvider: React.FC<PermissionsProviderProps> = ({ childr
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [isFetching, setIsFetching] = useState(false);
-    const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+    const [_lastUpdated, setLastUpdated] = useState<string | null>(null);
     const broadcastRef = useRef<BroadcastChannel | null>(null);
 
     const fetchPermissions = async (isInitialFetch = false, force = false) => {
@@ -100,7 +100,7 @@ export const PermissionsProvider: React.FC<PermissionsProviderProps> = ({ childr
                                     (window as any).showPermissionNotification(`Permissions updated! (${enabledCount} enabled)`);
                                 }
                             }
-                        } catch (e) { }
+                        } catch { /* ignore parse errors */ }
                     }
                 }
 
@@ -186,12 +186,12 @@ export const PermissionsProvider: React.FC<PermissionsProviderProps> = ({ childr
             if (broadcastRef.current) {
                 broadcastRef.current.close();
             }
-            try { delete (window as any).__PERMISSIONS_HOOK; } catch (e) { }
+            try { delete (window as any).__PERMISSIONS_HOOK; } catch { /* ignore */ }
         };
     }, []);
 
     // Expose force refresh function
-    const forceRefresh = (force = false) => {
+    const _forceRefresh = (force = false) => {
         console.log('🔄 Force refreshing permissions...', force ? '(forced)' : '');
         fetchPermissions(false, force);
     };

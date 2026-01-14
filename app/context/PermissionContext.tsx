@@ -49,7 +49,8 @@ export function PermissionProvider({ children }: PermissionProviderProps) {
     const [permissions, setPermissions] = useState<Record<string, Permission>>({});
     const [role, setRole] = useState<string>('');
     const [isLoading, setIsLoading] = useState(true);
-    const [initialized, setInitialized] = useState(false);
+    // Track if permissions have been loaded at least once
+    const [_initialized, setInitialized] = useState(false);
 
     const isAdmin = role === 'super_admin' || role === 'admin';
 
@@ -115,17 +116,15 @@ export function PermissionProvider({ children }: PermissionProviderProps) {
         };
     }, [loadPermissions]);
 
-    // Refresh permissions from API
+    // Refresh permissions from API - don't set isLoading to avoid UI flash
     const refreshPermissions = useCallback(async () => {
         try {
-            setIsLoading(true);
+            // Don't set isLoading here to avoid flash in RouteGuard
             const response = await permissionsAPI.getMyPermissions();
             setPermissions(response.data.permissions || {});
             setRole(response.data.role || '');
         } catch (error) {
             console.error('Failed to refresh permissions:', error);
-        } finally {
-            setIsLoading(false);
         }
     }, []);
 

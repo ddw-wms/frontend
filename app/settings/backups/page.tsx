@@ -153,18 +153,22 @@ export default function BackupPage() {
 
 
 
-    const loadBackups = async () => {
+    const loadBackups = async (showLoader = true) => {
         try {
-            setLoading(true);
+            // Only show full-page loader on initial load, not on refresh
+            if (showLoader) setLoading(true);
             const response = await api.get('/backups');
             setBackups(response.data);
         } catch (error: any) {
             toast.error('Failed to load backups');
             console.error(error);
         } finally {
-            setLoading(false);
+            if (showLoader) setLoading(false);
         }
     };
+
+    // Refresh backups without showing full-page loader (prevents flash)
+    const refreshBackups = () => loadBackups(false);
 
     const loadDatabaseStats = async () => {
         try {
@@ -215,7 +219,7 @@ export default function BackupPage() {
                     setDescription('');
                     setBackupType('full');
                     setSelectedTables([]);
-                    loadBackups();
+                    refreshBackups();
                     return;
                 }
 
@@ -234,7 +238,7 @@ export default function BackupPage() {
             } catch (error: any) {
                 console.error('Progress poll error:', error);
                 // Backup might have completed, refresh list
-                loadBackups();
+                refreshBackups();
                 toast.dismiss(toastId);
             }
         };
@@ -281,7 +285,7 @@ export default function BackupPage() {
                 setDescription('');
                 setBackupType('full');
                 setSelectedTables([]);
-                loadBackups();
+                refreshBackups();
             }
         } catch (error: any) {
             const errorMessage = error.response?.data?.error ||
@@ -328,7 +332,7 @@ export default function BackupPage() {
         try {
             await api.delete(`/backups/${backup.id}`);
             toast.success('Backup deleted!', { id: toastId });
-            loadBackups();
+            refreshBackups();
         } catch (error: any) {
             toast.error('Delete failed', { id: toastId });
             console.error(error);
@@ -392,10 +396,11 @@ export default function BackupPage() {
                     setRestoreDialogOpen(false);
                     setSelectedBackup(null);
                     setConfirmRestore('');
-                    loadBackups();
-
-                    // Reload page after delay
-                    setTimeout(() => window.location.reload(), 2000);
+                    // Reload all data without full page reload
+                    refreshBackups();
+                    loadDatabaseStats();
+                    loadHealthStats();
+                    loadSchedules();
                     return;
                 }
 
@@ -419,7 +424,7 @@ export default function BackupPage() {
                     setTimeout(poll, 2000);
                 } else {
                     toast.dismiss(toastId);
-                    loadBackups();
+                    refreshBackups();
                 }
             }
         };
@@ -454,7 +459,11 @@ export default function BackupPage() {
                 setRestoreDialogOpen(false);
                 setSelectedBackup(null);
                 setConfirmRestore('');
-                setTimeout(() => window.location.reload(), 2000);
+                // Reload all data without full page reload
+                refreshBackups();
+                loadDatabaseStats();
+                loadHealthStats();
+                loadSchedules();
             }
         } catch (error: any) {
             const errorMsg = error.response?.data?.details ||
