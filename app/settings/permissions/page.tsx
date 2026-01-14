@@ -27,6 +27,9 @@ import {
 import { permissionsAPI, usersAPI, warehousesAPI } from '@/lib/api';
 import { usePermissions } from '@/app/context/PermissionContext';
 import AppLayout from '@/components/AppLayout';
+import { StandardPageHeader } from '@/components';
+import { useWarehouse } from '@/app/context/WarehouseContext';
+import { getStoredUser } from '@/lib/auth';
 
 interface Role {
     id: number;
@@ -133,6 +136,14 @@ export default function PermissionsPage() {
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('md'));
     const isSmall = useMediaQuery(theme.breakpoints.down('sm'));
+    const { activeWarehouse } = useWarehouse();
+    const [user, setUser] = useState<any>(null);
+
+    // Load user on mount
+    useEffect(() => {
+        const storedUser = getStoredUser();
+        setUser(storedUser);
+    }, []);
 
     const [tabValue, setTabValue] = useState(0);
     const [loading, setLoading] = useState(true);
@@ -686,32 +697,20 @@ export default function PermissionsPage() {
     return (
         <AppLayout>
             <Box sx={{
-                height: 'calc(100vh - 64px)',
+                height: '100%',
+                width: '100%',
                 display: 'flex',
                 flexDirection: 'column',
-                bgcolor: 'grey.50',
                 overflow: 'hidden'
             }}>
-                {/* Header */}
-                <Paper
-                    elevation={0}
-                    sx={{
-                        px: { xs: 2, md: 3 },
-                        py: 2,
-                        borderBottom: '1px solid',
-                        borderColor: 'divider',
-                        bgcolor: 'white'
-                    }}
-                >
-                    <Stack direction="row" justifyContent="space-between" alignItems="center">
-                        <Typography variant="h5" fontWeight={700} color="primary.main">
-                            Permissions Management
-                        </Typography>
-                        <IconButton onClick={loadData} disabled={loading}>
-                            <RefreshIcon />
-                        </IconButton>
-                    </Stack>
-                </Paper>
+                {/* ==================== HEADER SECTION ==================== */}
+                <StandardPageHeader
+                    title="Permissions Management"
+                    subtitle="Manage roles, user permissions and warehouse access"
+                    icon="🔐"
+                    warehouseName={activeWarehouse?.name}
+                    userName={user?.full_name}
+                />
 
                 {/* Tabs */}
                 <Paper elevation={0} sx={{ borderBottom: '1px solid', borderColor: 'divider' }}>

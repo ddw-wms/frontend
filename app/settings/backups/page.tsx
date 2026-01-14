@@ -47,8 +47,11 @@ import {
 } from '@mui/icons-material';
 
 import AppLayout from '@/components/AppLayout';
+import { StandardPageHeader } from '@/components';
 import api from '@/lib/api';
 import toast, { Toaster } from 'react-hot-toast';
+import { useWarehouse } from '@/app/context/WarehouseContext';
+import { getStoredUser } from '@/lib/auth';
 
 interface Backup {
     id: number;
@@ -106,6 +109,14 @@ export default function BackupPage() {
 
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+    const { activeWarehouse } = useWarehouse();
+    const [user, setUser] = useState<any>(null);
+
+    // Load user on mount
+    useEffect(() => {
+        const storedUser = getStoredUser();
+        setUser(storedUser);
+    }, []);
 
     const [backups, setBackups] = useState<Backup[]>([]);
     const [loading, setLoading] = useState(true);
@@ -505,41 +516,29 @@ export default function BackupPage() {
         <AppLayout>
             <Toaster position="top-right" />
             <Box sx={{
-                p: { xs: 2, sm: 2.5, md: 3 },
-                background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
-                minHeight: { xs: 'calc(100vh - 64px)', md: '100%' },
+                height: '100%',
                 width: '100%',
                 display: 'flex',
-                flex: { md: 1 },
                 flexDirection: 'column',
-                overflowY: 'auto',
-                overflowX: 'hidden',
+                overflow: 'hidden'
             }}>
 
-                {/* Header */}
-                <Box sx={{
-                    position: 'sticky',
-                    top: { xs: -16, md: 0 },
-                    zIndex: 1000,
-                    background: 'linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)',
-                    borderRadius: { xs: '12px', md: '16px' },
-                    p: { xs: 2, sm: 2.5, md: 3 },
-                    mb: { xs: 2, md: 3 },
-                    boxShadow: '0 8px 32px rgba(30, 58, 138, 0.25)',
-                }}>
-                    <Stack direction="row" alignItems="center" spacing={1.5} mb={0.5}>
-                        <BackupIcon sx={{ color: '#fff', fontSize: { xs: 28, md: 32 } }} />
-                        <Typography variant={isMobile ? 'h6' : 'h5'} sx={{ fontWeight: 700, color: '#fff' }}>
-                            Database Backup & Restore
-                        </Typography>
-                    </Stack>
-                    <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.85)', fontSize: { xs: '0.875rem', md: '0.95rem' } }}>
-                        Securely backup and restore your WMS database
-                    </Typography>
-                </Box>
+                {/* ==================== HEADER SECTION ==================== */}
+                <StandardPageHeader
+                    title="Database Backup & Restore"
+                    subtitle="Securely backup and restore your WMS database"
+                    icon="💾"
+                    warehouseName={activeWarehouse?.name}
+                    userName={user?.full_name}
+                />
 
                 {/* Content */}
-                <Box sx={{ flex: 1 }}>
+                <Box sx={{
+                    flex: 1,
+                    overflow: 'auto',
+                    p: { xs: 1.5, sm: 2, md: 3 },
+                    background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
+                }}>
 
                     {/* Statistics Cards */}
                     <Box sx={{
