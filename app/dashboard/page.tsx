@@ -2111,11 +2111,11 @@ export default function DashboardPage() {
 
               {/* Action buttons */}
               <Box sx={{ display: 'grid', gap: 1, mt: 1, flexWrap: 'wrap', columnCount: 2, gridTemplateColumns: 'repeat(2, 1fr)' }}>
-                <Button variant="outlined" sx={{ width: 170 }} startIcon={<RestartAltIcon />} onClick={resetFilters}>Reset</Button>
+                <Button variant="outlined" sx={{ width: 160 }} startIcon={<RestartAltIcon />} onClick={resetFilters}>Reset</Button>
                 {true && (
                   <Button
                     variant="outlined"
-                    sx={{ width: 170 }}
+                    sx={{ width: 160 }}
                     startIcon={<DownloadIcon />}
                     onClick={() => {
                       console.log('Export button clicked - Mobile Actions Dialog');
@@ -2131,14 +2131,14 @@ export default function DashboardPage() {
                 {true && (
                   <Button
                     variant="outlined"
-                    sx={{ width: 170 }}
+                    sx={{ width: 160 }}
                     startIcon={<SettingsIcon />}
                     onClick={() => { setColumnDialogOpen(true); setMobileActionsOpen(false); }}
                   >
                     Columns
                   </Button>
                 )}
-                <Button variant="outlined" sx={{ width: 170 }} startIcon={<TuneIcon />} onClick={() => setGridSettingsOpen(true)}>Grid</Button>
+                <Button variant="outlined" sx={{ width: 160 }} startIcon={<TuneIcon />} onClick={() => setGridSettingsOpen(true)}>Grid</Button>
               </Box>
 
             </Box>
