@@ -258,6 +258,8 @@ export default function InboundPage() {
 
   // Minimum time (ms) to show loading overlay to avoid flicker
   const MIN_LOADING_MS = 350;
+  // Search debounce delay for smooth performance
+  const SEARCH_DEBOUNCE_MS = 300;
   const [brandFilter, setBrandFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [dateFromFilter, setDateFromFilter] = useState('');
@@ -1009,12 +1011,12 @@ export default function InboundPage() {
 
   useEffect(() => {
     if (activeWarehouse && currentTabCode === 'list') {
-      // Debounce list loads when filters/search/page change to avoid rapid overlay flicker
+      // ✅ Reduced debounce (100ms) since search already debounces 350ms
       if (listLoadDebounceRef.current) clearTimeout(listLoadDebounceRef.current);
       listLoadDebounceRef.current = setTimeout(() => {
         loadInboundList();
         listLoadDebounceRef.current = null;
-      }, 350);
+      }, 100);
     }
 
     return () => {
@@ -3050,7 +3052,7 @@ export default function InboundPage() {
                           setSearchPending(false);
                           setSearchFilter(v);
                           setPage(1);
-                        }, MIN_LOADING_MS);
+                        }, SEARCH_DEBOUNCE_MS);
                       }}
                       InputProps={{
                         endAdornment: (searchPending || listLoading) ? (

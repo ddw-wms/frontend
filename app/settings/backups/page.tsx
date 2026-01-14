@@ -113,7 +113,7 @@ export default function BackupPage() {
     const [createDialogOpen, setCreateDialogOpen] = useState(false);
     const [restoreDialogOpen, setRestoreDialogOpen] = useState(false);
     const [selectedBackup, setSelectedBackup] = useState<Backup | null>(null);
-    const [backupType, setBackupType] = useState<'full' | 'schema' | 'data'>('full');
+    const [backupType, setBackupType] = useState<'full' | 'selective'>('full');
     const [description, setDescription] = useState('');
     const [confirmRestore, setConfirmRestore] = useState('');
     const [dbStats, setDbStats] = useState<DatabaseStats | null>(null);
@@ -124,6 +124,22 @@ export default function BackupPage() {
     const [schedulesDialogOpen, setSchedulesDialogOpen] = useState(false);
     const [scheduleFormOpen, setScheduleFormOpen] = useState(false);
     const [currentSchedule, setCurrentSchedule] = useState<Partial<BackupSchedule> | null>(null);
+
+    // Selective backup tables
+    const [selectedTables, setSelectedTables] = useState<string[]>([]);
+
+    // Available modules for selective backup
+    const backupModules = [
+        { id: 'master_data', name: 'Master Data', description: 'Product catalog & SKU data', icon: '📦' },
+        { id: 'inbound', name: 'Inbound', description: 'All inbound entries', icon: '📥' },
+        { id: 'qc', name: 'Quality Control', description: 'QC inspection records', icon: '✅' },
+        { id: 'picking', name: 'Picking', description: 'Picking records', icon: '🛒' },
+        { id: 'outbound', name: 'Outbound', description: 'Outbound/dispatch records', icon: '📤' },
+        { id: 'warehouses', name: 'Warehouses', description: 'Warehouse configuration', icon: '🏭' },
+        { id: 'customers', name: 'Customers', description: 'Customer data', icon: '👥' },
+        { id: 'racks', name: 'Racks', description: 'Rack locations', icon: '🗄️' },
+        { id: 'users', name: 'Users', description: 'User accounts & roles', icon: '👤' },
+    ];
 
 
 
@@ -167,22 +183,102 @@ export default function BackupPage() {
         }
     };
 
-    const handleCreateBackup = async () => {
-        const toastId = toast.loading('Creating backup...');
-        try {
-            await api.post('/backups', {
-                backup_type: backupType,
-                description,
-                use_json: true  // Use JSON format by default (Supabase-friendly)
-            });
+    // Poll backup progress
+    const pollBackupProgress = async (backupId: string, toastId: string) => {
+        let attempts = 0;
+        const maxAttempts = 600; // 10 minutes max (1 second intervals)
 
-            toast.success('Backup created successfully!', { id: toastId });
-            setCreateDialogOpen(false);
-            setDescription('');
-            setBackupType('full');
-            loadBackups();
+        const poll = async () => {
+            try {
+                const response = await api.get(`/backups/progress/${backupId}`);
+                const { status, progress, message, result } = response.data;
+
+                // Update toast with progress
+                toast.loading(`${message} (${progress}%)`, { id: toastId });
+
+                if (status === 'completed') {
+                    toast.success(`✅ Backup created: ${result?.file_size_mb || ''} MB`, {
+                        id: toastId,
+                        duration: 5000
+                    });
+                    setCreateDialogOpen(false);
+                    setDescription('');
+                    setBackupType('full');
+                    setSelectedTables([]);
+                    loadBackups();
+                    return;
+                }
+
+                if (status === 'failed') {
+                    toast.error(`❌ ${message}`, { id: toastId });
+                    return;
+                }
+
+                // Continue polling
+                attempts++;
+                if (attempts < maxAttempts) {
+                    setTimeout(poll, 1000);
+                } else {
+                    toast.error('Backup timeout - please check backup list', { id: toastId });
+                }
+            } catch (error: any) {
+                console.error('Progress poll error:', error);
+                // Backup might have completed, refresh list
+                loadBackups();
+                toast.dismiss(toastId);
+            }
+        };
+
+        poll();
+    };
+
+    const handleCreateBackup = async () => {
+        // Validate selective backup
+        if (backupType === 'selective' && selectedTables.length === 0) {
+            toast.error('Please select at least one module to backup');
+            return;
+        }
+
+        const toastId = toast.loading('Starting backup...');
+        try {
+            let response;
+
+            if (backupType === 'selective') {
+                // Selective backup
+                response = await api.post('/backups/selective', {
+                    tables: selectedTables,
+                    description: description || `Selective: ${selectedTables.join(', ')}`
+                });
+            } else {
+                // Full backup
+                response = await api.post('/backups', {
+                    backup_type: 'full',
+                    description,
+                    use_json: true,
+                    async_mode: true
+                });
+            }
+
+            // Check if async mode
+            if (response.data.backupId && response.data.status === 'in_progress') {
+                // Poll for progress
+                toast.loading('Backup started, processing...', { id: toastId });
+                pollBackupProgress(response.data.backupId, toastId);
+            } else {
+                // Sync mode completed
+                toast.success('Backup created successfully!', { id: toastId });
+                setCreateDialogOpen(false);
+                setDescription('');
+                setBackupType('full');
+                setSelectedTables([]);
+                loadBackups();
+            }
         } catch (error: any) {
-            toast.error(error.response?.data?.error || 'Backup failed', { id: toastId });
+            const errorMessage = error.response?.data?.error ||
+                error.response?.data?.message ||
+                error.message ||
+                'Backup failed - please try again';
+            toast.error(errorMessage, { id: toastId });
             console.error(error);
         }
     };
@@ -229,6 +325,98 @@ export default function BackupPage() {
         }
     };
 
+    // Poll restore progress
+    const pollRestoreProgress = async (restoreId: string, toastId: string) => {
+        let attempts = 0;
+        const maxAttempts = 1800; // 30 minutes max (1 second intervals)
+
+        const poll = async () => {
+            try {
+                const response = await api.get(`/backups/progress/${restoreId}`);
+                const { status, progress, message, details, result } = response.data;
+
+                // Build detailed message
+                let displayMessage = message;
+                if (details?.currentTable) {
+                    displayMessage = `${message} (${details.processedRows || 0}/${details.totalRows || 0} rows)`;
+                }
+
+                // Update toast with progress
+                toast.loading(
+                    <div style={{ minWidth: '280px' }}>
+                        <div style={{ fontWeight: 600, marginBottom: 4 }}>🔄 Restoring Database</div>
+                        <div style={{ fontSize: '0.85em', color: '#666' }}>{displayMessage}</div>
+                        <div style={{
+                            marginTop: 8,
+                            height: 6,
+                            background: '#e2e8f0',
+                            borderRadius: 3,
+                            overflow: 'hidden'
+                        }}>
+                            <div style={{
+                                width: `${progress}%`,
+                                height: '100%',
+                                background: 'linear-gradient(90deg, #3b82f6, #2563eb)',
+                                transition: 'width 0.3s ease'
+                            }} />
+                        </div>
+                        <div style={{ fontSize: '0.75em', color: '#888', marginTop: 4 }}>
+                            {progress}% complete
+                        </div>
+                    </div>,
+                    { id: toastId }
+                );
+
+                if (status === 'completed') {
+                    const successCount = result?.success?.length || 0;
+                    const totalRows = result?.totalRows || 0;
+                    toast.success(
+                        <div>
+                            <div style={{ fontWeight: 600 }}>✅ Restore Complete!</div>
+                            <div style={{ fontSize: '0.85em' }}>
+                                {successCount} tables, {totalRows.toLocaleString()} rows restored
+                            </div>
+                        </div>,
+                        { id: toastId, duration: 6000 }
+                    );
+                    setRestoreDialogOpen(false);
+                    setSelectedBackup(null);
+                    setConfirmRestore('');
+                    loadBackups();
+
+                    // Reload page after delay
+                    setTimeout(() => window.location.reload(), 2000);
+                    return;
+                }
+
+                if (status === 'failed') {
+                    toast.error(`❌ ${message}`, { id: toastId, duration: 8000 });
+                    return;
+                }
+
+                // Continue polling
+                attempts++;
+                if (attempts < maxAttempts) {
+                    setTimeout(poll, 1000);
+                } else {
+                    toast.error('Restore timeout - please check restore logs', { id: toastId });
+                }
+            } catch (error: any) {
+                console.error('Restore progress poll error:', error);
+                // Don't give up immediately - restore might still be running
+                attempts++;
+                if (attempts < maxAttempts && attempts < 10) {
+                    setTimeout(poll, 2000);
+                } else {
+                    toast.dismiss(toastId);
+                    loadBackups();
+                }
+            }
+        };
+
+        poll();
+    };
+
     const handleRestoreBackup = async () => {
         if (confirmRestore !== 'RESTORE') {
             toast.error('Please type RESTORE to confirm');
@@ -237,27 +425,33 @@ export default function BackupPage() {
 
         if (!selectedBackup) return;
 
-        const toastId = toast.loading('Restoring database... This may take a while.');
+        const toastId = toast.loading('Starting restore...');
         try {
-            await api.post(`/backups/restore/${selectedBackup.id}`, {
+            const response = await api.post(`/backups/restore/${selectedBackup.id}`, {
                 confirm: true
             });
 
-            toast.success('✅ Database restored successfully! Refresh page to see changes.', {
-                id: toastId,
-                duration: 6000
-            });
-            setRestoreDialogOpen(false);
-            setSelectedBackup(null);
-            setConfirmRestore('');
-
-            // Reload after 2 seconds to show updated data
-            setTimeout(() => {
-                window.location.reload();
-            }, 2000);
+            // Check if async mode
+            if (response.data.restoreId && response.data.status === 'in_progress') {
+                toast.loading('Restore started, please wait...', { id: toastId });
+                pollRestoreProgress(response.data.restoreId, toastId);
+            } else {
+                // Sync mode completed (shouldn't happen with new code)
+                toast.success('✅ Database restored successfully!', {
+                    id: toastId,
+                    duration: 6000
+                });
+                setRestoreDialogOpen(false);
+                setSelectedBackup(null);
+                setConfirmRestore('');
+                setTimeout(() => window.location.reload(), 2000);
+            }
         } catch (error: any) {
-            const errorMsg = error.response?.data?.details || error.response?.data?.error || 'Restore failed';
-            toast.error(`❌ ${errorMsg}`, { id: toastId, duration: 6000 });
+            const errorMsg = error.response?.data?.details ||
+                error.response?.data?.error ||
+                error.message ||
+                'Restore failed';
+            toast.error(`❌ ${errorMsg}`, { id: toastId, duration: 8000 });
             console.error('Restore error:', error.response?.data || error);
         }
     };
@@ -884,11 +1078,15 @@ export default function BackupPage() {
                         </>
                     )}
 
-                    {/* Create Backup Dialog */}
+                    {/* Create Backup Dialog - Enhanced */}
                     <Dialog
                         open={createDialogOpen}
-                        onClose={() => setCreateDialogOpen(false)}
-                        maxWidth="sm"
+                        onClose={() => {
+                            setCreateDialogOpen(false);
+                            setSelectedTables([]);
+                            setBackupType('full');
+                        }}
+                        maxWidth="md"
                         fullWidth
                         fullScreen={isMobile}
                         PaperProps={{
@@ -908,7 +1106,7 @@ export default function BackupPage() {
                         }}>
                             <Stack direction="row" alignItems="center" spacing={1.5}>
                                 <BackupIcon />
-                                <Typography variant={isMobile ? 'h6' : 'h6'} fontWeight={600}>
+                                <Typography variant="h6" fontWeight={600}>
                                     Create New Backup
                                 </Typography>
                             </Stack>
@@ -918,69 +1116,176 @@ export default function BackupPage() {
                                 </IconButton>
                             )}
                         </DialogTitle>
-                        <DialogContent sx={{ pt: { xs: 3, md: 3 }, pb: { xs: 1.5, md: 2 }, px: { xs: 2.5, md: 3 } }}>
-                            <Stack spacing={{ xs: 2.5, md: 3 }} sx={{ pt: 1.5 }}>
-                                <FormControl fullWidth>
-                                    <InputLabel>Backup Type</InputLabel>
-                                    <Select
-                                        value={backupType}
-                                        onChange={(e) => setBackupType(e.target.value as any)}
-                                        label="Backup Type"
-                                        sx={{
-                                            '& .MuiSelect-select': {
-                                                py: { xs: 1.5, md: 2 }
-                                            }
-                                        }}
-                                    >   <MenuItem value="full" sx={{ py: 1.5 }}>
-                                            <Stack spacing={0.25}>
-                                                <Typography variant="body2" fontWeight={500}>Full Backup</Typography>
-                                                <Typography variant="caption" color="text.secondary">Schema + All Data</Typography>
-                                            </Stack>
-                                        </MenuItem>
-                                        <MenuItem value="schema" sx={{ py: 1.5 }}>
-                                            <Stack spacing={0.25}>
-                                                <Typography variant="body2" fontWeight={500}>Schema Only</Typography>
-                                                <Typography variant="caption" color="text.secondary">Table Structure</Typography>
-                                            </Stack>
-                                        </MenuItem>
-                                        <MenuItem value="data" sx={{ py: 1.5 }}>
-                                            <Stack spacing={0.25}>
-                                                <Typography variant="body2" fontWeight={500}>Data Only</Typography>
-                                                <Typography variant="caption" color="text.secondary">Records Without Structure</Typography>
-                                            </Stack>
-                                        </MenuItem>
-                                    </Select>
-                                </FormControl>
+                        <DialogContent sx={{ pt: 3, pb: 2, px: { xs: 2, md: 3 } }}>
+                            <Stack spacing={3} sx={{ pt: 1 }}>
+                                {/* Backup Type Selection */}
+                                <Box>
+                                    <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                                        Select Backup Type
+                                    </Typography>
+                                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+                                        <Card
+                                            onClick={() => setBackupType('full')}
+                                            sx={{
+                                                flex: 1,
+                                                cursor: 'pointer',
+                                                border: backupType === 'full' ? '2px solid #3b82f6' : '1px solid #e2e8f0',
+                                                bgcolor: backupType === 'full' ? 'rgba(59, 130, 246, 0.05)' : 'white',
+                                                transition: 'all 0.2s',
+                                                '&:hover': { borderColor: '#3b82f6' }
+                                            }}
+                                        >
+                                            <CardContent sx={{ p: 2 }}>
+                                                <Stack direction="row" spacing={2} alignItems="center">
+                                                    <Box sx={{
+                                                        width: 48, height: 48, borderRadius: 2,
+                                                        bgcolor: 'rgba(59, 130, 246, 0.1)',
+                                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                        fontSize: '1.5rem'
+                                                    }}>
+                                                        💾
+                                                    </Box>
+                                                    <Box>
+                                                        <Typography fontWeight={600}>Full Backup</Typography>
+                                                        <Typography variant="caption" color="text.secondary">
+                                                            All tables & data (~{healthStats?.average_backup_size_formatted || '30 MB'})
+                                                        </Typography>
+                                                    </Box>
+                                                </Stack>
+                                            </CardContent>
+                                        </Card>
+
+                                        <Card
+                                            onClick={() => setBackupType('selective')}
+                                            sx={{
+                                                flex: 1,
+                                                cursor: 'pointer',
+                                                border: backupType === 'selective' ? '2px solid #10b981' : '1px solid #e2e8f0',
+                                                bgcolor: backupType === 'selective' ? 'rgba(16, 185, 129, 0.05)' : 'white',
+                                                transition: 'all 0.2s',
+                                                '&:hover': { borderColor: '#10b981' }
+                                            }}
+                                        >
+                                            <CardContent sx={{ p: 2 }}>
+                                                <Stack direction="row" spacing={2} alignItems="center">
+                                                    <Box sx={{
+                                                        width: 48, height: 48, borderRadius: 2,
+                                                        bgcolor: 'rgba(16, 185, 129, 0.1)',
+                                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                        fontSize: '1.5rem'
+                                                    }}>
+                                                        ✂️
+                                                    </Box>
+                                                    <Box>
+                                                        <Typography fontWeight={600}>Selective Backup</Typography>
+                                                        <Typography variant="caption" color="text.secondary">
+                                                            Choose specific modules
+                                                        </Typography>
+                                                    </Box>
+                                                </Stack>
+                                            </CardContent>
+                                        </Card>
+                                    </Stack>
+                                </Box>
+
+                                {/* Selective Module Selection */}
+                                {backupType === 'selective' && (
+                                    <Box>
+                                        <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1.5}>
+                                            <Typography variant="subtitle2" color="text.secondary">
+                                                Select Modules to Backup ({selectedTables.length} selected)
+                                            </Typography>
+                                            <Button
+                                                size="small"
+                                                onClick={() => {
+                                                    if (selectedTables.length === backupModules.length) {
+                                                        setSelectedTables([]);
+                                                    } else {
+                                                        setSelectedTables(backupModules.map(m => m.id));
+                                                    }
+                                                }}
+                                            >
+                                                {selectedTables.length === backupModules.length ? 'Deselect All' : 'Select All'}
+                                            </Button>
+                                        </Stack>
+                                        <Grid container spacing={1.5}>
+                                            {backupModules.map((module) => (
+                                                <Grid item xs={6} sm={4} key={module.id}>
+                                                    <Card
+                                                        onClick={() => {
+                                                            setSelectedTables(prev =>
+                                                                prev.includes(module.id)
+                                                                    ? prev.filter(t => t !== module.id)
+                                                                    : [...prev, module.id]
+                                                            );
+                                                        }}
+                                                        sx={{
+                                                            cursor: 'pointer',
+                                                            border: selectedTables.includes(module.id)
+                                                                ? '2px solid #10b981'
+                                                                : '1px solid #e2e8f0',
+                                                            bgcolor: selectedTables.includes(module.id)
+                                                                ? 'rgba(16, 185, 129, 0.08)'
+                                                                : 'white',
+                                                            transition: 'all 0.15s',
+                                                            '&:hover': {
+                                                                borderColor: '#10b981',
+                                                                transform: 'scale(1.02)'
+                                                            }
+                                                        }}
+                                                    >
+                                                        <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+                                                            <Stack direction="row" spacing={1} alignItems="center">
+                                                                <Typography fontSize="1.2rem">{module.icon}</Typography>
+                                                                <Box>
+                                                                    <Typography variant="body2" fontWeight={500} noWrap>
+                                                                        {module.name}
+                                                                    </Typography>
+                                                                    <Typography variant="caption" color="text.secondary" noWrap>
+                                                                        {module.description}
+                                                                    </Typography>
+                                                                </Box>
+                                                            </Stack>
+                                                        </CardContent>
+                                                    </Card>
+                                                </Grid>
+                                            ))}
+                                        </Grid>
+                                    </Box>
+                                )}
 
                                 <TextField
                                     label="Description (Optional)"
                                     multiline
-                                    rows={isMobile ? 2 : 3}
+                                    rows={2}
                                     value={description}
                                     onChange={(e) => setDescription(e.target.value)}
-                                    placeholder="e.g., Before major update, Weekly backup, etc."
+                                    placeholder="e.g., Before major update, Weekly backup..."
                                     fullWidth
-                                    sx={{
-                                        '& .MuiOutlinedInput-root': {
-                                            fontSize: { xs: '0.9rem', md: '1rem' }
-                                        }
-                                    }}
+                                    size="small"
                                 />
 
-                                <Alert severity="success" sx={{ borderRadius: { xs: 1.5, md: 2 }, py: { xs: 1, md: 1.5 } }}>
-                                    <Typography variant="body2" fontWeight={500} sx={{ fontSize: { xs: '0.85rem', md: '0.875rem' } }}>✓ Supabase Compatible</Typography>
-                                    <Typography variant="caption" sx={{ fontSize: { xs: '0.7rem', md: '0.75rem' } }}>
-                                        Uses JSON format, no pg_dump required
-                                    </Typography>
+                                <Alert severity="success" icon={false} sx={{ borderRadius: 2 }}>
+                                    <Stack direction="row" spacing={1} alignItems="center">
+                                        <Typography>✅</Typography>
+                                        <Box>
+                                            <Typography variant="body2" fontWeight={500}>Supabase Compatible</Typography>
+                                            <Typography variant="caption" color="text.secondary">
+                                                JSON format • No pg_dump required • Works with large data
+                                            </Typography>
+                                        </Box>
+                                    </Stack>
                                 </Alert>
                             </Stack>
                         </DialogContent>
-                        <DialogActions sx={{ px: { xs: 2, md: 3 }, pb: { xs: 2, md: 3 }, pt: { xs: 1, md: 1.5 }, gap: 1 }}>
+                        <DialogActions sx={{ px: 3, pb: 3, pt: 1, gap: 1 }}>
                             <Button
-                                onClick={() => setCreateDialogOpen(false)}
-                                fullWidth={isMobile}
+                                onClick={() => {
+                                    setCreateDialogOpen(false);
+                                    setSelectedTables([]);
+                                    setBackupType('full');
+                                }}
                                 size="large"
-                                sx={{ fontWeight: 500 }}
                             >
                                 Cancel
                             </Button>
@@ -988,17 +1293,21 @@ export default function BackupPage() {
                                 variant="contained"
                                 onClick={handleCreateBackup}
                                 startIcon={<BackupIcon />}
-                                fullWidth={isMobile}
+                                disabled={backupType === 'selective' && selectedTables.length === 0}
                                 size="large"
                                 sx={{
                                     background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
                                     fontWeight: 600,
+                                    px: 4,
                                     '&:hover': {
                                         background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
                                     }
                                 }}
                             >
-                                Create Backup
+                                {backupType === 'selective'
+                                    ? `Backup ${selectedTables.length} Module${selectedTables.length !== 1 ? 's' : ''}`
+                                    : 'Create Full Backup'
+                                }
                             </Button>
                         </DialogActions>
                     </Dialog>
@@ -1006,7 +1315,10 @@ export default function BackupPage() {
                     {/* Restore Confirmation Dialog */}
                     <Dialog
                         open={restoreDialogOpen}
-                        onClose={() => setRestoreDialogOpen(false)}
+                        onClose={() => {
+                            setRestoreDialogOpen(false);
+                            setConfirmRestore('');
+                        }}
                         maxWidth="sm"
                         fullWidth
                         fullScreen={isMobile}
@@ -1023,11 +1335,11 @@ export default function BackupPage() {
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'space-between',
-                            py: { xs: 2, md: 2.5 }
+                            py: 2.5
                         }}>
                             <Stack direction="row" alignItems="center" spacing={1.5}>
                                 <WarningIcon />
-                                <Typography variant={isMobile ? 'h6' : 'h6'} fontWeight={600}>
+                                <Typography variant="h6" fontWeight={600}>
                                     Restore Database
                                 </Typography>
                             </Stack>

@@ -125,6 +125,10 @@ export const masterDataAPI = {
   getUploadProgress: (jobId: string) => api.get(`master-data/upload/progress/${jobId}`),
   cancelUpload: (jobId: string) => api.delete(`master-data/upload/cancel/${jobId}`),
   getBatches: () => api.get('master-data/batches'),
+  // Get unique brands for filter dropdown (optionally filtered by category)
+  getBrands: (category?: string) => api.get('master-data/brands', { params: { category } }),
+  // Get unique categories for filter dropdown (optionally filtered by brand)
+  getCategories: (brand?: string) => api.get('master-data/categories', { params: { brand } }),
   delete: (id: number) => api.delete(`master-data/${id}`),
   deleteBatch: (batchId: string) => api.delete(`master-data/batch/${batchId}`),
   getActiveUploads: () => api.get('master-data/upload/active'),
@@ -446,7 +450,13 @@ export const pickingAPI = {
     }),
   // Delete batch
   deleteBatch: (batchId: string) =>
-    api.delete(`/picking/batch/${batchId}`)
+    api.delete(`/picking/batch/${batchId}`),
+  // Get unique brands for filter dropdown
+  getBrands: (warehouseId?: number) =>
+    api.get('/picking/brands', { params: { warehouseId } }),
+  // Get unique categories for filter dropdown
+  getCategories: (warehouseId?: number) =>
+    api.get('/picking/categories', { params: { warehouseId } })
 };
 
 // ======================== DASHBOARD API ==============================

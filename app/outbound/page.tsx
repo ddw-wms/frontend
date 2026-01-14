@@ -511,10 +511,10 @@ export default function OutboundPage() {
             clearTimeout(searchDebounceRef.current);
             searchDebounceRef.current = null;
         }
-        // Debounce typing to avoid spamming requests and avoid UI flicker
+        // ✅ Debounce typing (300ms) to avoid spamming requests and UI lag
         searchDebounceRef.current = setTimeout(() => {
             setSearchDebounced(searchFilter);
-        }, 220);
+        }, 300);
 
         return () => {
             if (searchDebounceRef.current) {

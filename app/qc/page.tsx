@@ -28,6 +28,7 @@ import {
   Select,
   FormControl,
   InputLabel,
+  InputAdornment,
   Checkbox,
   FormControlLabel,
   LinearProgress,
@@ -243,6 +244,8 @@ export default function QCPage() {
   const [limit, setLimit] = useState(50);
   const [total, setTotal] = useState(0);
   const [searchFilter, setSearchFilter] = useState('');
+  const [searchDebounced, setSearchDebounced] = useState('');
+  const searchDebounceRef = useRef<NodeJS.Timeout | null>(null);
   const [statusFilter, setStatusFilter] = useState('');
   const [gradeFilter, setGradeFilter] = useState('');
   const [brandFilter, setBrandFilter] = useState('');
@@ -771,12 +774,27 @@ export default function QCPage() {
     }
   };
 
+  // ✅ Debounce search filter (300ms delay for smooth performance)
+  useEffect(() => {
+    if (searchDebounceRef.current) {
+      clearTimeout(searchDebounceRef.current);
+      searchDebounceRef.current = null;
+    }
+    searchDebounceRef.current = setTimeout(() => {
+      setSearchDebounced(searchFilter);
+    }, 300);
+
+    return () => {
+      if (searchDebounceRef.current) {
+        clearTimeout(searchDebounceRef.current);
+        searchDebounceRef.current = null;
+      }
+    };
+  }, [searchFilter]);
+
   // LOAD DATA
   useEffect(() => {
     if (!activeWarehouse) return;
-
-    // Debug log
-    console.log('🔍 Search Filter Changed:', searchFilter);
 
     if (currentTabCode === 'list') {
       loadQCList();
@@ -796,7 +814,7 @@ export default function QCPage() {
     currentTabCode,
     page,
     limit,
-    searchFilter,
+    searchDebounced,
     statusFilter,
     gradeFilter,
     brandFilter,
@@ -970,10 +988,9 @@ export default function QCPage() {
     qcAbortControllerRef.current = controller;
 
     try {
-      console.log('📡 API Call with search:', searchFilter);
       const response = await qcAPI.getList(page, limit, {
         warehouseId: activeWarehouse?.id,
-        search: searchFilter,
+        search: searchDebounced,
         qcStatus: statusFilter,
         qc_grade: gradeFilter,
         brand: brandFilter,
@@ -1524,19 +1541,15 @@ export default function QCPage() {
                     placeholder="🔍 Search by WSN, Product Title, or any field..."
                     value={searchFilter}
                     onChange={(e) => {
-                      const value = e.target.value;
-                      setSearchFilter(value);
+                      setSearchFilter(e.target.value);
                       setPage(1);
-                      // Force immediate reload if empty (clear search)
-                      if (value === '') {
-                        loadQCList();
-                      }
                     }}
-                    onKeyPress={(e) => {
-                      // Trigger search on Enter key
-                      if (e.key === 'Enter') {
-                        loadQCList();
-                      }
+                    InputProps={{
+                      endAdornment: (searchFilter !== searchDebounced) ? (
+                        <InputAdornment position="end">
+                          <CircularProgress size={16} />
+                        </InputAdornment>
+                      ) : undefined
                     }}
                     sx={{
                       flex: 1,

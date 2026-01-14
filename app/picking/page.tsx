@@ -500,7 +500,7 @@ export default function PickingPage() {
     }
   }, [activeWarehouse]);
 
-  // Debounce search filter
+  // ✅ Debounce search filter (300ms delay for smooth performance)
   useEffect(() => {
     if (searchDebounceRef.current) {
       clearTimeout(searchDebounceRef.current);
@@ -508,7 +508,7 @@ export default function PickingPage() {
     }
     searchDebounceRef.current = setTimeout(() => {
       setSearchDebounced(searchFilter);
-    }, 220);
+    }, 300);
 
     return () => {
       if (searchDebounceRef.current) {
@@ -531,6 +531,14 @@ export default function PickingPage() {
       loadBatches();
     }
   }, [activeWarehouse, currentTabCode]);
+
+  // ✅ Load brands and categories from database when component mounts or warehouse changes
+  useEffect(() => {
+    if (activeWarehouse) {
+      loadBrands();
+      loadCategories();
+    }
+  }, [activeWarehouse]);
 
   // Load list columns from localStorage with validation
   useEffect(() => {
@@ -825,12 +833,6 @@ export default function PickingPage() {
 
         setTotal(totalCount);
 
-        // Extract unique brands and categories for filters
-        const uniqueBrands = Array.from(new Set(data.map((item: any) => item.brand).filter(Boolean)));
-        const uniqueCategories = Array.from(new Set(data.map((item: any) => item.cms_vertical).filter(Boolean)));
-        setBrandOptions(uniqueBrands as string[]);
-        setCategoryOptions(uniqueCategories as string[]);
-
         if (buttonRefresh) {
           setRefreshSuccess(true);
           toast.success('✓ List refreshed');
@@ -923,6 +925,28 @@ export default function PickingPage() {
       }
     } finally {
       setBatchLoading(false);
+    }
+  };
+
+  // ✅ Load brands from database API
+  const loadBrands = async () => {
+    try {
+      const response = await pickingAPI.getBrands(activeWarehouse?.id);
+      setBrandOptions(Array.isArray(response.data) ? response.data : []);
+    } catch (error) {
+      console.error('Failed to load brands:', error);
+      setBrandOptions([]);
+    }
+  };
+
+  // ✅ Load categories from database API
+  const loadCategories = async () => {
+    try {
+      const response = await pickingAPI.getCategories(activeWarehouse?.id);
+      setCategoryOptions(Array.isArray(response.data) ? response.data : []);
+    } catch (error) {
+      console.error('Failed to load categories:', error);
+      setCategoryOptions([]);
     }
   };
 

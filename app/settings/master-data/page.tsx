@@ -302,6 +302,10 @@ export default function MasterDataPage() {
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [mobileActionsOpen, setMobileActionsOpen] = useState(false);
 
+  // ✅ NEW: Brands and categories loaded from API (database)
+  const [brandOptions, setBrandOptions] = useState<string[]>([]);
+  const [categoryOptions, setCategoryOptions] = useState<string[]>([]);
+
   // Add/Edit Product Dialog States
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -554,12 +558,12 @@ export default function MasterDataPage() {
     };
   }, [router]);
 
-  // ✅ Debounced search effect (150ms delay for near-instant results)
+  // ✅ Debounced search effect (300ms delay for smooth performance)
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(searchQuery);
       setPage(0); // Reset to first page on search
-    }, 150);
+    }, 300);
 
     return () => clearTimeout(timer);
   }, [searchQuery]);
@@ -601,6 +605,7 @@ export default function MasterDataPage() {
   useEffect(() => {
     if (user && isClient) {
       loadBatches();
+      // Note: loadBrands and loadCategories are handled by their respective useEffects
       checkActiveUploads();
     }
   }, [user, isClient]);
@@ -745,6 +750,46 @@ export default function MasterDataPage() {
       setBatches([]);
     }
   };
+
+  // ✅ Load brands from database API (optionally filtered by category)
+  const loadBrands = async (category?: string) => {
+    try {
+      const response = await masterDataAPI.getBrands(category || undefined);
+      setBrandOptions(Array.isArray(response.data) ? response.data : []);
+    } catch (error) {
+      console.error('Failed to load brands:', error);
+      setBrandOptions([]);
+    }
+  };
+
+  // ✅ Load categories from database API (optionally filtered by brand)
+  const loadCategories = async (brand?: string) => {
+    try {
+      const response = await masterDataAPI.getCategories(brand || undefined);
+      setCategoryOptions(Array.isArray(response.data) ? response.data : []);
+    } catch (error) {
+      console.error('Failed to load categories:', error);
+      setCategoryOptions([]);
+    }
+  };
+
+  // ✅ Dynamic filter: When brand changes, reload categories for that brand
+  useEffect(() => {
+    if (filterBrand) {
+      loadCategories(filterBrand);
+    } else {
+      loadCategories(); // Load all categories when no brand selected
+    }
+  }, [filterBrand]);
+
+  // ✅ Dynamic filter: When category changes, reload brands for that category
+  useEffect(() => {
+    if (filterCategory) {
+      loadBrands(filterCategory);
+    } else {
+      loadBrands(); // Load all brands when no category selected
+    }
+  }, [filterCategory]);
 
   const checkActiveUploads = async () => {
     try {
@@ -1479,7 +1524,7 @@ export default function MasterDataPage() {
                               sx={{ height: 34, fontSize: '0.8rem' }}
                             >
                               <MenuItem value="">All</MenuItem>
-                              {Array.from(new Set(masterData.map(d => d.brand).filter(Boolean))).map(brand => (
+                              {brandOptions.map(brand => (
                                 <MenuItem key={brand} value={brand}>{brand}</MenuItem>
                               ))}
                             </Select>
@@ -1495,7 +1540,7 @@ export default function MasterDataPage() {
                               sx={{ height: 34, fontSize: '0.8rem' }}
                             >
                               <MenuItem value="">All</MenuItem>
-                              {Array.from(new Set(masterData.map(d => d.cms_vertical).filter(Boolean))).map(category => (
+                              {categoryOptions.map(category => (
                                 <MenuItem key={category} value={category}>{category}</MenuItem>
                               ))}
                             </Select>
@@ -1723,7 +1768,7 @@ export default function MasterDataPage() {
                               sx={{ height: 36, fontSize: '0.7rem' }}
                             >
                               <MenuItem value="">All</MenuItem>
-                              {Array.from(new Set(masterData.map(d => d.brand).filter(Boolean))).map(brand => (
+                              {brandOptions.map(brand => (
                                 <MenuItem key={brand} value={brand}>{brand}</MenuItem>
                               ))}
                             </Select>
@@ -1739,7 +1784,7 @@ export default function MasterDataPage() {
                               sx={{ height: 36, fontSize: '0.7rem' }}
                             >
                               <MenuItem value="">All</MenuItem>
-                              {Array.from(new Set(masterData.map(d => d.cms_vertical).filter(Boolean))).map(category => (
+                              {categoryOptions.map(category => (
                                 <MenuItem key={category} value={category}>{category}</MenuItem>
                               ))}
                             </Select>
@@ -2681,7 +2726,7 @@ export default function MasterDataPage() {
                     onChange={(e) => { setFilterBrand(e.target.value); setPage(0); }}
                   >
                     <MenuItem value="">All</MenuItem>
-                    {Array.from(new Set(masterData.map(d => d.brand).filter(Boolean))).map(brand => (
+                    {brandOptions.map(brand => (
                       <MenuItem key={brand} value={brand}>{brand}</MenuItem>
                     ))}
                   </Select>
@@ -2697,7 +2742,7 @@ export default function MasterDataPage() {
                     onChange={(e) => { setFilterCategory(e.target.value); setPage(0); }}
                   >
                     <MenuItem value="">All</MenuItem>
-                    {Array.from(new Set(masterData.map(d => d.cms_vertical).filter(Boolean))).map(category => (
+                    {categoryOptions.map(category => (
                       <MenuItem key={category} value={category}>{category}</MenuItem>
                     ))}
                   </Select>
