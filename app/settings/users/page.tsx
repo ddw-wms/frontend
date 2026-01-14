@@ -625,9 +625,11 @@ export default function UsersPage() {
               >
                 <MenuItem value="admin">Admin</MenuItem>
                 <MenuItem value="manager">Manager</MenuItem>
+                <MenuItem value="supervisor">Supervisor</MenuItem>
                 <MenuItem value="operator">Operator</MenuItem>
                 <MenuItem value="qc">QC</MenuItem>
                 <MenuItem value="picker">Picker</MenuItem>
+                <MenuItem value="viewer">Viewer</MenuItem>
               </Select>
             </FormControl>
             <FormControlLabel

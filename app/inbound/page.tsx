@@ -41,27 +41,56 @@ const DEFAULT_MULTI_COLUMNS = [
   'wsn',
   'product_serial_number',
   'rack_no',
-  'unload_remarks'
-];
-
-const ALL_MASTER_COLUMNS = ['wid', 'fsn', 'order_id', 'product_title', 'brand', 'mrp', 'fsp', 'hsn_sac', 'igst_rate', 'cms_vertical', 'fkt_link', 'p_type', 'p_size', 'vrp', 'yield_value', 'fk_grade', 'fkqc_remark'];
-const INBOUND_LIST_COLUMNS = [
-  'wsn',
+  'unload_remarks',
   'product_title',
   'brand',
   'cms_vertical',
   'fsp',
   'mrp',
+  'fkqc_remark',
+  'fk_grade',
+];
+
+const DEFault_LIST_COLUMNS = [
   'inbound_date',
   'vehicle_no',
   'rack_no',
-  'quantity',
-  'batch_id',
   'product_serial_number',
   'unload_remarks',
-  'created_user_name',
+  'wsn',
+  'wid',
+  'fsn',
+  'product_title',
+  'brand',
+  'cms_vertical',
+  'fsp',
+  'mrp',
+  'quantity',
   'fkqc_remark',
-  'fk_grade'
+];
+
+const ALL_MASTER_COLUMNS = [
+  'wid', 'fsn', 'order_id', 'product_title', 'brand',
+  'mrp', 'fsp', 'hsn_sac', 'igst_rate', 'cms_vertical',
+  'fkt_link', 'p_type', 'p_size', 'vrp', 'yield_value', 'fk_grade', 'fkqc_remark'
+];
+
+const INBOUND_LIST_COLUMNS = [
+  'inbound_date',
+  'vehicle_no',
+  'rack_no',
+  'product_serial_number',
+  'unload_remarks',
+  'wsn',
+  'wid',
+  'fsn',
+  'product_title',
+  'brand',
+  'cms_vertical',
+  'fsp',
+  'mrp',
+  'quantity',
+  'fkqc_remark',
 ];
 
 const EDITABLE_COLUMNS = ['wsn', 'product_serial_number', 'rack_no', 'unload_remarks'];

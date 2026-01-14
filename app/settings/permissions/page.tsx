@@ -362,49 +362,54 @@ export default function PermissionsPage() {
     // RENDER HELPERS
     // =====================================================
 
-    // Role List Component
-    const RoleList = () => (
-        <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-            <Typography variant="subtitle2" sx={{ px: 2, py: 1.5, bgcolor: 'grey.100', fontWeight: 600 }}>
-                Select Role
-            </Typography>
-            <List dense sx={{ flex: 1, overflow: 'auto', p: 0 }}>
-                {roles.map(role => (
-                    <ListItemButton
-                        key={role.id}
-                        selected={selectedRole?.id === role.id}
-                        onClick={() => handleSelectRole(role)}
-                        sx={{
-                            borderBottom: '1px solid',
-                            borderColor: 'divider',
-                            '&.Mui-selected': {
-                                bgcolor: alpha(theme.palette.primary.main, 0.12),
-                                borderLeft: `3px solid ${theme.palette.primary.main}`,
-                            }
-                        }}
-                    >
-                        <Avatar sx={{
-                            width: 32,
-                            height: 32,
-                            mr: 1.5,
-                            bgcolor: selectedRole?.id === role.id ? 'primary.main' : 'grey.300',
-                            fontSize: '0.875rem'
-                        }}>
-                            {role.name.charAt(0).toUpperCase()}
-                        </Avatar>
-                        <ListItemText
-                            primary={<Typography fontWeight={500}>{role.name}</Typography>}
-                            secondary={
-                                <Typography variant="caption" color="text.secondary">
-                                    {role.user_count} user{role.user_count !== 1 ? 's' : ''}
-                                </Typography>
-                            }
-                        />
-                    </ListItemButton>
-                ))}
-            </List>
-        </Box>
-    );
+    // Role List Component - Filter out super_admin as they have all permissions by default
+    const RoleList = () => {
+        // Filter out super_admin - they have all permissions by default and cannot be modified
+        const editableRoles = roles.filter(r => r.name !== 'super_admin');
+
+        return (
+            <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                <Typography variant="subtitle2" sx={{ px: 2, py: 1.5, bgcolor: 'grey.100', fontWeight: 600 }}>
+                    Select Role
+                </Typography>
+                <List dense sx={{ flex: 1, overflow: 'auto', p: 0 }}>
+                    {editableRoles.map(role => (
+                        <ListItemButton
+                            key={role.id}
+                            selected={selectedRole?.id === role.id}
+                            onClick={() => handleSelectRole(role)}
+                            sx={{
+                                borderBottom: '1px solid',
+                                borderColor: 'divider',
+                                '&.Mui-selected': {
+                                    bgcolor: alpha(theme.palette.primary.main, 0.12),
+                                    borderLeft: `3px solid ${theme.palette.primary.main}`,
+                                }
+                            }}
+                        >
+                            <Avatar sx={{
+                                width: 32,
+                                height: 32,
+                                mr: 1.5,
+                                bgcolor: selectedRole?.id === role.id ? 'primary.main' : 'grey.300',
+                                fontSize: '0.875rem'
+                            }}>
+                                {role.name.charAt(0).toUpperCase()}
+                            </Avatar>
+                            <ListItemText
+                                primary={<Typography fontWeight={500}>{role.name}</Typography>}
+                                secondary={
+                                    <Typography variant="caption" color="text.secondary">
+                                        {role.user_count} user{role.user_count !== 1 ? 's' : ''}
+                                    </Typography>
+                                }
+                            />
+                        </ListItemButton>
+                    ))}
+                </List>
+            </Box>
+        );
+    };
 
     // User List Component
     const UserList = () => {

@@ -157,15 +157,18 @@ const ALL_COLUMNS = [
 
 const DEFAULT_VISIBLE_COLUMNS = [
   "wsn",
+  "wid",
+  "fsn",
   "product_title",
   "brand",
   "cms_vertical",
   "fsp",
   "mrp",
-  "inbound_status",
   "qc_status",
   "picking_status",
   "outbound_status",
+  "order_id",
+  "fkqc_remark",
   "current_stage",
 ];
 
