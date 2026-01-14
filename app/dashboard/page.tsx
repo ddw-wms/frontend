@@ -215,6 +215,7 @@ export default function DashboardPage() {
   const [visibleColumns, setVisibleColumns] = useState<string[]>([]);
   const gridRef = useRef<any>(null);
   const columnApiRef = useRef<any>(null);
+  const hasAutoFittedRef = useRef(false); // Track if auto-fit has been done
   const [columnDefs, setColumnDefs] = useState<any[]>([]);
   const [pickingWSNs, setPickingWSNs] = useState<Set<string>>(new Set());
   const [outboundWSNs, setOutboundWSNs] = useState<Set<string>>(new Set());
@@ -1928,7 +1929,7 @@ export default function DashboardPage() {
                     rowData={filteredData}
                     columnDefs={columnDefs}
                     defaultColDef={defaultColDef}
-                    rowSelection={{ mode: 'singleRow', enableClickSelection: false }}
+                    rowSelection={{ mode: 'singleRow', checkboxes: false, enableClickSelection: true }}
                     loading={false}
                     suppressNoRowsOverlay={true}
                     getRowId={(params: any) => String(params.data?.wsn || params.data?.wid || params.rowIndex)}
@@ -1939,8 +1940,23 @@ export default function DashboardPage() {
                         const savedState = localStorage.getItem('dashboard_columnState');
                         if (savedState && params.api) {
                           params.api.applyColumnState({ state: JSON.parse(savedState), applyOrder: true });
+                          hasAutoFittedRef.current = true; // Mark as fitted (using saved state)
                         }
                       } catch { /* ignore */ }
+                    }}
+                    onFirstDataRendered={(params: any) => {
+                      // Auto-fit columns on first data load ONLY if no saved state
+                      if (!hasAutoFittedRef.current && params.api) {
+                        try {
+                          const allColIds = params.api.getColumns()
+                            ?.filter((col: any) => col.getColId() !== '__action')
+                            .map((col: any) => col.getColId()) || [];
+                          if (allColIds.length > 0) {
+                            params.api.autoSizeColumns(allColIds);
+                          }
+                          hasAutoFittedRef.current = true;
+                        } catch { /* ignore */ }
+                      }
                     }}
                     onColumnResized={(params: any) => {
                       if (params.finished && params.api) {

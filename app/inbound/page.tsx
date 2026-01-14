@@ -109,6 +109,7 @@ export default function InboundPage() {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<any>(null);
   const columnApiRef = useRef<any>(null);
+  const hasAutoFittedRef = useRef(false); // Track if auto-fit has been done
   const lastKeyDownRef = useRef<any>(null);
   const isAutoScrollingRef = useRef<boolean>(false);
   const scrollAnimationFrameRef = useRef<number | null>(null);
@@ -3641,6 +3642,7 @@ export default function InboundPage() {
                           const savedState = localStorage.getItem('inbound_columnState');
                           if (savedState && params.api) {
                             params.api.applyColumnState({ state: JSON.parse(savedState), applyOrder: true });
+                            hasAutoFittedRef.current = true;
                           }
                         } catch { /* ignore */ }
                       }}
@@ -3658,28 +3660,19 @@ export default function InboundPage() {
                           } catch { /* ignore */ }
                         }
                       }}
-                      onFirstDataRendered={() => {
-                        const colApi = columnApiRef.current;
-                        if (!colApi) return;
-                        try {
-                          const allCols = colApi.getAllColumns().map((c: any) => c.getId());
-                          colApi.autoSizeColumns(allCols, false);
-                        } catch (err) {
-                          gridRef.current?.api.sizeColumnsToFit();
-                        }
-                      }}
-                      onGridSizeChanged={() => {
-                        const colApi = columnApiRef.current;
-                        if (!colApi) return;
-                        try {
-                          const allCols = colApi.getAllColumns().map((c: any) => c.getId());
-                          colApi.autoSizeColumns(allCols, false);
-                        } catch (err) {
-                          gridRef.current?.api.sizeColumnsToFit();
+                      onFirstDataRendered={(params: any) => {
+                        if (!hasAutoFittedRef.current && params.api) {
+                          try {
+                            const allColIds = params.api.getColumns()?.map((col: any) => col.getColId()) || [];
+                            if (allColIds.length > 0) {
+                              params.api.autoSizeColumns(allColIds);
+                            }
+                            hasAutoFittedRef.current = true;
+                          } catch { /* ignore */ }
                         }
                       }}
                       animateRows={false}
-                      rowSelection={{ mode: 'singleRow', enableClickSelection: false }}
+                      rowSelection={{ mode: 'singleRow', checkboxes: false, enableClickSelection: true }}
                       loading={false}
                       suppressNoRowsOverlay={true}
                       containerStyle={{ height: '100%', width: '100%' }}
@@ -5555,7 +5548,7 @@ export default function InboundPage() {
                       enableCellTextSelection={true}
                       suppressCopyRowsToClipboard={false}
                       clipboardDelimiter="\t"
-                      rowSelection={{ mode: 'multiRow', enableClickSelection: false }}
+                      rowSelection={{ mode: 'multiRow', checkboxes: false, enableClickSelection: true }}
                       suppressRowDeselection={false}
 
                       // ⚡ EXCEL-LIKE: Process clipboard paste from Excel

@@ -2044,7 +2044,7 @@ export default function MasterDataPage() {
                             rowData={masterData}
                             columnDefs={columnDefs}
                             defaultColDef={defaultColDef}
-                            rowSelection={{ mode: 'singleRow', enableClickSelection: false }}
+                            rowSelection={{ mode: 'singleRow', checkboxes: false, enableClickSelection: true }}
                             loading={false}
                             suppressNoRowsOverlay={true}
                             context={{

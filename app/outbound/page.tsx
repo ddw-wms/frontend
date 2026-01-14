@@ -206,6 +206,7 @@ export default function OutboundPage() {
     const currentTabCode = visibleTabCodes[tabValue];
     const gridRef = useRef<any>(null);
     const columnApiRef = useRef<any>(null);
+    const hasAutoFittedRef = useRef(false); // Track if auto-fit has been done
     const wsnInputRef = useRef<HTMLInputElement>(null);
     const wsnFetchTimerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -2268,14 +2269,47 @@ export default function OutboundPage() {
                                             rowData={listData}
                                             columnDefs={listColumnDefs}
                                             defaultColDef={listDefaultColDef}
-                                            rowSelection={{ mode: 'singleRow', enableClickSelection: false }}
+                                            rowSelection={{ mode: 'singleRow', checkboxes: false, enableClickSelection: true }}
                                             loading={false}
                                             suppressNoRowsOverlay={true}
                                             animateRows={false}
                                             gridOptions={{ getRowId: (params: any) => String(params.data?.wsn || params.data?.wid || params.data?.id || params.rowIndex), suppressRowTransform: true }}
-                                            onGridReady={(params: any) => { gridRef.current = params.api; columnApiRef.current = params.columnApi; try { const savedState = localStorage.getItem('outbound_columnState'); if (savedState && params.api) { params.api.applyColumnState({ state: JSON.parse(savedState), applyOrder: true }); } } catch (e) { /* ignore */ } }}
-                                            onColumnResized={(params: any) => { if (params.finished && params.api) { try { localStorage.setItem('outbound_columnState', JSON.stringify(params.api.getColumnState())); } catch { /* ignore */ } } }}
-                                            onColumnMoved={(params: any) => { if (params.finished && params.api) { try { localStorage.setItem('outbound_columnState', JSON.stringify(params.api.getColumnState())); } catch { /* ignore */ } } }}
+                                            onGridReady={(params: any) => {
+                                                gridRef.current = params.api;
+                                                columnApiRef.current = params.columnApi;
+                                                try {
+                                                    const savedState = localStorage.getItem('outbound_columnState');
+                                                    if (savedState && params.api) {
+                                                        params.api.applyColumnState({ state: JSON.parse(savedState), applyOrder: true });
+                                                        hasAutoFittedRef.current = true;
+                                                    }
+                                                } catch { /* ignore */ }
+                                            }}
+                                            onFirstDataRendered={(params: any) => {
+                                                if (!hasAutoFittedRef.current && params.api) {
+                                                    try {
+                                                        const allColIds = params.api.getColumns()?.map((col: any) => col.getColId()) || [];
+                                                        if (allColIds.length > 0) {
+                                                            params.api.autoSizeColumns(allColIds);
+                                                        }
+                                                        hasAutoFittedRef.current = true;
+                                                    } catch { /* ignore */ }
+                                                }
+                                            }}
+                                            onColumnResized={(params: any) => {
+                                                if (params.finished && params.api) {
+                                                    try {
+                                                        localStorage.setItem('outbound_columnState', JSON.stringify(params.api.getColumnState()));
+                                                    } catch { /* ignore */ }
+                                                }
+                                            }}
+                                            onColumnMoved={(params: any) => {
+                                                if (params.finished && params.api) {
+                                                    try {
+                                                        localStorage.setItem('outbound_columnState', JSON.stringify(params.api.getColumnState()));
+                                                    } catch { /* ignore */ }
+                                                }
+                                            }}
                                             pagination={false}
                                         />
                                     </Box>
