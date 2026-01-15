@@ -10,7 +10,6 @@ import {
 import {
     DarkMode as DarkModeIcon,
     LightMode as LightModeIcon,
-    SettingsBrightness as AutoModeIcon,
     FormatSize as FontSizeIcon,
     Palette as PaletteIcon,
     RestartAlt as ResetIcon,
@@ -183,7 +182,7 @@ export default function AppearanceSettingsPage() {
                         }}>
                             <PaletteIcon fontSize="small" />
                             <Typography sx={{ fontWeight: 600, fontFamily: settings.fontFamily, fontSize: `${settings.fontSize}px` }}>
-                                Live Preview ({settings.theme === 'dark' ? 'Dark' : settings.theme === 'auto' ? 'Auto' : 'Light'} Mode)
+                                Live Preview ({settings.theme === 'dark' ? 'Dark' : 'Light'} Mode)
                             </Typography>
                         </Box>
                         <CardContent sx={{ bgcolor: settings.theme === 'dark' ? '#1e293b' : '#ffffff' }}>
@@ -254,7 +253,7 @@ export default function AppearanceSettingsPage() {
                                 }}>
                                     <Box sx={{
                                         width: 80,
-                                        height: settings.tableRowDensity === 'compact' ? 36 : 44,
+                                        height: settings.tableRowDensity === 'extra-compact' ? 28 : settings.tableRowDensity === 'compact' ? 36 : 44,
                                         bgcolor: settings.primaryColor,
                                         borderRadius: 1,
                                         display: 'flex',
@@ -264,7 +263,7 @@ export default function AppearanceSettingsPage() {
                                         fontSize: `${settings.fontSize - 2}px`,
                                         fontFamily: settings.fontFamily
                                     }}>
-                                        Row {settings.tableRowDensity === 'compact' ? '36px' : '44px'}
+                                        Row {settings.tableRowDensity === 'extra-compact' ? '28px' : settings.tableRowDensity === 'compact' ? '36px' : '44px'}
                                     </Box>
                                     <Typography variant="caption" sx={{
                                         alignSelf: 'center',
@@ -319,10 +318,6 @@ export default function AppearanceSettingsPage() {
                                     <ToggleButton value="dark">
                                         <DarkModeIcon sx={{ mr: 1 }} />
                                         Dark
-                                    </ToggleButton>
-                                    <ToggleButton value="auto">
-                                        <AutoModeIcon sx={{ mr: 1 }} />
-                                        Auto
                                     </ToggleButton>
                                 </ToggleButtonGroup>
                             </CardContent>
@@ -481,8 +476,23 @@ export default function AppearanceSettingsPage() {
                                 </Typography>
                                 <RadioGroup
                                     value={settings.tableRowDensity}
-                                    onChange={(e) => updateSetting('tableRowDensity', e.target.value as 'compact' | 'comfortable')}
+                                    onChange={(e) => updateSetting('tableRowDensity', e.target.value as 'extra-compact' | 'compact' | 'comfortable')}
                                 >
+                                    <FormControlLabel
+                                        value="extra-compact"
+                                        control={<Radio size="small" sx={{ '&.Mui-checked': { color: settings.primaryColor } }} />}
+                                        label={
+                                            <Stack direction="row" alignItems="center" spacing={1}>
+                                                <CompactIcon fontSize="small" />
+                                                <Box>
+                                                    <Typography sx={{ fontWeight: 500 }}>Extra Compact</Typography>
+                                                    <Typography variant="caption" color="text.secondary">
+                                                        28px row height - Maximum data density
+                                                    </Typography>
+                                                </Box>
+                                            </Stack>
+                                        }
+                                    />
                                     <FormControlLabel
                                         value="compact"
                                         control={<Radio size="small" sx={{ '&.Mui-checked': { color: settings.primaryColor } }} />}
@@ -552,33 +562,6 @@ export default function AppearanceSettingsPage() {
                                                 </Typography>
                                                 <Typography variant="caption" color="text.secondary">
                                                     Smooth transitions and hover effects
-                                                </Typography>
-                                            </Box>
-                                        }
-                                    />
-                                    <Divider />
-                                    <FormControlLabel
-                                        control={
-                                            <Switch
-                                                checked={settings.sidebarCompact}
-                                                onChange={(e) => updateSetting('sidebarCompact', e.target.checked)}
-                                                sx={{
-                                                    '& .MuiSwitch-switchBase.Mui-checked': {
-                                                        color: settings.primaryColor,
-                                                    },
-                                                    '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
-                                                        backgroundColor: settings.primaryColor,
-                                                    },
-                                                }}
-                                            />
-                                        }
-                                        label={
-                                            <Box>
-                                                <Typography sx={{ fontWeight: 600, fontSize: '0.875rem' }}>
-                                                    Compact Sidebar
-                                                </Typography>
-                                                <Typography variant="caption" color="text.secondary">
-                                                    Collapse sidebar to icons only by default
                                                 </Typography>
                                             </Box>
                                         }

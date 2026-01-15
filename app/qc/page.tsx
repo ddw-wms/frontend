@@ -1966,16 +1966,16 @@ export default function QCPage() {
                 open={mobileActionsOpen}
                 onClose={() => setMobileActionsOpen(false)}
                 fullScreen
-                PaperProps={{ sx: { borderRadius: 0 } }}
+                PaperProps={{ sx: { borderRadius: 0, bgcolor: isDarkMode ? '#0f172a' : 'background.default' } }}
               >
-                <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', bgcolor: isDarkMode ? '#1e293b' : 'background.paper', color: isDarkMode ? '#f1f5f9' : 'text.primary', borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e0e0e0' }}>
                   <Box sx={{ fontWeight: 800, fontSize: '1rem' }}>Actions</Box>
-                  <IconButton onClick={() => setMobileActionsOpen(false)}>
+                  <IconButton onClick={() => setMobileActionsOpen(false)} sx={{ color: isDarkMode ? '#f1f5f9' : 'inherit' }}>
                     <CloseIcon />
                   </IconButton>
                 </DialogTitle>
 
-                <DialogContent>
+                <DialogContent sx={{ bgcolor: isDarkMode ? '#0f172a' : 'background.default' }}>
                   <Card sx={{
                     borderRadius: 1.5,
                     boxShadow: isDarkMode ? '0 4px 20px rgba(0,0,0,0.4)' : '0 4px 20px rgba(0,0,0,0.15)',
@@ -2230,7 +2230,7 @@ export default function QCPage() {
                   </Card>
                 </DialogContent>
 
-                <Box sx={{ position: 'sticky', bottom: 0, left: 0, right: 0, bgcolor: 'background.paper', p: 1, borderTop: '1px solid #e0e0e0', display: 'flex', gap: 1 }}>
+                <Box sx={{ position: 'sticky', bottom: 0, left: 0, right: 0, bgcolor: isDarkMode ? '#1e293b' : 'background.paper', p: 1, borderTop: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e0e0e0', display: 'flex', gap: 1 }}>
                   <Button fullWidth variant="outlined" onClick={() => {
                     setSearchFilter('');
                     setStatusFilter('');

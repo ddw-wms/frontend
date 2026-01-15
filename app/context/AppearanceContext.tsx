@@ -5,11 +5,11 @@ import { createContext, useContext, useState, useEffect, ReactNode, useCallback 
 
 // Default appearance settings
 export const DEFAULT_APPEARANCE_SETTINGS = {
-    theme: 'light' as 'light' | 'dark' | 'auto',
+    theme: 'light' as 'light' | 'dark',
     fontSize: 14,
     fontFamily: 'Inter',
     sidebarCompact: false,
-    tableRowDensity: 'comfortable' as 'compact' | 'comfortable',
+    tableRowDensity: 'comfortable' as 'extra-compact' | 'compact' | 'comfortable',
     primaryColor: '#1e40af',
     showAnimations: true,
     highContrastMode: false,
@@ -58,7 +58,7 @@ const applySettingsToDOM = (settings: AppearanceSettings) => {
     root.style.setProperty('--app-primary-color-rgb', hexToRgb(settings.primaryColor));
 
     // Table row density
-    const rowHeight = settings.tableRowDensity === 'compact' ? '36' : '44';
+    const rowHeight = settings.tableRowDensity === 'extra-compact' ? '28' : settings.tableRowDensity === 'compact' ? '36' : '44';
     root.style.setProperty('--app-table-row-height', `${rowHeight}px`);
 
     // Animations
@@ -77,12 +77,8 @@ const applySettingsToDOM = (settings: AppearanceSettings) => {
         root.classList.remove('high-contrast');
     }
 
-    // Theme - resolve 'auto' to actual theme for CSS selectors
-    let effectiveTheme = settings.theme;
-    if (settings.theme === 'auto') {
-        effectiveTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-    }
-    root.setAttribute('data-theme', effectiveTheme);
+    // Theme - apply directly (no auto mode)
+    root.setAttribute('data-theme', settings.theme);
     window.dispatchEvent(new CustomEvent('themeChanged', { detail: { theme: settings.theme } }));
 
     // Sidebar compact preference (for initial load)
@@ -223,7 +219,7 @@ export const useAppearanceSetting = <K extends keyof AppearanceSettings>(key: K)
 // Hook for table row height based on density setting
 export const useTableRowHeight = (): number => {
     const { settings } = useAppearance();
-    return settings.tableRowDensity === 'compact' ? 36 : 44;
+    return settings.tableRowDensity === 'extra-compact' ? 28 : settings.tableRowDensity === 'compact' ? 36 : 44;
 };
 
 // Hook for animation check

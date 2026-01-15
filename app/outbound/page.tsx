@@ -2478,7 +2478,7 @@ export default function OutboundPage() {
 
                 {/* MOBILE ACTIONS DIALOG (Filters + Actions for mobile) */}
                 <Dialog fullScreen open={mobileActionsOpen} onClose={() => setMobileActionsOpen(false)} TransitionProps={{}}>
-                    <AppBar position="sticky" elevation={1} sx={{ bgcolor: 'background.paper', color: 'text.primary' }}>
+                    <AppBar position="sticky" elevation={1} sx={{ bgcolor: isDarkMode ? '#1e293b' : 'background.paper', color: isDarkMode ? '#f1f5f9' : 'text.primary', borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e0e0e0' }}>
                         <Toolbar>
                             <IconButton edge="start" color="inherit" onClick={() => setMobileActionsOpen(false)} aria-label="close">
                                 <CloseIcon />
@@ -2488,7 +2488,7 @@ export default function OutboundPage() {
                         </Toolbar>
                     </AppBar>
 
-                    <DialogContent sx={{ p: 2 }}>
+                    <DialogContent sx={{ p: 2, bgcolor: isDarkMode ? '#0f172a' : 'background.default' }}>
                         <Stack spacing={2}>
                             <Box display="flex" gap={1} flexDirection="column">
                                 <TextField select size="small" label="Source" value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value)} fullWidth SelectProps={{ MenuProps: { PaperProps: { style: { maxHeight: 300 } } } }} sx={{ '& .MuiOutlinedInput-root': { height: 40 } }}>
@@ -2546,7 +2546,7 @@ export default function OutboundPage() {
                         </Stack>
                     </DialogContent>
 
-                    <Box sx={{ position: 'sticky', bottom: 0, left: 0, right: 0, bgcolor: 'background.paper', p: 1, borderTop: '1px solid #e0e0e0', display: 'flex', gap: 1 }}>
+                    <Box sx={{ position: 'sticky', bottom: 0, left: 0, right: 0, bgcolor: isDarkMode ? '#1e293b' : 'background.paper', p: 1, borderTop: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e0e0e0', display: 'flex', gap: 1 }}>
                         <Button fullWidth variant="outlined" onClick={() => { handleListReset(); }}>Reset</Button>
                         <Button fullWidth variant="contained" onClick={() => { setPage(1); setMobileActionsOpen(false); }}>Apply</Button>
                     </Box>

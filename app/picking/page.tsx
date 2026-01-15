@@ -1974,7 +1974,7 @@ export default function PickingPage() {
 
             {/* MOBILE ACTIONS DIALOG (Filters + Actions combined) */}
             <Dialog fullScreen open={mobileActionsOpen} onClose={() => setMobileActionsOpen(false)}>
-              <AppBar position="sticky" elevation={1} sx={{ bgcolor: 'background.paper', color: 'text.primary' }}>
+              <AppBar position="sticky" elevation={1} sx={{ bgcolor: isDarkMode ? '#1e293b' : 'background.paper', color: isDarkMode ? '#f1f5f9' : 'text.primary', borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e0e0e0' }}>
                 <Toolbar>
                   <IconButton edge="start" color="inherit" onClick={() => setMobileActionsOpen(false)} aria-label="close">
                     <CloseIcon />
@@ -1984,7 +1984,7 @@ export default function PickingPage() {
                 </Toolbar>
               </AppBar>
 
-              <DialogContent sx={{ p: 2 }}>
+              <DialogContent sx={{ p: 2, bgcolor: isDarkMode ? '#0f172a' : 'background.default' }}>
                 <Stack spacing={2}>
                   {/* Filters */}
                   <Box>
@@ -2104,7 +2104,7 @@ export default function PickingPage() {
                 </Stack>
               </DialogContent>
 
-              <Box sx={{ position: 'sticky', bottom: 0, left: 0, right: 0, bgcolor: 'background.paper', p: 2, borderTop: '1px solid #e0e0e0', display: 'flex', gap: 1 }}>
+              <Box sx={{ position: 'sticky', bottom: 0, left: 0, right: 0, bgcolor: isDarkMode ? '#1e293b' : 'background.paper', p: 2, borderTop: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e0e0e0', display: 'flex', gap: 1 }}>
                 <Button
                   fullWidth
                   variant="outlined"

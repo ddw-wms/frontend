@@ -289,6 +289,25 @@ html[data-theme="dark"] .MuiTableContainer-root,
   border-color: rgba(255, 255, 255, 0.1) !important;
 }
 
+/* Dark mode AppBar in dialogs */
+html[data-theme="dark"] .MuiAppBar-root,
+[data-theme="dark"] .MuiAppBar-root {
+  background-color: #1e293b !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+html[data-theme="dark"] .MuiToolbar-root,
+[data-theme="dark"] .MuiToolbar-root {
+  background-color: #1e293b !important;
+}
+
+/* Dark mode Dialog bottom action bar */
+html[data-theme="dark"] .MuiDialogActions-root,
+[data-theme="dark"] .MuiDialogActions-root {
+  background-color: #1e293b !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
 /* Typography colors */
 html[data-theme="dark"] .MuiTypography-root,
 html[data-theme="dark"] p,
@@ -1970,6 +1989,14 @@ html[data-theme="dark"] * {
   background-color: #f8fafc;
 }
 
+/* Dark mode scrollbar background */
+html[data-theme="dark"] .ag-theme-quartz .ag-body-horizontal-scroll,
+html[data-theme="dark"] .ag-theme-quartz .ag-body-vertical-scroll,
+[data-theme="dark"] .ag-theme-quartz .ag-body-horizontal-scroll,
+[data-theme="dark"] .ag-theme-quartz .ag-body-vertical-scroll {
+  background-color: #1e293b !important;
+}
+
 .ag-theme-quartz ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -1989,6 +2016,22 @@ html[data-theme="dark"] * {
   background: #94a3b8;
 }
 
+/* Dark mode AG Grid scrollbar */
+html[data-theme="dark"] .ag-theme-quartz ::-webkit-scrollbar-track,
+[data-theme="dark"] .ag-theme-quartz ::-webkit-scrollbar-track {
+  background: #334155;
+}
+
+html[data-theme="dark"] .ag-theme-quartz ::-webkit-scrollbar-thumb,
+[data-theme="dark"] .ag-theme-quartz ::-webkit-scrollbar-thumb {
+  background: #475569;
+}
+
+html[data-theme="dark"] .ag-theme-quartz ::-webkit-scrollbar-thumb:hover,
+[data-theme="dark"] .ag-theme-quartz ::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
 /* Loading & No Rows Overlay */
 .ag-theme-quartz .ag-overlay-loading-center {
   background-color: rgba(255, 255, 255, 0.98);
@@ -2006,6 +2049,21 @@ html[data-theme="dark"] * {
   color: #64748b;
   font-weight: 500;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+}
+
+/* Dark mode loading/no-rows overlays */
+html[data-theme="dark"] .ag-theme-quartz .ag-overlay-loading-center,
+[data-theme="dark"] .ag-theme-quartz .ag-overlay-loading-center {
+  background-color: rgba(30, 41, 59, 0.98) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #f1f5f9;
+}
+
+html[data-theme="dark"] .ag-theme-quartz .ag-overlay-no-rows-center,
+[data-theme="dark"] .ag-theme-quartz .ag-overlay-no-rows-center {
+  background-color: rgba(30, 41, 59, 0.98) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #94a3b8;
 }
 
 .ag-theme-quartz .ag-cell {
