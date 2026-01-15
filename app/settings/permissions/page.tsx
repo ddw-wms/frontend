@@ -134,6 +134,7 @@ const PAGE_ORDER = [
 export default function PermissionsPage() {
     const { isAdmin, refreshPermissions } = usePermissions();
     const theme = useTheme();
+    const isDarkMode = theme.palette.mode === 'dark';
     const isMobile = useMediaQuery(theme.breakpoints.down('md'));
     const isSmall = useMediaQuery(theme.breakpoints.down('sm'));
     const { activeWarehouse } = useWarehouse();
@@ -422,7 +423,7 @@ export default function PermissionsPage() {
 
         return (
             <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-                <Box sx={{ p: 1, bgcolor: 'grey.100' }}>
+                <Box sx={{ p: 1, bgcolor: isDarkMode ? 'grey.900' : 'grey.100' }}>
                     <TextField
                         size="small"
                         fullWidth
@@ -432,7 +433,7 @@ export default function PermissionsPage() {
                         InputProps={{
                             startAdornment: <SearchIcon sx={{ mr: 1, color: 'grey.500' }} fontSize="small" />
                         }}
-                        sx={{ bgcolor: 'white', borderRadius: 1 }}
+                        sx={{ bgcolor: isDarkMode ? '#1e293b' : 'white', borderRadius: 1 }}
                     />
                 </Box>
                 <List dense sx={{ flex: 1, overflow: 'auto', p: 0 }}>

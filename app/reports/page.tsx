@@ -41,6 +41,7 @@ export default function ReportsPage() {
     const [loading, setLoading] = useState(false);
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+    const isDarkMode = theme.palette.mode === 'dark';
 
     // Analytics data state
     const [trendData, setTrendData] = useState<any[]>([]);
@@ -717,7 +718,7 @@ export default function ReportsPage() {
         <AppLayout>
             <Box sx={{
                 p: { xs: 0.75, md: 1 },
-                background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
+                background: isDarkMode ? 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)' : 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
                 height: '100vh',
                 display: 'flex',
                 flexDirection: 'column',
@@ -741,7 +742,7 @@ export default function ReportsPage() {
                     onChange={(_, newValue) => setSelectedTab(newValue)}
                 />
 
-                <Box sx={{ flex: 1, overflow: 'auto', bgcolor: '#f5f5f5', py: { xs: 1, sm: 1.5 } }}>
+                <Box sx={{ flex: 1, overflow: 'auto', bgcolor: isDarkMode ? '#1e293b' : '#f5f5f5', py: { xs: 1, sm: 1.5 } }}>
                     {!activeWarehouse ? (
                         <Box sx={{ p: 3 }}>
                             <Alert severity="warning">Please select a warehouse to view reports</Alert>

@@ -24,6 +24,7 @@ export default function UsersPage() {
   const { canSeeButton, isAdmin, isLoading: permLoading } = useUsersPermissions();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const isDarkMode = theme.palette.mode === 'dark';
   const [users, setUsers] = useState<any[]>([]);
   const [openDialog, setOpenDialog] = useState(false);
   const [editItem, setEditItem] = useState<any>(null);
@@ -327,7 +328,7 @@ export default function UsersPage() {
       <Toaster position="top-right" />
       <Box sx={{
         p: { xs: 0.75, md: 1 },
-        background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
+        background: isDarkMode ? 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)' : 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
         height: '100%',
         width: '100%',
         display: 'flex',
@@ -445,22 +446,22 @@ export default function UsersPage() {
           )}
         </Box>
 
-        <Box sx={{ flex: 1, overflow: 'auto', minHeight: 0, border: '1px solid #d1d5db', position: 'relative' }}>
-          <TableContainer component={Paper} sx={{ borderRadius: 0, boxShadow: 'none', border: 'none', background: '#ffffff', height: '100%' }}>
-            <Table stickyHeader size="small" sx={{ '& .MuiTableCell-root': { borderRight: '1px solid #d1d5db', padding: '6px 10px', fontSize: '0.75rem' } }}>
+        <Box sx={{ flex: 1, overflow: 'auto', minHeight: 0, border: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #d1d5db', position: 'relative' }}>
+          <TableContainer component={Paper} sx={{ borderRadius: 0, boxShadow: 'none', border: 'none', background: isDarkMode ? '#1e293b' : '#ffffff', height: '100%' }}>
+            <Table stickyHeader size="small" sx={{ '& .MuiTableCell-root': { borderRight: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #d1d5db', padding: '6px 10px', fontSize: '0.75rem' } }}>
               <TableHead>
-                <TableRow sx={{ background: '#e5e7eb' }}>
-                  <TableCell sx={{ color: '#1f2937', fontWeight: 700, background: '#e5e7eb', fontSize: '0.75rem', textTransform: 'uppercase', py: 0.8, whiteSpace: 'nowrap', width: 60 }}>#</TableCell>
-                  <TableCell sx={{ color: '#1f2937', fontWeight: 700, background: '#e5e7eb', fontSize: '0.75rem', textTransform: 'uppercase', py: 0.8, whiteSpace: 'nowrap', minWidth: 150 }}>FULL NAME</TableCell>
-                  <TableCell sx={{ color: '#1f2937', fontWeight: 700, background: '#e5e7eb', fontSize: '0.75rem', textTransform: 'uppercase', py: 0.8, whiteSpace: 'nowrap', minWidth: 120 }}>USERNAME</TableCell>
-                  <TableCell sx={{ color: '#1f2937', fontWeight: 700, background: '#e5e7eb', fontSize: '0.75rem', textTransform: 'uppercase', py: 0.8, whiteSpace: 'nowrap', minWidth: 180 }}>EMAIL</TableCell>
-                  <TableCell sx={{ color: '#1f2937', fontWeight: 700, background: '#e5e7eb', fontSize: '0.75rem', textTransform: 'uppercase', py: 0.8, whiteSpace: 'nowrap', minWidth: 120 }}>PHONE</TableCell>
-                  <TableCell sx={{ color: '#1f2937', fontWeight: 700, background: '#e5e7eb', fontSize: '0.75rem', textTransform: 'uppercase', py: 0.8, whiteSpace: 'nowrap', minWidth: 100 }}>ROLE</TableCell>
-                  <TableCell sx={{ color: '#1f2937', fontWeight: 700, background: '#e5e7eb', fontSize: '0.75rem', textTransform: 'uppercase', py: 0.8, whiteSpace: 'nowrap', minWidth: 100 }}>STATUS</TableCell>
+                <TableRow sx={{ background: isDarkMode ? '#334155' : '#e5e7eb' }}>
+                  <TableCell sx={{ color: isDarkMode ? '#f1f5f9' : '#1f2937', fontWeight: 700, background: isDarkMode ? '#334155' : '#e5e7eb', fontSize: '0.75rem', textTransform: 'uppercase', py: 0.8, whiteSpace: 'nowrap', width: 60 }}>#</TableCell>
+                  <TableCell sx={{ color: isDarkMode ? '#f1f5f9' : '#1f2937', fontWeight: 700, background: isDarkMode ? '#334155' : '#e5e7eb', fontSize: '0.75rem', textTransform: 'uppercase', py: 0.8, whiteSpace: 'nowrap', minWidth: 150 }}>FULL NAME</TableCell>
+                  <TableCell sx={{ color: isDarkMode ? '#f1f5f9' : '#1f2937', fontWeight: 700, background: isDarkMode ? '#334155' : '#e5e7eb', fontSize: '0.75rem', textTransform: 'uppercase', py: 0.8, whiteSpace: 'nowrap', minWidth: 120 }}>USERNAME</TableCell>
+                  <TableCell sx={{ color: isDarkMode ? '#f1f5f9' : '#1f2937', fontWeight: 700, background: isDarkMode ? '#334155' : '#e5e7eb', fontSize: '0.75rem', textTransform: 'uppercase', py: 0.8, whiteSpace: 'nowrap', minWidth: 180 }}>EMAIL</TableCell>
+                  <TableCell sx={{ color: isDarkMode ? '#f1f5f9' : '#1f2937', fontWeight: 700, background: isDarkMode ? '#334155' : '#e5e7eb', fontSize: '0.75rem', textTransform: 'uppercase', py: 0.8, whiteSpace: 'nowrap', minWidth: 120 }}>PHONE</TableCell>
+                  <TableCell sx={{ color: isDarkMode ? '#f1f5f9' : '#1f2937', fontWeight: 700, background: isDarkMode ? '#334155' : '#e5e7eb', fontSize: '0.75rem', textTransform: 'uppercase', py: 0.8, whiteSpace: 'nowrap', minWidth: 100 }}>ROLE</TableCell>
+                  <TableCell sx={{ color: isDarkMode ? '#f1f5f9' : '#1f2937', fontWeight: 700, background: isDarkMode ? '#334155' : '#e5e7eb', fontSize: '0.75rem', textTransform: 'uppercase', py: 0.8, whiteSpace: 'nowrap', minWidth: 100 }}>STATUS</TableCell>
                   {isCurrentAdmin && (
-                    <TableCell sx={{ color: '#1f2937', fontWeight: 700, background: '#e5e7eb', fontSize: '0.75rem', textTransform: 'uppercase', py: 0.8, whiteSpace: 'nowrap', minWidth: 80, textAlign: 'center' }}>ONLINE</TableCell>
+                    <TableCell sx={{ color: isDarkMode ? '#f1f5f9' : '#1f2937', fontWeight: 700, background: isDarkMode ? '#334155' : '#e5e7eb', fontSize: '0.75rem', textTransform: 'uppercase', py: 0.8, whiteSpace: 'nowrap', minWidth: 80, textAlign: 'center' }}>ONLINE</TableCell>
                   )}
-                  <TableCell sx={{ color: '#1f2937', fontWeight: 700, background: '#e5e7eb', fontSize: '0.75rem', textTransform: 'uppercase', py: 0.8, whiteSpace: 'nowrap', minWidth: 120, textAlign: 'center' }}>ACTIONS</TableCell>
+                  <TableCell sx={{ color: isDarkMode ? '#f1f5f9' : '#1f2937', fontWeight: 700, background: isDarkMode ? '#334155' : '#e5e7eb', fontSize: '0.75rem', textTransform: 'uppercase', py: 0.8, whiteSpace: 'nowrap', minWidth: 120, textAlign: 'center' }}>ACTIONS</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -480,7 +481,7 @@ export default function UsersPage() {
                   users.map((user, idx) => {
                     const isOnline = onlineUserIds.includes(user.id);
                     return (
-                      <TableRow key={user.id} sx={{ bgcolor: idx % 2 === 0 ? '#ffffff' : '#f9fafb', '&:hover': { bgcolor: '#f0f0f0' } }}>
+                      <TableRow key={user.id} sx={{ bgcolor: idx % 2 === 0 ? (isDarkMode ? '#1a2536' : '#ffffff') : (isDarkMode ? '#1e293b' : '#f9fafb'), '&:hover': { bgcolor: isDarkMode ? 'rgba(59, 130, 246, 0.15)' : '#f0f0f0' } }}>
                         <TableCell sx={{ fontWeight: 700, width: 60, fontSize: '0.75rem' }}>{idx + 1}</TableCell>
                         <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem', whiteSpace: 'nowrap' }}>{user.full_name || '-'}</TableCell>
                         <TableCell sx={{ fontWeight: 500, fontSize: '0.75rem', whiteSpace: 'nowrap' }}>{user.username}</TableCell>
@@ -491,7 +492,7 @@ export default function UsersPage() {
                             label={user.role.toUpperCase()}
                             size="small"
                             color={getRoleColor(user.role)}
-                            variant="outlined"
+                            sx={{ fontWeight: 600 }}
                           />
                         </TableCell>
                         <TableCell sx={{ whiteSpace: 'nowrap' }}>

@@ -1333,7 +1333,7 @@ export default function MasterDataPage() {
         {/* Fixed Header */}
         <Box sx={{
           p: { xs: 0.75, md: 1 },
-          background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
+          background: isDarkMode ? 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)' : 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
           overflowY: 'auto',
           overflowX: 'hidden'
         }}>
@@ -1915,8 +1915,8 @@ export default function MasterDataPage() {
                       overflow: 'hidden',
                       display: 'flex',
                       flexDirection: 'column',
-                      borderLeft: '1px solid #e0e0e0',
-                      borderRight: '1px solid #e0e0e0',
+                      borderLeft: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e0e0e0',
+                      borderRight: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e0e0e0',
                       position: 'relative'
                     }}>
 
@@ -1931,7 +1931,7 @@ export default function MasterDataPage() {
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          backgroundColor: 'rgba(255, 255, 255, 0.7)',
+                          backgroundColor: isDarkMode ? 'rgba(15, 23, 42, 0.85)' : 'rgba(255, 255, 255, 0.7)',
                           backdropFilter: 'blur(2px)',
                           zIndex: 10,
                           '@keyframes spin': {
@@ -2002,14 +2002,15 @@ export default function MasterDataPage() {
                         pb: 1,
                         display: 'flex',
                         flexDirection: 'column',
-                        '& .ag-root-wrapper': { height: '100%' },
+                        bgcolor: isDarkMode ? '#1e293b' : 'transparent',
+                        '& .ag-root-wrapper': { height: '100%', backgroundColor: isDarkMode ? '#1e293b' : 'transparent' },
                         '& .ag-row': { height: 36 },
-                        '& .ag-row-even': { backgroundColor: '#ffffff' },
-                        '& .ag-row-odd': { backgroundColor: '#f9fafb' },
+                        '& .ag-row-even': { backgroundColor: isDarkMode ? '#1a2536' : '#ffffff' },
+                        '& .ag-row-odd': { backgroundColor: isDarkMode ? '#1e293b' : '#f9fafb' },
                         '& .ag-cell-focus': { border: '2px solid #2563eb !important' },
-                        '& .ag-row-hover': { backgroundColor: '#e5f3ff !important' },
+                        '& .ag-row-hover': { backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.15) !important' : '#e5f3ff !important' },
                         '& .ag-header-cell': {
-                          backgroundColor: '#1565c0',
+                          backgroundColor: isDarkMode ? '#334155' : '#1565c0',
                           color: 'white',
                           fontWeight: 700,
                           fontSize: '0.8rem',
@@ -2117,7 +2118,7 @@ export default function MasterDataPage() {
                         </div>
                       </Box>
 
-                      <Box sx={{ borderTop: '2px solid #1565c0', bgcolor: '#f5f5f5', py: 0.25 }}>
+                      <Box sx={{ borderTop: isDarkMode ? '2px solid #3b82f6' : '2px solid #1565c0', bgcolor: isDarkMode ? '#1e293b' : '#f5f5f5', py: 0.25 }}>
                         <TablePagination
                           component="div"
                           count={totalRecords}
@@ -2128,6 +2129,7 @@ export default function MasterDataPage() {
                           rowsPerPageOptions={[100, 500, 1000]}
                           labelRowsPerPage="Rows:"
                           sx={{
+                            color: isDarkMode ? '#f1f5f9' : 'inherit',
                             '& .MuiTablePagination-toolbar': {
                               minHeight: 40,
                               px: { xs: 1, sm: 2 },
@@ -2139,10 +2141,18 @@ export default function MasterDataPage() {
                             '& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows': {
                               fontSize: '0.85rem',
                               fontWeight: 500,
-                              margin: 0
+                              margin: 0,
+                              color: isDarkMode ? '#94a3b8' : 'inherit'
                             },
                             '& .MuiTablePagination-select': {
-                              borderRadius: 1
+                              borderRadius: 1,
+                              color: isDarkMode ? '#f1f5f9' : 'inherit'
+                            },
+                            '& .MuiTablePagination-actions': {
+                              color: isDarkMode ? '#f1f5f9' : 'inherit'
+                            },
+                            '& .MuiIconButton-root': {
+                              color: isDarkMode ? '#94a3b8' : 'inherit'
                             }
                           }}
                           labelDisplayedRows={({ from, to, count }) => `${formatNumber(from)}–${formatNumber(to)} of ${formatNumber(count)}`}
@@ -2170,10 +2180,10 @@ export default function MasterDataPage() {
                         <TableBody>
                           {batches && batches.length > 0 ? (
                             batches.map(batch => (
-                              <TableRow key={batch.batch_id} hover sx={{ '&:hover': { bgcolor: '#e3f2fd' } }}>
-                                <TableCell sx={{ fontWeight: '600', py: 1.2 }}>{batch.batch_id || '-'}</TableCell>
-                                <TableCell sx={{ py: 1.2 }}><Chip label={formatNumber(batch.count || 0)} size="small" variant="outlined" color="primary" /></TableCell>
-                                <TableCell>
+                              <TableRow key={batch.batch_id} hover sx={{ '&:hover': { bgcolor: isDarkMode ? 'rgba(59,130,246,0.15)' : '#e3f2fd' } }}>
+                                <TableCell sx={{ fontWeight: '600', py: 1.2, color: isDarkMode ? '#f1f5f9' : 'inherit' }}>{batch.batch_id || '-'}</TableCell>
+                                <TableCell sx={{ py: 1.2 }}><Chip label={formatNumber(batch.count || 0)} size="small" color="primary" sx={{ fontWeight: 600 }} /></TableCell>
+                                <TableCell sx={{ color: isDarkMode ? '#f1f5f9' : 'inherit' }}>
                                   {batch.lastupdated_display ? batch.lastupdated_display : '-'}
                                 </TableCell>
                                 <TableCell align="center">
@@ -2617,8 +2627,8 @@ export default function MasterDataPage() {
                         setFileValidationError('');
                       }}
                       sx={{
-                        bgcolor: 'white',
-                        '&:hover': { bgcolor: '#ffebee', color: 'error.main' }
+                        bgcolor: isDarkMode ? '#334155' : 'white',
+                        '&:hover': { bgcolor: isDarkMode ? '#475569' : '#ffebee', color: 'error.main' }
                       }}
                     >
                       <CancelIcon fontSize="small" />

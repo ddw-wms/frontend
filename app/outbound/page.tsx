@@ -1735,7 +1735,13 @@ export default function OutboundPage() {
     }), [enableSorting, enableColumnFilters, enableColumnResize]);
 
     if (!user) {
-        return <CircularProgress />;
+        return (
+            <AppLayout>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', bgcolor: isDarkMode ? '#0f172a' : '#f8fafc' }}>
+                    <CircularProgress />
+                </Box>
+            </AppLayout>
+        );
     }
 
 
@@ -1760,7 +1766,7 @@ export default function OutboundPage() {
 
             <Box sx={{
                 p: { xs: 0.75, md: 1 },
-                background: 'linear-gradient(135deg, #f0f4f8 0%, #d9e2ec 100%)', minHeight: '100vh', width: '100%'
+                background: isDarkMode ? 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)' : 'linear-gradient(135deg, #f0f4f8 0%, #d9e2ec 100%)', minHeight: '100vh', width: '100%'
             }}>
                 {/* HEADER */}
                 <StandardPageHeader
@@ -1811,9 +1817,9 @@ export default function OutboundPage() {
                                         height: 36,
 
                                         borderWidth: 2,
-                                        borderColor: filtersExpanded ? '#1e40af' : '#cbd5e1',
-                                        bgcolor: filtersExpanded ? 'rgba(30, 64, 175, 0.06)' : 'white',
-                                        color: filtersExpanded ? '#1e40af' : '#64748b',
+                                        borderColor: filtersExpanded ? '#1e40af' : (isDarkMode ? 'rgba(255,255,255,0.15)' : '#cbd5e1'),
+                                        bgcolor: filtersExpanded ? 'rgba(30, 64, 175, 0.06)' : (isDarkMode ? '#0f172a' : 'white'),
+                                        color: filtersExpanded ? '#1e40af' : (isDarkMode ? '#f1f5f9' : '#64748b'),
                                         fontWeight: 700,
                                         fontSize: '0.68rem',
                                         borderRadius: 1.5,
@@ -1849,7 +1855,7 @@ export default function OutboundPage() {
                             </Stack>
 
                             <Collapse in={filtersExpanded} timeout="auto">
-                                <Card sx={{ mb: 0.5, borderRadius: 1, boxShadow: '0 4px 20px rgba(0,0,0,0.08)', background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)', border: '1px solid #e2e8f0' }}>
+                                <Card sx={{ mb: 0.5, borderRadius: 1, boxShadow: isDarkMode ? '0 4px 20px rgba(0,0,0,0.4)' : '0 4px 20px rgba(0,0,0,0.08)', background: isDarkMode ? 'linear-gradient(135deg, #1e293b 0%, #334155 100%)' : 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)', border: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e2e8f0' }}>
                                     <CardContent sx={{ p: 1, '&:last-child': { pb: 1 } }}>
                                         <Box sx={{ display: 'grid', gap: 1 }}>
                                             {/* DESKTOP LAYOUT - 2 Rows (unchanged) */}
@@ -2136,7 +2142,7 @@ export default function OutboundPage() {
                         <Box sx={{
                             flex: 1,
                             minHeight: 0,
-                            border: '1px solid #d1d5db',
+                            border: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #d1d5db',
                             position: 'relative'
                         }}>
 
@@ -2148,7 +2154,7 @@ export default function OutboundPage() {
                                     left: 0,
                                     right: 0,
                                     bottom: 0,
-                                    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                                    backgroundColor: isDarkMode ? 'rgba(15, 23, 42, 0.9)' : 'rgba(255, 255, 255, 0.9)',
                                     backdropFilter: 'blur(3px)',
                                     zIndex: 5,
                                     display: 'flex',
@@ -2161,9 +2167,9 @@ export default function OutboundPage() {
                                         alignItems: 'center',
                                         gap: 3,
                                         p: 4,
-                                        bgcolor: 'white',
+                                        bgcolor: isDarkMode ? '#1e293b' : 'white',
                                         borderRadius: 3,
-                                        boxShadow: '0 8px 24px rgba(0,0,0,0.12)'
+                                        boxShadow: isDarkMode ? '0 8px 24px rgba(0,0,0,0.4)' : '0 8px 24px rgba(0,0,0,0.12)'
                                     }}>
                                         <Box sx={{ position: 'relative' }}>
                                             <CircularProgress
@@ -2220,7 +2226,7 @@ export default function OutboundPage() {
                                     left: 0,
                                     right: 0,
                                     bottom: 0,
-                                    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                                    backgroundColor: isDarkMode ? 'rgba(15, 23, 42, 0.95)' : 'rgba(255, 255, 255, 0.95)',
                                     zIndex: 5,
                                     display: 'flex',
                                     alignItems: 'center',
@@ -2241,10 +2247,10 @@ export default function OutboundPage() {
                                         }}>
                                             📭
                                         </Box>
-                                        <Typography variant="h5" sx={{ fontWeight: 600, color: '#6b7280', mb: 0.5 }}>
+                                        <Typography variant="h5" sx={{ fontWeight: 600, color: isDarkMode ? '#94a3b8' : '#6b7280', mb: 0.5 }}>
                                             No Data Found
                                         </Typography>
-                                        <Typography variant="body2" sx={{ color: '#9ca3af', maxWidth: 400 }}>
+                                        <Typography variant="body2" sx={{ color: isDarkMode ? '#64748b' : '#9ca3af', maxWidth: 400 }}>
                                             No outbound items match your current filters. Try adjusting your search criteria or reset filters to see all items.
                                         </Typography>
                                     </Box>
@@ -2252,7 +2258,7 @@ export default function OutboundPage() {
                             )}
 
                             <Box sx={{ height: '100%', width: '100%' }}>
-                                <div className="ag-theme-quartz" style={{ height: '100%', width: '100%', position: 'relative' }}>
+                                <div className="ag-theme-quartz" style={{ height: '100%', width: '100%', position: 'relative', backgroundColor: isDarkMode ? '#1e293b' : 'transparent' }}>
                                     <Box sx={{
                                         height: '100%',
                                         width: '100%',
@@ -2323,7 +2329,7 @@ export default function OutboundPage() {
                         </Box>
 
                         {/* PAGINATION */}
-                        <Paper sx={{ p: 1, mt: 1, borderRadius: 1.5, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', background: 'rgba(255, 255, 255, 0.98)' }}>
+                        <Paper sx={{ p: 1, mt: 1, borderRadius: 1.5, boxShadow: isDarkMode ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.06)', background: isDarkMode ? 'rgba(30, 41, 59, 0.98)' : 'rgba(255, 255, 255, 0.98)' }}>
                             <Stack direction="row" justifyContent="space-between" alignItems="center">
                                 <Typography variant="caption" sx={{ fontWeight: 600, color: '#64748b', fontSize: '0.7rem' }}>
                                     Showing {(page - 1) * limit + 1} - {Math.min(page * limit, total)} of {total}
@@ -2887,10 +2893,10 @@ export default function OutboundPage() {
 
                 {/* ====== TAB 3: MULTI ENTRY (AG GRID) ====== */}
                 {currentTabCode === 'multi' && (
-                    <Box sx={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 185px)' }}>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 185px)', bgcolor: 'transparent' }}>
 
                         {/* Common Fields */}
-                        <Card sx={{ mb: 0.5, borderRadius: 1, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                        <Card sx={{ mb: 0.5, borderRadius: 1, boxShadow: isDarkMode ? '0 1px 3px rgba(0,0,0,0.3)' : '0 1px 3px rgba(0,0,0,0.05)', bgcolor: isDarkMode ? '#1e293b' : 'white' }}>
                             <CardContent sx={{ p: 1, '&:last-child': { pb: 1 } }}>
                                 {isMobile ? (
                                     <Box sx={{ display: 'grid', gap: 1 }}>
@@ -3155,18 +3161,19 @@ export default function OutboundPage() {
                             minHeight: 0,
                             borderRadius: 0,
                             overflow: 'hidden',
-                            border: '1px solid #cbd5e1',
-                            '& .ag-root-wrapper': { borderRadius: 0, height: '100%' },
-                            '& .ag-header': { borderBottom: '1px solid #cbd5e1' },
-                            '& .ag-header-cell': { backgroundColor: '#e5e7eb', color: '#111827', fontWeight: 700, borderRight: '1px solid #d1d5db', fontSize: '11px', padding: '0 6px' },
-                            '& .ag-cell': { borderRight: '1px solid #e5e7eb', borderBottom: '1px solid #e5e7eb', fontSize: '11px', padding: '2px 6px', display: 'flex', alignItems: 'center', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' },
+                            border: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #cbd5e1',
+                            bgcolor: isDarkMode ? '#1e293b' : 'transparent',
+                            '& .ag-root-wrapper': { borderRadius: 0, height: '100%', backgroundColor: isDarkMode ? '#1e293b' : 'transparent' },
+                            '& .ag-header': { borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #cbd5e1', backgroundColor: isDarkMode ? '#334155' : 'transparent' },
+                            '& .ag-header-cell': { backgroundColor: isDarkMode ? '#334155' : '#e5e7eb', color: isDarkMode ? '#f1f5f9' : '#111827', fontWeight: 700, borderRight: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #d1d5db', fontSize: '11px', padding: '0 6px' },
+                            '& .ag-cell': { borderRight: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e5e7eb', borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e5e7eb', fontSize: '11px', padding: '2px 6px', display: 'flex', alignItems: 'center', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', color: isDarkMode ? '#f1f5f9' : 'inherit' },
                             '& .ag-row': { height: 26, overflow: 'visible' },
-                            '& .ag-row-even': { backgroundColor: '#ffffff' },
-                            '& .ag-row-odd': { backgroundColor: '#f9fafb' },
+                            '& .ag-row-even': { backgroundColor: isDarkMode ? '#1a2536' : '#ffffff' },
+                            '& .ag-row-odd': { backgroundColor: isDarkMode ? '#1e293b' : '#f9fafb' },
                             '& .ag-cell-focus': { border: '2px solid #2563eb !important', boxSizing: 'border-box' },
-                            '& .ag-cell-range-selected': { backgroundColor: '#dbeafe !important' },
-                            '& .ag-cell-range-single-cell': { backgroundColor: '#eff6ff !important' },
-                            '& .ag-row-hover': { backgroundColor: '#e5f3ff !important' },
+                            '& .ag-cell-range-selected': { backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.3) !important' : '#dbeafe !important' },
+                            '& .ag-cell-range-single-cell': { backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.2) !important' : '#eff6ff !important' },
+                            '& .ag-row-hover': { backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.15) !important' : '#e5f3ff !important' },
                         }}>
                             <AgGridReact
                                 ref={gridRef}

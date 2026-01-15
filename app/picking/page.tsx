@@ -1298,7 +1298,7 @@ export default function PickingPage() {
 
       <Box sx={{
         p: { xs: 0.75, md: 1 },
-        background: 'linear-gradient(135deg, #f0f4f8 0%, #d9e2ec 100%)',
+        background: isDarkMode ? 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)' : 'linear-gradient(135deg, #f0f4f8 0%, #d9e2ec 100%)',
         minHeight: '100vh',
         width: '100%'
       }}>
@@ -1323,7 +1323,7 @@ export default function PickingPage() {
         {currentTabCode === 'list' && (
           <Box sx={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 230px)' }}>
             {/* FILTERS */}
-            <Card sx={{ mb: { xs: 0, md: 1 }, borderRadius: 1.5, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', background: 'rgba(255, 255, 255, 0.98)' }}>
+            <Card sx={{ mb: { xs: 0, md: 1 }, borderRadius: 1.5, boxShadow: isDarkMode ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.06)', background: isDarkMode ? '#1e293b' : 'rgba(255, 255, 255, 0.98)' }}>
               <CardContent sx={{ p: { xs: 0, md: 1 } }}>
                 <Stack spacing={{ xs: 0, md: 1 }}>
                   <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: { xs: 1, md: 1 }, alignItems: { xs: 'stretch', md: 'center' }, width: '100%' }}>
@@ -1598,7 +1598,7 @@ export default function PickingPage() {
             <Box sx={{
               flex: 1,
               minHeight: 0,
-              border: '1px solid #d1d5db',
+              border: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #d1d5db',
               position: 'relative'
             }}>
 
@@ -1610,7 +1610,7 @@ export default function PickingPage() {
                   left: 0,
                   right: 0,
                   bottom: 0,
-                  backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                  backgroundColor: isDarkMode ? 'rgba(15, 23, 42, 0.9)' : 'rgba(255, 255, 255, 0.9)',
                   backdropFilter: 'blur(3px)',
                   zIndex: 5,
                   display: 'flex',
@@ -1663,7 +1663,7 @@ export default function PickingPage() {
                       sx={{
                         fontSize: '0.95rem',
                         fontWeight: 500,
-                        color: '#546e7a',
+                        color: isDarkMode ? '#94a3b8' : '#546e7a',
                         letterSpacing: 0.3,
                         textAlign: 'center'
                       }}
@@ -1682,7 +1682,7 @@ export default function PickingPage() {
                   left: 0,
                   right: 0,
                   bottom: 0,
-                  backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                  backgroundColor: isDarkMode ? 'rgba(15, 23, 42, 0.95)' : 'rgba(255, 255, 255, 0.95)',
                   zIndex: 5,
                   display: 'flex',
                   alignItems: 'center',
@@ -1703,10 +1703,10 @@ export default function PickingPage() {
                     }}>
                       📭
                     </Box>
-                    <Typography variant="h5" sx={{ fontWeight: 600, color: '#6b7280', mb: 0.5 }}>
+                    <Typography variant="h5" sx={{ fontWeight: 600, color: isDarkMode ? '#94a3b8' : '#6b7280', mb: 0.5 }}>
                       No Data Found
                     </Typography>
-                    <Typography variant="body2" sx={{ color: '#9ca3af', maxWidth: 400 }}>
+                    <Typography variant="body2" sx={{ color: isDarkMode ? '#64748b' : '#9ca3af', maxWidth: 400 }}>
                       No picking items match your current filters. Try adjusting your search criteria or reset filters to see all items.
                     </Typography>
                   </Box>
@@ -1794,12 +1794,12 @@ export default function PickingPage() {
                 mt: 1,
                 p: 1,
                 mb: -13,
-                background: 'rgba(255, 255, 255, 0.98)',
+                background: isDarkMode ? 'rgba(30, 41, 59, 0.98)' : 'rgba(255, 255, 255, 0.98)',
                 borderRadius: 1.5,
-                border: '1px solid rgba(0,0,0,0.08)'
+                border: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(0,0,0,0.08)'
               }}
             >
-              <Typography variant="body2" sx={{ fontWeight: 600, color: '#64748b', fontSize: '0.7rem' }}>
+              <Typography variant="body2" sx={{ fontWeight: 600, color: isDarkMode ? '#94a3b8' : '#64748b', fontSize: '0.7rem' }}>
                 📊 {pickingList.length > 0 ? (page - 1) * limit + 1 : 0} to {Math.min(page * limit, total)} of {total}
               </Typography>
               <Stack direction="row" spacing={1}>
@@ -2390,7 +2390,7 @@ export default function PickingPage() {
         {currentTabCode === 'multi' && (
           <Box sx={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 185px)', gap: 0.5, mt: 0 }}>
             {/* HEADER */}
-            <Card sx={{ borderRadius: 1, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+            <Card sx={{ borderRadius: 1, boxShadow: isDarkMode ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.06)', bgcolor: isDarkMode ? '#1e293b' : 'white' }}>
               <CardContent sx={{ p: 1.2, '&:last-child': { pb: 1.2 } }}>
                 <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', md: 'auto 1fr auto' }, gap: 1, alignItems: 'center', width: '100%' }}>
 
@@ -2463,21 +2463,22 @@ export default function PickingPage() {
               sx={{
                 flex: 1,
                 minHeight: 0,
-                border: '1px solid #cbd5e1',
+                border: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #cbd5e1',
                 borderRadius: 0,
-                '& .ag-root-wrapper': { borderRadius: 0, height: '100%' },
-                '& .ag-header': { borderBottom: '1px solid #cbd5e1' },
+                bgcolor: isDarkMode ? '#1e293b' : 'transparent',
+                '& .ag-root-wrapper': { borderRadius: 0, height: '100%', backgroundColor: isDarkMode ? '#1e293b' : 'transparent' },
+                '& .ag-header': { borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #cbd5e1', backgroundColor: isDarkMode ? '#334155' : 'transparent' },
                 '& .ag-header-cell': {
-                  backgroundColor: '#e5e7eb',
-                  color: '#111827',
+                  backgroundColor: isDarkMode ? '#334155' : '#e5e7eb',
+                  color: isDarkMode ? '#f1f5f9' : '#111827',
                   fontWeight: 700,
-                  borderRight: '1px solid #d1d5db',
+                  borderRight: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #d1d5db',
                   fontSize: '11px',
                   padding: '0 4px',
                 },
                 '& .ag-cell': {
-                  borderRight: '1px solid #e5e7eb',
-                  borderBottom: '1px solid #e5e7eb',
+                  borderRight: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e5e7eb',
+                  borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e5e7eb',
                   fontSize: '11px',
                   padding: '1px 4px',
                   display: 'flex',
@@ -2485,17 +2486,18 @@ export default function PickingPage() {
                   overflow: 'hidden',
                   whiteSpace: 'nowrap',
                   textOverflow: 'ellipsis',
+                  color: isDarkMode ? '#f1f5f9' : 'inherit',
                 },
                 '& .ag-row': { height: 26, overflow: 'visible' },
-                '& .ag-row-even': { backgroundColor: '#ffffff' },
-                '& .ag-row-odd': { backgroundColor: '#f9fafb' },
+                '& .ag-row-even': { backgroundColor: isDarkMode ? '#1a2536' : '#ffffff' },
+                '& .ag-row-odd': { backgroundColor: isDarkMode ? '#1e293b' : '#f9fafb' },
                 '& .ag-cell-focus': {
                   border: '2px solid #2563eb !important',
                   boxSizing: 'border-box',
                 },
-                '& .ag-cell-range-selected': { backgroundColor: '#dbeafe !important' },
-                '& .ag-cell-range-single-cell': { backgroundColor: '#eff6ff !important' },
-                '& .ag-row-hover': { backgroundColor: '#e5f3ff !important' },
+                '& .ag-cell-range-selected': { backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.3) !important' : '#dbeafe !important' },
+                '& .ag-cell-range-single-cell': { backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.2) !important' : '#eff6ff !important' },
+                '& .ag-row-hover': { backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.15) !important' : '#e5f3ff !important' },
                 '& .ag-row-focus': { outline: '1px solid #60a5fa' },
               }}
             >
@@ -3066,18 +3068,18 @@ export default function PickingPage() {
 
         {/* ========== TAB 2: BATCH MANAGEMENT ========== */}
         {currentTabCode === 'batches' && (
-          <Paper elevation={3} sx={{ borderRadius: 3, overflow: 'hidden' }}>
-            <Box sx={{ p: 2, bgcolor: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
-              <Typography variant="h6" sx={{ fontWeight: 700 }}>Batch Management</Typography>
+          <Paper elevation={3} sx={{ borderRadius: 3, overflow: 'hidden', bgcolor: isDarkMode ? '#1e293b' : 'white' }}>
+            <Box sx={{ p: 2, bgcolor: isDarkMode ? '#334155' : '#f9fafb', borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e5e7eb' }}>
+              <Typography variant="h6" sx={{ fontWeight: 700, color: isDarkMode ? '#f1f5f9' : 'inherit' }}>Batch Management</Typography>
             </Box>
             <TableContainer>
               <Table>
                 <TableHead>
-                  <TableRow sx={{ bgcolor: '#f5f5f5' }}>
-                    <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem' }}>Batch ID</TableCell>
-                    <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem' }}>Item Count</TableCell>
-                    <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem' }}>Created At</TableCell>
-                    <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem', textAlign: 'center' }}>Actions</TableCell>
+                  <TableRow sx={{ bgcolor: isDarkMode ? '#334155' : '#f5f5f5' }}>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem', color: isDarkMode ? '#f1f5f9' : 'inherit' }}>Batch ID</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem', color: isDarkMode ? '#f1f5f9' : 'inherit' }}>Item Count</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem', color: isDarkMode ? '#f1f5f9' : 'inherit' }}>Created At</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem', textAlign: 'center', color: isDarkMode ? '#f1f5f9' : 'inherit' }}>Actions</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -3095,10 +3097,10 @@ export default function PickingPage() {
                     </TableRow>
                   ) : (
                     batches.map((batch) => (
-                      <TableRow key={batch.batch_id} sx={{ '&:hover': { bgcolor: '#f9fafb' } }}>
-                        <TableCell sx={{ fontSize: '0.8rem', fontWeight: 600 }}>{batch.batch_id}</TableCell>
-                        <TableCell sx={{ fontSize: '0.8rem' }}>{batch.count}</TableCell>
-                        <TableCell sx={{ fontSize: '0.8rem' }}>{formatDateFull(batch.created_at)}</TableCell>
+                      <TableRow key={batch.batch_id} sx={{ '&:hover': { bgcolor: isDarkMode ? 'rgba(59,130,246,0.1)' : '#f9fafb' } }}>
+                        <TableCell sx={{ fontSize: '0.8rem', fontWeight: 600, color: isDarkMode ? '#f1f5f9' : 'inherit' }}>{batch.batch_id}</TableCell>
+                        <TableCell sx={{ fontSize: '0.8rem', color: isDarkMode ? '#f1f5f9' : 'inherit' }}>{batch.count}</TableCell>
+                        <TableCell sx={{ fontSize: '0.8rem', color: isDarkMode ? '#f1f5f9' : 'inherit' }}>{formatDateFull(batch.created_at)}</TableCell>
                         <TableCell sx={{ textAlign: 'center' }}>
                           {canSeeButton('batches:delete') && (
                             <Button

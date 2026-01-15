@@ -1487,7 +1487,7 @@ export default function QCPage() {
 
       <Box sx={{
         p: { xs: 0.75, md: 1 },
-        background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
+        background: isDarkMode ? 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)' : 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
         height: '100%',
         width: '100%',
         display: 'flex',
@@ -1561,15 +1561,15 @@ export default function QCPage() {
                     sx={{
                       flex: 1,
                       '& .MuiOutlinedInput-root': {
-                        bgcolor: 'white',
+                        bgcolor: isDarkMode ? '#0f172a' : 'white',
                         borderRadius: 1.5,
                         height: 38,
                         fontSize: { xs: '0.8rem', sm: '0.875rem' },
                         fontWeight: 500,
-                        border: '2px solid #e2e8f0',
+                        border: isDarkMode ? '2px solid rgba(255,255,255,0.15)' : '2px solid #e2e8f0',
                         boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
                         '&:hover': {
-                          borderColor: '#cbd5e1',
+                          borderColor: isDarkMode ? 'rgba(255,255,255,0.25)' : '#cbd5e1',
                           boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
                         },
                         '&.Mui-focused': {
@@ -1580,7 +1580,8 @@ export default function QCPage() {
                           border: 'none'
                         },
                         '& input': {
-                          py: 0.75
+                          py: 0.75,
+                          color: isDarkMode ? '#f1f5f9' : 'inherit'
                         }
                       }
                     }}
@@ -1594,9 +1595,9 @@ export default function QCPage() {
                         minWidth: { xs: 42, sm: 115 },
                         height: 38,
                         borderWidth: 2,
-                        borderColor: filtersExpanded ? '#1e40af' : '#cbd5e1',
-                        bgcolor: filtersExpanded ? 'rgba(30, 64, 175, 0.1)' : 'white',
-                        color: filtersExpanded ? '#1e40af' : '#64748b',
+                        borderColor: filtersExpanded ? '#1e40af' : (isDarkMode ? 'rgba(255,255,255,0.2)' : '#cbd5e1'),
+                        bgcolor: filtersExpanded ? 'rgba(30, 64, 175, 0.1)' : (isDarkMode ? '#0f172a' : 'white'),
+                        color: filtersExpanded ? '#1e40af' : (isDarkMode ? '#94a3b8' : '#64748b'),
                         fontWeight: 700,
                         fontSize: { xs: '0.7rem', sm: '0.78rem' },
                         borderRadius: 1.5,
@@ -1701,9 +1702,9 @@ export default function QCPage() {
                 <Collapse in={filtersExpanded} timeout="auto">
                   <Card sx={{
                     borderRadius: 1.5,
-                    boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
-                    background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
-                    border: '1px solid #e2e8f0',
+                    boxShadow: isDarkMode ? '0 4px 20px rgba(0,0,0,0.4)' : '0 4px 20px rgba(0,0,0,0.15)',
+                    background: isDarkMode ? 'linear-gradient(135deg, #1e293b 0%, #334155 100%)' : 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
+                    border: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e2e8f0',
                     position: 'relative',
                     zIndex: 95
                   }}>
@@ -1977,9 +1978,9 @@ export default function QCPage() {
                 <DialogContent>
                   <Card sx={{
                     borderRadius: 1.5,
-                    boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
-                    background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
-                    border: '1px solid #e2e8f0',
+                    boxShadow: isDarkMode ? '0 4px 20px rgba(0,0,0,0.4)' : '0 4px 20px rgba(0,0,0,0.15)',
+                    background: isDarkMode ? 'linear-gradient(135deg, #1e293b 0%, #334155 100%)' : 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
+                    border: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e2e8f0',
                     position: 'relative',
                     zIndex: 95
                   }}>
@@ -2248,7 +2249,7 @@ export default function QCPage() {
               <Box sx={{
                 flex: 1,
                 minHeight: 0,
-                border: '1px solid #d1d5db',
+                border: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #d1d5db',
                 position: 'relative'
               }}>
 
@@ -2260,7 +2261,7 @@ export default function QCPage() {
                     left: 0,
                     right: 0,
                     bottom: 0,
-                    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                    backgroundColor: isDarkMode ? 'rgba(15, 23, 42, 0.9)' : 'rgba(255, 255, 255, 0.9)',
                     backdropFilter: 'blur(3px)',
                     zIndex: 5,
                     display: 'flex',
@@ -2273,9 +2274,9 @@ export default function QCPage() {
                       alignItems: 'center',
                       gap: 3,
                       p: 4,
-                      bgcolor: 'white',
+                      bgcolor: isDarkMode ? '#1e293b' : 'white',
                       borderRadius: 3,
-                      boxShadow: '0 8px 24px rgba(0,0,0,0.12)'
+                      boxShadow: isDarkMode ? '0 8px 32px rgba(0,0,0,0.4)' : '0 8px 24px rgba(0,0,0,0.12)'
                     }}>
                       <Box sx={{ position: 'relative' }}>
                         <CircularProgress
@@ -2313,7 +2314,7 @@ export default function QCPage() {
                         sx={{
                           fontSize: '0.95rem',
                           fontWeight: 500,
-                          color: '#546e7a',
+                          color: isDarkMode ? '#94a3b8' : '#546e7a',
                           letterSpacing: 0.3,
                           textAlign: 'center'
                         }}
@@ -2332,7 +2333,7 @@ export default function QCPage() {
                     left: 0,
                     right: 0,
                     bottom: 0,
-                    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                    backgroundColor: isDarkMode ? 'rgba(15, 23, 42, 0.95)' : 'rgba(255, 255, 255, 0.95)',
                     zIndex: 5,
                     display: 'flex',
                     alignItems: 'center',
@@ -2353,10 +2354,10 @@ export default function QCPage() {
                       }}>
                         📭
                       </Box>
-                      <Typography variant="h5" sx={{ fontWeight: 600, color: '#6b7280', mb: 0.5 }}>
+                      <Typography variant="h5" sx={{ fontWeight: 600, color: isDarkMode ? '#94a3b8' : '#6b7280', mb: 0.5 }}>
                         No Data Found
                       </Typography>
-                      <Typography variant="body2" sx={{ color: '#9ca3af', maxWidth: 400 }}>
+                      <Typography variant="body2" sx={{ color: isDarkMode ? '#64748b' : '#9ca3af', maxWidth: 400 }}>
                         No QC items match your current filters. Try adjusting your search criteria or reset filters to see all items.
                       </Typography>
                     </Box>
@@ -2438,10 +2439,10 @@ export default function QCPage() {
               <Box sx={{
                 mt: 1,
                 p: { xs: 0.5, sm: 0.75 },
-                background: 'white',
+                background: isDarkMode ? '#1e293b' : 'white',
                 borderRadius: 1.25,
-                border: '2px solid #e2e8f0',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+                border: isDarkMode ? '2px solid rgba(255,255,255,0.1)' : '2px solid #e2e8f0',
+                boxShadow: isDarkMode ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.06)',
                 display: 'flex',
                 flexDirection: 'row',
                 justifyContent: 'space-between',
@@ -2452,7 +2453,7 @@ export default function QCPage() {
                 bottom: 0,
                 zIndex: 10,
                 backdropFilter: 'blur(8px)',
-                backgroundColor: 'rgba(255, 255, 255, 0.95)'
+                backgroundColor: isDarkMode ? 'rgba(30, 41, 59, 0.95)' : 'rgba(255, 255, 255, 0.95)'
               }}>
                 <Typography
                   variant="body2"
@@ -2705,9 +2706,9 @@ export default function QCPage() {
                 {/* LEFT COLUMN - FORM */}
                 <Card sx={{
                   borderRadius: 1.5,
-                  boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
-                  background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
-                  border: '1px solid #e2e8f0',
+                  boxShadow: isDarkMode ? '0 4px 20px rgba(0,0,0,0.4)' : '0 4px 20px rgba(0,0,0,0.15)',
+                  background: isDarkMode ? 'linear-gradient(135deg, #1e293b 0%, #334155 100%)' : 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
+                  border: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e2e8f0',
                   display: 'flex',
                   flexDirection: 'column'
                 }}>
@@ -2717,7 +2718,7 @@ export default function QCPage() {
                       sx={{
                         fontWeight: 800,
                         mb: 2,
-                        color: '#1e293b',
+                        color: isDarkMode ? '#f1f5f9' : '#1e293b',
                         fontSize: { xs: '1rem', sm: '1.1rem' },
                         display: 'flex',
                         alignItems: 'center',
@@ -3211,9 +3212,9 @@ export default function QCPage() {
                   {/* STATS CARD */}
                   <Card sx={{
                     borderRadius: 1.5,
-                    boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
-                    background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
-                    border: '1px solid #e2e8f0'
+                    boxShadow: isDarkMode ? '0 4px 20px rgba(0,0,0,0.4)' : '0 4px 20px rgba(0,0,0,0.15)',
+                    background: isDarkMode ? 'linear-gradient(135deg, #1e293b 0%, #334155 100%)' : 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
+                    border: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e2e8f0'
                   }}>
                     <CardContent sx={{ p: { xs: 1.5, sm: 2 } }}>
                       <Typography
@@ -3221,7 +3222,7 @@ export default function QCPage() {
                         sx={{
                           fontWeight: 800,
                           mb: 2,
-                          color: '#1e293b',
+                          color: isDarkMode ? '#f1f5f9' : '#1e293b',
                           fontSize: { xs: '0.95rem', sm: '1rem' },
                           display: 'flex',
                           alignItems: 'center',
@@ -3379,7 +3380,7 @@ export default function QCPage() {
             return (
               <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 1, mt: 0 }}>
                 {/* HEADER */}
-                <Card sx={{ borderRadius: 1, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+                <Card sx={{ borderRadius: 1, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', bgcolor: isDarkMode ? '#1e293b' : 'white' }}>
                   <CardContent sx={{ p: 1.2, '&:last-child': { pb: 1.2 } }}>
 
                     {/* ===== MOBILE: 2 ROWS ===== */}
@@ -3592,32 +3593,34 @@ export default function QCPage() {
                 <Box
                   sx={{
                     flex: 1,
-                    border: '1px solid #cbd5e1',
+                    border: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #cbd5e1',
                     borderRadius: 0,
-                    '& .ag-root-wrapper': { borderRadius: 0 },
+                    bgcolor: isDarkMode ? '#1e293b' : 'transparent',
+                    '& .ag-root-wrapper': { borderRadius: 0, backgroundColor: isDarkMode ? '#1e293b' : 'transparent' },
 
                     // Excel-style header
                     '& .ag-header': {
-                      borderBottom: '1px solid #cbd5e1',
+                      borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #cbd5e1',
+                      backgroundColor: isDarkMode ? '#334155' : 'transparent',
                     },
                     '& .ag-header-cell': {
-                      backgroundColor: '#e5e7eb',
-                      color: '#111827',
+                      backgroundColor: isDarkMode ? '#334155' : '#e5e7eb',
+                      color: isDarkMode ? '#f1f5f9' : '#111827',
                       fontWeight: 700,
-                      borderRight: '1px solid #d1d5db',
+                      borderRight: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #d1d5db',
                       fontSize: '11px',
                       padding: '0 4px',
                     },
 
                     // Excel-style cells
                     '& .ag-cell': {
-                      borderRight: '1px solid #e5e7eb',
-                      borderBottom: '1px solid #e5e7eb',
+                      borderRight: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e5e7eb',
+                      borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e5e7eb',
                       fontSize: '11px',
                       padding: '1px 4px',
                       display: 'flex',
                       alignItems: 'center',
-
+                      color: isDarkMode ? '#f1f5f9' : 'inherit',
                       overflow: 'hidden',
                       whiteSpace: 'nowrap',
                       textOverflow: 'ellipsis',
@@ -3625,11 +3628,11 @@ export default function QCPage() {
 
                     // Error cell styling
                     '& .wsn-cross-error': {
-                      backgroundColor: '#fee2e2 !important',
+                      backgroundColor: isDarkMode ? '#7f1d1d !important' : '#fee2e2 !important',
                       fontWeight: 700,
                     },
                     '& .wsn-dup-error': {
-                      backgroundColor: '#fef3c7 !important',
+                      backgroundColor: isDarkMode ? '#78350f !important' : '#fef3c7 !important',
                       fontWeight: 700,
                     },
 
@@ -3642,8 +3645,8 @@ export default function QCPage() {
                       overflow: 'visible',   // ⭐ REQUIRED
                     },
 
-                    '& .ag-row-even': { backgroundColor: '#ffffff' },
-                    '& .ag-row-odd': { backgroundColor: '#f9fafb' },
+                    '& .ag-row-even': { backgroundColor: isDarkMode ? '#1a2536' : '#ffffff' },
+                    '& .ag-row-odd': { backgroundColor: isDarkMode ? '#1e293b' : '#f9fafb' },
 
                     // Active (focused) cell – Excel जैसी नीली border
                     '& .ag-cell-focus': {
@@ -3653,18 +3656,18 @@ export default function QCPage() {
 
                     // Range selection (drag / shift select) – हल्का blue background
                     '& .ag-cell-range-selected': {
-                      backgroundColor: '#dbeafe !important',
+                      backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.3) !important' : '#dbeafe !important',
                     },
                     '& .ag-cell-range-single-cell': {
-                      backgroundColor: '#eff6ff !important',
+                      backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.2) !important' : '#eff6ff !important',
                     },
 
                     // Hover like selected Excel row
                     '& .ag-row-hover': {
-                      backgroundColor: '#e5f3ff !important',
+                      backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.15) !important' : '#e5f3ff !important',
                     },
                     '& .ag-row-focus': {
-                      outline: '1 px solid #60a5fa',
+                      outline: '1px solid #60a5fa',
                     },
                   }}
                 >
@@ -4284,9 +4287,9 @@ export default function QCPage() {
               >
                 <Card sx={{
                   borderRadius: 1.5,
-                  boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
-                  background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
-                  border: '1px solid #e2e8f0',
+                  boxShadow: isDarkMode ? '0 4px 20px rgba(0,0,0,0.4)' : '0 4px 20px rgba(0,0,0,0.15)',
+                  background: isDarkMode ? 'linear-gradient(135deg, #1e293b 0%, #334155 100%)' : 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
+                  border: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e2e8f0',
                   flex: 1,
                   display: 'flex',
                   flexDirection: 'column'
@@ -4297,7 +4300,7 @@ export default function QCPage() {
                       sx={{
                         fontWeight: 800,
                         mb: 3,
-                        color: '#1e293b',
+                        color: isDarkMode ? '#f1f5f9' : '#1e293b',
                         fontSize: { xs: '1.1rem', sm: '1.25rem' },
                         display: 'flex',
                         alignItems: 'center',

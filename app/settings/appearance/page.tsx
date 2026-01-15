@@ -63,6 +63,7 @@ export default function AppearanceSettingsPage() {
     const [user, setUser] = useState<any>(null);
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+    const isDarkMode = theme.palette.mode === 'dark';
 
     // Use global appearance context
     const {
@@ -134,7 +135,7 @@ export default function AppearanceSettingsPage() {
                     flex: 1,
                     overflow: 'auto',
                     p: { xs: 1.5, md: 2 },
-                    background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
+                    background: isDarkMode ? 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)' : 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
                 }}>
                     {/* Save Bar */}
                     {hasUnsavedChanges && (
@@ -411,11 +412,11 @@ export default function AppearanceSettingsPage() {
                                 <Box sx={{
                                     mt: 2,
                                     p: 1.5,
-                                    bgcolor: '#f8fafc',
+                                    bgcolor: isDarkMode ? '#0f172a' : '#f8fafc',
                                     borderRadius: 1,
-                                    border: '1px solid #e2e8f0',
+                                    border: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e2e8f0',
                                 }}>
-                                    <Typography sx={{ fontSize: `${settings.fontSize}px` }}>
+                                    <Typography sx={{ fontSize: `${settings.fontSize}px`, color: isDarkMode ? '#f1f5f9' : 'inherit' }}>
                                         Preview: This text is {settings.fontSize}px
                                     </Typography>
                                 </Box>
@@ -455,11 +456,11 @@ export default function AppearanceSettingsPage() {
                                 <Box sx={{
                                     mt: 2,
                                     p: 1.5,
-                                    bgcolor: '#f8fafc',
+                                    bgcolor: isDarkMode ? '#0f172a' : '#f8fafc',
                                     borderRadius: 1,
-                                    border: '1px solid #e2e8f0',
+                                    border: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e2e8f0',
                                 }}>
-                                    <Typography sx={{ fontFamily: settings.fontFamily }}>
+                                    <Typography sx={{ fontFamily: settings.fontFamily, color: isDarkMode ? '#f1f5f9' : 'inherit' }}>
                                         Preview: The quick brown fox jumps over the lazy dog
                                     </Typography>
                                 </Box>

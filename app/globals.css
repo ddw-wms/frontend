@@ -595,29 +595,46 @@ html[data-theme="dark"] [class*="ag-theme-"],
 [data-theme="dark"] .ag-theme-material,
 [data-theme="dark"] .ag-root-wrapper,
 [data-theme="dark"] [class*="ag-theme-"] {
-  --ag-background-color: #1e293b !important;
-  --ag-foreground-color: #f1f5f9 !important;
-  --ag-header-background-color: #334155 !important;
-  --ag-header-foreground-color: #f1f5f9 !important;
-  --ag-odd-row-background-color: #1e293b !important;
-  --ag-even-row-background-color: #1a2536 !important;
-  --ag-row-hover-color: rgba(59, 130, 246, 0.15) !important;
-  --ag-selected-row-background-color: rgba(59, 130, 246, 0.2) !important;
-  --ag-border-color: rgba(255, 255, 255, 0.1) !important;
-  --ag-secondary-foreground-color: #94a3b8 !important;
-  --ag-input-border-color: rgba(255, 255, 255, 0.2) !important;
-  --ag-input-disabled-background-color: #0f172a !important;
-  --ag-modal-overlay-background-color: rgba(15, 23, 42, 0.8) !important;
-  --ag-cell-horizontal-border: solid rgba(255, 255, 255, 0.1) !important;
-  --ag-row-border-color: rgba(255, 255, 255, 0.1) !important;
-  --ag-control-panel-background-color: #1e293b !important;
-  --ag-subheader-background-color: #334155 !important;
-  --ag-invalid-color: #fca5a5 !important;
-  --ag-font-family: var(--app-font-family), -apple-system, BlinkMacSystemFont, sans-serif !important;
+  --ag-background-color: #1e293b;
+  --ag-foreground-color: #f1f5f9;
+  --ag-header-background-color: #334155;
+  --ag-header-foreground-color: #f1f5f9;
+  --ag-odd-row-background-color: #1e293b;
+  --ag-even-row-background-color: #1a2536;
+  --ag-row-hover-color: rgba(59, 130, 246, 0.15);
+  --ag-selected-row-background-color: rgba(59, 130, 246, 0.2);
+  --ag-border-color: rgba(255, 255, 255, 0.1);
+  --ag-secondary-foreground-color: #94a3b8;
+  --ag-input-border-color: rgba(255, 255, 255, 0.2);
+  --ag-input-disabled-background-color: #0f172a;
+  --ag-modal-overlay-background-color: rgba(15, 23, 42, 0.8);
+  --ag-cell-horizontal-border: solid rgba(255, 255, 255, 0.1);
+  --ag-row-border-color: rgba(255, 255, 255, 0.1);
+  --ag-control-panel-background-color: #1e293b;
+  --ag-subheader-background-color: #334155;
+  --ag-invalid-color: #fca5a5;
+  --ag-font-family: var(--app-font-family), -apple-system, BlinkMacSystemFont, sans-serif;
+  --ag-wrapper-border-radius: 0;
+  --ag-data-color: #f1f5f9;
+  --ag-alpine-active-color: #3b82f6;
+  background-color: #1e293b !important;
 }
 
+/* Force AG Grid wrapper backgrounds */
 html[data-theme="dark"] .ag-root-wrapper,
-[data-theme="dark"] .ag-root-wrapper {
+html[data-theme="dark"] .ag-root,
+html[data-theme="dark"] .ag-body-viewport,
+html[data-theme="dark"] .ag-center-cols-viewport,
+html[data-theme="dark"] .ag-center-cols-container,
+html[data-theme="dark"] .ag-body,
+html[data-theme="dark"] .ag-body-horizontal-scroll-viewport,
+[data-theme="dark"] .ag-root-wrapper,
+[data-theme="dark"] .ag-root,
+[data-theme="dark"] .ag-body-viewport,
+[data-theme="dark"] .ag-center-cols-viewport,
+[data-theme="dark"] .ag-center-cols-container,
+[data-theme="dark"] .ag-body,
+[data-theme="dark"] .ag-body-horizontal-scroll-viewport {
   background-color: #1e293b !important;
 }
 
@@ -668,6 +685,55 @@ html[data-theme="dark"] .ag-cell,
 [data-theme="dark"] .ag-cell {
   color: #f1f5f9 !important;
   border-color: rgba(255, 255, 255, 0.1) !important;
+  background-color: inherit !important;
+}
+
+/* Force cell backgrounds to inherit row background */
+html[data-theme="dark"] .ag-row .ag-cell,
+[data-theme="dark"] .ag-row .ag-cell {
+  background-color: inherit !important;
+}
+
+html[data-theme="dark"] .ag-row-odd .ag-cell,
+[data-theme="dark"] .ag-row-odd .ag-cell {
+  background-color: #1e293b !important;
+}
+
+html[data-theme="dark"] .ag-row-even .ag-cell,
+[data-theme="dark"] .ag-row-even .ag-cell {
+  background-color: #1a2536 !important;
+}
+
+/* Cell wrapper and value backgrounds */
+html[data-theme="dark"] .ag-cell-wrapper,
+html[data-theme="dark"] .ag-cell-value,
+html[data-theme="dark"] .ag-cell-inline-editing,
+[data-theme="dark"] .ag-cell-wrapper,
+[data-theme="dark"] .ag-cell-value,
+[data-theme="dark"] .ag-cell-inline-editing {
+  background-color: transparent !important;
+}
+
+/* Pinned columns backgrounds */
+html[data-theme="dark"] .ag-pinned-left-cols-container .ag-cell,
+html[data-theme="dark"] .ag-pinned-right-cols-container .ag-cell,
+[data-theme="dark"] .ag-pinned-left-cols-container .ag-cell,
+[data-theme="dark"] .ag-pinned-right-cols-container .ag-cell {
+  background-color: inherit !important;
+}
+
+/* Full width rows */
+html[data-theme="dark"] .ag-full-width-row,
+[data-theme="dark"] .ag-full-width-row {
+  background-color: #1e293b !important;
+}
+
+/* Center cols container */
+html[data-theme="dark"] .ag-center-cols-clipper,
+html[data-theme="dark"] .ag-center-cols-container,
+[data-theme="dark"] .ag-center-cols-clipper,
+[data-theme="dark"] .ag-center-cols-container {
+  background-color: #1e293b !important;
 }
 
 html[data-theme="dark"] .ag-paging-panel,

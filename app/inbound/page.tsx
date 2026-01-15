@@ -2758,9 +2758,9 @@ export default function InboundPage() {
       sortable: false,
       filter: false,
       cellRenderer: (params: any) => {
-        return <span style={{ fontWeight: 700, color: '#64748b' }}>{params.node.rowIndex + 1}</span>;
+        return <span style={{ fontWeight: 700, color: isDarkMode ? '#94a3b8' : '#64748b' }}>{params.node.rowIndex + 1}</span>;
       },
-      cellStyle: { textAlign: 'center', backgroundColor: '#f8fafc' }
+      cellStyle: { textAlign: 'center', backgroundColor: isDarkMode ? '#334155' : '#f8fafc' }
     };
 
     // Print column at the end
@@ -3008,7 +3008,7 @@ export default function InboundPage() {
 
       <Box sx={{
         p: { xs: 0.75, md: 1 },
-        background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
+        background: isDarkMode ? 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)' : 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
         height: '100vh',
         width: '100%',
         display: 'flex',
@@ -3201,9 +3201,9 @@ export default function InboundPage() {
                   <Collapse in={filtersExpanded} timeout="auto">
                     <Card sx={{
                       borderRadius: 1.5,
-                      boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
-                      background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
-                      border: '1px solid #e2e8f0',
+                      boxShadow: isDarkMode ? '0 4px 20px rgba(0,0,0,0.4)' : '0 4px 20px rgba(0,0,0,0.15)',
+                      background: isDarkMode ? 'linear-gradient(135deg, #1e293b 0%, #334155 100%)' : 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
+                      border: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e2e8f0',
                       position: 'relative',
                       zIndex: 95
                     }}>
@@ -3343,12 +3343,12 @@ export default function InboundPage() {
                                 fontSize: '0.72rem',
                                 fontWeight: 700,
                                 borderWidth: 2,
-                                borderColor: '#94a3b8',
-                                color: '#64748b',
+                                borderColor: isDarkMode ? '#64748b' : '#94a3b8',
+                                color: isDarkMode ? '#94a3b8' : '#64748b',
                                 '&:hover': {
                                   borderWidth: 2,
-                                  borderColor: '#64748b',
-                                  bgcolor: '#f8fafc'
+                                  borderColor: isDarkMode ? '#94a3b8' : '#64748b',
+                                  bgcolor: isDarkMode ? 'rgba(255,255,255,0.05)' : '#f8fafc'
                                 }
                               }}
                             >
@@ -3393,11 +3393,11 @@ export default function InboundPage() {
                                   fontSize: '0.72rem',
                                   fontWeight: 700,
                                   borderWidth: 2,
-                                  borderColor: '#94a3b8',
-                                  color: '#475569',
+                                  borderColor: isDarkMode ? '#64748b' : '#94a3b8',
+                                  color: isDarkMode ? '#94a3b8' : '#475569',
                                   '&:hover': {
                                     borderWidth: 2,
-                                    bgcolor: '#f8fafc'
+                                    bgcolor: isDarkMode ? 'rgba(255,255,255,0.05)' : '#f8fafc'
                                   }
                                 }}
                               >
@@ -3521,9 +3521,9 @@ export default function InboundPage() {
                   flex: 1,
                   overflow: 'hidden',
                   minHeight: 0,
-                  border: '2px solid #e2e8f0',
+                  border: isDarkMode ? '2px solid rgba(255,255,255,0.1)' : '2px solid #e2e8f0',
                   borderRadius: 1.5,
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+                  boxShadow: isDarkMode ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.06)',
                 }}>
 
                   {/* Loading Overlay with Spinner */}
@@ -3534,7 +3534,7 @@ export default function InboundPage() {
                       left: 0,
                       right: 0,
                       bottom: 0,
-                      backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                      backgroundColor: isDarkMode ? 'rgba(15, 23, 42, 0.9)' : 'rgba(255, 255, 255, 0.9)',
                       backdropFilter: 'blur(3px)',
                       zIndex: 5,
                       display: 'flex',
@@ -3547,9 +3547,9 @@ export default function InboundPage() {
                         alignItems: 'center',
                         gap: 3,
                         p: 4,
-                        bgcolor: 'white',
+                        bgcolor: isDarkMode ? '#1e293b' : 'white',
                         borderRadius: 3,
-                        boxShadow: '0 8px 24px rgba(0,0,0,0.12)'
+                        boxShadow: isDarkMode ? '0 8px 32px rgba(0,0,0,0.4)' : '0 8px 24px rgba(0,0,0,0.12)'
                       }}>
                         <Box sx={{ position: 'relative' }}>
                           <CircularProgress
@@ -3587,7 +3587,7 @@ export default function InboundPage() {
                           sx={{
                             fontSize: '0.95rem',
                             fontWeight: 500,
-                            color: '#546e7a',
+                            color: isDarkMode ? '#94a3b8' : '#546e7a',
                             letterSpacing: 0.3,
                             textAlign: 'center'
                           }}
@@ -3606,7 +3606,7 @@ export default function InboundPage() {
                       left: 0,
                       right: 0,
                       bottom: 0,
-                      backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                      backgroundColor: isDarkMode ? 'rgba(15, 23, 42, 0.95)' : 'rgba(255, 255, 255, 0.95)',
                       zIndex: 5,
                       display: 'flex',
                       alignItems: 'center',
@@ -3720,10 +3720,10 @@ export default function InboundPage() {
                 <Box sx={{
                   mt: 1,
                   p: { xs: 0.5, sm: 0.75 },
-                  background: 'white',
+                  background: isDarkMode ? '#1e293b' : 'white',
                   borderRadius: 1.25,
-                  border: '2px solid #e2e8f0',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+                  border: isDarkMode ? '2px solid rgba(255,255,255,0.1)' : '2px solid #e2e8f0',
+                  boxShadow: isDarkMode ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.06)',
                   display: 'flex',
                   flexDirection: 'row',
                   justifyContent: 'space-between',
@@ -3734,7 +3734,7 @@ export default function InboundPage() {
                   bottom: 0,
                   zIndex: 10,
                   backdropFilter: 'blur(8px)',
-                  backgroundColor: 'rgba(255, 255, 255, 0.95)'
+                  backgroundColor: isDarkMode ? 'rgba(30, 41, 59, 0.95)' : 'rgba(255, 255, 255, 0.95)'
                 }}>
                   <Typography
                     variant="body2"
@@ -4892,7 +4892,8 @@ export default function InboundPage() {
                 display: 'flex',
                 flexDirection: 'column',
                 height: '100%', overflow: 'hidden',
-                p: { xs: 1, sm: 1, md: 1 }
+                p: { xs: 1, sm: 1, md: 1 },
+                bgcolor: isDarkMode ? 'transparent' : 'transparent'
               }}>
                 {/* CONTROLS */}
                 <Card
@@ -5382,33 +5383,35 @@ export default function InboundPage() {
                   sx={{
                     flex: 1,
                     minHeight: 300,
-                    border: '1px solid #cbd5e1',
+                    border: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #cbd5e1',
                     borderRadius: 1,
                     overflow: 'hidden',
-                    '& .ag-root-wrapper': { borderRadius: 0, height: '100%' },
+                    bgcolor: isDarkMode ? '#1e293b' : 'transparent',
+                    '& .ag-root-wrapper': { borderRadius: 0, height: '100%', backgroundColor: isDarkMode ? '#1e293b' : 'transparent' },
 
                     // Excel-style header
                     '& .ag-header': {
-                      borderBottom: '1px solid #cbd5e1',
+                      borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #cbd5e1',
+                      backgroundColor: isDarkMode ? '#334155' : 'transparent',
                     },
                     '& .ag-header-cell': {
-                      backgroundColor: '#e5e7eb',
-                      color: '#111827',
+                      backgroundColor: isDarkMode ? '#334155' : '#e5e7eb',
+                      color: isDarkMode ? '#f1f5f9' : '#111827',
                       fontWeight: 700,
-                      borderRight: '1px solid #d1d5db',
+                      borderRight: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #d1d5db',
                       fontSize: '11px',
                       padding: '0 4px',
                     },
 
                     // Excel-style cells
                     '& .ag-cell': {
-                      borderRight: '1px solid #e5e7eb',
-                      borderBottom: '1px solid #e5e7eb',
+                      borderRight: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e5e7eb',
+                      borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e5e7eb',
                       fontSize: '11px',
                       padding: '1px 4px',
                       display: 'flex',
                       alignItems: 'center',
-
+                      color: isDarkMode ? '#f1f5f9' : 'inherit',
                       overflow: 'hidden',
                       whiteSpace: 'nowrap',
                       textOverflow: 'ellipsis',
@@ -5422,18 +5425,18 @@ export default function InboundPage() {
                       overflow: 'visible',   // ⭐ REQUIRED
                     },
 
-                    '& .ag-row-even': { backgroundColor: '#ffffff' },
-                    '& .ag-row-odd': { backgroundColor: '#f9fafb' },
+                    '& .ag-row-even': { backgroundColor: isDarkMode ? '#1a2536' : '#ffffff' },
+                    '& .ag-row-odd': { backgroundColor: isDarkMode ? '#1e293b' : '#f9fafb' },
 
                     // ⚡ EXCEL ENHANCEMENT: Highlight animation for newly added rows
                     '& .ag-row-highlight-new': {
                       animation: 'rowHighlightPulse 1.5s ease-out',
-                      backgroundColor: '#dcfce7 !important',
+                      backgroundColor: isDarkMode ? '#14532d !important' : '#dcfce7 !important',
                     },
                     '@keyframes rowHighlightPulse': {
-                      '0%': { backgroundColor: '#86efac' },
-                      '50%': { backgroundColor: '#bbf7d0' },
-                      '100%': { backgroundColor: '#dcfce7' },
+                      '0%': { backgroundColor: isDarkMode ? '#166534' : '#86efac' },
+                      '50%': { backgroundColor: isDarkMode ? '#15803d' : '#bbf7d0' },
+                      '100%': { backgroundColor: isDarkMode ? '#14532d' : '#dcfce7' },
                     },
 
                     // Active (focused) cell – Excel जैसी नीली border
@@ -5444,15 +5447,15 @@ export default function InboundPage() {
 
                     // Range selection (drag / shift select) – हल्का blue background
                     '& .ag-cell-range-selected': {
-                      backgroundColor: '#dbeafe !important',
+                      backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.3) !important' : '#dbeafe !important',
                     },
                     '& .ag-cell-range-single-cell': {
-                      backgroundColor: '#eff6ff !important',
+                      backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.2) !important' : '#eff6ff !important',
                     },
 
                     // ⚡ EXCEL-LIKE: Cell range selection highlight (specific column only)
                     '& .ag-cell-in-selection': {
-                      backgroundColor: '#bfdbfe !important',
+                      backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.4) !important' : '#bfdbfe !important',
                       borderTop: '1px solid #3b82f6',
                       borderBottom: '1px solid #3b82f6',
                     },
@@ -5478,14 +5481,14 @@ export default function InboundPage() {
 
                     // Hover like selected Excel row
                     '& .ag-row-hover': {
-                      backgroundColor: '#e5f3ff !important',
+                      backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.15) !important' : '#e5f3ff !important',
                     },
                     '& .ag-row-focus': {
-                      outline: '1 px solid #60a5fa',
+                      outline: '1px solid #60a5fa',
                     },
                   }}
                 >
-                  <div style={{ height: '100%', width: '100%' }} className="ag-theme-quartz">
+                  <div style={{ height: '100%', width: '100%', backgroundColor: isDarkMode ? '#1e293b' : 'transparent' }} className="ag-theme-quartz">
                     <AgGridReact
                       ref={gridRef}
                       // ⚡ PERFORMANCE: getRowId for efficient row tracking and updates

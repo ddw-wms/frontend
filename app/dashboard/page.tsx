@@ -1802,7 +1802,7 @@ export default function DashboardPage() {
                   left: 0,
                   right: 0,
                   bottom: 0,
-                  backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                  backgroundColor: isDarkMode ? 'rgba(15, 23, 42, 0.9)' : 'rgba(255, 255, 255, 0.9)',
                   backdropFilter: 'blur(4px)',
                   zIndex: 5,
                   display: 'flex',
@@ -1855,7 +1855,7 @@ export default function DashboardPage() {
                       sx={{
                         fontSize: '0.9rem',
                         fontWeight: 500,
-                        color: '#64748b',
+                        color: isDarkMode ? '#94a3b8' : '#64748b',
                         letterSpacing: 0.2,
                         textAlign: 'center'
                       }}
@@ -1874,7 +1874,7 @@ export default function DashboardPage() {
                   left: 0,
                   right: 0,
                   bottom: 0,
-                  backgroundColor: 'rgba(255, 255, 255, 0.97)',
+                  backgroundColor: isDarkMode ? 'rgba(15, 23, 42, 0.97)' : 'rgba(255, 255, 255, 0.97)',
                   backdropFilter: 'blur(4px)',
                   zIndex: 5,
                   display: 'flex',
@@ -1918,7 +1918,7 @@ export default function DashboardPage() {
                   left: 0,
                   right: 0,
                   bottom: 0,
-                  backgroundColor: 'rgba(255, 255, 255, 0.97)',
+                  backgroundColor: isDarkMode ? 'rgba(15, 23, 42, 0.97)' : 'rgba(255, 255, 255, 0.97)',
                   backdropFilter: 'blur(4px)',
                   zIndex: 5,
                   display: 'flex',
@@ -1940,7 +1940,7 @@ export default function DashboardPage() {
                     }}>
                       📭
                     </Box>
-                    <Typography variant="h5" sx={{ fontWeight: 600, color: '#475569', mb: 0.5, fontSize: { xs: '1.1rem', md: '1.5rem' } }}>
+                    <Typography variant="h5" sx={{ fontWeight: 600, color: isDarkMode ? '#94a3b8' : '#475569', mb: 0.5, fontSize: { xs: '1.1rem', md: '1.5rem' } }}>
                       No Data Found
                     </Typography>
                     <Typography variant="body2" sx={{ color: '#94a3b8', maxWidth: 400, fontSize: { xs: '0.8rem', md: '0.875rem' } }}>
@@ -1956,15 +1956,17 @@ export default function DashboardPage() {
                 overflow: 'hidden',
                 display: 'flex',
                 flexDirection: 'column',
+                bgcolor: isDarkMode ? '#1e293b' : 'transparent',
                 '& .ag-root-wrapper': {
                   height: '100%',
                   borderRadius: { xs: 0, md: '12px' },
                   overflow: 'hidden',
-                  border: { xs: 'none', md: '1px solid rgba(0,0,0,0.06)' },
+                  border: { xs: 'none', md: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(0,0,0,0.06)' },
+                  backgroundColor: isDarkMode ? '#1e293b' : 'transparent',
                 },
                 '& .ag-header': {
-                  backgroundColor: '#f8fafc',
-                  borderBottom: '1px solid rgba(0,0,0,0.08)',
+                  backgroundColor: isDarkMode ? '#334155' : '#f8fafc',
+                  borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(0,0,0,0.08)',
                   fontWeight: 600,
                   opacity: '1 !important',
                   zIndex: 15,
@@ -1975,6 +1977,8 @@ export default function DashboardPage() {
                   opacity: '1 !important',
                   fontWeight: 600,
                   letterSpacing: '0.01em',
+                  backgroundColor: isDarkMode ? '#334155' : 'transparent',
+                  color: isDarkMode ? '#f1f5f9' : 'inherit',
                 },
                 '& .ag-body-viewport': {
                   opacity: loading ? 0.3 : 1,
@@ -1984,13 +1988,13 @@ export default function DashboardPage() {
                   height: { xs: 44, md: 44 },
                   overflow: 'visible',
                   transition: 'background-color 0.15s ease',
-                  borderBottom: '1px solid rgba(0,0,0,0.06)',
+                  borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.06)' : '1px solid rgba(0,0,0,0.06)',
                 },
                 '& .ag-row-even': {
-                  backgroundColor: '#ffffff',
+                  backgroundColor: isDarkMode ? '#1a2536' : '#ffffff',
                 },
                 '& .ag-row-odd': {
-                  backgroundColor: 'rgba(248,250,252,0.5)',
+                  backgroundColor: isDarkMode ? '#1e293b' : 'rgba(248,250,252,0.5)',
                 },
                 '& .ag-cell': {
                   display: 'flex',
@@ -1998,6 +2002,7 @@ export default function DashboardPage() {
                   lineHeight: { xs: '44px', md: '44px' },
                   fontSize: '0.875rem',
                   padding: '0 12px',
+                  color: isDarkMode ? '#f1f5f9' : 'inherit',
                 },
                 '& .ag-cell-focus': {
                   border: '2px solid #1e40af !important',
@@ -2005,10 +2010,10 @@ export default function DashboardPage() {
                   outline: 'none'
                 },
                 '& .ag-cell-range-selected': {
-                  backgroundColor: 'rgba(30,64,175,0.08) !important',
+                  backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.2) !important' : 'rgba(30,64,175,0.08) !important',
                 },
                 '& .ag-row-hover': {
-                  backgroundColor: 'rgba(30,64,175,0.04) !important',
+                  backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.15) !important' : 'rgba(30,64,175,0.04) !important',
                   transition: 'background-color 0.1s ease'
                 },
               }}>

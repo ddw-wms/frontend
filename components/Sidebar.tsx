@@ -290,7 +290,7 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
       <List sx={{ px: 0.5, py: 1 }}>
         {mainMenu.map((item) => {
           const Icon = item.icon;
-          const active = pathname === item.path;
+          const active = pathname === item.path || pathname.startsWith(item.path + '/');
 
           return (
             <ListItem key={item.path} disablePadding sx={{ mb: 0.25 }}>
@@ -308,6 +308,11 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
                       bgcolor: active ? 'rgba(59,130,246,0.25)' : 'rgba(255,255,255,0.08)',
                       transform: 'translateX(4px)',
                     },
+                    // Active indicator left border
+                    ...(active && {
+                      borderLeft: '3px solid #3b82f6',
+                      pl: 1.5,
+                    }),
                   }}
                 >
                   <ListItemIcon
@@ -396,7 +401,7 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
               <List sx={{ pl: { xs: 2.5, sm: 3 }, pr: 0.5, py: 0.5 }}>
                 {settingsMenu.map((item) => {
                   const Icon = item.icon;
-                  const active = pathname === item.path;
+                  const active = pathname === item.path || pathname.startsWith(item.path + '/');
 
                   return (
                     <ListItem key={item.path} disablePadding sx={{ mb: 0.25 }}>
@@ -411,6 +416,11 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
                           '&:hover': {
                             bgcolor: active ? 'rgba(59,130,246,0.25)' : 'rgba(255,255,255,0.06)',
                           },
+                          // Active indicator left border
+                          ...(active && {
+                            borderLeft: '3px solid #3b82f6',
+                            pl: 1,
+                          }),
                         }}
                       >
                         <ListItemIcon sx={{ color: 'inherit', minWidth: 32 }}>

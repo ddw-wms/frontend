@@ -109,6 +109,7 @@ export default function BackupPage() {
 
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+    const isDarkMode = theme.palette.mode === 'dark';
     const { activeWarehouse } = useWarehouse();
     const [user, setUser] = useState<any>(null);
 
@@ -575,7 +576,7 @@ export default function BackupPage() {
                     flex: 1,
                     overflow: 'auto',
                     p: { xs: 1.5, sm: 2, md: 3 },
-                    background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
+                    background: isDarkMode ? 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)' : 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
                 }}>
 
                     {/* Statistics Cards */}
@@ -1530,21 +1531,21 @@ export default function BackupPage() {
                                             borderColor: 'divider',
                                             borderRadius: 1.5,
                                             overflow: 'hidden',
-                                            bgcolor: 'white'
+                                            bgcolor: isDarkMode ? '#1e293b' : 'white'
                                         }}>
                                             {/* Header */}
                                             <Box sx={{
                                                 display: 'flex',
-                                                bgcolor: 'grey.100',
+                                                bgcolor: isDarkMode ? '#334155' : 'grey.100',
                                                 borderBottom: '2px solid',
                                                 borderColor: 'divider',
                                                 py: 0.75,
                                                 px: 1.25
                                             }}>
-                                                <Typography variant="caption" fontWeight={700} sx={{ flex: 1, fontSize: '0.7rem' }}>
+                                                <Typography variant="caption" fontWeight={700} sx={{ flex: 1, fontSize: '0.7rem', color: isDarkMode ? '#f1f5f9' : 'inherit' }}>
                                                     Table Name
                                                 </Typography>
-                                                <Typography variant="caption" fontWeight={700} sx={{ width: 60, textAlign: 'right', fontSize: '0.7rem' }}>
+                                                <Typography variant="caption" fontWeight={700} sx={{ width: 60, textAlign: 'right', fontSize: '0.7rem', color: isDarkMode ? '#f1f5f9' : 'inherit' }}>
                                                     Size
                                                 </Typography>
                                             </Box>
@@ -1567,6 +1568,17 @@ export default function BackupPage() {
                                                     >
                                                         <Typography
                                                             variant="body2"
+                                                            fontFamily="monospace"
+                                                            sx={{
+                                                                flex: 1,
+                                                                fontSize: '0.7rem',
+                                                                overflow: 'hidden',
+                                                                textOverflow: 'ellipsis',
+                                                                whiteSpace: 'nowrap',
+                                                                pr: 1,
+                                                                color: isDarkMode ? '#f1f5f9' : 'inherit'
+                                                            }}
+                                                        >
                                                             fontFamily="monospace"
                                                             sx={{
                                                                 flex: 1,

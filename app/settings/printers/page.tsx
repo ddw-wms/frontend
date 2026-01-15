@@ -5,7 +5,7 @@ import {
   Container, Paper, TextField, Select, MenuItem, FormControl, InputLabel,
   FormControlLabel, Switch, Button, Box, Alert, CircularProgress, Card,
   CardContent, Typography, Divider, Slider, Chip, Stack, Accordion,
-  AccordionSummary, AccordionDetails, Badge, Tooltip
+  AccordionSummary, AccordionDetails, Badge, Tooltip, useTheme
 } from '@mui/material';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorIcon from '@mui/icons-material/Error';
@@ -50,6 +50,8 @@ interface PrinterInfo {
 }
 
 export default function PrinterSettingsPage() {
+  const theme = useTheme();
+  const isDarkMode = theme.palette.mode === 'dark';
 
   const [settings, setSettings] = useState<PrinterSettings>({
     defaultPrinter: '',
@@ -369,7 +371,7 @@ export default function PrinterSettingsPage() {
     <AppLayout>
       <Box sx={{
         p: { xs: 0.75, md: 1 },
-        background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
+        background: isDarkMode ? 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)' : 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
         height: '100vh',
         display: 'flex',
         flexDirection: 'column',
@@ -461,7 +463,6 @@ export default function PrinterSettingsPage() {
                       label={`v${agentVersion}`}
                       size="small"
                       color="success"
-                      variant="outlined"
                       sx={{ ml: { xs: 0, sm: 5 }, mt: { xs: 0.5, sm: 0 }, fontWeight: 600 }}
                     />
                   )}
@@ -571,13 +572,13 @@ export default function PrinterSettingsPage() {
                       }
                     }}
                     sx={{
-                      backgroundColor: 'white',
+                      backgroundColor: isDarkMode ? '#334155' : 'white',
                       color: '#f44336',
                       fontWeight: 700,
                       px: 4,
                       py: 1.5,
                       '&:hover': {
-                        backgroundColor: '#fafafa',
+                        backgroundColor: isDarkMode ? '#475569' : '#fafafa',
                         transform: 'scale(1.05)',
                         boxShadow: '0 6px 20px rgba(0,0,0,0.3)'
                       },
