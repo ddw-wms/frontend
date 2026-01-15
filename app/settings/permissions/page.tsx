@@ -27,7 +27,7 @@ import {
 import { permissionsAPI, usersAPI, warehousesAPI } from '@/lib/api';
 import { usePermissions } from '@/app/context/PermissionContext';
 import AppLayout from '@/components/AppLayout';
-import { StandardPageHeader } from '@/components';
+import { StandardPageHeader, StandardTabs } from '@/components';
 import { useWarehouse } from '@/app/context/WarehouseContext';
 import { getStoredUser } from '@/lib/auth';
 
@@ -718,37 +718,16 @@ export default function PermissionsPage() {
                 />
 
                 {/* Tabs */}
-                <Paper elevation={0} sx={{ borderBottom: '1px solid', borderColor: 'divider' }}>
-                    <Tabs
-                        value={tabValue}
-                        onChange={(_, v) => {
-                            setTabValue(v);
-                            setSelectedRole(null);
-                            setSelectedUser(null);
-                        }}
-                        variant={isSmall ? "fullWidth" : "standard"}
-                        sx={{ px: { xs: 1, md: 2 } }}
-                    >
-                        <Tab
-                            icon={<GroupIcon />}
-                            label={isSmall ? "Roles" : "Role Permissions"}
-                            iconPosition="start"
-                            sx={{ minHeight: 56 }}
-                        />
-                        <Tab
-                            icon={<PersonIcon />}
-                            label={isSmall ? "Users" : "User Overrides"}
-                            iconPosition="start"
-                            sx={{ minHeight: 56 }}
-                        />
-                        <Tab
-                            icon={<WarehouseIcon />}
-                            label={isSmall ? "Access" : "Warehouse Access"}
-                            iconPosition="start"
-                            sx={{ minHeight: 56 }}
-                        />
-                    </Tabs>
-                </Paper>
+                <StandardTabs
+                    value={tabValue}
+                    onChange={(_, v) => {
+                        setTabValue(v);
+                        setSelectedRole(null);
+                        setSelectedUser(null);
+                    }}
+                    tabs={['👥 Role Permissions', '👤 User Overrides', '🏢 Warehouse Access']}
+                    color="#1e40af"
+                />
 
                 {/* Content */}
                 <Box sx={{ flex: 1, overflow: 'hidden', p: { xs: 1, md: 2 } }}>

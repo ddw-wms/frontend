@@ -58,6 +58,7 @@ import { useWarehouse } from '@/app/context/WarehouseContext';
 import { getStoredUser } from '@/lib/auth';
 import AppLayout from '@/components/AppLayout';
 import { StandardPageHeader, StandardTabs } from '@/components';
+import { useTableRowHeight } from '@/app/context/AppearanceContext';
 
 import toast, { Toaster } from 'react-hot-toast';
 import * as XLSX from 'xlsx';
@@ -214,6 +215,9 @@ export default function QCPage() {
   const { activeWarehouse } = useWarehouse();
   const isMobile = useMediaQuery('(max-width:600px)');
   const [user, setUser] = useState<any>(null);
+
+  // Get table row height from appearance settings
+  const tableRowHeight = useTableRowHeight();
 
   // Permission hook
   const { filterTabs, canSeeTab, canSeeButton, isAdmin, isLoading: permLoading } = useQCPermissions();
@@ -3665,7 +3669,7 @@ export default function QCPage() {
                   <AgGridReact
                     rowData={multiRows}
                     columnDefs={columnDefs}
-                    rowHeight={26}
+                    rowHeight={tableRowHeight}
 
 
                     defaultColDef={{

@@ -22,6 +22,7 @@ import { useWarehouse } from '@/app/context/WarehouseContext';
 import { getStoredUser } from '@/lib/auth';
 import AppLayout from '@/components/AppLayout';
 import { StandardPageHeader, StandardTabs } from '@/components';
+import { useTableRowHeight } from '@/app/context/AppearanceContext';
 import toast, { Toaster } from 'react-hot-toast';
 import * as XLSX from 'xlsx';
 import { AgGridReact } from 'ag-grid-react';
@@ -109,6 +110,9 @@ export default function PickingPage() {
   const gridRef = useRef<any>(null);
   const columnApiRef = useRef<any>(null);
   const hasAutoFittedRef = useRef(false); // Track if auto-fit has been done
+
+  // Get table row height from appearance settings
+  const tableRowHeight = useTableRowHeight();
 
   // Permission hook
   const { filterTabs, canSeeTab, canSeeButton, isAdmin, isLoading: permLoading } = usePickingPermissions();
@@ -2383,7 +2387,7 @@ export default function PickingPage() {
 
         {/* ========== TAB 1: MULTI PICKING (AG GRID) ========== */}
         {currentTabCode === 'multi' && (
-          <Box sx={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 175px)', gap: 1, mt: 0 }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 185px)', gap: 0.5, mt: 0 }}>
             {/* HEADER */}
             <Card sx={{ borderRadius: 1, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
               <CardContent sx={{ p: 1.2, '&:last-child': { pb: 1.2 } }}>
@@ -2457,9 +2461,10 @@ export default function PickingPage() {
             <Box
               sx={{
                 flex: 1,
+                minHeight: 0,
                 border: '1px solid #cbd5e1',
                 borderRadius: 0,
-                '& .ag-root-wrapper': { borderRadius: 0 },
+                '& .ag-root-wrapper': { borderRadius: 0, height: '100%' },
                 '& .ag-header': { borderBottom: '1px solid #cbd5e1' },
                 '& .ag-header-cell': {
                   backgroundColor: '#e5e7eb',
@@ -2522,7 +2527,7 @@ export default function PickingPage() {
                 }}
                 rowData={multiRows}
                 columnDefs={columnDefs}
-                rowHeight={26}
+                rowHeight={tableRowHeight}
                 getRowId={(params) => String(params.data.id)}
                 defaultColDef={{
                   sortable: false,
@@ -2927,18 +2932,20 @@ export default function PickingPage() {
               />
             </Box>
 
-            {/* DRAFT STATUS + ACTIONS */}
-            <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
+            {/* DRAFT STATUS + ACTIONS + SUBMIT */}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', py: 0.5 }}>
               <Chip
                 label={draftSavedAt ? `Draft saved ${new Date(draftSavedAt).toLocaleTimeString()}` : 'No draft'}
                 color={draftExists ? 'success' : 'default'}
                 size="small"
+                sx={{ height: 28 }}
               />
               <Button
                 size="small"
                 variant="outlined"
                 onClick={() => saveDraftImmediate()}
                 disabled={draftSaving}
+                sx={{ height: 32, fontSize: '0.75rem' }}
               >
                 Save Draft
               </Button>
@@ -2947,30 +2954,32 @@ export default function PickingPage() {
                 variant="text"
                 onClick={clearDraft}
                 disabled={!draftExists}
+                sx={{ height: 32, fontSize: '0.75rem' }}
               >
                 Clear Draft
               </Button>
-            </Stack>
 
-            {/* SUBMIT BUTTON */}
-            <Button
-              fullWidth
-              variant="contained"
-              size="medium"
-              onClick={handleMultiSubmit}
-              disabled={multiLoading || gridDuplicateWSNs.size > 0 || crossWarehouseWSNs.size > 0 || !true}
-              sx={{
-                py: 1,
-                borderRadius: 1.5,
-                fontWeight: 800,
-                fontSize: '0.8rem',
-                background: 'linear-gradient(135deg, #f59e0b 0%, #ea580c 100%)',
-                boxShadow: '0 4px 12px rgba(245, 158, 11, 0.3)',
-              }}
-
-            >
-              ✓ SUBMIT ALL ({multiRows.filter((r) => r.wsn?.trim()).length} rows)
-            </Button>
+              {/* SUBMIT BUTTON */}
+              <Button
+                variant="contained"
+                size="medium"
+                onClick={handleMultiSubmit}
+                disabled={multiLoading || gridDuplicateWSNs.size > 0 || crossWarehouseWSNs.size > 0 || !true}
+                sx={{
+                  ml: 'auto',
+                  py: 0.75,
+                  px: 3,
+                  borderRadius: 1.5,
+                  fontWeight: 800,
+                  fontSize: '0.8rem',
+                  background: 'linear-gradient(135deg, #f59e0b 0%, #ea580c 100%)',
+                  boxShadow: '0 4px 12px rgba(245, 158, 11, 0.3)',
+                  minWidth: 200,
+                }}
+              >
+                ✓ SUBMIT ALL ({multiRows.filter((r) => r.wsn?.trim()).length} rows)
+              </Button>
+            </Box>
 
             {/* COLUMN SETTINGS DIALOG */}
             <Dialog

@@ -44,6 +44,7 @@ import {
   Group as GroupIcon,
   Logout as LogoutIcon,
   BugReport as ErrorLogsIcon,
+  Palette as AppearanceIcon,
 } from '@mui/icons-material';
 import { getStoredUser, logout } from '@/lib/auth';
 import { usePermissions } from '@/app/context/PermissionContext';
@@ -74,6 +75,20 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
     }
     return false;
   });
+
+  // Listen for appearance settings changes
+  useEffect(() => {
+    const handleAppearanceChange = (e: CustomEvent) => {
+      const settings = e.detail;
+      if (settings?.sidebarCompact !== undefined) {
+        setCollapsed(settings.sidebarCompact);
+      }
+    };
+    window.addEventListener('appearanceSettingsChanged', handleAppearanceChange as EventListener);
+    return () => {
+      window.removeEventListener('appearanceSettingsChanged', handleAppearanceChange as EventListener);
+    };
+  }, []);
 
   // --------------------------------------
   // MOBILE DETECTION (SCREEN WIDTH)
@@ -155,6 +170,7 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
     { label: 'Printers', icon: PrinterIcon, path: '/settings/printers', code: 'menu:settings:printers' },
     { label: 'Backups', icon: StorageIcon, path: '/settings/backups', code: 'menu:settings:backups' },
     { label: 'Permissions', icon: PermissionsIcon, path: '/settings/permissions', code: 'menu:settings:permissions' },
+    { label: 'Appearance', icon: AppearanceIcon, path: '/settings/appearance', code: 'menu:settings:appearance' },
     { label: 'Error Logs', icon: ErrorLogsIcon, path: '/settings/error-logs', code: 'super_admin_only', superAdminOnly: true },
   ], []);
 

@@ -63,6 +63,7 @@ import { getStoredUser } from '@/lib/auth';
 import AppLayout from '@/components/AppLayout';
 import localforage from 'localforage';
 import { StandardPageHeader, StandardTabs } from '@/components';
+import { useTableRowHeight } from '@/app/context/AppearanceContext';
 import toast, { Toaster } from 'react-hot-toast';
 import * as XLSX from 'xlsx';
 import { AgGridReact } from 'ag-grid-react';
@@ -191,6 +192,9 @@ export default function OutboundPage() {
     const router = useRouter();
     const { activeWarehouse } = useWarehouse();
     const [user, setUser] = useState<any>(null);
+
+    // Get table row height from appearance settings
+    const tableRowHeight = useTableRowHeight();
 
     // Permission hook
     const { filterTabs, canSeeTab, canSeeButton, isAdmin, isLoading: permLoading } = useOutboundPermissions();
@@ -2882,7 +2886,7 @@ export default function OutboundPage() {
 
                 {/* ====== TAB 3: MULTI ENTRY (AG GRID) ====== */}
                 {currentTabCode === 'multi' && (
-                    <Box sx={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 200px)' }}>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 185px)' }}>
 
                         {/* Common Fields */}
                         <Card sx={{ mb: 0.5, borderRadius: 1, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
@@ -3151,7 +3155,7 @@ export default function OutboundPage() {
                             borderRadius: 0,
                             overflow: 'hidden',
                             border: '1px solid #cbd5e1',
-                            '& .ag-root-wrapper': { borderRadius: 0 },
+                            '& .ag-root-wrapper': { borderRadius: 0, height: '100%' },
                             '& .ag-header': { borderBottom: '1px solid #cbd5e1' },
                             '& .ag-header-cell': { backgroundColor: '#e5e7eb', color: '#111827', fontWeight: 700, borderRight: '1px solid #d1d5db', fontSize: '11px', padding: '0 6px' },
                             '& .ag-cell': { borderRight: '1px solid #e5e7eb', borderBottom: '1px solid #e5e7eb', fontSize: '11px', padding: '2px 6px', display: 'flex', alignItems: 'center', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' },
@@ -3167,7 +3171,7 @@ export default function OutboundPage() {
                                 ref={gridRef}
                                 rowData={multiRows}
                                 columnDefs={columnDefs}
-                                rowHeight={26}
+                                rowHeight={tableRowHeight}
                                 defaultColDef={defaultColDef}
                                 onCellValueChanged={onCellValueChanged}
                                 getRowStyle={getRowStyle}
@@ -3218,25 +3222,25 @@ export default function OutboundPage() {
                             />
                         </Box>
 
-                        <Stack direction="row" spacing={1} mt={1} alignItems="center">
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.5, flexWrap: 'wrap' }}>
                             <Chip
                                 label={draftSavedAt ? `Draft saved ${new Date(draftSavedAt).toLocaleTimeString()}` : 'No draft'}
                                 color={draftExists ? 'success' : 'default'}
                                 size="small"
+                                sx={{ height: 28 }}
                             />
-                            <Button size="small" variant="outlined" onClick={() => saveDraftImmediate()} disabled={draftSaving}>Save Draft</Button>
-                            <Button size="small" variant="text" onClick={clearDraft} disabled={!draftExists}>Clear Draft</Button>
-                            <Box sx={{ flex: 1 }} />
+                            <Button size="small" variant="outlined" onClick={() => saveDraftImmediate()} disabled={draftSaving} sx={{ height: 32, fontSize: '0.75rem' }}>Save Draft</Button>
+                            <Button size="small" variant="text" onClick={clearDraft} disabled={!draftExists} sx={{ height: 32, fontSize: '0.75rem' }}>Clear Draft</Button>
                             <Button
                                 variant="contained"
                                 onClick={handleMultiSubmit}
                                 disabled={multiLoading || !activeWarehouse || duplicateWSNs.size > 0}
                                 startIcon={multiLoading ? <CircularProgress size={18} sx={{ color: 'white' }} /> : <CheckCircle sx={{ fontSize: 18 }} />}
-                                sx={{ height: 40, fontSize: '0.75rem', fontWeight: 600, background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)' }}
+                                sx={{ ml: 'auto', height: 38, fontSize: '0.75rem', fontWeight: 600, minWidth: 200, background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)' }}
                             >
                                 SUBMIT ALL ({multiRows.filter((r) => r.wsn?.trim()).length} rows)
                             </Button>
-                        </Stack>
+                        </Box>
 
                         {/* Column Settings Dialog */}
                         <Dialog open={columnSettingsOpen} onClose={() => setColumnSettingsOpen(false)} maxWidth="sm" fullWidth>

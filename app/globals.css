@@ -6,6 +6,17 @@
    ROOT VARIABLES - Professional Design System
    ============================================ */
 :root {
+  /* App Appearance Settings (dynamically set by AppearanceContext) */
+  --app-font-size: 14px;
+  --app-font-family: 'Inter';
+  --app-primary-color: #1e40af;
+  --app-primary-color-light: #3b82f6;
+  --app-primary-color-dark: #1e3a8a;
+  --app-primary-color-rgb: 30, 64, 175;
+  --app-table-row-height: 44px;
+  --app-transition-duration: 0.2s;
+  --app-animation-enabled: 1;
+
   /* Primary Colors */
   --primary-50: #eff6ff;
   --primary-100: #dbeafe;
@@ -85,9 +96,10 @@ body {
 }
 
 body {
-  font-family: var(--font-sans, 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-      'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-      sans-serif);
+  font-family: var(--app-font-family, var(--font-sans, 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+        'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+        sans-serif));
+  font-size: var(--app-font-size, 14px);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   background-color: #f5f7fa;
@@ -98,6 +110,42 @@ body {
   text-size-adjust: 100%;
   /* Better tap highlight on mobile */
   -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
+  /* Smooth transitions based on appearance settings */
+  transition: font-size var(--app-transition-duration) ease, font-family var(--app-transition-duration) ease;
+}
+
+/* High Contrast Mode */
+html.high-contrast body {
+  color: #000;
+}
+
+html.high-contrast .MuiButton-contained {
+  border: 2px solid #000 !important;
+}
+
+html.high-contrast .MuiPaper-root {
+  border: 1px solid #000 !important;
+}
+
+html.high-contrast .MuiCard-root {
+  border: 2px solid #374151 !important;
+}
+
+html.high-contrast .MuiTableCell-root {
+  border-color: #374151 !important;
+}
+
+html.high-contrast a,
+html.high-contrast .MuiLink-root {
+  text-decoration: underline !important;
+}
+
+/* Animation disabled mode */
+html[data-animations="disabled"] *,
+html[data-animations="disabled"] *::before,
+html[data-animations="disabled"] *::after {
+  transition-duration: 0s !important;
+  animation-duration: 0s !important;
 }
 
 a {

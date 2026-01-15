@@ -55,6 +55,7 @@ import { useDashboardPermissions } from '@/hooks/usePagePermissions';
 
 import AppLayout from "@/components/AppLayout";
 import { StandardPageHeader } from '@/components';
+import { useTableRowHeight } from '@/app/context/AppearanceContext';
 import toast, { Toaster } from "react-hot-toast";
 import * as XLSX from "xlsx";
 
@@ -202,6 +203,9 @@ export default function DashboardPage() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [user, setUser] = useState<User | null>(null);
+
+  // Get table row height from appearance settings
+  const tableRowHeight = useTableRowHeight();
 
   // Permission hook - import at top of file
   const { canSeeButton, isAdmin, isLoading: permLoading } = useDashboardPermissions();
@@ -1974,10 +1978,10 @@ export default function DashboardPage() {
                   transition: 'opacity 0.2s ease-in-out'
                 },
                 '& .ag-row': {
-                  height: { xs: 40, md: 26 },
+                  height: { xs: 44, md: 44 },
                   overflow: 'visible',
                   transition: 'background-color 0.15s ease',
-                  borderBottom: '1px solid rgba(0,0,0,0.04)',
+                  borderBottom: '1px solid rgba(0,0,0,0.06)',
                 },
                 '& .ag-row-even': {
                   backgroundColor: '#ffffff',
@@ -1988,7 +1992,9 @@ export default function DashboardPage() {
                 '& .ag-cell': {
                   display: 'flex',
                   alignItems: 'center',
-                  lineHeight: { xs: '40px', md: '26px' },
+                  lineHeight: { xs: '44px', md: '44px' },
+                  fontSize: '0.875rem',
+                  padding: '0 12px',
                 },
                 '& .ag-cell-focus': {
                   border: '2px solid #1e40af !important',
@@ -2054,7 +2060,7 @@ export default function DashboardPage() {
                     }}
                     animateRows={false}
                     rowBuffer={10}
-                    rowHeight={36}
+                    rowHeight={tableRowHeight}
                   />
                 </div>
               </Box>

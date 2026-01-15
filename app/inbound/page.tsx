@@ -28,6 +28,7 @@ import { useWarehouse } from '@/app/context/WarehouseContext';
 import { getStoredUser } from '@/lib/auth';
 import AppLayout from '@/components/AppLayout';
 import { StandardPageHeader, StandardTabs } from '@/components';
+import { useTableRowHeight } from '@/app/context/AppearanceContext';
 import toast, { Toaster } from 'react-hot-toast';
 import * as XLSX from 'xlsx';
 import Tooltip from '@mui/material/Tooltip';
@@ -123,6 +124,9 @@ export default function InboundPage() {
   const router = useRouter();
   const { activeWarehouse } = useWarehouse();
   const [user, setUser] = useState<any>(null);
+
+  // Get table row height from appearance settings
+  const tableRowHeight = useTableRowHeight();
 
   // Permission hook
   const { filterTabs, canSeeTab, canSeeButton, isAdmin, isLoading: permLoading } = useInboundPermissions();
@@ -5508,7 +5512,7 @@ export default function InboundPage() {
                       //theme="legacy"
                       rowData={multiRows}
                       columnDefs={columnDefs}
-                      rowHeight={36}
+                      rowHeight={tableRowHeight}
                       suppressNoRowsOverlay={false}
                       overlayNoRowsTemplate='<span style="padding: 20px; font-size: 14px; color: #666;">Click on any cell to start entering data</span>'
 

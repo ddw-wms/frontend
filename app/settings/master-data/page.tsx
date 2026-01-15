@@ -1453,13 +1453,12 @@ export default function MasterDataPage() {
                     <Paper elevation={0} sx={{ p: { xs: 0.5, sm: 0.75 }, borderBottom: '2px solid #e0e0e0', bgcolor: '#fafafa' }}>
                       {/* DESKTOP LAYOUT - Responsive 2 Rows */}
                       <Box sx={{ display: { xs: 'none', md: 'block' } }}>
-                        {/* Row 1: Search + Filters */}
+                        {/* Row 1: Search + Filters + Actions */}
                         <Box sx={{
                           display: 'flex',
                           gap: 0.75,
-                          mb: 0.75,
                           alignItems: 'center',
-                          flexWrap: 'wrap'
+                          flexWrap: 'nowrap'
                         }}>
                           {/* Search Field with Keyboard Shortcut */}
                           <Tooltip title="Press Ctrl+K to focus (Esc to clear)" arrow>
@@ -1470,8 +1469,7 @@ export default function MasterDataPage() {
                               onChange={(e) => setSearchQuery(e.target.value)}
                               inputRef={searchInputRef}
                               sx={{
-                                width: { md: 160, lg: 200 },
-                                flex: { md: '0 0 auto' },
+                                minWidth: 150,
                                 '& .MuiInputBase-root': { height: 34 },
                                 '& .MuiOutlinedInput-root': {
                                   borderRadius: 0.5,
@@ -1484,7 +1482,7 @@ export default function MasterDataPage() {
                           </Tooltip>
 
                           {/* Batch ID Filter */}
-                          <FormControl size="small" sx={{ width: { md: 110, lg: 130 } }}>
+                          <FormControl size="small" sx={{ minWidth: 110 }}>
                             <InputLabel sx={{ fontSize: '0.8rem' }}>Batch ID</InputLabel>
                             <Select
                               value={filterBatchId}
@@ -1499,23 +1497,8 @@ export default function MasterDataPage() {
                             </Select>
                           </FormControl>
 
-                          {/* Status Filter */}
-                          <FormControl size="small" sx={{ width: { md: 85, lg: 100 } }}>
-                            <InputLabel sx={{ fontSize: '0.8rem' }}>Status</InputLabel>
-                            <Select
-                              value={filterStatus}
-                              label="Status"
-                              onChange={(e) => { setFilterStatus(e.target.value); setPage(0); }}
-                              sx={{ height: 34, fontSize: '0.8rem' }}
-                            >
-                              <MenuItem value="All">All</MenuItem>
-                              <MenuItem value="Received">Received</MenuItem>
-                              <MenuItem value="Pending">Pending</MenuItem>
-                            </Select>
-                          </FormControl>
-
                           {/* Brand Filter */}
-                          <FormControl size="small" sx={{ width: { md: 95, lg: 110 } }}>
+                          <FormControl size="small" sx={{ minWidth: 90 }}>
                             <InputLabel sx={{ fontSize: '0.8rem' }}>Brand</InputLabel>
                             <Select
                               value={filterBrand}
@@ -1531,7 +1514,7 @@ export default function MasterDataPage() {
                           </FormControl>
 
                           {/* Category Filter */}
-                          <FormControl size="small" sx={{ width: { md: 95, lg: 110 } }}>
+                          <FormControl size="small" sx={{ minWidth: 95 }}>
                             <InputLabel sx={{ fontSize: '0.8rem' }}>Category</InputLabel>
                             <Select
                               value={filterCategory}
@@ -1550,12 +1533,12 @@ export default function MasterDataPage() {
                           <Button
                             variant="contained"
                             size="small"
-                            startIcon={<AddIcon sx={{ fontSize: { md: 14, lg: 18 } }} />}
+                            startIcon={<AddIcon sx={{ fontSize: 16 }} />}
                             onClick={handleOpenAddDialog}
                             sx={{
                               height: 34,
-                              fontSize: { md: '0.7rem', lg: '0.8rem' },
-                              px: { md: 1, lg: 1.5 },
+                              fontSize: '0.75rem',
+                              px: 1.25,
                               background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
                               '&:hover': { boxShadow: 2, background: 'linear-gradient(135deg, #059669 0%, #047857 100%)' },
                               whiteSpace: 'nowrap'
@@ -1569,12 +1552,12 @@ export default function MasterDataPage() {
                             <Button
                               variant="contained"
                               size="small"
-                              startIcon={<UploadIcon sx={{ fontSize: { md: 14, lg: 18 } }} />}
+                              startIcon={<UploadIcon sx={{ fontSize: 16 }} />}
                               onClick={() => setUploadDialogOpen(true)}
                               sx={{
                                 height: 34,
-                                fontSize: { md: '0.7rem', lg: '0.8rem' },
-                                px: { md: 1, lg: 1.5 },
+                                fontSize: '0.75rem',
+                                px: 1.25,
                                 background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
                                 '&:hover': { boxShadow: 2 },
                                 whiteSpace: 'nowrap'
@@ -1588,9 +1571,9 @@ export default function MasterDataPage() {
                           <Button
                             variant="outlined"
                             size="small"
-                            startIcon={<DownloadIcon sx={{ fontSize: { md: 14, lg: 18 } }} />}
+                            startIcon={<DownloadIcon sx={{ fontSize: 16 }} />}
                             onClick={handleDownloadTemplate}
-                            sx={{ height: 34, fontSize: { md: '0.7rem', lg: '0.8rem' }, px: { md: 0.75, lg: 1.25 }, whiteSpace: 'nowrap' }}
+                            sx={{ height: 34, fontSize: '0.75rem', px: 1, whiteSpace: 'nowrap' }}
                           >
                             Template
                           </Button>
@@ -1600,22 +1583,42 @@ export default function MasterDataPage() {
                             <Button
                               variant="outlined"
                               size="small"
-                              startIcon={<ExportIcon sx={{ fontSize: { md: 14, lg: 18 } }} />}
+                              startIcon={<ExportIcon sx={{ fontSize: 16 }} />}
                               onClick={() => setExportDialogOpen(true)}
-                              sx={{ height: 34, fontSize: { md: '0.7rem', lg: '0.8rem' }, px: { md: 0.75, lg: 1.25 }, whiteSpace: 'nowrap' }}
+                              sx={{ height: 34, fontSize: '0.75rem', px: 1, whiteSpace: 'nowrap' }}
                             >
                               Export
                             </Button>
                           )}
 
+                          {/* Refresh Button - pushed to right */}
+                          <Button
+                            variant="outlined"
+                            size="small"
+                            startIcon={refreshing ? <CircularProgress size={14} /> : refreshSuccess ? <CheckCircle sx={{ color: '#10b981', fontSize: 16 }} /> : <RefreshIcon sx={{ fontSize: 16 }} />}
+                            onClick={() => loadMasterData({ buttonRefresh: true })}
+                            disabled={refreshing || loading}
+                            sx={{ height: 34, fontSize: '0.75rem', px: 1, whiteSpace: 'nowrap', ml: 'auto' }}
+                          >
+                            Refresh
+                          </Button>
+                        </Box>
+
+                        {/* Row 2: Column/Grid controls */}
+                        <Box sx={{
+                          display: 'flex',
+                          gap: 0.75,
+                          mt: 0.75,
+                          alignItems: 'center'
+                        }}>
                           {/* Columns Button */}
                           {canSeeButton('columns') && (
                             <Button
                               variant="outlined"
                               size="small"
-                              startIcon={<VisibilityIcon sx={{ fontSize: { md: 14, lg: 18 } }} />}
+                              startIcon={<VisibilityIcon sx={{ fontSize: 16 }} />}
                               onClick={(e) => setColumnMenuAnchor(e.currentTarget)}
-                              sx={{ height: 34, fontSize: { md: '0.7rem', lg: '0.8rem' }, px: { md: 0.75, lg: 1.25 }, whiteSpace: 'nowrap' }}
+                              sx={{ height: 32, fontSize: '0.7rem', px: 1, whiteSpace: 'nowrap' }}
                             >
                               Columns
                             </Button>
@@ -1625,9 +1628,9 @@ export default function MasterDataPage() {
                           <Button
                             variant="outlined"
                             size="small"
-                            startIcon={<TuneIcon sx={{ fontSize: { md: 14, lg: 18 } }} />}
+                            startIcon={<TuneIcon sx={{ fontSize: 16 }} />}
                             onClick={() => setGridSettingsOpen(true)}
-                            sx={{ height: 34, fontSize: { md: '0.7rem', lg: '0.8rem' }, px: { md: 0.75, lg: 1.25 }, whiteSpace: 'nowrap' }}
+                            sx={{ height: 32, fontSize: '0.7rem', px: 1, whiteSpace: 'nowrap' }}
                           >
                             Grid
                           </Button>
@@ -1636,12 +1639,12 @@ export default function MasterDataPage() {
                           <Button
                             variant="outlined"
                             size="small"
-                            startIcon={<ClearIcon sx={{ fontSize: { md: 14, lg: 18 } }} />}
+                            startIcon={<ClearIcon sx={{ fontSize: 16 }} />}
                             onClick={resetFilters}
                             sx={{
-                              height: 34,
-                              fontSize: { md: '0.7rem', lg: '0.8rem' },
-                              px: { md: 0.75, lg: 1.25 },
+                              height: 32,
+                              fontSize: '0.7rem',
+                              px: 1,
                               color: '#d32f2f',
                               borderColor: '#d32f2f',
                               '&:hover': { borderColor: '#b71c1c', bgcolor: '#ffebee' },
@@ -1649,21 +1652,6 @@ export default function MasterDataPage() {
                             }}
                           >
                             Reset
-                          </Button>
-
-                          {/* Spacer - only on large screens */}
-                          <Box sx={{ flex: 1, display: { md: 'none', lg: 'block' }, minWidth: 8 }} />
-
-                          {/* Refresh Button */}
-                          <Button
-                            variant="outlined"
-                            size="small"
-                            startIcon={refreshing ? <CircularProgress size={14} /> : refreshSuccess ? <CheckCircle sx={{ color: '#10b981', fontSize: 16 }} /> : <RefreshIcon sx={{ fontSize: { md: 14, lg: 18 } }} />}
-                            onClick={() => loadMasterData({ buttonRefresh: true })}
-                            disabled={refreshing || loading}
-                            sx={{ height: 34, fontSize: { md: '0.7rem', lg: '0.8rem' }, px: { md: 0.75, lg: 1.25 }, whiteSpace: 'nowrap', ml: 'auto' }}
-                          >
-                            Refresh
                           </Button>
                         </Box>
                       </Box>

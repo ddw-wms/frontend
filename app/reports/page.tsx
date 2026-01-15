@@ -132,14 +132,14 @@ export default function ReportsPage() {
 
     // Render Analytics Dashboard
     const renderAnalyticsDashboard = () => (
-        <Box sx={{ p: { xs: 1, md: 2 } }}>
+        <Box sx={{ p: { xs: 0.75, md: 1.5 } }}>
             {/* KPI Cards */}
             {kpis && (
                 <Box sx={{
                     display: 'grid',
                     gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(4, 1fr)' },
-                    gap: { xs: 1, md: 1.5 },
-                    mb: { xs: 2, md: 2.5 }
+                    gap: { xs: 0.75, md: 1 },
+                    mb: { xs: 1.5, md: 2 }
                 }}>
                     <Card sx={{ background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)', color: 'white' }}>
                         <CardContent sx={{ p: { xs: 1, md: 1.5 }, '&:last-child': { pb: { xs: 1, md: 1.5 } } }}>
@@ -221,11 +221,11 @@ export default function ReportsPage() {
             )}
 
             {/* Trend Chart */}
-            <Paper sx={{ p: { xs: 1, md: 2 }, mb: { xs: 2, md: 3 } }}>
-                <Typography variant="h6" sx={{ mb: { xs: 1, md: 2 }, fontWeight: 600, fontSize: { xs: '0.9rem', md: '1.25rem' } }}>
+            <Paper sx={{ p: { xs: 0.75, md: 1.5 }, mb: { xs: 1.5, md: 2 } }}>
+                <Typography variant="h6" sx={{ mb: { xs: 0.5, md: 1 }, fontWeight: 600, fontSize: { xs: '0.85rem', md: '1.1rem' } }}>
                     📈 30-Day Operations Trend
                 </Typography>
-                <ResponsiveContainer width="100%" height={isMobile ? 200 : 300}>
+                <ResponsiveContainer width="100%" height={isMobile ? 180 : 250}>
                     <LineChart data={trendData}>
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis
@@ -247,12 +247,12 @@ export default function ReportsPage() {
             </Paper>
 
             {/* QC Analysis */}
-            <Paper sx={{ p: { xs: 1, md: 2 } }}>
-                <Typography variant="h6" sx={{ mb: { xs: 1, md: 2 }, fontWeight: 600, fontSize: { xs: '0.9rem', md: '1.25rem' } }}>
+            <Paper sx={{ p: { xs: 0.75, md: 1.5 } }}>
+                <Typography variant="h6" sx={{ mb: { xs: 0.5, md: 1 }, fontWeight: 600, fontSize: { xs: '0.85rem', md: '1.1rem' } }}>
                     ✅ QC Status Distribution
                 </Typography>
-                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: { xs: 1, md: 2 } }}>
-                    <ResponsiveContainer width="100%" height={isMobile ? 180 : 250}>
+                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: { xs: 0.75, md: 1.5 } }}>
+                    <ResponsiveContainer width="100%" height={isMobile ? 160 : 200}>
                         <PieChart>
                             <Pie
                                 data={qcAnalysis}
@@ -741,7 +741,7 @@ export default function ReportsPage() {
                     onChange={(_, newValue) => setSelectedTab(newValue)}
                 />
 
-                <Box sx={{ flex: 1, overflow: 'auto', bgcolor: '#f5f5f5', py: { xs: 2, sm: 3 } }}>
+                <Box sx={{ flex: 1, overflow: 'auto', bgcolor: '#f5f5f5', py: { xs: 1, sm: 1.5 } }}>
                     {!activeWarehouse ? (
                         <Box sx={{ p: 3 }}>
                             <Alert severity="warning">Please select a warehouse to view reports</Alert>
