@@ -2921,7 +2921,7 @@ export default function OutboundPage() {
 
                 {/* ====== TAB 3: MULTI ENTRY (AG GRID) ====== */}
                 {currentTabCode === 'multi' && (
-                    <Box sx={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 185px)', bgcolor: 'transparent' }}>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 185px)', bgcolor: isDarkMode ? '#0f172a' : '#f5f7fa' }}>
 
                         {/* Common Fields */}
                         <Card sx={{ mb: 0.5, borderRadius: 1, boxShadow: isDarkMode ? '0 1px 3px rgba(0,0,0,0.3)' : '0 1px 3px rgba(0,0,0,0.05)', bgcolor: isDarkMode ? '#1e293b' : 'white' }}>

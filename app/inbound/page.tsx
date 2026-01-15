@@ -4921,7 +4921,7 @@ export default function InboundPage() {
                 flexDirection: 'column',
                 height: '100%', overflow: 'hidden',
                 p: { xs: 1, sm: 1, md: 1 },
-                bgcolor: isDarkMode ? 'transparent' : 'transparent'
+                bgcolor: isDarkMode ? '#0f172a' : '#f5f7fa'
               }}>
                 {/* CONTROLS */}
                 <Card

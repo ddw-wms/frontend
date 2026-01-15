@@ -3,6 +3,16 @@
 @tailwind utilities;
 
 /* ============================================
+   PREVENT WHITE FLASH IN DARK MODE
+   Applied immediately before JS hydration
+   ============================================ */
+html[data-theme="dark"] .ag-theme-quartz,
+html[data-theme="dark"] .ag-root-wrapper,
+html[data-theme="dark"] [class*="ag-theme-"] {
+  background-color: #1e293b !important;
+}
+
+/* ============================================
    ROOT VARIABLES - Professional Design System
    ============================================ */
 :root {

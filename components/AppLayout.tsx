@@ -15,9 +15,25 @@ interface AppLayoutProps {
 
 export default function AppLayout({ children, requiredPermission, skipRouteGuard = false }: AppLayoutProps) {
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const isMobileQuery = useMediaQuery(theme.breakpoints.down('md'));
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Handle mobile detection with SSR safety
+  useEffect(() => {
+    setIsMobile(isMobileQuery);
+  }, [isMobileQuery]);
+
+  // Also check on mount for immediate detection
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 900);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // Listen for theme changes
   useEffect(() => {
@@ -80,7 +96,7 @@ export default function AppLayout({ children, requiredPermission, skipRouteGuard
             position: 'fixed',
             top: { xs: 8, sm: 14 },
             left: { xs: 8, sm: 14 },
-            zIndex: 1100,
+            zIndex: 1300,
             bgcolor: '#1e40af',
             color: 'white',
             width: { xs: 40, sm: 44 },
