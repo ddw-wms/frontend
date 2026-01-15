@@ -1561,7 +1561,7 @@ export default function QCPage() {
                     sx={{
                       flex: 1,
                       '& .MuiOutlinedInput-root': {
-                        bgcolor: isDarkMode ? '#0f172a' : 'white',
+                        bgcolor: isDarkMode ? '#1e293b' : 'white',
                         borderRadius: 1.5,
                         height: 38,
                         fontSize: { xs: '0.8rem', sm: '0.875rem' },
@@ -2364,23 +2364,51 @@ export default function QCPage() {
                   </Box>
                 )}
 
-                <Box sx={{ height: '100%', width: '100%' }}>
+                <Box sx={{ height: '100%', width: '100%', bgcolor: isDarkMode ? '#1e293b' : 'transparent' }}>
                   <div className="ag-theme-quartz" style={{ height: '100%', width: '100%', position: 'relative' }}>
                     <Box sx={{
                       height: '100%',
                       width: '100%',
+                      bgcolor: isDarkMode ? '#1e293b' : 'transparent',
+                      '& .ag-root-wrapper': {
+                        backgroundColor: isDarkMode ? '#1e293b' : 'transparent',
+                      },
                       '& .ag-header': {
+                        background: isDarkMode ? '#334155' : 'linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%)',
+                        borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e5e7eb',
                         opacity: '1 !important',
                         zIndex: 15,
                         position: 'relative'
                       },
                       '& .ag-header-cell': {
+                        backgroundColor: 'transparent',
+                        color: isDarkMode ? '#f1f5f9' : '#1e293b',
+                        fontWeight: 800,
+                        fontSize: '0.75rem',
+                        borderRight: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e5e7eb',
                         opacity: '1 !important'
                       },
                       '& .ag-body-viewport': {
                         opacity: listLoading ? 0.3 : 1,
-                        transition: 'opacity 0.2s ease-in-out'
-                      }
+                        transition: 'opacity 0.2s ease-in-out',
+                        backgroundColor: isDarkMode ? '#1e293b' : 'transparent',
+                      },
+                      '& .ag-row': {
+                        backgroundColor: isDarkMode ? '#1e293b' : 'transparent',
+                      },
+                      '& .ag-row-even': {
+                        backgroundColor: isDarkMode ? '#1a2536' : '#ffffff',
+                      },
+                      '& .ag-row-odd': {
+                        backgroundColor: isDarkMode ? '#1e293b' : 'rgba(248,250,252,0.5)',
+                      },
+                      '& .ag-cell': {
+                        borderRight: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #f1f5f9',
+                        color: isDarkMode ? '#f1f5f9' : 'inherit',
+                      },
+                      '& .ag-row-hover': {
+                        backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.15) !important' : 'rgba(30,64,175,0.04) !important',
+                      },
                     }}>
                       <AgGridReact
                         ref={gridRef}

@@ -3099,7 +3099,7 @@ export default function InboundPage() {
                       sx={{
                         flex: 1,
                         '& .MuiOutlinedInput-root': {
-                          bgcolor: isDarkMode ? '#0f172a' : 'white',
+                          bgcolor: isDarkMode ? '#1e293b' : 'white',
                           borderRadius: 1.5,
                           height: 38,
                           fontSize: { xs: '0.8rem', sm: '0.875rem' },
@@ -3641,26 +3641,46 @@ export default function InboundPage() {
                   <Box className="ag-theme-quartz" sx={{
                     height: '100%',
                     width: '100%',
+                    bgcolor: isDarkMode ? '#1e293b' : 'transparent',
+                    '& .ag-root-wrapper': {
+                      backgroundColor: isDarkMode ? '#1e293b' : 'transparent',
+                    },
                     '& .ag-header': {
-                      background: 'linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%)',
-                      borderBottom: '1px solid #e5e7eb',
+                      background: isDarkMode ? '#334155' : 'linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%)',
+                      borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e5e7eb',
                       opacity: '1 !important',
                       zIndex: 15,
                       position: 'relative'
                     },
                     '& .ag-header-cell': {
                       backgroundColor: 'transparent',
-                      color: '#1e293b',
+                      color: isDarkMode ? '#f1f5f9' : '#1e293b',
                       fontWeight: 800,
                       fontSize: '0.75rem',
-                      borderRight: '1px solid #e5e7eb',
+                      borderRight: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e5e7eb',
                       opacity: '1 !important'
                     },
                     '& .ag-body-viewport': {
                       opacity: listLoading ? 0.3 : 1,
-                      transition: 'opacity 0.2s ease-in-out'
+                      transition: 'opacity 0.2s ease-in-out',
+                      backgroundColor: isDarkMode ? '#1e293b' : 'transparent',
                     },
-                    '& .ag-cell': { borderRight: '1px solid #f1f5f9' }
+                    '& .ag-row': {
+                      backgroundColor: isDarkMode ? '#1e293b' : 'transparent',
+                    },
+                    '& .ag-row-even': {
+                      backgroundColor: isDarkMode ? '#1a2536' : '#ffffff',
+                    },
+                    '& .ag-row-odd': {
+                      backgroundColor: isDarkMode ? '#1e293b' : 'rgba(248,250,252,0.5)',
+                    },
+                    '& .ag-cell': {
+                      borderRight: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #f1f5f9',
+                      color: isDarkMode ? '#f1f5f9' : 'inherit',
+                    },
+                    '& .ag-row-hover': {
+                      backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.15) !important' : 'rgba(30,64,175,0.04) !important',
+                    },
                   }}>
                     <AgGridReact
                       ref={gridRef}
@@ -3861,7 +3881,8 @@ export default function InboundPage() {
                     sx: {
                       borderRadius: 3,
                       boxShadow: '0 25px 50px rgba(0,0,0,0.25)',
-                      overflow: 'hidden'
+                      overflow: 'hidden',
+                      bgcolor: isDarkMode ? '#0f172a' : 'background.paper'
                     }
                   }}
                 >
@@ -3882,7 +3903,11 @@ export default function InboundPage() {
                     </Typography>
                   </DialogTitle>
 
-                  <DialogContent sx={{ py: 4, px: 3 }}>
+                  <DialogContent sx={{
+                    py: 4,
+                    px: 3,
+                    bgcolor: isDarkMode ? '#0f172a' : 'background.paper'
+                  }}>
                     <Stack spacing={3}>
                       {/* CURRENT FILTERS PREVIEW */}
                       <Alert
@@ -3891,7 +3916,10 @@ export default function InboundPage() {
                         sx={{
                           fontSize: '0.85rem',
                           borderRadius: 2,
-                          '& .MuiAlert-icon': { color: '#0ea5e9' }
+                          bgcolor: isDarkMode ? 'rgba(14, 165, 233, 0.1)' : undefined,
+                          border: isDarkMode ? '1px solid rgba(14, 165, 233, 0.3)' : undefined,
+                          '& .MuiAlert-icon': { color: '#0ea5e9' },
+                          '& .MuiAlert-message': { color: isDarkMode ? '#f1f5f9' : undefined }
                         }}
                       >
                         <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1, color: '#0ea5e9' }}>
@@ -3899,43 +3927,43 @@ export default function InboundPage() {
                         </Typography>
                         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 1 }}>
                           {searchFilter && (
-                            <Chip size="small" label={`🔍 "${searchFilter}"`} sx={{ bgcolor: '#dbeafe', color: '#1e40af' }} />
+                            <Chip size="small" label={`🔍 "${searchFilter}"`} sx={{ bgcolor: isDarkMode ? 'rgba(59, 130, 246, 0.2)' : '#dbeafe', color: isDarkMode ? '#93c5fd' : '#1e40af' }} />
                           )}
                           {brandFilter && (
-                            <Chip size="small" label={`🏷️ ${brandFilter}`} sx={{ bgcolor: '#dcfce7', color: '#166534' }} />
+                            <Chip size="small" label={`🏷️ ${brandFilter}`} sx={{ bgcolor: isDarkMode ? 'rgba(34, 197, 94, 0.2)' : '#dcfce7', color: isDarkMode ? '#86efac' : '#166534' }} />
                           )}
                           {categoryFilter && (
-                            <Chip size="small" label={`📂 ${categoryFilter}`} sx={{ bgcolor: '#fef3c7', color: '#92400e' }} />
+                            <Chip size="small" label={`📂 ${categoryFilter}`} sx={{ bgcolor: isDarkMode ? 'rgba(245, 158, 11, 0.2)' : '#fef3c7', color: isDarkMode ? '#fcd34d' : '#92400e' }} />
                           )}
                           {(exportStartDate || dateFromFilter) && (
-                            <Chip size="small" label={`📅 From: ${exportStartDate || dateFromFilter}`} sx={{ bgcolor: '#e0e7ff', color: '#3730a3' }} />
+                            <Chip size="small" label={`📅 From: ${exportStartDate || dateFromFilter}`} sx={{ bgcolor: isDarkMode ? 'rgba(99, 102, 241, 0.2)' : '#e0e7ff', color: isDarkMode ? '#a5b4fc' : '#3730a3' }} />
                           )}
                           {(exportEndDate || dateToFilter) && (
-                            <Chip size="small" label={`📅 To: ${exportEndDate || dateToFilter}`} sx={{ bgcolor: '#e0e7ff', color: '#3730a3' }} />
+                            <Chip size="small" label={`📅 To: ${exportEndDate || dateToFilter}`} sx={{ bgcolor: isDarkMode ? 'rgba(99, 102, 241, 0.2)' : '#e0e7ff', color: isDarkMode ? '#a5b4fc' : '#3730a3' }} />
                           )}
                           {(exportBatchIds && exportBatchIds.length > 0) && (
-                            <Chip size="small" label={`📦 ${exportBatchIds.length} Batch${exportBatchIds.length > 1 ? 'es' : ''}`} sx={{ bgcolor: '#f3e8ff', color: '#6b21a8' }} />
+                            <Chip size="small" label={`📦 ${exportBatchIds.length} Batch${exportBatchIds.length > 1 ? 'es' : ''}`} sx={{ bgcolor: isDarkMode ? 'rgba(168, 85, 247, 0.2)' : '#f3e8ff', color: isDarkMode ? '#c4b5fd' : '#6b21a8' }} />
                           )}
                           {!exportStartDate && !exportEndDate && (!exportBatchIds || exportBatchIds.length === 0) && !searchFilter && !brandFilter && !categoryFilter && !dateFromFilter && !dateToFilter && (
-                            <Chip size="small" label="📊 All Data" sx={{ bgcolor: '#fee2e2', color: '#dc2626' }} />
+                            <Chip size="small" label="📊 All Data" sx={{ bgcolor: isDarkMode ? 'rgba(239, 68, 68, 0.2)' : '#fee2e2', color: isDarkMode ? '#fca5a5' : '#dc2626' }} />
                           )}
                         </Box>
                       </Alert>
 
                       {/* DIVIDER WITH ICON */}
-                      <Divider sx={{ '&::before, &::after': { borderColor: '#e5e7eb' } }}>
+                      <Divider sx={{ '&::before, &::after': { borderColor: isDarkMode ? 'rgba(255,255,255,0.1)' : '#e5e7eb' } }}>
                         <Box sx={{
                           display: 'flex',
                           alignItems: 'center',
                           gap: 1,
                           px: 2,
                           py: 0.5,
-                          bgcolor: '#f9fafb',
+                          bgcolor: isDarkMode ? '#334155' : '#f9fafb',
                           borderRadius: 2,
-                          border: '1px solid #e5e7eb'
+                          border: isDarkMode ? '1px solid rgba(255,255,255,0.15)' : '1px solid #e5e7eb'
                         }}>
-                          <SettingsIcon sx={{ fontSize: '1rem', color: '#6b7280' }} />
-                          <Typography variant="body2" sx={{ fontWeight: 600, color: '#6b7280' }}>
+                          <SettingsIcon sx={{ fontSize: '1rem', color: isDarkMode ? '#94a3b8' : '#6b7280' }} />
+                          <Typography variant="body2" sx={{ fontWeight: 600, color: isDarkMode ? '#e2e8f0' : '#6b7280' }}>
                             Override Filters (Optional)
                           </Typography>
                         </Box>
@@ -4019,8 +4047,8 @@ export default function InboundPage() {
                                   label={`${b.count} entries`}
                                   size="small"
                                   sx={{
-                                    bgcolor: '#e5e7eb',
-                                    color: '#374151',
+                                    bgcolor: isDarkMode ? '#334155' : '#e5e7eb',
+                                    color: isDarkMode ? '#94a3b8' : '#374151',
                                     fontSize: '0.7rem',
                                     height: '20px'
                                   }}
@@ -4033,15 +4061,15 @@ export default function InboundPage() {
 
                       {/* EXPORT SUMMARY */}
                       <Card sx={{
-                        bgcolor: '#f0fdf4',
-                        border: '1px solid #bbf7d0',
+                        bgcolor: isDarkMode ? 'rgba(16, 185, 129, 0.1)' : '#f0fdf4',
+                        border: isDarkMode ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid #bbf7d0',
                         borderRadius: 2
                       }}>
                         <CardContent sx={{ py: 2, px: 3 }}>
-                          <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#166534', mb: 1 }}>
+                          <Typography variant="subtitle2" sx={{ fontWeight: 700, color: isDarkMode ? '#34d399' : '#166534', mb: 1 }}>
                             📊 Export Summary:
                           </Typography>
-                          <Typography variant="body2" sx={{ color: '#166534' }}>
+                          <Typography variant="body2" sx={{ color: isDarkMode ? '#a7f3d0' : '#166534' }}>
                             This will export filtered inbound records to Excel with all selected criteria applied.
                             The file will include product details, dates, and batch information.
                           </Typography>
@@ -4052,8 +4080,8 @@ export default function InboundPage() {
 
                   <DialogActions sx={{
                     p: 3,
-                    bgcolor: '#f9fafb',
-                    borderTop: '1px solid #e5e7eb',
+                    bgcolor: isDarkMode ? '#1e293b' : '#f9fafb',
+                    borderTop: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e5e7eb',
                     gap: 1
                   }}>
                     <Button
@@ -4062,8 +4090,8 @@ export default function InboundPage() {
                         borderRadius: 2,
                         px: 3,
                         fontWeight: 600,
-                        color: '#6b7280',
-                        '&:hover': { bgcolor: '#e5e7eb' }
+                        color: isDarkMode ? '#94a3b8' : '#6b7280',
+                        '&:hover': { bgcolor: isDarkMode ? '#334155' : '#e5e7eb' }
                       }}
                     >
                       Cancel
@@ -5564,7 +5592,7 @@ export default function InboundPage() {
                           // Only highlight cells in the selected column AND within the row range
                           if (colId === selectedCol && rowIndex >= minRow && rowIndex <= maxRow) {
                             const style: any = {
-                              backgroundColor: '#bfdbfe',
+                              backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.3)' : '#bfdbfe',
                               borderLeft: '2px solid #2563eb',
                               borderRight: '2px solid #2563eb',
                             };
@@ -5588,7 +5616,7 @@ export default function InboundPage() {
                       enableCellTextSelection={true}
                       suppressCopyRowsToClipboard={false}
                       clipboardDelimiter="\t"
-                      rowSelection={{ mode: 'multiRow', checkboxes: false, enableClickSelection: true }}
+                      rowSelection={undefined}
                       suppressRowDeselection={false}
 
                       // ⚡ EXCEL-LIKE: Process clipboard paste from Excel

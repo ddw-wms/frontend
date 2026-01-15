@@ -1153,6 +1153,7 @@ export default function DashboardPage() {
           flex: 1,
           overflow: "hidden",
           height: "100%",
+          bgcolor: isDarkMode ? '#0f172a' : '#f5f7fa',
         }}
       >
         {/* ================= HEADER ================= */}
@@ -1176,6 +1177,7 @@ export default function DashboardPage() {
             gap: { xs: 1, sm: 1.5, md: 2 },
             p: { xs: 1.5, sm: 2, md: 2 },
             overflowX: "visible",
+            bgcolor: isDarkMode ? '#0f172a' : 'transparent',
           }}
         >
 
@@ -1307,14 +1309,14 @@ export default function DashboardPage() {
                 sx={{
                   "& .MuiOutlinedInput-root": {
                     height: { xs: 44, sm: 42 },
-                    bgcolor: isDarkMode ? '#0f172a' : '#f8fafc',
+                    bgcolor: isDarkMode ? '#1e293b' : '#f8fafc',
                     borderRadius: 2.5,
                     transition: "all 0.2s ease",
                     "&:hover": {
-                      bgcolor: isDarkMode ? '#1a2536' : '#f1f5f9',
+                      bgcolor: isDarkMode ? '#334155' : '#f1f5f9',
                     },
                     "&.Mui-focused": {
-                      bgcolor: isDarkMode ? '#0f172a' : 'white',
+                      bgcolor: isDarkMode ? '#1e293b' : 'white',
                       "& .MuiOutlinedInput-notchedOutline": {
                         borderColor: "primary.main",
                         borderWidth: 2,
@@ -1370,11 +1372,14 @@ export default function DashboardPage() {
                   "& .MuiOutlinedInput-root": {
                     height: 42,
                     fontSize: "0.875rem",
-                    bgcolor: isDarkMode ? '#0f172a' : '#f8fafc',
+                    bgcolor: isDarkMode ? '#1e293b' : '#f8fafc',
                     borderRadius: 2,
-                    "&:hover": { bgcolor: isDarkMode ? '#1a2536' : '#f1f5f9' },
-                    "&.Mui-focused": { bgcolor: isDarkMode ? '#0f172a' : 'white' },
-                  }
+                    "&:hover": { bgcolor: isDarkMode ? '#334155' : '#f1f5f9' },
+                    "&.Mui-focused": { bgcolor: isDarkMode ? '#1e293b' : 'white' },
+                  },
+                  "& .MuiOutlinedInput-notchedOutline": {
+                    borderColor: isDarkMode ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)',
+                  },
                 }}
               />
               <TextField
@@ -1392,11 +1397,14 @@ export default function DashboardPage() {
                   "& .MuiOutlinedInput-root": {
                     height: 42,
                     fontSize: "0.875rem",
-                    bgcolor: isDarkMode ? '#0f172a' : '#f8fafc',
+                    bgcolor: isDarkMode ? '#1e293b' : '#f8fafc',
                     borderRadius: 2,
-                    "&:hover": { bgcolor: isDarkMode ? '#1a2536' : '#f1f5f9' },
-                    "&.Mui-focused": { bgcolor: isDarkMode ? '#0f172a' : 'white' },
-                  }
+                    "&:hover": { bgcolor: isDarkMode ? '#334155' : '#f1f5f9' },
+                    "&.Mui-focused": { bgcolor: isDarkMode ? '#1e293b' : 'white' },
+                  },
+                  "& .MuiOutlinedInput-notchedOutline": {
+                    borderColor: isDarkMode ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)',
+                  },
                 }}
               />
             </Box>
@@ -1780,8 +1788,8 @@ export default function DashboardPage() {
             display: "flex",
             flexDirection: "column",
             overflow: "hidden",
-            px: 1,
             pb: { xs: 10, md: 2 }, // reserve space for mobile action bar
+            bgcolor: isDarkMode ? '#0f172a' : 'transparent',
           }}
         >
           <Paper
@@ -1790,10 +1798,18 @@ export default function DashboardPage() {
               display: "flex",
               flexDirection: "column",
               overflow: "hidden",
+              bgcolor: isDarkMode ? '#1e293b' : 'background.paper',
             }}
           >
             {/* Table Container - AG Grid */}
-            <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
+            <Box sx={{
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
+              position: 'relative',
+              bgcolor: isDarkMode ? '#1e293b' : 'transparent',
+            }}>
               {/* Loading Overlay - shows during any loading state */}
               {loading && (
                 <Box sx={{

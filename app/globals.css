@@ -777,6 +777,29 @@ html[data-theme="dark"] .ag-menu,
   color: #f1f5f9 !important;
 }
 
+/* AG Grid Tooltip - Dark Mode */
+html[data-theme="dark"] .ag-tooltip,
+html[data-theme="dark"] .ag-tooltip-custom,
+html[data-theme="dark"] .ag-theme-quartz .ag-tooltip,
+[data-theme="dark"] .ag-tooltip,
+[data-theme="dark"] .ag-tooltip-custom,
+[data-theme="dark"] .ag-theme-quartz .ag-tooltip {
+  background-color: #1e293b !important;
+  color: #f1f5f9 !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  border-radius: 6px !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3) !important;
+}
+
+/* AG Grid popup - Dark Mode */
+html[data-theme="dark"] .ag-popup-child,
+html[data-theme="dark"] .ag-popup,
+[data-theme="dark"] .ag-popup-child,
+[data-theme="dark"] .ag-popup {
+  background-color: #1e293b !important;
+  color: #f1f5f9 !important;
+}
+
 /* Sidebar Dark Mode */
 html[data-theme="dark"] .sidebar-container,
 [data-theme="dark"] .sidebar-container {
@@ -863,11 +886,6 @@ html[data-theme="dark"] .bg-gray-100,
 html[data-theme="dark"] .bg-slate-50,
 html[data-theme="dark"] .bg-slate-100 {
   background-color: #1e293b !important;
-}
-
-/* Override any remaining white text-field backgrounds */
-html[data-theme="dark"] .MuiInputBase-root:not([class*="sidebar"]) {
-  background-color: #0f172a !important;
 }
 
 /* High Contrast Mode */
@@ -2064,6 +2082,117 @@ html[data-theme="dark"] .ag-theme-quartz .ag-overlay-no-rows-center,
   background-color: rgba(30, 41, 59, 0.98) !important;
   border: 1px solid rgba(255, 255, 255, 0.1);
   color: #94a3b8;
+}
+
+/* AG Grid Checkbox Columns - Dark Mode */
+html[data-theme="dark"] .ag-theme-quartz .ag-checkbox-input-wrapper,
+html[data-theme="dark"] .ag-theme-quartz .ag-selection-checkbox,
+html[data-theme="dark"] .ag-theme-quartz .ag-header-select-all,
+[data-theme="dark"] .ag-theme-quartz .ag-checkbox-input-wrapper,
+[data-theme="dark"] .ag-theme-quartz .ag-selection-checkbox,
+[data-theme="dark"] .ag-theme-quartz .ag-header-select-all {
+  background-color: transparent !important;
+}
+
+html[data-theme="dark"] .ag-theme-quartz .ag-checkbox-input-wrapper::after,
+[data-theme="dark"] .ag-theme-quartz .ag-checkbox-input-wrapper::after {
+  color: #f1f5f9 !important;
+}
+
+/* Recharts / Chart Tooltips - Dark Mode */
+html[data-theme="dark"] .recharts-tooltip-wrapper .recharts-default-tooltip,
+html[data-theme="dark"] .recharts-tooltip-wrapper,
+[data-theme="dark"] .recharts-tooltip-wrapper .recharts-default-tooltip,
+[data-theme="dark"] .recharts-tooltip-wrapper {
+  background-color: #1e293b !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4) !important;
+}
+
+html[data-theme="dark"] .recharts-default-tooltip,
+[data-theme="dark"] .recharts-default-tooltip {
+  background-color: #1e293b !important;
+  border-color: rgba(255, 255, 255, 0.15) !important;
+}
+
+html[data-theme="dark"] .recharts-tooltip-item,
+html[data-theme="dark"] .recharts-tooltip-label,
+[data-theme="dark"] .recharts-tooltip-item,
+[data-theme="dark"] .recharts-tooltip-label {
+  color: #f1f5f9 !important;
+}
+
+html[data-theme="dark"] .recharts-tooltip-item-name,
+[data-theme="dark"] .recharts-tooltip-item-name {
+  color: #94a3b8 !important;
+}
+
+html[data-theme="dark"] .recharts-tooltip-item-value,
+[data-theme="dark"] .recharts-tooltip-item-value {
+  color: #f1f5f9 !important;
+}
+
+/* Recharts Cartesian Grid - Dark Mode */
+html[data-theme="dark"] .recharts-cartesian-grid line,
+[data-theme="dark"] .recharts-cartesian-grid line {
+  stroke: rgba(255, 255, 255, 0.1) !important;
+}
+
+/* Recharts Legend - Dark Mode */
+html[data-theme="dark"] .recharts-legend-item-text,
+[data-theme="dark"] .recharts-legend-item-text {
+  color: #f1f5f9 !important;
+}
+
+/* Recharts Axis - Dark Mode */
+html[data-theme="dark"] .recharts-xAxis .recharts-text,
+html[data-theme="dark"] .recharts-yAxis .recharts-text,
+[data-theme="dark"] .recharts-xAxis .recharts-text,
+[data-theme="dark"] .recharts-yAxis .recharts-text {
+  fill: #94a3b8 !important;
+}
+
+html[data-theme="dark"] .recharts-xAxis line,
+html[data-theme="dark"] .recharts-yAxis line,
+[data-theme="dark"] .recharts-xAxis line,
+[data-theme="dark"] .recharts-yAxis line {
+  stroke: rgba(255, 255, 255, 0.2) !important;
+}
+
+/* MUI Divider with text inside - Dark Mode */
+html[data-theme="dark"] .MuiDivider-wrapper,
+[data-theme="dark"] .MuiDivider-wrapper {
+  background-color: #1e293b !important;
+  color: #94a3b8 !important;
+}
+
+/* Dashboard/Export dialog filter options section */
+html[data-theme="dark"] [class*="MuiDivider"]>div,
+html[data-theme="dark"] .MuiBox-root[style*="background: rgb(249, 250, 251)"],
+[data-theme="dark"] [class*="MuiDivider"]>div,
+[data-theme="dark"] .MuiBox-root[style*="background: rgb(249, 250, 251)"] {
+  background-color: #334155 !important;
+}
+
+/* AG Grid cell editor input - Dark Mode */
+html[data-theme="dark"] .ag-theme-quartz .ag-cell-inline-editing,
+html[data-theme="dark"] .ag-theme-quartz .ag-text-field-input,
+html[data-theme="dark"] .ag-theme-quartz input.ag-input-field-input,
+[data-theme="dark"] .ag-theme-quartz .ag-cell-inline-editing,
+[data-theme="dark"] .ag-theme-quartz .ag-text-field-input,
+[data-theme="dark"] .ag-theme-quartz input.ag-input-field-input {
+  background-color: #0f172a !important;
+  color: #f1f5f9 !important;
+  border-color: #3b82f6 !important;
+}
+
+/* AG Grid floating filter - Dark Mode */
+html[data-theme="dark"] .ag-theme-quartz .ag-floating-filter-input,
+html[data-theme="dark"] .ag-theme-quartz .ag-floating-filter,
+[data-theme="dark"] .ag-theme-quartz .ag-floating-filter-input,
+[data-theme="dark"] .ag-theme-quartz .ag-floating-filter {
+  background-color: #1e293b !important;
 }
 
 .ag-theme-quartz .ag-cell {

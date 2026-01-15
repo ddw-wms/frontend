@@ -237,6 +237,13 @@ export default function ReportsPage() {
                         <YAxis fontSize={isMobile ? 10 : 12} />
                         <Tooltip
                             labelFormatter={(date) => dayjs(date).format('MMM DD, YYYY')}
+                            contentStyle={{
+                                backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
+                                border: isDarkMode ? '1px solid rgba(255,255,255,0.15)' : '1px solid #e5e7eb',
+                                borderRadius: '8px',
+                                color: isDarkMode ? '#f1f5f9' : '#1f2937'
+                            }}
+                            labelStyle={{ color: isDarkMode ? '#f1f5f9' : '#1f2937' }}
                         />
                         <Legend wrapperStyle={{ fontSize: isMobile ? '11px' : '14px' }} />
                         <Line type="monotone" dataKey="inbound" stroke="#1e40af" strokeWidth={isMobile ? 1.5 : 2} name="Inbound" />
@@ -268,7 +275,14 @@ export default function ReportsPage() {
                                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                                 ))}
                             </Pie>
-                            <Tooltip />
+                            <Tooltip
+                                contentStyle={{
+                                    backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
+                                    border: isDarkMode ? '1px solid rgba(255,255,255,0.15)' : '1px solid #e5e7eb',
+                                    borderRadius: '8px',
+                                    color: isDarkMode ? '#f1f5f9' : '#1f2937'
+                                }}
+                            />
                         </PieChart>
                     </ResponsiveContainer>
 
@@ -318,7 +332,14 @@ export default function ReportsPage() {
                             fontSize={isMobile ? 9 : 11}
                         />
                         <YAxis fontSize={isMobile ? 10 : 12} />
-                        <Tooltip />
+                        <Tooltip
+                            contentStyle={{
+                                backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
+                                border: isDarkMode ? '1px solid rgba(255,255,255,0.15)' : '1px solid #e5e7eb',
+                                borderRadius: '8px',
+                                color: isDarkMode ? '#f1f5f9' : '#1f2937'
+                            }}
+                        />
                         <Legend wrapperStyle={{ fontSize: isMobile ? '10px' : '12px' }} />
                         <Bar dataKey="inbound" fill="#1e40af" name="Inbound" />
                         <Bar dataKey="qc" fill="#f093fb" name="QC" />
