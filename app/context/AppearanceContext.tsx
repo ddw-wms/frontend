@@ -77,8 +77,9 @@ const applySettingsToDOM = (settings: AppearanceSettings) => {
         root.classList.remove('high-contrast');
     }
 
-    // Theme
+    // Theme - dispatch event for ThemeRegistry to pick up
     root.setAttribute('data-theme', settings.theme);
+    window.dispatchEvent(new CustomEvent('themeChanged', { detail: { theme: settings.theme } }));
 
     // Sidebar compact preference (for initial load)
     if (settings.sidebarCompact) {

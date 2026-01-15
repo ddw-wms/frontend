@@ -168,7 +168,8 @@ export default function AppearanceSettingsPage() {
                         borderRadius: 2,
                         boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
                         border: `2px solid ${settings.primaryColor}`,
-                        overflow: 'hidden'
+                        overflow: 'hidden',
+                        bgcolor: settings.theme === 'dark' ? '#1e293b' : 'background.paper',
                     }}>
                         <Box sx={{
                             bgcolor: settings.primaryColor,
@@ -181,10 +182,10 @@ export default function AppearanceSettingsPage() {
                         }}>
                             <PaletteIcon fontSize="small" />
                             <Typography sx={{ fontWeight: 600, fontFamily: settings.fontFamily, fontSize: `${settings.fontSize}px` }}>
-                                Live Preview
+                                Live Preview ({settings.theme === 'dark' ? 'Dark' : settings.theme === 'auto' ? 'Auto' : 'Light'} Mode)
                             </Typography>
                         </Box>
-                        <CardContent>
+                        <CardContent sx={{ bgcolor: settings.theme === 'dark' ? '#1e293b' : '#ffffff' }}>
                             <Stack spacing={2}>
                                 <Box>
                                     <Typography
@@ -201,7 +202,7 @@ export default function AppearanceSettingsPage() {
                                         sx={{
                                             fontFamily: settings.fontFamily,
                                             fontSize: `${settings.fontSize}px`,
-                                            color: 'text.secondary'
+                                            color: settings.theme === 'dark' ? '#94a3b8' : 'text.secondary'
                                         }}
                                     >
                                         This is body text at {settings.fontSize}px using {settings.fontFamily} font family.
@@ -246,9 +247,9 @@ export default function AppearanceSettingsPage() {
                                     display: 'flex',
                                     gap: 1,
                                     p: 1,
-                                    bgcolor: '#f8fafc',
+                                    bgcolor: settings.theme === 'dark' ? '#0f172a' : '#f8fafc',
                                     borderRadius: 1,
-                                    border: '1px solid #e2e8f0'
+                                    border: settings.theme === 'dark' ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e2e8f0'
                                 }}>
                                     <Box sx={{
                                         width: 80,
@@ -266,7 +267,8 @@ export default function AppearanceSettingsPage() {
                                     </Box>
                                     <Typography variant="caption" sx={{
                                         alignSelf: 'center',
-                                        fontFamily: settings.fontFamily
+                                        fontFamily: settings.fontFamily,
+                                        color: settings.theme === 'dark' ? '#94a3b8' : 'text.secondary'
                                     }}>
                                         Table row density: {settings.tableRowDensity}
                                     </Typography>
@@ -313,15 +315,13 @@ export default function AppearanceSettingsPage() {
                                         <LightModeIcon sx={{ mr: 1 }} />
                                         Light
                                     </ToggleButton>
-                                    <ToggleButton value="dark" disabled>
+                                    <ToggleButton value="dark">
                                         <DarkModeIcon sx={{ mr: 1 }} />
                                         Dark
-                                        <Chip label="Soon" size="small" sx={{ ml: 0.5, height: 18, fontSize: '0.65rem' }} />
                                     </ToggleButton>
-                                    <ToggleButton value="auto" disabled>
+                                    <ToggleButton value="auto">
                                         <AutoModeIcon sx={{ mr: 1 }} />
                                         Auto
-                                        <Chip label="Soon" size="small" sx={{ ml: 0.5, height: 18, fontSize: '0.65rem' }} />
                                     </ToggleButton>
                                 </ToggleButtonGroup>
                             </CardContent>

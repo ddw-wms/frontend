@@ -244,6 +244,178 @@ body,
   line-height: var(--app-table-row-height) !important;
 }
 
+/* ============================================
+   DARK MODE STYLES
+   ============================================ */
+html[data-theme="dark"] body,
+[data-theme="dark"] {
+  background-color: #0f172a !important;
+  color: #f1f5f9 !important;
+}
+
+html[data-theme="dark"] .MuiPaper-root,
+[data-theme="dark"] .MuiPaper-root {
+  background-color: #1e293b !important;
+  color: #f1f5f9 !important;
+}
+
+html[data-theme="dark"] .MuiCard-root,
+[data-theme="dark"] .MuiCard-root {
+  background-color: #1e293b !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+html[data-theme="dark"] .MuiTypography-root,
+[data-theme="dark"] .MuiTypography-root {
+  color: #f1f5f9 !important;
+}
+
+html[data-theme="dark"] .MuiTypography-colorTextSecondary,
+[data-theme="dark"] .MuiTypography-colorTextSecondary {
+  color: #94a3b8 !important;
+}
+
+html[data-theme="dark"] .MuiInputBase-root,
+[data-theme="dark"] .MuiInputBase-root {
+  background-color: #0f172a !important;
+  color: #f1f5f9 !important;
+}
+
+html[data-theme="dark"] .MuiOutlinedInput-notchedOutline,
+[data-theme="dark"] .MuiOutlinedInput-notchedOutline {
+  border-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+html[data-theme="dark"] .MuiInputBase-input,
+[data-theme="dark"] .MuiInputBase-input {
+  color: #f1f5f9 !important;
+}
+
+html[data-theme="dark"] .MuiInputLabel-root,
+[data-theme="dark"] .MuiInputLabel-root {
+  color: #94a3b8 !important;
+}
+
+html[data-theme="dark"] .MuiSelect-icon,
+[data-theme="dark"] .MuiSelect-icon {
+  color: #94a3b8 !important;
+}
+
+html[data-theme="dark"] .MuiTableCell-root,
+[data-theme="dark"] .MuiTableCell-root {
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  color: #f1f5f9 !important;
+}
+
+html[data-theme="dark"] .MuiTableHead-root .MuiTableCell-root,
+[data-theme="dark"] .MuiTableHead-root .MuiTableCell-root {
+  background-color: #334155 !important;
+  color: #f1f5f9 !important;
+}
+
+html[data-theme="dark"] .MuiTableBody-root .MuiTableRow-root:hover,
+[data-theme="dark"] .MuiTableBody-root .MuiTableRow-root:hover {
+  background-color: rgba(255, 255, 255, 0.05) !important;
+}
+
+html[data-theme="dark"] .MuiMenu-paper,
+[data-theme="dark"] .MuiMenu-paper {
+  background-color: #1e293b !important;
+}
+
+html[data-theme="dark"] .MuiMenuItem-root,
+[data-theme="dark"] .MuiMenuItem-root {
+  color: #f1f5f9 !important;
+}
+
+html[data-theme="dark"] .MuiMenuItem-root:hover,
+[data-theme="dark"] .MuiMenuItem-root:hover {
+  background-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+html[data-theme="dark"] .MuiDivider-root,
+[data-theme="dark"] .MuiDivider-root {
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+html[data-theme="dark"] .MuiChip-root,
+[data-theme="dark"] .MuiChip-root {
+  border-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+html[data-theme="dark"] .MuiAlert-standardInfo,
+[data-theme="dark"] .MuiAlert-standardInfo {
+  background-color: rgba(30, 64, 175, 0.2) !important;
+  color: #93c5fd !important;
+}
+
+html[data-theme="dark"] .MuiAlert-standardSuccess,
+[data-theme="dark"] .MuiAlert-standardSuccess {
+  background-color: rgba(5, 150, 105, 0.2) !important;
+  color: #6ee7b7 !important;
+}
+
+html[data-theme="dark"] .MuiAlert-standardWarning,
+[data-theme="dark"] .MuiAlert-standardWarning {
+  background-color: rgba(217, 119, 6, 0.2) !important;
+  color: #fcd34d !important;
+}
+
+html[data-theme="dark"] .MuiAlert-standardError,
+[data-theme="dark"] .MuiAlert-standardError {
+  background-color: rgba(220, 38, 38, 0.2) !important;
+  color: #fca5a5 !important;
+}
+
+/* AG Grid Dark Mode */
+html[data-theme="dark"] .ag-theme-quartz,
+html[data-theme="dark"] .ag-theme-alpine,
+[data-theme="dark"] .ag-theme-quartz,
+[data-theme="dark"] .ag-theme-alpine {
+  --ag-background-color: #1e293b !important;
+  --ag-foreground-color: #f1f5f9 !important;
+  --ag-header-background-color: #334155 !important;
+  --ag-odd-row-background-color: #1e293b !important;
+  --ag-row-hover-color: rgba(255, 255, 255, 0.05) !important;
+  --ag-border-color: rgba(255, 255, 255, 0.1) !important;
+  --ag-secondary-foreground-color: #94a3b8 !important;
+  --ag-input-border-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+html[data-theme="dark"] .ag-header-cell,
+[data-theme="dark"] .ag-header-cell {
+  background-color: #334155 !important;
+  color: #f1f5f9 !important;
+}
+
+html[data-theme="dark"] .ag-cell,
+[data-theme="dark"] .ag-cell {
+  color: #f1f5f9 !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+html[data-theme="dark"] .ag-row,
+[data-theme="dark"] .ag-row {
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+html[data-theme="dark"] .ag-row:hover,
+[data-theme="dark"] .ag-row:hover {
+  background-color: rgba(255, 255, 255, 0.05) !important;
+}
+
+/* Sidebar Dark Mode */
+html[data-theme="dark"] .sidebar-container,
+[data-theme="dark"] .sidebar-container {
+  background-color: #0f172a !important;
+}
+
+/* Content Background Dark Mode */
+html[data-theme="dark"] [style*="background: linear-gradient"],
+[data-theme="dark"] [style*="background: linear-gradient"] {
+  background: #0f172a !important;
+}
+
 /* High Contrast Mode */
 html.high-contrast body {
   color: #000 !important;
@@ -328,6 +500,306 @@ select {
 }
 
 /* ============================================
+   MOBILE COMPACT STYLES
+   ============================================ */
+@media (max-width: 640px) {
+
+  /* More compact headers */
+  .MuiTypography-h4 {
+    font-size: 0.9375rem !important;
+  }
+
+  .MuiTypography-h5 {
+    font-size: 0.875rem !important;
+  }
+
+  .MuiTypography-h6 {
+    font-size: 0.8125rem !important;
+  }
+
+  .MuiTypography-body1 {
+    font-size: 0.8125rem !important;
+  }
+
+  .MuiTypography-body2 {
+    font-size: 0.75rem !important;
+  }
+
+  .MuiTypography-caption {
+    font-size: 0.6875rem !important;
+  }
+
+  /* Compact Cards */
+  .MuiCard-root {
+    border-radius: 8px !important;
+  }
+
+  .MuiCardContent-root {
+    padding: 10px !important;
+  }
+
+  .MuiCardContent-root:last-child {
+    padding-bottom: 10px !important;
+  }
+
+  .MuiCardHeader-root {
+    padding: 10px !important;
+  }
+
+  .MuiCardActions-root {
+    padding: 6px 10px !important;
+  }
+
+  /* Compact List Items */
+  .MuiListItem-root {
+    padding-top: 4px !important;
+    padding-bottom: 4px !important;
+    min-height: 36px !important;
+  }
+
+  .MuiListItemButton-root {
+    padding: 6px 10px !important;
+    min-height: 36px !important;
+  }
+
+  .MuiListItemText-primary {
+    font-size: 0.8125rem !important;
+  }
+
+  .MuiListItemText-secondary {
+    font-size: 0.6875rem !important;
+  }
+
+  .MuiListItemIcon-root {
+    min-width: 32px !important;
+  }
+
+  /* Compact Chips */
+  .MuiChip-root {
+    height: 22px !important;
+    font-size: 0.6875rem !important;
+  }
+
+  .MuiChip-label {
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+  }
+
+  .MuiChip-sizeSmall {
+    height: 18px !important;
+    font-size: 0.625rem !important;
+  }
+
+  /* Compact Buttons */
+  .MuiButton-root {
+    padding: 6px 12px !important;
+    font-size: 0.75rem !important;
+    min-height: 32px !important;
+  }
+
+  .MuiButton-sizeSmall {
+    padding: 4px 10px !important;
+    font-size: 0.6875rem !important;
+    min-height: 28px !important;
+  }
+
+  .MuiIconButton-root {
+    padding: 6px !important;
+  }
+
+  .MuiIconButton-sizeSmall {
+    padding: 4px !important;
+  }
+
+  /* Compact Tabs */
+  .MuiTab-root {
+    padding: 6px 10px !important;
+    min-height: 36px !important;
+    font-size: 0.75rem !important;
+  }
+
+  .MuiTabs-root {
+    min-height: 36px !important;
+  }
+
+  /* Compact Tables */
+  .MuiTableCell-root {
+    padding: 6px 8px !important;
+    font-size: 0.75rem !important;
+  }
+
+  .MuiTableCell-head {
+    font-size: 0.6875rem !important;
+    padding: 8px !important;
+  }
+
+  /* Compact Form Elements */
+  .MuiFormControl-root {
+    margin-bottom: 8px !important;
+  }
+
+  .MuiInputBase-root {
+    font-size: 0.8125rem !important;
+  }
+
+  .MuiInputBase-input {
+    padding: 8px 10px !important;
+  }
+
+  .MuiInputLabel-root {
+    font-size: 0.75rem !important;
+  }
+
+  .MuiFormHelperText-root {
+    font-size: 0.6875rem !important;
+    margin-top: 2px !important;
+  }
+
+  .MuiSelect-select {
+    padding: 8px 10px !important;
+  }
+
+  /* Compact Dialogs */
+  .MuiDialogTitle-root {
+    padding: 12px 16px !important;
+    font-size: 1rem !important;
+  }
+
+  .MuiDialogContent-root {
+    padding: 12px 16px !important;
+  }
+
+  .MuiDialogActions-root {
+    padding: 8px 16px 12px !important;
+  }
+
+  /* Compact Alerts */
+  .MuiAlert-root {
+    padding: 6px 10px !important;
+  }
+
+  .MuiAlert-message {
+    font-size: 0.75rem !important;
+  }
+
+  /* Compact Breadcrumbs */
+  .MuiBreadcrumbs-root {
+    font-size: 0.6875rem !important;
+  }
+
+  /* Compact Accordion */
+  .MuiAccordionSummary-root {
+    min-height: 40px !important;
+    padding: 0 12px !important;
+  }
+
+  .MuiAccordionSummary-content {
+    margin: 8px 0 !important;
+  }
+
+  .MuiAccordionDetails-root {
+    padding: 8px 12px 12px !important;
+  }
+
+  /* Compact AG Grid */
+  .ag-header-cell {
+    padding: 0 6px !important;
+  }
+
+  .ag-header-cell-text {
+    font-size: 0.6875rem !important;
+  }
+
+  .ag-cell {
+    padding: 0 6px !important;
+    font-size: 0.75rem !important;
+  }
+
+  /* Page padding adjustments */
+  .page-container {
+    padding: 8px !important;
+  }
+
+  /* Stack spacing compact */
+  .MuiStack-root {
+    gap: 6px !important;
+  }
+
+  /* Avatar compact */
+  .MuiAvatar-root {
+    width: 28px !important;
+    height: 28px !important;
+    font-size: 0.75rem !important;
+  }
+
+  /* Badge compact */
+  .MuiBadge-badge {
+    font-size: 0.625rem !important;
+    min-width: 14px !important;
+    height: 14px !important;
+    padding: 0 4px !important;
+  }
+
+  /* Tooltip compact */
+  .MuiTooltip-tooltip {
+    font-size: 0.6875rem !important;
+    padding: 4px 8px !important;
+  }
+
+  /* Stepper compact */
+  .MuiStepper-root {
+    padding: 8px 0 !important;
+  }
+
+  .MuiStepLabel-label {
+    font-size: 0.75rem !important;
+  }
+
+  /* Menu compact */
+  .MuiMenuItem-root {
+    padding: 6px 10px !important;
+    font-size: 0.8125rem !important;
+    min-height: 32px !important;
+  }
+
+  /* Drawer compact */
+  .MuiDrawer-paper {
+    width: 260px !important;
+  }
+}
+
+/* Even more compact for very small screens */
+@media (max-width: 400px) {
+  .MuiButton-root {
+    padding: 4px 8px !important;
+    font-size: 0.6875rem !important;
+    min-height: 28px !important;
+  }
+
+  .MuiTypography-h4 {
+    font-size: 0.875rem !important;
+  }
+
+  .MuiCardContent-root {
+    padding: 8px !important;
+  }
+
+  .MuiTab-root {
+    padding: 4px 8px !important;
+    font-size: 0.6875rem !important;
+  }
+
+  .MuiChip-root {
+    height: 20px !important;
+    font-size: 0.625rem !important;
+  }
+
+  .MuiListItemButton-root {
+    padding: 4px 8px !important;
+  }
+}
+
+/* ============================================
    CUSTOM SCROLLBAR - Modern & Subtle
    ============================================ */
 ::-webkit-scrollbar {
@@ -357,6 +829,19 @@ select {
 * {
   scrollbar-width: thin;
   scrollbar-color: rgba(0, 0, 0, 0.15) transparent;
+}
+
+/* Dark mode scrollbar */
+html[data-theme="dark"] ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+html[data-theme="dark"] ::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.35);
+}
+
+html[data-theme="dark"] * {
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
 }
 
 /* Hide scrollbar on mobile for cleaner look */

@@ -1,12 +1,27 @@
 'use client';
 
 import * as React from 'react';
-import { ThemeProvider, createTheme } from '@mui/material/styles';
+import { ThemeProvider, createTheme, PaletteMode } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { AppRouterCacheProvider } from '@mui/material-nextjs/v15-appRouter';
 
-const theme = createTheme({
+// Theme mode context for dynamic switching
+const ThemeModeContext = React.createContext<{
+    mode: PaletteMode;
+    toggleMode: () => void;
+    setMode: (mode: 'light' | 'dark' | 'auto') => void;
+}>({
+    mode: 'light',
+    toggleMode: () => { },
+    setMode: () => { },
+});
+
+export const useThemeMode = () => React.useContext(ThemeModeContext);
+
+// Create theme based on mode
+const createAppTheme = (mode: PaletteMode) => createTheme({
     palette: {
+        mode,
         primary: {
             main: '#1e40af',
             light: '#3b82f6',
@@ -40,27 +55,36 @@ const theme = createTheme({
             dark: '#0369a1',
         },
         background: {
-            default: '#f5f7fa',
-            paper: '#ffffff',
+            default: mode === 'dark' ? '#0f172a' : '#f5f7fa',
+            paper: mode === 'dark' ? '#1e293b' : '#ffffff',
         },
         text: {
-            primary: '#1f2937',
-            secondary: '#6b7280',
-            disabled: '#9ca3af',
+            primary: mode === 'dark' ? '#f1f5f9' : '#1f2937',
+            secondary: mode === 'dark' ? '#94a3b8' : '#6b7280',
+            disabled: mode === 'dark' ? '#64748b' : '#9ca3af',
         },
-        divider: 'rgba(0, 0, 0, 0.08)',
+        divider: mode === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)',
         grey: {
-            50: '#f9fafb',
-            100: '#f3f4f6',
-            200: '#e5e7eb',
-            300: '#d1d5db',
-            400: '#9ca3af',
-            500: '#6b7280',
-            600: '#4b5563',
-            700: '#374151',
-            800: '#1f2937',
-            900: '#111827',
+            50: mode === 'dark' ? '#1e293b' : '#f9fafb',
+            100: mode === 'dark' ? '#334155' : '#f3f4f6',
+            200: mode === 'dark' ? '#475569' : '#e5e7eb',
+            300: mode === 'dark' ? '#64748b' : '#d1d5db',
+            400: mode === 'dark' ? '#94a3b8' : '#9ca3af',
+            500: mode === 'dark' ? '#cbd5e1' : '#6b7280',
+            600: mode === 'dark' ? '#e2e8f0' : '#4b5563',
+            700: mode === 'dark' ? '#f1f5f9' : '#374151',
+            800: mode === 'dark' ? '#f8fafc' : '#1f2937',
+            900: mode === 'dark' ? '#ffffff' : '#111827',
         },
+        ...(mode === 'dark' && {
+            action: {
+                active: '#f1f5f9',
+                hover: 'rgba(255, 255, 255, 0.08)',
+                selected: 'rgba(255, 255, 255, 0.16)',
+                disabled: 'rgba(255, 255, 255, 0.3)',
+                disabledBackground: 'rgba(255, 255, 255, 0.12)',
+            },
+        }),
     },
     typography: {
         fontFamily: '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
@@ -555,56 +579,136 @@ const theme = createTheme({
         },
         MuiMenu: {
             styleOverrides: {
-                paper: {
+                paper: ({ theme }) => ({
                     borderRadius: 12,
                     boxShadow: '0 10px 40px -10px rgba(0,0,0,0.2)',
                     marginTop: 8,
-                },
+                    backgroundColor: theme.palette.background.paper,
+                }),
             },
         },
         MuiMenuItem: {
             styleOverrides: {
-                root: {
+                root: ({ theme }) => ({
                     borderRadius: 6,
                     margin: '2px 8px',
                     padding: '10px 12px',
                     '&:hover': {
-                        backgroundColor: '#f1f5f9',
+                        backgroundColor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.08)' : '#f1f5f9',
                     },
                     '&.Mui-selected': {
-                        backgroundColor: '#eff6ff',
+                        backgroundColor: theme.palette.mode === 'dark' ? 'rgba(30, 64, 175, 0.2)' : '#eff6ff',
                         '&:hover': {
-                            backgroundColor: '#dbeafe',
+                            backgroundColor: theme.palette.mode === 'dark' ? 'rgba(30, 64, 175, 0.3)' : '#dbeafe',
                         },
                     },
-                },
+                }),
             },
         },
         MuiAutocomplete: {
             styleOverrides: {
-                paper: {
+                paper: ({ theme }) => ({
                     borderRadius: 12,
                     boxShadow: '0 10px 40px -10px rgba(0,0,0,0.2)',
-                },
-                option: {
+                    backgroundColor: theme.palette.background.paper,
+                }),
+                option: ({ theme }) => ({
                     borderRadius: 6,
                     margin: '2px 8px',
                     '&:hover': {
-                        backgroundColor: '#f1f5f9',
+                        backgroundColor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.08)' : '#f1f5f9',
                     },
-                },
+                }),
             },
         },
     },
 });
 
 export default function ThemeRegistry({ children }: { children: React.ReactNode }) {
+    const [mode, setModeState] = React.useState<PaletteMode>('light');
+
+    // Load theme from localStorage on mount
+    React.useEffect(() => {
+        const stored = localStorage.getItem('app_appearance_settings');
+        if (stored) {
+            try {
+                const settings = JSON.parse(stored);
+                if (settings.theme === 'dark') {
+                    setModeState('dark');
+                } else if (settings.theme === 'auto') {
+                    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                    setModeState(prefersDark ? 'dark' : 'light');
+                } else {
+                    setModeState('light');
+                }
+            } catch (e) {
+                setModeState('light');
+            }
+        }
+    }, []);
+
+    // Listen for theme changes from AppearanceContext
+    React.useEffect(() => {
+        const handleThemeChange = (e: CustomEvent) => {
+            const theme = e.detail?.theme;
+            if (theme === 'dark') {
+                setModeState('dark');
+            } else if (theme === 'auto') {
+                const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                setModeState(prefersDark ? 'dark' : 'light');
+            } else {
+                setModeState('light');
+            }
+        };
+
+        window.addEventListener('appearanceSettingsChanged', handleThemeChange as EventListener);
+        window.addEventListener('themeChanged', handleThemeChange as EventListener);
+        return () => {
+            window.removeEventListener('appearanceSettingsChanged', handleThemeChange as EventListener);
+            window.removeEventListener('themeChanged', handleThemeChange as EventListener);
+        };
+    }, []);
+
+    // Listen for system preference changes when in auto mode
+    React.useEffect(() => {
+        const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+        const handleChange = (e: MediaQueryListEvent) => {
+            const stored = localStorage.getItem('app_appearance_settings');
+            if (stored) {
+                const settings = JSON.parse(stored);
+                if (settings.theme === 'auto') {
+                    setModeState(e.matches ? 'dark' : 'light');
+                }
+            }
+        };
+
+        mediaQuery.addEventListener('change', handleChange);
+        return () => mediaQuery.removeEventListener('change', handleChange);
+    }, []);
+
+    const toggleMode = React.useCallback(() => {
+        setModeState((prev) => (prev === 'light' ? 'dark' : 'light'));
+    }, []);
+
+    const setMode = React.useCallback((newMode: 'light' | 'dark' | 'auto') => {
+        if (newMode === 'auto') {
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            setModeState(prefersDark ? 'dark' : 'light');
+        } else {
+            setModeState(newMode);
+        }
+    }, []);
+
+    const theme = React.useMemo(() => createAppTheme(mode), [mode]);
+
     return (
         <AppRouterCacheProvider>
-            <ThemeProvider theme={theme}>
-                <CssBaseline />
-                {children}
-            </ThemeProvider>
+            <ThemeModeContext.Provider value={{ mode, toggleMode, setMode }}>
+                <ThemeProvider theme={theme}>
+                    <CssBaseline />
+                    {children}
+                </ThemeProvider>
+            </ThemeModeContext.Provider>
         </AppRouterCacheProvider>
     );
 }
