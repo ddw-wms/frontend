@@ -297,10 +297,6 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
               <Tooltip title={collapsed ? item.label : ''} placement="right" arrow>
                 <ListItemButton
                   onClick={() => navigate(item.path)}
-                  onTouchEnd={(e) => {
-                    e.preventDefault();
-                    navigate(item.path);
-                  }}
                   sx={{
                     mx: 0.75,
                     py: { xs: 1.25, sm: 1 },
@@ -309,7 +305,6 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
                     color: active ? '#93c5fd' : 'rgba(255,255,255,0.75)',
                     transition: 'background-color 0.15s ease, color 0.15s ease',
                     WebkitTapHighlightColor: 'transparent',
-                    touchAction: 'manipulation',
                     '&:hover': {
                       bgcolor: active ? 'rgba(59,130,246,0.25)' : 'rgba(255,255,255,0.08)',
                     },
@@ -525,10 +520,9 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
             onClose={() => setMobileOpen && setMobileOpen(false)}
             ModalProps={{
               keepMounted: true,
-              // Optimize for touch
-              disableScrollLock: false,
             }}
             sx={{
+              zIndex: 1200,
               '& .MuiDrawer-paper': {
                 width: 260,
                 background: "linear-gradient(180deg, #0f172a 0%, #1e293b 50%, #334155 100%)",
@@ -540,7 +534,6 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
                 paddingBottom: 'env(safe-area-inset-bottom)',
                 scrollbarWidth: 'thin',
                 scrollbarColor: 'rgba(255,255,255,0.2) transparent',
-                willChange: 'transform',
                 '&::-webkit-scrollbar': {
                   width: '4px',
                 },
@@ -554,8 +547,8 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
               },
             }}
             transitionDuration={{
-              enter: 200,
-              exit: 150,
+              enter: 225,
+              exit: 195,
             }}
           >
             {drawerContent}

@@ -80,18 +80,7 @@ export default function AppLayout({ children, requiredPermission, skipRouteGuard
       {isMobile && (
         <Fab
           size="medium"
-          onClick={() => {
-            // Immediate haptic-like feedback
-            setMobileOpen(true);
-          }}
-          onTouchStart={(e) => {
-            // Prevent delay on touch devices
-            e.currentTarget.style.transform = 'scale(0.95)';
-          }}
-          onTouchEnd={(e) => {
-            e.currentTarget.style.transform = 'scale(1)';
-            setMobileOpen(true);
-          }}
+          onClick={() => setMobileOpen(true)}
           sx={{
             position: 'fixed',
             top: { xs: 8, sm: 14 },
@@ -104,9 +93,7 @@ export default function AppLayout({ children, requiredPermission, skipRouteGuard
             minHeight: 'auto',
             boxShadow: '0 4px 14px rgba(30, 64, 175, 0.4)',
             display: mobileOpen ? 'none' : 'flex',
-            transition: 'transform 0.1s ease, opacity 0.15s ease',
             WebkitTapHighlightColor: 'transparent',
-            touchAction: 'manipulation',
             '&:hover': {
               bgcolor: '#1e3a8a',
             },
