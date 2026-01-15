@@ -1579,16 +1579,6 @@ export default function BackupPage() {
                                                                 color: isDarkMode ? '#f1f5f9' : 'inherit'
                                                             }}
                                                         >
-                                                            fontFamily="monospace"
-                                                            sx={{
-                                                                flex: 1,
-                                                                fontSize: '0.7rem',
-                                                                overflow: 'hidden',
-                                                                textOverflow: 'ellipsis',
-                                                                whiteSpace: 'nowrap',
-                                                                pr: 1
-                                                            }}
-                                                        >
                                                             {table.schema === 'public' ? table.table_name : `${table.schema}.${table.table_name}`}
                                                         </Typography>
                                                         <Chip
