@@ -114,30 +114,188 @@ body {
   transition: font-size var(--app-transition-duration) ease, font-family var(--app-transition-duration) ease;
 }
 
+/* ============================================
+   APPEARANCE SETTINGS OVERRIDES
+   Force CSS variables to apply to MUI and AG Grid
+   ============================================ */
+
+/* Font family applied to all text elements */
+body,
+body *,
+.MuiTypography-root,
+.MuiButton-root,
+.MuiInputBase-root,
+.MuiInputBase-input,
+.MuiMenuItem-root,
+.MuiTableCell-root,
+.MuiChip-label,
+.MuiTab-root,
+.MuiListItemText-primary,
+.MuiListItemText-secondary,
+.MuiAlert-message,
+.MuiDialogTitle-root,
+.MuiDialogContent-root,
+.MuiFormLabel-root,
+.MuiFormHelperText-root,
+.MuiSelect-select,
+.ag-cell,
+.ag-header-cell-text,
+.ag-header-cell-label {
+  font-family: var(--app-font-family), -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+}
+
+/* Scale font sizes based on --app-font-size */
+body,
+.MuiTypography-body1,
+.MuiTypography-body2,
+.MuiInputBase-input,
+.MuiMenuItem-root,
+.MuiButton-root,
+.MuiTableCell-root,
+.MuiListItemText-primary,
+.MuiSelect-select,
+.ag-cell {
+  font-size: var(--app-font-size) !important;
+}
+
+.MuiTypography-caption,
+.MuiChip-label {
+  font-size: calc(var(--app-font-size) - 2px) !important;
+}
+
+.MuiTypography-h6 {
+  font-size: calc(var(--app-font-size) + 2px) !important;
+}
+
+.MuiTypography-h5 {
+  font-size: calc(var(--app-font-size) + 4px) !important;
+}
+
+.MuiTypography-h4 {
+  font-size: calc(var(--app-font-size) + 6px) !important;
+}
+
+/* Primary color overrides for buttons and interactive elements */
+.MuiButton-containedPrimary {
+  background-color: var(--app-primary-color) !important;
+}
+
+.MuiButton-containedPrimary:hover {
+  background-color: var(--app-primary-color-dark) !important;
+}
+
+.MuiButton-outlinedPrimary {
+  border-color: var(--app-primary-color) !important;
+  color: var(--app-primary-color) !important;
+}
+
+.MuiButton-textPrimary {
+  color: var(--app-primary-color) !important;
+}
+
+.MuiCheckbox-colorPrimary.Mui-checked {
+  color: var(--app-primary-color) !important;
+}
+
+.MuiRadio-colorPrimary.Mui-checked {
+  color: var(--app-primary-color) !important;
+}
+
+.MuiSwitch-colorPrimary.Mui-checked {
+  color: var(--app-primary-color) !important;
+}
+
+.MuiSwitch-colorPrimary.Mui-checked+.MuiSwitch-track {
+  background-color: var(--app-primary-color) !important;
+}
+
+.MuiTab-root.Mui-selected {
+  color: var(--app-primary-color) !important;
+}
+
+.MuiTabs-indicator {
+  background-color: var(--app-primary-color) !important;
+}
+
+.MuiLinearProgress-barColorPrimary {
+  background-color: var(--app-primary-color) !important;
+}
+
+.MuiCircularProgress-colorPrimary {
+  color: var(--app-primary-color) !important;
+}
+
+.MuiSlider-colorPrimary {
+  color: var(--app-primary-color) !important;
+}
+
+.MuiLink-root {
+  color: var(--app-primary-color) !important;
+}
+
+/* AG Grid row height */
+.ag-theme-quartz .ag-row,
+.ag-theme-alpine .ag-row {
+  height: var(--app-table-row-height) !important;
+}
+
+.ag-theme-quartz .ag-cell,
+.ag-theme-alpine .ag-cell {
+  line-height: var(--app-table-row-height) !important;
+}
+
 /* High Contrast Mode */
 html.high-contrast body {
-  color: #000;
+  color: #000 !important;
+  background-color: #fff !important;
+}
+
+html.high-contrast .MuiTypography-root {
+  color: #000 !important;
 }
 
 html.high-contrast .MuiButton-contained {
-  border: 2px solid #000 !important;
+  border: 3px solid #000 !important;
+  font-weight: 700 !important;
+}
+
+html.high-contrast .MuiButton-outlined {
+  border-width: 3px !important;
+  font-weight: 700 !important;
 }
 
 html.high-contrast .MuiPaper-root {
-  border: 1px solid #000 !important;
+  border: 2px solid #000 !important;
+  box-shadow: none !important;
 }
 
 html.high-contrast .MuiCard-root {
-  border: 2px solid #374151 !important;
+  border: 3px solid #000 !important;
+  box-shadow: none !important;
 }
 
 html.high-contrast .MuiTableCell-root {
-  border-color: #374151 !important;
+  border-color: #000 !important;
+  border-width: 2px !important;
+}
+
+html.high-contrast .MuiInputBase-root {
+  border: 2px solid #000 !important;
+}
+
+html.high-contrast .MuiChip-root {
+  border: 2px solid currentColor !important;
 }
 
 html.high-contrast a,
 html.high-contrast .MuiLink-root {
   text-decoration: underline !important;
+  font-weight: 600 !important;
+}
+
+html.high-contrast .ag-header-cell,
+html.high-contrast .ag-cell {
+  border-color: #000 !important;
 }
 
 /* Animation disabled mode */

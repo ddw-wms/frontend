@@ -44,9 +44,12 @@ const applySettingsToDOM = (settings: AppearanceSettings) => {
 
     // Font size
     root.style.setProperty('--app-font-size', `${settings.fontSize}px`);
+    // Also set on body directly for immediate effect
+    document.body.style.fontSize = `${settings.fontSize}px`;
 
     // Font family
     root.style.setProperty('--app-font-family', settings.fontFamily);
+    document.body.style.fontFamily = settings.fontFamily;
 
     // Primary color and variations
     root.style.setProperty('--app-primary-color', settings.primaryColor);
@@ -59,8 +62,13 @@ const applySettingsToDOM = (settings: AppearanceSettings) => {
     root.style.setProperty('--app-table-row-height', `${rowHeight}px`);
 
     // Animations
-    root.style.setProperty('--app-transition-duration', settings.showAnimations ? '0.2s' : '0s');
-    root.style.setProperty('--app-animation-enabled', settings.showAnimations ? '1' : '0');
+    if (settings.showAnimations) {
+        root.style.setProperty('--app-transition-duration', '0.2s');
+        root.removeAttribute('data-animations');
+    } else {
+        root.style.setProperty('--app-transition-duration', '0s');
+        root.setAttribute('data-animations', 'disabled');
+    }
 
     // High contrast
     if (settings.highContrastMode) {
@@ -76,6 +84,11 @@ const applySettingsToDOM = (settings: AppearanceSettings) => {
     if (settings.sidebarCompact) {
         localStorage.setItem('sidebar-collapsed', 'true');
     }
+
+    // Force AG Grid to refresh row heights by triggering a resize event
+    setTimeout(() => {
+        window.dispatchEvent(new Event('resize'));
+    }, 100);
 };
 
 // Helper: Adjust color brightness
@@ -159,13 +172,14 @@ export const AppearanceProvider = ({ children }: { children: ReactNode }) => {
             localStorage.setItem('app_appearance_settings', JSON.stringify(settings));
             setSavedSettings(settings);
 
-            // Special handling for sidebar compact
-            if (settings.sidebarCompact) {
-                localStorage.setItem('sidebar-collapsed', 'true');
-            }
+            // Handle sidebar compact setting
+            localStorage.setItem('sidebar-collapsed', settings.sidebarCompact ? 'true' : 'false');
 
             // Dispatch custom event for components that need to react
             window.dispatchEvent(new CustomEvent('appearanceSettingsChanged', { detail: settings }));
+
+            // Apply settings to DOM immediately after save
+            applySettingsToDOM(settings);
         } catch (error) {
             console.error('Failed to save appearance settings:', error);
             throw error;

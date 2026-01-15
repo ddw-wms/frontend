@@ -342,12 +342,17 @@ export default function BackupPage() {
     // Poll restore progress
     const pollRestoreProgress = async (restoreId: string, toastId: string) => {
         let attempts = 0;
+        let consecutiveErrors = 0;
         const maxAttempts = 1800; // 30 minutes max (1 second intervals)
+        const maxConsecutiveErrors = 15; // Give up after 15 consecutive errors
 
         const poll = async () => {
             try {
-                const response = await api.get(`/backups/progress/${restoreId}`);
+                const response = await api.get(`/backups/progress/${restoreId}`, { timeout: 10000 });
                 const { status, progress, message, details, result } = response.data;
+
+                // Reset error counter on success
+                consecutiveErrors = 0;
 
                 // Build detailed message
                 let displayMessage = message;
@@ -418,12 +423,24 @@ export default function BackupPage() {
                 }
             } catch (error: any) {
                 console.error('Restore progress poll error:', error);
-                // Don't give up immediately - restore might still be running
+                consecutiveErrors++;
                 attempts++;
-                if (attempts < maxAttempts && attempts < 10) {
-                    setTimeout(poll, 2000);
+
+                // Handle 404 - restore ID not found (might have expired or server restarted)
+                if (error.response?.status === 404) {
+                    toast.dismiss(toastId);
+                    toast.success('Restore may have completed - refreshing backups list');
+                    refreshBackups();
+                    loadDatabaseStats();
+                    return;
+                }
+
+                // Keep trying if under error limit
+                if (consecutiveErrors < maxConsecutiveErrors && attempts < maxAttempts) {
+                    setTimeout(poll, 2000); // Slower polling on errors
                 } else {
                     toast.dismiss(toastId);
+                    toast.error('Lost connection to server - please refresh and check restore status');
                     refreshBackups();
                 }
             }
@@ -440,8 +457,20 @@ export default function BackupPage() {
 
         if (!selectedBackup) return;
 
-        const toastId = toast.loading('Starting restore...');
+        const toastId = toast.loading('Connecting to server...');
+
         try {
+            // First, wake up the server with a health check (Render free tier sleeps)
+            try {
+                await api.get('/health', { timeout: 30000 });
+            } catch (healthError) {
+                // Retry once after a delay
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                await api.get('/health', { timeout: 30000 });
+            }
+
+            toast.loading('Starting restore...', { id: toastId });
+
             const response = await api.post(`/backups/restore/${selectedBackup.id}`, {
                 confirm: true
             });

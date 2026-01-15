@@ -162,6 +162,119 @@ export default function AppearanceSettingsPage() {
                         </Alert>
                     )}
 
+                    {/* Live Preview Card */}
+                    <Card sx={{
+                        mb: 2,
+                        borderRadius: 2,
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                        border: `2px solid ${settings.primaryColor}`,
+                        overflow: 'hidden'
+                    }}>
+                        <Box sx={{
+                            bgcolor: settings.primaryColor,
+                            color: 'white',
+                            px: 2,
+                            py: 1,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 1
+                        }}>
+                            <PaletteIcon fontSize="small" />
+                            <Typography sx={{ fontWeight: 600, fontFamily: settings.fontFamily, fontSize: `${settings.fontSize}px` }}>
+                                Live Preview
+                            </Typography>
+                        </Box>
+                        <CardContent>
+                            <Stack spacing={2}>
+                                <Box>
+                                    <Typography
+                                        sx={{
+                                            fontFamily: settings.fontFamily,
+                                            fontSize: `${settings.fontSize + 4}px`,
+                                            fontWeight: 600,
+                                            color: settings.primaryColor
+                                        }}
+                                    >
+                                        Heading Text Sample
+                                    </Typography>
+                                    <Typography
+                                        sx={{
+                                            fontFamily: settings.fontFamily,
+                                            fontSize: `${settings.fontSize}px`,
+                                            color: 'text.secondary'
+                                        }}
+                                    >
+                                        This is body text at {settings.fontSize}px using {settings.fontFamily} font family.
+                                    </Typography>
+                                </Box>
+                                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                                    <Button
+                                        variant="contained"
+                                        size="small"
+                                        sx={{
+                                            bgcolor: settings.primaryColor,
+                                            fontFamily: settings.fontFamily,
+                                            fontSize: `${settings.fontSize - 1}px`,
+                                            '&:hover': { bgcolor: adjustColorBrightness(settings.primaryColor, -15) }
+                                        }}
+                                    >
+                                        Primary Button
+                                    </Button>
+                                    <Button
+                                        variant="outlined"
+                                        size="small"
+                                        sx={{
+                                            borderColor: settings.primaryColor,
+                                            color: settings.primaryColor,
+                                            fontFamily: settings.fontFamily,
+                                            fontSize: `${settings.fontSize - 1}px`
+                                        }}
+                                    >
+                                        Outlined
+                                    </Button>
+                                    <Chip
+                                        label="Sample Chip"
+                                        size="small"
+                                        sx={{
+                                            bgcolor: `${settings.primaryColor}20`,
+                                            color: settings.primaryColor,
+                                            fontFamily: settings.fontFamily,
+                                        }}
+                                    />
+                                </Stack>
+                                <Box sx={{
+                                    display: 'flex',
+                                    gap: 1,
+                                    p: 1,
+                                    bgcolor: '#f8fafc',
+                                    borderRadius: 1,
+                                    border: '1px solid #e2e8f0'
+                                }}>
+                                    <Box sx={{
+                                        width: 80,
+                                        height: settings.tableRowDensity === 'compact' ? 36 : 44,
+                                        bgcolor: settings.primaryColor,
+                                        borderRadius: 1,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        color: 'white',
+                                        fontSize: `${settings.fontSize - 2}px`,
+                                        fontFamily: settings.fontFamily
+                                    }}>
+                                        Row {settings.tableRowDensity === 'compact' ? '36px' : '44px'}
+                                    </Box>
+                                    <Typography variant="caption" sx={{
+                                        alignSelf: 'center',
+                                        fontFamily: settings.fontFamily
+                                    }}>
+                                        Table row density: {settings.tableRowDensity}
+                                    </Typography>
+                                </Box>
+                            </Stack>
+                        </CardContent>
+                    </Card>
+
                     <Box sx={{
                         display: 'grid',
                         gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' },

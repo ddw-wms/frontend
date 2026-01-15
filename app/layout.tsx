@@ -11,6 +11,30 @@ export const metadata: Metadata = {
   description: "Warehouse Management System",
 };
 
+// Script to apply appearance settings immediately before React hydrates
+const appearanceScript = `
+(function() {
+  try {
+    var settings = localStorage.getItem('app_appearance_settings');
+    if (settings) {
+      var s = JSON.parse(settings);
+      var root = document.documentElement;
+      if (s.fontSize) root.style.setProperty('--app-font-size', s.fontSize + 'px');
+      if (s.fontFamily) root.style.setProperty('--app-font-family', s.fontFamily);
+      if (s.primaryColor) {
+        root.style.setProperty('--app-primary-color', s.primaryColor);
+      }
+      if (s.tableRowDensity) {
+        var rowHeight = s.tableRowDensity === 'compact' ? '36' : '44';
+        root.style.setProperty('--app-table-row-height', rowHeight + 'px');
+      }
+      if (s.highContrastMode) root.classList.add('high-contrast');
+      if (!s.showAnimations) root.setAttribute('data-animations', 'disabled');
+    }
+  } catch(e) {}
+})();
+`;
+
 export default function RootLayout({
   children,
 }: {
@@ -18,6 +42,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className={inter.variable} suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: appearanceScript }} />
+      </head>
       <body suppressHydrationWarning className="min-h-screen">
         <Providers>
           {children}
