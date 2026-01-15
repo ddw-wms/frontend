@@ -1815,9 +1815,9 @@ export default function DashboardPage() {
                     alignItems: 'center',
                     gap: 2.5,
                     p: { xs: 3, md: 4 },
-                    bgcolor: 'white',
+                    bgcolor: isDarkMode ? '#1e293b' : 'white',
                     borderRadius: 3,
-                    boxShadow: '0 8px 32px rgba(0,0,0,0.1)'
+                    boxShadow: isDarkMode ? '0 8px 32px rgba(0,0,0,0.4)' : '0 8px 32px rgba(0,0,0,0.1)'
                   }}>
                     <Box sx={{ position: 'relative' }}>
                       <CircularProgress
@@ -2076,8 +2076,8 @@ export default function DashboardPage() {
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
-                borderTop: "1px solid #ddd",
-                bgcolor: "white",
+                borderTop: isDarkMode ? "1px solid rgba(255,255,255,0.1)" : "1px solid #ddd",
+                bgcolor: isDarkMode ? '#1e293b' : "white",
                 flexShrink: 0,
                 overflowX: "auto",
                 whiteSpace: "nowrap",

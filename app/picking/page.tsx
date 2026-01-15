@@ -383,6 +383,7 @@ export default function PickingPage() {
   const [mobileActionsOpen, setMobileActionsOpen] = useState(false);
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const isDarkMode = theme.palette.mode === 'dark';
 
   // Smooth loading helpers (prevent blinking overlay)
   const currentLoadIdRef = useRef(0);
@@ -1622,9 +1623,9 @@ export default function PickingPage() {
                     alignItems: 'center',
                     gap: 3,
                     p: 4,
-                    bgcolor: 'white',
+                    bgcolor: isDarkMode ? '#1e293b' : 'white',
                     borderRadius: 3,
-                    boxShadow: '0 8px 24px rgba(0,0,0,0.12)'
+                    boxShadow: isDarkMode ? '0 8px 24px rgba(0,0,0,0.4)' : '0 8px 24px rgba(0,0,0,0.12)'
                   }}>
                     <Box sx={{ position: 'relative' }}>
                       <CircularProgress

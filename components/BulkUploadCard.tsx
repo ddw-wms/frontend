@@ -128,6 +128,7 @@ export default function BulkUploadCard({
 }: BulkUploadCardProps) {
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+    const isDarkMode = theme.palette.mode === 'dark';
     const isTablet = useMediaQuery(theme.breakpoints.between('sm', 'md'));
 
     const { startUpload, validateFile, getActiveJob, clearJob, hasActiveUpload, cancelUpload } = useBulkUpload();
@@ -275,8 +276,9 @@ export default function BulkUploadCard({
         <Card
             sx={{
                 borderRadius: { xs: 1, sm: 1.5, md: 2 },
-                boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
+                boxShadow: isDarkMode ? '0 2px 12px rgba(0,0,0,0.3)' : '0 2px 12px rgba(0,0,0,0.08)',
                 overflow: 'visible',
+                bgcolor: isDarkMode ? '#1e293b' : 'white',
             }}
         >
             <CardContent sx={{ p: { xs: 1.5, sm: 2, md: 3 } }}>
@@ -286,7 +288,7 @@ export default function BulkUploadCard({
                     sx={{
                         fontWeight: 700,
                         mb: { xs: 1.5, sm: 2 },
-                        color: '#1a237e',
+                        color: isDarkMode ? '#f1f5f9' : '#1a237e',
                         fontSize: { xs: '0.9rem', sm: '1rem', md: '1.1rem' },
                         display: 'flex',
                         alignItems: 'center',
@@ -333,15 +335,15 @@ export default function BulkUploadCard({
                     <Box
                         sx={{
                             p: { xs: 1, sm: 1.5 },
-                            bgcolor: '#f0f9ff',
+                            bgcolor: isDarkMode ? 'rgba(30, 64, 175, 0.2)' : '#f0f9ff',
                             borderRadius: 1,
-                            border: '1px solid #bae6fd',
+                            border: isDarkMode ? '1px solid rgba(59, 130, 246, 0.3)' : '1px solid #bae6fd',
                         }}
                     >
                         <Typography
                             variant="caption"
                             sx={{
-                                color: '#0369a1',
+                                color: isDarkMode ? '#93c5fd' : '#0369a1',
                                 fontWeight: 600,
                                 display: 'flex',
                                 alignItems: 'center',
@@ -355,7 +357,7 @@ export default function BulkUploadCard({
                         <Typography
                             variant="caption"
                             sx={{
-                                color: '#0c4a6e',
+                                color: isDarkMode ? '#7dd3fc' : '#0c4a6e',
                                 wordBreak: 'break-word',
                             }}
                         >

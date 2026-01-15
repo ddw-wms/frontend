@@ -382,17 +382,17 @@ export default function CustomersPage() {
           </Box>
         </Box>
 
-        <Box sx={{ flex: 1, overflow: 'auto', minHeight: 0, border: '1px solid #d1d5db', position: 'relative' }}>
-          <TableContainer component={Paper} sx={{ borderRadius: 0, boxShadow: 'none', border: 'none', background: '#ffffff', height: '100%' }}>
-            <Table stickyHeader size="small" sx={{ '& .MuiTableCell-root': { borderRight: '1px solid #d1d5db', padding: '6px 10px', fontSize: '0.75rem' } }}>
+        <Box sx={{ flex: 1, overflow: 'auto', minHeight: 0, border: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #d1d5db', position: 'relative' }}>
+          <TableContainer component={Paper} sx={{ borderRadius: 0, boxShadow: 'none', border: 'none', background: isDarkMode ? '#1e293b' : '#ffffff', height: '100%' }}>
+            <Table stickyHeader size="small" sx={{ '& .MuiTableCell-root': { borderRight: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #d1d5db', padding: '6px 10px', fontSize: '0.75rem' } }}>
               <TableHead>
-                <TableRow sx={{ background: '#e5e7eb' }}>
-                  <TableCell sx={{ color: '#1f2937', fontWeight: 700, background: '#e5e7eb', fontSize: '0.75rem', textTransform: 'uppercase', py: 0.8, whiteSpace: 'nowrap', minWidth: 180 }}>CUSTOMER NAME</TableCell>
-                  <TableCell sx={{ color: '#1f2937', fontWeight: 700, background: '#e5e7eb', fontSize: '0.75rem', textTransform: 'uppercase', py: 0.8, whiteSpace: 'nowrap', minWidth: 150 }}>CONTACT PERSON</TableCell>
-                  <TableCell sx={{ color: '#1f2937', fontWeight: 700, background: '#e5e7eb', fontSize: '0.75rem', textTransform: 'uppercase', py: 0.8, whiteSpace: 'nowrap', minWidth: 130 }}>PHONE</TableCell>
-                  <TableCell sx={{ color: '#1f2937', fontWeight: 700, background: '#e5e7eb', fontSize: '0.75rem', textTransform: 'uppercase', py: 0.8, whiteSpace: 'nowrap', minWidth: 180 }}>EMAIL</TableCell>
-                  <TableCell sx={{ color: '#1f2937', fontWeight: 700, background: '#e5e7eb', fontSize: '0.75rem', textTransform: 'uppercase', py: 0.8, whiteSpace: 'nowrap', minWidth: 250 }}>ADDRESS</TableCell>
-                  <TableCell sx={{ color: '#1f2937', fontWeight: 700, background: '#e5e7eb', fontSize: '0.75rem', textTransform: 'uppercase', py: 0.8, whiteSpace: 'nowrap', minWidth: 120, textAlign: 'center' }}>ACTIONS</TableCell>
+                <TableRow sx={{ background: isDarkMode ? '#334155' : '#e5e7eb' }}>
+                  <TableCell sx={{ color: isDarkMode ? '#f1f5f9' : '#1f2937', fontWeight: 700, background: isDarkMode ? '#334155' : '#e5e7eb', fontSize: '0.75rem', textTransform: 'uppercase', py: 0.8, whiteSpace: 'nowrap', minWidth: 180 }}>CUSTOMER NAME</TableCell>
+                  <TableCell sx={{ color: isDarkMode ? '#f1f5f9' : '#1f2937', fontWeight: 700, background: isDarkMode ? '#334155' : '#e5e7eb', fontSize: '0.75rem', textTransform: 'uppercase', py: 0.8, whiteSpace: 'nowrap', minWidth: 150 }}>CONTACT PERSON</TableCell>
+                  <TableCell sx={{ color: isDarkMode ? '#f1f5f9' : '#1f2937', fontWeight: 700, background: isDarkMode ? '#334155' : '#e5e7eb', fontSize: '0.75rem', textTransform: 'uppercase', py: 0.8, whiteSpace: 'nowrap', minWidth: 130 }}>PHONE</TableCell>
+                  <TableCell sx={{ color: isDarkMode ? '#f1f5f9' : '#1f2937', fontWeight: 700, background: isDarkMode ? '#334155' : '#e5e7eb', fontSize: '0.75rem', textTransform: 'uppercase', py: 0.8, whiteSpace: 'nowrap', minWidth: 180 }}>EMAIL</TableCell>
+                  <TableCell sx={{ color: isDarkMode ? '#f1f5f9' : '#1f2937', fontWeight: 700, background: isDarkMode ? '#334155' : '#e5e7eb', fontSize: '0.75rem', textTransform: 'uppercase', py: 0.8, whiteSpace: 'nowrap', minWidth: 250 }}>ADDRESS</TableCell>
+                  <TableCell sx={{ color: isDarkMode ? '#f1f5f9' : '#1f2937', fontWeight: 700, background: isDarkMode ? '#334155' : '#e5e7eb', fontSize: '0.75rem', textTransform: 'uppercase', py: 0.8, whiteSpace: 'nowrap', minWidth: 120, textAlign: 'center' }}>ACTIONS</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -410,7 +410,7 @@ export default function CustomersPage() {
                   </TableRow>
                 ) : (
                   filteredCustomers.map((customer, idx) => (
-                    <TableRow key={customer.id} sx={{ bgcolor: idx % 2 === 0 ? '#ffffff' : '#f9fafb', '&:hover': { bgcolor: '#f0f0f0' } }}>
+                    <TableRow key={customer.id} sx={{ bgcolor: isDarkMode ? (idx % 2 === 0 ? '#1e293b' : '#1a2536') : (idx % 2 === 0 ? '#ffffff' : '#f9fafb'), '&:hover': { bgcolor: isDarkMode ? 'rgba(59,130,246,0.1)' : '#f0f0f0' } }}>
                       <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {customer.name || '-'}
                       </TableCell>

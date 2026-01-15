@@ -36,6 +36,7 @@ import {
   Card,
   CardContent,
   useMediaQuery,
+  useTheme,
   Collapse,
   IconButton,
 } from '@mui/material';
@@ -210,10 +211,11 @@ interface Batch {
 
 export default function QCPage() {
 
-
+  const theme = useTheme();
   const router = useRouter();
   const { activeWarehouse } = useWarehouse();
   const isMobile = useMediaQuery('(max-width:600px)');
+  const isDarkMode = theme.palette.mode === 'dark';
   const [user, setUser] = useState<any>(null);
 
   // Get table row height from appearance settings
@@ -1516,8 +1518,8 @@ export default function QCPage() {
           sx={{
             p: 0,
             borderRadius: 2,
-            boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
-            background: 'white',
+            boxShadow: isDarkMode ? '0 4px 20px rgba(0,0,0,0.3)' : '0 4px 20px rgba(0,0,0,0.08)',
+            background: isDarkMode ? '#1e293b' : 'white',
             flex: 1,
             display: 'flex',
             flexDirection: 'column',

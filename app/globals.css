@@ -268,20 +268,23 @@ html[data-theme="dark"] .main-content,
   background: #0f172a !important;
 }
 
-/* All Paper, Card, and Box backgrounds */
+/* All Paper, Card, and Box backgrounds - use !important with high specificity */
 html[data-theme="dark"] .MuiPaper-root,
 html[data-theme="dark"] .MuiCard-root,
 html[data-theme="dark"] .MuiCardContent-root,
 html[data-theme="dark"] .MuiAccordion-root,
 html[data-theme="dark"] .MuiDialog-paper,
 html[data-theme="dark"] .MuiPopover-paper,
+html[data-theme="dark"] .MuiTableContainer-root,
 [data-theme="dark"] .MuiPaper-root,
 [data-theme="dark"] .MuiCard-root,
 [data-theme="dark"] .MuiCardContent-root,
 [data-theme="dark"] .MuiAccordion-root,
 [data-theme="dark"] .MuiDialog-paper,
-[data-theme="dark"] .MuiPopover-paper {
+[data-theme="dark"] .MuiPopover-paper,
+[data-theme="dark"] .MuiTableContainer-root {
   background-color: #1e293b !important;
+  background: #1e293b !important;
   color: #f1f5f9 !important;
   border-color: rgba(255, 255, 255, 0.1) !important;
 }

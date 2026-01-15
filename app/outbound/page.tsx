@@ -364,6 +364,7 @@ export default function OutboundPage() {
     // ====== RESPONSIVE FILTERS ======
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+    const isDarkMode = theme.palette.mode === 'dark';
     const [filtersExpanded, setFiltersExpanded] = useState(false);
     const [filteredCategories, setFilteredCategories] = useState<string[]>([]);
     const [filteredBrands, setFilteredBrands] = useState<string[]>([]);

@@ -3047,8 +3047,8 @@ export default function InboundPage() {
             sx={{
               p: 0,
               borderRadius: 2,
-              boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
-              background: 'white',
+              boxShadow: isDarkMode ? '0 4px 20px rgba(0,0,0,0.3)' : '0 4px 20px rgba(0,0,0,0.08)',
+              background: isDarkMode ? '#1e293b' : 'white',
               flex: 1,
               display: 'flex',
               flexDirection: 'column',
@@ -3099,15 +3099,15 @@ export default function InboundPage() {
                       sx={{
                         flex: 1,
                         '& .MuiOutlinedInput-root': {
-                          bgcolor: 'white',
+                          bgcolor: isDarkMode ? '#0f172a' : 'white',
                           borderRadius: 1.5,
                           height: 38,
                           fontSize: { xs: '0.8rem', sm: '0.875rem' },
                           fontWeight: 500,
-                          border: '2px solid #e2e8f0',
+                          border: isDarkMode ? '2px solid rgba(255,255,255,0.15)' : '2px solid #e2e8f0',
                           boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
                           '&:hover': {
-                            borderColor: '#cbd5e1',
+                            borderColor: isDarkMode ? 'rgba(255,255,255,0.25)' : '#cbd5e1',
                             boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
                           },
                           '&.Mui-focused': {
@@ -3118,7 +3118,8 @@ export default function InboundPage() {
                             border: 'none'
                           },
                           '& input': {
-                            py: 0.75
+                            py: 0.75,
+                            color: isDarkMode ? '#f1f5f9' : 'inherit'
                           }
                         }
                       }}
@@ -3146,9 +3147,9 @@ export default function InboundPage() {
                         minWidth: { xs: 42, sm: 115 },
                         height: 38,
                         borderWidth: 2,
-                        borderColor: filtersExpanded ? '#1e40af' : '#cbd5e1',
-                        bgcolor: filtersExpanded ? 'rgba(30, 64, 175, 0.1)' : 'white',
-                        color: filtersExpanded ? '#1e40af' : '#64748b',
+                        borderColor: filtersExpanded ? '#1e40af' : (isDarkMode ? 'rgba(255,255,255,0.2)' : '#cbd5e1'),
+                        bgcolor: filtersExpanded ? 'rgba(30, 64, 175, 0.1)' : (isDarkMode ? '#0f172a' : 'white'),
+                        color: filtersExpanded ? '#1e40af' : (isDarkMode ? '#94a3b8' : '#64748b'),
                         fontWeight: 700,
                         fontSize: { xs: '0.7rem', sm: '0.78rem' },
                         borderRadius: 1.5,
@@ -4422,10 +4423,11 @@ export default function InboundPage() {
                 {/* Entry Form Card */}
                 <Card sx={{
                   borderRadius: { xs: 2, sm: 2.5 },
-                  boxShadow: { xs: '0 2px 8px rgba(0,0,0,0.1)', sm: '0 4px 16px rgba(0,0,0,0.08)' },
+                  boxShadow: isDarkMode ? '0 2px 8px rgba(0,0,0,0.3)' : { xs: '0 2px 8px rgba(0,0,0,0.1)', sm: '0 4px 16px rgba(0,0,0,0.08)' },
                   height: { xs: 'auto', lg: 'fit-content' },
                   maxHeight: { xs: '70vh', lg: 'none' },
-                  overflow: { xs: 'auto', lg: 'visible' }
+                  overflow: { xs: 'auto', lg: 'visible' },
+                  bgcolor: isDarkMode ? '#1e293b' : 'white',
                 }}>
                   <CardContent sx={{ p: { xs: 1.2, sm: 1.5, md: 2 } }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: { xs: 1, sm: 1.5 } }}>
@@ -4433,7 +4435,7 @@ export default function InboundPage() {
                         variant="subtitle1"
                         sx={{
                           fontWeight: 700,
-                          color: '#1a237e',
+                          color: isDarkMode ? '#f1f5f9' : '#1a237e',
                           fontSize: { xs: '0.85rem', sm: '0.9rem', md: '0.95rem' }
                         }}
                       >
@@ -4896,9 +4898,10 @@ export default function InboundPage() {
                 <Card
                   sx={{
                     borderRadius: 1.5,
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+                    boxShadow: isDarkMode ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.06)',
                     flexShrink: 0, // Don't shrink this card
-                    mb: { xs: 1, sm: 1.5 } // Add bottom margin for spacing
+                    mb: { xs: 1, sm: 1.5 }, // Add bottom margin for spacing
+                    bgcolor: isDarkMode ? '#1e293b' : 'white',
                   }}
                 >
                   <CardContent sx={{ p: { xs: 1, sm: 1.5 }, '&:last-child': { pb: { xs: 1, sm: 1.5 } } }}>
@@ -6729,10 +6732,10 @@ export default function InboundPage() {
                   overflow: 'auto',
                 }}
               >
-                <Card sx={{ borderRadius: 1.5 }}>
+                <Card sx={{ borderRadius: 1.5, bgcolor: isDarkMode ? '#1e293b' : 'white' }}>
                   <CardContent>
                     <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
-                      <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                      <Typography variant="h6" sx={{ fontWeight: 700, color: isDarkMode ? '#f1f5f9' : 'inherit' }}>
                         Batch Manager
                       </Typography>
                       <Button
@@ -6755,16 +6758,16 @@ export default function InboundPage() {
                       <TableContainer>
                         <Table>
                           <TableHead>
-                            <TableRow sx={{ bgcolor: '#f3f4f6' }}>
-                              <TableCell sx={{ fontWeight: 700 }}>Batch ID</TableCell>
-                              <TableCell sx={{ fontWeight: 700 }}>Count</TableCell>
-                              <TableCell sx={{ fontWeight: 700 }}>Last Updated</TableCell>
-                              <TableCell sx={{ fontWeight: 700 }}>Action</TableCell>
+                            <TableRow sx={{ bgcolor: isDarkMode ? '#334155' : '#f3f4f6' }}>
+                              <TableCell sx={{ fontWeight: 700, color: isDarkMode ? '#f1f5f9' : 'inherit' }}>Batch ID</TableCell>
+                              <TableCell sx={{ fontWeight: 700, color: isDarkMode ? '#f1f5f9' : 'inherit' }}>Count</TableCell>
+                              <TableCell sx={{ fontWeight: 700, color: isDarkMode ? '#f1f5f9' : 'inherit' }}>Last Updated</TableCell>
+                              <TableCell sx={{ fontWeight: 700, color: isDarkMode ? '#f1f5f9' : 'inherit' }}>Action</TableCell>
                             </TableRow>
                           </TableHead>
                           <TableBody>
                             {batches.map((batch, idx) => (
-                              <TableRow key={idx} sx={{ '&:hover': { bgcolor: '#f9fafb' } }}>
+                              <TableRow key={idx} sx={{ '&:hover': { bgcolor: isDarkMode ? 'rgba(59,130,246,0.1)' : '#f9fafb' } }}>
                                 <TableCell sx={{ fontFamily: 'monospace', fontWeight: 600 }}>
                                   {batch.batch_id}
                                 </TableCell>
