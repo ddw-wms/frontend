@@ -204,6 +204,9 @@ export default function DashboardPage() {
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [user, setUser] = useState<User | null>(null);
 
+  // Dark mode state
+  const isDarkMode = theme.palette.mode === 'dark';
+
   // Get table row height from appearance settings
   const tableRowHeight = useTableRowHeight();
 
@@ -1271,14 +1274,14 @@ export default function DashboardPage() {
         {/* ================= FILTER BAR ================= */}
         <Box
           sx={{
-            background: "white",
+            background: isDarkMode ? '#1e293b' : 'white',
             px: { xs: 1.5, sm: 2, md: 2 },
             py: { xs: 1.25, sm: 1.5, md: 2 },
             display: "flex",
             flexDirection: "column",
             gap: { xs: 1, md: 1.5 },
             flexShrink: 0,
-            borderBottom: "1px solid rgba(0,0,0,0.06)",
+            borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(0,0,0,0.06)',
           }}
         >
           {/* TOP ROW: Search + Dates (desktop) + Filters toggle (mobile) */}
@@ -1304,14 +1307,14 @@ export default function DashboardPage() {
                 sx={{
                   "& .MuiOutlinedInput-root": {
                     height: { xs: 44, sm: 42 },
-                    bgcolor: "#f8fafc",
+                    bgcolor: isDarkMode ? '#0f172a' : '#f8fafc',
                     borderRadius: 2.5,
                     transition: "all 0.2s ease",
                     "&:hover": {
-                      bgcolor: "#f1f5f9",
+                      bgcolor: isDarkMode ? '#1a2536' : '#f1f5f9',
                     },
                     "&.Mui-focused": {
-                      bgcolor: "white",
+                      bgcolor: isDarkMode ? '#0f172a' : 'white',
                       "& .MuiOutlinedInput-notchedOutline": {
                         borderColor: "primary.main",
                         borderWidth: 2,
@@ -1319,7 +1322,7 @@ export default function DashboardPage() {
                     },
                   },
                   "& .MuiOutlinedInput-notchedOutline": {
-                    borderColor: "rgba(0,0,0,0.08)",
+                    borderColor: isDarkMode ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)',
                   },
                 }}
               />
@@ -1367,10 +1370,10 @@ export default function DashboardPage() {
                   "& .MuiOutlinedInput-root": {
                     height: 42,
                     fontSize: "0.875rem",
-                    bgcolor: "#f8fafc",
+                    bgcolor: isDarkMode ? '#0f172a' : '#f8fafc',
                     borderRadius: 2,
-                    "&:hover": { bgcolor: "#f1f5f9" },
-                    "&.Mui-focused": { bgcolor: "white" },
+                    "&:hover": { bgcolor: isDarkMode ? '#1a2536' : '#f1f5f9' },
+                    "&.Mui-focused": { bgcolor: isDarkMode ? '#0f172a' : 'white' },
                   }
                 }}
               />
@@ -1389,10 +1392,10 @@ export default function DashboardPage() {
                   "& .MuiOutlinedInput-root": {
                     height: 42,
                     fontSize: "0.875rem",
-                    bgcolor: "#f8fafc",
+                    bgcolor: isDarkMode ? '#0f172a' : '#f8fafc',
                     borderRadius: 2,
-                    "&:hover": { bgcolor: "#f1f5f9" },
-                    "&.Mui-focused": { bgcolor: "white" },
+                    "&:hover": { bgcolor: isDarkMode ? '#1a2536' : '#f1f5f9' },
+                    "&.Mui-focused": { bgcolor: isDarkMode ? '#0f172a' : 'white' },
                   }
                 }}
               />

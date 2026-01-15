@@ -33,6 +33,7 @@ export default function CustomersPage() {
   const { activeWarehouse } = useWarehouse();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const isDarkMode = theme.palette.mode === 'dark';
   const [user, setUser] = useState<any>(null);
 
   // Permission hook

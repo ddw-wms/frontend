@@ -220,6 +220,7 @@ export default function MasterDataPage() {
   const router = useRouter();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const isDarkMode = theme.palette.mode === 'dark';
   const progressIntervalRef = useRef<any>(null);
   const loadingTimeoutRef = useRef<any>(null);
   const [isClient, setIsClient] = useState(false);

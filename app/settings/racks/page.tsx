@@ -36,6 +36,7 @@ export default function RacksPage() {
   const { activeWarehouse } = useWarehouse();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const isDarkMode = theme.palette.mode === 'dark';
   const [user, setUser] = useState<any>(null);
   const [racks, setRacks] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);

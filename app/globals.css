@@ -245,147 +245,435 @@ body,
 }
 
 /* ============================================
-   DARK MODE STYLES
+   DARK MODE STYLES - Comprehensive
    ============================================ */
+
+/* Base body and root backgrounds */
+html[data-theme="dark"],
 html[data-theme="dark"] body,
-[data-theme="dark"] {
+[data-theme="dark"],
+[data-theme="dark"] body {
   background-color: #0f172a !important;
   color: #f1f5f9 !important;
 }
 
+/* Main content area backgrounds */
+html[data-theme="dark"] main,
+html[data-theme="dark"] [role="main"],
+html[data-theme="dark"] .main-content,
+[data-theme="dark"] main,
+[data-theme="dark"] [role="main"],
+[data-theme="dark"] .main-content {
+  background-color: #0f172a !important;
+  background: #0f172a !important;
+}
+
+/* Override any inline gradient backgrounds */
+html[data-theme="dark"] [style*="linear-gradient(135deg, #f8fafc"],
+html[data-theme="dark"] [style*="linear-gradient(135deg, #f5f7fa"],
+html[data-theme="dark"] [style*="background: linear-gradient"],
+html[data-theme="dark"] [style*="background-color: #f5f7fa"],
+html[data-theme="dark"] [style*="background-color: #f8fafc"],
+html[data-theme="dark"] [style*="bgcolor: '#f5f7fa'"],
+[data-theme="dark"] [style*="linear-gradient(135deg, #f8fafc"],
+[data-theme="dark"] [style*="linear-gradient(135deg, #f5f7fa"],
+[data-theme="dark"] [style*="background: linear-gradient"],
+[data-theme="dark"] [style*="background-color: #f5f7fa"],
+[data-theme="dark"] [style*="background-color: #f8fafc"] {
+  background: #0f172a !important;
+}
+
+/* All Paper, Card, and Box backgrounds */
 html[data-theme="dark"] .MuiPaper-root,
-[data-theme="dark"] .MuiPaper-root {
+html[data-theme="dark"] .MuiCard-root,
+html[data-theme="dark"] .MuiCardContent-root,
+html[data-theme="dark"] .MuiAccordion-root,
+html[data-theme="dark"] .MuiDialog-paper,
+html[data-theme="dark"] .MuiPopover-paper,
+[data-theme="dark"] .MuiPaper-root,
+[data-theme="dark"] .MuiCard-root,
+[data-theme="dark"] .MuiCardContent-root,
+[data-theme="dark"] .MuiAccordion-root,
+[data-theme="dark"] .MuiDialog-paper,
+[data-theme="dark"] .MuiPopover-paper {
   background-color: #1e293b !important;
   color: #f1f5f9 !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
 }
 
-html[data-theme="dark"] .MuiCard-root,
-[data-theme="dark"] .MuiCard-root {
-  background-color: #1e293b !important;
-  border: 1px solid rgba(255, 255, 255, 0.1) !important;
-}
-
+/* Typography colors */
 html[data-theme="dark"] .MuiTypography-root,
-[data-theme="dark"] .MuiTypography-root {
+html[data-theme="dark"] p,
+html[data-theme="dark"] span,
+html[data-theme="dark"] label,
+html[data-theme="dark"] h1,
+html[data-theme="dark"] h2,
+html[data-theme="dark"] h3,
+html[data-theme="dark"] h4,
+html[data-theme="dark"] h5,
+html[data-theme="dark"] h6,
+[data-theme="dark"] .MuiTypography-root,
+[data-theme="dark"] p,
+[data-theme="dark"] span,
+[data-theme="dark"] label {
   color: #f1f5f9 !important;
 }
 
 html[data-theme="dark"] .MuiTypography-colorTextSecondary,
-[data-theme="dark"] .MuiTypography-colorTextSecondary {
+html[data-theme="dark"] .text-secondary,
+[data-theme="dark"] .MuiTypography-colorTextSecondary,
+[data-theme="dark"] .text-secondary {
   color: #94a3b8 !important;
 }
 
+/* Input fields */
 html[data-theme="dark"] .MuiInputBase-root,
-[data-theme="dark"] .MuiInputBase-root {
+html[data-theme="dark"] .MuiOutlinedInput-root,
+html[data-theme="dark"] .MuiTextField-root .MuiOutlinedInput-root,
+html[data-theme="dark"] .MuiSelect-select,
+html[data-theme="dark"] input,
+html[data-theme="dark"] textarea,
+[data-theme="dark"] .MuiInputBase-root,
+[data-theme="dark"] .MuiOutlinedInput-root,
+[data-theme="dark"] .MuiTextField-root .MuiOutlinedInput-root,
+[data-theme="dark"] .MuiSelect-select,
+[data-theme="dark"] input,
+[data-theme="dark"] textarea {
   background-color: #0f172a !important;
   color: #f1f5f9 !important;
 }
 
 html[data-theme="dark"] .MuiOutlinedInput-notchedOutline,
 [data-theme="dark"] .MuiOutlinedInput-notchedOutline {
-  border-color: rgba(255, 255, 255, 0.2) !important;
-}
-
-html[data-theme="dark"] .MuiInputBase-input,
-[data-theme="dark"] .MuiInputBase-input {
-  color: #f1f5f9 !important;
+  border-color: rgba(255, 255, 255, 0.25) !important;
 }
 
 html[data-theme="dark"] .MuiInputLabel-root,
-[data-theme="dark"] .MuiInputLabel-root {
+html[data-theme="dark"] .MuiFormLabel-root,
+[data-theme="dark"] .MuiInputLabel-root,
+[data-theme="dark"] .MuiFormLabel-root {
   color: #94a3b8 !important;
 }
 
 html[data-theme="dark"] .MuiSelect-icon,
-[data-theme="dark"] .MuiSelect-icon {
+html[data-theme="dark"] .MuiAutocomplete-popupIndicator,
+[data-theme="dark"] .MuiSelect-icon,
+[data-theme="dark"] .MuiAutocomplete-popupIndicator {
   color: #94a3b8 !important;
 }
 
+/* MUI Tables - Regular tables */
+html[data-theme="dark"] .MuiTable-root,
+html[data-theme="dark"] .MuiTableContainer-root,
+html[data-theme="dark"] table,
+[data-theme="dark"] .MuiTable-root,
+[data-theme="dark"] .MuiTableContainer-root,
+[data-theme="dark"] table {
+  background-color: #1e293b !important;
+}
+
 html[data-theme="dark"] .MuiTableCell-root,
-[data-theme="dark"] .MuiTableCell-root {
+html[data-theme="dark"] td,
+html[data-theme="dark"] th,
+[data-theme="dark"] .MuiTableCell-root,
+[data-theme="dark"] td,
+[data-theme="dark"] th {
+  background-color: #1e293b !important;
   border-color: rgba(255, 255, 255, 0.1) !important;
   color: #f1f5f9 !important;
 }
 
+html[data-theme="dark"] .MuiTableHead-root,
 html[data-theme="dark"] .MuiTableHead-root .MuiTableCell-root,
-[data-theme="dark"] .MuiTableHead-root .MuiTableCell-root {
+html[data-theme="dark"] thead,
+html[data-theme="dark"] thead th,
+html[data-theme="dark"] thead td,
+[data-theme="dark"] .MuiTableHead-root,
+[data-theme="dark"] .MuiTableHead-root .MuiTableCell-root,
+[data-theme="dark"] thead,
+[data-theme="dark"] thead th,
+[data-theme="dark"] thead td {
   background-color: #334155 !important;
   color: #f1f5f9 !important;
 }
 
-html[data-theme="dark"] .MuiTableBody-root .MuiTableRow-root:hover,
-[data-theme="dark"] .MuiTableBody-root .MuiTableRow-root:hover {
-  background-color: rgba(255, 255, 255, 0.05) !important;
+html[data-theme="dark"] .MuiTableBody-root .MuiTableRow-root,
+html[data-theme="dark"] tbody tr,
+[data-theme="dark"] .MuiTableBody-root .MuiTableRow-root,
+[data-theme="dark"] tbody tr {
+  background-color: #1e293b !important;
 }
 
+html[data-theme="dark"] .MuiTableBody-root .MuiTableRow-root:nth-of-type(odd),
+html[data-theme="dark"] tbody tr:nth-of-type(odd),
+[data-theme="dark"] .MuiTableBody-root .MuiTableRow-root:nth-of-type(odd),
+[data-theme="dark"] tbody tr:nth-of-type(odd) {
+  background-color: #1e293b !important;
+}
+
+html[data-theme="dark"] .MuiTableBody-root .MuiTableRow-root:nth-of-type(even),
+html[data-theme="dark"] tbody tr:nth-of-type(even),
+[data-theme="dark"] .MuiTableBody-root .MuiTableRow-root:nth-of-type(even),
+[data-theme="dark"] tbody tr:nth-of-type(even) {
+  background-color: #1a2536 !important;
+}
+
+html[data-theme="dark"] .MuiTableBody-root .MuiTableRow-root:hover,
+html[data-theme="dark"] tbody tr:hover,
+[data-theme="dark"] .MuiTableBody-root .MuiTableRow-root:hover,
+[data-theme="dark"] tbody tr:hover {
+  background-color: rgba(59, 130, 246, 0.15) !important;
+}
+
+/* Menus and Dropdowns */
 html[data-theme="dark"] .MuiMenu-paper,
-[data-theme="dark"] .MuiMenu-paper {
+html[data-theme="dark"] .MuiMenu-list,
+html[data-theme="dark"] .MuiAutocomplete-paper,
+html[data-theme="dark"] .MuiAutocomplete-listbox,
+[data-theme="dark"] .MuiMenu-paper,
+[data-theme="dark"] .MuiMenu-list,
+[data-theme="dark"] .MuiAutocomplete-paper,
+[data-theme="dark"] .MuiAutocomplete-listbox {
   background-color: #1e293b !important;
 }
 
 html[data-theme="dark"] .MuiMenuItem-root,
-[data-theme="dark"] .MuiMenuItem-root {
+html[data-theme="dark"] .MuiAutocomplete-option,
+[data-theme="dark"] .MuiMenuItem-root,
+[data-theme="dark"] .MuiAutocomplete-option {
   color: #f1f5f9 !important;
 }
 
 html[data-theme="dark"] .MuiMenuItem-root:hover,
-[data-theme="dark"] .MuiMenuItem-root:hover {
+html[data-theme="dark"] .MuiAutocomplete-option:hover,
+html[data-theme="dark"] .MuiMenuItem-root.Mui-focused,
+[data-theme="dark"] .MuiMenuItem-root:hover,
+[data-theme="dark"] .MuiAutocomplete-option:hover,
+[data-theme="dark"] .MuiMenuItem-root.Mui-focused {
   background-color: rgba(255, 255, 255, 0.08) !important;
 }
 
+/* Dividers */
 html[data-theme="dark"] .MuiDivider-root,
-[data-theme="dark"] .MuiDivider-root {
-  border-color: rgba(255, 255, 255, 0.1) !important;
+html[data-theme="dark"] hr,
+[data-theme="dark"] .MuiDivider-root,
+[data-theme="dark"] hr {
+  border-color: rgba(255, 255, 255, 0.12) !important;
 }
 
+/* Chips */
 html[data-theme="dark"] .MuiChip-root,
 [data-theme="dark"] .MuiChip-root {
   border-color: rgba(255, 255, 255, 0.2) !important;
 }
 
+html[data-theme="dark"] .MuiChip-filled,
+[data-theme="dark"] .MuiChip-filled {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+/* Alerts */
 html[data-theme="dark"] .MuiAlert-standardInfo,
 [data-theme="dark"] .MuiAlert-standardInfo {
-  background-color: rgba(30, 64, 175, 0.2) !important;
+  background-color: rgba(30, 64, 175, 0.25) !important;
   color: #93c5fd !important;
 }
 
 html[data-theme="dark"] .MuiAlert-standardSuccess,
 [data-theme="dark"] .MuiAlert-standardSuccess {
-  background-color: rgba(5, 150, 105, 0.2) !important;
+  background-color: rgba(5, 150, 105, 0.25) !important;
   color: #6ee7b7 !important;
 }
 
 html[data-theme="dark"] .MuiAlert-standardWarning,
 [data-theme="dark"] .MuiAlert-standardWarning {
-  background-color: rgba(217, 119, 6, 0.2) !important;
+  background-color: rgba(217, 119, 6, 0.25) !important;
   color: #fcd34d !important;
 }
 
 html[data-theme="dark"] .MuiAlert-standardError,
 [data-theme="dark"] .MuiAlert-standardError {
-  background-color: rgba(220, 38, 38, 0.2) !important;
+  background-color: rgba(220, 38, 38, 0.25) !important;
   color: #fca5a5 !important;
 }
 
-/* AG Grid Dark Mode */
+/* Tabs */
+html[data-theme="dark"] .MuiTabs-root,
+html[data-theme="dark"] .MuiTab-root,
+[data-theme="dark"] .MuiTabs-root,
+[data-theme="dark"] .MuiTab-root {
+  color: #94a3b8 !important;
+}
+
+html[data-theme="dark"] .MuiTab-root.Mui-selected,
+[data-theme="dark"] .MuiTab-root.Mui-selected {
+  color: #60a5fa !important;
+}
+
+/* Buttons */
+html[data-theme="dark"] .MuiButton-outlined,
+[data-theme="dark"] .MuiButton-outlined {
+  border-color: rgba(255, 255, 255, 0.3) !important;
+  color: #f1f5f9 !important;
+}
+
+html[data-theme="dark"] .MuiButton-text,
+[data-theme="dark"] .MuiButton-text {
+  color: #f1f5f9 !important;
+}
+
+html[data-theme="dark"] .MuiIconButton-root,
+[data-theme="dark"] .MuiIconButton-root {
+  color: #f1f5f9 !important;
+}
+
+/* Toggle Buttons */
+html[data-theme="dark"] .MuiToggleButton-root,
+[data-theme="dark"] .MuiToggleButton-root {
+  color: #94a3b8 !important;
+  border-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+html[data-theme="dark"] .MuiToggleButton-root.Mui-selected,
+[data-theme="dark"] .MuiToggleButton-root.Mui-selected {
+  background-color: var(--app-primary-color) !important;
+  color: white !important;
+}
+
+/* List Items */
+html[data-theme="dark"] .MuiList-root,
+html[data-theme="dark"] .MuiListItem-root,
+html[data-theme="dark"] .MuiListItemButton-root,
+[data-theme="dark"] .MuiList-root,
+[data-theme="dark"] .MuiListItem-root,
+[data-theme="dark"] .MuiListItemButton-root {
+  background-color: transparent !important;
+  color: #f1f5f9 !important;
+}
+
+html[data-theme="dark"] .MuiListItemButton-root:hover,
+[data-theme="dark"] .MuiListItemButton-root:hover {
+  background-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+html[data-theme="dark"] .MuiListItemText-secondary,
+[data-theme="dark"] .MuiListItemText-secondary {
+  color: #94a3b8 !important;
+}
+
+/* Tooltips */
+html[data-theme="dark"] .MuiTooltip-tooltip,
+[data-theme="dark"] .MuiTooltip-tooltip {
+  background-color: #334155 !important;
+  color: #f1f5f9 !important;
+}
+
+/* Skeleton */
+html[data-theme="dark"] .MuiSkeleton-root,
+[data-theme="dark"] .MuiSkeleton-root {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+/* Switch */
+html[data-theme="dark"] .MuiSwitch-track,
+[data-theme="dark"] .MuiSwitch-track {
+  background-color: rgba(255, 255, 255, 0.3) !important;
+}
+
+/* Slider */
+html[data-theme="dark"] .MuiSlider-rail,
+[data-theme="dark"] .MuiSlider-rail {
+  background-color: rgba(255, 255, 255, 0.3) !important;
+}
+
+/* Radio and Checkbox */
+html[data-theme="dark"] .MuiRadio-root,
+html[data-theme="dark"] .MuiCheckbox-root,
+[data-theme="dark"] .MuiRadio-root,
+[data-theme="dark"] .MuiCheckbox-root {
+  color: rgba(255, 255, 255, 0.5) !important;
+}
+
+/* ============================================
+   AG GRID DARK MODE - Complete Override
+   ============================================ */
 html[data-theme="dark"] .ag-theme-quartz,
 html[data-theme="dark"] .ag-theme-alpine,
+html[data-theme="dark"] .ag-theme-material,
+html[data-theme="dark"] .ag-root-wrapper,
+html[data-theme="dark"] [class*="ag-theme-"],
 [data-theme="dark"] .ag-theme-quartz,
-[data-theme="dark"] .ag-theme-alpine {
+[data-theme="dark"] .ag-theme-alpine,
+[data-theme="dark"] .ag-theme-material,
+[data-theme="dark"] .ag-root-wrapper,
+[data-theme="dark"] [class*="ag-theme-"] {
   --ag-background-color: #1e293b !important;
   --ag-foreground-color: #f1f5f9 !important;
   --ag-header-background-color: #334155 !important;
+  --ag-header-foreground-color: #f1f5f9 !important;
   --ag-odd-row-background-color: #1e293b !important;
-  --ag-row-hover-color: rgba(255, 255, 255, 0.05) !important;
+  --ag-even-row-background-color: #1a2536 !important;
+  --ag-row-hover-color: rgba(59, 130, 246, 0.15) !important;
+  --ag-selected-row-background-color: rgba(59, 130, 246, 0.2) !important;
   --ag-border-color: rgba(255, 255, 255, 0.1) !important;
   --ag-secondary-foreground-color: #94a3b8 !important;
   --ag-input-border-color: rgba(255, 255, 255, 0.2) !important;
+  --ag-input-disabled-background-color: #0f172a !important;
+  --ag-modal-overlay-background-color: rgba(15, 23, 42, 0.8) !important;
+  --ag-cell-horizontal-border: solid rgba(255, 255, 255, 0.1) !important;
+  --ag-row-border-color: rgba(255, 255, 255, 0.1) !important;
+  --ag-control-panel-background-color: #1e293b !important;
+  --ag-subheader-background-color: #334155 !important;
+  --ag-invalid-color: #fca5a5 !important;
+  --ag-font-family: var(--app-font-family), -apple-system, BlinkMacSystemFont, sans-serif !important;
+}
+
+html[data-theme="dark"] .ag-root-wrapper,
+[data-theme="dark"] .ag-root-wrapper {
+  background-color: #1e293b !important;
+}
+
+html[data-theme="dark"] .ag-header,
+html[data-theme="dark"] .ag-header-row,
+[data-theme="dark"] .ag-header,
+[data-theme="dark"] .ag-header-row {
+  background-color: #334155 !important;
 }
 
 html[data-theme="dark"] .ag-header-cell,
-[data-theme="dark"] .ag-header-cell {
+html[data-theme="dark"] .ag-header-cell-label,
+[data-theme="dark"] .ag-header-cell,
+[data-theme="dark"] .ag-header-cell-label {
   background-color: #334155 !important;
   color: #f1f5f9 !important;
+}
+
+html[data-theme="dark"] .ag-header-cell-text,
+[data-theme="dark"] .ag-header-cell-text {
+  color: #f1f5f9 !important;
+}
+
+html[data-theme="dark"] .ag-row,
+[data-theme="dark"] .ag-row {
+  background-color: #1e293b !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+html[data-theme="dark"] .ag-row-odd,
+[data-theme="dark"] .ag-row-odd {
+  background-color: #1e293b !important;
+}
+
+html[data-theme="dark"] .ag-row-even,
+[data-theme="dark"] .ag-row-even {
+  background-color: #1a2536 !important;
+}
+
+html[data-theme="dark"] .ag-row:hover,
+html[data-theme="dark"] .ag-row-hover,
+[data-theme="dark"] .ag-row:hover,
+[data-theme="dark"] .ag-row-hover {
+  background-color: rgba(59, 130, 246, 0.15) !important;
 }
 
 html[data-theme="dark"] .ag-cell,
@@ -394,14 +682,26 @@ html[data-theme="dark"] .ag-cell,
   border-color: rgba(255, 255, 255, 0.1) !important;
 }
 
-html[data-theme="dark"] .ag-row,
-[data-theme="dark"] .ag-row {
+html[data-theme="dark"] .ag-paging-panel,
+html[data-theme="dark"] .ag-status-bar,
+[data-theme="dark"] .ag-paging-panel,
+[data-theme="dark"] .ag-status-bar {
+  background-color: #1e293b !important;
+  color: #f1f5f9 !important;
   border-color: rgba(255, 255, 255, 0.1) !important;
 }
 
-html[data-theme="dark"] .ag-row:hover,
-[data-theme="dark"] .ag-row:hover {
-  background-color: rgba(255, 255, 255, 0.05) !important;
+html[data-theme="dark"] .ag-icon,
+[data-theme="dark"] .ag-icon {
+  color: #94a3b8 !important;
+}
+
+html[data-theme="dark"] .ag-filter,
+html[data-theme="dark"] .ag-menu,
+[data-theme="dark"] .ag-filter,
+[data-theme="dark"] .ag-menu {
+  background-color: #1e293b !important;
+  color: #f1f5f9 !important;
 }
 
 /* Sidebar Dark Mode */
@@ -410,10 +710,240 @@ html[data-theme="dark"] .sidebar-container,
   background-color: #0f172a !important;
 }
 
-/* Content Background Dark Mode */
-html[data-theme="dark"] [style*="background: linear-gradient"],
-[data-theme="dark"] [style*="background: linear-gradient"] {
+/* ============================================
+   OVERRIDE INLINE STYLES FOR DARK MODE
+   These catch hardcoded white/light backgrounds
+   ============================================ */
+
+/* Override white backgrounds */
+html[data-theme="dark"] [style*="background: white"],
+html[data-theme="dark"] [style*="background:white"],
+html[data-theme="dark"] [style*="background-color: white"],
+html[data-theme="dark"] [style*="background-color:white"],
+html[data-theme="dark"] [style*="backgroundColor: 'white'"],
+html[data-theme="dark"] [style*='background: "white"'],
+[data-theme="dark"] [style*="background: white"],
+[data-theme="dark"] [style*="background:white"],
+[data-theme="dark"] [style*="background-color: white"],
+[data-theme="dark"] [style*="background-color:white"] {
+  background: #1e293b !important;
+  background-color: #1e293b !important;
+}
+
+/* Override #f5f7fa backgrounds */
+html[data-theme="dark"] [style*="#f5f7fa"],
+html[data-theme="dark"] [style*="#F5F7FA"],
+[data-theme="dark"] [style*="#f5f7fa"],
+[data-theme="dark"] [style*="#F5F7FA"] {
   background: #0f172a !important;
+  background-color: #0f172a !important;
+}
+
+/* Override #f8fafc backgrounds */
+html[data-theme="dark"] [style*="#f8fafc"],
+html[data-theme="dark"] [style*="#F8FAFC"],
+[data-theme="dark"] [style*="#f8fafc"],
+[data-theme="dark"] [style*="#F8FAFC"] {
+  background: #1e293b !important;
+  background-color: #1e293b !important;
+}
+
+/* Override #f1f5f9 backgrounds */
+html[data-theme="dark"] [style*="#f1f5f9"],
+html[data-theme="dark"] [style*="#F1F5F9"],
+[data-theme="dark"] [style*="#f1f5f9"],
+[data-theme="dark"] [style*="#F1F5F9"] {
+  background: #1a2536 !important;
+  background-color: #1a2536 !important;
+}
+
+/* Override #e2e8f0 backgrounds */
+html[data-theme="dark"] [style*="#e2e8f0"],
+html[data-theme="dark"] [style*="#E2E8F0"],
+[data-theme="dark"] [style*="#e2e8f0"],
+[data-theme="dark"] [style*="#E2E8F0"] {
+  background: rgba(255, 255, 255, 0.08) !important;
+  background-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+/* Override #ffffff backgrounds */
+html[data-theme="dark"] [style*="#ffffff"],
+html[data-theme="dark"] [style*="#FFFFFF"],
+html[data-theme="dark"] [style*="rgb(255, 255, 255)"],
+html[data-theme="dark"] [style*="rgb(255,255,255)"],
+[data-theme="dark"] [style*="#ffffff"],
+[data-theme="dark"] [style*="#FFFFFF"],
+[data-theme="dark"] [style*="rgb(255, 255, 255)"],
+[data-theme="dark"] [style*="rgb(255,255,255)"] {
+  background: #1e293b !important;
+  background-color: #1e293b !important;
+}
+
+/* Force dark backgrounds on main content containers */
+html[data-theme="dark"] main>div:first-child,
+html[data-theme="dark"] [data-page-content],
+html[data-theme="dark"] .page-content,
+[data-theme="dark"] main>div:first-child,
+[data-theme="dark"] [data-page-content],
+[data-theme="dark"] .page-content {
+  background-color: #0f172a !important;
+}
+
+/* Filter bars and toolbars */
+html[data-theme="dark"] .filter-bar,
+html[data-theme="dark"] .toolbar,
+html[data-theme="dark"] [class*="filterBar"],
+html[data-theme="dark"] [class*="toolbar"],
+[data-theme="dark"] .filter-bar,
+[data-theme="dark"] .toolbar,
+[data-theme="dark"] [class*="filterBar"],
+[data-theme="dark"] [class*="toolbar"] {
+  background-color: #1e293b !important;
+}
+
+/* Box components with explicit white bg */
+html[data-theme="dark"] .MuiBox-root[style*="background"],
+[data-theme="dark"] .MuiBox-root[style*="background"] {
+  background-color: #1e293b !important;
+}
+
+/* FormControl backgrounds */
+html[data-theme="dark"] .MuiFormControl-root,
+[data-theme="dark"] .MuiFormControl-root {
+  background-color: transparent !important;
+}
+
+/* Pagination controls */
+html[data-theme="dark"] .MuiPagination-root,
+html[data-theme="dark"] .MuiPaginationItem-root,
+html[data-theme="dark"] .pagination-container,
+[data-theme="dark"] .MuiPagination-root,
+[data-theme="dark"] .MuiPaginationItem-root,
+[data-theme="dark"] .pagination-container {
+  color: #f1f5f9 !important;
+}
+
+html[data-theme="dark"] .MuiPaginationItem-root:hover,
+[data-theme="dark"] .MuiPaginationItem-root:hover {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+/* Select components */
+html[data-theme="dark"] .MuiNativeSelect-select,
+[data-theme="dark"] .MuiNativeSelect-select {
+  background-color: #0f172a !important;
+  color: #f1f5f9 !important;
+}
+
+/* Drawer backgrounds */
+html[data-theme="dark"] .MuiDrawer-paper:not([class*="sidebar"]),
+[data-theme="dark"] .MuiDrawer-paper:not([class*="sidebar"]) {
+  background-color: #1e293b !important;
+}
+
+/* Modal/Dialog backgrounds */
+html[data-theme="dark"] .MuiBackdrop-root,
+[data-theme="dark"] .MuiBackdrop-root {
+  background-color: rgba(0, 0, 0, 0.75) !important;
+}
+
+/* Breadcrumbs */
+html[data-theme="dark"] .MuiBreadcrumbs-root,
+html[data-theme="dark"] .MuiBreadcrumbs-separator,
+[data-theme="dark"] .MuiBreadcrumbs-root,
+[data-theme="dark"] .MuiBreadcrumbs-separator {
+  color: #94a3b8 !important;
+}
+
+/* Step icons */
+html[data-theme="dark"] .MuiStepIcon-root,
+[data-theme="dark"] .MuiStepIcon-root {
+  color: rgba(255, 255, 255, 0.3) !important;
+}
+
+html[data-theme="dark"] .MuiStepIcon-root.Mui-active,
+html[data-theme="dark"] .MuiStepIcon-root.Mui-completed,
+[data-theme="dark"] .MuiStepIcon-root.Mui-active,
+[data-theme="dark"] .MuiStepIcon-root.Mui-completed {
+  color: var(--app-primary-color) !important;
+}
+
+/* Loading spinners */
+html[data-theme="dark"] .MuiCircularProgress-colorPrimary,
+[data-theme="dark"] .MuiCircularProgress-colorPrimary {
+  color: var(--app-primary-color) !important;
+}
+
+/* Badges */
+html[data-theme="dark"] .MuiBadge-badge,
+[data-theme="dark"] .MuiBadge-badge {
+  background-color: var(--app-primary-color) !important;
+}
+
+/* ============================================
+   CATCH-ALL DARK MODE OVERRIDES
+   These use attribute selectors to catch inline styles
+   ============================================ */
+
+/* Override any element with white background */
+html[data-theme="dark"] *[style*="background: white"],
+html[data-theme="dark"] *[style*="background:white"],
+html[data-theme="dark"] *[style*="background-color: white"],
+html[data-theme="dark"] *[style*="background-color:white"],
+html[data-theme="dark"] *[style*="backgroundColor: white"],
+html[data-theme="dark"] *[style*="background: rgb(255, 255, 255)"],
+html[data-theme="dark"] *[style*="background-color: rgb(255, 255, 255)"] {
+  background: #1e293b !important;
+  background-color: #1e293b !important;
+}
+
+/* Override content gradient backgrounds */
+html[data-theme="dark"] *[style*="linear-gradient(135deg, #f8fafc"],
+html[data-theme="dark"] *[style*="linear-gradient(135deg, #f5f7fa"],
+html[data-theme="dark"] *[style*="linear-gradient(135deg, #ffffff"] {
+  background: #0f172a !important;
+}
+
+/* Force dark background on all Box components in main content */
+html[data-theme="dark"] main .MuiBox-root {
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Override light gray backgrounds */
+html[data-theme="dark"] *[style*="background: #f8fafc"],
+html[data-theme="dark"] *[style*="background:#f8fafc"],
+html[data-theme="dark"] *[style*="background-color: #f8fafc"],
+html[data-theme="dark"] *[style*="background-color:#f8fafc"],
+html[data-theme="dark"] *[style*="background: #f5f7fa"],
+html[data-theme="dark"] *[style*="background:#f5f7fa"],
+html[data-theme="dark"] *[style*="background-color: #f5f7fa"],
+html[data-theme="dark"] *[style*="background-color:#f5f7fa"],
+html[data-theme="dark"] *[style*="background: #f1f5f9"],
+html[data-theme="dark"] *[style*="background:#f1f5f9"],
+html[data-theme="dark"] *[style*="background-color: #f1f5f9"],
+html[data-theme="dark"] *[style*="background-color:#f1f5f9"] {
+  background: #1e293b !important;
+  background-color: #1e293b !important;
+}
+
+/* CSS class overrides for common light backgrounds */
+html[data-theme="dark"] .bg-white,
+html[data-theme="dark"] .bg-gray-50,
+html[data-theme="dark"] .bg-gray-100,
+html[data-theme="dark"] .bg-slate-50,
+html[data-theme="dark"] .bg-slate-100 {
+  background-color: #1e293b !important;
+}
+
+/* Override any remaining white text-field backgrounds */
+html[data-theme="dark"] .MuiInputBase-root:not([class*="sidebar"]) {
+  background-color: #0f172a !important;
+}
+
+/* Force cell backgrounds in AG Grid */
+html[data-theme="dark"] .ag-cell[style*="background"],
+html[data-theme="dark"] .ag-row[style*="background"] {
+  background-color: inherit !important;
 }
 
 /* High Contrast Mode */

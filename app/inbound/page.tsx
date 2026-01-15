@@ -178,6 +178,7 @@ export default function InboundPage() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const isTablet = useMediaQuery(theme.breakpoints.between('sm', 'md'));
+  const isDarkMode = theme.palette.mode === 'dark';
 
   // Keep filters collapsed by default for a cleaner list view
   const [filtersExpanded, setFiltersExpanded] = useState(false);

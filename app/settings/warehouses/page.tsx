@@ -29,6 +29,7 @@ export default function WarehousesPage() {
   const [loading, setLoading] = useState(false);
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const isDarkMode = theme.palette.mode === 'dark';
   const [user, setUser] = useState<any>(null);
 
   // Check user's warehouse access restrictions
