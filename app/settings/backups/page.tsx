@@ -743,7 +743,7 @@ export default function BackupPage() {
                                 gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' },
                                 gap: 2
                             }}>
-                                <Card sx={{ bgcolor: 'white', boxShadow: 2 }}>
+                                <Card sx={{ bgcolor: isDarkMode ? '#1e293b' : 'white', boxShadow: 2 }}>
                                     <CardContent sx={{ textAlign: 'center' }}>
                                         <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
                                             Success Rate
@@ -757,7 +757,7 @@ export default function BackupPage() {
                                     </CardContent>
                                 </Card>
 
-                                <Card sx={{ bgcolor: 'white', boxShadow: 2 }}>
+                                <Card sx={{ bgcolor: isDarkMode ? '#1e293b' : 'white', boxShadow: 2 }}>
                                     <CardContent sx={{ textAlign: 'center' }}>
                                         <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
                                             Total Storage
@@ -771,7 +771,7 @@ export default function BackupPage() {
                                     </CardContent>
                                 </Card>
 
-                                <Card sx={{ bgcolor: 'white', boxShadow: 2 }}>
+                                <Card sx={{ bgcolor: isDarkMode ? '#1e293b' : 'white', boxShadow: 2 }}>
                                     <CardContent sx={{ textAlign: 'center' }}>
                                         <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
                                             Last Backup
@@ -785,7 +785,7 @@ export default function BackupPage() {
                                     </CardContent>
                                 </Card>
 
-                                <Card sx={{ bgcolor: 'white', boxShadow: 2 }}>
+                                <Card sx={{ bgcolor: isDarkMode ? '#1e293b' : 'white', boxShadow: 2 }}>
                                     <CardContent sx={{ textAlign: 'center' }}>
                                         <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
                                             Active Schedules
@@ -1730,9 +1730,9 @@ export default function BackupPage() {
                                         setScheduleFormOpen(true);
                                     }}
                                     sx={{
-                                        bgcolor: 'white',
+                                        bgcolor: isDarkMode ? '#1e293b' : 'white',
                                         color: 'warning.main',
-                                        '&:hover': { bgcolor: 'grey.100' }
+                                        '&:hover': { bgcolor: isDarkMode ? '#334155' : 'grey.100' }
                                     }}
                                 >
                                     + New

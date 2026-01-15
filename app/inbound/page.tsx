@@ -3226,7 +3226,7 @@ export default function InboundPage() {
                                 '& .MuiOutlinedInput-root': {
                                   height: 36,
                                   fontSize: '0.8rem',
-                                  bgcolor: 'white',
+                                  bgcolor: isDarkMode ? '#1e293b' : 'white',
                                   '&:hover fieldset': { borderColor: '#1e40af' },
                                   '&.Mui-focused fieldset': { borderColor: '#1e40af' }
                                 },
@@ -3246,7 +3246,7 @@ export default function InboundPage() {
                                 '& .MuiOutlinedInput-root': {
                                   height: 36,
                                   fontSize: '0.8rem',
-                                  bgcolor: 'white',
+                                  bgcolor: isDarkMode ? '#1e293b' : 'white',
                                   '&:hover fieldset': { borderColor: '#1e40af' },
                                   '&.Mui-focused fieldset': { borderColor: '#1e40af' }
                                 },
@@ -3275,7 +3275,7 @@ export default function InboundPage() {
                                 sx={{
                                   height: 36,
                                   fontSize: '0.8rem',
-                                  bgcolor: 'white',
+                                  bgcolor: isDarkMode ? '#1e293b' : 'white',
                                   '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#1e40af' },
                                   '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#1e40af' }
                                 }}
@@ -3306,7 +3306,7 @@ export default function InboundPage() {
                                 sx={{
                                   height: 36,
                                   fontSize: '0.8rem',
-                                  bgcolor: 'white',
+                                  bgcolor: isDarkMode ? '#1e293b' : 'white',
                                   '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#1e40af' },
                                   '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#1e40af' }
                                 }}
@@ -5414,8 +5414,10 @@ export default function InboundPage() {
                     border: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #cbd5e1',
                     borderRadius: 1,
                     overflow: 'hidden',
-                    bgcolor: isDarkMode ? '#1e293b' : 'transparent',
-                    '& .ag-root-wrapper': { borderRadius: 0, height: '100%', backgroundColor: isDarkMode ? '#1e293b' : 'transparent' },
+                    bgcolor: isDarkMode ? '#1e293b' : '#ffffff',
+                    // Prevent white flash in dark mode
+                    '& .ag-theme-quartz': { backgroundColor: isDarkMode ? '#1e293b' : '#ffffff' },
+                    '& .ag-root-wrapper': { borderRadius: 0, height: '100%', backgroundColor: isDarkMode ? '#1e293b' : '#ffffff' },
 
                     // Excel-style header
                     '& .ag-header': {
@@ -5516,7 +5518,7 @@ export default function InboundPage() {
                     },
                   }}
                 >
-                  <div style={{ height: '100%', width: '100%', backgroundColor: isDarkMode ? '#1e293b' : 'transparent' }} className="ag-theme-quartz">
+                  <div style={{ height: '100%', width: '100%', backgroundColor: isDarkMode ? '#1e293b' : '#ffffff' }} className={isDarkMode ? 'ag-theme-quartz ag-theme-quartz-dark' : 'ag-theme-quartz'}>
                     <AgGridReact
                       ref={gridRef}
                       // ⚡ PERFORMANCE: getRowId for efficient row tracking and updates

@@ -17,6 +17,7 @@ export default function StandardTabs({
 }: StandardTabsProps) {
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+    const isDarkMode = theme.palette.mode === 'dark';
 
     return (
         <Paper
@@ -26,9 +27,9 @@ export default function StandardTabs({
                 top: { xs: 38, md: 42 },
                 zIndex: 90,
                 borderRadius: 0,
-                boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-                bgcolor: 'white',
-                borderBottom: '1px solid rgba(0,0,0,0.06)',
+                boxShadow: isDarkMode ? 'none' : '0 1px 3px rgba(0,0,0,0.05)',
+                bgcolor: isDarkMode ? '#1e293b' : 'white',
+                borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(0,0,0,0.06)',
             }}
         >
             <Tabs

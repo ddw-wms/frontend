@@ -4341,11 +4341,11 @@ export default function QCPage() {
                     {/* BATCHES TABLE */}
                     <Box sx={{
                       flex: 1,
-                      border: '2px solid #e2e8f0',
+                      border: isDarkMode ? '2px solid rgba(255,255,255,0.1)' : '2px solid #e2e8f0',
                       borderRadius: 1.5,
                       overflow: 'hidden',
-                      background: 'white',
-                      boxShadow: '0 2px 8px rgba(0,0,0,0.06)'
+                      background: isDarkMode ? '#1e293b' : 'white',
+                      boxShadow: isDarkMode ? 'none' : '0 2px 8px rgba(0,0,0,0.06)'
                     }}>
                       <TableContainer sx={{ height: '100%' }}>
                         <Table stickyHeader size="small">

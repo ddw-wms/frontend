@@ -297,16 +297,24 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
               <Tooltip title={collapsed ? item.label : ''} placement="right" arrow>
                 <ListItemButton
                   onClick={() => navigate(item.path)}
+                  onTouchEnd={(e) => {
+                    e.preventDefault();
+                    navigate(item.path);
+                  }}
                   sx={{
                     mx: 0.75,
                     py: { xs: 1.25, sm: 1 },
                     borderRadius: 2,
                     bgcolor: active ? 'rgba(59,130,246,0.2)' : 'transparent',
                     color: active ? '#93c5fd' : 'rgba(255,255,255,0.75)',
-                    transition: 'all 0.2s ease',
+                    transition: 'background-color 0.15s ease, color 0.15s ease',
+                    WebkitTapHighlightColor: 'transparent',
+                    touchAction: 'manipulation',
                     '&:hover': {
                       bgcolor: active ? 'rgba(59,130,246,0.25)' : 'rgba(255,255,255,0.08)',
-                      transform: 'translateX(4px)',
+                    },
+                    '&:active': {
+                      bgcolor: 'rgba(59,130,246,0.3)',
                     },
                     // Active indicator left border
                     ...(active && {
@@ -515,7 +523,11 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
             variant="temporary"
             open={mobileOpen}
             onClose={() => setMobileOpen && setMobileOpen(false)}
-            ModalProps={{ keepMounted: true }}
+            ModalProps={{
+              keepMounted: true,
+              // Optimize for touch
+              disableScrollLock: false,
+            }}
             sx={{
               '& .MuiDrawer-paper': {
                 width: 260,
@@ -528,6 +540,7 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
                 paddingBottom: 'env(safe-area-inset-bottom)',
                 scrollbarWidth: 'thin',
                 scrollbarColor: 'rgba(255,255,255,0.2) transparent',
+                willChange: 'transform',
                 '&::-webkit-scrollbar': {
                   width: '4px',
                 },
@@ -536,10 +549,13 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
                   borderRadius: '10px',
                 },
               },
+              '& .MuiBackdrop-root': {
+                backgroundColor: 'rgba(0, 0, 0, 0.5)',
+              },
             }}
             transitionDuration={{
-              enter: 250,
-              exit: 200,
+              enter: 200,
+              exit: 150,
             }}
           >
             {drawerContent}

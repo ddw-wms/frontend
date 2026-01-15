@@ -64,7 +64,18 @@ export default function AppLayout({ children, requiredPermission, skipRouteGuard
       {isMobile && (
         <Fab
           size="medium"
-          onClick={() => setMobileOpen(true)}
+          onClick={() => {
+            // Immediate haptic-like feedback
+            setMobileOpen(true);
+          }}
+          onTouchStart={(e) => {
+            // Prevent delay on touch devices
+            e.currentTarget.style.transform = 'scale(0.95)';
+          }}
+          onTouchEnd={(e) => {
+            e.currentTarget.style.transform = 'scale(1)';
+            setMobileOpen(true);
+          }}
           sx={{
             position: 'fixed',
             top: { xs: 8, sm: 14 },
@@ -72,22 +83,24 @@ export default function AppLayout({ children, requiredPermission, skipRouteGuard
             zIndex: 1100,
             bgcolor: '#1e40af',
             color: 'white',
-            width: { xs: 36, sm: 44 },
-            height: { xs: 36, sm: 44 },
+            width: { xs: 40, sm: 44 },
+            height: { xs: 40, sm: 44 },
             minHeight: 'auto',
             boxShadow: '0 4px 14px rgba(30, 64, 175, 0.4)',
             display: mobileOpen ? 'none' : 'flex',
-            transition: 'all 0.2s ease',
+            transition: 'transform 0.1s ease, opacity 0.15s ease',
+            WebkitTapHighlightColor: 'transparent',
+            touchAction: 'manipulation',
             '&:hover': {
               bgcolor: '#1e3a8a',
-              transform: 'scale(1.05)',
             },
             '&:active': {
-              transform: 'scale(0.98)',
+              transform: 'scale(0.95)',
+              bgcolor: '#1e3a8a',
             },
           }}
         >
-          <MenuIcon sx={{ fontSize: { xs: 20, sm: 24 } }} />
+          <MenuIcon sx={{ fontSize: { xs: 22, sm: 24 } }} />
         </Fab>
       )}
 

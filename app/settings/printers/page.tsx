@@ -385,7 +385,7 @@ export default function PrinterSettingsPage() {
           zIndex: 1000,
           px: 2,
           py: 1.25,
-          pl: { xs: '54px', sm: 2 },
+          pl: { xs: '56px', sm: 2 },
           background: 'linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%)',
           color: 'white',
           borderRadius: 0,

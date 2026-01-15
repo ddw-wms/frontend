@@ -51,6 +51,7 @@ export const StandardDialog: React.FC<StandardDialogProps> = ({
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
     const isTablet = useMediaQuery(theme.breakpoints.down('md'));
+    const isDarkMode = theme.palette.mode === 'dark';
     const fullScreen = isMobile;
 
     return (
@@ -127,9 +128,9 @@ export const StandardDialog: React.FC<StandardDialogProps> = ({
                     px: { xs: 2, sm: 3 },
                     py: { xs: 2.5, sm: 3 },
                     overflowY: 'auto',
-                    bgcolor: '#fafbfc',
+                    bgcolor: isDarkMode ? '#0f172a' : '#fafbfc',
                     '&.MuiDialogContent-dividers': {
-                        borderColor: 'rgba(0,0,0,0.06)',
+                        borderColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)',
                     },
                 }}
             >
@@ -142,8 +143,8 @@ export const StandardDialog: React.FC<StandardDialogProps> = ({
                         px: { xs: 2, sm: 3 },
                         py: { xs: 2, sm: 2.5 },
                         gap: 1.5,
-                        bgcolor: 'white',
-                        borderTop: '1px solid rgba(0,0,0,0.06)',
+                        bgcolor: isDarkMode ? '#1e293b' : 'white',
+                        borderTop: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(0,0,0,0.06)',
                         flexDirection: { xs: 'column-reverse', sm: 'row' },
                         '& > *': {
                             width: { xs: '100%', sm: 'auto' },

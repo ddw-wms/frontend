@@ -269,22 +269,27 @@ html[data-theme="dark"] .main-content,
 }
 
 /* All Paper, Card, and Box backgrounds - use !important with high specificity */
-html[data-theme="dark"] .MuiPaper-root,
-html[data-theme="dark"] .MuiCard-root,
-html[data-theme="dark"] .MuiCardContent-root,
+/* Exclude cards with custom gradients by using :not selector */
+html[data-theme="dark"] .MuiPaper-root:not([class*="metric-card"]),
 html[data-theme="dark"] .MuiAccordion-root,
 html[data-theme="dark"] .MuiDialog-paper,
 html[data-theme="dark"] .MuiPopover-paper,
 html[data-theme="dark"] .MuiTableContainer-root,
-[data-theme="dark"] .MuiPaper-root,
-[data-theme="dark"] .MuiCard-root,
-[data-theme="dark"] .MuiCardContent-root,
+[data-theme="dark"] .MuiPaper-root:not([class*="metric-card"]),
 [data-theme="dark"] .MuiAccordion-root,
 [data-theme="dark"] .MuiDialog-paper,
 [data-theme="dark"] .MuiPopover-paper,
 [data-theme="dark"] .MuiTableContainer-root {
   background-color: #1e293b !important;
-  background: #1e293b !important;
+  color: #f1f5f9 !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+/* Card backgrounds - allow inline styles to take precedence */
+html[data-theme="dark"] .MuiCard-root,
+html[data-theme="dark"] .MuiCardContent-root,
+[data-theme="dark"] .MuiCard-root,
+[data-theme="dark"] .MuiCardContent-root {
   color: #f1f5f9 !important;
   border-color: rgba(255, 255, 255, 0.1) !important;
 }
@@ -333,26 +338,50 @@ html[data-theme="dark"] .text-secondary,
   color: #94a3b8 !important;
 }
 
-/* Input fields */
+/* Input fields - use multiple selectors for maximum specificity */
 html[data-theme="dark"] .MuiInputBase-root,
 html[data-theme="dark"] .MuiOutlinedInput-root,
 html[data-theme="dark"] .MuiTextField-root .MuiOutlinedInput-root,
 html[data-theme="dark"] .MuiSelect-select,
+html[data-theme="dark"] .MuiFormControl-root .MuiOutlinedInput-root,
+html[data-theme="dark"] .MuiFormControl-root .MuiSelect-select,
 html[data-theme="dark"] input,
 html[data-theme="dark"] textarea,
 [data-theme="dark"] .MuiInputBase-root,
 [data-theme="dark"] .MuiOutlinedInput-root,
 [data-theme="dark"] .MuiTextField-root .MuiOutlinedInput-root,
 [data-theme="dark"] .MuiSelect-select,
+[data-theme="dark"] .MuiFormControl-root .MuiOutlinedInput-root,
+[data-theme="dark"] .MuiFormControl-root .MuiSelect-select,
 [data-theme="dark"] input,
 [data-theme="dark"] textarea {
-  background-color: #0f172a !important;
+  background-color: #1e293b !important;
   color: #f1f5f9 !important;
 }
 
 html[data-theme="dark"] .MuiOutlinedInput-notchedOutline,
 [data-theme="dark"] .MuiOutlinedInput-notchedOutline {
-  border-color: rgba(255, 255, 255, 0.25) !important;
+  border-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+/* Date inputs */
+html[data-theme="dark"] input[type="date"],
+html[data-theme="dark"] input[type="datetime-local"],
+html[data-theme="dark"] input[type="time"],
+[data-theme="dark"] input[type="date"],
+[data-theme="dark"] input[type="datetime-local"],
+[data-theme="dark"] input[type="time"] {
+  background-color: #1e293b !important;
+  color: #f1f5f9 !important;
+  color-scheme: dark;
+}
+
+/* Date picker calendar icon */
+html[data-theme="dark"] input[type="date"]::-webkit-calendar-picker-indicator,
+html[data-theme="dark"] input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+[data-theme="dark"] input[type="date"]::-webkit-calendar-picker-indicator,
+[data-theme="dark"] input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
 }
 
 html[data-theme="dark"] .MuiInputLabel-root,
@@ -522,6 +551,12 @@ html[data-theme="dark"] .MuiButton-outlined,
 [data-theme="dark"] .MuiButton-outlined {
   border-color: rgba(255, 255, 255, 0.3) !important;
   color: #f1f5f9 !important;
+  background-color: #1e293b !important;
+}
+
+html[data-theme="dark"] .MuiButton-outlined:hover,
+[data-theme="dark"] .MuiButton-outlined:hover {
+  background-color: #334155 !important;
 }
 
 html[data-theme="dark"] .MuiButton-text,
@@ -604,6 +639,39 @@ html[data-theme="dark"] .MuiCheckbox-root,
 /* ============================================
    AG GRID DARK MODE - Complete Override
    ============================================ */
+/* Immediate dark mode class to prevent white flash */
+.ag-theme-quartz-dark,
+.ag-theme-quartz-dark .ag-root-wrapper,
+.ag-theme-quartz-dark .ag-root,
+.ag-theme-quartz-dark .ag-body-viewport,
+.ag-theme-quartz-dark .ag-center-cols-viewport,
+.ag-theme-quartz-dark .ag-center-cols-container,
+.ag-theme-quartz-dark .ag-body,
+.ag-theme-quartz-dark .ag-body-horizontal-scroll-viewport {
+  --ag-background-color: #1e293b;
+  --ag-foreground-color: #f1f5f9;
+  --ag-header-background-color: #334155;
+  --ag-header-foreground-color: #f1f5f9;
+  --ag-odd-row-background-color: #1e293b;
+  --ag-even-row-background-color: #1a2536;
+  --ag-row-hover-color: rgba(59, 130, 246, 0.15);
+  --ag-selected-row-background-color: rgba(59, 130, 246, 0.2);
+  --ag-border-color: rgba(255, 255, 255, 0.1);
+  --ag-secondary-foreground-color: #94a3b8;
+  --ag-input-border-color: rgba(255, 255, 255, 0.2);
+  --ag-input-disabled-background-color: #0f172a;
+  --ag-modal-overlay-background-color: rgba(15, 23, 42, 0.8);
+  --ag-cell-horizontal-border: solid rgba(255, 255, 255, 0.1);
+  --ag-row-border-color: rgba(255, 255, 255, 0.1);
+  --ag-control-panel-background-color: #1e293b;
+  --ag-subheader-background-color: #334155;
+  --ag-invalid-color: #fca5a5;
+  --ag-wrapper-border-radius: 0;
+  --ag-data-color: #f1f5f9;
+  --ag-alpine-active-color: #3b82f6;
+  background-color: #1e293b !important;
+}
+
 html[data-theme="dark"] .ag-theme-quartz,
 html[data-theme="dark"] .ag-theme-alpine,
 html[data-theme="dark"] .ag-theme-material,

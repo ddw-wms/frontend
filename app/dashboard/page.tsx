@@ -1203,9 +1203,11 @@ export default function DashboardPage() {
                 justifyContent: "center",
                 alignItems: "center",
                 borderRadius: { xs: 2, md: 3 },
-                background: `linear-gradient(135deg, ${m.color}08, ${m.color}15)`,
-                border: `1px solid ${m.color}25`,
-                boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+                background: isDarkMode
+                  ? `linear-gradient(135deg, ${m.color}15, ${m.color}25) !important`
+                  : `linear-gradient(135deg, ${m.color}08, ${m.color}15)`,
+                border: isDarkMode ? `1px solid ${m.color}40` : `1px solid ${m.color}25`,
+                boxShadow: isDarkMode ? "0 2px 8px rgba(0,0,0,0.3)" : "0 1px 3px rgba(0,0,0,0.04)",
                 transition: "all 0.25s ease",
                 position: "relative",
                 overflow: "hidden",
@@ -1221,8 +1223,8 @@ export default function DashboardPage() {
                 },
                 "&:hover": {
                   transform: { xs: "none", md: "translateY(-3px)" },
-                  boxShadow: { xs: "0 1px 3px rgba(0,0,0,0.04)", md: `0 8px 20px ${m.color}20` },
-                  border: { xs: `1px solid ${m.color}25`, md: `1px solid ${m.color}40` },
+                  boxShadow: { xs: isDarkMode ? "0 2px 8px rgba(0,0,0,0.3)" : "0 1px 3px rgba(0,0,0,0.04)", md: `0 8px 20px ${m.color}30` },
+                  border: { xs: isDarkMode ? `1px solid ${m.color}40` : `1px solid ${m.color}25`, md: `1px solid ${m.color}50` },
                 },
               }}
             >
@@ -1261,7 +1263,7 @@ export default function DashboardPage() {
                   fontSize: { xs: "0.65rem", sm: "0.7rem", md: "0.8rem" },
                   mt: { xs: 0.25, md: 0.5 },
                   fontWeight: 600,
-                  color: "#64748b",
+                  color: isDarkMode ? "#94a3b8" : "#64748b",
                   textTransform: "uppercase",
                   letterSpacing: "0.03em",
                 }}

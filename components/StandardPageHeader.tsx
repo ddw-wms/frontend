@@ -29,7 +29,7 @@ export default function StandardPageHeader({
             color: 'white',
             px: { xs: 1, sm: 2.5, md: 3 },
             py: { xs: 0.5, sm: 1.25, md: 1.5 },
-            pl: { xs: '48px', sm: 2.5, md: 3 },
+            pl: { xs: '56px', sm: 2.5, md: 3 },
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
@@ -41,7 +41,7 @@ export default function StandardPageHeader({
             zIndex: 1000,
             flexShrink: 0,
             mb: 0,
-            minHeight: { xs: 42, sm: 56, md: 64 },
+            minHeight: { xs: 48, sm: 56, md: 64 },
             // Subtle gradient overlay for depth
             '&::before': {
                 content: '""',

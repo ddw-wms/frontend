@@ -345,7 +345,7 @@ export default function UsersPage() {
           mb: 0,
           px: 2,
           py: 1.25,
-          pl: { xs: '54px', sm: 2 },
+          pl: { xs: '56px', sm: 2 },
           background: 'linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%)',
           borderRadius: 0,
           boxShadow: '0 2px 8px rgba(0,0,0,0.15)',

@@ -56,6 +56,7 @@ export default function OnboardingWizard({ open, onComplete }: OnboardingWizardP
     // Detect small screens so we can make the dialog compact on mobile
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+    const isDarkMode = theme.palette.mode === 'dark';
 
     useEffect(() => {
         if (open) {
@@ -363,26 +364,29 @@ export default function OnboardingWizard({ open, onComplete }: OnboardingWizardP
             open={open}
             maxWidth="md"
             fullWidth
+            fullScreen={isMobile}
             disableEscapeKeyDown
             scroll="paper"
             PaperProps={{
                 elevation: 24,
                 sx: {
-                    borderRadius: 4,
+                    borderRadius: isMobile ? 0 : 4,
                     overflow: 'hidden',
                     background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
-                    p: 0.5,
-                    maxHeight: '90vh',
-                    m: 2,
+                    p: isMobile ? 0.25 : 0.5,
+                    maxHeight: isMobile ? '100vh' : '90vh',
+                    m: isMobile ? 0 : 2,
                 },
             }}
         >
             <Box sx={{
                 background: 'white',
-                borderRadius: 3.5,
+                borderRadius: isMobile ? 0 : 3.5,
                 display: 'flex',
                 flexDirection: 'column',
-                maxHeight: 'calc(90vh - 4px)',
+                height: isMobile ? '100%' : 'auto',
+                maxHeight: isMobile ? '100vh' : 'calc(90vh - 4px)',
+                overflow: 'hidden',
             }}>
                 {/* Header */}
                 <Box sx={{
@@ -411,11 +415,15 @@ export default function OnboardingWizard({ open, onComplete }: OnboardingWizardP
                 </Box>
 
                 <DialogContent sx={{
-                    px: { xs: 2, md: 3 },
-                    py: { xs: 2, md: 2.5 },
+                    px: { xs: 1.5, md: 3 },
+                    py: { xs: 1.5, md: 2.5 },
+                    pb: { xs: 0, md: 2.5 },
                     overflow: 'auto',
+                    flex: 1,
+                    display: 'flex',
+                    flexDirection: 'column',
                     '&::-webkit-scrollbar': {
-                        width: '8px',
+                        width: '6px',
                     },
                     '&::-webkit-scrollbar-track': {
                         background: '#f1f1f1',
@@ -474,25 +482,33 @@ export default function OnboardingWizard({ open, onComplete }: OnboardingWizardP
                     <Box sx={{
                         display: 'flex',
                         justifyContent: 'center',
-                        gap: { xs: 1, md: 1.5 },
-                        mt: { xs: 2, md: 2.5 },
+                        gap: { xs: 1.5, md: 1.5 },
+                        mt: 'auto',
                         pt: { xs: 2, md: 2.5 },
-                        borderTop: '1px solid #e5e7eb',
-                        flexWrap: 'wrap'
+                        pb: { xs: 2.5, md: 0 },
+                        px: { xs: 1, md: 0 },
+                        borderTop: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e5e7eb',
+                        flexWrap: 'nowrap',
+                        position: isMobile ? 'sticky' : 'relative',
+                        bottom: 0,
+                        bgcolor: isDarkMode ? '#1e293b' : 'white',
+                        zIndex: 10,
+                        boxShadow: isMobile ? (isDarkMode ? '0 -4px 12px rgba(0,0,0,0.3)' : '0 -4px 12px rgba(0,0,0,0.08)') : 'none',
                     }}>
                         <Button
                             disabled={activeStep === 0}
                             onClick={handleBack}
-                            startIcon={<ArrowBackIcon />}
+                            startIcon={!isMobile && <ArrowBackIcon />}
                             variant="outlined"
-                            size={isMobile ? 'small' : 'medium'}
+                            size={isMobile ? 'medium' : 'medium'}
                             sx={{
-                                minWidth: { xs: 85, md: 110 },
-                                height: { xs: 36, md: 44 },
-                                borderRadius: 3,
+                                minWidth: { xs: 80, md: 110 },
+                                height: { xs: 44, md: 44 },
+                                borderRadius: 2.5,
                                 fontWeight: 600,
-                                fontSize: { xs: '0.8rem', md: '0.9rem' },
+                                fontSize: { xs: '0.875rem', md: '0.9rem' },
                                 borderWidth: 2,
+                                flex: { xs: 1, md: 'none' },
                                 '&:hover': {
                                     borderWidth: 2,
                                 }
@@ -505,16 +521,17 @@ export default function OnboardingWizard({ open, onComplete }: OnboardingWizardP
                             <Button
                                 onClick={handleSkip}
                                 variant="outlined"
-                                size={isMobile ? 'small' : 'medium'}
+                                size={isMobile ? 'medium' : 'medium'}
                                 sx={{
-                                    minWidth: { xs: 85, md: 110 },
-                                    height: { xs: 36, md: 44 },
-                                    borderRadius: 3,
+                                    minWidth: { xs: 70, md: 110 },
+                                    height: { xs: 44, md: 44 },
+                                    borderRadius: 2.5,
                                     fontWeight: 600,
-                                    fontSize: { xs: '0.8rem', md: '0.9rem' },
+                                    fontSize: { xs: '0.875rem', md: '0.9rem' },
                                     borderWidth: 2,
                                     color: '#6b7280',
                                     borderColor: '#e5e7eb',
+                                    flex: { xs: 0.8, md: 'none' },
                                     '&:hover': {
                                         borderWidth: 2,
                                         borderColor: '#9ca3af',
@@ -529,17 +546,18 @@ export default function OnboardingWizard({ open, onComplete }: OnboardingWizardP
                         <Button
                             variant="contained"
                             onClick={handleNext}
-                            endIcon={activeStep === steps.length - 1 ? <CheckCircleIcon /> : <ArrowForwardIcon />}
+                            endIcon={activeStep === steps.length - 1 ? <CheckCircleIcon /> : (!isMobile && <ArrowForwardIcon />)}
                             disabled={activeStep === 0 && !selectedWarehouse}
-                            size={isMobile ? 'small' : 'medium'}
+                            size="medium"
                             sx={{
                                 minWidth: { xs: 100, md: 130 },
-                                height: { xs: 36, md: 44 },
-                                borderRadius: 3,
+                                height: { xs: 44, md: 44 },
+                                borderRadius: 2.5,
                                 fontWeight: 700,
-                                fontSize: { xs: '0.8rem', md: '0.9rem' },
+                                fontSize: { xs: '0.875rem', md: '0.9rem' },
                                 background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
                                 boxShadow: '0 4px 14px rgba(30, 64, 175, 0.4)',
+                                flex: { xs: 1.2, md: 'none' },
                                 '&:hover': {
                                     background: 'linear-gradient(135deg, #5568d3 0%, #63408b 100%)',
                                     boxShadow: '0 6px 20px rgba(30, 64, 175, 0.5)',
@@ -548,6 +566,9 @@ export default function OnboardingWizard({ open, onComplete }: OnboardingWizardP
                                 '&:disabled': {
                                     background: '#e5e7eb',
                                     color: '#9ca3af'
+                                },
+                                '&:active': {
+                                    transform: 'scale(0.98)',
                                 },
                                 transition: 'all 0.2s ease-in-out'
                             }}

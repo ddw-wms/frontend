@@ -11,7 +11,8 @@ import {
     IconButton,
     Tooltip,
     Stack,
-    InputAdornment
+    InputAdornment,
+    useTheme
 } from '@mui/material';
 import {
     FilterList as FilterListIcon,
@@ -52,14 +53,17 @@ export default function StandardFilterBar({
     filtersActive = false,
     mobileActionButton
 }: StandardFilterBarProps) {
+    const theme = useTheme();
+    const isDarkMode = theme.palette.mode === 'dark';
+
     return (
         <Card sx={{
             mb: { xs: 0, md: 1.5 },
             borderRadius: { xs: 0, md: 3 },
-            boxShadow: { xs: 'none', md: '0 1px 3px rgba(0,0,0,0.05), 0 4px 6px rgba(0,0,0,0.03)' },
-            background: 'white',
-            border: { xs: 'none', md: '1px solid rgba(0,0,0,0.04)' },
-            borderBottom: { xs: '1px solid rgba(0,0,0,0.06)', md: 'none' },
+            boxShadow: { xs: 'none', md: isDarkMode ? 'none' : '0 1px 3px rgba(0,0,0,0.05), 0 4px 6px rgba(0,0,0,0.03)' },
+            background: isDarkMode ? '#1e293b' : 'white',
+            border: { xs: 'none', md: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(0,0,0,0.04)' },
+            borderBottom: { xs: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(0,0,0,0.06)', md: 'none' },
         }}>
             <CardContent sx={{
                 p: { xs: 1.25, sm: 1.5, md: 2 },

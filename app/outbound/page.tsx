@@ -3184,14 +3184,16 @@ export default function OutboundPage() {
                         )}
 
                         {/* AG Grid */}
-                        <Box className="ag-theme-quartz" sx={{
+                        <Box className={isDarkMode ? 'ag-theme-quartz ag-theme-quartz-dark' : 'ag-theme-quartz'} sx={{
                             flex: 1,
                             minHeight: 0,
                             borderRadius: 0,
                             overflow: 'hidden',
                             border: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #cbd5e1',
-                            bgcolor: isDarkMode ? '#1e293b' : 'transparent',
-                            '& .ag-root-wrapper': { borderRadius: 0, height: '100%', backgroundColor: isDarkMode ? '#1e293b' : 'transparent' },
+                            bgcolor: isDarkMode ? '#1e293b' : '#ffffff',
+                            // Prevent white flash in dark mode
+                            '& .ag-theme-quartz': { backgroundColor: isDarkMode ? '#1e293b' : '#ffffff' },
+                            '& .ag-root-wrapper': { borderRadius: 0, height: '100%', backgroundColor: isDarkMode ? '#1e293b' : '#ffffff' },
                             '& .ag-header': { borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #cbd5e1', backgroundColor: isDarkMode ? '#334155' : 'transparent' },
                             '& .ag-header-cell': { backgroundColor: isDarkMode ? '#334155' : '#e5e7eb', color: isDarkMode ? '#f1f5f9' : '#111827', fontWeight: 700, borderRight: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #d1d5db', fontSize: '11px', padding: '0 6px' },
                             '& .ag-cell': { borderRight: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e5e7eb', borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e5e7eb', fontSize: '11px', padding: '2px 6px', display: 'flex', alignItems: 'center', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', color: isDarkMode ? '#f1f5f9' : 'inherit' },
