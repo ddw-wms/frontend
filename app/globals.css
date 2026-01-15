@@ -268,21 +268,6 @@ html[data-theme="dark"] .main-content,
   background: #0f172a !important;
 }
 
-/* Override any inline gradient backgrounds */
-html[data-theme="dark"] [style*="linear-gradient(135deg, #f8fafc"],
-html[data-theme="dark"] [style*="linear-gradient(135deg, #f5f7fa"],
-html[data-theme="dark"] [style*="background: linear-gradient"],
-html[data-theme="dark"] [style*="background-color: #f5f7fa"],
-html[data-theme="dark"] [style*="background-color: #f8fafc"],
-html[data-theme="dark"] [style*="bgcolor: '#f5f7fa'"],
-[data-theme="dark"] [style*="linear-gradient(135deg, #f8fafc"],
-[data-theme="dark"] [style*="linear-gradient(135deg, #f5f7fa"],
-[data-theme="dark"] [style*="background: linear-gradient"],
-[data-theme="dark"] [style*="background-color: #f5f7fa"],
-[data-theme="dark"] [style*="background-color: #f8fafc"] {
-  background: #0f172a !important;
-}
-
 /* All Paper, Card, and Box backgrounds */
 html[data-theme="dark"] .MuiPaper-root,
 html[data-theme="dark"] .MuiCard-root,
@@ -710,103 +695,6 @@ html[data-theme="dark"] .sidebar-container,
   background-color: #0f172a !important;
 }
 
-/* ============================================
-   OVERRIDE INLINE STYLES FOR DARK MODE
-   These catch hardcoded white/light backgrounds
-   ============================================ */
-
-/* Override white backgrounds */
-html[data-theme="dark"] [style*="background: white"],
-html[data-theme="dark"] [style*="background:white"],
-html[data-theme="dark"] [style*="background-color: white"],
-html[data-theme="dark"] [style*="background-color:white"],
-html[data-theme="dark"] [style*="backgroundColor: 'white'"],
-html[data-theme="dark"] [style*='background: "white"'],
-[data-theme="dark"] [style*="background: white"],
-[data-theme="dark"] [style*="background:white"],
-[data-theme="dark"] [style*="background-color: white"],
-[data-theme="dark"] [style*="background-color:white"] {
-  background: #1e293b !important;
-  background-color: #1e293b !important;
-}
-
-/* Override #f5f7fa backgrounds */
-html[data-theme="dark"] [style*="#f5f7fa"],
-html[data-theme="dark"] [style*="#F5F7FA"],
-[data-theme="dark"] [style*="#f5f7fa"],
-[data-theme="dark"] [style*="#F5F7FA"] {
-  background: #0f172a !important;
-  background-color: #0f172a !important;
-}
-
-/* Override #f8fafc backgrounds */
-html[data-theme="dark"] [style*="#f8fafc"],
-html[data-theme="dark"] [style*="#F8FAFC"],
-[data-theme="dark"] [style*="#f8fafc"],
-[data-theme="dark"] [style*="#F8FAFC"] {
-  background: #1e293b !important;
-  background-color: #1e293b !important;
-}
-
-/* Override #f1f5f9 backgrounds */
-html[data-theme="dark"] [style*="#f1f5f9"],
-html[data-theme="dark"] [style*="#F1F5F9"],
-[data-theme="dark"] [style*="#f1f5f9"],
-[data-theme="dark"] [style*="#F1F5F9"] {
-  background: #1a2536 !important;
-  background-color: #1a2536 !important;
-}
-
-/* Override #e2e8f0 backgrounds */
-html[data-theme="dark"] [style*="#e2e8f0"],
-html[data-theme="dark"] [style*="#E2E8F0"],
-[data-theme="dark"] [style*="#e2e8f0"],
-[data-theme="dark"] [style*="#E2E8F0"] {
-  background: rgba(255, 255, 255, 0.08) !important;
-  background-color: rgba(255, 255, 255, 0.08) !important;
-}
-
-/* Override #ffffff backgrounds */
-html[data-theme="dark"] [style*="#ffffff"],
-html[data-theme="dark"] [style*="#FFFFFF"],
-html[data-theme="dark"] [style*="rgb(255, 255, 255)"],
-html[data-theme="dark"] [style*="rgb(255,255,255)"],
-[data-theme="dark"] [style*="#ffffff"],
-[data-theme="dark"] [style*="#FFFFFF"],
-[data-theme="dark"] [style*="rgb(255, 255, 255)"],
-[data-theme="dark"] [style*="rgb(255,255,255)"] {
-  background: #1e293b !important;
-  background-color: #1e293b !important;
-}
-
-/* Force dark backgrounds on main content containers */
-html[data-theme="dark"] main>div:first-child,
-html[data-theme="dark"] [data-page-content],
-html[data-theme="dark"] .page-content,
-[data-theme="dark"] main>div:first-child,
-[data-theme="dark"] [data-page-content],
-[data-theme="dark"] .page-content {
-  background-color: #0f172a !important;
-}
-
-/* Filter bars and toolbars */
-html[data-theme="dark"] .filter-bar,
-html[data-theme="dark"] .toolbar,
-html[data-theme="dark"] [class*="filterBar"],
-html[data-theme="dark"] [class*="toolbar"],
-[data-theme="dark"] .filter-bar,
-[data-theme="dark"] .toolbar,
-[data-theme="dark"] [class*="filterBar"],
-[data-theme="dark"] [class*="toolbar"] {
-  background-color: #1e293b !important;
-}
-
-/* Box components with explicit white bg */
-html[data-theme="dark"] .MuiBox-root[style*="background"],
-[data-theme="dark"] .MuiBox-root[style*="background"] {
-  background-color: #1e293b !important;
-}
-
 /* FormControl backgrounds */
 html[data-theme="dark"] .MuiFormControl-root,
 [data-theme="dark"] .MuiFormControl-root {
@@ -880,52 +768,6 @@ html[data-theme="dark"] .MuiBadge-badge,
   background-color: var(--app-primary-color) !important;
 }
 
-/* ============================================
-   CATCH-ALL DARK MODE OVERRIDES
-   These use attribute selectors to catch inline styles
-   ============================================ */
-
-/* Override any element with white background */
-html[data-theme="dark"] *[style*="background: white"],
-html[data-theme="dark"] *[style*="background:white"],
-html[data-theme="dark"] *[style*="background-color: white"],
-html[data-theme="dark"] *[style*="background-color:white"],
-html[data-theme="dark"] *[style*="backgroundColor: white"],
-html[data-theme="dark"] *[style*="background: rgb(255, 255, 255)"],
-html[data-theme="dark"] *[style*="background-color: rgb(255, 255, 255)"] {
-  background: #1e293b !important;
-  background-color: #1e293b !important;
-}
-
-/* Override content gradient backgrounds */
-html[data-theme="dark"] *[style*="linear-gradient(135deg, #f8fafc"],
-html[data-theme="dark"] *[style*="linear-gradient(135deg, #f5f7fa"],
-html[data-theme="dark"] *[style*="linear-gradient(135deg, #ffffff"] {
-  background: #0f172a !important;
-}
-
-/* Force dark background on all Box components in main content */
-html[data-theme="dark"] main .MuiBox-root {
-  border-color: rgba(255, 255, 255, 0.1);
-}
-
-/* Override light gray backgrounds */
-html[data-theme="dark"] *[style*="background: #f8fafc"],
-html[data-theme="dark"] *[style*="background:#f8fafc"],
-html[data-theme="dark"] *[style*="background-color: #f8fafc"],
-html[data-theme="dark"] *[style*="background-color:#f8fafc"],
-html[data-theme="dark"] *[style*="background: #f5f7fa"],
-html[data-theme="dark"] *[style*="background:#f5f7fa"],
-html[data-theme="dark"] *[style*="background-color: #f5f7fa"],
-html[data-theme="dark"] *[style*="background-color:#f5f7fa"],
-html[data-theme="dark"] *[style*="background: #f1f5f9"],
-html[data-theme="dark"] *[style*="background:#f1f5f9"],
-html[data-theme="dark"] *[style*="background-color: #f1f5f9"],
-html[data-theme="dark"] *[style*="background-color:#f1f5f9"] {
-  background: #1e293b !important;
-  background-color: #1e293b !important;
-}
-
 /* CSS class overrides for common light backgrounds */
 html[data-theme="dark"] .bg-white,
 html[data-theme="dark"] .bg-gray-50,
@@ -938,12 +780,6 @@ html[data-theme="dark"] .bg-slate-100 {
 /* Override any remaining white text-field backgrounds */
 html[data-theme="dark"] .MuiInputBase-root:not([class*="sidebar"]) {
   background-color: #0f172a !important;
-}
-
-/* Force cell backgrounds in AG Grid */
-html[data-theme="dark"] .ag-cell[style*="background"],
-html[data-theme="dark"] .ag-row[style*="background"] {
-  background-color: inherit !important;
 }
 
 /* High Contrast Mode */
