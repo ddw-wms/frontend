@@ -61,6 +61,8 @@ export default function StandardPageHeader({
                 gap: { xs: 0.5, sm: 1.5 },
                 position: 'relative',
                 zIndex: 1,
+                flex: 1,
+                minWidth: 0,
             }}>
                 <Box sx={{
                     p: { xs: 0.35, sm: 1 },
@@ -72,6 +74,7 @@ export default function StandardPageHeader({
                     justifyContent: 'center',
                     boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
                     border: '1px solid rgba(255,255,255,0.1)',
+                    flexShrink: 0,
                 }}>
                     <Typography sx={{
                         fontSize: { xs: '0.75rem', sm: '1.375rem', md: '1.5rem' },
@@ -81,19 +84,20 @@ export default function StandardPageHeader({
                         {icon}
                     </Typography>
                 </Box>
-                <Box>
+                <Box sx={{ minWidth: 0 }}>
                     <Typography
                         variant="h4"
                         sx={{
                             fontWeight: 700,
                             color: 'white',
-                            fontSize: { xs: '0.75rem', sm: '1.125rem', md: '1.375rem' },
+                            fontSize: { xs: '0.7rem', sm: '1.125rem', md: '1.375rem' },
                             lineHeight: 1.2,
                             textShadow: '0 2px 4px rgba(0,0,0,0.1)',
                             letterSpacing: '-0.01em',
+                            whiteSpace: 'nowrap',
                         }}
                     >
-                        {isVerySmall && title.length > 12 ? title.slice(0, 12) + '…' : (isMobile && title.length > 18 ? title.slice(0, 18) + '…' : title)}
+                        {title}
                     </Typography>
                     {subtitle && !isMobile && (
                         <Typography
@@ -113,79 +117,33 @@ export default function StandardPageHeader({
                 </Box>
             </Box>
 
-            {/* RIGHT: Warehouse + User Chips */}
-            <Stack
-                direction="row"
-                spacing={{ xs: 0.4, sm: 1 }}
-                alignItems="center"
-                sx={{ position: 'relative', zIndex: 1 }}
-            >
-                {warehouseName && (
-                    <Chip
-                        label={isVerySmall ? (warehouseName.length > 6 ? warehouseName.slice(0, 6) + '…' : warehouseName) : (isMobile && warehouseName.length > 10 ? warehouseName.slice(0, 10) + '…' : warehouseName)}
-                        size="small"
-                        sx={{
-                            bgcolor: 'rgba(255,255,255,0.15)',
-                            color: 'white',
-                            fontWeight: 700,
-                            height: { xs: 18, sm: 28 },
-                            fontSize: { xs: '0.5rem', sm: '0.75rem' },
-                            border: '1px solid rgba(255,255,255,0.2)',
-                            backdropFilter: 'blur(10px)',
-                            boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                            transition: 'all 0.2s ease',
-                            '& .MuiChip-label': {
-                                px: { xs: 0.5, sm: 1.25 }
-                            },
-                            '&:hover': {
-                                bgcolor: 'rgba(255,255,255,0.2)',
-                            },
-                        }}
-                    />
-                )}
-                {userName && (
-                    <Chip
-                        label={isVerySmall ? (userName.length > 5 ? userName.slice(0, 5) + '…' : userName) : (isMobile && userName.length > 8 ? userName.slice(0, 8) + '…' : userName)}
-                        size="small"
-                        avatar={
-                            <Box sx={{
-                                bgcolor: 'rgba(255,255,255,0.25)',
-                                width: { xs: 12, sm: 20 },
-                                height: { xs: 12, sm: 20 },
-                                borderRadius: '50%',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                fontSize: { xs: '0.4rem', sm: '0.6875rem' },
-                                ml: '3px !important',
-                            }}>
-                                👤
-                            </Box>
-                        }
-                        sx={{
-                            bgcolor: 'rgba(255,255,255,0.15)',
-                            color: 'white',
-                            fontWeight: 600,
-                            height: { xs: 18, sm: 28 },
-                            fontSize: { xs: '0.5rem', sm: '0.75rem' },
-                            border: '1px solid rgba(255,255,255,0.2)',
-                            backdropFilter: 'blur(10px)',
-                            boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                            transition: 'all 0.2s ease',
-                            '& .MuiChip-label': {
-                                px: { xs: 0.4, sm: 1 }
-                            },
-                            '& .MuiChip-avatar': {
-                                width: { xs: 12, sm: 20 },
-                                height: { xs: 12, sm: 20 },
-                            },
-                            '&:hover': {
-                                bgcolor: 'rgba(255,255,255,0.2)',
-                            },
-                        }}
-                    />
-                )}
-            </Stack>
+            {/* RIGHT: Warehouse Chip Only */}
+            {warehouseName && (
+                <Chip
+                    label={warehouseName}
+                    size="small"
+                    sx={{
+                        bgcolor: 'rgba(255,255,255,0.15)',
+                        color: 'white',
+                        fontWeight: 700,
+                        height: { xs: 20, sm: 28 },
+                        fontSize: { xs: '0.55rem', sm: '0.75rem' },
+                        border: '1px solid rgba(255,255,255,0.2)',
+                        backdropFilter: 'blur(10px)',
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                        transition: 'all 0.2s ease',
+                        flexShrink: 0,
+                        maxWidth: { xs: 'none', sm: 'none' },
+                        '& .MuiChip-label': {
+                            px: { xs: 0.75, sm: 1.25 },
+                            whiteSpace: 'nowrap',
+                        },
+                        '&:hover': {
+                            bgcolor: 'rgba(255,255,255,0.2)',
+                        },
+                    }}
+                />
+            )}
         </Box>
     );
 }
