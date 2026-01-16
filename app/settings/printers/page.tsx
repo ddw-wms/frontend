@@ -24,6 +24,7 @@ import InfoIcon from '@mui/icons-material/Info';
 import DownloadIcon from '@mui/icons-material/Download';
 import CloudDownloadIcon from '@mui/icons-material/CloudDownload';
 import AppLayout from '@/components/AppLayout';
+import { StandardPageHeader } from '@/components';
 
 interface PrinterSettings {
   defaultPrinter: string;
@@ -379,58 +380,11 @@ export default function PrinterSettingsPage() {
       }}>
 
         {/* STICKY HEADER */}
-        <Box sx={{
-          position: 'sticky',
-          top: 0,
-          zIndex: 1000,
-          px: 2,
-          py: 1.25,
-          pl: { xs: '56px', sm: 2 },
-          background: 'linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%)',
-          color: 'white',
-          borderRadius: 0,
-          boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: { xs: 0.75, sm: 1 }
-        }}>
-          {/* LEFT: Icon + Title */}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 0.75, sm: 1.25 } }}>
-            <Box sx={{
-              p: { xs: 0.4, sm: 0.7 },
-              bgcolor: 'rgba(255,255,255,0.2)',
-              borderRadius: 1.5,
-              backdropFilter: 'blur(10px)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}>
-              <Typography sx={{ fontSize: { xs: '1rem', sm: '1.5rem' }, lineHeight: 1 }}>🖨️</Typography>
-            </Box>
-            <Box>
-              <Typography variant="h4" sx={{
-                fontWeight: 650,
-                color: 'white',
-                fontSize: { xs: '0.85rem', sm: '1rem', md: '1.3rem' },
-                lineHeight: 1.1,
-                textShadow: '0 2px 4px rgba(0,0,0,0.1)'
-              }}>
-                Printer Settings
-              </Typography>
-              <Typography variant="caption" sx={{
-                color: 'rgba(255,255,255,0.9)',
-                fontSize: { xs: '0.5rem', sm: '0.7rem' },
-                fontWeight: 500,
-                lineHeight: 1.2,
-                display: 'block',
-                mt: 0.25
-              }}>
-                Configure thermal printer and label settings
-              </Typography>
-            </Box>
-          </Box>
-        </Box>
+        <StandardPageHeader
+          title="Printer Settings"
+          subtitle="Configure thermal printer and label settings"
+          icon="🖨️"
+        />
 
         {/* Enhanced Status Card */}
         <Box sx={{ px: 2, pt: 2 }}>

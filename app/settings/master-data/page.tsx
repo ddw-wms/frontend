@@ -23,7 +23,8 @@ import toast, { Toaster } from 'react-hot-toast';
 import { getStoredUser, logout } from '@/lib/auth';
 import { masterDataAPI } from '@/lib/api';
 import AppLayout from '@/components/AppLayout';
-import { BatchManagementTab } from '@/components';
+import { BatchManagementTab, StandardPageHeader } from '@/components';
+import { useWarehouse } from '@/app/context/WarehouseContext';
 // ⚡ OPTIMIZED: XLSX loaded dynamically on export to reduce bundle size
 // import * as XLSX from 'xlsx'; // Removed - loaded dynamically
 import { useMasterDataPermissions } from '@/hooks/usePagePermissions';
@@ -227,6 +228,9 @@ export default function MasterDataPage() {
   const progressIntervalRef = useRef<any>(null);
   const loadingTimeoutRef = useRef<any>(null);
   const [isClient, setIsClient] = useState(false);
+
+  // Warehouse context
+  const { activeWarehouse } = useWarehouse();
 
   // Permission hook
   const { filterTabs, canSeeTab, canSeeButton, isAdmin, isLoading: permLoading } = useMasterDataPermissions();
@@ -1346,56 +1350,13 @@ export default function MasterDataPage() {
         }}>
 
           {/* ==================== HEADER SECTION ==================== */}
-          <Box sx={{
-            position: 'sticky',
-            top: 0,
-            zIndex: 1000,
-            mb: 0,
-            px: 2,
-            py: 1.25,
-            pl: { xs: '56px', sm: 2 },
-            background: 'linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%)',
-            borderRadius: 0,
-            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-          }}>
-            <Box sx={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: { xs: 0.75, sm: 1 }
-            }}>
-              {/* LEFT: Icon + Title */}
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 0.75, sm: 1.25 } }}>
-
-                <Box>
-                  <Typography variant="h4" sx={{
-                    fontWeight: 650,
-                    color: 'white',
-                    fontSize: { xs: '0.85rem', sm: '1rem', md: '1.3rem' },
-                    lineHeight: 1.1,
-                    textShadow: '0 2px 4px rgba(0,0,0,0.1)'
-                  }}>
-                    📊 Master Data
-                  </Typography>
-                  <Typography variant="caption" sx={{
-                    color: 'rgba(255,255,255,0.9)',
-                    fontSize: { xs: isMobile ? '0.5rem' : '0.2rem', sm: '0.7rem' },
-                    fontWeight: 500,
-                    lineHeight: 1.2,
-                    display: 'block',
-                    mt: 0.25
-                  }}>
-                    Manage master data
-                  </Typography>
-                </Box>
-              </Box>
-
-              <Stack direction="row" spacing={1} alignItems="center" sx={{ display: { xs: 'none', sm: 'flex' } }}>
-                <Chip label={`Total Records: ${formatNumber(totalRecords)}`} color="info" size="small" variant="outlined" sx={{ height: 28, fontSize: '0.85rem', color: 'white', borderColor: 'white' }} />
-                <Chip label={`${batches.length} Batches`} color="success" size="small" variant="outlined" sx={{ height: 28, fontSize: '0.85rem', color: 'white', borderColor: 'white' }} />
-              </Stack>
-            </Box>
-          </Box>
+          <StandardPageHeader
+            title="Master Data"
+            subtitle="Manage master data"
+            icon="📊"
+            warehouseName={activeWarehouse?.name}
+            userName={user?.fullName}
+          />
         </Box>
 
         {/* Upload Progress Bar */}

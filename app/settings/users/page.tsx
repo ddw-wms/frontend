@@ -17,6 +17,7 @@ import toast, { Toaster } from 'react-hot-toast';
 import { useWarehouse } from '@/app/context/WarehouseContext';
 import { getStoredUser } from '@/lib/auth';
 import { useUsersPermissions } from '@/hooks/usePagePermissions';
+import { StandardPageHeader } from '@/components';
 
 export default function UsersPage() {
 
@@ -338,80 +339,13 @@ export default function UsersPage() {
       }}>
 
         {/* ==================== HEADER SECTION ==================== */}
-        <Box sx={{
-          position: 'sticky',
-          top: 0,
-          zIndex: 1000,
-          mb: 0,
-          px: 2,
-          py: 1.25,
-          pl: { xs: '56px', sm: 2 },
-          background: 'linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%)',
-          borderRadius: 0,
-          boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-        }}>
-          <Box sx={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: { xs: 0.75, sm: 1 }
-          }}>
-            {/* LEFT: Icon + Title */}
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 0.75, sm: 1.25 } }}>
-              <Box sx={{
-                p: { xs: 0.4, sm: 0.7 },
-                bgcolor: 'rgba(255,255,255,0.2)',
-                borderRadius: 1.5,
-                backdropFilter: 'blur(10px)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}>
-                <Typography sx={{ fontSize: { xs: '1rem', sm: '1.5rem' }, lineHeight: 1 }}>👥</Typography>
-              </Box>
-              <Box>
-                <Typography variant="h4" sx={{
-                  fontWeight: 650,
-                  color: 'white',
-                  fontSize: { xs: '0.85rem', sm: '1rem', md: '1.3rem' },
-                  lineHeight: 1.1,
-                  textShadow: '0 2px 4px rgba(0,0,0,0.1)'
-                }}>
-                  Users Management
-                </Typography>
-                <Typography variant="caption" sx={{
-                  color: 'rgba(255,255,255,0.9)',
-                  fontSize: { xs: '0.5rem', sm: '0.7rem' },
-                  fontWeight: 500,
-                  lineHeight: 1.2,
-                  display: 'block',
-                  mt: 0.25
-                }}>
-                  Manage your users
-                </Typography>
-              </Box>
-            </Box>
-
-            {/* RIGHT: Warehouse + User Chips */}
-            <Stack direction="row" spacing={{ xs: 0.5, sm: 0.75 }} alignItems="center">
-              <Chip
-                label={activeWarehouse.name}
-                size="small"
-                sx={{
-                  bgcolor: 'rgba(255,255,255,0.2)',
-                  color: 'white',
-                  fontWeight: 700,
-                  height: { xs: 20, sm: 24 },
-                  fontSize: { xs: '0.42rem', sm: '0.72rem' },
-                  border: '1.5px solid rgba(255,255,255,0.3)',
-                  backdropFilter: 'blur(10px)',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                  '& .MuiChip-label': { px: { xs: 0.75, sm: 1 } }
-                }}
-              />
-            </Stack>
-          </Box>
-        </Box>
+        <StandardPageHeader
+          title="Users Management"
+          subtitle="Manage your users"
+          icon="👥"
+          warehouseName={activeWarehouse?.name}
+          userName={user?.fullName}
+        />
         <Box sx={{ marginBottom: 1.5, mt: 1.5, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
           <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
             {canSeeButton('add') && (

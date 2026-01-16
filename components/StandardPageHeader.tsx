@@ -27,9 +27,9 @@ export default function StandardPageHeader({
         <Box sx={{
             background: 'linear-gradient(135deg, #0f172a 0%, #1e3a8a 50%, #1e40af 100%)',
             color: 'white',
-            px: { xs: 1, sm: 2.5, md: 3 },
+            px: { xs: 0.75, sm: 2.5, md: 3 },
             py: { xs: 0.5, sm: 1.25, md: 1.5 },
-            pl: { xs: '56px', sm: 2.5, md: 3 },
+            pl: { xs: '48px', sm: 2.5, md: 3 },
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
@@ -41,7 +41,7 @@ export default function StandardPageHeader({
             zIndex: 1000,
             flexShrink: 0,
             mb: 0,
-            minHeight: { xs: 48, sm: 56, md: 64 },
+            minHeight: { xs: 42, sm: 56, md: 64 },
             // Subtle gradient overlay for depth
             '&::before': {
                 content: '""',
@@ -63,7 +63,7 @@ export default function StandardPageHeader({
                 zIndex: 1,
             }}>
                 <Box sx={{
-                    p: { xs: 0.5, sm: 1 },
+                    p: { xs: 0.35, sm: 1 },
                     bgcolor: 'rgba(255,255,255,0.15)',
                     borderRadius: { xs: 1, sm: 2 },
                     backdropFilter: 'blur(10px)',
@@ -74,7 +74,7 @@ export default function StandardPageHeader({
                     border: '1px solid rgba(255,255,255,0.1)',
                 }}>
                     <Typography sx={{
-                        fontSize: { xs: '0.875rem', sm: '1.375rem', md: '1.5rem' },
+                        fontSize: { xs: '0.75rem', sm: '1.375rem', md: '1.5rem' },
                         lineHeight: 1,
                         filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.1))',
                     }}>
@@ -87,20 +87,20 @@ export default function StandardPageHeader({
                         sx={{
                             fontWeight: 700,
                             color: 'white',
-                            fontSize: { xs: '0.8125rem', sm: '1.125rem', md: '1.375rem' },
+                            fontSize: { xs: '0.75rem', sm: '1.125rem', md: '1.375rem' },
                             lineHeight: 1.2,
                             textShadow: '0 2px 4px rgba(0,0,0,0.1)',
                             letterSpacing: '-0.01em',
                         }}
                     >
-                        {isVerySmall && title.length > 15 ? title.slice(0, 15) + '…' : title}
+                        {isVerySmall && title.length > 12 ? title.slice(0, 12) + '…' : (isMobile && title.length > 18 ? title.slice(0, 18) + '…' : title)}
                     </Typography>
                     {subtitle && !isMobile && (
                         <Typography
                             variant="caption"
                             sx={{
                                 color: 'rgba(255,255,255,0.8)',
-                                fontSize: { xs: '0.625rem', sm: '0.75rem' },
+                                fontSize: { xs: '0.5rem', sm: '0.75rem' },
                                 fontWeight: 500,
                                 lineHeight: 1.3,
                                 display: 'block',
@@ -116,20 +116,20 @@ export default function StandardPageHeader({
             {/* RIGHT: Warehouse + User Chips */}
             <Stack
                 direction="row"
-                spacing={{ xs: 0.5, sm: 1 }}
+                spacing={{ xs: 0.4, sm: 1 }}
                 alignItems="center"
                 sx={{ position: 'relative', zIndex: 1 }}
             >
-                {warehouseName && !isVerySmall && (
+                {warehouseName && (
                     <Chip
-                        label={isMobile && warehouseName.length > 8 ? warehouseName.slice(0, 8) + '…' : warehouseName}
+                        label={isVerySmall ? (warehouseName.length > 6 ? warehouseName.slice(0, 6) + '…' : warehouseName) : (isMobile && warehouseName.length > 10 ? warehouseName.slice(0, 10) + '…' : warehouseName)}
                         size="small"
                         sx={{
                             bgcolor: 'rgba(255,255,255,0.15)',
                             color: 'white',
                             fontWeight: 700,
-                            height: { xs: 20, sm: 28 },
-                            fontSize: { xs: '0.5625rem', sm: '0.75rem' },
+                            height: { xs: 18, sm: 28 },
+                            fontSize: { xs: '0.5rem', sm: '0.75rem' },
                             border: '1px solid rgba(255,255,255,0.2)',
                             backdropFilter: 'blur(10px)',
                             boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
@@ -145,19 +145,19 @@ export default function StandardPageHeader({
                 )}
                 {userName && (
                     <Chip
-                        label={isMobile && userName.length > 6 ? userName.slice(0, 6) + '…' : userName}
+                        label={isVerySmall ? (userName.length > 5 ? userName.slice(0, 5) + '…' : userName) : (isMobile && userName.length > 8 ? userName.slice(0, 8) + '…' : userName)}
                         size="small"
                         avatar={
                             <Box sx={{
                                 bgcolor: 'rgba(255,255,255,0.25)',
-                                width: { xs: 14, sm: 20 },
-                                height: { xs: 14, sm: 20 },
+                                width: { xs: 12, sm: 20 },
+                                height: { xs: 12, sm: 20 },
                                 borderRadius: '50%',
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
-                                fontSize: { xs: '0.5rem', sm: '0.6875rem' },
-                                ml: '4px !important',
+                                fontSize: { xs: '0.4rem', sm: '0.6875rem' },
+                                ml: '3px !important',
                             }}>
                                 👤
                             </Box>
@@ -166,18 +166,18 @@ export default function StandardPageHeader({
                             bgcolor: 'rgba(255,255,255,0.15)',
                             color: 'white',
                             fontWeight: 600,
-                            height: { xs: 20, sm: 28 },
-                            fontSize: { xs: '0.5625rem', sm: '0.75rem' },
+                            height: { xs: 18, sm: 28 },
+                            fontSize: { xs: '0.5rem', sm: '0.75rem' },
                             border: '1px solid rgba(255,255,255,0.2)',
                             backdropFilter: 'blur(10px)',
                             boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
                             transition: 'all 0.2s ease',
                             '& .MuiChip-label': {
-                                px: { xs: 0.5, sm: 1 }
+                                px: { xs: 0.4, sm: 1 }
                             },
                             '& .MuiChip-avatar': {
-                                width: { xs: 14, sm: 20 },
-                                height: { xs: 14, sm: 20 },
+                                width: { xs: 12, sm: 20 },
+                                height: { xs: 12, sm: 20 },
                             },
                             '&:hover': {
                                 bgcolor: 'rgba(255,255,255,0.2)',

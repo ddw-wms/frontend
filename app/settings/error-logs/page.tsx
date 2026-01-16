@@ -35,6 +35,7 @@ import {
 } from '@mui/icons-material';
 
 import AppLayout from '@/components/AppLayout';
+import { StandardPageHeader } from '@/components';
 import { errorLogsAPI } from '@/lib/api';
 import { getStoredUser } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
@@ -166,253 +167,255 @@ export default function ErrorLogsPage() {
     return (
         <AppLayout>
             <Toaster position="top-right" />
-            <Box sx={{ p: { xs: 2, md: 3 } }}>
+            <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
                 {/* Header */}
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, flexWrap: 'wrap', gap: 2 }}>
-                    <Box>
-                        <Typography variant="h4" sx={{ fontWeight: 600 }}>
-                            Error Logs
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary">
-                            System error logs - Super Admin only
-                        </Typography>
-                    </Box>
-                    <Box sx={{ display: 'flex', gap: 1 }}>
-                        <Tooltip title="Refresh">
-                            <IconButton onClick={fetchLogs} disabled={loading}>
-                                <RefreshIcon />
-                            </IconButton>
-                        </Tooltip>
-                        <Button
-                            variant="outlined"
-                            color="warning"
-                            startIcon={<CleanupIcon />}
-                            onClick={() => setCleanupDialogOpen(true)}
-                            disabled={totalCount === 0}
-                        >
-                            Cleanup Old
-                        </Button>
-                        <Button
-                            variant="contained"
-                            color="error"
-                            startIcon={<DeleteIcon />}
-                            onClick={() => setClearDialogOpen(true)}
-                            disabled={totalCount === 0}
-                        >
-                            Clear All
-                        </Button>
-                    </Box>
-                </Box>
+                <StandardPageHeader
+                    title="Error Logs"
+                    subtitle="System error logs - Super Admin only"
+                    icon="⚠️"
+                />
 
-                {/* Stats Card */}
-                <Card sx={{ mb: 3 }}>
-                    <CardContent sx={{ py: 2 }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                            <Typography variant="body1">
-                                Total Error Logs:
-                            </Typography>
-                            <Chip
-                                label={totalCount}
-                                color={totalCount > 100 ? 'error' : totalCount > 50 ? 'warning' : 'success'}
+                <Box sx={{ p: { xs: 1.5, md: 3 }, flex: 1, overflow: 'auto' }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', mb: 2, flexWrap: 'wrap', gap: 1 }}>
+                        <Box sx={{ display: 'flex', gap: 1 }}>
+                            <Tooltip title="Refresh">
+                                <IconButton onClick={fetchLogs} disabled={loading} size="small">
+                                    <RefreshIcon />
+                                </IconButton>
+                            </Tooltip>
+                            <Button
+                                variant="outlined"
+                                color="warning"
+                                startIcon={<CleanupIcon />}
+                                onClick={() => setCleanupDialogOpen(true)}
+                                disabled={totalCount === 0}
                                 size="small"
-                            />
-                            {totalCount > 100 && (
-                                <Typography variant="caption" color="error">
-                                    Consider clearing old logs to save database space
-                                </Typography>
-                            )}
+                            >
+                                Cleanup Old
+                            </Button>
+                            <Button
+                                variant="contained"
+                                color="error"
+                                startIcon={<DeleteIcon />}
+                                onClick={() => setClearDialogOpen(true)}
+                                disabled={totalCount === 0}
+                                size="small"
+                            >
+                                Clear All
+                            </Button>
                         </Box>
-                    </CardContent>
-                </Card>
+                    </Box>
 
-                {/* Error Alert */}
-                {error && (
-                    <Alert severity="error" sx={{ mb: 2 }}>
-                        {error}
-                    </Alert>
-                )}
-
-                {/* Logs Table */}
-                <Paper elevation={2}>
-                    <TableContainer sx={{ maxHeight: 600 }}>
-                        {loading ? (
-                            <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
-                                <CircularProgress />
-                            </Box>
-                        ) : logs.length === 0 ? (
-                            <Box sx={{ p: 4, textAlign: 'center' }}>
-                                <Typography color="text.secondary">
-                                    No error logs found. This is good! 🎉
+                    {/* Stats Card */}
+                    <Card sx={{ mb: 3 }}>
+                        <CardContent sx={{ py: 2 }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                <Typography variant="body1">
+                                    Total Error Logs:
                                 </Typography>
+                                <Chip
+                                    label={totalCount}
+                                    color={totalCount > 100 ? 'error' : totalCount > 50 ? 'warning' : 'success'}
+                                    size="small"
+                                />
+                                {totalCount > 100 && (
+                                    <Typography variant="caption" color="error">
+                                        Consider clearing old logs to save database space
+                                    </Typography>
+                                )}
                             </Box>
-                        ) : (
-                            <Table stickyHeader size="small">
-                                <TableHead>
-                                    <TableRow>
-                                        <TableCell sx={{ fontWeight: 600, width: 50 }}></TableCell>
-                                        <TableCell sx={{ fontWeight: 600, width: 50 }}>ID</TableCell>
-                                        <TableCell sx={{ fontWeight: 600, width: 160 }}>Time</TableCell>
-                                        <TableCell sx={{ fontWeight: 600, width: 80 }}>Method</TableCell>
-                                        <TableCell sx={{ fontWeight: 600, width: 100 }}>User</TableCell>
-                                        <TableCell sx={{ fontWeight: 600, width: 180 }}>Endpoint</TableCell>
-                                        <TableCell sx={{ fontWeight: 600 }}>Error Message</TableCell>
-                                    </TableRow>
-                                </TableHead>
-                                <TableBody>
-                                    {logs.map((log) => (
-                                        <Fragment key={log.id}>
-                                            <TableRow
-                                                hover
-                                                sx={{
-                                                    cursor: log.stack_trace ? 'pointer' : 'default',
-                                                    '& > *': { borderBottom: expandedRows.has(log.id) ? 'none' : undefined }
-                                                }}
-                                                onClick={() => log.stack_trace && toggleRow(log.id)}
-                                            >
-                                                <TableCell>
-                                                    {log.stack_trace && (
-                                                        <IconButton size="small">
-                                                            {expandedRows.has(log.id) ? <CollapseIcon /> : <ExpandIcon />}
-                                                        </IconButton>
-                                                    )}
-                                                </TableCell>
-                                                <TableCell>{log.id}</TableCell>
-                                                <TableCell sx={{ fontSize: '0.75rem' }}>
-                                                    {formatDate(log.created_at)}
-                                                </TableCell>
-                                                <TableCell>
-                                                    <Chip
-                                                        label={log.method || 'N/A'}
-                                                        size="small"
-                                                        color={getMethodColor(log.method)}
-                                                        sx={{ fontWeight: 600, fontSize: '0.7rem' }}
-                                                    />
-                                                </TableCell>
-                                                <TableCell>
-                                                    <Chip
-                                                        label={log.username || 'System'}
-                                                        size="small"
-                                                        variant="outlined"
-                                                        sx={{ fontSize: '0.7rem' }}
-                                                    />
-                                                </TableCell>
-                                                <TableCell sx={{ fontSize: '0.75rem', fontFamily: 'monospace' }}>
-                                                    {log.endpoint || '-'}
-                                                </TableCell>
-                                                <TableCell
+                        </CardContent>
+                    </Card>
+
+                    {/* Error Alert */}
+                    {error && (
+                        <Alert severity="error" sx={{ mb: 2 }}>
+                            {error}
+                        </Alert>
+                    )}
+
+                    {/* Logs Table */}
+                    <Paper elevation={2}>
+                        <TableContainer sx={{ maxHeight: 600 }}>
+                            {loading ? (
+                                <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
+                                    <CircularProgress />
+                                </Box>
+                            ) : logs.length === 0 ? (
+                                <Box sx={{ p: 4, textAlign: 'center' }}>
+                                    <Typography color="text.secondary">
+                                        No error logs found. This is good! 🎉
+                                    </Typography>
+                                </Box>
+                            ) : (
+                                <Table stickyHeader size="small">
+                                    <TableHead>
+                                        <TableRow>
+                                            <TableCell sx={{ fontWeight: 600, width: 50 }}></TableCell>
+                                            <TableCell sx={{ fontWeight: 600, width: 50 }}>ID</TableCell>
+                                            <TableCell sx={{ fontWeight: 600, width: 160 }}>Time</TableCell>
+                                            <TableCell sx={{ fontWeight: 600, width: 80 }}>Method</TableCell>
+                                            <TableCell sx={{ fontWeight: 600, width: 100 }}>User</TableCell>
+                                            <TableCell sx={{ fontWeight: 600, width: 180 }}>Endpoint</TableCell>
+                                            <TableCell sx={{ fontWeight: 600 }}>Error Message</TableCell>
+                                        </TableRow>
+                                    </TableHead>
+                                    <TableBody>
+                                        {logs.map((log) => (
+                                            <Fragment key={log.id}>
+                                                <TableRow
+                                                    hover
                                                     sx={{
-                                                        color: 'error.main',
-                                                        fontSize: '0.8rem',
-                                                        fontWeight: 500,
+                                                        cursor: log.stack_trace ? 'pointer' : 'default',
+                                                        '& > *': { borderBottom: expandedRows.has(log.id) ? 'none' : undefined }
                                                     }}
+                                                    onClick={() => log.stack_trace && toggleRow(log.id)}
                                                 >
-                                                    {log.message}
-                                                </TableCell>
-                                            </TableRow>
-                                            {/* Expandable Stack Trace Row */}
-                                            {log.stack_trace && (
-                                                <TableRow>
-                                                    <TableCell colSpan={7} sx={{ py: 0 }}>
-                                                        <Collapse in={expandedRows.has(log.id)} timeout="auto" unmountOnExit>
-                                                            <Box sx={{
-                                                                p: 2,
-                                                                bgcolor: '#1e1e1e',
-                                                                borderRadius: 1,
-                                                                my: 1,
-                                                                mx: 2
-                                                            }}>
-                                                                <Typography
-                                                                    variant="caption"
-                                                                    sx={{
-                                                                        color: '#569cd6',
-                                                                        fontWeight: 600,
-                                                                        display: 'block',
-                                                                        mb: 1
-                                                                    }}
-                                                                >
-                                                                    📍 Stack Trace:
-                                                                </Typography>
-                                                                <Typography
-                                                                    component="pre"
-                                                                    sx={{
-                                                                        fontFamily: 'Consolas, Monaco, "Courier New", monospace',
-                                                                        fontSize: '0.75rem',
-                                                                        color: '#d4d4d4',
-                                                                        whiteSpace: 'pre-wrap',
-                                                                        wordBreak: 'break-all',
-                                                                        m: 0,
-                                                                        lineHeight: 1.6,
-                                                                    }}
-                                                                >
-                                                                    {log.stack_trace}
-                                                                </Typography>
-                                                            </Box>
-                                                        </Collapse>
+                                                    <TableCell>
+                                                        {log.stack_trace && (
+                                                            <IconButton size="small">
+                                                                {expandedRows.has(log.id) ? <CollapseIcon /> : <ExpandIcon />}
+                                                            </IconButton>
+                                                        )}
+                                                    </TableCell>
+                                                    <TableCell>{log.id}</TableCell>
+                                                    <TableCell sx={{ fontSize: '0.75rem' }}>
+                                                        {formatDate(log.created_at)}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <Chip
+                                                            label={log.method || 'N/A'}
+                                                            size="small"
+                                                            color={getMethodColor(log.method)}
+                                                            sx={{ fontWeight: 600, fontSize: '0.7rem' }}
+                                                        />
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <Chip
+                                                            label={log.username || 'System'}
+                                                            size="small"
+                                                            variant="outlined"
+                                                            sx={{ fontSize: '0.7rem' }}
+                                                        />
+                                                    </TableCell>
+                                                    <TableCell sx={{ fontSize: '0.75rem', fontFamily: 'monospace' }}>
+                                                        {log.endpoint || '-'}
+                                                    </TableCell>
+                                                    <TableCell
+                                                        sx={{
+                                                            color: 'error.main',
+                                                            fontSize: '0.8rem',
+                                                            fontWeight: 500,
+                                                        }}
+                                                    >
+                                                        {log.message}
                                                     </TableCell>
                                                 </TableRow>
-                                            )}
-                                        </Fragment>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        )}
-                    </TableContainer>
-                </Paper>
+                                                {/* Expandable Stack Trace Row */}
+                                                {log.stack_trace && (
+                                                    <TableRow>
+                                                        <TableCell colSpan={7} sx={{ py: 0 }}>
+                                                            <Collapse in={expandedRows.has(log.id)} timeout="auto" unmountOnExit>
+                                                                <Box sx={{
+                                                                    p: 2,
+                                                                    bgcolor: '#1e1e1e',
+                                                                    borderRadius: 1,
+                                                                    my: 1,
+                                                                    mx: 2
+                                                                }}>
+                                                                    <Typography
+                                                                        variant="caption"
+                                                                        sx={{
+                                                                            color: '#569cd6',
+                                                                            fontWeight: 600,
+                                                                            display: 'block',
+                                                                            mb: 1
+                                                                        }}
+                                                                    >
+                                                                        📍 Stack Trace:
+                                                                    </Typography>
+                                                                    <Typography
+                                                                        component="pre"
+                                                                        sx={{
+                                                                            fontFamily: 'Consolas, Monaco, "Courier New", monospace',
+                                                                            fontSize: '0.75rem',
+                                                                            color: '#d4d4d4',
+                                                                            whiteSpace: 'pre-wrap',
+                                                                            wordBreak: 'break-all',
+                                                                            m: 0,
+                                                                            lineHeight: 1.6,
+                                                                        }}
+                                                                    >
+                                                                        {log.stack_trace}
+                                                                    </Typography>
+                                                                </Box>
+                                                            </Collapse>
+                                                        </TableCell>
+                                                    </TableRow>
+                                                )}
+                                            </Fragment>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            )}
+                        </TableContainer>
+                    </Paper>
 
-                {/* Clear All Dialog */}
-                <Dialog open={clearDialogOpen} onClose={() => setClearDialogOpen(false)}>
-                    <DialogTitle>Clear All Error Logs?</DialogTitle>
-                    <DialogContent>
-                        <Typography>
-                            This will permanently delete all {totalCount} error logs. This action cannot be undone.
-                        </Typography>
-                    </DialogContent>
-                    <DialogActions>
-                        <Button onClick={() => setClearDialogOpen(false)} disabled={actionLoading}>
-                            Cancel
-                        </Button>
-                        <Button
-                            onClick={handleClearAll}
-                            color="error"
-                            variant="contained"
-                            disabled={actionLoading}
-                        >
-                            {actionLoading ? <CircularProgress size={20} /> : 'Clear All'}
-                        </Button>
-                    </DialogActions>
-                </Dialog>
+                    {/* Clear All Dialog */}
+                    <Dialog open={clearDialogOpen} onClose={() => setClearDialogOpen(false)}>
+                        <DialogTitle>Clear All Error Logs?</DialogTitle>
+                        <DialogContent>
+                            <Typography>
+                                This will permanently delete all {totalCount} error logs. This action cannot be undone.
+                            </Typography>
+                        </DialogContent>
+                        <DialogActions>
+                            <Button onClick={() => setClearDialogOpen(false)} disabled={actionLoading}>
+                                Cancel
+                            </Button>
+                            <Button
+                                onClick={handleClearAll}
+                                color="error"
+                                variant="contained"
+                                disabled={actionLoading}
+                            >
+                                {actionLoading ? <CircularProgress size={20} /> : 'Clear All'}
+                            </Button>
+                        </DialogActions>
+                    </Dialog>
 
-                {/* Cleanup Dialog */}
-                <Dialog open={cleanupDialogOpen} onClose={() => setCleanupDialogOpen(false)}>
-                    <DialogTitle>Cleanup Old Logs</DialogTitle>
-                    <DialogContent>
-                        <Typography sx={{ mb: 2 }}>
-                            Delete error logs older than specified days:
-                        </Typography>
-                        <TextField
-                            type="number"
-                            label="Days"
-                            value={cleanupDays}
-                            onChange={(e) => setCleanupDays(e.target.value)}
-                            inputProps={{ min: 1 }}
-                            fullWidth
-                            size="small"
-                        />
-                    </DialogContent>
-                    <DialogActions>
-                        <Button onClick={() => setCleanupDialogOpen(false)} disabled={actionLoading}>
-                            Cancel
-                        </Button>
-                        <Button
-                            onClick={handleCleanup}
-                            color="warning"
-                            variant="contained"
-                            disabled={actionLoading}
-                        >
-                            {actionLoading ? <CircularProgress size={20} /> : 'Cleanup'}
-                        </Button>
-                    </DialogActions>
-                </Dialog>
+                    {/* Cleanup Dialog */}
+                    <Dialog open={cleanupDialogOpen} onClose={() => setCleanupDialogOpen(false)}>
+                        <DialogTitle>Cleanup Old Logs</DialogTitle>
+                        <DialogContent>
+                            <Typography sx={{ mb: 2 }}>
+                                Delete error logs older than specified days:
+                            </Typography>
+                            <TextField
+                                type="number"
+                                label="Days"
+                                value={cleanupDays}
+                                onChange={(e) => setCleanupDays(e.target.value)}
+                                inputProps={{ min: 1 }}
+                                fullWidth
+                                size="small"
+                            />
+                        </DialogContent>
+                        <DialogActions>
+                            <Button onClick={() => setCleanupDialogOpen(false)} disabled={actionLoading}>
+                                Cancel
+                            </Button>
+                            <Button
+                                onClick={handleCleanup}
+                                color="warning"
+                                variant="contained"
+                                disabled={actionLoading}
+                            >
+                                {actionLoading ? <CircularProgress size={20} /> : 'Cleanup'}
+                            </Button>
+                        </DialogActions>
+                    </Dialog>
+                </Box>
             </Box>
         </AppLayout>
     );

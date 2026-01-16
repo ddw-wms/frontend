@@ -1170,318 +1170,215 @@ export default function DashboardPage() {
           userName={user?.fullName}
         />
 
-        {/* =================  METRICS GRID WITH ICONS ================= */}
+        {/* ================= SCROLLABLE CONTENT AREA ================= */}
         <Box
           sx={{
-            display: "grid",
-            gridTemplateColumns: {
-              xs: "repeat(3, 1fr)",
-              sm: "repeat(6, 1fr)",
-              md: "repeat(6, 1fr)",
-            },
-            gap: { xs: 0.75, sm: 1.5, md: 2 },
-            p: { xs: 1, sm: 2, md: 2 },
-            overflowX: "visible",
-            bgcolor: isDarkMode ? '#0f172a' : 'transparent',
-          }}
-        >
-
-          {[
-            { label: "Master Data", value: metrics.total, color: "#1e40af", icon: <DashboardRounded /> },
-            { label: "Available", value: inventorySummary.available_stock, color: "#059669", icon: <InventoryRounded /> },
-            { label: "Inbounded", value: metrics.inbound, color: "#3b82f6", icon: <LoginRounded /> },
-            { label: "Processed", value: (metrics.qcPassed || 0) + (metrics.qcDone || 0), color: "#10b981", icon: <CheckCircleRounded /> },
-            { label: "Picked", value: metrics.pickingCompleted, color: "#f59e0b", icon: <LocalShippingRounded /> },
-            { label: "Dispatched", value: metrics.outboundDispatched, color: "#ef4444", icon: <SendRounded /> },
-          ].map((m, index) => (
-
-            <Card
-              key={index}
-              elevation={0}
-              sx={{
-                p: { xs: 0.75, sm: 1.5, md: 2 },
-                height: { xs: 62, sm: 80, md: 100 },
-                width: "100%",
-                textAlign: "center",
-                display: "flex",
-                flexDirection: "column",
-                justifyContent: "center",
-                alignItems: "center",
-                borderRadius: { xs: 1.5, md: 3 },
-                background: isDarkMode
-                  ? `linear-gradient(135deg, ${m.color}15, ${m.color}25) !important`
-                  : `linear-gradient(135deg, ${m.color}08, ${m.color}15)`,
-                border: isDarkMode ? `1px solid ${m.color}40` : `1px solid ${m.color}25`,
-                boxShadow: isDarkMode ? "0 2px 8px rgba(0,0,0,0.3)" : "0 1px 3px rgba(0,0,0,0.04)",
-                transition: "all 0.25s ease",
-                position: "relative",
-                overflow: "hidden",
-                "&::before": {
-                  content: '""',
-                  position: "absolute",
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  height: "3px",
-                  background: m.color,
-                  borderRadius: "3px 3px 0 0",
-                },
-                "&:hover": {
-                  transform: { xs: "none", md: "translateY(-3px)" },
-                  boxShadow: { xs: isDarkMode ? "0 2px 8px rgba(0,0,0,0.3)" : "0 1px 3px rgba(0,0,0,0.04)", md: `0 8px 20px ${m.color}30` },
-                  border: { xs: isDarkMode ? `1px solid ${m.color}40` : `1px solid ${m.color}25`, md: `1px solid ${m.color}50` },
-                },
-              }}
-            >
-              {/* ICON */}
-              <Box
-                sx={{
-                  display: "flex",
-                  justifyContent: "center",
-                  mb: { xs: 0.25, md: 0.75 },
-                  "& svg": {
-                    fontSize: { xs: "0.9rem", sm: "1.25rem", md: "1.5rem" },
-                    color: m.color,
-                    opacity: 0.9,
-                  },
-                }}
-              >
-                {m.icon}
-              </Box>
-
-              {/* VALUE */}
-              <Typography
-                sx={{
-                  fontWeight: 700,
-                  fontSize: { xs: "0.85rem", sm: "1.25rem", md: "1.75rem" },
-                  lineHeight: 1,
-                  color: m.color,
-                  letterSpacing: "-0.02em",
-                }}
-              >
-                {m.value.toLocaleString()}
-              </Typography>
-
-              {/* LABEL */}
-              <Typography
-                sx={{
-                  fontSize: { xs: "0.5rem", sm: "0.7rem", md: "0.8rem" },
-                  mt: { xs: 0.15, md: 0.5 },
-                  fontWeight: 600,
-                  color: isDarkMode ? "#94a3b8" : "#64748b",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.02em",
-                  lineHeight: 1.1,
-                }}
-              >
-                {m.label}
-              </Typography>
-            </Card>
-          ))}
-        </Box>
-
-
-        {/* ================= FILTER BAR ================= */}
-        <Box
-          sx={{
-            background: isDarkMode ? '#1e293b' : 'white',
-            px: { xs: 1, sm: 2, md: 2 },
-            py: { xs: 1, sm: 1.5, md: 2 },
+            flex: 1,
             display: "flex",
             flexDirection: "column",
-            gap: { xs: 0.75, md: 1.5 },
-            flexShrink: 0,
-            borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(0,0,0,0.06)',
+            overflow: { xs: "hidden", md: "auto" },
+            position: "relative",
           }}
         >
-          {/* TOP ROW: Search + Dates (desktop) + Filters toggle (mobile) */}
+
+          {/* =================  METRICS GRID WITH ICONS ================= */}
           <Box
             sx={{
-              display: "flex",
-              flexDirection: { xs: "row", md: "row" },
-              gap: { xs: 0.75, md: 1.5 },
-              alignItems: "center",
+              display: "grid",
+              gridTemplateColumns: {
+                xs: "repeat(3, 1fr)",
+                sm: "repeat(6, 1fr)",
+                md: "repeat(6, 1fr)",
+              },
+              gap: { xs: 0.75, sm: 1.5, md: 2 },
+              p: { xs: 1, sm: 2, md: 2 },
+              overflowX: "visible",
+              bgcolor: isDarkMode ? '#0f172a' : 'transparent',
+              flexShrink: 0,
             }}
           >
-            {/* Search + Mobile Actions */}
-            <Box sx={{ display: 'flex', gap: 0.75, alignItems: 'center', width: '100%' }}>
-              <TextField
-                size="small"
-                placeholder="🔍 Search WSN or Product"
-                value={searchWSN}
-                onChange={(e) => {
-                  setSearchWSN(e.target.value);
-                  setPage(1);
-                }}
-                fullWidth
-                sx={{
-                  "& .MuiOutlinedInput-root": {
-                    height: { xs: 40, sm: 42 },
-                    bgcolor: isDarkMode ? '#1e293b' : '#f8fafc',
-                    borderRadius: 2.5,
-                    transition: "all 0.2s ease",
-                    "&:hover": {
-                      bgcolor: isDarkMode ? '#334155' : '#f1f5f9',
-                    },
-                    "&.Mui-focused": {
-                      bgcolor: isDarkMode ? '#1e293b' : 'white',
-                      "& .MuiOutlinedInput-notchedOutline": {
-                        borderColor: "primary.main",
-                        borderWidth: 2,
-                      },
-                    },
-                  },
-                  "& .MuiOutlinedInput-notchedOutline": {
-                    borderColor: isDarkMode ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)',
-                  },
-                }}
-              />
 
-              {/* Mobile Actions button: opens a full-screen dialog with filters + actions */}
-              <Button
-                variant="contained"
-                color="primary"
-                startIcon={<TuneIcon />}
+            {[
+              { label: "Master Data", value: metrics.total, color: "#1e40af", icon: <DashboardRounded /> },
+              { label: "Available", value: inventorySummary.available_stock, color: "#059669", icon: <InventoryRounded /> },
+              { label: "Inbounded", value: metrics.inbound, color: "#3b82f6", icon: <LoginRounded /> },
+              { label: "Processed", value: (metrics.qcPassed || 0) + (metrics.qcDone || 0), color: "#10b981", icon: <CheckCircleRounded /> },
+              { label: "Picked", value: metrics.pickingCompleted, color: "#f59e0b", icon: <LocalShippingRounded /> },
+              { label: "Dispatched", value: metrics.outboundDispatched, color: "#ef4444", icon: <SendRounded /> },
+            ].map((m, index) => (
+
+              <Card
+                key={index}
+                elevation={0}
                 sx={{
-                  display: { xs: 'inline-flex', md: 'none' },
-                  height: 40,
-                  px: 2,
-                  textTransform: 'none',
-                  flexShrink: 0,
-                  fontSize: '0.85rem',
-                  fontWeight: 600
+                  p: { xs: 0.75, sm: 1.5, md: 2 },
+                  height: { xs: 62, sm: 80, md: 100 },
+                  width: "100%",
+                  textAlign: "center",
+                  display: "flex",
+                  flexDirection: "column",
+                  justifyContent: "center",
+                  alignItems: "center",
+                  borderRadius: { xs: 1.5, md: 3 },
+                  background: isDarkMode
+                    ? `linear-gradient(135deg, ${m.color}15, ${m.color}25) !important`
+                    : `linear-gradient(135deg, ${m.color}08, ${m.color}15)`,
+                  border: isDarkMode ? `1px solid ${m.color}40` : `1px solid ${m.color}25`,
+                  boxShadow: isDarkMode ? "0 2px 8px rgba(0,0,0,0.3)" : "0 1px 3px rgba(0,0,0,0.04)",
+                  transition: "all 0.25s ease",
+                  position: "relative",
+                  overflow: "hidden",
+                  "&::before": {
+                    content: '""',
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    height: "3px",
+                    background: m.color,
+                    borderRadius: "3px 3px 0 0",
+                  },
+                  "&:hover": {
+                    transform: { xs: "none", md: "translateY(-3px)" },
+                    boxShadow: { xs: isDarkMode ? "0 2px 8px rgba(0,0,0,0.3)" : "0 1px 3px rgba(0,0,0,0.04)", md: `0 8px 20px ${m.color}30` },
+                    border: { xs: isDarkMode ? `1px solid ${m.color}40` : `1px solid ${m.color}25`, md: `1px solid ${m.color}50` },
+                  },
                 }}
-                onClick={() => setMobileActionsOpen(true)}
               >
-                Actions
-              </Button>
-            </Box>
+                {/* ICON */}
+                <Box
+                  sx={{
+                    display: "flex",
+                    justifyContent: "center",
+                    mb: { xs: 0.25, md: 0.75 },
+                    "& svg": {
+                      fontSize: { xs: "0.9rem", sm: "1.25rem", md: "1.5rem" },
+                      color: m.color,
+                      opacity: 0.9,
+                    },
+                  }}
+                >
+                  {m.icon}
+                </Box>
 
-            {/* Desktop dates */}
-            <Box
-              sx={{
-                display: { xs: "none", md: "flex" },
-                gap: 1,
-              }}
-            >
-              <TextField
-                label="From Date"
-                type="date"
-                size="small"
-                variant="outlined"
-                InputLabelProps={{ shrink: true }}
-                value={dateFrom || ""}
-                onChange={(e) => {
-                  setDateFrom(e.target.value);
-                  setPage(1);
-                }}
-                sx={{
-                  "& .MuiOutlinedInput-root": {
-                    height: 42,
-                    fontSize: "0.875rem",
-                    bgcolor: isDarkMode ? '#1e293b' : '#f8fafc',
-                    borderRadius: 2,
-                    "&:hover": { bgcolor: isDarkMode ? '#334155' : '#f1f5f9' },
-                    "&.Mui-focused": { bgcolor: isDarkMode ? '#1e293b' : 'white' },
-                  },
-                  "& .MuiOutlinedInput-notchedOutline": {
-                    borderColor: isDarkMode ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)',
-                  },
-                }}
-              />
-              <TextField
-                label="To Date"
-                type="date"
-                size="small"
-                variant="outlined"
-                InputLabelProps={{ shrink: true }}
-                value={dateTo || ""}
-                onChange={(e) => {
-                  setDateTo(e.target.value);
-                  setPage(1);
-                }}
-                sx={{
-                  "& .MuiOutlinedInput-root": {
-                    height: 42,
-                    fontSize: "0.875rem",
-                    bgcolor: isDarkMode ? '#1e293b' : '#f8fafc',
-                    borderRadius: 2,
-                    "&:hover": { bgcolor: isDarkMode ? '#334155' : '#f1f5f9' },
-                    "&.Mui-focused": { bgcolor: isDarkMode ? '#1e293b' : 'white' },
-                  },
-                  "& .MuiOutlinedInput-notchedOutline": {
-                    borderColor: isDarkMode ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)',
-                  },
-                }}
-              />
-            </Box>
+                {/* VALUE */}
+                <Typography
+                  sx={{
+                    fontWeight: 700,
+                    fontSize: { xs: "0.85rem", sm: "1.25rem", md: "1.75rem" },
+                    lineHeight: 1,
+                    color: m.color,
+                    letterSpacing: "-0.02em",
+                  }}
+                >
+                  {m.value.toLocaleString()}
+                </Typography>
 
-            {/* Filters toggle (desktop only) */}
-            <Button
-              variant={filtersOpen ? "contained" : "outlined"}
-              size="small"
-              onClick={toggleFilters}
-              sx={{
-                display: { xs: 'none', md: 'inline-flex' },
-                height: 42,
-                minWidth: 130,
-                fontSize: "0.75rem",
-                fontWeight: 600,
-                ml: 0.5,
-                whiteSpace: "nowrap",
-                justifyContent: "space-between",
-                px: 2,
-                borderRadius: 2.5,
-                position: "relative",
-                ...(filtersOpen ? {
-                  background: "linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%)",
-                } : {
-                  borderWidth: 1.5,
-                  "&:hover": { borderWidth: 1.5 },
-                }),
-              }}
-            >
-              <FilterIcon sx={{
-                fontSize: '1.1rem',
-                mr: 0.75,
-              }} />
-
-              <Box component="span" sx={{ mr: 0.5, display: 'flex', alignItems: 'center' }}>
-                <Box component="span">{filtersOpen ? "Hide" : "Filters"}</Box>
-                {filtersActive && !filtersOpen && (
-                  <Tooltip title="Filters active">
-                    <Box sx={{
-                      position: 'absolute',
-                      top: -4,
-                      right: -4,
-                      width: 12,
-                      height: 12,
-                      borderRadius: '50%',
-                      bgcolor: '#10b981',
-                      border: '2px solid white',
-                      boxShadow: "0 2px 4px rgba(16,185,129,0.3)",
-                    }} />
-                  </Tooltip>
-                )}
-              </Box>
-              <ExpandMoreIcon sx={{
-                transform: filtersOpen ? "rotate(180deg)" : "rotate(0deg)",
-                transition: "transform 200ms",
-                fontSize: "1.1rem",
-              }} />
-            </Button>
+                {/* LABEL */}
+                <Typography
+                  sx={{
+                    fontSize: { xs: "0.5rem", sm: "0.7rem", md: "0.8rem" },
+                    mt: { xs: 0.15, md: 0.5 },
+                    fontWeight: 600,
+                    color: isDarkMode ? "#94a3b8" : "#64748b",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.02em",
+                    lineHeight: 1.1,
+                  }}
+                >
+                  {m.label}
+                </Typography>
+              </Card>
+            ))}
           </Box>
 
-          {/* BODY: collapsible */}
-          <Collapse in={filtersOpen} timeout="auto" sx={{ display: { xs: 'none', md: 'block' } }}>
-            <Box sx={{ mt: { xs: 1, md: 0.5 } }}>
-              {/* Dates on mobile */}
+
+          {/* ================= FILTER BAR ================= */}
+          <Box
+            sx={{
+              background: isDarkMode ? '#1e293b' : 'white',
+              px: { xs: 1, sm: 2, md: 2 },
+              py: { xs: 1, sm: 1.5, md: 2 },
+              display: "flex",
+              flexDirection: "column",
+              gap: { xs: 0.75, md: 1.5 },
+              flexShrink: 0,
+              borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(0,0,0,0.06)',
+              // Sticky filter bar on desktop
+              position: { xs: 'static', md: 'sticky' },
+              top: { md: 0 },
+              zIndex: { md: 10 },
+              boxShadow: { md: isDarkMode ? '0 4px 12px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.08)' },
+            }}
+          >
+            {/* TOP ROW: Search + Dates (desktop) + Filters toggle (mobile) */}
+            <Box
+              sx={{
+                display: "flex",
+                flexDirection: { xs: "row", md: "row" },
+                gap: { xs: 0.75, md: 1.5 },
+                alignItems: "center",
+              }}
+            >
+              {/* Search + Mobile Actions */}
+              <Box sx={{ display: 'flex', gap: 0.75, alignItems: 'center', width: '100%' }}>
+                <TextField
+                  size="small"
+                  placeholder="🔍 Search WSN or Product"
+                  value={searchWSN}
+                  onChange={(e) => {
+                    setSearchWSN(e.target.value);
+                    setPage(1);
+                  }}
+                  fullWidth
+                  sx={{
+                    "& .MuiOutlinedInput-root": {
+                      height: { xs: 40, sm: 42 },
+                      bgcolor: isDarkMode ? '#1e293b' : '#f8fafc',
+                      borderRadius: 2.5,
+                      transition: "all 0.2s ease",
+                      "&:hover": {
+                        bgcolor: isDarkMode ? '#334155' : '#f1f5f9',
+                      },
+                      "&.Mui-focused": {
+                        bgcolor: isDarkMode ? '#1e293b' : 'white',
+                        "& .MuiOutlinedInput-notchedOutline": {
+                          borderColor: "primary.main",
+                          borderWidth: 2,
+                        },
+                      },
+                    },
+                    "& .MuiOutlinedInput-notchedOutline": {
+                      borderColor: isDarkMode ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)',
+                    },
+                  }}
+                />
+
+                {/* Mobile Actions button: opens a full-screen dialog with filters + actions */}
+                <Button
+                  variant="contained"
+                  color="primary"
+                  startIcon={<TuneIcon />}
+                  sx={{
+                    display: { xs: 'inline-flex', md: 'none' },
+                    height: 40,
+                    px: 2,
+                    textTransform: 'none',
+                    flexShrink: 0,
+                    fontSize: '0.85rem',
+                    fontWeight: 600
+                  }}
+                  onClick={() => setMobileActionsOpen(true)}
+                >
+                  Actions
+                </Button>
+              </Box>
+
+              {/* Desktop dates */}
               <Box
                 sx={{
-                  display: { xs: "flex", md: "none" },
-                  flexDirection: "row",
+                  display: { xs: "none", md: "flex" },
                   gap: 1,
-                  mb: 1,
                 }}
               >
                 <TextField
@@ -1495,7 +1392,19 @@ export default function DashboardPage() {
                     setDateFrom(e.target.value);
                     setPage(1);
                   }}
-                  sx={{ flex: 1 }}
+                  sx={{
+                    "& .MuiOutlinedInput-root": {
+                      height: 42,
+                      fontSize: "0.875rem",
+                      bgcolor: isDarkMode ? '#1e293b' : '#f8fafc',
+                      borderRadius: 2,
+                      "&:hover": { bgcolor: isDarkMode ? '#334155' : '#f1f5f9' },
+                      "&.Mui-focused": { bgcolor: isDarkMode ? '#1e293b' : 'white' },
+                    },
+                    "& .MuiOutlinedInput-notchedOutline": {
+                      borderColor: isDarkMode ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)',
+                    },
+                  }}
                 />
                 <TextField
                   label="To Date"
@@ -1508,246 +1417,119 @@ export default function DashboardPage() {
                     setDateTo(e.target.value);
                     setPage(1);
                   }}
-                  sx={{ flex: 1 }}
+                  sx={{
+                    "& .MuiOutlinedInput-root": {
+                      height: 42,
+                      fontSize: "0.875rem",
+                      bgcolor: isDarkMode ? '#1e293b' : '#f8fafc',
+                      borderRadius: 2,
+                      "&:hover": { bgcolor: isDarkMode ? '#334155' : '#f1f5f9' },
+                      "&.Mui-focused": { bgcolor: isDarkMode ? '#1e293b' : 'white' },
+                    },
+                    "& .MuiOutlinedInput-notchedOutline": {
+                      borderColor: isDarkMode ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)',
+                    },
+                  }}
                 />
-
-                {/* Mobile: move Available toggle to the right of date filters */}
-                <Box sx={{ ml: 'auto', display: { xs: 'flex', md: 'none' }, alignItems: 'center' }}>
-                  <FormControlLabel
-                    control={
-                      <Checkbox
-                        checked={availableOnly}
-                        onChange={(e) => {
-                          setAvailableOnly(e.target.checked);
-                          if (e.target.checked) {
-                            toast.success("Showing available inventory only");
-                          } else {
-                            toast.success("Showing all items");
-                          }
-                          setPage(1);
-                        }}
-                        sx={{ color: '#1e40af', '&.Mui-checked': { color: '#1e40af' } }}
-                      />
-                    }
-                    label={<Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: '#424242' }}>Available</Typography>}
-                    sx={{ mr: 0 }}
-                  />
-                </Box>
               </Box>
 
-              {/* MAIN ROW: filters + buttons, no empty space */}
-              <Box
+              {/* Filters toggle (desktop only) */}
+              <Button
+                variant={filtersOpen ? "contained" : "outlined"}
+                size="small"
+                onClick={toggleFilters}
                 sx={{
-                  display: "flex",
-                  flexDirection: { xs: "column", md: "row" },
-                  gap: 1,
-                  alignItems: { xs: "stretch", md: "center" },
+                  display: { xs: 'none', md: 'inline-flex' },
+                  height: 42,
+                  minWidth: 130,
+                  fontSize: "0.75rem",
+                  fontWeight: 600,
+                  ml: 0.5,
+                  whiteSpace: "nowrap",
                   justifyContent: "space-between",
+                  px: 2,
+                  borderRadius: 2.5,
+                  position: "relative",
+                  ...(filtersOpen ? {
+                    background: "linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%)",
+                  } : {
+                    borderWidth: 1.5,
+                    "&:hover": { borderWidth: 1.5 },
+                  }),
                 }}
               >
-                {/* LEFT: Stage / Brand / Category - tightly packed (stack on mobile) */}
-                <Box
-                  sx={{
-                    display: "flex",
-                    flexDirection: { xs: 'column', md: 'row' },
-                    gap: { xs: 0.5, md: 1 },
-                    flexGrow: 1,
-                  }}
-                >
-                  <TextField
-                    select
-                    size="small"
-                    label="Stage"
-                    value={stageFilter}
-                    onChange={(e) => {
-                      setStageFilter(e.target.value);
-                      setPage(1);
-                    }}
-                    fullWidth
-                    SelectProps={{
-                      MenuProps: {
-                        PaperProps: { style: { maxHeight: 300 } },
-                      },
-                    }}
-                    sx={{ "& .MuiOutlinedInput-root": { height: { xs: 36, md: 40 }, fontSize: { xs: '0.85rem', md: '0.95rem' } } }}
-                  >
-                    {PIPELINE_STAGES.map((s) => (
-                      <MenuItem key={s.value} value={s.value}>
-                        {s.label}
-                      </MenuItem>
-                    ))}
-                  </TextField>
+                <FilterIcon sx={{
+                  fontSize: '1.1rem',
+                  mr: 0.75,
+                }} />
 
-                  <TextField
-                    select
-                    size="small"
-                    label="Brand"
-                    value={brandFilter}
-                    onChange={(e) => {
-                      setBrandFilter(e.target.value);
-                      setPage(1);
-                    }}
-                    fullWidth
-                    SelectProps={{
-                      MenuProps: {
-                        PaperProps: { style: { maxHeight: 300 } },
-                      },
-                    }}
-                    sx={{ "& .MuiOutlinedInput-root": { height: { xs: 36, md: 40 }, fontSize: { xs: '0.85rem', md: '0.95rem' } } }}
-                  >
-                    <MenuItem value="">All</MenuItem>
-                    {(categoryFilter ? memoizedFilteredBrands : brands).map((b) => (
-                      <MenuItem key={b} value={b}>
-                        {b}
-                      </MenuItem>
-                    ))}
-                  </TextField>
-
-                  <TextField
-                    select
-                    size="small"
-                    label="Category"
-                    value={categoryFilter}
-                    onChange={(e) => {
-                      setCategoryFilter(e.target.value);
-                      setPage(1);
-                    }}
-                    fullWidth
-                    SelectProps={{
-                      MenuProps: {
-                        PaperProps: { style: { maxHeight: 300 } },
-                      },
-                    }}
-                    sx={{ "& .MuiOutlinedInput-root": { height: { xs: 36, md: 40 }, fontSize: { xs: '0.85rem', md: '0.95rem' } } }}
-                  >
-                    <MenuItem value="">All</MenuItem>
-                    {(brandFilter ? filteredCategories : categories).map((c) => (
-                      <MenuItem key={c} value={c}>
-                        {c}
-                      </MenuItem>
-                    ))}
-                  </TextField>
+                <Box component="span" sx={{ mr: 0.5, display: 'flex', alignItems: 'center' }}>
+                  <Box component="span">{filtersOpen ? "Hide" : "Filters"}</Box>
+                  {filtersActive && !filtersOpen && (
+                    <Tooltip title="Filters active">
+                      <Box sx={{
+                        position: 'absolute',
+                        top: -4,
+                        right: -4,
+                        width: 12,
+                        height: 12,
+                        borderRadius: '50%',
+                        bgcolor: '#10b981',
+                        border: '2px solid white',
+                        boxShadow: "0 2px 4px rgba(16,185,129,0.3)",
+                      }} />
+                    </Tooltip>
+                  )}
                 </Box>
+                <ExpandMoreIcon sx={{
+                  transform: filtersOpen ? "rotate(180deg)" : "rotate(0deg)",
+                  transition: "transform 200ms",
+                  fontSize: "1.1rem",
+                }} />
+              </Button>
+            </Box>
 
-                {/* RIGHT: Buttons - responsive 2x2 on mobile */}
+            {/* BODY: collapsible */}
+            <Collapse in={filtersOpen} timeout="auto" sx={{ display: { xs: 'none', md: 'block' } }}>
+              <Box sx={{ mt: { xs: 1, md: 0.5 } }}>
+                {/* Dates on mobile */}
                 <Box
                   sx={{
-                    display: "grid",
-                    gridTemplateColumns: {
-                      xs: "repeat(6, 1fr)", // mobile: tighter fit for 6 items
-                      md: "repeat(6, auto)", // desktop: 6 items in a row (includes Available Only)
-                    },
-                    gap: { xs: 0.5, md: 1 },
-                    width: { xs: "100%", md: "auto" },
-                    justifyContent: { xs: "stretch", md: "flex-end" },
-                    alignItems: "center",
-                    overflowX: { xs: 'auto', md: 'visible' }
+                    display: { xs: "flex", md: "none" },
+                    flexDirection: "row",
+                    gap: 1,
+                    mb: 1,
                   }}
                 >
-                  <Button
-                    variant="outlined"
+                  <TextField
+                    label="From Date"
+                    type="date"
                     size="small"
-                    startIcon={<RestartAltIcon sx={{ fontSize: 14 }} />}
-                    onClick={resetFilters}
-                    sx={{
-                      height: { xs: 34, md: 40 },
-                      px: 1,
-                      fontSize: { xs: '0.62rem', md: '0.65rem' },
-                      fontWeight: 600,
-                      width: "100%",
-                    }}
-                  >
-                    RESET
-                  </Button>
-
-
-                  {canSeeButton('columns') && (
-                    <Button
-                      size="small"
-                      startIcon={<SettingsIcon sx={{ fontSize: 11 }} />}
-                      variant="outlined"
-                      onClick={() => true && setColumnDialogOpen(true)}
-                      sx={{
-                        height: { xs: 34, md: 40 },
-                        px: 1,
-                        fontSize: { xs: '0.62rem', md: '0.65rem' },
-                        fontWeight: 600,
-                        width: "100%",
-                      }}
-                    >
-                      COLUMNS
-                    </Button>
-                  )}
-
-
-                  <Button
-                    size="small"
-                    startIcon={<SettingsIcon sx={{ fontSize: 11 }} />}
                     variant="outlined"
-                    onClick={() => setGridSettingsOpen(true)}
-                    sx={{
-                      height: { xs: 32, md: 36 },
-                      px: 0.6,
-                      fontSize: { xs: '0.6rem', md: '0.62rem' },
-                      fontWeight: 600,
-                      width: "100%",
+                    InputLabelProps={{ shrink: true }}
+                    value={dateFrom || ""}
+                    onChange={(e) => {
+                      setDateFrom(e.target.value);
+                      setPage(1);
                     }}
-                  >
-                    <TuneIcon sx={{ fontSize: 15, mr: 0.3 }} />
-                    <Box component="span" sx={{ fontSize: '0.65rem', fontWeight: 600 }}>GRID</Box>
-                  </Button>
-
-                  {canSeeButton('export') && (
-                    <Button
-                      variant="outlined"
-                      size="small"
-                      startIcon={<DownloadIcon sx={{ fontSize: 11 }} />}
-                      onClick={() => {
-                        // Prefill export dialog with current active filters (use same stage codes as main filter)
-                        setExportFilters({
-                          dateFrom,
-                          dateTo,
-                          stage: stageFilter || 'all',
-                          brand: brandFilter,
-                          category: categoryFilter,
-                          availableOnly: availableOnly ? 'available' : 'all',
-                        });
-
-                        setExportDialogOpen(true);
-                      }}
-                      sx={{
-                        height: { xs: 34, md: 40 },
-                        px: 1,
-                        fontSize: { xs: '0.62rem', md: '0.65rem' },
-                        fontWeight: 600,
-                        width: "100%",
-                      }}
-                    >
-                      EXPORT
-                    </Button>
-                  )}
-
-                  <Button
-                    variant="outlined"
+                    sx={{ flex: 1 }}
+                  />
+                  <TextField
+                    label="To Date"
+                    type="date"
                     size="small"
-                    startIcon={<RefreshIcon sx={{ fontSize: 14 }} />}
-                    onClick={() => {
-                      loadInventoryData();
-                      loadMetrics();
+                    variant="outlined"
+                    InputLabelProps={{ shrink: true }}
+                    value={dateTo || ""}
+                    onChange={(e) => {
+                      setDateTo(e.target.value);
+                      setPage(1);
                     }}
-                    sx={{
-                      height: { xs: 34, md: 40 },
-                      px: 1,
-                      fontSize: { xs: '0.62rem', md: '0.65rem' },
-                      fontWeight: 600,
-                      width: "100%",
-                    }}
-                  >
-                    REFRESH
-                  </Button>
+                    sx={{ flex: 1 }}
+                  />
 
-                  {/* Available Only - inline in the button grid so it stays on same row */}
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', pl: { xs: 0, md: 1 } }}>
+                  {/* Mobile: move Available toggle to the right of date filters */}
+                  <Box sx={{ ml: 'auto', display: { xs: 'flex', md: 'none' }, alignItems: 'center' }}>
                     <FormControlLabel
                       control={
                         <Checkbox
@@ -1761,446 +1543,680 @@ export default function DashboardPage() {
                             }
                             setPage(1);
                           }}
-                          sx={{
-                            color: "#1e40af",
-                            '&.Mui-checked': {
-                              color: "#1e40af",
-                            },
-                            transform: { xs: 'scale(0.9)', md: 'scale(1)' },
-                            mr: { xs: 0.4, md: 0.8 }
-                          }}
+                          sx={{ color: '#1e40af', '&.Mui-checked': { color: '#1e40af' } }}
                         />
                       }
-                      label={
-                        <Typography sx={{ fontSize: { xs: '0.6rem', md: '0.75rem' }, fontWeight: 600, color: "#424242" }}>
-                          Available Only
-                        </Typography>
-                      }
+                      label={<Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: '#424242' }}>Available</Typography>}
                       sx={{ mr: 0 }}
                     />
                   </Box>
-
                 </Box>
 
+                {/* MAIN ROW: filters + buttons, no empty space */}
+                <Box
+                  sx={{
+                    display: "flex",
+                    flexDirection: { xs: "column", md: "row" },
+                    gap: 1,
+                    alignItems: { xs: "stretch", md: "center" },
+                    justifyContent: "space-between",
+                  }}
+                >
+                  {/* LEFT: Stage / Brand / Category - tightly packed (stack on mobile) */}
+                  <Box
+                    sx={{
+                      display: "flex",
+                      flexDirection: { xs: 'column', md: 'row' },
+                      gap: { xs: 0.5, md: 1 },
+                      flexGrow: 1,
+                    }}
+                  >
+                    <TextField
+                      select
+                      size="small"
+                      label="Stage"
+                      value={stageFilter}
+                      onChange={(e) => {
+                        setStageFilter(e.target.value);
+                        setPage(1);
+                      }}
+                      fullWidth
+                      SelectProps={{
+                        MenuProps: {
+                          PaperProps: { style: { maxHeight: 300 } },
+                        },
+                      }}
+                      sx={{ "& .MuiOutlinedInput-root": { height: { xs: 36, md: 40 }, fontSize: { xs: '0.85rem', md: '0.95rem' } } }}
+                    >
+                      {PIPELINE_STAGES.map((s) => (
+                        <MenuItem key={s.value} value={s.value}>
+                          {s.label}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+
+                    <TextField
+                      select
+                      size="small"
+                      label="Brand"
+                      value={brandFilter}
+                      onChange={(e) => {
+                        setBrandFilter(e.target.value);
+                        setPage(1);
+                      }}
+                      fullWidth
+                      SelectProps={{
+                        MenuProps: {
+                          PaperProps: { style: { maxHeight: 300 } },
+                        },
+                      }}
+                      sx={{ "& .MuiOutlinedInput-root": { height: { xs: 36, md: 40 }, fontSize: { xs: '0.85rem', md: '0.95rem' } } }}
+                    >
+                      <MenuItem value="">All</MenuItem>
+                      {(categoryFilter ? memoizedFilteredBrands : brands).map((b) => (
+                        <MenuItem key={b} value={b}>
+                          {b}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+
+                    <TextField
+                      select
+                      size="small"
+                      label="Category"
+                      value={categoryFilter}
+                      onChange={(e) => {
+                        setCategoryFilter(e.target.value);
+                        setPage(1);
+                      }}
+                      fullWidth
+                      SelectProps={{
+                        MenuProps: {
+                          PaperProps: { style: { maxHeight: 300 } },
+                        },
+                      }}
+                      sx={{ "& .MuiOutlinedInput-root": { height: { xs: 36, md: 40 }, fontSize: { xs: '0.85rem', md: '0.95rem' } } }}
+                    >
+                      <MenuItem value="">All</MenuItem>
+                      {(brandFilter ? filteredCategories : categories).map((c) => (
+                        <MenuItem key={c} value={c}>
+                          {c}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                  </Box>
+
+                  {/* RIGHT: Buttons - responsive 2x2 on mobile */}
+                  <Box
+                    sx={{
+                      display: "grid",
+                      gridTemplateColumns: {
+                        xs: "repeat(6, 1fr)", // mobile: tighter fit for 6 items
+                        md: "repeat(6, auto)", // desktop: 6 items in a row (includes Available Only)
+                      },
+                      gap: { xs: 0.5, md: 1 },
+                      width: { xs: "100%", md: "auto" },
+                      justifyContent: { xs: "stretch", md: "flex-end" },
+                      alignItems: "center",
+                      overflowX: { xs: 'auto', md: 'visible' }
+                    }}
+                  >
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      startIcon={<RestartAltIcon sx={{ fontSize: 14 }} />}
+                      onClick={resetFilters}
+                      sx={{
+                        height: { xs: 34, md: 40 },
+                        px: 1,
+                        fontSize: { xs: '0.62rem', md: '0.65rem' },
+                        fontWeight: 600,
+                        width: "100%",
+                      }}
+                    >
+                      RESET
+                    </Button>
+
+
+                    {canSeeButton('columns') && (
+                      <Button
+                        size="small"
+                        startIcon={<SettingsIcon sx={{ fontSize: 11 }} />}
+                        variant="outlined"
+                        onClick={() => true && setColumnDialogOpen(true)}
+                        sx={{
+                          height: { xs: 34, md: 40 },
+                          px: 1,
+                          fontSize: { xs: '0.62rem', md: '0.65rem' },
+                          fontWeight: 600,
+                          width: "100%",
+                        }}
+                      >
+                        COLUMNS
+                      </Button>
+                    )}
+
+
+                    <Button
+                      size="small"
+                      startIcon={<SettingsIcon sx={{ fontSize: 11 }} />}
+                      variant="outlined"
+                      onClick={() => setGridSettingsOpen(true)}
+                      sx={{
+                        height: { xs: 32, md: 36 },
+                        px: 0.6,
+                        fontSize: { xs: '0.6rem', md: '0.62rem' },
+                        fontWeight: 600,
+                        width: "100%",
+                      }}
+                    >
+                      <TuneIcon sx={{ fontSize: 15, mr: 0.3 }} />
+                      <Box component="span" sx={{ fontSize: '0.65rem', fontWeight: 600 }}>GRID</Box>
+                    </Button>
+
+                    {canSeeButton('export') && (
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        startIcon={<DownloadIcon sx={{ fontSize: 11 }} />}
+                        onClick={() => {
+                          // Prefill export dialog with current active filters (use same stage codes as main filter)
+                          setExportFilters({
+                            dateFrom,
+                            dateTo,
+                            stage: stageFilter || 'all',
+                            brand: brandFilter,
+                            category: categoryFilter,
+                            availableOnly: availableOnly ? 'available' : 'all',
+                          });
+
+                          setExportDialogOpen(true);
+                        }}
+                        sx={{
+                          height: { xs: 34, md: 40 },
+                          px: 1,
+                          fontSize: { xs: '0.62rem', md: '0.65rem' },
+                          fontWeight: 600,
+                          width: "100%",
+                        }}
+                      >
+                        EXPORT
+                      </Button>
+                    )}
+
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      startIcon={<RefreshIcon sx={{ fontSize: 14 }} />}
+                      onClick={() => {
+                        loadInventoryData();
+                        loadMetrics();
+                      }}
+                      sx={{
+                        height: { xs: 34, md: 40 },
+                        px: 1,
+                        fontSize: { xs: '0.62rem', md: '0.65rem' },
+                        fontWeight: 600,
+                        width: "100%",
+                      }}
+                    >
+                      REFRESH
+                    </Button>
+
+                    {/* Available Only - inline in the button grid so it stays on same row */}
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', pl: { xs: 0, md: 1 } }}>
+                      <FormControlLabel
+                        control={
+                          <Checkbox
+                            checked={availableOnly}
+                            onChange={(e) => {
+                              setAvailableOnly(e.target.checked);
+                              if (e.target.checked) {
+                                toast.success("Showing available inventory only");
+                              } else {
+                                toast.success("Showing all items");
+                              }
+                              setPage(1);
+                            }}
+                            sx={{
+                              color: "#1e40af",
+                              '&.Mui-checked': {
+                                color: "#1e40af",
+                              },
+                              transform: { xs: 'scale(0.9)', md: 'scale(1)' },
+                              mr: { xs: 0.4, md: 0.8 }
+                            }}
+                          />
+                        }
+                        label={
+                          <Typography sx={{ fontSize: { xs: '0.6rem', md: '0.75rem' }, fontWeight: 600, color: "#424242" }}>
+                            Available Only
+                          </Typography>
+                        }
+                        sx={{ mr: 0 }}
+                      />
+                    </Box>
+
+                  </Box>
+
+                </Box>
               </Box>
-            </Box>
-          </Collapse>
-        </Box>
+            </Collapse>
+          </Box>
 
 
-        {/* ================= TABLE AREA (SCROLLABLE) ================= */}
-        <Box
-          sx={{
-            flex: 1,
-            display: "flex",
-            flexDirection: "column",
-            overflow: "hidden",
-            pb: { xs: 0, md: 2 },
-            bgcolor: isDarkMode ? '#0f172a' : 'transparent',
-          }}
-        >
-          <Paper
+          {/* ================= TABLE AREA (SCROLLABLE) ================= */}
+          <Box
             sx={{
               flex: 1,
               display: "flex",
               flexDirection: "column",
               overflow: "hidden",
-              bgcolor: isDarkMode ? '#1e293b' : 'background.paper',
+              pb: { xs: 0, md: 2 },
+              bgcolor: isDarkMode ? '#0f172a' : 'transparent',
+              minHeight: { md: 'calc(100vh - 180px)' }, // Ensure table has minimum height for proper scrolling
             }}
           >
-            {/* Table Container - AG Grid */}
-            <Box sx={{
-              flex: 1,
-              display: 'flex',
-              flexDirection: 'column',
-              overflow: 'hidden',
-              position: 'relative',
-              bgcolor: isDarkMode ? '#1e293b' : 'transparent',
-            }}>
-              {/* Loading Overlay - shows during any loading state */}
-              {loading && (
-                <Box sx={{
-                  position: 'absolute',
-                  top: 48,
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  backgroundColor: isDarkMode ? 'rgba(15, 23, 42, 0.9)' : 'rgba(255, 255, 255, 0.9)',
-                  backdropFilter: 'blur(4px)',
-                  zIndex: 5,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}>
+            <Paper
+              sx={{
+                flex: 1,
+                display: "flex",
+                flexDirection: "column",
+                overflow: "hidden",
+                bgcolor: isDarkMode ? '#1e293b' : 'background.paper',
+              }}
+            >
+              {/* Table Container - AG Grid */}
+              <Box sx={{
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                overflow: 'hidden',
+                position: 'relative',
+                bgcolor: isDarkMode ? '#1e293b' : 'transparent',
+              }}>
+                {/* Loading Overlay - shows during any loading state */}
+                {loading && (
                   <Box sx={{
+                    position: 'absolute',
+                    top: 48,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    backgroundColor: isDarkMode ? 'rgba(15, 23, 42, 0.9)' : 'rgba(255, 255, 255, 0.9)',
+                    backdropFilter: 'blur(4px)',
+                    zIndex: 5,
                     display: 'flex',
-                    flexDirection: 'column',
                     alignItems: 'center',
-                    gap: 2.5,
-                    p: { xs: 3, md: 4 },
-                    bgcolor: isDarkMode ? '#1e293b' : 'white',
-                    borderRadius: 3,
-                    boxShadow: isDarkMode ? '0 8px 32px rgba(0,0,0,0.4)' : '0 8px 32px rgba(0,0,0,0.1)'
+                    justifyContent: 'center',
                   }}>
-                    <Box sx={{ position: 'relative' }}>
-                      <CircularProgress
-                        size={52}
-                        thickness={4}
-                        sx={{
-                          color: '#1e40af',
-                          filter: 'drop-shadow(0 2px 8px rgba(30, 64, 175, 0.2))'
-                        }}
-                      />
-                      <Box sx={{
-                        position: 'absolute',
-                        top: '50%',
-                        left: '50%',
-                        transform: 'translate(-50%, -50%)',
-                        width: 40,
-                        height: 40,
-                        borderRadius: '50%',
-                        background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
-                        opacity: 0.12,
-                        animation: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-                        '@keyframes pulse': {
-                          '0%, 100%': {
-                            transform: 'translate(-50%, -50%) scale(1)',
-                            opacity: 0.12
-                          },
-                          '50%': {
-                            transform: 'translate(-50%, -50%) scale(1.2)',
-                            opacity: 0.04
-                          }
-                        }
-                      }} />
-                    </Box>
-                    <Typography
-                      sx={{
-                        fontSize: '0.9rem',
-                        fontWeight: 500,
-                        color: isDarkMode ? '#94a3b8' : '#64748b',
-                        letterSpacing: 0.2,
-                        textAlign: 'center'
-                      }}
-                    >
-                      Loading data...
-                    </Typography>
-                  </Box>
-                </Box>
-              )}
-
-              {/* Empty State Overlay - shows when no data but headers remain visible */}
-              {!activeWarehouse && (!filteredData || filteredData.length === 0) && !loading && (
-                <Box sx={{
-                  position: 'absolute',
-                  top: 60,
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  backgroundColor: isDarkMode ? 'rgba(15, 23, 42, 0.97)' : 'rgba(255, 255, 255, 0.97)',
-                  backdropFilter: 'blur(4px)',
-                  zIndex: 5,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}>
-                  <Box
-                    sx={{
-                      p: { xs: 3, md: 5 },
-                      textAlign: 'center',
+                    <Box sx={{
                       display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
                       flexDirection: 'column',
-                    }}
-                  >
+                      alignItems: 'center',
+                      gap: 2.5,
+                      p: { xs: 3, md: 4 },
+                      bgcolor: isDarkMode ? '#1e293b' : 'white',
+                      borderRadius: 3,
+                      boxShadow: isDarkMode ? '0 8px 32px rgba(0,0,0,0.4)' : '0 8px 32px rgba(0,0,0,0.1)'
+                    }}>
+                      <Box sx={{ position: 'relative' }}>
+                        <CircularProgress
+                          size={52}
+                          thickness={4}
+                          sx={{
+                            color: '#1e40af',
+                            filter: 'drop-shadow(0 2px 8px rgba(30, 64, 175, 0.2))'
+                          }}
+                        />
+                        <Box sx={{
+                          position: 'absolute',
+                          top: '50%',
+                          left: '50%',
+                          transform: 'translate(-50%, -50%)',
+                          width: 40,
+                          height: 40,
+                          borderRadius: '50%',
+                          background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
+                          opacity: 0.12,
+                          animation: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                          '@keyframes pulse': {
+                            '0%, 100%': {
+                              transform: 'translate(-50%, -50%) scale(1)',
+                              opacity: 0.12
+                            },
+                            '50%': {
+                              transform: 'translate(-50%, -50%) scale(1.2)',
+                              opacity: 0.04
+                            }
+                          }
+                        }} />
+                      </Box>
+                      <Typography
+                        sx={{
+                          fontSize: '0.9rem',
+                          fontWeight: 500,
+                          color: isDarkMode ? '#94a3b8' : '#64748b',
+                          letterSpacing: 0.2,
+                          textAlign: 'center'
+                        }}
+                      >
+                        Loading data...
+                      </Typography>
+                    </Box>
+                  </Box>
+                )}
+
+                {/* Empty State Overlay - shows when no data but headers remain visible */}
+                {!activeWarehouse && (!filteredData || filteredData.length === 0) && !loading && (
+                  <Box sx={{
+                    position: 'absolute',
+                    top: 60,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    backgroundColor: isDarkMode ? 'rgba(15, 23, 42, 0.97)' : 'rgba(255, 255, 255, 0.97)',
+                    backdropFilter: 'blur(4px)',
+                    zIndex: 5,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}>
                     <Box
                       sx={{
                         p: { xs: 3, md: 5 },
-                        background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
-                        borderRadius: 4,
-                        color: 'white',
-                        boxShadow: '0 20px 60px rgba(30, 64, 175, 0.35)',
+                        textAlign: 'center',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexDirection: 'column',
                       }}
                     >
-                      <Typography variant="h5" sx={{ fontWeight: 700, mb: 1, fontSize: { xs: '1.1rem', md: '1.5rem' } }}>
-                        No active warehouse selected
-                      </Typography>
-                      <Typography variant="body2" sx={{ opacity: 0.9, fontSize: { xs: '0.8rem', md: '0.875rem' } }}>
-                        Please go to Settings &gt; Warehouses to set one
-                      </Typography>
+                      <Box
+                        sx={{
+                          p: { xs: 3, md: 5 },
+                          background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
+                          borderRadius: 4,
+                          color: 'white',
+                          boxShadow: '0 20px 60px rgba(30, 64, 175, 0.35)',
+                        }}
+                      >
+                        <Typography variant="h5" sx={{ fontWeight: 700, mb: 1, fontSize: { xs: '1.1rem', md: '1.5rem' } }}>
+                          No active warehouse selected
+                        </Typography>
+                        <Typography variant="body2" sx={{ opacity: 0.9, fontSize: { xs: '0.8rem', md: '0.875rem' } }}>
+                          Please go to Settings &gt; Warehouses to set one
+                        </Typography>
+                      </Box>
                     </Box>
                   </Box>
-                </Box>
-              )}
+                )}
 
-              {activeWarehouse && (!filteredData || filteredData.length === 0) && !loading && (
-                <Box sx={{
-                  position: 'absolute',
-                  top: 60,
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  backgroundColor: isDarkMode ? 'rgba(15, 23, 42, 0.97)' : 'rgba(255, 255, 255, 0.97)',
-                  backdropFilter: 'blur(4px)',
-                  zIndex: 5,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}>
+                {activeWarehouse && (!filteredData || filteredData.length === 0) && !loading && (
                   <Box sx={{
-                    textAlign: 'center',
-                    p: { xs: 3, md: 4 },
+                    position: 'absolute',
+                    top: 60,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    backgroundColor: isDarkMode ? 'rgba(15, 23, 42, 0.97)' : 'rgba(255, 255, 255, 0.97)',
+                    backdropFilter: 'blur(4px)',
+                    zIndex: 5,
                     display: 'flex',
-                    flexDirection: 'column',
                     alignItems: 'center',
-                    gap: 1.5
+                    justifyContent: 'center',
                   }}>
                     <Box sx={{
-                      fontSize: { xs: '3rem', md: '4rem' },
-                      opacity: 0.25,
-                      mb: 0.5
+                      textAlign: 'center',
+                      p: { xs: 3, md: 4 },
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: 1.5
                     }}>
-                      📭
+                      <Box sx={{
+                        fontSize: { xs: '3rem', md: '4rem' },
+                        opacity: 0.25,
+                        mb: 0.5
+                      }}>
+                        📭
+                      </Box>
+                      <Typography variant="h5" sx={{ fontWeight: 600, color: isDarkMode ? '#94a3b8' : '#475569', mb: 0.5, fontSize: { xs: '1.1rem', md: '1.5rem' } }}>
+                        No Data Found
+                      </Typography>
+                      <Typography variant="body2" sx={{ color: '#94a3b8', maxWidth: 400, fontSize: { xs: '0.8rem', md: '0.875rem' } }}>
+                        No items match your current filters. Try adjusting your search criteria or reset filters to see all items.
+                      </Typography>
                     </Box>
-                    <Typography variant="h5" sx={{ fontWeight: 600, color: isDarkMode ? '#94a3b8' : '#475569', mb: 0.5, fontSize: { xs: '1.1rem', md: '1.5rem' } }}>
-                      No Data Found
-                    </Typography>
-                    <Typography variant="body2" sx={{ color: '#94a3b8', maxWidth: 400, fontSize: { xs: '0.8rem', md: '0.875rem' } }}>
-                      No items match your current filters. Try adjusting your search criteria or reset filters to see all items.
-                    </Typography>
                   </Box>
-                </Box>
-              )}
+                )}
 
-              {/* AG Grid - Always Rendered */}
-              <Box sx={{
-                flex: 1,
-                overflow: 'hidden',
-                display: 'flex',
-                flexDirection: 'column',
-                bgcolor: isDarkMode ? '#1e293b' : 'transparent',
-                '& .ag-root-wrapper': {
-                  height: '100%',
-                  borderRadius: { xs: 0, md: '12px' },
+                {/* AG Grid - Always Rendered */}
+                <Box sx={{
+                  flex: 1,
                   overflow: 'hidden',
-                  border: { xs: 'none', md: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(0,0,0,0.06)' },
-                  backgroundColor: isDarkMode ? '#1e293b' : 'transparent',
-                },
-                '& .ag-header': {
-                  backgroundColor: isDarkMode ? '#334155' : '#f8fafc',
-                  borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(0,0,0,0.08)',
-                  fontWeight: 600,
-                  opacity: '1 !important',
-                  zIndex: 15,
-                  position: 'relative'
-                },
-                '& .ag-header-cell': {
-                  padding: '0 12px',
-                  opacity: '1 !important',
-                  fontWeight: 600,
-                  letterSpacing: '0.01em',
-                  backgroundColor: isDarkMode ? '#334155' : 'transparent',
-                  color: isDarkMode ? '#f1f5f9' : 'inherit',
-                },
-                '& .ag-body-viewport': {
-                  opacity: loading ? 0.3 : 1,
-                  transition: 'opacity 0.2s ease-in-out'
-                },
-                '& .ag-row': {
-                  height: { xs: 44, md: 44 },
-                  overflow: 'visible',
-                  transition: 'background-color 0.15s ease',
-                  borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.06)' : '1px solid rgba(0,0,0,0.06)',
-                },
-                '& .ag-row-even': {
-                  backgroundColor: isDarkMode ? '#1a2536' : '#ffffff',
-                },
-                '& .ag-row-odd': {
-                  backgroundColor: isDarkMode ? '#1e293b' : 'rgba(248,250,252,0.5)',
-                },
-                '& .ag-cell': {
                   display: 'flex',
-                  alignItems: 'center',
-                  lineHeight: { xs: '44px', md: '44px' },
-                  fontSize: '0.875rem',
-                  padding: '0 12px',
-                  color: isDarkMode ? '#f1f5f9' : 'inherit',
-                },
-                '& .ag-cell-focus': {
-                  border: '2px solid #1e40af !important',
-                  boxSizing: 'border-box',
-                  outline: 'none'
-                },
-                '& .ag-cell-range-selected': {
-                  backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.2) !important' : 'rgba(30,64,175,0.08) !important',
-                },
-                '& .ag-row-hover': {
-                  backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.15) !important' : 'rgba(30,64,175,0.04) !important',
-                  transition: 'background-color 0.1s ease'
-                },
-              }}>
-                <div className="ag-theme-quartz" style={{ height: '100%', width: '100%' }}>
-                  <AgGridReact
-                    ref={gridRef}
-                    rowData={filteredData}
-                    columnDefs={columnDefs}
-                    defaultColDef={defaultColDef}
-                    rowSelection={{ mode: 'singleRow', checkboxes: false, enableClickSelection: true }}
-                    loading={false}
-                    suppressNoRowsOverlay={true}
-                    getRowId={(params: any) => String(params.data?.wsn || params.data?.wid || params.rowIndex)}
-                    onGridReady={(params: any) => {
-                      gridRef.current = params.api;
-                      columnApiRef.current = params.columnApi;
-                      try {
-                        const savedState = localStorage.getItem('dashboard_columnState');
-                        if (savedState && params.api) {
-                          params.api.applyColumnState({ state: JSON.parse(savedState), applyOrder: true });
-                          hasAutoFittedRef.current = true; // Mark as fitted (using saved state)
-                        }
-                      } catch { /* ignore */ }
-                    }}
-                    onFirstDataRendered={(params: any) => {
-                      // Auto-fit columns on first data load ONLY if no saved state
-                      if (!hasAutoFittedRef.current && params.api) {
+                  flexDirection: 'column',
+                  bgcolor: isDarkMode ? '#1e293b' : 'transparent',
+                  '& .ag-root-wrapper': {
+                    height: '100%',
+                    borderRadius: { xs: 0, md: '12px' },
+                    overflow: 'hidden',
+                    border: { xs: 'none', md: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(0,0,0,0.06)' },
+                    backgroundColor: isDarkMode ? '#1e293b' : 'transparent',
+                  },
+                  '& .ag-header': {
+                    backgroundColor: isDarkMode ? '#334155' : '#f8fafc',
+                    borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(0,0,0,0.08)',
+                    fontWeight: 600,
+                    opacity: '1 !important',
+                    zIndex: 15,
+                    position: 'relative'
+                  },
+                  '& .ag-header-cell': {
+                    padding: '0 12px',
+                    opacity: '1 !important',
+                    fontWeight: 600,
+                    letterSpacing: '0.01em',
+                    backgroundColor: isDarkMode ? '#334155' : 'transparent',
+                    color: isDarkMode ? '#f1f5f9' : 'inherit',
+                  },
+                  '& .ag-body-viewport': {
+                    opacity: loading ? 0.3 : 1,
+                    transition: 'opacity 0.2s ease-in-out'
+                  },
+                  '& .ag-row': {
+                    height: { xs: 44, md: 44 },
+                    overflow: 'visible',
+                    transition: 'background-color 0.15s ease',
+                    borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.06)' : '1px solid rgba(0,0,0,0.06)',
+                  },
+                  '& .ag-row-even': {
+                    backgroundColor: isDarkMode ? '#1a2536' : '#ffffff',
+                  },
+                  '& .ag-row-odd': {
+                    backgroundColor: isDarkMode ? '#1e293b' : 'rgba(248,250,252,0.5)',
+                  },
+                  '& .ag-cell': {
+                    display: 'flex',
+                    alignItems: 'center',
+                    lineHeight: { xs: '44px', md: '44px' },
+                    fontSize: '0.875rem',
+                    padding: '0 12px',
+                    color: isDarkMode ? '#f1f5f9' : 'inherit',
+                  },
+                  '& .ag-cell-focus': {
+                    border: '2px solid #1e40af !important',
+                    boxSizing: 'border-box',
+                    outline: 'none'
+                  },
+                  '& .ag-cell-range-selected': {
+                    backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.2) !important' : 'rgba(30,64,175,0.08) !important',
+                  },
+                  '& .ag-row-hover': {
+                    backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.15) !important' : 'rgba(30,64,175,0.04) !important',
+                    transition: 'background-color 0.1s ease'
+                  },
+                }}>
+                  <div className="ag-theme-quartz" style={{ height: '100%', width: '100%' }}>
+                    <AgGridReact
+                      ref={gridRef}
+                      rowData={filteredData}
+                      columnDefs={columnDefs}
+                      defaultColDef={defaultColDef}
+                      rowSelection={{ mode: 'singleRow', checkboxes: false, enableClickSelection: true }}
+                      loading={false}
+                      suppressNoRowsOverlay={true}
+                      getRowId={(params: any) => String(params.data?.wsn || params.data?.wid || params.rowIndex)}
+                      onGridReady={(params: any) => {
+                        gridRef.current = params.api;
+                        columnApiRef.current = params.columnApi;
                         try {
-                          const allColIds = params.api.getColumns()
-                            ?.filter((col: any) => col.getColId() !== '__action')
-                            .map((col: any) => col.getColId()) || [];
-                          if (allColIds.length > 0) {
-                            params.api.autoSizeColumns(allColIds);
+                          const savedState = localStorage.getItem('dashboard_columnState');
+                          if (savedState && params.api) {
+                            params.api.applyColumnState({ state: JSON.parse(savedState), applyOrder: true });
+                            hasAutoFittedRef.current = true; // Mark as fitted (using saved state)
                           }
-                          hasAutoFittedRef.current = true;
                         } catch { /* ignore */ }
-                      }
-                    }}
-                    onColumnResized={(params: any) => {
-                      if (params.finished && params.api) {
-                        try {
-                          localStorage.setItem('dashboard_columnState', JSON.stringify(params.api.getColumnState()));
-                        } catch { /* ignore */ }
-                      }
-                    }}
-                    onColumnMoved={(params: any) => {
-                      if (params.finished && params.api) {
-                        try {
-                          localStorage.setItem('dashboard_columnState', JSON.stringify(params.api.getColumnState()));
-                        } catch { /* ignore */ }
-                      }
-                    }}
-                    animateRows={false}
-                    rowBuffer={10}
-                    rowHeight={tableRowHeight}
-                  />
-                </div>
+                      }}
+                      onFirstDataRendered={(params: any) => {
+                        // Auto-fit columns on first data load ONLY if no saved state
+                        if (!hasAutoFittedRef.current && params.api) {
+                          try {
+                            const allColIds = params.api.getColumns()
+                              ?.filter((col: any) => col.getColId() !== '__action')
+                              .map((col: any) => col.getColId()) || [];
+                            if (allColIds.length > 0) {
+                              params.api.autoSizeColumns(allColIds);
+                            }
+                            hasAutoFittedRef.current = true;
+                          } catch { /* ignore */ }
+                        }
+                      }}
+                      onColumnResized={(params: any) => {
+                        if (params.finished && params.api) {
+                          try {
+                            localStorage.setItem('dashboard_columnState', JSON.stringify(params.api.getColumnState()));
+                          } catch { /* ignore */ }
+                        }
+                      }}
+                      onColumnMoved={(params: any) => {
+                        if (params.finished && params.api) {
+                          try {
+                            localStorage.setItem('dashboard_columnState', JSON.stringify(params.api.getColumnState()));
+                          } catch { /* ignore */ }
+                        }
+                      }}
+                      animateRows={false}
+                      rowBuffer={10}
+                      rowHeight={tableRowHeight}
+                    />
+                  </div>
+                </Box>
               </Box>
-            </Box>
-            {/* ================= PAGINATION (ALWAYS ONE ROW + MOBILE COMPACT) ================= */}
-            <Box
-              sx={{
-                px: { xs: 1, sm: 2 },
-                py: { xs: 0.75, sm: 0.5 },
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                borderTop: isDarkMode ? "1px solid rgba(255,255,255,0.1)" : "1px solid #ddd",
-                bgcolor: isDarkMode ? '#1e293b' : "white",
-                flexShrink: 0,
-                minHeight: { xs: 44, sm: 48 },
-                gap: { xs: 0.5, sm: 1 },
-              }}
-            >
-              {/* Per Page */}
-              <Stack direction="row" spacing={{ xs: 0.5, sm: 1 }} alignItems="center">
-                <Typography sx={{ fontSize: { xs: "0.7rem", sm: "0.78rem" }, whiteSpace: "nowrap", color: isDarkMode ? '#94a3b8' : 'inherit' }}>
-                  Per page:
-                </Typography>
-
-                <Select
-                  size="small"
-                  value={limit}
-                  onChange={(e) => {
-                    setLimit(Number(e.target.value));
-                    setPage(1);
-                  }}
-                  sx={{
-                    minWidth: { xs: 58, sm: 70 },
-                    '& .MuiSelect-select': {
-                      py: { xs: 0.5, sm: 0.75 },
-                      fontSize: { xs: '0.75rem', sm: '0.875rem' },
-                    }
-                  }}
-                >
-                  <MenuItem value={50}>50</MenuItem>
-                  <MenuItem value={100}>100</MenuItem>
-                  <MenuItem value={500}>500</MenuItem>
-                  <MenuItem value={1000}>1000</MenuItem>
-                </Select>
-              </Stack>
-
-              {/* Count */}
-              <Typography
+              {/* ================= PAGINATION (ALWAYS ONE ROW + MOBILE COMPACT) ================= */}
+              <Box
                 sx={{
-                  fontSize: { xs: "0.7rem", sm: "0.78rem" },
-                  whiteSpace: "nowrap",
-                  color: isDarkMode ? '#94a3b8' : 'inherit',
+                  px: { xs: 1, sm: 2 },
+                  py: { xs: 0.75, sm: 0.5 },
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  borderTop: isDarkMode ? "1px solid rgba(255,255,255,0.1)" : "1px solid #ddd",
+                  bgcolor: isDarkMode ? '#1e293b' : "white",
+                  flexShrink: 0,
+                  minHeight: { xs: 44, sm: 48 },
+                  gap: { xs: 0.5, sm: 1 },
                 }}
               >
-                {(page - 1) * limit + 1} – {Math.min(page * limit, total)} of{" "}
-                {total}
-              </Typography>
-
-              {/* Pagination (Responsive) */}
-              {(isMobile ? (
-                // MOBILE COMPACT PAGINATION
-                <Stack direction="row" spacing={0.5} alignItems="center">
-                  <Button
-                    size="small"
-                    disabled={page === 1}
-                    onClick={() => setPage(page - 1)}
-                    sx={{
-                      minWidth: { xs: 40, sm: 64 },
-                      px: { xs: 0.5, sm: 2 },
-                      fontSize: { xs: '0.7rem', sm: '0.875rem' },
-                    }}
-                  >
-                    Prev
-                  </Button>
-
-                  <Typography sx={{ fontSize: { xs: "0.75rem", sm: "0.85rem" }, fontWeight: 600, minWidth: 40, textAlign: 'center' }}>
-                    {page} / {Math.ceil(total / limit)}
+                {/* Per Page */}
+                <Stack direction="row" spacing={{ xs: 0.5, sm: 1 }} alignItems="center">
+                  <Typography sx={{ fontSize: { xs: "0.7rem", sm: "0.78rem" }, whiteSpace: "nowrap", color: isDarkMode ? '#94a3b8' : 'inherit' }}>
+                    Per page:
                   </Typography>
 
-                  <Button
+                  <Select
                     size="small"
-                    disabled={page === Math.ceil(total / limit)}
-                    onClick={() => setPage(page + 1)}
+                    value={limit}
+                    onChange={(e) => {
+                      setLimit(Number(e.target.value));
+                      setPage(1);
+                    }}
                     sx={{
-                      minWidth: { xs: 40, sm: 64 },
-                      px: { xs: 0.5, sm: 2 },
-                      fontSize: { xs: '0.7rem', sm: '0.875rem' },
+                      minWidth: { xs: 58, sm: 70 },
+                      '& .MuiSelect-select': {
+                        py: { xs: 0.5, sm: 0.75 },
+                        fontSize: { xs: '0.75rem', sm: '0.875rem' },
+                      }
                     }}
                   >
-                    Next
-                  </Button>
+                    <MenuItem value={50}>50</MenuItem>
+                    <MenuItem value={100}>100</MenuItem>
+                    <MenuItem value={500}>500</MenuItem>
+                    <MenuItem value={1000}>1000</MenuItem>
+                  </Select>
                 </Stack>
-              ) : (
-                // DESKTOP FULL PAGINATION
-                <Pagination
-                  page={page}
-                  count={Math.ceil(total / limit)}
-                  size="small"
-                  onChange={(_, v) => setPage(v)}
-                />
-              ))}
-            </Box>
-          </Paper>
-        </Box>
-      </Box>
 
-      {/* Mobile sticky action bar hidden (actions moved to Actions dialog) */}
-      <Box sx={{ display: { xs: 'none', md: 'none' } }} />
+                {/* Count */}
+                <Typography
+                  sx={{
+                    fontSize: { xs: "0.7rem", sm: "0.78rem" },
+                    whiteSpace: "nowrap",
+                    color: isDarkMode ? '#94a3b8' : 'inherit',
+                  }}
+                >
+                  {(page - 1) * limit + 1} – {Math.min(page * limit, total)} of{" "}
+                  {total}
+                </Typography>
+
+                {/* Pagination (Responsive) */}
+                {(isMobile ? (
+                  // MOBILE COMPACT PAGINATION
+                  <Stack direction="row" spacing={0.5} alignItems="center">
+                    <Button
+                      size="small"
+                      disabled={page === 1}
+                      onClick={() => setPage(page - 1)}
+                      sx={{
+                        minWidth: { xs: 40, sm: 64 },
+                        px: { xs: 0.5, sm: 2 },
+                        fontSize: { xs: '0.7rem', sm: '0.875rem' },
+                      }}
+                    >
+                      Prev
+                    </Button>
+
+                    <Typography sx={{ fontSize: { xs: "0.75rem", sm: "0.85rem" }, fontWeight: 600, minWidth: 40, textAlign: 'center' }}>
+                      {page} / {Math.ceil(total / limit)}
+                    </Typography>
+
+                    <Button
+                      size="small"
+                      disabled={page === Math.ceil(total / limit)}
+                      onClick={() => setPage(page + 1)}
+                      sx={{
+                        minWidth: { xs: 40, sm: 64 },
+                        px: { xs: 0.5, sm: 2 },
+                        fontSize: { xs: '0.7rem', sm: '0.875rem' },
+                      }}
+                    >
+                      Next
+                    </Button>
+                  </Stack>
+                ) : (
+                  // DESKTOP FULL PAGINATION
+                  <Pagination
+                    page={page}
+                    count={Math.ceil(total / limit)}
+                    size="small"
+                    onChange={(_, v) => setPage(v)}
+                  />
+                ))}
+              </Box>
+            </Paper>
+          </Box>
+        </Box>{/* END SCROLLABLE CONTENT AREA */}
+      </Box>{/* END MAIN WRAPPER */}
 
       {/* MOBILE ACTIONS DIALOG (Filters + Actions combined) */}
       <Dialog fullScreen open={mobileActionsOpen} onClose={() => setMobileActionsOpen(false)}>
