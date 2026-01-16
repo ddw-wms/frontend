@@ -5580,7 +5580,8 @@ export default function InboundPage() {
 
                     // Active (focused) cell – Excel जैसी नीली border
                     '& .ag-cell-focus': {
-                      border: '2px solid #2563eb !important',
+                      border: isDarkMode ? '2px solid #38bdf8 !important' : '2px solid #2563eb !important',
+                      boxShadow: isDarkMode ? '0 0 0 1px #38bdf8, inset 0 0 0 1px rgba(56, 189, 248, 0.3)' : 'none',
                       boxSizing: 'border-box',
                     },
 

@@ -1589,11 +1589,12 @@ export default function BackupPage() {
                                                         <Chip
                                                             label={table.size}
                                                             size="small"
-                                                            color="primary"
                                                             sx={{
                                                                 height: 18,
                                                                 fontSize: '0.65rem',
                                                                 fontWeight: 600,
+                                                                bgcolor: isDarkMode ? '#6366f1' : '#e0e7ff',
+                                                                color: isDarkMode ? '#ffffff' : '#3730a3',
                                                                 '& .MuiChip-label': {
                                                                     px: 0.75
                                                                 }
@@ -1657,11 +1658,11 @@ export default function BackupPage() {
                                                                 <Chip
                                                                     label={table.size}
                                                                     size="small"
-                                                                    color="primary"
-                                                                    variant="outlined"
                                                                     sx={{
                                                                         fontWeight: 600,
-                                                                        fontSize: '0.75rem'
+                                                                        fontSize: '0.75rem',
+                                                                        bgcolor: isDarkMode ? '#6366f1' : '#e0e7ff',
+                                                                        color: isDarkMode ? '#ffffff' : '#3730a3'
                                                                     }}
                                                                 />
                                                             </TableCell>

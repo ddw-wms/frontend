@@ -3342,7 +3342,7 @@ export default function OutboundPage() {
                             '& .ag-row': { height: 26, overflow: 'visible' },
                             '& .ag-row-even': { backgroundColor: isDarkMode ? '#1a2536' : '#ffffff' },
                             '& .ag-row-odd': { backgroundColor: isDarkMode ? '#1e293b' : '#f9fafb' },
-                            '& .ag-cell-focus': { border: '2px solid #2563eb !important', boxSizing: 'border-box' },
+                            '& .ag-cell-focus': { border: isDarkMode ? '2px solid #38bdf8 !important' : '2px solid #2563eb !important', boxShadow: isDarkMode ? '0 0 0 1px #38bdf8, inset 0 0 0 1px rgba(56, 189, 248, 0.3)' : 'none', boxSizing: 'border-box' },
                             '& .ag-cell-range-selected': { backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.3) !important' : '#dbeafe !important' },
                             '& .ag-cell-range-single-cell': { backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.2) !important' : '#eff6ff !important' },
                             '& .ag-row-hover': { backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.15) !important' : '#e5f3ff !important' },
