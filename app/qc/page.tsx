@@ -243,6 +243,9 @@ export default function QCPage() {
   const columnApiRef = useRef<any>(null);
   const hasAutoFittedRef = useRef(false); // Track if auto-fit has been done
 
+  // Single Entry WSN debounce ref (for scanner support)
+  const singleWSNDebounceRef = useRef<NodeJS.Timeout | null>(null);
+
   // QC LIST STATE
   const [qcList, setQcList] = useState<QCItem[]>([]);
   const [listLoading, setListLoading] = useState(false);
@@ -2663,9 +2666,29 @@ export default function QCPage() {
                           label="WSN *"
                           value={singleWSN}
                           onChange={(e) => {
-                            const value = e.target.value;
+                            const value = e.target.value.toUpperCase(); // Auto uppercase
                             setSingleWSN(value);
-                            fetchProductDetails(value);
+
+                            // Debounce fetch for scanner support (scanners send chars rapidly)
+                            if (singleWSNDebounceRef.current) {
+                              clearTimeout(singleWSNDebounceRef.current);
+                            }
+                            singleWSNDebounceRef.current = setTimeout(() => {
+                              fetchProductDetails(value);
+                            }, 150); // Short debounce for rapid scanner input
+                          }}
+                          onKeyDown={(e) => {
+                            // Scanner sends Enter after scan - immediately fetch on Enter
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              if (singleWSNDebounceRef.current) {
+                                clearTimeout(singleWSNDebounceRef.current);
+                              }
+                              const value = singleWSN.trim().toUpperCase();
+                              if (value) {
+                                fetchProductDetails(value);
+                              }
+                            }
                           }}
                           placeholder="Enter WSN to auto-fetch product details"
                           sx={{
@@ -3739,8 +3762,8 @@ export default function QCPage() {
                           return;
                         }
 
-                        // ✅ VALID WSN - Update row and chips
-                        newRows[rowIndex] = { ...newRows[rowIndex], [field]: newValue };
+                        // ✅ VALID WSN - Update row and chips (store uppercase)
+                        newRows[rowIndex] = { ...newRows[rowIndex], [field]: wsn }; // Use uppercase wsn
                         setMultiRows(newRows);
 
 
@@ -3751,13 +3774,13 @@ export default function QCPage() {
                         }
 
                         // Fetch master data
-                        if (newValue?.trim()) {
+                        if (wsn) {
                           setTimeout(async () => {
                             try {
-                              const response = await qcAPI.getPendingInbound(activeWarehouse?.id, newValue);
+                              const response = await qcAPI.getPendingInbound(activeWarehouse?.id, wsn);
 
                               // ✅ ADD DEBUG
-                              console.log('🔍 API Response for WSN:', newValue, response.data[0]);
+                              console.log('🔍 API Response for WSN:', wsn, response.data[0]);
 
                               if (response.data.length > 0) {
                                 const item = response.data[0];

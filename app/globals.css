@@ -513,9 +513,120 @@ html[data-theme="dark"] .MuiChip-root,
   border-color: rgba(255, 255, 255, 0.2) !important;
 }
 
+/* Ensure chip labels have visible text in dark mode */
+html[data-theme="dark"] .MuiChip-label,
+[data-theme="dark"] .MuiChip-label {
+  color: inherit !important;
+}
+
 html[data-theme="dark"] .MuiChip-filled,
 [data-theme="dark"] .MuiChip-filled {
   background-color: rgba(255, 255, 255, 0.1) !important;
+  color: #f1f5f9 !important;
+}
+
+/* Filled chip color variants - dark mode */
+html[data-theme="dark"] .MuiChip-colorPrimary:not(.MuiChip-outlined),
+[data-theme="dark"] .MuiChip-colorPrimary:not(.MuiChip-outlined) {
+  background-color: #3b82f6 !important;
+  color: #fff !important;
+}
+
+html[data-theme="dark"] .MuiChip-colorSuccess:not(.MuiChip-outlined),
+[data-theme="dark"] .MuiChip-colorSuccess:not(.MuiChip-outlined) {
+  background-color: #22c55e !important;
+  color: #fff !important;
+}
+
+html[data-theme="dark"] .MuiChip-colorWarning:not(.MuiChip-outlined),
+[data-theme="dark"] .MuiChip-colorWarning:not(.MuiChip-outlined) {
+  background-color: #f59e0b !important;
+  color: #fff !important;
+}
+
+html[data-theme="dark"] .MuiChip-colorInfo:not(.MuiChip-outlined),
+[data-theme="dark"] .MuiChip-colorInfo:not(.MuiChip-outlined) {
+  background-color: #0ea5e9 !important;
+  color: #fff !important;
+}
+
+html[data-theme="dark"] .MuiChip-colorError:not(.MuiChip-outlined),
+[data-theme="dark"] .MuiChip-colorError:not(.MuiChip-outlined) {
+  background-color: #ef4444 !important;
+  color: #fff !important;
+}
+
+html[data-theme="dark"] .MuiChip-colorDefault:not(.MuiChip-outlined),
+[data-theme="dark"] .MuiChip-colorDefault:not(.MuiChip-outlined) {
+  background-color: #64748b !important;
+  color: #fff !important;
+}
+
+/* Outlined chip variants - dark mode */
+html[data-theme="dark"] .MuiChip-outlinedPrimary,
+[data-theme="dark"] .MuiChip-outlinedPrimary {
+  border-color: #3b82f6 !important;
+  color: #93c5fd !important;
+  background-color: rgba(59, 130, 246, 0.15) !important;
+}
+
+html[data-theme="dark"] .MuiChip-outlinedSuccess,
+[data-theme="dark"] .MuiChip-outlinedSuccess {
+  border-color: #22c55e !important;
+  color: #86efac !important;
+  background-color: rgba(34, 197, 94, 0.15) !important;
+}
+
+html[data-theme="dark"] .MuiChip-outlinedWarning,
+[data-theme="dark"] .MuiChip-outlinedWarning {
+  border-color: #f59e0b !important;
+  color: #fcd34d !important;
+  background-color: rgba(245, 158, 11, 0.15) !important;
+}
+
+html[data-theme="dark"] .MuiChip-outlinedInfo,
+[data-theme="dark"] .MuiChip-outlinedInfo {
+  border-color: #0ea5e9 !important;
+  color: #7dd3fc !important;
+  background-color: rgba(14, 165, 233, 0.15) !important;
+}
+
+html[data-theme="dark"] .MuiChip-outlinedError,
+[data-theme="dark"] .MuiChip-outlinedError {
+  border-color: #ef4444 !important;
+  color: #fca5a5 !important;
+  background-color: rgba(239, 68, 68, 0.15) !important;
+}
+
+html[data-theme="dark"] .MuiChip-outlinedDefault,
+[data-theme="dark"] .MuiChip-outlinedDefault {
+  border-color: #94a3b8 !important;
+  color: #cbd5e1 !important;
+  background-color: rgba(148, 163, 184, 0.15) !important;
+}
+
+/* FKQC Remark Badge Styles (CX = Red, NTF = Green) */
+.fkqc-badge-cx {
+  background-color: #fee2e2 !important;
+  color: #dc2626 !important;
+}
+
+.fkqc-badge-ntf {
+  background-color: #dcfce7 !important;
+  color: #16a34a !important;
+}
+
+/* Dark mode for FKQC badges */
+html[data-theme="dark"] .fkqc-badge-cx,
+[data-theme="dark"] .fkqc-badge-cx {
+  background-color: rgba(220, 38, 38, 0.25) !important;
+  color: #fca5a5 !important;
+}
+
+html[data-theme="dark"] .fkqc-badge-ntf,
+[data-theme="dark"] .fkqc-badge-ntf {
+  background-color: rgba(22, 163, 74, 0.25) !important;
+  color: #86efac !important;
 }
 
 /* Alerts */
@@ -876,6 +987,134 @@ html[data-theme="dark"] .ag-popup,
 [data-theme="dark"] .ag-popup {
   background-color: #1e293b !important;
   color: #f1f5f9 !important;
+}
+
+/* AG Grid Cell Chips - Dark Mode Text Colors */
+html[data-theme="dark"] .ag-cell .MuiChip-root,
+html[data-theme="dark"] .ag-cell-value .MuiChip-root,
+[data-theme="dark"] .ag-cell .MuiChip-root,
+[data-theme="dark"] .ag-cell-value .MuiChip-root {
+  color: #fff !important;
+}
+
+/* Ensure chip labels inherit color from parent chip */
+html[data-theme="dark"] .ag-cell .MuiChip-label,
+html[data-theme="dark"] .ag-cell-value .MuiChip-label,
+[data-theme="dark"] .ag-cell .MuiChip-label,
+[data-theme="dark"] .ag-cell-value .MuiChip-label {
+  color: inherit !important;
+}
+
+/* Outlined chips in AG Grid cells need visible text in dark mode */
+html[data-theme="dark"] .ag-cell .MuiChip-outlined,
+html[data-theme="dark"] .ag-cell-value .MuiChip-outlined,
+[data-theme="dark"] .ag-cell .MuiChip-outlined,
+[data-theme="dark"] .ag-cell-value .MuiChip-outlined {
+  border-color: currentColor !important;
+}
+
+/* Specific chip color overrides for dark mode - ensure text is white */
+html[data-theme="dark"] .ag-cell .MuiChip-colorPrimary,
+html[data-theme="dark"] .ag-cell .MuiChip-colorPrimary .MuiChip-label,
+[data-theme="dark"] .ag-cell .MuiChip-colorPrimary,
+[data-theme="dark"] .ag-cell .MuiChip-colorPrimary .MuiChip-label {
+  background-color: #3b82f6 !important;
+  color: #fff !important;
+}
+
+html[data-theme="dark"] .ag-cell .MuiChip-colorSuccess,
+html[data-theme="dark"] .ag-cell .MuiChip-colorSuccess .MuiChip-label,
+[data-theme="dark"] .ag-cell .MuiChip-colorSuccess,
+[data-theme="dark"] .ag-cell .MuiChip-colorSuccess .MuiChip-label {
+  background-color: #22c55e !important;
+  color: #fff !important;
+}
+
+html[data-theme="dark"] .ag-cell .MuiChip-colorWarning,
+html[data-theme="dark"] .ag-cell .MuiChip-colorWarning .MuiChip-label,
+[data-theme="dark"] .ag-cell .MuiChip-colorWarning,
+[data-theme="dark"] .ag-cell .MuiChip-colorWarning .MuiChip-label {
+  background-color: #f59e0b !important;
+  color: #fff !important;
+}
+
+html[data-theme="dark"] .ag-cell .MuiChip-colorInfo,
+html[data-theme="dark"] .ag-cell .MuiChip-colorInfo .MuiChip-label,
+[data-theme="dark"] .ag-cell .MuiChip-colorInfo,
+[data-theme="dark"] .ag-cell .MuiChip-colorInfo .MuiChip-label {
+  background-color: #0ea5e9 !important;
+  color: #fff !important;
+}
+
+html[data-theme="dark"] .ag-cell .MuiChip-colorError,
+html[data-theme="dark"] .ag-cell .MuiChip-colorError .MuiChip-label,
+[data-theme="dark"] .ag-cell .MuiChip-colorError,
+[data-theme="dark"] .ag-cell .MuiChip-colorError .MuiChip-label {
+  background-color: #ef4444 !important;
+  color: #fff !important;
+}
+
+html[data-theme="dark"] .ag-cell .MuiChip-colorDefault,
+html[data-theme="dark"] .ag-cell .MuiChip-colorDefault .MuiChip-label,
+[data-theme="dark"] .ag-cell .MuiChip-colorDefault,
+[data-theme="dark"] .ag-cell .MuiChip-colorDefault .MuiChip-label {
+  background-color: #64748b !important;
+  color: #fff !important;
+}
+
+/* Outlined chip variants in dark mode */
+html[data-theme="dark"] .ag-cell .MuiChip-outlinedPrimary,
+html[data-theme="dark"] .ag-cell .MuiChip-outlinedPrimary .MuiChip-label,
+[data-theme="dark"] .ag-cell .MuiChip-outlinedPrimary,
+[data-theme="dark"] .ag-cell .MuiChip-outlinedPrimary .MuiChip-label {
+  border-color: #3b82f6 !important;
+  color: #93c5fd !important;
+  background-color: rgba(59, 130, 246, 0.15) !important;
+}
+
+html[data-theme="dark"] .ag-cell .MuiChip-outlinedSuccess,
+html[data-theme="dark"] .ag-cell .MuiChip-outlinedSuccess .MuiChip-label,
+[data-theme="dark"] .ag-cell .MuiChip-outlinedSuccess,
+[data-theme="dark"] .ag-cell .MuiChip-outlinedSuccess .MuiChip-label {
+  border-color: #22c55e !important;
+  color: #86efac !important;
+  background-color: rgba(34, 197, 94, 0.15) !important;
+}
+
+html[data-theme="dark"] .ag-cell .MuiChip-outlinedWarning,
+html[data-theme="dark"] .ag-cell .MuiChip-outlinedWarning .MuiChip-label,
+[data-theme="dark"] .ag-cell .MuiChip-outlinedWarning,
+[data-theme="dark"] .ag-cell .MuiChip-outlinedWarning .MuiChip-label {
+  border-color: #f59e0b !important;
+  color: #fcd34d !important;
+  background-color: rgba(245, 158, 11, 0.15) !important;
+}
+
+html[data-theme="dark"] .ag-cell .MuiChip-outlinedInfo,
+html[data-theme="dark"] .ag-cell .MuiChip-outlinedInfo .MuiChip-label,
+[data-theme="dark"] .ag-cell .MuiChip-outlinedInfo,
+[data-theme="dark"] .ag-cell .MuiChip-outlinedInfo .MuiChip-label {
+  border-color: #0ea5e9 !important;
+  color: #7dd3fc !important;
+  background-color: rgba(14, 165, 233, 0.15) !important;
+}
+
+html[data-theme="dark"] .ag-cell .MuiChip-outlinedError,
+html[data-theme="dark"] .ag-cell .MuiChip-outlinedError .MuiChip-label,
+[data-theme="dark"] .ag-cell .MuiChip-outlinedError,
+[data-theme="dark"] .ag-cell .MuiChip-outlinedError .MuiChip-label {
+  border-color: #ef4444 !important;
+  color: #fca5a5 !important;
+  background-color: rgba(239, 68, 68, 0.15) !important;
+}
+
+html[data-theme="dark"] .ag-cell .MuiChip-outlinedDefault,
+html[data-theme="dark"] .ag-cell .MuiChip-outlinedDefault .MuiChip-label,
+[data-theme="dark"] .ag-cell .MuiChip-outlinedDefault,
+[data-theme="dark"] .ag-cell .MuiChip-outlinedDefault .MuiChip-label {
+  border-color: #94a3b8 !important;
+  color: #cbd5e1 !important;
+  background-color: rgba(148, 163, 184, 0.15) !important;
 }
 
 /* Sidebar Dark Mode */

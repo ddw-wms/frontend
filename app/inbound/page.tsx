@@ -2844,19 +2844,6 @@ export default function InboundPage() {
           ...baseColDef,
           ...columnWidthConfig,
 
-          // ⚡ Add cellStyle for fkqc_remark color formatting
-          ...(col === 'fkqc_remark' ? {
-            cellStyle: (params: any) => {
-              const value = params.value?.trim()?.toUpperCase();
-              if (value === 'CX') {
-                return { backgroundColor: '#fee2e2', color: '#dc2626', fontWeight: 700 }; // Light red for CX
-              } else if (value === 'NTF') {
-                return { backgroundColor: '#dcfce7', color: '#16a34a', fontWeight: 700 }; // Light green for NTF
-              }
-              return {};
-            }
-          } : {}),
-
           cellRenderer: (params: any) => {
 
             // Special rendering for fkqc_remark column
@@ -2867,12 +2854,11 @@ export default function InboundPage() {
 
               return (
                 <span
+                  className={isCX ? 'fkqc-badge-cx' : isNTF ? 'fkqc-badge-ntf' : ''}
                   style={{
                     fontWeight: 700,
                     padding: '2px 8px',
                     borderRadius: '4px',
-                    backgroundColor: isCX ? '#fee2e2' : isNTF ? '#dcfce7' : 'transparent',
-                    color: isCX ? '#dc2626' : isNTF ? '#16a34a' : 'inherit'
                   }}
                   title={params.value}
                 >
