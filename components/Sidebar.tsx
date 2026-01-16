@@ -186,8 +186,9 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
       return allMainMenuItems;
     }
 
-    // Non-admin: wait for permissions to load
-    if (permissionsLoading) return [];
+    // Show all menu items while loading to prevent blank menu (permission check happens on route)
+    // This prevents app from feeling unresponsive on slow networks
+    if (permissionsLoading) return allMainMenuItems;
     return allMainMenuItems.filter(item => canSeeMenu(item.code));
   }, [allMainMenuItems, canSeeMenu, isAdmin, permissionsLoading]);
 
@@ -207,21 +208,23 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
       return filterSuperAdminItems(allSettingsMenuItems);
     }
 
-    // Non-admin: wait for permissions to load
-    if (permissionsLoading) return [];
+    // Show all settings items while loading to prevent blank menu
+    // This prevents app from feeling unresponsive on slow networks
+    if (permissionsLoading) return filterSuperAdminItems(allSettingsMenuItems);
     return filterSuperAdminItems(allSettingsMenuItems.filter(item => canSeeMenu(item.code)));
   }, [allSettingsMenuItems, canSeeMenu, isAdmin, permissionsLoading]);
 
   const navigate = (path: string) => {
+    // Close mobile drawer IMMEDIATELY for instant feedback (don't wait for navigation)
+    if (isMobile && setMobileOpen) setMobileOpen(false);
 
     if (pathname === path) {
-      // already on target path — close mobile drawer for better UX
-      if (isMobile && setMobileOpen) setMobileOpen(false);
+      // already on target path — drawer already closed above
       return;
     }
 
+    // Use startTransition for non-blocking navigation (React 18+)
     router.push(path);
-    if (isMobile && setMobileOpen) setMobileOpen(false);
   };
 
   const handleLogout = () => {

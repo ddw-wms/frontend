@@ -10,6 +10,7 @@ const api: AxiosInstance = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  timeout: 15000, // 15 second timeout - prevents indefinite waiting on slow networks
 });
 
 // =====================Auth API====================

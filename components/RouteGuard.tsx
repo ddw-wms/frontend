@@ -81,16 +81,22 @@ export default function RouteGuard({
             return;
         }
 
-        // Wait for permissions to finish loading
-        if (isLoading) {
+        // Get user for role check - do this FIRST before waiting for permissions API
+        const user = getStoredUser();
+
+        // Admin and super_admin always have access IMMEDIATELY (don't wait for permissions API)
+        // This prevents unresponsive feeling on slow networks for admin users
+        if (isAdmin || user?.role === 'admin' || user?.role === 'super_admin') {
+            setAuthorized(true);
+            setCheckingAuth(false);
             return;
         }
 
-        // Get user for role check
-        const user = getStoredUser();
-
-        // Admin and super_admin always have access (check both from context and user object)
-        if (isAdmin || user?.role === 'admin' || user?.role === 'super_admin') {
+        // For non-admin users, allow access while permissions are still loading
+        // This prevents the app from feeling frozen on slow networks
+        // The actual permission will be enforced once loaded (shows access denied if not allowed)
+        if (isLoading) {
+            // Optimistic: show content while loading, will redirect if unauthorized after load
             setAuthorized(true);
             setCheckingAuth(false);
             return;
@@ -115,8 +121,9 @@ export default function RouteGuard({
         setCheckingAuth(false);
     }, [pathname, canSee, isAdmin, isLoading, router, requiredPermission]);
 
-    // Loading state
-    if (checkingAuth || authorized === null || isLoading) {
+    // Loading state - only show loader briefly on initial mount, not during permission check
+    // This prevents the app from feeling unresponsive
+    if (checkingAuth || authorized === null) {
         return (
             <Box
                 sx={{
