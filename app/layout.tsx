@@ -7,7 +7,7 @@ import { Inter } from 'next/font/google';
 const inter = Inter({ subsets: ['latin'], variable: '--font-sans', display: 'swap' });
 
 export const metadata: Metadata = {
-  title: "Warehouse WMS",
+  title: "Divine WMS",
   description: "Warehouse Management System",
 };
 
