@@ -24,7 +24,8 @@ import AppLayout from '@/components/AppLayout';
 import { StandardPageHeader, StandardTabs } from '@/components';
 import { useTableRowHeight } from '@/app/context/AppearanceContext';
 import toast, { Toaster } from 'react-hot-toast';
-import * as XLSX from 'xlsx';
+// ⚡ OPTIMIZED: XLSX loaded dynamically on export to reduce bundle size
+// import * as XLSX from 'xlsx'; // Removed - loaded dynamically
 import { AgGridReact } from 'ag-grid-react';
 import { ModuleRegistry, AllCommunityModule, ClientSideRowModelModule } from 'ag-grid-community';
 import 'ag-grid-community/styles/ag-theme-quartz.css';
@@ -980,6 +981,9 @@ export default function PickingPage() {
     if (!activeWarehouse) return;
 
     try {
+      // ⚡ OPTIMIZED: Load XLSX dynamically
+      const XLSX = await import('xlsx');
+
       let dataToExport = pickingList;
 
       // Build filter params

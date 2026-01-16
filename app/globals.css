@@ -6,9 +6,93 @@
    PREVENT WHITE FLASH IN DARK MODE
    Applied immediately before JS hydration
    ============================================ */
+/* AG Grid - force dark background on ALL internal elements */
 html[data-theme="dark"] .ag-theme-quartz,
+html[data-theme="dark"] .ag-theme-quartz-dark,
 html[data-theme="dark"] .ag-root-wrapper,
+html[data-theme="dark"] .ag-root,
+html[data-theme="dark"] .ag-body,
+html[data-theme="dark"] .ag-body-viewport,
+html[data-theme="dark"] .ag-body-horizontal-scroll-viewport,
+html[data-theme="dark"] .ag-center-cols-viewport,
+html[data-theme="dark"] .ag-center-cols-container,
+html[data-theme="dark"] .ag-center-cols-clipper,
+html[data-theme="dark"] .ag-pinned-left-cols-container,
+html[data-theme="dark"] .ag-pinned-right-cols-container,
 html[data-theme="dark"] [class*="ag-theme-"] {
+  background-color: #1e293b !important;
+  transition: none !important;
+}
+
+/* AG Grid Dark class - immediate background without data-theme check */
+.ag-theme-quartz-dark,
+.ag-theme-quartz-dark .ag-root-wrapper,
+.ag-theme-quartz-dark .ag-root,
+.ag-theme-quartz-dark .ag-body,
+.ag-theme-quartz-dark .ag-body-viewport,
+.ag-theme-quartz-dark .ag-body-horizontal-scroll-viewport,
+.ag-theme-quartz-dark .ag-center-cols-viewport,
+.ag-theme-quartz-dark .ag-center-cols-container,
+.ag-theme-quartz-dark .ag-center-cols-clipper,
+.ag-theme-quartz-dark .ag-pinned-left-cols-container,
+.ag-theme-quartz-dark .ag-pinned-right-cols-container,
+.ag-theme-quartz-dark .ag-full-width-container,
+.ag-theme-quartz-dark .ag-floating-top-container,
+.ag-theme-quartz-dark .ag-floating-bottom-container,
+.ag-theme-quartz-dark .ag-overlay,
+.ag-theme-quartz-dark .ag-overlay-wrapper,
+.ag-theme-quartz-dark>div {
+  background-color: #1e293b !important;
+  transition: none !important;
+}
+
+/* Prevent flash on AG Grid mount - target wrapper immediately */
+.ag-theme-quartz.ag-theme-quartz-dark {
+  background-color: #1e293b !important;
+}
+
+/* AG Grid loading state - prevent white background */
+.ag-theme-quartz-dark .ag-overlay-loading-center {
+  background-color: #1e293b !important;
+}
+
+/* Additional AG Grid containers that may flash white */
+.ag-theme-quartz-dark [ref="eBodyViewport"],
+.ag-theme-quartz-dark [ref="eCenterViewport"],
+.ag-theme-quartz-dark [ref="eCenterColsClipper"] {
+  background-color: #1e293b !important;
+}
+
+/* Recharts - force dark background on ALL elements */
+html[data-theme="dark"] .recharts-wrapper,
+html[data-theme="dark"] .recharts-surface,
+html[data-theme="dark"] .recharts-responsive-container,
+html[data-theme="dark"] .recharts-responsive-container>div,
+html[data-theme="dark"] .recharts-wrapper svg,
+html[data-theme="dark"] .recharts-cartesian-grid,
+html[data-theme="dark"] .recharts-cartesian-grid-bg {
+  background-color: #1e293b !important;
+  background: #1e293b !important;
+}
+
+/* Recharts cartesian grid background rect - CRITICAL */
+html[data-theme="dark"] .recharts-cartesian-grid-bg rect,
+html[data-theme="dark"] .recharts-cartesian-grid rect {
+  fill: #1e293b !important;
+}
+
+/* Recharts - ensure the SVG area has correct background */
+html[data-theme="dark"] .recharts-wrapper svg {
+  background: #1e293b !important;
+}
+
+html[data-theme="dark"] .recharts-wrapper .recharts-surface {
+  background: #1e293b !important;
+}
+
+/* Target ALL divs inside recharts-responsive-container */
+html[data-theme="dark"] .recharts-responsive-container,
+html[data-theme="dark"] .recharts-responsive-container *:not(text):not(tspan):not(path):not(line) {
   background-color: #1e293b !important;
 }
 
@@ -2423,6 +2507,18 @@ html[data-theme="dark"] .ag-theme-quartz .ag-header-select-all,
 html[data-theme="dark"] .ag-theme-quartz .ag-checkbox-input-wrapper::after,
 [data-theme="dark"] .ag-theme-quartz .ag-checkbox-input-wrapper::after {
   color: #f1f5f9 !important;
+}
+
+/* Recharts Wrapper / Surface - Dark Mode Background Fix */
+html[data-theme="dark"] .recharts-wrapper,
+html[data-theme="dark"] .recharts-surface,
+html[data-theme="dark"] .recharts-responsive-container,
+html[data-theme="dark"] .recharts-wrapper svg,
+[data-theme="dark"] .recharts-wrapper,
+[data-theme="dark"] .recharts-surface,
+[data-theme="dark"] .recharts-responsive-container,
+[data-theme="dark"] .recharts-wrapper svg {
+  background-color: #1e293b !important;
 }
 
 /* Recharts / Chart Tooltips - Dark Mode */

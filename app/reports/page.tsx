@@ -24,7 +24,7 @@ import toast from 'react-hot-toast';
 
 import {
     LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
-    XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
+    XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceArea
 } from 'recharts';
 import dayjs from 'dayjs';
 import api from '@/lib/api';
@@ -317,35 +317,70 @@ export default function ReportsPage() {
     const renderPerformanceReports = () => (
         <Box sx={{ p: { xs: 1, md: 2 } }}>
             {/* User Performance */}
-            <Paper sx={{ p: { xs: 1, md: 2 }, mb: { xs: 2, md: 3 } }}>
+            <Paper sx={{ p: { xs: 1, md: 2 }, mb: { xs: 2, md: 3 }, bgcolor: isDarkMode ? '#1e293b' : '#ffffff' }}>
                 <Typography variant="h6" sx={{ mb: { xs: 1, md: 2 }, fontWeight: 600, fontSize: { xs: '0.9rem', md: '1.25rem' } }}>
                     👥 User Performance (Top 20)
                 </Typography>
-                <ResponsiveContainer width="100%" height={isMobile ? 200 : 300}>
-                    <BarChart data={userPerformance}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis
-                            dataKey="user_name"
-                            angle={-45}
-                            textAnchor="end"
-                            height={isMobile ? 80 : 100}
-                            fontSize={isMobile ? 9 : 11}
-                        />
-                        <YAxis fontSize={isMobile ? 10 : 12} />
-                        <Tooltip
-                            contentStyle={{
-                                backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
-                                border: isDarkMode ? '1px solid rgba(255,255,255,0.15)' : '1px solid #e5e7eb',
-                                borderRadius: '8px',
-                                color: isDarkMode ? '#f1f5f9' : '#1f2937'
-                            }}
-                        />
-                        <Legend wrapperStyle={{ fontSize: isMobile ? '10px' : '12px' }} />
-                        <Bar dataKey="inbound" fill="#1e40af" name="Inbound" />
-                        <Bar dataKey="qc" fill="#f093fb" name="QC" />
-                        <Bar dataKey="picking" fill="#4facfe" name="Picking" />
-                    </BarChart>
-                </ResponsiveContainer>
+                <div style={{
+                    width: '100%',
+                    height: isMobile ? 200 : 300,
+                    backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
+                    borderRadius: 4,
+                    overflow: 'hidden'
+                }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                        <BarChart
+                            data={userPerformance}
+                            margin={{ top: 5, right: 5, left: 0, bottom: 5 }}
+                        >
+                            {/* Background for dark mode */}
+                            <ReferenceArea y1={0} y2={Infinity} fill={isDarkMode ? '#1e293b' : '#ffffff'} fillOpacity={1} />
+                            <CartesianGrid
+                                strokeDasharray="3 3"
+                                stroke={isDarkMode ? 'rgba(255,255,255,0.1)' : '#e5e7eb'}
+                            />
+                            <XAxis
+                                dataKey="user_name"
+                                angle={-45}
+                                textAnchor="end"
+                                height={isMobile ? 80 : 100}
+                                fontSize={isMobile ? 9 : 11}
+                                tick={{ fill: isDarkMode ? '#f1f5f9' : '#1f2937' }}
+                                axisLine={{ stroke: isDarkMode ? 'rgba(255,255,255,0.2)' : '#e5e7eb' }}
+                            />
+                            <YAxis
+                                fontSize={isMobile ? 10 : 12}
+                                tick={{ fill: isDarkMode ? '#f1f5f9' : '#1f2937' }}
+                                axisLine={{ stroke: isDarkMode ? 'rgba(255,255,255,0.2)' : '#e5e7eb' }}
+                            />
+                            <Tooltip
+                                contentStyle={{
+                                    backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
+                                    border: isDarkMode ? '1px solid rgba(255,255,255,0.2)' : '1px solid #e5e7eb',
+                                    borderRadius: '8px',
+                                    color: isDarkMode ? '#f1f5f9' : '#1f2937',
+                                    boxShadow: isDarkMode ? '0 4px 12px rgba(0,0,0,0.4)' : '0 4px 12px rgba(0,0,0,0.1)'
+                                }}
+                                wrapperStyle={{
+                                    backgroundColor: 'transparent',
+                                    outline: 'none'
+                                }}
+                                labelStyle={{
+                                    color: isDarkMode ? '#f1f5f9' : '#1f2937',
+                                    fontWeight: 600
+                                }}
+                                itemStyle={{
+                                    color: isDarkMode ? '#f1f5f9' : '#1f2937'
+                                }}
+                                cursor={{ fill: isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }}
+                            />
+                            <Legend wrapperStyle={{ fontSize: isMobile ? '10px' : '12px', color: isDarkMode ? '#f1f5f9' : '#1f2937' }} />
+                            <Bar dataKey="inbound" fill="#1e40af" name="Inbound" />
+                            <Bar dataKey="qc" fill="#f093fb" name="QC" />
+                            <Bar dataKey="picking" fill="#4facfe" name="Picking" />
+                        </BarChart>
+                    </ResponsiveContainer>
+                </div>
 
                 <TableContainer sx={{ mt: { xs: 1, md: 2 }, maxHeight: isMobile ? 250 : 400 }}>
                     <Table size="small" stickyHeader>

@@ -22,7 +22,8 @@ import toast, { Toaster } from 'react-hot-toast';
 import { getStoredUser, logout } from '@/lib/auth';
 import { masterDataAPI } from '@/lib/api';
 import AppLayout from '@/components/AppLayout';
-import * as XLSX from 'xlsx';
+// ⚡ OPTIMIZED: XLSX loaded dynamically on export to reduce bundle size
+// import * as XLSX from 'xlsx'; // Removed - loaded dynamically
 import { useMasterDataPermissions } from '@/hooks/usePagePermissions';
 
 import FilterListIcon from '@mui/icons-material/FilterList';
@@ -1182,6 +1183,9 @@ export default function MasterDataPage() {
     let exportToast: any = null;
 
     try {
+      // ⚡ OPTIMIZED: Load XLSX dynamically
+      const XLSX = await import('xlsx');
+
       exportToast = toast.loading('Preparing export...');
       let data: any[] = [];
 

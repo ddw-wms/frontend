@@ -1,7 +1,8 @@
 // File: components/StandardAGGrid.tsx
 // Standardized AG Grid wrapper for consistency across all pages
+// ⚡ OPTIMIZED: Added useMemo to prevent unnecessary re-renders
 
-import React, { useRef, useCallback } from 'react';
+import React, { useRef, useCallback, useMemo } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import { Box, useTheme, useMediaQuery, Paper } from '@mui/material';
 import 'ag-grid-community/styles/ag-theme-quartz.css';
@@ -54,10 +55,19 @@ export const StandardAGGrid: React.FC<StandardAGGridProps> = ({
     const isTablet = useMediaQuery(theme.breakpoints.down('md'));
     const gridRef = useRef<any>(null);
 
-    const responsivePageSize = paginationPageSize || (isMobile ? 25 : isTablet ? 50 : 100);
-    const responsivePageSizeSelector = paginationPageSizeSelector || (isMobile ? [25, 50, 100] : [50, 100, 200, 500]);
+    // ⚡ OPTIMIZED: Memoize responsive values to prevent recalculation
+    const responsivePageSize = useMemo(() =>
+        paginationPageSize || (isMobile ? 25 : isTablet ? 50 : 100),
+        [paginationPageSize, isMobile, isTablet]
+    );
 
-    const standardDefaultColDef = {
+    const responsivePageSizeSelector = useMemo(() =>
+        paginationPageSizeSelector || (isMobile ? [25, 50, 100] : [50, 100, 200, 500]),
+        [paginationPageSizeSelector, isMobile]
+    );
+
+    // ⚡ OPTIMIZED: Memoize defaultColDef to prevent AG Grid re-renders
+    const standardDefaultColDef = useMemo(() => ({
         sortable: true,
         filter: true,
         resizable: true,
@@ -70,7 +80,7 @@ export const StandardAGGrid: React.FC<StandardAGGridProps> = ({
             alignItems: 'center',
         },
         ...defaultColDef,
-    };
+    }), [isMobile, defaultColDef]);
 
     const handleGridReady = useCallback((params: any) => {
         gridRef.current = params.api;

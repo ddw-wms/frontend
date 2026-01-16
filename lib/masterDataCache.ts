@@ -74,14 +74,15 @@ function getDB(): MasterDataDB {
     return db;
 }
 
-// Cache configuration
+// Cache configuration - ⚡ OPTIMIZED for both low-end and high-end systems
 const CACHE_CONFIG = {
     SYNC_INTERVAL_MS: 24 * 60 * 60 * 1000,  // 24 hours
-    BATCH_SIZE: 10000,  // ⚡ Increased: Records per batch during initial load (was 5000)
+    BATCH_SIZE: 5000,  // ⚡ REDUCED from 10000: Records per batch during initial load (prevents memory spikes on low-end devices)
     STALE_THRESHOLD_MS: 7 * 24 * 60 * 60 * 1000,  // 7 days - consider record stale
-    CHUNK_SIZE: 2000,  // ⚡ NEW: Records per IndexedDB write (prevents memory spikes)
-    INCREMENTAL_SYNC_ENABLED: true,  // ⚡ NEW: Only sync changes, not full data
-    MAX_RECORDS_WARNING: 500000,  // ⚡ NEW: Show warning if > 5 lakh records
+    CHUNK_SIZE: 500,  // ⚡ REDUCED from 2000: Records per IndexedDB write (prevents main thread blocking)
+    INCREMENTAL_SYNC_ENABLED: true,  // Only sync changes, not full data
+    MAX_RECORDS_WARNING: 100000,  // ⚡ REDUCED from 500000: Show warning if > 1 lakh records (more reasonable threshold)
+    YIELD_DELAY_MS: 16,  // ⚡ NEW: Time to yield between chunks (~1 frame at 60fps)
 };
 
 /**
@@ -290,8 +291,8 @@ export async function performFullSync(
                 const chunk = recordsWithTimestamp.slice(i, i + chunkSize);
                 await database.masterData.bulkPut(chunk);
 
-                // ⚡ YIELD to main thread - prevents UI freeze
-                await new Promise(resolve => setTimeout(resolve, 0));
+                // ⚡ YIELD to main thread - prevents UI freeze (use config value)
+                await new Promise(resolve => setTimeout(resolve, CACHE_CONFIG.YIELD_DELAY_MS));
             }
 
             loaded += records.length;

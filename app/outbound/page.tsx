@@ -65,7 +65,8 @@ import localforage from 'localforage';
 import { StandardPageHeader, StandardTabs } from '@/components';
 import { useTableRowHeight } from '@/app/context/AppearanceContext';
 import toast, { Toaster } from 'react-hot-toast';
-import * as XLSX from 'xlsx';
+// ⚡ OPTIMIZED: XLSX not needed here - exports handled server-side
+// import * as XLSX from 'xlsx'; // Removed - unused
 import { AgGridReact } from 'ag-grid-react';
 import { ModuleRegistry, AllCommunityModule, ClientSideRowModelModule } from 'ag-grid-community';
 import 'ag-grid-community/styles/ag-theme-quartz.css';
@@ -151,11 +152,17 @@ const ALL_MULTI_COLUMNS = [
 
 const DEFAULT_MULTI_COLUMNS = [
     'wsn',
+    'dispatch_remarks',
+    'other_remarks',
     'product_title',
     'brand',
+    'cms_vertical',
     'fsp',
     'mrp',
-    'dispatch_remarks',
+    'wid',
+    'fsn',
+    'fkqc_remark',
+
 ];
 
 const EDITABLE_COLUMNS = ['wsn', 'dispatch_remarks', 'other_remarks', 'quantity'];
@@ -3063,7 +3070,15 @@ export default function OutboundPage() {
 
                 {/* ====== TAB 3: MULTI ENTRY (AG GRID) ====== */}
                 {currentTabCode === 'multi' && (
-                    <Box sx={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 185px)', bgcolor: isDarkMode ? '#0f172a' : '#f5f7fa' }}>
+                    <Box sx={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        height: 'calc(100vh - 185px)',
+                        bgcolor: isDarkMode ? '#0f172a' : '#f5f7fa',
+                        // Prevent white flash during tab switch
+                        '& *': { transition: 'none !important' },
+                        '& .ag-root-wrapper': { backgroundColor: isDarkMode ? '#1e293b !important' : '#ffffff !important' },
+                    }}>
 
                         {/* Common Fields */}
                         <Card sx={{ mb: 0.5, borderRadius: 1, boxShadow: isDarkMode ? '0 1px 3px rgba(0,0,0,0.3)' : '0 1px 3px rgba(0,0,0,0.05)', bgcolor: isDarkMode ? '#1e293b' : 'white' }}>
@@ -3326,19 +3341,17 @@ export default function OutboundPage() {
                         )}
 
                         {/* AG Grid */}
-                        <Box className={isDarkMode ? 'ag-theme-quartz ag-theme-quartz-dark' : 'ag-theme-quartz'} sx={{
+                        <Box sx={{
                             flex: 1,
                             minHeight: 0,
                             borderRadius: 0,
                             overflow: 'hidden',
-                            border: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #cbd5e1',
+                            border: isDarkMode ? '1px solid #475569' : '1px solid #cbd5e1',
                             bgcolor: isDarkMode ? '#1e293b' : '#ffffff',
-                            // Prevent white flash in dark mode
-                            '& .ag-theme-quartz': { backgroundColor: isDarkMode ? '#1e293b' : '#ffffff' },
-                            '& .ag-root-wrapper': { borderRadius: 0, height: '100%', backgroundColor: isDarkMode ? '#1e293b' : '#ffffff' },
-                            '& .ag-header': { borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #cbd5e1', backgroundColor: isDarkMode ? '#334155' : 'transparent' },
-                            '& .ag-header-cell': { backgroundColor: isDarkMode ? '#334155' : '#e5e7eb', color: isDarkMode ? '#f1f5f9' : '#111827', fontWeight: 700, borderRight: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #d1d5db', fontSize: '11px', padding: '0 6px' },
-                            '& .ag-cell': { borderRight: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e5e7eb', borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e5e7eb', fontSize: '11px', padding: '2px 6px', display: 'flex', alignItems: 'center', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', color: isDarkMode ? '#f1f5f9' : 'inherit' },
+                            '& .ag-root-wrapper': { borderRadius: 0, backgroundColor: isDarkMode ? '#1e293b' : 'transparent' },
+                            '& .ag-header': { borderBottom: isDarkMode ? '1px solid #475569' : '1px solid #cbd5e1', backgroundColor: isDarkMode ? '#334155' : 'transparent' },
+                            '& .ag-header-cell': { backgroundColor: isDarkMode ? '#334155' : '#e5e7eb', color: isDarkMode ? '#f1f5f9' : '#111827', fontWeight: 700, borderRight: isDarkMode ? '1px solid #475569' : '1px solid #d1d5db', fontSize: '11px', padding: '0 6px' },
+                            '& .ag-cell': { borderRight: isDarkMode ? '1px solid #334155' : '1px solid #e5e7eb', borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #e5e7eb', fontSize: '11px', padding: '2px 6px', display: 'flex', alignItems: 'center', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', color: isDarkMode ? '#f1f5f9' : 'inherit' },
                             '& .ag-row': { height: 26, overflow: 'visible' },
                             '& .ag-row-even': { backgroundColor: isDarkMode ? '#1a2536' : '#ffffff' },
                             '& .ag-row-odd': { backgroundColor: isDarkMode ? '#1e293b' : '#f9fafb' },
@@ -3349,6 +3362,8 @@ export default function OutboundPage() {
                         }}>
                             <AgGridReact
                                 ref={gridRef}
+                                className="ag-theme-quartz"
+                                containerStyle={{ height: '100%', width: '100%', backgroundColor: isDarkMode ? '#1e293b' : '#ffffff' }}
                                 rowData={multiRows}
                                 columnDefs={columnDefs}
                                 rowHeight={tableRowHeight}
@@ -3363,7 +3378,6 @@ export default function OutboundPage() {
                                 ensureDomOrder={true}
                                 suppressMovableColumns={true}
                                 rowBuffer={5}
-                                containerStyle={{ height: '100%', width: '100%' }}
                                 onGridReady={(params: any) => {
                                     columnApiRef.current = params.columnApi;
                                     // Small delay to make sure columns registered
@@ -3398,7 +3412,6 @@ export default function OutboundPage() {
                                         gridRef.current?.api.sizeColumnsToFit();
                                     }
                                 }}
-                                className="ag-theme-quartz"
                             />
                         </Box>
 

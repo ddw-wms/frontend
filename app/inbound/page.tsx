@@ -30,7 +30,8 @@ import AppLayout from '@/components/AppLayout';
 import { StandardPageHeader, StandardTabs } from '@/components';
 import { useTableRowHeight } from '@/app/context/AppearanceContext';
 import toast, { Toaster } from 'react-hot-toast';
-import * as XLSX from 'xlsx';
+// ⚡ OPTIMIZED: XLSX loaded dynamically on export to reduce bundle size
+// import * as XLSX from 'xlsx'; // Removed - loaded dynamically when needed
 import Tooltip from '@mui/material/Tooltip';
 import { AgGridReact } from 'ag-grid-react';
 import 'ag-grid-community/styles/ag-theme-quartz.css';
@@ -1339,7 +1340,10 @@ export default function InboundPage() {
   };
 
   // ====== BULK UPLOAD FUNCTIONS ======
-  const downloadTemplate = () => {
+  const downloadTemplate = async () => {
+    // ⚡ OPTIMIZED: Load XLSX dynamically
+    const XLSX = await import('xlsx');
+
     const template = [{
       'WSN': 'ABC123_A',
       'INBOUND_DATE': new Date().toISOString().split('T')[0],
@@ -2624,6 +2628,9 @@ export default function InboundPage() {
 
   const handleAdvancedExport = async () => {
     try {
+      // ⚡ OPTIMIZED: Load XLSX dynamically
+      const XLSX = await import('xlsx');
+
       let dataToExport = listData;
 
       // Build filter params
@@ -5016,7 +5023,10 @@ export default function InboundPage() {
                 flexDirection: 'column',
                 height: '100%', overflow: 'hidden',
                 p: { xs: 1, sm: 1, md: 1 },
-                bgcolor: isDarkMode ? '#0f172a' : '#f5f7fa'
+                bgcolor: isDarkMode ? '#0f172a' : '#f5f7fa',
+                // Prevent white flash during tab switch
+                '& *': { transition: 'none !important' },
+                '& .ag-root-wrapper': { backgroundColor: isDarkMode ? '#1e293b !important' : '#ffffff !important' },
               }}>
                 {/* CONTROLS */}
                 <Card
@@ -5506,32 +5516,36 @@ export default function InboundPage() {
                   sx={{
                     flex: 1,
                     minHeight: 300,
-                    border: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #cbd5e1',
+                    border: isDarkMode ? '1px solid #475569' : '1px solid #cbd5e1',
                     borderRadius: 1,
                     overflow: 'hidden',
                     bgcolor: isDarkMode ? '#1e293b' : '#ffffff',
-                    // Prevent white flash in dark mode
-                    '& .ag-theme-quartz': { backgroundColor: isDarkMode ? '#1e293b' : '#ffffff' },
-                    '& .ag-root-wrapper': { borderRadius: 0, height: '100%', backgroundColor: isDarkMode ? '#1e293b' : '#ffffff' },
+                    // Prevent white flash in dark mode - target all possible AG Grid containers
+                    '& *': { transition: 'none !important' },
+                    '& .ag-theme-quartz, & .ag-theme-quartz-dark': { backgroundColor: isDarkMode ? '#1e293b !important' : '#ffffff !important' },
+                    '& .ag-root-wrapper, & .ag-root, & .ag-body': { backgroundColor: isDarkMode ? '#1e293b !important' : '#ffffff !important' },
+                    '& .ag-body-viewport, & .ag-body-horizontal-scroll-viewport': { backgroundColor: isDarkMode ? '#1e293b !important' : '#ffffff !important' },
+                    '& .ag-center-cols-viewport, & .ag-center-cols-container': { backgroundColor: isDarkMode ? '#1e293b !important' : '#ffffff !important' },
+                    '& .ag-center-cols-clipper, & .ag-pinned-left-cols-container, & .ag-pinned-right-cols-container': { backgroundColor: isDarkMode ? '#1e293b !important' : '#ffffff !important' },
 
                     // Excel-style header
                     '& .ag-header': {
-                      borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #cbd5e1',
+                      borderBottom: isDarkMode ? '1px solid #475569' : '1px solid #cbd5e1',
                       backgroundColor: isDarkMode ? '#334155' : 'transparent',
                     },
                     '& .ag-header-cell': {
                       backgroundColor: isDarkMode ? '#334155' : '#e5e7eb',
                       color: isDarkMode ? '#f1f5f9' : '#111827',
                       fontWeight: 700,
-                      borderRight: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #d1d5db',
+                      borderRight: isDarkMode ? '1px solid #475569' : '1px solid #d1d5db',
                       fontSize: '11px',
                       padding: '0 4px',
                     },
 
                     // Excel-style cells
                     '& .ag-cell': {
-                      borderRight: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e5e7eb',
-                      borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e5e7eb',
+                      borderRight: isDarkMode ? '1px solid #334155' : '1px solid #e5e7eb',
+                      borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #e5e7eb',
                       fontSize: '11px',
                       padding: '1px 4px',
                       display: 'flex',
@@ -5612,638 +5626,642 @@ export default function InboundPage() {
                     '& .ag-row-focus': {
                       outline: '1px solid #60a5fa',
                     },
+                    // Prevent white flash in dark mode - apply to inner container immediately
+                    '& > div': {
+                      backgroundColor: isDarkMode ? '#1e293b !important' : '#ffffff',
+                    },
                   }}
                 >
-                  <div style={{ height: '100%', width: '100%', backgroundColor: isDarkMode ? '#1e293b' : '#ffffff' }} className={isDarkMode ? 'ag-theme-quartz ag-theme-quartz-dark' : 'ag-theme-quartz'}>
-                    <AgGridReact
-                      ref={gridRef}
-                      // ⚡ PERFORMANCE: getRowId for efficient row tracking and updates
-                      getRowId={(params) => params.data._rowId}
-                      onGridReady={(params: any) => {
-                        gridRef.current = params.api;
-                        columnApiRef.current = params.columnApi;
-                      }}
-                      onModelUpdated={(params: any) => {
-                        try {
-                          const desired = desiredRowIndexRef.current;
-                          if (scanningModeRef.current && typeof desired === 'number') {
-                            ensureRowVisible(desired, 'bottom', 3, undefined, true);
+                  <AgGridReact
+                    ref={gridRef}
+                    className="ag-theme-quartz"
+                    containerStyle={{ height: '100%', width: '100%', backgroundColor: isDarkMode ? '#1e293b' : '#ffffff' }}
+                    // ⚡ PERFORMANCE: getRowId for efficient row tracking and updates
+                    getRowId={(params) => params.data._rowId}
+                    onGridReady={(params: any) => {
+                      gridRef.current = params.api;
+                      columnApiRef.current = params.columnApi;
+                    }}
+                    onModelUpdated={(params: any) => {
+                      try {
+                        const desired = desiredRowIndexRef.current;
+                        if (scanningModeRef.current && typeof desired === 'number') {
+                          ensureRowVisible(desired, 'bottom', 3, undefined, true);
+                        }
+                      } catch (e) { /* ignore */ }
+                    }}
+                    onFirstDataRendered={(params: any) => {
+                      try {
+                        const desired = desiredRowIndexRef.current;
+                        if (scanningModeRef.current && typeof desired === 'number') {
+                          ensureRowVisible(desired, 'bottom', 3, undefined, true);
+                        }
+                      } catch (e) { /* ignore */ }
+                    }}
+
+                    // Removed onCellFocused scroll - was causing unwanted scrolling on cell click
+                    // AG Grid handles cell visibility natively
+                    //theme="legacy"
+                    rowData={multiRows}
+                    columnDefs={columnDefs}
+                    rowHeight={tableRowHeight}
+                    suppressNoRowsOverlay={false}
+                    overlayNoRowsTemplate='<span style="padding: 20px; font-size: 14px; color: #666;">Click on any cell to start entering data</span>'
+
+                    defaultColDef={{
+                      sortable: multiGridSettings.sortable,  // ✅ Multi Entry Settings
+                      filter: multiGridSettings.filter,      // ✅ Multi Entry Settings
+                      resizable: multiGridSettings.resizable, // ✅ Multi Entry Settings
+                      editable: (params) => {
+                        // ✅ Check multi grid settings first
+                        if (!multiGridSettings.editable) return false;
+
+                        const field = params.colDef.field as string;
+                        const wsn = params.data?.wsn?.trim()?.toUpperCase();
+
+
+                        if (!wsn) return EDITABLE_COLUMNS.includes(field);
+
+                        // 🔴 Cross warehouse → nothing editable
+                        if (crossWarehouseWSNs.has(wsn)) return false;
+
+                        // 🟡 Duplicate → only WSN editable
+                        if (gridDuplicateWSNs.has(wsn)) {
+                          return field === 'wsn';
+                        }
+
+                        return EDITABLE_COLUMNS.includes(field);
+                      },
+                      // ⚡ EXCEL-LIKE: Cell style for precise column selection highlighting
+                      cellStyle: (params: any) => {
+                        // Use ref to avoid closure issues - always get current selection
+                        const range = selectedRangeRef.current;
+                        if (!range) return undefined;
+
+                        const rowIndex = params.rowIndex;
+                        const colId = params.colDef?.field;
+                        if (rowIndex === null || rowIndex === undefined || !colId) return undefined;
+
+                        const minRow = Math.min(range.startRow, range.endRow);
+                        const maxRow = Math.max(range.startRow, range.endRow);
+                        const selectedCol = range.startCol;
+
+                        // Only highlight cells in the selected column AND within the row range
+                        if (colId === selectedCol && rowIndex >= minRow && rowIndex <= maxRow) {
+                          const style: any = {
+                            backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.3)' : '#bfdbfe',
+                            borderLeft: '2px solid #2563eb',
+                            borderRight: '2px solid #2563eb',
+                          };
+
+                          // Add border for first and last row
+                          if (rowIndex === minRow) {
+                            style.borderTop = '2px solid #2563eb';
                           }
-                        } catch (e) { /* ignore */ }
-                      }}
-                      onFirstDataRendered={(params: any) => {
-                        try {
-                          const desired = desiredRowIndexRef.current;
-                          if (scanningModeRef.current && typeof desired === 'number') {
-                            ensureRowVisible(desired, 'bottom', 3, undefined, true);
-                          }
-                        } catch (e) { /* ignore */ }
-                      }}
-
-                      // Removed onCellFocused scroll - was causing unwanted scrolling on cell click
-                      // AG Grid handles cell visibility natively
-                      //theme="legacy"
-                      rowData={multiRows}
-                      columnDefs={columnDefs}
-                      rowHeight={tableRowHeight}
-                      suppressNoRowsOverlay={false}
-                      overlayNoRowsTemplate='<span style="padding: 20px; font-size: 14px; color: #666;">Click on any cell to start entering data</span>'
-
-                      defaultColDef={{
-                        sortable: multiGridSettings.sortable,  // ✅ Multi Entry Settings
-                        filter: multiGridSettings.filter,      // ✅ Multi Entry Settings
-                        resizable: multiGridSettings.resizable, // ✅ Multi Entry Settings
-                        editable: (params) => {
-                          // ✅ Check multi grid settings first
-                          if (!multiGridSettings.editable) return false;
-
-                          const field = params.colDef.field as string;
-                          const wsn = params.data?.wsn?.trim()?.toUpperCase();
-
-
-                          if (!wsn) return EDITABLE_COLUMNS.includes(field);
-
-                          // 🔴 Cross warehouse → nothing editable
-                          if (crossWarehouseWSNs.has(wsn)) return false;
-
-                          // 🟡 Duplicate → only WSN editable
-                          if (gridDuplicateWSNs.has(wsn)) {
-                            return field === 'wsn';
-                          }
-
-                          return EDITABLE_COLUMNS.includes(field);
-                        },
-                        // ⚡ EXCEL-LIKE: Cell style for precise column selection highlighting
-                        cellStyle: (params: any) => {
-                          // Use ref to avoid closure issues - always get current selection
-                          const range = selectedRangeRef.current;
-                          if (!range) return undefined;
-
-                          const rowIndex = params.rowIndex;
-                          const colId = params.colDef?.field;
-                          if (rowIndex === null || rowIndex === undefined || !colId) return undefined;
-
-                          const minRow = Math.min(range.startRow, range.endRow);
-                          const maxRow = Math.max(range.startRow, range.endRow);
-                          const selectedCol = range.startCol;
-
-                          // Only highlight cells in the selected column AND within the row range
-                          if (colId === selectedCol && rowIndex >= minRow && rowIndex <= maxRow) {
-                            const style: any = {
-                              backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.3)' : '#bfdbfe',
-                              borderLeft: '2px solid #2563eb',
-                              borderRight: '2px solid #2563eb',
-                            };
-
-                            // Add border for first and last row
-                            if (rowIndex === minRow) {
-                              style.borderTop = '2px solid #2563eb';
-                            }
-                            if (rowIndex === maxRow) {
-                              style.borderBottom = '2px solid #2563eb';
-                            }
-
-                            return style;
+                          if (rowIndex === maxRow) {
+                            style.borderBottom = '2px solid #2563eb';
                           }
 
-                          return undefined;
-                        },
-                      }}
+                          return style;
+                        }
 
-                      // ⚡ EXCEL-LIKE CLIPBOARD & SELECTION FEATURES
-                      enableCellTextSelection={true}
-                      suppressCopyRowsToClipboard={false}
-                      clipboardDelimiter="\t"
-                      rowSelection={undefined}
-                      suppressRowDeselection={false}
+                        return undefined;
+                      },
+                    }}
 
-                      // ⚡ EXCEL-LIKE: Process clipboard paste from Excel
-                      processCellFromClipboard={(params) => {
-                        // Allow pasting into editable columns only
+                    // ⚡ EXCEL-LIKE CLIPBOARD & SELECTION FEATURES
+                    enableCellTextSelection={true}
+                    suppressCopyRowsToClipboard={false}
+                    clipboardDelimiter="\t"
+                    rowSelection={undefined}
+                    suppressRowDeselection={false}
+
+                    // ⚡ EXCEL-LIKE: Process clipboard paste from Excel
+                    processCellFromClipboard={(params) => {
+                      // Allow pasting into editable columns only
+                      const colId = params.column.getColId();
+                      if (!EDITABLE_COLUMNS.includes(colId)) {
+                        return params.node?.data?.[colId]; // Return original value
+                      }
+                      return params.value;
+                    }}
+
+                    // ⚡ EXCEL-LIKE: Handle paste end for notifications
+                    onPasteEnd={(params) => {
+                      toast.success(`Pasted data successfully`, { duration: 1500 });
+                      // Refresh grid to ensure all cells are updated
+                      const api = gridRef.current;
+                      if (api) {
+                        api.refreshCells({ force: true });
+                      }
+                    }}
+
+                    // keyboard navigation
+                    stopEditingWhenCellsLoseFocus={true}
+                    enterNavigatesVertically={true}
+                    enterNavigatesVerticallyAfterEdit={true}
+                    navigateToNextCell={navigateToNextCell}
+                    tabToNextCell={tabToNextCell}
+                    ensureDomOrder={true}
+                    suppressMovableColumns={true}
+                    // ⚡ PERFORMANCE: Increase row buffer for smoother scrolling
+                    rowBuffer={20}
+                    animateRows={false}
+                    suppressScrollOnNewData={true}
+                    // ⚡ PERFORMANCE: Additional optimizations for large datasets
+                    debounceVerticalScrollbar={true}
+                    suppressPropertyNamesCheck={true}
+                    suppressRowVirtualisation={false}
+
+                    // ⚡ EXCEL-LIKE: Handle cell mouse down for drag selection start
+                    onCellMouseDown={(event) => {
+                      const rowIndex = event.rowIndex;
+                      const colId = event.column?.getColId();
+                      if (rowIndex === null || rowIndex === undefined || !colId) return;
+
+                      const browserEvent = event.event as MouseEvent;
+                      handleCellMouseDown(rowIndex, colId, browserEvent?.shiftKey || false);
+                    }}
+
+                    // ⚡ EXCEL-LIKE: Handle cell mouse over for drag selection extend
+                    onCellMouseOver={(event) => {
+                      const rowIndex = event.rowIndex;
+                      const colId = event.column?.getColId();
+                      if (rowIndex === null || rowIndex === undefined || !colId) return;
+
+                      handleCellMouseOver(rowIndex, colId);
+                    }}
+
+                    // ⚡ EXCEL-LIKE: Handle cell click for shift+click selection
+                    onCellClicked={(event) => {
+                      const rowIndex = event.rowIndex;
+                      const colId = event.column?.getColId();
+                      if (rowIndex === null || rowIndex === undefined || !colId) return;
+
+                      const browserEvent = event.event as MouseEvent;
+                      handleCellClick(rowIndex, colId, browserEvent?.shiftKey || false);
+                    }}
+
+                    // ✅ Save column widths when resized
+                    onColumnResized={(params: any) => {
+                      if (params.finished && params.column) {
                         const colId = params.column.getColId();
-                        if (!EDITABLE_COLUMNS.includes(colId)) {
-                          return params.node?.data?.[colId]; // Return original value
-                        }
-                        return params.value;
-                      }}
+                        const newWidth = params.column.getActualWidth();
+                        // Don't save special columns
+                        if (colId === 'rowNumber' || colId === 'print_action') return;
 
-                      // ⚡ EXCEL-LIKE: Handle paste end for notifications
-                      onPasteEnd={(params) => {
-                        toast.success(`Pasted data successfully`, { duration: 1500 });
-                        // Refresh grid to ensure all cells are updated
-                        const api = gridRef.current;
-                        if (api) {
-                          api.refreshCells({ force: true });
-                        }
-                      }}
+                        setMultiColumnWidths(prev => {
+                          const updated = { ...prev, [colId]: newWidth };
+                          localStorage.setItem('multiEntryColumnWidths', JSON.stringify(updated));
+                          return updated;
+                        });
+                      }
+                    }}
 
-                      // keyboard navigation
-                      stopEditingWhenCellsLoseFocus={true}
-                      enterNavigatesVertically={true}
-                      enterNavigatesVerticallyAfterEdit={true}
-                      navigateToNextCell={navigateToNextCell}
-                      tabToNextCell={tabToNextCell}
-                      ensureDomOrder={true}
-                      suppressMovableColumns={true}
-                      // ⚡ PERFORMANCE: Increase row buffer for smoother scrolling
-                      rowBuffer={20}
-                      animateRows={false}
-                      suppressScrollOnNewData={true}
-                      // ⚡ PERFORMANCE: Additional optimizations for large datasets
-                      debounceVerticalScrollbar={true}
-                      suppressPropertyNamesCheck={true}
-                      suppressRowVirtualisation={false}
+                    // ⚡ EXCEL-LIKE: Get row class for highlighting (newly added rows + selected range)
+                    getRowClass={(params) => {
+                      const classes: string[] = [];
 
-                      // ⚡ EXCEL-LIKE: Handle cell mouse down for drag selection start
-                      onCellMouseDown={(event) => {
-                        const rowIndex = event.rowIndex;
-                        const colId = event.column?.getColId();
-                        if (rowIndex === null || rowIndex === undefined || !colId) return;
+                      // Highlight newly added/scanned rows
+                      if (highlightedRows.has(params.rowIndex)) {
+                        classes.push('ag-row-highlight-new');
+                      }
 
-                        const browserEvent = event.event as MouseEvent;
-                        handleCellMouseDown(rowIndex, colId, browserEvent?.shiftKey || false);
-                      }}
+                      // Note: Row-level selection highlighting removed - using cell-level highlighting instead
+                      // via cellClass in defaultColDef for precise column-only selection
 
-                      // ⚡ EXCEL-LIKE: Handle cell mouse over for drag selection extend
-                      onCellMouseOver={(event) => {
-                        const rowIndex = event.rowIndex;
-                        const colId = event.column?.getColId();
-                        if (rowIndex === null || rowIndex === undefined || !colId) return;
+                      return classes.length > 0 ? classes.join(' ') : undefined;
+                    }}
 
-                        handleCellMouseOver(rowIndex, colId);
-                      }}
+                    onCellValueChanged={(event) => {
+                      const { colDef, newValue, rowIndex, oldValue, data } = event;
+                      const field = colDef?.field;
 
-                      // ⚡ EXCEL-LIKE: Handle cell click for shift+click selection
-                      onCellClicked={(event) => {
-                        const rowIndex = event.rowIndex;
-                        const colId = event.column?.getColId();
-                        if (rowIndex === null || rowIndex === undefined || !colId) return;
+                      // ✅ NULL SAFETY: Return early if field or rowIndex is null
+                      if (!field || rowIndex === null || rowIndex === undefined) return;
 
-                        const browserEvent = event.event as MouseEvent;
-                        handleCellClick(rowIndex, colId, browserEvent?.shiftKey || false);
-                      }}
-
-                      // ✅ Save column widths when resized
-                      onColumnResized={(params: any) => {
-                        if (params.finished && params.column) {
-                          const colId = params.column.getColId();
-                          const newWidth = params.column.getActualWidth();
-                          // Don't save special columns
-                          if (colId === 'rowNumber' || colId === 'print_action') return;
-
-                          setMultiColumnWidths(prev => {
-                            const updated = { ...prev, [colId]: newWidth };
-                            localStorage.setItem('multiEntryColumnWidths', JSON.stringify(updated));
-                            return updated;
+                      // ⚡ EXCEL-LIKE: Save cell-level undo action for any meaningful change
+                      if (oldValue !== newValue) {
+                        // For WSN field, save the entire row data for proper undo
+                        // This allows us to restore both the WSN AND the master data that was loaded
+                        if (field === 'wsn') {
+                          // Reconstruct the old row data by taking current data and replacing WSN with oldValue
+                          // Also clear master columns since they weren't loaded yet for the old WSN
+                          const currentRowData = multiRowsRef.current[rowIndex];
+                          const oldRowData = { ...currentRowData, [field]: oldValue };
+                          // Clear master data columns since old WSN didn't have them loaded
+                          ALL_MASTER_COLUMNS.forEach((col) => {
+                            oldRowData[col] = null;
                           });
+                          saveCellUndoAction(rowIndex, field, oldValue, newValue, oldRowData, undefined);
+                        } else {
+                          saveCellUndoAction(rowIndex, field, oldValue, newValue);
                         }
-                      }}
+                      }
 
-                      // ⚡ EXCEL-LIKE: Get row class for highlighting (newly added rows + selected range)
-                      getRowClass={(params) => {
-                        const classes: string[] = [];
+                      const newRows = [...multiRows];
 
-                        // Highlight newly added/scanned rows
-                        if (highlightedRows.has(params.rowIndex)) {
-                          classes.push('ag-row-highlight-new');
+                      // WSN clear - master clear
+                      if (field === 'wsn' && (!newValue || !newValue.trim())) {
+                        newRows[rowIndex] = { ...newRows[rowIndex], [field]: newValue };
+                        ALL_MASTER_COLUMNS.forEach((col) => {
+                          newRows[rowIndex][col] = null;
+                        });
+                        setMultiRows(newRows);
+                        checkDuplicates(newRows);
+                        return;
+                      }
+
+                      // ⚡ Convert WSN to uppercase
+                      const processedValue = field === 'wsn' && newValue ? newValue.toUpperCase() : newValue;
+                      newRows[rowIndex] = { ...newRows[rowIndex], [field]: processedValue };
+                      setMultiRows(newRows);
+
+                      // ⚡ EXCEL AUTO-SCROLL: When any value entered, ensure next row visible
+                      if (processedValue?.trim()) {
+                        const nextRowIndex = rowIndex + 1;
+                        const totalRows = event.api.getDisplayedRowCount();
+
+                        if (nextRowIndex < totalRows) {
+                          setTimeout(() => {
+                            try {
+                              ensureRowVisible(nextRowIndex, 'bottom', 4, undefined, scanningModeRef.current);
+                            } catch (e) { /* ignore */ }
+                          }, 50);
                         }
+                      }
 
-                        // Note: Row-level selection highlighting removed - using cell-level highlighting instead
-                        // via cellClass in defaultColDef for precise column-only selection
+                      // If user entered a WSN, start scan activity detection
+                      if (field === 'wsn' && newValue?.trim()) {
+                        // ⚡ EXCEL ENHANCEMENT: Highlight the row being scanned
+                        highlightRow(rowIndex, 1500);
 
-                        return classes.length > 0 ? classes.join(' ') : undefined;
-                      }}
+                        try {
+                          recordScanActivity();
+                        } catch (e) { /* ignore */ }
 
-                      onCellValueChanged={(event) => {
-                        const { colDef, newValue, rowIndex, oldValue, data } = event;
-                        const field = colDef?.field;
+                        // Remember the row that was last edited
+                        desiredRowIndexRef.current = rowIndex;
 
-                        // ✅ NULL SAFETY: Return early if field or rowIndex is null
-                        if (!field || rowIndex === null || rowIndex === undefined) return;
-
-                        // ⚡ EXCEL-LIKE: Save cell-level undo action for any meaningful change
-                        if (oldValue !== newValue) {
-                          // For WSN field, save the entire row data for proper undo
-                          // This allows us to restore both the WSN AND the master data that was loaded
-                          if (field === 'wsn') {
-                            // Reconstruct the old row data by taking current data and replacing WSN with oldValue
-                            // Also clear master columns since they weren't loaded yet for the old WSN
-                            const currentRowData = multiRowsRef.current[rowIndex];
-                            const oldRowData = { ...currentRowData, [field]: oldValue };
-                            // Clear master data columns since old WSN didn't have them loaded
-                            ALL_MASTER_COLUMNS.forEach((col) => {
-                              oldRowData[col] = null;
-                            });
-                            saveCellUndoAction(rowIndex, field, oldValue, newValue, oldRowData, undefined);
-                          } else {
-                            saveCellUndoAction(rowIndex, field, oldValue, newValue);
+                        setTimeout(() => {
+                          if (!scanningModeRef.current) {
+                            desiredRowIndexRef.current = null;
                           }
-                        }
+                        }, 1400);
 
-                        const newRows = [...multiRows];
+                        // Calculate duplicates immediately
+                        const wsn = newValue?.trim()?.toUpperCase();
+                        const immediateCounts = new Map<string, number>();
 
-                        // WSN clear - master clear
-                        if (field === 'wsn' && (!newValue || !newValue.trim())) {
-                          newRows[rowIndex] = { ...newRows[rowIndex], [field]: newValue };
+                        newRows.forEach((r: any) => {
+                          const rv = r.wsn?.trim()?.toUpperCase();
+                          if (rv) immediateCounts.set(rv, (immediateCounts.get(rv) || 0) + 1);
+                        });
+
+                        const isGridDuplicateImmediate = (immediateCounts.get(wsn) || 0) > 1;
+
+                        // Grid duplicate → clear cell + toast
+                        if (isGridDuplicateImmediate) {
+                          toast(`Duplicate WSN in grid: ${wsn}`, {
+                            duration: 2500,
+                            style: {
+                              background: '#ffffff',
+                              color: '#d97706',
+                              border: '2px solid #f59e0b',
+                              borderRadius: '8px',
+                              padding: '12px 16px',
+                              fontWeight: 600,
+                              fontSize: '14px',
+                            },
+                            icon: '⚠️',
+                          });
+
+                          newRows[rowIndex].wsn = '';
                           ALL_MASTER_COLUMNS.forEach((col) => {
                             newRows[rowIndex][col] = null;
                           });
                           setMultiRows(newRows);
                           checkDuplicates(newRows);
+
+                          setTimeout(() => {
+                            event.api.startEditingCell({
+                              rowIndex: rowIndex,
+                              colKey: 'wsn',
+                            });
+                          }, 100);
+
                           return;
                         }
 
-                        // ⚡ Convert WSN to uppercase
-                        const processedValue = field === 'wsn' && newValue ? newValue.toUpperCase() : newValue;
-                        newRows[rowIndex] = { ...newRows[rowIndex], [field]: processedValue };
-                        setMultiRows(newRows);
+                        // ⚡ FAST FETCH: Use LOCAL CACHE first, then API fallback
+                        const wsnUpper = newValue.trim().toUpperCase();
+                        wsnFetchMapRef.current.set(rowIndex, wsnUpper);
 
-                        // ⚡ EXCEL AUTO-SCROLL: When any value entered, ensure next row visible
-                        if (processedValue?.trim()) {
-                          const nextRowIndex = rowIndex + 1;
-                          const totalRows = event.api.getDisplayedRowCount();
+                        // Start ownership check in parallel (this still needs API)
+                        const ownershipPromise = inboundAPI.getAll(1, 1, { search: wsnUpper }).catch(() => null);
 
-                          if (nextRowIndex < totalRows) {
-                            setTimeout(() => {
-                              try {
-                                ensureRowVisible(nextRowIndex, 'bottom', 4, undefined, scanningModeRef.current);
-                              } catch (e) { /* ignore */ }
-                            }, 50);
-                          }
-                        }
+                        // Use LOCAL CACHE for master data (instant if cached)
+                        const masterDataPromise = getLocalMasterData(wsnUpper).catch(() => null);
 
-                        // If user entered a WSN, start scan activity detection
-                        if (field === 'wsn' && newValue?.trim()) {
-                          // ⚡ EXCEL ENHANCEMENT: Highlight the row being scanned
-                          highlightRow(rowIndex, 1500);
-
-                          try {
-                            recordScanActivity();
-                          } catch (e) { /* ignore */ }
-
-                          // Remember the row that was last edited
-                          desiredRowIndexRef.current = rowIndex;
-
-                          setTimeout(() => {
-                            if (!scanningModeRef.current) {
-                              desiredRowIndexRef.current = null;
-                            }
-                          }, 1400);
-
-                          // Calculate duplicates immediately
-                          const wsn = newValue?.trim()?.toUpperCase();
-                          const immediateCounts = new Map<string, number>();
-
-                          newRows.forEach((r: any) => {
-                            const rv = r.wsn?.trim()?.toUpperCase();
-                            if (rv) immediateCounts.set(rv, (immediateCounts.get(rv) || 0) + 1);
-                          });
-
-                          const isGridDuplicateImmediate = (immediateCounts.get(wsn) || 0) > 1;
-
-                          // Grid duplicate → clear cell + toast
-                          if (isGridDuplicateImmediate) {
-                            toast(`Duplicate WSN in grid: ${wsn}`, {
-                              duration: 2500,
-                              style: {
-                                background: '#ffffff',
-                                color: '#d97706',
-                                border: '2px solid #f59e0b',
-                                borderRadius: '8px',
-                                padding: '12px 16px',
-                                fontWeight: 600,
-                                fontSize: '14px',
-                              },
-                              icon: '⚠️',
-                            });
-
-                            newRows[rowIndex].wsn = '';
-                            ALL_MASTER_COLUMNS.forEach((col) => {
-                              newRows[rowIndex][col] = null;
-                            });
-                            setMultiRows(newRows);
-                            checkDuplicates(newRows);
+                        // Process results as they come
+                        (async () => {
+                          // Define moveToNextRow helper at the start of async block
+                          const moveToNextRow = () => {
+                            try {
+                              recordScanActivity();
+                            } catch (e) { /* ignore */ }
 
                             setTimeout(() => {
-                              event.api.startEditingCell({
-                                rowIndex: rowIndex,
-                                colKey: 'wsn',
-                              });
-                            }, 100);
-
-                            return;
-                          }
-
-                          // ⚡ FAST FETCH: Use LOCAL CACHE first, then API fallback
-                          const wsnUpper = newValue.trim().toUpperCase();
-                          wsnFetchMapRef.current.set(rowIndex, wsnUpper);
-
-                          // Start ownership check in parallel (this still needs API)
-                          const ownershipPromise = inboundAPI.getAll(1, 1, { search: wsnUpper }).catch(() => null);
-
-                          // Use LOCAL CACHE for master data (instant if cached)
-                          const masterDataPromise = getLocalMasterData(wsnUpper).catch(() => null);
-
-                          // Process results as they come
-                          (async () => {
-                            // Define moveToNextRow helper at the start of async block
-                            const moveToNextRow = () => {
                               try {
-                                recordScanActivity();
-                              } catch (e) { /* ignore */ }
+                                const nextIndex = (rowIndex ?? 0) + 1;
 
-                              setTimeout(() => {
-                                try {
-                                  const nextIndex = (rowIndex ?? 0) + 1;
-
-                                  if (nextIndex < event.api.getDisplayedRowCount()) {
-                                    desiredRowIndexRef.current = nextIndex;
-                                    ensureRowVisible(nextIndex, 'bottom', 4, () => {
+                                if (nextIndex < event.api.getDisplayedRowCount()) {
+                                  desiredRowIndexRef.current = nextIndex;
+                                  ensureRowVisible(nextIndex, 'bottom', 4, () => {
+                                    try {
+                                      event.api.startEditingCell({
+                                        rowIndex: nextIndex,
+                                        colKey: 'wsn',
+                                      });
+                                    } catch (e) { /* ignore */ }
+                                  }, scanningModeRef.current);
+                                } else {
+                                  addMultiRow();
+                                  setTimeout(() => {
+                                    const newIdx = nextIndex;
+                                    desiredRowIndexRef.current = newIdx;
+                                    ensureRowVisible(newIdx, 'bottom', 4, () => {
                                       try {
                                         event.api.startEditingCell({
-                                          rowIndex: nextIndex,
+                                          rowIndex: newIdx,
                                           colKey: 'wsn',
                                         });
                                       } catch (e) { /* ignore */ }
                                     }, scanningModeRef.current);
-                                  } else {
-                                    addMultiRow();
-                                    setTimeout(() => {
-                                      const newIdx = nextIndex;
-                                      desiredRowIndexRef.current = newIdx;
-                                      ensureRowVisible(newIdx, 'bottom', 4, () => {
-                                        try {
-                                          event.api.startEditingCell({
-                                            rowIndex: newIdx,
-                                            colKey: 'wsn',
-                                          });
-                                        } catch (e) { /* ignore */ }
-                                      }, scanningModeRef.current);
-                                    }, 50);
-                                  }
-                                } catch (e) { /* ignore */ }
-                              }, 30);
-                            };
-
-                            try {
-                              // Check ownership first (usually faster)
-                              const ownerResp = await ownershipPromise;
-                              const ownerItem = ownerResp?.data?.data?.[0] || ownerResp?.data?.[0] || null;
-
-                              if (ownerItem) {
-                                const ownerWarehouseId = ownerItem.warehouse_id ?? ownerItem.warehouseId ?? ownerItem.warehouseid ?? null;
-
-                                if (ownerWarehouseId && ownerWarehouseId !== activeWarehouse?.id) {
-                                  toast.error(`WSN ${wsnUpper} already inbound in another warehouse`, {
-                                    duration: 3000,
-                                    style: {
-                                      background: '#ffffff',
-                                      color: '#dc2626',
-                                      border: '2px solid #dc2626',
-                                      borderRadius: '8px',
-                                      padding: '12px 16px',
-                                      fontWeight: 600,
-                                      fontSize: '14px',
-                                    },
-                                    icon: '❌',
-                                  });
-
-                                  setMultiRows(prev => {
-                                    const updated = [...prev];
-                                    updated[rowIndex].wsn = '';
-                                    ALL_MASTER_COLUMNS.forEach((col) => {
-                                      updated[rowIndex][col] = null;
-                                    });
-                                    return updated;
-                                  });
-                                  checkDuplicates(newRows);
-
-                                  setTimeout(() => {
-                                    event.api.startEditingCell({
-                                      rowIndex: rowIndex,
-                                      colKey: 'wsn',
-                                    });
                                   }, 50);
-                                  return;
                                 }
-
-                                if (ownerWarehouseId && ownerWarehouseId === activeWarehouse?.id) {
-                                  toast(`WSN ${wsnUpper} already inbound in this warehouse`, {
-                                    duration: 2500,
-                                    style: {
-                                      background: '#ffffff',
-                                      color: '#d97706',
-                                      border: '2px solid #f59e0b',
-                                      borderRadius: '8px',
-                                      padding: '12px 16px',
-                                      fontWeight: 600,
-                                      fontSize: '14px',
-                                    },
-                                    icon: '⚠️',
-                                  });
-
-                                  setMultiRows(prev => {
-                                    const updated = [...prev];
-                                    updated[rowIndex].wsn = '';
-                                    ALL_MASTER_COLUMNS.forEach((col) => {
-                                      updated[rowIndex][col] = null;
-                                    });
-                                    return updated;
-                                  });
-                                  checkDuplicates(newRows);
-
-                                  setTimeout(() => {
-                                    event.api.startEditingCell({
-                                      rowIndex: rowIndex,
-                                      colKey: 'wsn',
-                                    });
-                                  }, 50);
-                                  return;
-                                }
-                              }
-
-                              // Now get master data result (from local cache or API)
-                              const masterInfo = await masterDataPromise;
-                              if (!masterInfo) {
-                                console.log('WSN not found in master data');
-                                // Still move to next row even if not found
-                                moveToNextRow();
-                                return;
-                              }
-
-                              // Check if this is still the latest fetch for this row
-                              const latestWSN = wsnFetchMapRef.current.get(rowIndex);
-                              if (latestWSN !== wsnUpper) {
-                                console.log(`⏭️ Skipping stale fetch for row ${rowIndex}: ${wsnUpper} (latest: ${latestWSN})`);
-                                return;
-                              }
-
-                              // ⚡ BATCH MODE: Check if WSN is in selected batch(es)
-                              if (selectedBatchIds.length > 0) {
-                                const wsnBatch = await isWSNInCachedBatches(wsnUpper);
-                                if (!wsnBatch) {
-                                  // WSN not in selected batch - show confirmation dialog
-                                  setWsnNotInBatchDialog({
-                                    open: true,
-                                    wsn: wsnUpper,
-                                    rowIndex,
-                                    masterData: masterInfo
-                                  });
-                                  // Don't auto-apply master data - wait for user confirmation
-                                  return;
-                                }
-                              }
-
-                              // Update master data in grid
-                              setMultiRows((prevRows) => {
-                                const currentWSN = prevRows[rowIndex]?.wsn?.trim()?.toUpperCase();
-                                if (currentWSN !== wsnUpper) {
-                                  return prevRows;
-                                }
-
-                                const updatedRows = [...prevRows];
-                                updatedRows[rowIndex] = { ...updatedRows[rowIndex] };
-                                ALL_MASTER_COLUMNS.forEach((masterCol) => {
-                                  updatedRows[rowIndex][masterCol] = masterInfo[masterCol] || null;
-                                });
-                                return updatedRows;
-                              });
-
-                              // ✅ AUTO-PRINT: Only if multiPrintEnabled is ON
-                              if (multiPrintEnabled) {
-                                try {
-                                  const printPayload = {
-                                    wsn: wsnUpper,
-                                    fsn: masterInfo.fsn || '',
-                                    product_title: masterInfo.product_title || '',
-                                    brand: masterInfo.brand || '',
-                                    mrp: String(masterInfo.mrp || ''),
-                                    fsp: String(masterInfo.fsp || ''),
-                                    copies: 1,
-                                  };
-
-                                  const printSuccess = await printLabel(printPayload);
-                                  if (printSuccess) {
-                                    toast.success(`✓ Label printed: ${wsnUpper}`, { duration: 2000 });
-                                  }
-                                } catch (printError: any) {
-                                  toast.error(`Print error: ${printError.message}`, { duration: 3000 });
-                                }
-                              }
-
-                              moveToNextRow();
-                            } catch (error) {
-                              console.log('WSN fetch error:', error);
-                            }
-                          })();
-                        }
-
-                        // Only fetch master data for WSN
-                        if (field !== 'wsn') {
-                          if (debounceTimerRef.current) {
-                            clearTimeout(debounceTimerRef.current);
-                          }
-
-                          debounceTimerRef.current = setTimeout(() => {
-                            checkDuplicates(newRows);
-                          }, 200);
-                        }
-                      }}
-
-                      onCellKeyDown={(event) => {
-                        // ✅ FIX: event.event is AG Grid's wrapper - access the native keyboard event
-                        const nativeEvent = event.event as KeyboardEvent | undefined;
-                        const key = nativeEvent?.key;
-                        const rowIndex = event.rowIndex;
-
-                        // ✅ NULL SAFETY: Check rowIndex
-                        if (rowIndex === null || rowIndex === undefined) return;
-
-                        // ⚡ EXCEL-LIKE KEYBOARD SHORTCUTS
-                        const ctrlKey = nativeEvent?.ctrlKey || nativeEvent?.metaKey;
-
-                        // Ctrl+Z → Undo
-                        if (ctrlKey && key?.toLowerCase() === 'z' && !nativeEvent?.shiftKey) {
-                          nativeEvent?.preventDefault();
-                          handleUndo();
-                          return;
-                        }
-
-                        // Ctrl+Y or Ctrl+Shift+Z → Redo
-                        if (ctrlKey && (key?.toLowerCase() === 'y' || (key?.toLowerCase() === 'z' && nativeEvent?.shiftKey))) {
-                          nativeEvent?.preventDefault();
-                          handleRedo();
-                          return;
-                        }
-
-                        // Ctrl+D → Fill Down (copy value from cell above)
-                        if (ctrlKey && key?.toLowerCase() === 'd') {
-                          nativeEvent?.preventDefault();
-                          handleFillDown();
-                          return;
-                        }
-
-                        // When user presses Enter or Tab to move to next row
-                        if (key === 'Enter' || key === 'Tab') {
-                          const nextRowIndex = rowIndex + 1;
-                          const totalRows = event.api.getDisplayedRowCount();
-
-                          // ⚡ Immediately scroll to show next row (Excel behavior)
-                          if (nextRowIndex < totalRows) {
-                            setTimeout(() => {
-                              try {
-                                ensureRowVisible(nextRowIndex, 'bottom', 4, undefined, true);
                               } catch (e) { /* ignore */ }
-                            }, 50);
-                          }
-                        }
+                            }, 30);
+                          };
 
-                        // Arrow key navigation with Ctrl → Jump to edge of data
-                        if (ctrlKey && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(key || '')) {
-                          nativeEvent?.preventDefault();
-                          const api = event.api;
-                          const focusedCell = api.getFocusedCell();
-                          if (!focusedCell) return;
+                          try {
+                            // Check ownership first (usually faster)
+                            const ownerResp = await ownershipPromise;
+                            const ownerItem = ownerResp?.data?.data?.[0] || ownerResp?.data?.[0] || null;
 
-                          const currentRow = focusedCell.rowIndex;
-                          const currentCol = focusedCell.column;
-                          const colId = currentCol.getColId();
-                          const totalRows = api.getDisplayedRowCount();
-                          const allColumns = api.getAllDisplayedColumns();
+                            if (ownerItem) {
+                              const ownerWarehouseId = ownerItem.warehouse_id ?? ownerItem.warehouseId ?? ownerItem.warehouseid ?? null;
 
-                          let targetRow = currentRow;
-                          let targetCol = currentCol;
+                              if (ownerWarehouseId && ownerWarehouseId !== activeWarehouse?.id) {
+                                toast.error(`WSN ${wsnUpper} already inbound in another warehouse`, {
+                                  duration: 3000,
+                                  style: {
+                                    background: '#ffffff',
+                                    color: '#dc2626',
+                                    border: '2px solid #dc2626',
+                                    borderRadius: '8px',
+                                    padding: '12px 16px',
+                                    fontWeight: 600,
+                                    fontSize: '14px',
+                                  },
+                                  icon: '❌',
+                                });
 
-                          if (key === 'ArrowUp') {
-                            // Jump to first row with data in this column
-                            targetRow = 0;
-                          } else if (key === 'ArrowDown') {
-                            // Jump to last row with data
-                            for (let i = totalRows - 1; i >= 0; i--) {
-                              const rowData = api.getDisplayedRowAtIndex(i)?.data;
-                              if (rowData?.wsn?.trim()) {
-                                targetRow = i;
-                                break;
+                                setMultiRows(prev => {
+                                  const updated = [...prev];
+                                  updated[rowIndex].wsn = '';
+                                  ALL_MASTER_COLUMNS.forEach((col) => {
+                                    updated[rowIndex][col] = null;
+                                  });
+                                  return updated;
+                                });
+                                checkDuplicates(newRows);
+
+                                setTimeout(() => {
+                                  event.api.startEditingCell({
+                                    rowIndex: rowIndex,
+                                    colKey: 'wsn',
+                                  });
+                                }, 50);
+                                return;
+                              }
+
+                              if (ownerWarehouseId && ownerWarehouseId === activeWarehouse?.id) {
+                                toast(`WSN ${wsnUpper} already inbound in this warehouse`, {
+                                  duration: 2500,
+                                  style: {
+                                    background: '#ffffff',
+                                    color: '#d97706',
+                                    border: '2px solid #f59e0b',
+                                    borderRadius: '8px',
+                                    padding: '12px 16px',
+                                    fontWeight: 600,
+                                    fontSize: '14px',
+                                  },
+                                  icon: '⚠️',
+                                });
+
+                                setMultiRows(prev => {
+                                  const updated = [...prev];
+                                  updated[rowIndex].wsn = '';
+                                  ALL_MASTER_COLUMNS.forEach((col) => {
+                                    updated[rowIndex][col] = null;
+                                  });
+                                  return updated;
+                                });
+                                checkDuplicates(newRows);
+
+                                setTimeout(() => {
+                                  event.api.startEditingCell({
+                                    rowIndex: rowIndex,
+                                    colKey: 'wsn',
+                                  });
+                                }, 50);
+                                return;
                               }
                             }
-                          } else if (key === 'ArrowLeft') {
-                            // Jump to first column
-                            targetCol = allColumns[0];
-                          } else if (key === 'ArrowRight') {
-                            // Jump to last column
-                            targetCol = allColumns[allColumns.length - 1];
+
+                            // Now get master data result (from local cache or API)
+                            const masterInfo = await masterDataPromise;
+                            if (!masterInfo) {
+                              console.log('WSN not found in master data');
+                              // Still move to next row even if not found
+                              moveToNextRow();
+                              return;
+                            }
+
+                            // Check if this is still the latest fetch for this row
+                            const latestWSN = wsnFetchMapRef.current.get(rowIndex);
+                            if (latestWSN !== wsnUpper) {
+                              console.log(`⏭️ Skipping stale fetch for row ${rowIndex}: ${wsnUpper} (latest: ${latestWSN})`);
+                              return;
+                            }
+
+                            // ⚡ BATCH MODE: Check if WSN is in selected batch(es)
+                            if (selectedBatchIds.length > 0) {
+                              const wsnBatch = await isWSNInCachedBatches(wsnUpper);
+                              if (!wsnBatch) {
+                                // WSN not in selected batch - show confirmation dialog
+                                setWsnNotInBatchDialog({
+                                  open: true,
+                                  wsn: wsnUpper,
+                                  rowIndex,
+                                  masterData: masterInfo
+                                });
+                                // Don't auto-apply master data - wait for user confirmation
+                                return;
+                              }
+                            }
+
+                            // Update master data in grid
+                            setMultiRows((prevRows) => {
+                              const currentWSN = prevRows[rowIndex]?.wsn?.trim()?.toUpperCase();
+                              if (currentWSN !== wsnUpper) {
+                                return prevRows;
+                              }
+
+                              const updatedRows = [...prevRows];
+                              updatedRows[rowIndex] = { ...updatedRows[rowIndex] };
+                              ALL_MASTER_COLUMNS.forEach((masterCol) => {
+                                updatedRows[rowIndex][masterCol] = masterInfo[masterCol] || null;
+                              });
+                              return updatedRows;
+                            });
+
+                            // ✅ AUTO-PRINT: Only if multiPrintEnabled is ON
+                            if (multiPrintEnabled) {
+                              try {
+                                const printPayload = {
+                                  wsn: wsnUpper,
+                                  fsn: masterInfo.fsn || '',
+                                  product_title: masterInfo.product_title || '',
+                                  brand: masterInfo.brand || '',
+                                  mrp: String(masterInfo.mrp || ''),
+                                  fsp: String(masterInfo.fsp || ''),
+                                  copies: 1,
+                                };
+
+                                const printSuccess = await printLabel(printPayload);
+                                if (printSuccess) {
+                                  toast.success(`✓ Label printed: ${wsnUpper}`, { duration: 2000 });
+                                }
+                              } catch (printError: any) {
+                                toast.error(`Print error: ${printError.message}`, { duration: 3000 });
+                              }
+                            }
+
+                            moveToNextRow();
+                          } catch (error) {
+                            console.log('WSN fetch error:', error);
                           }
+                        })();
+                      }
 
-                          api.setFocusedCell(targetRow, targetCol);
-                          ensureRowVisible(targetRow, 'middle', 3, undefined, true);
+                      // Only fetch master data for WSN
+                      if (field !== 'wsn') {
+                        if (debounceTimerRef.current) {
+                          clearTimeout(debounceTimerRef.current);
                         }
-                      }}
+
+                        debounceTimerRef.current = setTimeout(() => {
+                          checkDuplicates(newRows);
+                        }, 200);
+                      }
+                    }}
+
+                    onCellKeyDown={(event) => {
+                      // ✅ FIX: event.event is AG Grid's wrapper - access the native keyboard event
+                      const nativeEvent = event.event as KeyboardEvent | undefined;
+                      const key = nativeEvent?.key;
+                      const rowIndex = event.rowIndex;
+
+                      // ✅ NULL SAFETY: Check rowIndex
+                      if (rowIndex === null || rowIndex === undefined) return;
+
+                      // ⚡ EXCEL-LIKE KEYBOARD SHORTCUTS
+                      const ctrlKey = nativeEvent?.ctrlKey || nativeEvent?.metaKey;
+
+                      // Ctrl+Z → Undo
+                      if (ctrlKey && key?.toLowerCase() === 'z' && !nativeEvent?.shiftKey) {
+                        nativeEvent?.preventDefault();
+                        handleUndo();
+                        return;
+                      }
+
+                      // Ctrl+Y or Ctrl+Shift+Z → Redo
+                      if (ctrlKey && (key?.toLowerCase() === 'y' || (key?.toLowerCase() === 'z' && nativeEvent?.shiftKey))) {
+                        nativeEvent?.preventDefault();
+                        handleRedo();
+                        return;
+                      }
+
+                      // Ctrl+D → Fill Down (copy value from cell above)
+                      if (ctrlKey && key?.toLowerCase() === 'd') {
+                        nativeEvent?.preventDefault();
+                        handleFillDown();
+                        return;
+                      }
+
+                      // When user presses Enter or Tab to move to next row
+                      if (key === 'Enter' || key === 'Tab') {
+                        const nextRowIndex = rowIndex + 1;
+                        const totalRows = event.api.getDisplayedRowCount();
+
+                        // ⚡ Immediately scroll to show next row (Excel behavior)
+                        if (nextRowIndex < totalRows) {
+                          setTimeout(() => {
+                            try {
+                              ensureRowVisible(nextRowIndex, 'bottom', 4, undefined, true);
+                            } catch (e) { /* ignore */ }
+                          }, 50);
+                        }
+                      }
+
+                      // Arrow key navigation with Ctrl → Jump to edge of data
+                      if (ctrlKey && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(key || '')) {
+                        nativeEvent?.preventDefault();
+                        const api = event.api;
+                        const focusedCell = api.getFocusedCell();
+                        if (!focusedCell) return;
+
+                        const currentRow = focusedCell.rowIndex;
+                        const currentCol = focusedCell.column;
+                        const colId = currentCol.getColId();
+                        const totalRows = api.getDisplayedRowCount();
+                        const allColumns = api.getAllDisplayedColumns();
+
+                        let targetRow = currentRow;
+                        let targetCol = currentCol;
+
+                        if (key === 'ArrowUp') {
+                          // Jump to first row with data in this column
+                          targetRow = 0;
+                        } else if (key === 'ArrowDown') {
+                          // Jump to last row with data
+                          for (let i = totalRows - 1; i >= 0; i--) {
+                            const rowData = api.getDisplayedRowAtIndex(i)?.data;
+                            if (rowData?.wsn?.trim()) {
+                              targetRow = i;
+                              break;
+                            }
+                          }
+                        } else if (key === 'ArrowLeft') {
+                          // Jump to first column
+                          targetCol = allColumns[0];
+                        } else if (key === 'ArrowRight') {
+                          // Jump to last column
+                          targetCol = allColumns[allColumns.length - 1];
+                        }
+
+                        api.setFocusedCell(targetRow, targetCol);
+                        ensureRowVisible(targetRow, 'middle', 3, undefined, true);
+                      }
+                    }}
 
 
 
 
-                    />
-                  </div>
+                  />
                 </Box>
 
 

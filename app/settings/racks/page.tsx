@@ -2,7 +2,8 @@
 'use client';
 
 import { Upload as UploadIcon, GetApp as DownloadIcon } from '@mui/icons-material';
-import * as XLSX from 'xlsx';
+// ⚡ OPTIMIZED: XLSX loaded dynamically on export to reduce bundle size
+// import * as XLSX from 'xlsx'; // Removed - loaded dynamically
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
@@ -201,6 +202,8 @@ export default function RacksPage() {
       }
     ];
 
+    // ⚡ OPTIMIZED: Load XLSX dynamically
+    const XLSX = await import('xlsx');
     const ws = XLSX.utils.json_to_sheet(template);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Template');
@@ -209,16 +212,20 @@ export default function RacksPage() {
   };
 
   const downloadTemplate = () => setConfirmDownloadOpen(true);
-  const handleConfirmDownload = () => {
-    doDownloadTemplate();
+  const handleConfirmDownload = async () => {
+    await doDownloadTemplate();
     setConfirmDownloadOpen(false);
   };
 
-  const exportRacks = () => {
+  const exportRacks = async () => {
     if (!racks || racks.length === 0) {
       toast('No racks to export');
       return;
     }
+
+    // ⚡ OPTIMIZED: Load XLSX dynamically
+    const XLSX = await import('xlsx');
+
     const data = racks.map((r) => ({
       RACK_NAME: r.rack_name,
       RACK_TYPE: r.rack_type,

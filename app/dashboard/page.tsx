@@ -57,7 +57,8 @@ import AppLayout from "@/components/AppLayout";
 import { StandardPageHeader } from '@/components';
 import { useTableRowHeight } from '@/app/context/AppearanceContext';
 import toast, { Toaster } from "react-hot-toast";
-import * as XLSX from "xlsx";
+// ⚡ OPTIMIZED: XLSX loaded dynamically on export to reduce bundle size
+// import * as XLSX from "xlsx"; // Removed static import
 
 import { AgGridReact } from 'ag-grid-react';
 import { ModuleRegistry, AllCommunityModule, ClientSideRowModelModule } from 'ag-grid-community';
@@ -936,7 +937,8 @@ export default function DashboardPage() {
     return "#2196f3";
   };
 
-  const formatExcelSheet = (ws: any, data: any[]) => {
+  // ⚡ OPTIMIZED: Format Excel sheet with XLSX parameter passed in
+  const formatExcelSheet = (ws: any, data: any[], XLSX: any) => {
     const columnWidths = [
       15, 12, 12, 12, 30, 15, 15, 12, 12, 15, 15, 12, 15, 12, 12, 15, 15, 15,
       12, 15, 15, 12, 15, 15, 15, 15, 15, 15, 15, 15, 18, 15, 20,
@@ -993,6 +995,9 @@ export default function DashboardPage() {
   const handleExportWithFilters = async () => {
     setExportLoading(true);
     try {
+      // ⚡ OPTIMIZED: Load XLSX dynamically only when exporting
+      const XLSX = await import('xlsx');
+
       const params = new URLSearchParams();
       if (activeWarehouse?.id) params.append("warehouseId", String(activeWarehouse.id));
 
@@ -1061,7 +1066,7 @@ export default function DashboardPage() {
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "Inventory");
 
-        formatExcelSheet(ws, formattedData);
+        formatExcelSheet(ws, formattedData, XLSX);
 
         const summaryData = [
           { Metric: "Total Records", Count: formattedData.length },

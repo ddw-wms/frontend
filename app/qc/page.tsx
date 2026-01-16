@@ -65,7 +65,8 @@ import { StandardPageHeader, StandardTabs } from '@/components';
 import { useTableRowHeight } from '@/app/context/AppearanceContext';
 
 import toast, { Toaster } from 'react-hot-toast';
-import * as XLSX from 'xlsx';
+// ⚡ OPTIMIZED: XLSX loaded dynamically on export to reduce bundle size
+// import * as XLSX from 'xlsx'; // Removed - loaded dynamically
 import { AgGridReact } from 'ag-grid-react';
 import { ModuleRegistry, AllCommunityModule, ClientSideRowModelModule } from 'ag-grid-community';
 import 'ag-grid-community/styles/ag-theme-quartz.css';
@@ -152,6 +153,13 @@ const DEFAULT_MULTI_COLUMNS = [
   'qc_grade',
   'qc_remarks',
   'other_remarks',
+  'fsn',
+  'producttitle',
+  'brand',
+  'cmsvertical',
+  'mrp',
+  'fsp',
+  'fkqcremark',
 ];
 
 const ALL_MASTER_COLUMNS = [
@@ -1293,7 +1301,10 @@ export default function QCPage() {
 
   // TAB 2: BULK UPLOAD ACTIONS
   // ✅ ADD THIS - Actual download after confirmation (used by BulkUploadCard)
-  const handleConfirmDownload = () => {
+  const handleConfirmDownload = async () => {
+    // ⚡ OPTIMIZED: Load XLSX dynamically
+    const XLSX = await import('xlsx');
+
     const template = [
       {
         WSN: 'ABC123A',
@@ -1401,6 +1412,9 @@ export default function QCPage() {
 
   const handleExport = async () => {
     try {
+      // ⚡ OPTIMIZED: Load XLSX dynamically
+      const XLSX = await import('xlsx');
+
       const response = await qcAPI.exportData({
         warehouseId: activeWarehouse?.id,
         dateFrom: exportStartDate,
