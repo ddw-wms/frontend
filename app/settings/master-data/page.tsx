@@ -1613,27 +1613,98 @@ export default function MasterDataPage() {
                                 gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(4, 1fr)', md: 'repeat(8, 1fr)' },
                                 gap: 1
                               }}>
-                                {/* Reset Button */}
+
+                                {/* Add Button */}
                                 <Button
                                   fullWidth
                                   size="small"
+                                  startIcon={<AddIcon sx={{ fontSize: '0.9rem' }} />}
+                                  variant="contained"
+                                  onClick={handleOpenAddDialog}
+                                  sx={{
+                                    height: 34,
+                                    fontSize: '0.72rem',
+                                    fontWeight: 700,
+                                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                                    boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
+                                    '&:hover': {
+                                      background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+                                      boxShadow: '0 6px 16px rgba(16, 185, 129, 0.4)'
+                                    }
+                                  }}
+                                >
+                                  + ADD
+                                </Button>
+
+                                {/* Upload Button */}
+                                {canSeeButton('upload') && (
+                                  <Button
+                                    fullWidth
+                                    size="small"
+                                    startIcon={<UploadIcon sx={{ fontSize: '0.9rem' }} />}
+                                    variant="contained"
+                                    onClick={() => setUploadDialogOpen(true)}
+                                    sx={{
+                                      height: 34,
+                                      fontSize: '0.72rem',
+                                      fontWeight: 700,
+                                      background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
+                                      boxShadow: '0 4px 12px rgba(30, 64, 175, 0.3)',
+                                      '&:hover': {
+                                        background: 'linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%)',
+                                        boxShadow: '0 6px 16px rgba(30, 64, 175, 0.4)'
+                                      }
+                                    }}
+                                  >
+                                    UPLOAD
+                                  </Button>
+                                )}
+
+                                {/* Export Button */}
+                                {canSeeButton('export') && (
+                                  <Button
+                                    fullWidth
+                                    size="small"
+                                    startIcon={<ExportIcon sx={{ fontSize: '0.9rem' }} />}
+                                    variant="contained"
+                                    onClick={() => setExportDialogOpen(true)}
+                                    sx={{
+                                      height: 34,
+                                      fontSize: '0.72rem',
+                                      fontWeight: 700,
+                                      background: 'linear-gradient(135deg, #7c3aed 0%, #a855f7 100%)',
+                                      boxShadow: '0 4px 12px rgba(124, 58, 237, 0.3)',
+                                      '&:hover': {
+                                        background: 'linear-gradient(135deg, #6d28d9 0%, #9333ea 100%)',
+                                        boxShadow: '0 6px 16px rgba(124, 58, 237, 0.4)'
+                                      }
+                                    }}
+                                  >
+                                    EXPORT
+                                  </Button>
+                                )}
+
+                                {/* Template Button */}
+                                <Button
+                                  fullWidth
+                                  size="small"
+                                  startIcon={<DownloadIcon sx={{ fontSize: '0.9rem' }} />}
                                   variant="outlined"
-                                  onClick={resetFilters}
+                                  onClick={handleDownloadTemplate}
                                   sx={{
                                     height: 34,
                                     fontSize: '0.72rem',
                                     fontWeight: 700,
                                     borderWidth: 2,
                                     borderColor: isDarkMode ? '#64748b' : '#94a3b8',
-                                    color: isDarkMode ? '#94a3b8' : '#64748b',
+                                    color: isDarkMode ? '#94a3b8' : '#475569',
                                     '&:hover': {
                                       borderWidth: 2,
-                                      borderColor: isDarkMode ? '#94a3b8' : '#64748b',
                                       bgcolor: isDarkMode ? 'rgba(255,255,255,0.05)' : '#f8fafc'
                                     }
                                   }}
                                 >
-                                  🔄 RESET
+                                  TEMPLATE
                                 </Button>
 
                                 {/* Columns Button */}
@@ -1684,98 +1755,10 @@ export default function MasterDataPage() {
                                   GRID
                                 </Button>
 
-                                {/* Add Button */}
-                                <Button
-                                  fullWidth
-                                  size="small"
-                                  startIcon={<AddIcon sx={{ fontSize: '0.9rem' }} />}
-                                  variant="contained"
-                                  onClick={handleOpenAddDialog}
-                                  sx={{
-                                    height: 34,
-                                    fontSize: '0.72rem',
-                                    fontWeight: 700,
-                                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                                    boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
-                                    '&:hover': {
-                                      background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
-                                      boxShadow: '0 6px 16px rgba(16, 185, 129, 0.4)'
-                                    }
-                                  }}
-                                >
-                                  + ADD
-                                </Button>
 
-                                {/* Upload Button */}
-                                {canSeeButton('upload') && (
-                                  <Button
-                                    fullWidth
-                                    size="small"
-                                    startIcon={<UploadIcon sx={{ fontSize: '0.9rem' }} />}
-                                    variant="contained"
-                                    onClick={() => setUploadDialogOpen(true)}
-                                    sx={{
-                                      height: 34,
-                                      fontSize: '0.72rem',
-                                      fontWeight: 700,
-                                      background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
-                                      boxShadow: '0 4px 12px rgba(30, 64, 175, 0.3)',
-                                      '&:hover': {
-                                        background: 'linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%)',
-                                        boxShadow: '0 6px 16px rgba(30, 64, 175, 0.4)'
-                                      }
-                                    }}
-                                  >
-                                    UPLOAD
-                                  </Button>
-                                )}
 
-                                {/* Template Button */}
-                                <Button
-                                  fullWidth
-                                  size="small"
-                                  startIcon={<DownloadIcon sx={{ fontSize: '0.9rem' }} />}
-                                  variant="outlined"
-                                  onClick={handleDownloadTemplate}
-                                  sx={{
-                                    height: 34,
-                                    fontSize: '0.72rem',
-                                    fontWeight: 700,
-                                    borderWidth: 2,
-                                    borderColor: isDarkMode ? '#64748b' : '#94a3b8',
-                                    color: isDarkMode ? '#94a3b8' : '#475569',
-                                    '&:hover': {
-                                      borderWidth: 2,
-                                      bgcolor: isDarkMode ? 'rgba(255,255,255,0.05)' : '#f8fafc'
-                                    }
-                                  }}
-                                >
-                                  TEMPLATE
-                                </Button>
 
-                                {/* Export Button */}
-                                {canSeeButton('export') && (
-                                  <Button
-                                    fullWidth
-                                    size="small"
-                                    startIcon={<ExportIcon sx={{ fontSize: '0.9rem' }} />}
-                                    variant="contained"
-                                    onClick={() => setExportDialogOpen(true)}
-                                    sx={{
-                                      height: 34,
-                                      fontSize: '0.72rem',
-                                      fontWeight: 700,
-                                      background: 'linear-gradient(135deg, #7c3aed 0%, #a855f7 100%)',
-                                      boxShadow: '0 4px 12px rgba(124, 58, 237, 0.3)',
-                                      '&:hover': {
-                                        background: 'linear-gradient(135deg, #6d28d9 0%, #9333ea 100%)',
-                                        boxShadow: '0 6px 16px rgba(124, 58, 237, 0.4)'
-                                      }
-                                    }}
-                                  >
-                                    EXPORT
-                                  </Button>
-                                )}
+
 
                                 {/* Refresh Button */}
                                 <Button
@@ -1800,6 +1783,30 @@ export default function MasterDataPage() {
                                 >
                                   {refreshing ? '...' : refreshSuccess ? '✓' : 'REFRESH'}
                                 </Button>
+
+                                {/* Reset Button */}
+                                <Button
+                                  fullWidth
+                                  size="small"
+                                  variant="outlined"
+                                  onClick={resetFilters}
+                                  sx={{
+                                    height: 34,
+                                    fontSize: '0.72rem',
+                                    fontWeight: 700,
+                                    borderWidth: 2,
+                                    borderColor: isDarkMode ? '#64748b' : '#94a3b8',
+                                    color: isDarkMode ? '#94a3b8' : '#64748b',
+                                    '&:hover': {
+                                      borderWidth: 2,
+                                      borderColor: isDarkMode ? '#94a3b8' : '#64748b',
+                                      bgcolor: isDarkMode ? 'rgba(255,255,255,0.05)' : '#f8fafc'
+                                    }
+                                  }}
+                                >
+                                  🔄 RESET
+                                </Button>
+
                               </Box>
                             </Stack>
                           </CardContent>
