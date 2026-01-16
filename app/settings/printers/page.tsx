@@ -316,7 +316,7 @@ export default function PrinterSettingsPage() {
       return (
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <CircularProgress size={20} />
-          <Typography variant="body2" sx={{ fontWeight: 500 }}>
+          <Typography variant="body2" sx={{ fontWeight: 500, color: isDarkMode ? '#f1f5f9' : 'inherit' }}>
             Checking agent...
           </Typography>
         </Box>
@@ -326,12 +326,12 @@ export default function PrinterSettingsPage() {
     if (agentStatus === 'connected') {
       return (
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <CheckCircleIcon sx={{ color: '#2e7d32', fontSize: 24 }} />
+          <CheckCircleIcon sx={{ color: isDarkMode ? '#4ade80' : '#2e7d32', fontSize: 24 }} />
           <Box>
-            <Typography variant="body2" sx={{ fontWeight: 600, color: '#2e7d32' }}>
+            <Typography variant="body2" sx={{ fontWeight: 600, color: isDarkMode ? '#4ade80' : '#2e7d32' }}>
               Print Agent Connected
             </Typography>
-            <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.7rem' }}>
+            <Typography variant="caption" sx={{ color: isDarkMode ? '#94a3b8' : 'text.secondary', fontSize: '0.7rem' }}>
               Ready to print labels
             </Typography>
 
@@ -342,12 +342,12 @@ export default function PrinterSettingsPage() {
 
     return (
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-        <ErrorIcon sx={{ color: '#d32f2f', fontSize: 24 }} />
+        <ErrorIcon sx={{ color: isDarkMode ? '#f87171' : '#d32f2f', fontSize: 24 }} />
         <Box>
-          <Typography variant="body2" sx={{ fontWeight: 600, color: '#d32f2f' }}>
+          <Typography variant="body2" sx={{ fontWeight: 600, color: isDarkMode ? '#f87171' : '#d32f2f' }}>
             Print Agent Offline
           </Typography>
-          <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.7rem' }}>
+          <Typography variant="caption" sx={{ color: isDarkMode ? '#94a3b8' : 'text.secondary', fontSize: '0.7rem' }}>
             Install or start the agent below
           </Typography>
         </Box>
@@ -436,8 +436,8 @@ export default function PrinterSettingsPage() {
         <Box sx={{ px: 2, pt: 2 }}>
           <Card sx={{
             background: agentStatus === 'connected'
-              ? 'linear-gradient(135deg, #e8f5e9 0%, #f1f8f4 100%)'
-              : 'linear-gradient(135deg, #ffebee 0%, #fff5f5 100%)',
+              ? (isDarkMode ? 'linear-gradient(135deg, #064e3b 0%, #065f46 100%)' : 'linear-gradient(135deg, #e8f5e9 0%, #f1f8f4 100%)')
+              : (isDarkMode ? 'linear-gradient(135deg, #7f1d1d 0%, #991b1b 100%)' : 'linear-gradient(135deg, #ffebee 0%, #fff5f5 100%)'),
             border: `2px solid ${agentStatus === 'connected' ? '#4caf50' : '#f44336'}`,
             boxShadow: agentStatus === 'connected'
               ? '0 4px 12px rgba(76, 175, 80, 0.2)'
@@ -641,14 +641,15 @@ export default function PrinterSettingsPage() {
               <Box sx={{ flex: { xs: '1 1 100%', lg: '1 1 65%' } }}>
 
                 {/* Printer Configuration */}
-                <Paper sx={{ p: { xs: 2, sm: 3 }, mb: { xs: 2, sm: 3 }, boxShadow: 3 }}>
+                <Paper sx={{ p: { xs: 2, sm: 3 }, mb: { xs: 2, sm: 3 }, boxShadow: isDarkMode ? '0 4px 12px rgba(0,0,0,0.3)' : 3, bgcolor: isDarkMode ? '#1e293b' : 'background.paper' }}>
                   <Typography variant="h6" sx={{
                     fontWeight: 700,
                     mb: 2,
                     display: 'flex',
                     alignItems: 'center',
                     gap: 1,
-                    fontSize: { xs: '1rem', sm: '1.25rem' }
+                    fontSize: { xs: '1rem', sm: '1.25rem' },
+                    color: isDarkMode ? '#f1f5f9' : 'inherit'
                   }}>
                     <SettingsIcon color="primary" /> Printer Configuration
                   </Typography>
@@ -736,14 +737,15 @@ export default function PrinterSettingsPage() {
                 </Paper>
 
                 {/* Label Dimensions */}
-                <Paper sx={{ p: { xs: 2, sm: 3 }, mb: { xs: 2, sm: 3 }, boxShadow: 3 }}>
+                <Paper sx={{ p: { xs: 2, sm: 3 }, mb: { xs: 2, sm: 3 }, boxShadow: isDarkMode ? '0 4px 12px rgba(0,0,0,0.3)' : 3, bgcolor: isDarkMode ? '#1e293b' : 'background.paper' }}>
                   <Typography variant="h6" sx={{
                     fontWeight: 700,
                     mb: 2,
                     display: 'flex',
                     alignItems: 'center',
                     gap: 1,
-                    fontSize: { xs: '1rem', sm: '1.25rem' }
+                    fontSize: { xs: '1rem', sm: '1.25rem' },
+                    color: isDarkMode ? '#f1f5f9' : 'inherit'
                   }}>
                     <AspectRatioIcon color="primary" /> Label Dimensions & Layout
                   </Typography>
@@ -843,14 +845,15 @@ export default function PrinterSettingsPage() {
                 </Paper>
 
                 {/* Print Performance */}
-                <Paper sx={{ p: { xs: 2, sm: 3 }, mb: { xs: 2, sm: 3 }, boxShadow: 3 }}>
+                <Paper sx={{ p: { xs: 2, sm: 3 }, mb: { xs: 2, sm: 3 }, boxShadow: isDarkMode ? '0 4px 12px rgba(0,0,0,0.3)' : 3, bgcolor: isDarkMode ? '#1e293b' : 'background.paper' }}>
                   <Typography variant="h6" sx={{
                     fontWeight: 700,
                     mb: 2,
                     display: 'flex',
                     alignItems: 'center',
                     gap: 1,
-                    fontSize: { xs: '1rem', sm: '1.25rem' }
+                    fontSize: { xs: '1rem', sm: '1.25rem' },
+                    color: isDarkMode ? '#f1f5f9' : 'inherit'
                   }}>
                     <SpeedIcon color="primary" /> Print Performance & Quality
                   </Typography>
@@ -1033,8 +1036,8 @@ export default function PrinterSettingsPage() {
               <Box sx={{ flex: { xs: '1 1 100%', lg: '1 1 35%' } }}>
 
                 {/* Actions */}
-                <Paper sx={{ p: { xs: 2, sm: 3 }, mb: { xs: 2, sm: 3 }, boxShadow: 3 }}>
-                  <Typography variant="h6" sx={{ fontWeight: 700, mb: 2, fontSize: { xs: '1rem', sm: '1.25rem' } }}>
+                <Paper sx={{ p: { xs: 2, sm: 3 }, mb: { xs: 2, sm: 3 }, boxShadow: isDarkMode ? '0 4px 12px rgba(0,0,0,0.3)' : 3, bgcolor: isDarkMode ? '#1e293b' : 'background.paper' }}>
+                  <Typography variant="h6" sx={{ fontWeight: 700, mb: 2, fontSize: { xs: '1rem', sm: '1.25rem' }, color: isDarkMode ? '#f1f5f9' : 'inherit' }}>
                     Actions
                   </Typography>
                   <Divider sx={{ mb: 2 }} />
@@ -1087,8 +1090,8 @@ export default function PrinterSettingsPage() {
                 </Paper>
 
                 {/* Current Configuration */}
-                <Paper sx={{ p: { xs: 2, sm: 3 }, mb: { xs: 2, sm: 3 }, boxShadow: 3, background: 'linear-gradient(135deg, #f5f7fa 0%, #e8eef5 100%)' }}>
-                  <Typography variant="h6" sx={{ fontWeight: 700, mb: 2, fontSize: { xs: '1rem', sm: '1.25rem' } }}>
+                <Paper sx={{ p: { xs: 2, sm: 3 }, mb: { xs: 2, sm: 3 }, boxShadow: isDarkMode ? '0 4px 12px rgba(0,0,0,0.3)' : 3, background: isDarkMode ? 'linear-gradient(135deg, #1e293b 0%, #334155 100%)' : 'linear-gradient(135deg, #f5f7fa 0%, #e8eef5 100%)' }}>
+                  <Typography variant="h6" sx={{ fontWeight: 700, mb: 2, fontSize: { xs: '1rem', sm: '1.25rem' }, color: isDarkMode ? '#f1f5f9' : 'inherit' }}>
                     📋 Current Configuration
                   </Typography>
                   <Divider sx={{ mb: 2 }} />
@@ -1153,8 +1156,8 @@ export default function PrinterSettingsPage() {
 
                 {/* Print History */}
                 {printHistory.length > 0 && (
-                  <Paper sx={{ p: { xs: 2, sm: 3 }, mb: { xs: 2, sm: 3 }, boxShadow: 3 }}>
-                    <Typography variant="h6" sx={{ fontWeight: 700, mb: 2, fontSize: { xs: '1rem', sm: '1.25rem' } }}>
+                  <Paper sx={{ p: { xs: 2, sm: 3 }, mb: { xs: 2, sm: 3 }, boxShadow: isDarkMode ? '0 4px 12px rgba(0,0,0,0.3)' : 3, bgcolor: isDarkMode ? '#1e293b' : 'background.paper' }}>
+                    <Typography variant="h6" sx={{ fontWeight: 700, mb: 2, fontSize: { xs: '1rem', sm: '1.25rem' }, color: isDarkMode ? '#f1f5f9' : 'inherit' }}>
                       Recent Test Prints
                     </Typography>
                     <Divider sx={{ mb: 2 }} />
@@ -1165,7 +1168,9 @@ export default function PrinterSettingsPage() {
                           key={idx}
                           sx={{
                             p: 1.5,
-                            backgroundColor: item.status === 'success' ? '#e8f5e9' : '#ffebee',
+                            backgroundColor: item.status === 'success'
+                              ? (isDarkMode ? '#064e3b' : '#e8f5e9')
+                              : (isDarkMode ? '#7f1d1d' : '#ffebee'),
                             borderRadius: 1,
                             borderLeft: '4px solid',
                             borderLeftColor: item.status === 'success' ? '#4caf50' : '#f44336'

@@ -1321,7 +1321,7 @@ export default function PickingPage() {
 
         {/* ========== TAB: PICKING LIST ========== */}
         {currentTabCode === 'list' && (
-          <Box sx={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 230px)' }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 230px)', transition: 'opacity 0.15s ease-in-out' }}>
             {/* FILTERS */}
             <Card sx={{ mb: { xs: 0, md: 1 }, borderRadius: 1.5, boxShadow: isDarkMode ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.06)', background: isDarkMode ? '#1e293b' : 'rgba(255, 255, 255, 0.98)' }}>
               <CardContent sx={{ p: { xs: 0, md: 1 } }}>

@@ -3048,6 +3048,7 @@ export default function InboundPage() {
               p: 0,
               borderRadius: 2,
               boxShadow: isDarkMode ? '0 4px 20px rgba(0,0,0,0.3)' : '0 4px 20px rgba(0,0,0,0.08)',
+              transition: 'opacity 0.15s ease-in-out',
               background: isDarkMode ? '#1e293b' : 'white',
               flex: 1,
               display: 'flex',
@@ -4764,8 +4765,10 @@ export default function InboundPage() {
                 {masterData && (
                   <Card sx={{
                     borderRadius: { xs: 2, sm: 2.5, md: 3 },
-                    background: 'linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%)',
-                    border: '2px solid #10b981',
+                    background: isDarkMode
+                      ? 'linear-gradient(135deg, #064e3b 0%, #065f46 100%)'
+                      : 'linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%)',
+                    border: `2px solid ${isDarkMode ? '#10b981' : '#10b981'}`,
                     order: { xs: -1, lg: 0 }, // Show master data above form on mobile
                     height: { xs: 'auto', lg: 'fit-content' },
                     maxHeight: { xs: '50vh', lg: 'none' },
@@ -4773,12 +4776,12 @@ export default function InboundPage() {
                   }}>
                     <CardContent sx={{ p: { xs: 1.2, sm: 1.5, md: 2 } }}>
                       <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: { xs: 1, sm: 1.5 } }}>
-                        <CheckCircle sx={{ color: '#10b981', fontSize: { xs: 24, sm: 26, md: 28 } }} />
+                        <CheckCircle sx={{ color: isDarkMode ? '#4ade80' : '#10b981', fontSize: { xs: 24, sm: 26, md: 28 } }} />
                         <Typography
                           variant="subtitle1"
                           sx={{
                             fontWeight: 700,
-                            color: '#065f46',
+                            color: isDarkMode ? '#a7f3d0' : '#065f46',
                             fontSize: { xs: '0.85rem', sm: '0.9rem', md: '0.95rem' }
                           }}
                         >
@@ -4786,7 +4789,7 @@ export default function InboundPage() {
                         </Typography>
                       </Stack>
 
-                      <Divider sx={{ mb: { xs: 1, sm: 1.5 }, borderColor: 'rgba(5, 150, 105, 0.3)' }} />
+                      <Divider sx={{ mb: { xs: 1, sm: 1.5 }, borderColor: isDarkMode ? 'rgba(167, 243, 208, 0.3)' : 'rgba(5, 150, 105, 0.3)' }} />
 
                       <Stack spacing={{ xs: 1, sm: 1.2, md: 1.5 }}>
                         {/* FSN */}
@@ -4794,7 +4797,7 @@ export default function InboundPage() {
                           <Typography
                             variant="caption"
                             sx={{
-                              color: '#065f46',
+                              color: isDarkMode ? '#a7f3d0' : '#065f46',
                               fontWeight: 700,
                               fontSize: { xs: '0.65rem', sm: '0.7rem' },
                               textTransform: 'uppercase',
@@ -4807,7 +4810,7 @@ export default function InboundPage() {
                           </Typography>
                           <Typography sx={{
                             fontWeight: 700,
-                            color: '#047857',
+                            color: isDarkMode ? '#ecfdf5' : '#047857',
                             fontSize: { xs: '0.85rem', sm: '0.9rem', md: '1rem' },
                             wordBreak: 'break-all'
                           }}>
@@ -4820,7 +4823,7 @@ export default function InboundPage() {
                           <Typography
                             variant="caption"
                             sx={{
-                              color: '#065f46',
+                              color: isDarkMode ? '#a7f3d0' : '#065f46',
                               fontWeight: 700,
                               fontSize: { xs: '0.65rem', sm: '0.7rem' },
                               textTransform: 'uppercase',
@@ -4832,7 +4835,7 @@ export default function InboundPage() {
                           </Typography>
                           <Typography sx={{
                             fontWeight: 600,
-                            color: '#047857',
+                            color: isDarkMode ? '#d1fae5' : '#047857',
                             fontSize: { xs: '0.75rem', sm: '0.8rem', md: '0.85rem' },
                             lineHeight: 1.4
                           }}>
@@ -4850,7 +4853,7 @@ export default function InboundPage() {
                             <Typography
                               variant="caption"
                               sx={{
-                                color: '#065f46',
+                                color: isDarkMode ? '#a7f3d0' : '#065f46',
                                 fontWeight: 700,
                                 fontSize: { xs: '0.65rem', sm: '0.7rem' },
                                 display: 'block',
@@ -4861,7 +4864,7 @@ export default function InboundPage() {
                             </Typography>
                             <Typography sx={{
                               fontWeight: 700,
-                              color: '#047857',
+                              color: isDarkMode ? '#ecfdf5' : '#047857',
                               fontSize: { xs: '0.8rem', sm: '0.85rem', md: '0.9rem' }
                             }}>
                               {masterData.brand || 'N/A'}
@@ -4871,7 +4874,7 @@ export default function InboundPage() {
                             <Typography
                               variant="caption"
                               sx={{
-                                color: '#065f46',
+                                color: isDarkMode ? '#a7f3d0' : '#065f46',
                                 fontWeight: 700,
                                 fontSize: { xs: '0.65rem', sm: '0.7rem' },
                                 display: 'block',
@@ -4882,7 +4885,7 @@ export default function InboundPage() {
                             </Typography>
                             <Typography sx={{
                               fontWeight: 700,
-                              color: '#047857',
+                              color: isDarkMode ? '#ecfdf5' : '#047857',
                               fontSize: { xs: '0.8rem', sm: '0.85rem', md: '0.9rem' }
                             }}>
                               {masterData.cms_vertical || 'N/A'}
@@ -4896,14 +4899,14 @@ export default function InboundPage() {
                           gridTemplateColumns: '1fr 1fr',
                           gap: { xs: 1, sm: 1.5 },
                           p: { xs: 1, sm: 1.2 },
-                          background: 'rgba(255, 255, 255, 0.5)',
+                          background: isDarkMode ? 'rgba(0, 0, 0, 0.2)' : 'rgba(255, 255, 255, 0.5)',
                           borderRadius: 1
                         }}>
                           <Box>
                             <Typography
                               variant="caption"
                               sx={{
-                                color: '#065f46',
+                                color: isDarkMode ? '#a7f3d0' : '#065f46',
                                 fontWeight: 700,
                                 fontSize: { xs: '0.65rem', sm: '0.7rem' },
                                 display: 'block',
@@ -4914,7 +4917,7 @@ export default function InboundPage() {
                             </Typography>
                             <Typography sx={{
                               fontWeight: 700,
-                              color: '#047857',
+                              color: isDarkMode ? '#ecfdf5' : '#047857',
                               fontSize: { xs: '0.95rem', sm: '1rem', md: '1.1rem' }
                             }}>
                               ₹{masterData.mrp || 'N/A'}
@@ -4924,7 +4927,7 @@ export default function InboundPage() {
                             <Typography
                               variant="caption"
                               sx={{
-                                color: '#065f46',
+                                color: isDarkMode ? '#a7f3d0' : '#065f46',
                                 fontWeight: 700,
                                 fontSize: { xs: '0.65rem', sm: '0.7rem' },
                                 display: 'block',
@@ -4935,7 +4938,7 @@ export default function InboundPage() {
                             </Typography>
                             <Typography sx={{
                               fontWeight: 700,
-                              color: '#047857',
+                              color: isDarkMode ? '#ecfdf5' : '#047857',
                               fontSize: { xs: '0.95rem', sm: '1rem', md: '1.1rem' }
                             }}>
                               ₹{masterData.fsp || 'N/A'}
@@ -4947,14 +4950,14 @@ export default function InboundPage() {
                         {masterData.fkt_link && (
                           <Box sx={{
                             p: { xs: 0.8, sm: 1 },
-                            background: 'rgba(255, 255, 255, 0.6)',
+                            background: isDarkMode ? 'rgba(0, 0, 0, 0.2)' : 'rgba(255, 255, 255, 0.6)',
                             borderRadius: 1,
-                            border: '1px dashed #10b981'
+                            border: `1px dashed ${isDarkMode ? '#4ade80' : '#10b981'}`
                           }}>
                             <Typography
                               variant="caption"
                               sx={{
-                                color: '#065f46',
+                                color: isDarkMode ? '#a7f3d0' : '#065f46',
                                 fontWeight: 700,
                                 fontSize: { xs: '0.65rem', sm: '0.7rem' },
                                 display: 'block',
@@ -4968,7 +4971,7 @@ export default function InboundPage() {
                               target="_blank"
                               rel="noopener noreferrer"
                               style={{
-                                color: '#0284c7',
+                                color: isDarkMode ? '#38bdf8' : '#0284c7',
                                 fontWeight: 600,
                                 textDecoration: 'underline',
                                 cursor: 'pointer',

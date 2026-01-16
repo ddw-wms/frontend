@@ -533,10 +533,10 @@ export default function RacksPage() {
 
       {/* BULK UPLOAD DIALOG */}
       <Dialog open={bulkDialogOpen} onClose={() => setBulkDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle sx={{ fontWeight: 700 }}>Bulk Upload Racks</DialogTitle>
-        <DialogContent>
+        <DialogTitle sx={{ fontWeight: 700, bgcolor: isDarkMode ? '#1e293b' : 'background.paper', color: isDarkMode ? '#f1f5f9' : 'inherit' }}>Bulk Upload Racks</DialogTitle>
+        <DialogContent sx={{ bgcolor: isDarkMode ? '#0f172a' : 'background.paper' }}>
           <Stack spacing={2} sx={{ mt: 1 }}>
-            <Box sx={{ border: '2px dashed #cbd5e1', borderRadius: 2, p: 3, textAlign: 'center', background: '#f8fafc', cursor: 'pointer' }}>
+            <Box sx={{ border: isDarkMode ? '2px dashed #475569' : '2px dashed #cbd5e1', borderRadius: 2, p: 3, textAlign: 'center', background: isDarkMode ? '#1e293b' : '#f8fafc', cursor: 'pointer' }}>
               <input
                 type="file"
                 accept=".xlsx,.xls"
@@ -545,9 +545,9 @@ export default function RacksPage() {
                 id="bulk-rack-upload"
               />
               <label htmlFor="bulk-rack-upload" style={{ display: 'block', cursor: 'pointer' }}>
-                <UploadIcon sx={{ fontSize: 40, color: '#1e40af', mb: 1 }} />
-                <Typography sx={{ fontWeight: 700 }}>{bulkFile?.name || 'Click to choose a file'}</Typography>
-                <Typography variant="caption" sx={{ color: '#64748b' }}>Accepts .xlsx or .xls</Typography>
+                <UploadIcon sx={{ fontSize: 40, color: isDarkMode ? '#60a5fa' : '#1e40af', mb: 1 }} />
+                <Typography sx={{ fontWeight: 700, color: isDarkMode ? '#f1f5f9' : 'inherit' }}>{bulkFile?.name || 'Click to choose a file'}</Typography>
+                <Typography variant="caption" sx={{ color: isDarkMode ? '#94a3b8' : '#64748b' }}>Accepts .xlsx or .xls</Typography>
               </label>
             </Box>
 
@@ -562,9 +562,9 @@ export default function RacksPage() {
             </Button>
 
             {bulkResult.show && (
-              <Card sx={{ borderRadius: 1.25, border: '1px solid #e6eef6', background: '#fbfdff' }}>
+              <Card sx={{ borderRadius: 1.25, border: isDarkMode ? '1px solid #334155' : '1px solid #e6eef6', background: isDarkMode ? '#1e293b' : '#fbfdff' }}>
                 <CardContent>
-                  <Typography sx={{ fontWeight: 700, mb: 1 }}>Upload Result</Typography>
+                  <Typography sx={{ fontWeight: 700, mb: 1, color: isDarkMode ? '#f1f5f9' : 'inherit' }}>Upload Result</Typography>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                     <Typography variant="body2">Total</Typography>
                     <Typography variant="body2" sx={{ fontWeight: 700 }}>{bulkResult.total}</Typography>
@@ -588,7 +588,7 @@ export default function RacksPage() {
 
           </Stack>
         </DialogContent>
-        <DialogActions>
+        <DialogActions sx={{ bgcolor: isDarkMode ? '#1e293b' : 'background.paper', borderTop: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e0e0e0' }}>
           <Button onClick={() => setBulkDialogOpen(false)}>Close</Button>
         </DialogActions>
       </Dialog>

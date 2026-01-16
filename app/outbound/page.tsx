@@ -1789,7 +1789,7 @@ export default function OutboundPage() {
 
                 {/* TAB: OUTBOUND LIST */}
                 {currentTabCode === 'list' && (
-                    <Box sx={{ display: 'flex', flexDirection: 'column', height: 'calc(110vh - 200px)' }}>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', height: 'calc(110vh - 200px)', transition: 'opacity 0.15s ease-in-out' }}>
                         {/* SEARCH + FILTERS TOGGLE */}
                         <Box sx={{ mb: 0.5 }}>
                             <Stack direction={{ xs: 'row', md: 'row' }} spacing={1} alignItems="center" sx={{ mb: 1 }}>
@@ -2959,54 +2959,60 @@ export default function OutboundPage() {
                         </Card>
 
                         {sourceData && (
-                            <Card sx={{ borderRadius: 2, background: 'linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%)', border: '2px solid #10b981' }}>
+                            <Card sx={{
+                                borderRadius: 2,
+                                background: isDarkMode
+                                    ? 'linear-gradient(135deg, #064e3b 0%, #065f46 100%)'
+                                    : 'linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%)',
+                                border: '2px solid #10b981'
+                            }}>
                                 <CardContent sx={{ p: 2 }}>
                                     <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.5 }}>
-                                        <CheckCircle sx={{ color: '#10b981', fontSize: 28 }} />
-                                        <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#065f46', fontSize: '0.95rem' }}>Source Data Found</Typography>
+                                        <CheckCircle sx={{ color: isDarkMode ? '#4ade80' : '#10b981', fontSize: 28 }} />
+                                        <Typography variant="subtitle1" sx={{ fontWeight: 700, color: isDarkMode ? '#a7f3d0' : '#065f46', fontSize: '0.95rem' }}>Source Data Found</Typography>
                                     </Stack>
-                                    <Divider sx={{ mb: 1.5, borderColor: 'rgba(5, 150, 105, 0.3)' }} />
+                                    <Divider sx={{ mb: 1.5, borderColor: isDarkMode ? 'rgba(167, 243, 208, 0.3)' : 'rgba(5, 150, 105, 0.3)' }} />
                                     <Stack spacing={1.5}>
                                         <Box>
-                                            <Typography variant="caption" sx={{ color: '#065f46', fontWeight: 700, fontSize: '0.7rem', textTransform: 'uppercase' }}>SOURCE</Typography>
+                                            <Typography variant="caption" sx={{ color: isDarkMode ? '#a7f3d0' : '#065f46', fontWeight: 700, fontSize: '0.7rem', textTransform: 'uppercase' }}>SOURCE</Typography>
                                             <Box sx={{ mt: 0.5 }}>
                                                 <Chip label={sourceData.source} size="small" color={sourceData.source === 'PICKING' ? 'primary' : sourceData.source === 'QC' ? 'success' : 'warning'} sx={{ fontWeight: 700 }} />
                                             </Box>
                                         </Box>
                                         <Box>
-                                            <Typography variant="caption" sx={{ color: '#065f46', fontWeight: 700, fontSize: '0.7rem', textTransform: 'uppercase' }}>PRODUCT</Typography>
-                                            <Typography sx={{ fontWeight: 600, color: '#047857', fontSize: '0.85rem' }}>{sourceData.product_title || 'N/A'}</Typography>
+                                            <Typography variant="caption" sx={{ color: isDarkMode ? '#a7f3d0' : '#065f46', fontWeight: 700, fontSize: '0.7rem', textTransform: 'uppercase' }}>PRODUCT</Typography>
+                                            <Typography sx={{ fontWeight: 600, color: isDarkMode ? '#d1fae5' : '#047857', fontSize: '0.85rem' }}>{sourceData.product_title || 'N/A'}</Typography>
                                         </Box>
                                         <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1 }}>
                                             <Box>
-                                                <Typography variant="caption" sx={{ color: '#065f46', fontWeight: 700, fontSize: '0.7rem' }}>BRAND</Typography>
-                                                <Typography sx={{ fontWeight: 700, color: '#047857' }}>{sourceData.brand || 'N/A'}</Typography>
+                                                <Typography variant="caption" sx={{ color: isDarkMode ? '#a7f3d0' : '#065f46', fontWeight: 700, fontSize: '0.7rem' }}>BRAND</Typography>
+                                                <Typography sx={{ fontWeight: 700, color: isDarkMode ? '#ecfdf5' : '#047857' }}>{sourceData.brand || 'N/A'}</Typography>
                                             </Box>
                                             <Box>
-                                                <Typography variant="caption" sx={{ color: '#065f46', fontWeight: 700, fontSize: '0.7rem' }}>CATEGORY</Typography>
-                                                <Typography sx={{ fontWeight: 700, color: '#047857' }}>{sourceData.cms_vertical || 'N/A'}</Typography>
+                                                <Typography variant="caption" sx={{ color: isDarkMode ? '#a7f3d0' : '#065f46', fontWeight: 700, fontSize: '0.7rem' }}>CATEGORY</Typography>
+                                                <Typography sx={{ fontWeight: 700, color: isDarkMode ? '#ecfdf5' : '#047857' }}>{sourceData.cms_vertical || 'N/A'}</Typography>
                                             </Box>
                                         </Box>
                                         <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1 }}>
                                             <Box>
-                                                <Typography variant="caption" sx={{ color: '#065f46', fontWeight: 700, fontSize: '0.7rem' }}>MRP</Typography>
-                                                <Typography sx={{ fontWeight: 700, color: '#047857' }}>₹{sourceData.mrp || 'N/A'}</Typography>
+                                                <Typography variant="caption" sx={{ color: isDarkMode ? '#a7f3d0' : '#065f46', fontWeight: 700, fontSize: '0.7rem' }}>MRP</Typography>
+                                                <Typography sx={{ fontWeight: 700, color: isDarkMode ? '#ecfdf5' : '#047857' }}>₹{sourceData.mrp || 'N/A'}</Typography>
                                             </Box>
                                             <Box>
-                                                <Typography variant="caption" sx={{ color: '#065f46', fontWeight: 700, fontSize: '0.7rem' }}>FSP</Typography>
-                                                <Typography sx={{ fontWeight: 700, color: '#047857' }}>₹{sourceData.fsp || 'N/A'}</Typography>
+                                                <Typography variant="caption" sx={{ color: isDarkMode ? '#a7f3d0' : '#065f46', fontWeight: 700, fontSize: '0.7rem' }}>FSP</Typography>
+                                                <Typography sx={{ fontWeight: 700, color: isDarkMode ? '#ecfdf5' : '#047857' }}>₹{sourceData.fsp || 'N/A'}</Typography>
                                             </Box>
                                         </Box>
                                         {sourceData.fkt_link && (
                                             <Box>
-                                                <Typography variant="caption" sx={{ color: '#065f46', fontWeight: 700, fontSize: '0.7rem', textTransform: 'uppercase' }}>PRODUCT LINK</Typography>
+                                                <Typography variant="caption" sx={{ color: isDarkMode ? '#a7f3d0' : '#065f46', fontWeight: 700, fontSize: '0.7rem', textTransform: 'uppercase' }}>PRODUCT LINK</Typography>
                                                 <Box sx={{ mt: 0.5 }}>
                                                     <a
                                                         href={sourceData.fkt_link}
                                                         target="_blank"
                                                         rel="noopener noreferrer"
                                                         style={{
-                                                            color: '#0ea5e9',
+                                                            color: isDarkMode ? '#38bdf8' : '#0ea5e9',
                                                             textDecoration: 'underline',
                                                             fontSize: '0.85rem',
                                                             fontWeight: 600
@@ -3023,10 +3029,10 @@ export default function OutboundPage() {
                         )}
 
                         {duplicateWSN && (
-                            <Card sx={{ gridColumn: '1 / -1', borderRadius: 2, background: '#fff3cd', border: '2px solid #ffc107' }}>
+                            <Card sx={{ gridColumn: '1 / -1', borderRadius: 2, background: isDarkMode ? '#78350f' : '#fff3cd', border: `2px solid ${isDarkMode ? '#fbbf24' : '#ffc107'}` }}>
                                 <CardContent>
-                                    <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#856404', mb: 1 }}>⚠️ Duplicate WSN Detected</Typography>
-                                    <Typography variant="body2" color="text.secondary">
+                                    <Typography variant="subtitle2" sx={{ fontWeight: 700, color: isDarkMode ? '#fcd34d' : '#856404', mb: 1 }}>⚠️ Duplicate WSN Detected</Typography>
+                                    <Typography variant="body2" sx={{ color: isDarkMode ? '#fde68a' : 'text.secondary' }}>
                                         This WSN is already dispatched. Enable "Update Existing Entry" checkbox to modify.
                                     </Typography>
                                 </CardContent>

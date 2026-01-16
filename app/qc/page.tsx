@@ -1527,6 +1527,7 @@ export default function QCPage() {
             display: 'flex',
             flexDirection: 'column',
             overflow: 'hidden',
+            transition: 'opacity 0.15s ease-in-out',
           }}
         >
 
@@ -2942,19 +2943,21 @@ export default function QCPage() {
                   {singleProduct.product_title && (
                     <Card sx={{
                       borderRadius: 1.5,
-                      background: 'linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%)',
+                      background: isDarkMode
+                        ? 'linear-gradient(135deg, #064e3b 0%, #065f46 100%)'
+                        : 'linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%)',
                       border: '2px solid #10b981',
-                      boxShadow: '0 4px 20px rgba(16, 185, 129, 0.2)',
+                      boxShadow: isDarkMode ? '0 4px 20px rgba(16, 185, 129, 0.3)' : '0 4px 20px rgba(16, 185, 129, 0.2)',
                       flex: 1
                     }}>
                       <CardContent sx={{ p: { xs: 1.5, sm: 2 }, height: '100%', display: 'flex', flexDirection: 'column' }}>
                         <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
-                          <CheckCircle sx={{ color: '#10b981', fontSize: { xs: 24, sm: 28 } }} />
+                          <CheckCircle sx={{ color: isDarkMode ? '#4ade80' : '#10b981', fontSize: { xs: 24, sm: 28 } }} />
                           <Typography
                             variant="h6"
                             sx={{
                               fontWeight: 800,
-                              color: '#065f46',
+                              color: isDarkMode ? '#a7f3d0' : '#065f46',
                               fontSize: { xs: '0.95rem', sm: '1rem' }
                             }}
                           >
@@ -2962,7 +2965,7 @@ export default function QCPage() {
                           </Typography>
                         </Stack>
 
-                        <Divider sx={{ mb: 2, borderColor: 'rgba(5, 150, 105, 0.3)' }} />
+                        <Divider sx={{ mb: 2, borderColor: isDarkMode ? 'rgba(167, 243, 208, 0.3)' : 'rgba(5, 150, 105, 0.3)' }} />
 
                         <Box sx={{ flex: 1, overflow: 'auto' }}>
                           <Stack spacing={2}>
@@ -2970,7 +2973,7 @@ export default function QCPage() {
                               <Typography
                                 variant="caption"
                                 sx={{
-                                  color: '#065f46',
+                                  color: isDarkMode ? '#a7f3d0' : '#065f46',
                                   fontWeight: 700,
                                   fontSize: '0.7rem',
                                   textTransform: 'uppercase',
@@ -2981,7 +2984,7 @@ export default function QCPage() {
                               </Typography>
                               <Typography sx={{
                                 fontWeight: 700,
-                                color: '#047857',
+                                color: isDarkMode ? '#ecfdf5' : '#047857',
                                 fontSize: '0.9rem',
                                 wordBreak: 'break-all'
                               }}>
@@ -2993,7 +2996,7 @@ export default function QCPage() {
                               <Typography
                                 variant="caption"
                                 sx={{
-                                  color: '#065f46',
+                                  color: isDarkMode ? '#a7f3d0' : '#065f46',
                                   fontWeight: 700,
                                   fontSize: '0.7rem',
                                   textTransform: 'uppercase'
@@ -3003,7 +3006,7 @@ export default function QCPage() {
                               </Typography>
                               <Typography sx={{
                                 fontWeight: 600,
-                                color: '#047857',
+                                color: isDarkMode ? '#d1fae5' : '#047857',
                                 fontSize: '0.85rem',
                                 lineHeight: 1.3
                               }}>
@@ -3020,14 +3023,14 @@ export default function QCPage() {
                                 <Typography
                                   variant="caption"
                                   sx={{
-                                    color: '#065f46',
+                                    color: isDarkMode ? '#a7f3d0' : '#065f46',
                                     fontWeight: 700,
                                     fontSize: '0.7rem'
                                   }}
                                 >
                                   BRAND
                                 </Typography>
-                                <Typography sx={{ fontWeight: 700, color: '#047857' }}>
+                                <Typography sx={{ fontWeight: 700, color: isDarkMode ? '#ecfdf5' : '#047857' }}>
                                   {singleProduct.brand || 'N/A'}
                                 </Typography>
                               </Box>
@@ -3035,14 +3038,14 @@ export default function QCPage() {
                                 <Typography
                                   variant="caption"
                                   sx={{
-                                    color: '#065f46',
+                                    color: isDarkMode ? '#a7f3d0' : '#065f46',
                                     fontWeight: 700,
                                     fontSize: '0.7rem'
                                   }}
                                 >
                                   CATEGORY
                                 </Typography>
-                                <Typography sx={{ fontWeight: 700, color: '#047857' }}>
+                                <Typography sx={{ fontWeight: 700, color: isDarkMode ? '#ecfdf5' : '#047857' }}>
                                   {singleProduct.cms_vertical || 'N/A'}
                                 </Typography>
                               </Box>
@@ -3057,14 +3060,14 @@ export default function QCPage() {
                                 <Typography
                                   variant="caption"
                                   sx={{
-                                    color: '#065f46',
+                                    color: isDarkMode ? '#a7f3d0' : '#065f46',
                                     fontWeight: 700,
                                     fontSize: '0.7rem'
                                   }}
                                 >
                                   MRP
                                 </Typography>
-                                <Typography sx={{ fontWeight: 700, color: '#047857' }}>
+                                <Typography sx={{ fontWeight: 700, color: isDarkMode ? '#ecfdf5' : '#047857' }}>
                                   ₹{singleProduct.mrp || 'N/A'}
                                 </Typography>
                               </Box>
@@ -3072,14 +3075,14 @@ export default function QCPage() {
                                 <Typography
                                   variant="caption"
                                   sx={{
-                                    color: '#065f46',
+                                    color: isDarkMode ? '#a7f3d0' : '#065f46',
                                     fontWeight: 700,
                                     fontSize: '0.7rem'
                                   }}
                                 >
                                   FSP
                                 </Typography>
-                                <Typography sx={{ fontWeight: 700, color: '#047857' }}>
+                                <Typography sx={{ fontWeight: 700, color: isDarkMode ? '#ecfdf5' : '#047857' }}>
                                   ₹{singleProduct.fsp || 'N/A'}
                                 </Typography>
                               </Box>
@@ -3090,7 +3093,7 @@ export default function QCPage() {
                                 <Typography
                                   variant="caption"
                                   sx={{
-                                    color: '#065f46',
+                                    color: isDarkMode ? '#a7f3d0' : '#065f46',
                                     fontWeight: 700,
                                     fontSize: '0.7rem'
                                   }}
@@ -3100,11 +3103,11 @@ export default function QCPage() {
                                 <Typography
                                   sx={{
                                     fontWeight: 600,
-                                    color: '#047857',
+                                    color: isDarkMode ? '#38bdf8' : '#047857',
                                     fontSize: '0.8rem',
                                     cursor: 'pointer',
                                     textDecoration: 'underline',
-                                    '&:hover': { color: '#065f46' }
+                                    '&:hover': { color: isDarkMode ? '#7dd3fc' : '#065f46' }
                                   }}
                                   onClick={() => window.open(singleProduct.fkt_link, '_blank')}
                                 >

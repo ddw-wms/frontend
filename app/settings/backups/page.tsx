@@ -717,14 +717,16 @@ export default function BackupPage() {
                         <Paper sx={{
                             p: { xs: 2, md: 3 },
                             mb: 3,
-                            background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)',
+                            background: isDarkMode
+                                ? 'linear-gradient(135deg, #1e293b 0%, #334155 100%)'
+                                : 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)',
                             border: '1px solid',
-                            borderColor: 'primary.light',
+                            borderColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'primary.light',
                             borderRadius: 2
                         }}>
                             <Stack direction="row" alignItems="center" justifyContent="space-between" mb={2}>
                                 <Stack direction="row" alignItems="center" spacing={1.5}>
-                                    <Typography variant="h6" fontWeight={700} color="primary.main">
+                                    <Typography variant="h6" fontWeight={700} sx={{ color: isDarkMode ? '#93c5fd' : 'primary.main' }}>
                                         📊 Backup Health Dashboard
                                     </Typography>
                                 </Stack>
@@ -861,7 +863,8 @@ export default function BackupPage() {
                             textAlign: 'center',
                             borderRadius: 3,
                             border: '2px dashed',
-                            borderColor: 'divider'
+                            borderColor: isDarkMode ? 'rgba(255,255,255,0.2)' : 'divider',
+                            bgcolor: isDarkMode ? '#1e293b' : 'background.paper'
                         }}>
                             <StorageIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
                             <Typography variant="h6" color="text.secondary" gutterBottom>
@@ -884,17 +887,19 @@ export default function BackupPage() {
                             {!isMobile ? (
                                 <TableContainer component={Paper} sx={{
                                     borderRadius: 2,
-                                    boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
+                                    boxShadow: isDarkMode ? '0 2px 12px rgba(0,0,0,0.3)' : '0 2px 12px rgba(0,0,0,0.08)',
                                     border: '1px solid',
-                                    borderColor: 'divider'
+                                    borderColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'divider',
+                                    bgcolor: isDarkMode ? '#1e293b' : 'background.paper'
                                 }}>
                                     <Table>
                                         <TableHead>
                                             <TableRow sx={{
-                                                bgcolor: 'grey.100',
+                                                bgcolor: isDarkMode ? '#334155' : 'grey.100',
                                                 '& th': {
                                                     borderBottom: '2px solid',
-                                                    borderColor: 'divider'
+                                                    borderColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'divider',
+                                                    color: isDarkMode ? '#f1f5f9' : 'inherit'
                                                 }
                                             }}>
                                                 <TableCell sx={{ fontWeight: 700, fontSize: '0.875rem' }}>File Name</TableCell>
@@ -1417,15 +1422,15 @@ export default function BackupPage() {
                                 </Alert>
 
                                 {selectedBackup && (
-                                    <Paper sx={{ p: 2, bgcolor: 'grey.50', borderRadius: 2 }}>
-                                        <Typography variant="caption" color="text.secondary" display="block" mb={1}>
+                                    <Paper sx={{ p: 2, bgcolor: isDarkMode ? '#334155' : 'grey.50', borderRadius: 2 }}>
+                                        <Typography variant="caption" sx={{ color: isDarkMode ? '#94a3b8' : 'text.secondary' }} display="block" mb={1}>
                                             BACKUP TO RESTORE:
                                         </Typography>
                                         <Stack spacing={0.5}>
-                                            <Typography variant="body2"><strong>File:</strong> {selectedBackup?.file_name ?? ''}</Typography>
-                                            <Typography variant="body2"><strong>Type:</strong> {selectedBackup?.backup_type?.toUpperCase() ?? ''}</Typography>
-                                            <Typography variant="body2"><strong>Date:</strong> {formatDate(selectedBackup?.created_at ?? '')}</Typography>
-                                            <Typography variant="body2"><strong>Size:</strong> {selectedBackup?.file_size_mb ?? 0} MB</Typography>
+                                            <Typography variant="body2" sx={{ color: isDarkMode ? '#f1f5f9' : 'inherit' }}><strong>File:</strong> {selectedBackup?.file_name ?? ''}</Typography>
+                                            <Typography variant="body2" sx={{ color: isDarkMode ? '#f1f5f9' : 'inherit' }}><strong>Type:</strong> {selectedBackup?.backup_type?.toUpperCase() ?? ''}</Typography>
+                                            <Typography variant="body2" sx={{ color: isDarkMode ? '#f1f5f9' : 'inherit' }}><strong>Date:</strong> {formatDate(selectedBackup?.created_at ?? '')}</Typography>
+                                            <Typography variant="body2" sx={{ color: isDarkMode ? '#f1f5f9' : 'inherit' }}><strong>Size:</strong> {selectedBackup?.file_size_mb ?? 0} MB</Typography>
                                         </Stack>
                                     </Paper>
                                 )}
@@ -1521,14 +1526,14 @@ export default function BackupPage() {
                                 )}
                             </Stack>
                         </DialogTitle>
-                        <DialogContent sx={{ pt: { xs: 1.5, md: 3 }, pb: { xs: 1, md: 2 }, px: { xs: 1.5, md: 3 } }}>
+                        <DialogContent sx={{ pt: { xs: 1.5, md: 3 }, pb: { xs: 1, md: 2 }, px: { xs: 1.5, md: 3 }, bgcolor: isDarkMode ? '#0f172a' : 'background.paper' }}>
                             {dbStats && (
                                 <Box>
                                     {isMobile ? (
                                         // Mobile Compact Table-like View
                                         <Box sx={{
                                             border: '1px solid',
-                                            borderColor: 'divider',
+                                            borderColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'divider',
                                             borderRadius: 1.5,
                                             overflow: 'hidden',
                                             bgcolor: isDarkMode ? '#1e293b' : 'white'
@@ -1538,7 +1543,7 @@ export default function BackupPage() {
                                                 display: 'flex',
                                                 bgcolor: isDarkMode ? '#334155' : 'grey.100',
                                                 borderBottom: '2px solid',
-                                                borderColor: 'divider',
+                                                borderColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'divider',
                                                 py: 0.75,
                                                 px: 1.25
                                             }}>
@@ -1560,7 +1565,7 @@ export default function BackupPage() {
                                                             py: 0.75,
                                                             px: 1.25,
                                                             borderBottom: index < (dbStats?.tables?.length ?? 0) - 1 ? '1px solid' : 'none',
-                                                            borderColor: 'divider',
+                                                            borderColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'divider',
                                                             '&:active': {
                                                                 bgcolor: 'action.selected'
                                                             }
@@ -1602,18 +1607,20 @@ export default function BackupPage() {
                                         // Desktop Compact Table View
                                         <TableContainer component={Paper} sx={{
                                             borderRadius: 2,
-                                            boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                                            boxShadow: isDarkMode ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.1)',
                                             border: '1px solid',
-                                            borderColor: 'divider',
+                                            borderColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'divider',
                                             maxHeight: 400,
-                                            overflow: 'auto'
+                                            overflow: 'auto',
+                                            bgcolor: isDarkMode ? '#1e293b' : 'white'
                                         }}>
                                             <Table size="small" stickyHeader>
                                                 <TableHead>
                                                     <TableRow>
                                                         <TableCell sx={{
                                                             fontWeight: 700,
-                                                            bgcolor: 'grey.100',
+                                                            bgcolor: isDarkMode ? '#334155' : 'grey.100',
+                                                            color: isDarkMode ? '#f1f5f9' : 'inherit',
                                                             fontSize: '0.875rem',
                                                             py: 1.5
                                                         }}>
@@ -1621,7 +1628,8 @@ export default function BackupPage() {
                                                         </TableCell>
                                                         <TableCell align="right" sx={{
                                                             fontWeight: 700,
-                                                            bgcolor: 'grey.100',
+                                                            bgcolor: isDarkMode ? '#334155' : 'grey.100',
+                                                            color: isDarkMode ? '#f1f5f9' : 'inherit',
                                                             fontSize: '0.875rem',
                                                             py: 1.5,
                                                             width: 120
@@ -1666,7 +1674,13 @@ export default function BackupPage() {
                                 </Box>
                             )}
                         </DialogContent>
-                        <DialogActions sx={{ px: { xs: 1.5, md: 3 }, pb: { xs: 1.5, md: 3 }, pt: { xs: 1, md: 2 } }}>
+                        <DialogActions sx={{
+                            px: { xs: 1.5, md: 3 },
+                            pb: { xs: 1.5, md: 3 },
+                            pt: { xs: 1, md: 2 },
+                            bgcolor: isDarkMode ? '#1e293b' : 'background.paper',
+                            borderTop: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e0e0e0'
+                        }}>
                             <Button
                                 onClick={() => setStatsDialogOpen(false)}
                                 fullWidth={isMobile}
