@@ -39,6 +39,8 @@ import {
   useTheme,
   Collapse,
   IconButton,
+  Toolbar,
+  AppBar,
 } from '@mui/material';
 import {
   Download as DownloadIcon,
