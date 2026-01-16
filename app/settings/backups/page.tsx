@@ -555,6 +555,8 @@ export default function BackupPage() {
         <AppLayout>
             <Toaster position="top-right" />
             <Box sx={{
+                p: { xs: 0.75, md: 1 },
+                background: isDarkMode ? 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)' : 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
                 height: '100%',
                 width: '100%',
                 display: 'flex',

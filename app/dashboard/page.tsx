@@ -1151,15 +1151,16 @@ export default function DashboardPage() {
     <AppLayout>
       <Toaster position="top-right" />
       {/* WRAPPER - ENTIRE CONTENT AREA (FLEX COLUMN) */}
-      <Box
-        sx={{
-          display: "flex",
-          flexDirection: "column",
-          flex: 1,
-          overflow: "hidden",
-          height: "100%",
-          bgcolor: isDarkMode ? '#0f172a' : '#f5f7fa',
-        }}
+      <Box sx={{
+        p: { xs: 0.75, md: 1 },
+        background: isDarkMode ? 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)' : 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
+        height: '100%',
+        display: "flex",
+        flexDirection: "column",
+        flex: 1,
+        overflow: "hidden",
+        bgcolor: isDarkMode ? '#0f172a' : '#f5f7fa',
+      }}
       >
         {/* ================= HEADER ================= */}
         <StandardPageHeader

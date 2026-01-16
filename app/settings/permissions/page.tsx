@@ -10,7 +10,7 @@ import {
     Alert, CircularProgress, Snackbar, Accordion, AccordionSummary,
     AccordionDetails, List, ListItem, ListItemButton, ListItemText,
     FormControlLabel, Switch, Tooltip, Card, CardContent, Avatar,
-    useTheme, useMediaQuery, Drawer, Divider, Badge, Stack, alpha,
+    useTheme, useMediaQuery, Divider, Badge, Stack, alpha,
     Grid, LinearProgress
 } from '@mui/material';
 import {
@@ -423,7 +423,7 @@ export default function PermissionsPage() {
 
         return (
             <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-                <Box sx={{ p: 1, bgcolor: isDarkMode ? 'grey.900' : 'grey.100' }}>
+                <Box sx={{ p: 1, bgcolor: isDarkMode ? '#1e293b' : 'grey.100' }}>
                     <TextField
                         size="small"
                         fullWidth
@@ -433,7 +433,18 @@ export default function PermissionsPage() {
                         InputProps={{
                             startAdornment: <SearchIcon sx={{ mr: 1, color: 'grey.500' }} fontSize="small" />
                         }}
-                        sx={{ bgcolor: isDarkMode ? '#1e293b' : 'white', borderRadius: 1 }}
+                        sx={{
+                            '& .MuiOutlinedInput-root': {
+                                bgcolor: isDarkMode ? '#334155' : 'white',
+                                borderRadius: 1,
+                                '& input': {
+                                    bgcolor: 'transparent'
+                                },
+                                '& fieldset': {
+                                    borderColor: isDarkMode ? 'grey.600' : 'grey.300'
+                                }
+                            }
+                        }}
                     />
                 </Box>
                 <List dense sx={{ flex: 1, overflow: 'auto', p: 0 }}>
@@ -703,6 +714,8 @@ export default function PermissionsPage() {
     return (
         <AppLayout>
             <Box sx={{
+                p: { xs: 0.75, md: 1 },
+                background: isDarkMode ? 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)' : 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
                 height: '100%',
                 width: '100%',
                 display: 'flex',
@@ -752,11 +765,12 @@ export default function PermissionsPage() {
                                     >
                                         {selectedRole ? `Selected: ${selectedRole.name}` : 'Select Role'}
                                     </Button>
-                                    <Drawer
-                                        anchor="left"
+                                    <Dialog
                                         open={mobileDrawerOpen}
                                         onClose={() => setMobileDrawerOpen(false)}
-                                        PaperProps={{ sx: { width: 280 } }}
+                                        fullWidth
+                                        maxWidth="xs"
+                                        PaperProps={{ sx: { borderRadius: 2, maxHeight: '70vh' } }}
                                     >
                                         <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                             <Typography fontWeight={600}>Select Role</Typography>
@@ -766,7 +780,7 @@ export default function PermissionsPage() {
                                         </Box>
                                         <Divider />
                                         <RoleList />
-                                    </Drawer>
+                                    </Dialog>
                                 </>
                             ) : (
                                 <Paper sx={{ width: 240, overflow: 'hidden', flexShrink: 0 }}>
@@ -842,11 +856,12 @@ export default function PermissionsPage() {
                                     >
                                         {selectedUser ? `Selected: ${selectedUser.full_name || selectedUser.username}` : 'Select User'}
                                     </Button>
-                                    <Drawer
-                                        anchor="left"
+                                    <Dialog
                                         open={mobileDrawerOpen}
                                         onClose={() => setMobileDrawerOpen(false)}
-                                        PaperProps={{ sx: { width: 300 } }}
+                                        fullWidth
+                                        maxWidth="xs"
+                                        PaperProps={{ sx: { borderRadius: 2, maxHeight: '70vh' } }}
                                     >
                                         <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                             <Typography fontWeight={600}>Select User</Typography>
@@ -856,16 +871,16 @@ export default function PermissionsPage() {
                                         </Box>
                                         <Divider />
                                         <UserList />
-                                    </Drawer>
+                                    </Dialog>
                                 </>
                             ) : (
-                                <Paper sx={{ width: 280, overflow: 'hidden', flexShrink: 0 }}>
+                                <Paper sx={{ width: 280, overflow: 'hidden', flexShrink: 0, bgcolor: isDarkMode ? '#1e293b' : 'white' }}>
                                     <UserList />
                                 </Paper>
                             )}
 
                             {/* Overrides Panel */}
-                            <Paper sx={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                            <Paper sx={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', bgcolor: isDarkMode ? '#1e293b' : 'white' }}>
                                 {selectedUser ? (
                                     <>
                                         <Box sx={{
@@ -940,11 +955,12 @@ export default function PermissionsPage() {
                                     >
                                         {selectedUser ? `Selected: ${selectedUser.full_name || selectedUser.username}` : 'Select User'}
                                     </Button>
-                                    <Drawer
-                                        anchor="left"
+                                    <Dialog
                                         open={mobileDrawerOpen}
                                         onClose={() => setMobileDrawerOpen(false)}
-                                        PaperProps={{ sx: { width: 300 } }}
+                                        fullWidth
+                                        maxWidth="xs"
+                                        PaperProps={{ sx: { borderRadius: 2, maxHeight: '70vh' } }}
                                     >
                                         <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                             <Typography fontWeight={600}>Select User</Typography>
@@ -954,16 +970,16 @@ export default function PermissionsPage() {
                                         </Box>
                                         <Divider />
                                         <UserList />
-                                    </Drawer>
+                                    </Dialog>
                                 </>
                             ) : (
-                                <Paper sx={{ width: 280, overflow: 'hidden', flexShrink: 0 }}>
+                                <Paper sx={{ width: 280, overflow: 'hidden', flexShrink: 0, bgcolor: isDarkMode ? '#1e293b' : 'white' }}>
                                     <UserList />
                                 </Paper>
                             )}
 
                             {/* Warehouse Access Panel */}
-                            <Paper sx={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                            <Paper sx={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', bgcolor: isDarkMode ? '#1e293b' : 'white' }}>
                                 {selectedUser ? (
                                     <>
                                         <Box sx={{
