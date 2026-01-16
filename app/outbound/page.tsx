@@ -62,7 +62,7 @@ import { getStoredUser } from '@/lib/auth';
 
 import AppLayout from '@/components/AppLayout';
 import localforage from 'localforage';
-import { StandardPageHeader, StandardTabs } from '@/components';
+import { StandardPageHeader, StandardTabs, BatchManagementTab } from '@/components';
 import { useTableRowHeight } from '@/app/context/AppearanceContext';
 import toast, { Toaster } from 'react-hot-toast';
 // ⚡ OPTIMIZED: XLSX not needed here - exports handled server-side
@@ -265,6 +265,23 @@ export default function OutboundPage() {
     //   const [multiResults, setMultiResults] = useState<any[]>([]);
     const [existingOutboundWSNs, setExistingOutboundWSNs] = useState<Set<string>>(new Set());
     const [duplicateWSNs, setDuplicateWSNs] = useState<Set<string>>(new Set());
+
+    // ====== MULTI ENTRY COLUMN WIDTHS PERSISTENCE ======
+    const [multiColumnWidths, setMultiColumnWidths] = useState<Record<string, number>>({});
+
+    // Load Multi Entry column widths from localStorage on mount
+    useEffect(() => {
+        const savedWidths = localStorage.getItem('outboundMultiEntryColumnWidths');
+        if (savedWidths) {
+            try {
+                const widths = JSON.parse(savedWidths);
+                setMultiColumnWidths(widths);
+                console.log('✅ Outbound Multi column widths loaded:', widths);
+            } catch (e) {
+                console.log('Failed to parse Outbound Multi column widths');
+            }
+        }
+    }, []);
 
     // ---- Draft / Autosave (IndexedDB via localForage) ----
     const [draftSavedAt, setDraftSavedAt] = useState<number | null>(null);
@@ -1641,18 +1658,21 @@ export default function OutboundPage() {
 
         const cols = visibleColumns.map((col) => {
             const isEditable = EDITABLE_COLUMNS.includes(col);
+            // ✅ Use saved width if available, otherwise use default
+            const savedWidth = multiColumnWidths[col];
+            const defaultWidth = col === 'wsn' ? 180 : col === 'dispatch_date' ? 140 : 150;
 
             return {
                 field: col,
                 headerName: col.replace(/_/g, ' ').toUpperCase(),
                 editable: isEditable,
-                width: col === 'wsn' ? 180 : col === 'dispatch_date' ? 140 : 150,
+                width: savedWidth || defaultWidth,
                 cellStyle: isEditable ? { backgroundColor: '#f9f9f9' } : undefined,
             };
         });
 
         return [srCol, ...cols];
-    }, [visibleColumns]);
+    }, [visibleColumns, multiColumnWidths]);
 
     const defaultColDef = useMemo(
         () => ({
@@ -3378,6 +3398,21 @@ export default function OutboundPage() {
                                 ensureDomOrder={true}
                                 suppressMovableColumns={true}
                                 rowBuffer={5}
+                                // ✅ Save column widths when resized
+                                onColumnResized={(params: any) => {
+                                    if (params.finished && params.column) {
+                                        const colId = params.column.getColId();
+                                        const newWidth = params.column.getActualWidth();
+                                        // Don't save special columns
+                                        if (colId === '__sr') return;
+
+                                        setMultiColumnWidths(prev => {
+                                            const updated = { ...prev, [colId]: newWidth };
+                                            localStorage.setItem('outboundMultiEntryColumnWidths', JSON.stringify(updated));
+                                            return updated;
+                                        });
+                                    }
+                                }}
                                 onGridReady={(params: any) => {
                                     columnApiRef.current = params.columnApi;
                                     // Small delay to make sure columns registered
@@ -3415,7 +3450,15 @@ export default function OutboundPage() {
                             />
                         </Box>
 
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.5, flexWrap: 'wrap' }}>
+                        {/* DRAFT STATUS + ACTIONS + SUBMIT - Single Row */}
+                        <Box sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: { xs: 0.5, sm: 1 },
+                            py: 0.5,
+                            flexWrap: 'wrap',
+                            flexShrink: 0
+                        }}>
                             <Chip
                                 label={draftSavedAt ? `Draft saved ${new Date(draftSavedAt).toLocaleTimeString()}` : 'No draft'}
                                 color={draftExists ? 'success' : 'default'}
@@ -3429,7 +3472,14 @@ export default function OutboundPage() {
                                 onClick={handleMultiSubmit}
                                 disabled={multiLoading || !activeWarehouse || duplicateWSNs.size > 0}
                                 startIcon={multiLoading ? <CircularProgress size={18} sx={{ color: 'white' }} /> : <CheckCircle sx={{ fontSize: 18 }} />}
-                                sx={{ ml: 'auto', height: 38, fontSize: '0.75rem', fontWeight: 600, minWidth: 200, background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)' }}
+                                sx={{
+                                    ml: 'auto',
+                                    height: 38,
+                                    fontSize: '0.75rem',
+                                    fontWeight: 600,
+                                    minWidth: { xs: 150, sm: 200 },
+                                    background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)'
+                                }}
                             >
                                 SUBMIT ALL ({multiRows.filter((r) => r.wsn?.trim()).length} rows)
                             </Button>
@@ -3496,76 +3546,18 @@ export default function OutboundPage() {
 
                 {/* ====== TAB 4: BATCH MANAGEMENT ====== */}
                 {currentTabCode === 'batches' && (
-                    <Box sx={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 230px)' }}>
-                        <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
-                            <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#1a237e', fontSize: '0.9rem' }}>📦 Batch Management</Typography>
-                            <Button
-                                size="small"
-                                onClick={loadBatches}
-                                startIcon={<RefreshIcon sx={{ fontSize: 16 }} />}
-                                variant="outlined"
-                                sx={{ height: 36, fontSize: '0.75rem', fontWeight: 600 }}
-                            >
-                                REFRESH
-                            </Button>
-                        </Stack>
-
-                        {batchLoading ? (
-                            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flex: 1 }}>
-                                <CircularProgress size={50} />
-                            </Box>
-                        ) : (
-                            <Box sx={{ flex: 1, overflow: 'auto', minHeight: 0, border: '1px solid #d1d5db', borderRadius: 1.5 }}>
-                                <TableContainer component={Paper} sx={{ borderRadius: 0, boxShadow: 'none', border: 'none', background: '#ffffff', height: '100%' }}>
-                                    <Table stickyHeader size="small" sx={{ '& .MuiTableCell-root': { borderRight: '1px solid #d1d5db', padding: '8px 12px', fontSize: '0.8rem' } }}>
-                                        <TableHead>
-                                            <TableRow sx={{ background: '#e5e7eb' }}>
-                                                <TableCell sx={{ color: '#1f2937', fontWeight: 700, background: '#e5e7eb', fontSize: '0.8rem', textTransform: 'uppercase', py: 1, whiteSpace: 'nowrap' }}>BATCH ID</TableCell>
-                                                <TableCell sx={{ color: '#1f2937', fontWeight: 700, background: '#e5e7eb', fontSize: '0.8rem', textTransform: 'uppercase', py: 1, whiteSpace: 'nowrap' }}>COUNT</TableCell>
-                                                <TableCell sx={{ color: '#1f2937', fontWeight: 700, background: '#e5e7eb', fontSize: '0.8rem', textTransform: 'uppercase', py: 1, whiteSpace: 'nowrap' }}>LAST UPDATED</TableCell>
-                                                <TableCell sx={{ color: '#1f2937', fontWeight: 700, background: '#e5e7eb', fontSize: '0.8rem', textTransform: 'uppercase', py: 1, whiteSpace: 'nowrap' }}>ACTIONS</TableCell>
-                                            </TableRow>
-                                        </TableHead>
-                                        <TableBody>
-                                            {batches.map((batch, idx) => (
-                                                <TableRow key={batch.batch_id} sx={{ bgcolor: idx % 2 === 0 ? '#ffffff' : '#f9fafb', '&:hover': { bgcolor: '#f0f0f0' } }}>
-                                                    <TableCell sx={{ fontWeight: 600, fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
-                                                        <Chip label={batch.batch_id} size="small" sx={{ fontWeight: 700, bgcolor: '#dbeafe', color: '#1e40af' }} />
-                                                    </TableCell>
-                                                    <TableCell sx={{ fontWeight: 600, fontSize: '0.8rem' }}>{batch.count}</TableCell>
-                                                    <TableCell sx={{ fontWeight: 500, fontSize: '0.8rem' }}>{formatDate(batch.last_updated)}</TableCell>
-                                                    <TableCell>
-                                                        <Stack direction="row" spacing={0.5}>
-                                                            <Button
-                                                                size="small"
-                                                                onClick={() => handleViewBatch(batch.batch_id)}
-                                                                variant="outlined"
-                                                                sx={{ height: 30, fontSize: '0.7rem', fontWeight: 600, minWidth: 60 }}
-                                                            >
-                                                                VIEW
-                                                            </Button>
-                                                            {canSeeButton('batches:delete') && (
-                                                                <Button
-                                                                    size="small"
-                                                                    color="error"
-                                                                    onClick={() => handleDeleteBatch(batch.batch_id)}
-                                                                    startIcon={<DeleteIcon sx={{ fontSize: 14 }} />}
-                                                                    variant="outlined"
-                                                                    sx={{ height: 30, fontSize: '0.7rem', fontWeight: 600 }}
-                                                                >
-                                                                    DELETE
-                                                                </Button>
-                                                            )}
-                                                        </Stack>
-                                                    </TableCell>
-                                                </TableRow>
-                                            ))}
-                                        </TableBody>
-                                    </Table>
-                                </TableContainer>
-                            </Box>
-                        )}
-                    </Box>
+                    <BatchManagementTab
+                        batches={batches}
+                        loading={batchLoading}
+                        onRefresh={loadBatches}
+                        onDelete={canSeeButton('batches:delete') ? handleDeleteBatch : undefined}
+                        onView={handleViewBatch}
+                        canDelete={canSeeButton('batches:delete')}
+                        canView={true}
+                        title="Batch Management"
+                        emptyMessage="No batches found"
+                        emptySubMessage="Batches will appear here after outbound operations"
+                    />
                 )}
             </Box>
         </AppLayout >

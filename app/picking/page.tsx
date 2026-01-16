@@ -21,7 +21,7 @@ import { pickingAPI, rackAPI, inboundAPI } from '@/lib/api';
 import { useWarehouse } from '@/app/context/WarehouseContext';
 import { getStoredUser } from '@/lib/auth';
 import AppLayout from '@/components/AppLayout';
-import { StandardPageHeader, StandardTabs } from '@/components';
+import { StandardPageHeader, StandardTabs, BatchManagementTab } from '@/components';
 import { useTableRowHeight } from '@/app/context/AppearanceContext';
 import toast, { Toaster } from 'react-hot-toast';
 // ⚡ OPTIMIZED: XLSX loaded dynamically on export to reduce bundle size
@@ -37,7 +37,7 @@ ModuleRegistry.registerModules([AllCommunityModule, ClientSideRowModelModule]);
 import { usePickingPermissions } from '@/hooks/usePagePermissions';
 
 // Tab definitions with permission codes
-const ALL_TABS = ['Picking List', 'Multi Picking', 'Batch Manager'];
+const ALL_TABS = ['Picking List', 'Multi Picking', 'Batch Management'];
 const TAB_CODES = ['list', 'multi', 'batches'];
 
 // Format date helper
@@ -198,6 +198,23 @@ export default function PickingPage() {
   const [multiRows, setMultiRows] = useState<any[]>(generateEmptyRows(50));
   const [existingWSNs, setExistingWSNs] = useState<string[]>([]);
   const [multiLoading, setMultiLoading] = useState(false);
+
+  // ====== MULTI PICKING COLUMN WIDTHS PERSISTENCE ======
+  const [multiColumnWidths, setMultiColumnWidths] = useState<Record<string, number>>({});
+
+  // Load Multi Picking column widths from localStorage on mount
+  useEffect(() => {
+    const savedWidths = localStorage.getItem('pickingMultiEntryColumnWidths');
+    if (savedWidths) {
+      try {
+        const widths = JSON.parse(savedWidths);
+        setMultiColumnWidths(widths);
+        console.log('✅ Picking Multi column widths loaded:', widths);
+      } catch (e) {
+        console.log('Failed to parse Picking Multi column widths');
+      }
+    }
+  }, []);
 
   // ---- Draft / Autosave (IndexedDB via localForage) ----
   const [draftSavedAt, setDraftSavedAt] = useState<number | null>(null);
@@ -1218,7 +1235,9 @@ export default function PickingPage() {
 
   // Column definitions for AG Grid
   const columnDefs = visibleColumns.map((field) => {
-    const widthConfig = COLUMN_WIDTHS[field] || {};
+    // ✅ Use saved width if available, otherwise use default
+    const savedWidth = multiColumnWidths[field];
+    const widthConfig = savedWidth ? { width: savedWidth } : (COLUMN_WIDTHS[field] || {});
     const baseColDef: any = {
       field,
       headerName: field === 'sno' ? 'S.No' : field.replace(/_/g, ' ').toUpperCase(),
@@ -2589,6 +2608,21 @@ export default function PickingPage() {
                 //theme="legacy"
                 className="ag-theme-quartz"
                 containerStyle={{ height: '100%', width: '100%' }}
+                // ✅ Save column widths when resized
+                onColumnResized={(params: any) => {
+                  if (params.finished && params.column) {
+                    const colId = params.column.getColId();
+                    const newWidth = params.column.getActualWidth();
+                    // Don't save special columns
+                    if (colId === 'sno') return;
+
+                    setMultiColumnWidths(prev => {
+                      const updated = { ...prev, [colId]: newWidth };
+                      localStorage.setItem('pickingMultiEntryColumnWidths', JSON.stringify(updated));
+                      return updated;
+                    });
+                  }
+                }}
                 onGridSizeChanged={() => {
                   try {
                     const colApi = columnApiRef.current;
@@ -2968,8 +3002,15 @@ export default function PickingPage() {
               />
             </Box>
 
-            {/* DRAFT STATUS + ACTIONS + SUBMIT */}
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', py: 0.5 }}>
+            {/* DRAFT STATUS + ACTIONS + SUBMIT - Single Row */}
+            <Box sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: { xs: 0.5, sm: 1 },
+              flexWrap: 'wrap',
+              py: 0.5,
+              flexShrink: 0
+            }}>
               <Chip
                 label={draftSavedAt ? `Draft saved ${new Date(draftSavedAt).toLocaleTimeString()}` : 'No draft'}
                 color={draftExists ? 'success' : 'default'}
@@ -3000,17 +3041,17 @@ export default function PickingPage() {
                 variant="contained"
                 size="medium"
                 onClick={handleMultiSubmit}
-                disabled={multiLoading || gridDuplicateWSNs.size > 0 || crossWarehouseWSNs.size > 0 || !true}
+                disabled={multiLoading || gridDuplicateWSNs.size > 0 || crossWarehouseWSNs.size > 0}
                 sx={{
                   ml: 'auto',
                   py: 0.75,
-                  px: 3,
+                  px: { xs: 2, sm: 3 },
                   borderRadius: 1.5,
                   fontWeight: 800,
                   fontSize: '0.8rem',
                   background: 'linear-gradient(135deg, #f59e0b 0%, #ea580c 100%)',
                   boxShadow: '0 4px 12px rgba(245, 158, 11, 0.3)',
-                  minWidth: 200,
+                  minWidth: { xs: 150, sm: 200 },
                 }}
               >
                 ✓ SUBMIT ALL ({multiRows.filter((r) => r.wsn?.trim()).length} rows)
@@ -3101,59 +3142,16 @@ export default function PickingPage() {
 
         {/* ========== TAB 2: BATCH MANAGEMENT ========== */}
         {currentTabCode === 'batches' && (
-          <Paper elevation={3} sx={{ borderRadius: 3, overflow: 'hidden', bgcolor: isDarkMode ? '#1e293b' : 'white' }}>
-            <Box sx={{ p: 2, bgcolor: isDarkMode ? '#334155' : '#f9fafb', borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e5e7eb' }}>
-              <Typography variant="h6" sx={{ fontWeight: 700, color: isDarkMode ? '#f1f5f9' : 'inherit' }}>Batch Management</Typography>
-            </Box>
-            <TableContainer>
-              <Table>
-                <TableHead>
-                  <TableRow sx={{ bgcolor: isDarkMode ? '#334155' : '#f5f5f5' }}>
-                    <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem', color: isDarkMode ? '#f1f5f9' : 'inherit' }}>Batch ID</TableCell>
-                    <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem', color: isDarkMode ? '#f1f5f9' : 'inherit' }}>Item Count</TableCell>
-                    <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem', color: isDarkMode ? '#f1f5f9' : 'inherit' }}>Created At</TableCell>
-                    <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem', textAlign: 'center', color: isDarkMode ? '#f1f5f9' : 'inherit' }}>Actions</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {batchLoading ? (
-                    <TableRow>
-                      <TableCell colSpan={4} align="center" sx={{ py: 4 }}>
-                        <CircularProgress size={30} />
-                      </TableCell>
-                    </TableRow>
-                  ) : batches.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={4} align="center" sx={{ py: 4 }}>
-                        <Typography variant="h6">📭 No batches found</Typography>
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    batches.map((batch) => (
-                      <TableRow key={batch.batch_id} sx={{ '&:hover': { bgcolor: isDarkMode ? 'rgba(59,130,246,0.1)' : '#f9fafb' } }}>
-                        <TableCell sx={{ fontSize: '0.8rem', fontWeight: 600, color: isDarkMode ? '#f1f5f9' : 'inherit' }}>{batch.batch_id}</TableCell>
-                        <TableCell sx={{ fontSize: '0.8rem', color: isDarkMode ? '#f1f5f9' : 'inherit' }}>{batch.count}</TableCell>
-                        <TableCell sx={{ fontSize: '0.8rem', color: isDarkMode ? '#f1f5f9' : 'inherit' }}>{formatDateFull(batch.created_at)}</TableCell>
-                        <TableCell sx={{ textAlign: 'center' }}>
-                          {canSeeButton('batches:delete') && (
-                            <Button
-                              size="small"
-                              color="error"
-                              variant="outlined"
-                              startIcon={<DeleteIcon />}
-                              onClick={() => handleDeleteBatch(batch.batch_id)}
-                            >
-                              Delete
-                            </Button>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </Paper>
+          <BatchManagementTab
+            batches={batches}
+            loading={batchLoading}
+            onRefresh={loadBatches}
+            onDelete={canSeeButton('batches:delete') ? handleDeleteBatch : undefined}
+            canDelete={canSeeButton('batches:delete')}
+            title="Batch Management"
+            emptyMessage="No batches found"
+            emptySubMessage="Batches will appear here after picking operations"
+          />
         )}
       </Box>
     </AppLayout >

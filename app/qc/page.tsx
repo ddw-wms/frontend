@@ -61,7 +61,7 @@ import { qcAPI } from '@/lib/api';
 import { useWarehouse } from '@/app/context/WarehouseContext';
 import { getStoredUser } from '@/lib/auth';
 import AppLayout from '@/components/AppLayout';
-import { StandardPageHeader, StandardTabs } from '@/components';
+import { StandardPageHeader, StandardTabs, BatchManagementTab } from '@/components';
 import { useTableRowHeight } from '@/app/context/AppearanceContext';
 
 import toast, { Toaster } from 'react-hot-toast';
@@ -80,7 +80,7 @@ import { useQCPermissions } from '@/hooks/usePagePermissions';
 import BulkUploadCard from '@/components/BulkUploadCard';
 
 // Tab definitions with permission codes
-const ALL_TABS = ['QC List', 'Single QC', 'Multi QC', 'Bulk Upload', 'Batches'];
+const ALL_TABS = ['QC List', 'Single QC', 'Multi QC', 'Bulk Upload', 'Batch Management'];
 const TAB_CODES = ['list', 'single', 'multi', 'bulk', 'batches'];
 
 let QC_GRADES = ['A', 'B', 'C', 'D'];
@@ -429,6 +429,23 @@ export default function QCPage() {
     resizable: true,
     editable: true,
   });
+
+  // ====== MULTI QC COLUMN WIDTHS PERSISTENCE ======
+  const [multiColumnWidths, setMultiColumnWidths] = useState<Record<string, number>>({});
+
+  // Load Multi QC column widths from localStorage on mount
+  useEffect(() => {
+    const savedWidths = localStorage.getItem('qcMultiEntryColumnWidths');
+    if (savedWidths) {
+      try {
+        const widths = JSON.parse(savedWidths);
+        setMultiColumnWidths(widths);
+        console.log('✅ QC Multi column widths loaded:', widths);
+      } catch (e) {
+        console.log('Failed to parse QC Multi column widths');
+      }
+    }
+  }, []);
 
   // ✅ LOAD Grid Settings from localStorage on mount
   useEffect(() => {
@@ -3263,7 +3280,10 @@ export default function QCPage() {
             const columnDefs = visibleColumns.map((field: string) => {
               // Normalize the field (remove underscores and lowercase) to match COLUMN_WIDTHS / ALL_MASTER_COLUMNS keys
               const key = String(field).replace(/_/g, '').toLowerCase();
-              const widthConfig = COLUMN_WIDTHS[key] || {};
+
+              // ✅ Use saved width if available, otherwise use default
+              const savedWidth = multiColumnWidths[field];
+              const widthConfig = savedWidth ? { width: savedWidth } : (COLUMN_WIDTHS[key] || {});
 
               const baseColDef: any = {
                 field,
@@ -3649,6 +3669,21 @@ export default function QCPage() {
                     //theme="legacy"
                     className="ag-theme-quartz"
                     containerStyle={{ height: '100%', width: '100%' }}
+                    // ✅ Save column widths when resized
+                    onColumnResized={(params: any) => {
+                      if (params.finished && params.column) {
+                        const colId = params.column.getColId();
+                        const newWidth = params.column.getActualWidth();
+                        // Don't save special columns
+                        if (colId === 'sno') return;
+
+                        setMultiColumnWidths(prev => {
+                          const updated = { ...prev, [colId]: newWidth };
+                          localStorage.setItem('qcMultiEntryColumnWidths', JSON.stringify(updated));
+                          return updated;
+                        });
+                      }
+                    }}
                     onCellValueChanged={(event: any) => {
                       const { colDef, newValue, rowIndex } = event;
                       const field = colDef?.field;
@@ -4025,18 +4060,27 @@ export default function QCPage() {
 
 
 
-                {/* DRAFT STATUS + ACTIONS */}
-                <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
+                {/* DRAFT STATUS + ACTIONS + SUBMIT - Single Row */}
+                <Box sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: { xs: 0.5, sm: 1 },
+                  flexWrap: 'wrap',
+                  py: 0.5,
+                  flexShrink: 0
+                }}>
                   <Chip
                     label={draftSavedAt ? `Draft saved ${new Date(draftSavedAt).toLocaleTimeString()}` : 'No draft'}
                     color={draftExists ? 'success' : 'default'}
                     size="small"
+                    sx={{ height: 28 }}
                   />
                   <Button
                     size="small"
                     variant="outlined"
                     onClick={() => saveDraftImmediate()}
                     disabled={draftSaving}
+                    sx={{ height: 32, fontSize: '0.75rem' }}
                   >
                     Save Draft
                   </Button>
@@ -4045,30 +4089,32 @@ export default function QCPage() {
                     variant="text"
                     onClick={clearDraft}
                     disabled={!draftExists}
+                    sx={{ height: 32, fontSize: '0.75rem' }}
                   >
                     Clear Draft
                   </Button>
-                </Stack>
 
-                {/* SUBMIT BUTTON */}
-                <Button
-                  fullWidth
-                  variant="contained"
-                  size="medium"
-                  onClick={handleMultiSubmit}
-                  disabled={multiLoading}
-                  sx={{
-                    py: 1,
-                    borderRadius: 1.5,
-                    mb: 1,
-                    fontWeight: 800,
-                    fontSize: '0.8rem',
-                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                    boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
-                  }}
-                >
-                  ✓ SUBMIT ALL ({multiRows.filter((r) => r.wsn?.trim()).length} rows)
-                </Button>
+                  {/* SUBMIT BUTTON */}
+                  <Button
+                    variant="contained"
+                    size="medium"
+                    onClick={handleMultiSubmit}
+                    disabled={multiLoading}
+                    sx={{
+                      ml: 'auto',
+                      py: 0.75,
+                      px: { xs: 2, sm: 3 },
+                      borderRadius: 1.5,
+                      fontWeight: 800,
+                      fontSize: '0.8rem',
+                      background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                      boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
+                      minWidth: { xs: 150, sm: 200 },
+                    }}
+                  >
+                    ✓ SUBMIT ALL ({multiRows.filter((r) => r.wsn?.trim()).length} rows)
+                  </Button>
+                </Box>
 
                 {/* COLUMN SETTINGS DIALOG */}
                 <Dialog
@@ -4225,166 +4271,16 @@ export default function QCPage() {
           {/* ========== TAB 4: BATCH MANAGER ========== */}
           {
             currentTabCode === 'batches' && (
-              <Box
-                sx={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  flex: 1,
-                  minHeight: 0,
-                  overflow: 'hidden',
-                  p: { xs: 0.25, sm: 0.50 },
-                }}
-              >
-                <Card sx={{
-                  borderRadius: 1.5,
-                  boxShadow: isDarkMode ? '0 4px 20px rgba(0,0,0,0.4)' : '0 4px 20px rgba(0,0,0,0.15)',
-                  background: isDarkMode ? 'linear-gradient(135deg, #1e293b 0%, #334155 100%)' : 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
-                  border: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e2e8f0',
-                  flex: 1,
-                  display: 'flex',
-                  flexDirection: 'column'
-                }}>
-                  <CardContent sx={{ p: { xs: 2, sm: 3 }, flex: 1, display: 'flex', flexDirection: 'column' }}>
-                    <Typography
-                      variant="h6"
-                      sx={{
-                        fontWeight: 800,
-                        mb: 3,
-                        color: isDarkMode ? '#f1f5f9' : '#1e293b',
-                        fontSize: { xs: '1.1rem', sm: '1.25rem' },
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 1
-                      }}
-                    >
-                      📦 Batch Management
-                    </Typography>
-
-                    {/* BATCHES TABLE */}
-                    <Box sx={{
-                      flex: 1,
-                      border: isDarkMode ? '2px solid rgba(255,255,255,0.1)' : '2px solid #e2e8f0',
-                      borderRadius: 1.5,
-                      overflow: 'hidden',
-                      background: isDarkMode ? '#1e293b' : 'white',
-                      boxShadow: isDarkMode ? 'none' : '0 2px 8px rgba(0,0,0,0.06)'
-                    }}>
-                      <TableContainer sx={{ height: '100%' }}>
-                        <Table stickyHeader size="small">
-                          <TableHead>
-                            <TableRow sx={{
-                              background: 'linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%)',
-                              '& th': {
-                                fontWeight: 800,
-                                color: '#1e293b',
-                                fontSize: { xs: '0.7rem', sm: '0.75rem' },
-                                textTransform: 'uppercase',
-                                py: 1.5,
-                                borderRight: '1px solid #cbd5e1',
-                                '&:last-child': { borderRight: 'none' }
-                              }
-                            }}>
-                              <TableCell>Batch ID</TableCell>
-                              <TableCell>Count</TableCell>
-                              <TableCell>Created date</TableCell>
-                              <TableCell>Actions</TableCell>
-                            </TableRow>
-                          </TableHead>
-                          <TableBody>
-                            {batchLoading ? (
-                              <TableRow>
-                                <TableCell colSpan={4} align="center" sx={{ py: { xs: 5, sm: 8 } }}>
-                                  <CircularProgress size={isMobile ? 35 : 50} sx={{ color: '#1e40af' }} />
-                                  <Typography sx={{ mt: 1.5, fontWeight: 600, color: '#64748b', fontSize: '0.85rem' }}>
-                                    Loading batches...
-                                  </Typography>
-                                </TableCell>
-                              </TableRow>
-                            ) : batches.length === 0 ? (
-                              <TableRow>
-                                <TableCell colSpan={4} align="center" sx={{ py: { xs: 5, sm: 8 } }}>
-                                  <Typography sx={{ fontWeight: 700, color: '#94a3b8', fontSize: { xs: '0.85rem', sm: '1rem' } }}>
-                                    📭 No batches found
-                                  </Typography>
-                                  <Typography variant="caption" sx={{ color: '#cbd5e1', mt: 0.5, fontSize: '0.7rem' }}>
-                                    Batches will appear here after bulk uploads
-                                  </Typography>
-                                </TableCell>
-                              </TableRow>
-                            ) : (
-                              batches.map((batch: any, idx) => (
-                                <TableRow
-                                  key={batch.batch_id}
-                                  sx={{
-                                    bgcolor: idx % 2 === 0 ? '#ffffff' : '#f8fafc',
-                                    transition: 'all 0.2s',
-                                    '&:hover': {
-                                      bgcolor: '#f1f5f9',
-                                      transform: 'scale(1.001)',
-                                      boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
-                                    },
-                                    '& td': {
-                                      fontWeight: 500,
-                                      fontSize: { xs: '0.72rem', sm: '0.78rem' },
-                                      color: '#334155',
-                                      borderRight: '1px solid #e2e8f0',
-                                      '&:last-child': { borderRight: 'none' }
-                                    }
-                                  }}
-                                >
-                                  <TableCell sx={{ fontWeight: 700, color: '#1e293b' }}>
-                                    {batch.batch_id}
-                                  </TableCell>
-                                  <TableCell>
-                                    <Chip
-                                      label={batch.count}
-                                      sx={{
-                                        bgcolor: 'rgba(30, 64, 175, 0.1)',
-                                        color: '#1e40af',
-                                        fontWeight: 700,
-                                        fontSize: '0.75rem'
-                                      }}
-                                    />
-                                  </TableCell>
-                                  <TableCell>
-                                    {formatDate(batch.created_at)}
-                                  </TableCell>
-                                  <TableCell>
-                                    {canSeeButton('batches:delete') && (
-                                      <Button
-                                        size="small"
-                                        variant="outlined"
-                                        color="error"
-                                        onClick={() => handleDeleteBatch(batch.batch_id)}
-                                        sx={{
-                                          fontSize: '0.7rem',
-                                          fontWeight: 700,
-                                          borderWidth: 2,
-                                          borderColor: '#dc2626',
-                                          color: '#dc2626',
-                                          minWidth: 'auto',
-                                          px: 1.5,
-                                          '&:hover': {
-                                            borderWidth: 2,
-                                            bgcolor: 'rgba(220, 38, 38, 0.1)',
-                                            borderColor: '#b91c1c'
-                                          }
-                                        }}
-                                      >
-                                        🗑️ Delete
-                                      </Button>
-                                    )}
-                                  </TableCell>
-                                </TableRow>
-                              ))
-                            )}
-                          </TableBody>
-                        </Table>
-                      </TableContainer>
-                    </Box>
-                  </CardContent>
-                </Card>
-              </Box>
+              <BatchManagementTab
+                batches={batches}
+                loading={batchLoading}
+                onRefresh={loadBatches}
+                onDelete={canSeeButton('batches:delete') ? handleDeleteBatch : undefined}
+                canDelete={canSeeButton('batches:delete')}
+                title="Batch Management"
+                emptyMessage="No batches found"
+                emptySubMessage="Batches will appear here after bulk QC uploads"
+              />
             )
           }
         </Paper>

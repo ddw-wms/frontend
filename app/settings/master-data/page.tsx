@@ -22,6 +22,7 @@ import toast, { Toaster } from 'react-hot-toast';
 import { getStoredUser, logout } from '@/lib/auth';
 import { masterDataAPI } from '@/lib/api';
 import AppLayout from '@/components/AppLayout';
+import { BatchManagementTab } from '@/components';
 // ⚡ OPTIMIZED: XLSX loaded dynamically on export to reduce bundle size
 // import * as XLSX from 'xlsx'; // Removed - loaded dynamically
 import { useMasterDataPermissions } from '@/hooks/usePagePermissions';
@@ -2168,48 +2169,16 @@ export default function MasterDataPage() {
 
                 {/* Tab 2: Batch Management */}
                 {actualTabIndex === 1 && (
-                  <Paper sx={{ m: { xs: 0.5, sm: 1 }, p: { xs: 1, sm: 1.5 }, flex: 1, overflow: 'auto', borderRadius: { xs: 0, sm: 1 } }}>
-                    <TableContainer sx={{ overflowX: 'auto' }}>
-
-                      <Table size="small" sx={{ minWidth: 600 }}>
-                        <TableHead>
-                          <TableRow>
-                            <TableCell sx={{ bgcolor: '#1565c0', color: 'white', fontWeight: '700', py: 1, fontSize: '0.95rem', textTransform: 'uppercase', letterSpacing: '0.5px', border: '1px solid #1565c0' }}>Batch ID</TableCell>
-                            <TableCell sx={{ bgcolor: '#1565c0', color: 'white', fontWeight: '700', py: 1, fontSize: '0.95rem', textTransform: 'uppercase', letterSpacing: '0.5px', border: '1px solid #1565c0' }}>Records</TableCell>
-                            <TableCell sx={{ bgcolor: '#1565c0', color: 'white', fontWeight: '700', py: 1, fontSize: '0.95rem', textTransform: 'uppercase', letterSpacing: '0.5px', border: '1px solid #1565c0' }}>Last Updated</TableCell>
-                            <TableCell sx={{ bgcolor: '#1565c0', color: 'white', fontWeight: '700', py: 1, fontSize: '0.95rem', textTransform: 'uppercase', letterSpacing: '0.5px', border: '1px solid #1565c0' }} align="center">Actions</TableCell>
-                          </TableRow>
-                        </TableHead>
-
-                        <TableBody>
-                          {batches && batches.length > 0 ? (
-                            batches.map(batch => (
-                              <TableRow key={batch.batch_id} hover sx={{ '&:hover': { bgcolor: isDarkMode ? 'rgba(59,130,246,0.15)' : '#e3f2fd' } }}>
-                                <TableCell sx={{ fontWeight: '600', py: 1.2, color: isDarkMode ? '#f1f5f9' : 'inherit' }}>{batch.batch_id || '-'}</TableCell>
-                                <TableCell sx={{ py: 1.2 }}><Chip label={formatNumber(batch.count || 0)} size="small" color="primary" sx={{ fontWeight: 600 }} /></TableCell>
-                                <TableCell sx={{ color: isDarkMode ? '#f1f5f9' : 'inherit' }}>
-                                  {batch.lastupdated_display ? batch.lastupdated_display : '-'}
-                                </TableCell>
-                                <TableCell align="center">
-                                  {canSeeButton('batches:delete') && (
-                                    <IconButton size="small" color="error" onClick={() => handleDeleteBatch(batch.batch_id)}>
-                                      <DeleteSweepIcon />   Delete Batch
-                                    </IconButton>
-                                  )}
-                                </TableCell>
-                              </TableRow>
-                            ))
-                          ) : (
-                            <TableRow>
-                              <TableCell colSpan={4} align="center" sx={{ py: 3, color: 'text.secondary' }}>
-                                No batches available
-                              </TableCell>
-                            </TableRow>
-                          )}
-                        </TableBody>
-                      </Table>
-                    </TableContainer>
-                  </Paper>
+                  <BatchManagementTab
+                    batches={batches}
+                    loading={loading}
+                    onRefresh={loadBatches}
+                    onDelete={canSeeButton('batches:delete') ? handleDeleteBatch : undefined}
+                    canDelete={canSeeButton('batches:delete')}
+                    title="Batch Management"
+                    emptyMessage="No batches available"
+                    emptySubMessage="Batches will appear here after master data uploads"
+                  />
                 )}
               </>
             );

@@ -24,6 +24,10 @@ export { default as ConfirmDialog } from './ConfirmDialog';
 // Bulk Upload component for consistent file uploads
 export { default as BulkUploadCard } from './BulkUploadCard';
 
+// Batch Management Tab - standardized across all modules
+export { default as BatchManagementTab } from './BatchManagementTab';
+export type { BatchData } from './BatchManagementTab';
+
 // Permission-related components
 export { default as RouteGuard, withRouteGuard, useRouteAccess } from './RouteGuard';
 export {

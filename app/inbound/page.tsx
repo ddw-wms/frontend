@@ -27,7 +27,7 @@ import { inboundAPI } from '@/lib/api';
 import { useWarehouse } from '@/app/context/WarehouseContext';
 import { getStoredUser } from '@/lib/auth';
 import AppLayout from '@/components/AppLayout';
-import { StandardPageHeader, StandardTabs } from '@/components';
+import { StandardPageHeader, StandardTabs, BatchManagementTab } from '@/components';
 import { useTableRowHeight } from '@/app/context/AppearanceContext';
 import toast, { Toaster } from 'react-hot-toast';
 // ⚡ OPTIMIZED: XLSX loaded dynamically on export to reduce bundle size
@@ -117,7 +117,7 @@ import {
 ModuleRegistry.registerModules([AllCommunityModule]);
 
 // Tab definitions with permission codes
-const ALL_TABS = ['Inbound List', 'Single Entry', 'Bulk Upload', 'Multi Entry', 'Batch Manager'];
+const ALL_TABS = ['Inbound List', 'Single Entry', 'Bulk Upload', 'Multi Entry', 'Batch Management'];
 const TAB_CODES = ['list', 'single', 'bulk', 'multi', 'batches'];
 
 export default function InboundPage() {
@@ -6266,8 +6266,15 @@ export default function InboundPage() {
 
 
 
-                {/* DRAFT STATUS + ACTIONS */}
-                <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
+                {/* DRAFT STATUS + ACTIONS + SUBMIT - Single Row */}
+                <Box sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: { xs: 0.5, sm: 1 },
+                  flexWrap: 'wrap',
+                  py: 0.5,
+                  flexShrink: 0
+                }}>
                   {/* ⚡ EXCEL-LIKE: Selection indicator - only show when multiple cells selected */}
                   {selectedRange && Math.abs(selectedRange.endRow - selectedRange.startRow) > 0 && (
                     <Chip
@@ -6281,6 +6288,7 @@ export default function InboundPage() {
                       }}
                       sx={{
                         fontWeight: 600,
+                        height: 28,
                         '& .MuiChip-deleteIcon': { color: '#93c5fd' }
                       }}
                     />
@@ -6289,12 +6297,14 @@ export default function InboundPage() {
                     label={draftSavedAt ? `Draft saved ${new Date(draftSavedAt).toLocaleTimeString()}` : 'No draft'}
                     color={draftExists ? 'success' : 'default'}
                     size="small"
+                    sx={{ height: 28 }}
                   />
                   <Button
                     size="small"
                     variant="outlined"
                     onClick={() => saveDraftImmediate()}
                     disabled={draftSaving}
+                    sx={{ height: 32, fontSize: '0.75rem' }}
                   >
                     Save Draft
                   </Button>
@@ -6303,29 +6313,32 @@ export default function InboundPage() {
                     variant="text"
                     onClick={clearDraft}
                     disabled={!draftExists}
+                    sx={{ height: 32, fontSize: '0.75rem' }}
                   >
                     Clear Draft
                   </Button>
-                </Stack>
 
-                {/* SUBMIT BUTTON */}
-                <Button fullWidth variant="contained" size="medium" onClick={handleMultiSubmit} disabled={
-                  multiLoading ||
-                  gridDuplicateWSNs.size > 0 ||
-                  crossWarehouseWSNs.size > 0
-                }
-                  sx={{
-                    py: 1,
-                    borderRadius: 1.5,
-                    fontWeight: 800,
-                    fontSize: '0.8rem',
-                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                    boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
-                    flexShrink: 0,
-                    mt: 1
-                  }}>
-                  ✓ SUBMIT ALL ({multiRows.filter(r => r.wsn?.trim()).length} rows)
-                </Button>
+                  {/* SUBMIT BUTTON */}
+                  <Button
+                    variant="contained"
+                    size="medium"
+                    onClick={handleMultiSubmit}
+                    disabled={multiLoading || gridDuplicateWSNs.size > 0 || crossWarehouseWSNs.size > 0}
+                    sx={{
+                      ml: 'auto',
+                      py: 0.75,
+                      px: { xs: 2, sm: 3 },
+                      borderRadius: 1.5,
+                      fontWeight: 800,
+                      fontSize: '0.8rem',
+                      background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                      boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
+                      minWidth: { xs: 150, sm: 200 },
+                    }}
+                  >
+                    ✓ SUBMIT ALL ({multiRows.filter(r => r.wsn?.trim()).length} rows)
+                  </Button>
+                </Box>
 
                 {/* MULTI ENTRY TAB: COLUMN SETTINGS DIALOG */}
                 <Dialog
@@ -6870,92 +6883,16 @@ export default function InboundPage() {
           {/* TAB: BATCH MANAGER */}
           {
             visibleTabCodes[tabValue] === 'batches' && (
-              <Box
-                sx={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  height: '100%',
-                  p: { xs: 1, sm: 1.5, md: 2 },
-                  overflow: 'auto',
-                }}
-              >
-                <Card sx={{ borderRadius: 1.5, bgcolor: isDarkMode ? '#1e293b' : 'white' }}>
-                  <CardContent>
-                    <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
-                      <Typography variant="h6" sx={{ fontWeight: 700, color: isDarkMode ? '#f1f5f9' : 'inherit' }}>
-                        Batch Manager
-                      </Typography>
-                      <Button
-                        size="small"
-                        startIcon={<RefreshIcon />}
-                        onClick={loadBatches}
-                        variant="outlined"
-                      >
-                        Refresh
-                      </Button>
-                    </Stack>
-
-                    {batchLoading ? (
-                      <Box sx={{ textAlign: 'center', py: 4 }}>
-                        <CircularProgress />
-                      </Box>
-                    ) : batches.length === 0 ? (
-                      <Alert severity="info">No batches found</Alert>
-                    ) : (
-                      <TableContainer>
-                        <Table>
-                          <TableHead>
-                            <TableRow sx={{ bgcolor: isDarkMode ? '#334155' : '#f3f4f6' }}>
-                              <TableCell sx={{ fontWeight: 700, color: isDarkMode ? '#f1f5f9' : 'inherit' }}>Batch ID</TableCell>
-                              <TableCell sx={{ fontWeight: 700, color: isDarkMode ? '#f1f5f9' : 'inherit' }}>Count</TableCell>
-                              <TableCell sx={{ fontWeight: 700, color: isDarkMode ? '#f1f5f9' : 'inherit' }}>Last Updated</TableCell>
-                              <TableCell sx={{ fontWeight: 700, color: isDarkMode ? '#f1f5f9' : 'inherit' }}>Action</TableCell>
-                            </TableRow>
-                          </TableHead>
-                          <TableBody>
-                            {batches.map((batch, idx) => (
-                              <TableRow key={idx} sx={{ '&:hover': { bgcolor: isDarkMode ? 'rgba(59,130,246,0.1)' : '#f9fafb' } }}>
-                                <TableCell sx={{ fontFamily: 'monospace', fontWeight: 600 }}>
-                                  {batch.batch_id}
-                                </TableCell>
-                                <TableCell>
-                                  <Chip
-                                    label={`${batch.count} items`}
-                                    size="small"
-                                    sx={{ bgcolor: '#dbeafe', color: '#1e40af' }}
-                                  />
-                                </TableCell>
-                                <TableCell>
-                                  {new Date(batch.last_updated).toLocaleString('en-IN', {
-                                    day: '2-digit',
-                                    month: 'short',
-                                    year: 'numeric',
-                                    hour: '2-digit',
-                                    minute: '2-digit'
-                                  })}
-                                </TableCell>
-                                <TableCell>
-                                  {canSeeButton('batches:delete') && (
-                                    <Button
-                                      size="small"
-                                      color="error"
-                                      variant="outlined"
-                                      startIcon={<DeleteIcon />}
-                                      onClick={() => deleteBatch(batch.batch_id)}
-                                    >
-                                      Delete
-                                    </Button>
-                                  )}
-                                </TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      </TableContainer>
-                    )}
-                  </CardContent>
-                </Card>
-              </Box>
+              <BatchManagementTab
+                batches={batches}
+                loading={batchLoading}
+                onRefresh={loadBatches}
+                onDelete={canSeeButton('batches:delete') ? deleteBatch : undefined}
+                canDelete={canSeeButton('batches:delete')}
+                title="Batch Management"
+                emptyMessage="No batches found"
+                emptySubMessage="Batches will appear here after inbound uploads"
+              />
             )
           }
         </Box >
