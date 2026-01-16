@@ -53,6 +53,7 @@ import {
   CloudUpload as CloudUploadIcon,
   Description as DescriptionIcon,
   Close as CloseIcon,
+  Tune as TuneIcon,
 } from '@mui/icons-material';
 import { qcAPI } from '@/lib/api';
 import { useWarehouse } from '@/app/context/WarehouseContext';
@@ -1647,53 +1648,20 @@ export default function QCPage() {
                     </Button>
                   ) : (
                     <Button
-                      variant="outlined"
+                      variant="contained"
+                      color="primary"
+                      startIcon={<TuneIcon />}
                       onClick={() => setMobileActionsOpen(true)}
                       sx={{
-                        minWidth: 42,
-                        height: 38,
-                        borderWidth: 2,
-                        borderColor: '#cbd5e1',
-                        bgcolor: 'white',
-                        color: '#64748b',
-                        fontWeight: 700,
-                        fontSize: '0.82rem',
-                        borderRadius: 1.5,
-                        boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
-                        '&:hover': {
-                          borderWidth: 2,
-                          borderColor: '#1e40af',
-                          bgcolor: 'rgba(30, 64, 175, 0.08)'
-                        },
-                        position: 'relative'
+                        height: 40,
+                        px: 2,
+                        textTransform: 'none',
+                        flexShrink: 0,
+                        fontSize: '0.85rem',
+                        fontWeight: 600
                       }}
                     >
-                      <FilterListIcon sx={{ fontSize: '1.15rem' }} />
-
-                      <Box component="span" sx={{ ml: 0.6, display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <Box component="span">Actions</Box>
-                        {filtersActive && (
-                          <Tooltip title="Filters active">
-                            <Box sx={{
-                              position: 'absolute',
-                              top: -5,
-                              right: -5,
-                              width: 14,
-                              height: 14,
-                              borderRadius: '50%',
-                              bgcolor: '#10b981',
-                              border: '2px solid white',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center'
-                            }}>
-                              <Typography sx={{ fontSize: '0.5rem', fontWeight: 800, color: 'white' }}>
-                                ●
-                              </Typography>
-                            </Box>
-                          </Tooltip>
-                        )}
-                      </Box>
+                      Actions
                     </Button>
                   )}
                 </Stack>
@@ -1966,31 +1934,27 @@ export default function QCPage() {
                 open={mobileActionsOpen}
                 onClose={() => setMobileActionsOpen(false)}
                 fullScreen
-                PaperProps={{ sx: { borderRadius: 0, bgcolor: isDarkMode ? '#0f172a' : 'background.default' } }}
               >
-                <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', bgcolor: isDarkMode ? '#1e293b' : 'background.paper', color: isDarkMode ? '#f1f5f9' : 'text.primary', borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e0e0e0' }}>
-                  <Box sx={{ fontWeight: 800, fontSize: '1rem' }}>Actions</Box>
-                  <IconButton onClick={() => setMobileActionsOpen(false)} sx={{ color: isDarkMode ? '#f1f5f9' : 'inherit' }}>
-                    <CloseIcon />
-                  </IconButton>
-                </DialogTitle>
+                <AppBar position="sticky" elevation={1} sx={{ bgcolor: isDarkMode ? '#1e293b' : 'background.paper', color: isDarkMode ? '#f1f5f9' : 'text.primary', borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e0e0e0' }}>
+                  <Toolbar>
+                    <IconButton edge="start" color="inherit" onClick={() => setMobileActionsOpen(false)} aria-label="close">
+                      <CloseIcon />
+                    </IconButton>
+                    <Typography sx={{ ml: 2, flex: 1, fontWeight: 700 }}>Filters & Actions</Typography>
+                    <Button color="primary" onClick={() => setMobileActionsOpen(false)}>Close</Button>
+                  </Toolbar>
+                </AppBar>
 
-                <DialogContent sx={{ bgcolor: isDarkMode ? '#0f172a' : 'background.default' }}>
-                  <Card sx={{
-                    borderRadius: 1.5,
-                    boxShadow: isDarkMode ? '0 4px 20px rgba(0,0,0,0.4)' : '0 4px 20px rgba(0,0,0,0.15)',
-                    background: isDarkMode ? 'linear-gradient(135deg, #1e293b 0%, #334155 100%)' : 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
-                    border: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e2e8f0',
-                    position: 'relative',
-                    zIndex: 95
-                  }}>
-                    <CardContent sx={{ p: 1.25, '&:last-child': { pb: 1.25 } }}>
-                      <Stack spacing={1}>
-                        <Box sx={{
-                          display: 'grid',
-                          gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', md: 'repeat(6, 1fr)' },
-                          gap: 1
-                        }}>
+                <DialogContent sx={{ p: 2, bgcolor: isDarkMode ? '#0f172a' : 'background.default' }}>
+                  <Stack spacing={2}>
+                    {/* Filters */}
+                    <Box>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1, color: isDarkMode ? '#94a3b8' : '#6b7280' }}>
+                        📊 Filters
+                      </Typography>
+
+                      <Stack spacing={1.5}>
+                        <Box display="flex" gap={1}>
                           <TextField
                             label="From Date"
                             type="date"
@@ -1998,18 +1962,7 @@ export default function QCPage() {
                             InputLabelProps={{ shrink: true }}
                             value={dateFromFilter}
                             onChange={(e) => { setDateFromFilter(e.target.value); setPage(1); }}
-                            sx={{
-                              '& .MuiOutlinedInput-root': {
-                                height: 36,
-                                fontSize: '0.8rem',
-                                bgcolor: 'white',
-                                '&:hover fieldset': { borderColor: '#1e40af' },
-                                '&.Mui-focused fieldset': { borderColor: '#1e40af' }
-                              },
-                              '& .MuiInputLabel-root': {
-                                fontSize: '0.75rem'
-                              }
-                            }}
+                            sx={{ flex: 1, '& .MuiOutlinedInput-root': { height: 40 } }}
                           />
                           <TextField
                             label="To Date"
@@ -2018,230 +1971,156 @@ export default function QCPage() {
                             InputLabelProps={{ shrink: true }}
                             value={dateToFilter}
                             onChange={(e) => { setDateToFilter(e.target.value); setPage(1); }}
-                            sx={{
-                              '& .MuiOutlinedInput-root': {
-                                height: 36,
-                                fontSize: '0.8rem',
-                                bgcolor: 'white',
-                                '&:hover fieldset': { borderColor: '#1e40af' },
-                                '&.Mui-focused fieldset': { borderColor: '#1e40af' }
-                              },
-                              '& .MuiInputLabel-root': {
-                                fontSize: '0.75rem'
-                              }
-                            }}
+                            sx={{ flex: 1, '& .MuiOutlinedInput-root': { height: 40 } }}
                           />
-                          <FormControl size="small">
-                            <InputLabel sx={{ fontSize: '0.75rem' }}>Status</InputLabel>
-                            <Select
-                              value={statusFilter}
-                              label="Status"
-                              onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
-                              sx={{
-                                height: 36,
-                                fontSize: '0.8rem',
-                                bgcolor: 'white',
-                                '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#1e40af' },
-                                '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#1e40af' }
-                              }}
-                            >
-                              <MenuItem value="">All Status</MenuItem>
-                              {QC_STATUSES.map(s => <MenuItem key={s} value={s} sx={{ fontSize: '0.8rem' }}>{s}</MenuItem>)}
-                            </Select>
-                          </FormControl>
-                          <FormControl size="small">
-                            <InputLabel sx={{ fontSize: '0.75rem' }}>Grade</InputLabel>
-                            <Select
-                              value={gradeFilter}
-                              label="Grade"
-                              onChange={(e) => { setGradeFilter(e.target.value); setPage(1); }}
-                              sx={{
-                                height: 36,
-                                fontSize: '0.8rem',
-                                bgcolor: 'white',
-                                '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#1e40af' },
-                                '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#1e40af' }
-                              }}
-                            >
-                              <MenuItem value="">All Grades</MenuItem>
-                              {QC_GRADES.map(g => <MenuItem key={g} value={g} sx={{ fontSize: '0.8rem' }}>{g}</MenuItem>)}
-                            </Select>
-                          </FormControl>
-                          <FormControl size="small">
-                            <InputLabel sx={{ fontSize: '0.75rem' }}>Brand</InputLabel>
-                            <Select
-                              value={brandFilter}
-                              label="Brand"
-                              onChange={(e) => { setBrandFilter(e.target.value); setPage(1); }}
-                              sx={{
-                                height: 36,
-                                fontSize: '0.8rem',
-                                bgcolor: 'white',
-                                '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#1e40af' },
-                                '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#1e40af' }
-                              }}
-                            >
-                              <MenuItem value="">All Brands</MenuItem>
-                              {brands.map(b => <MenuItem key={b} value={b}>{b}</MenuItem>)}
-                            </Select>
-                          </FormControl>
-                          <FormControl size="small">
-                            <InputLabel sx={{ fontSize: '0.75rem' }}>Category</InputLabel>
-                            <Select
-                              value={categoryFilter}
-                              label="Category"
-                              onChange={(e) => { setCategoryFilter(e.target.value); setPage(1); }}
-                              sx={{
-                                height: 36,
-                                fontSize: '0.8rem',
-                                bgcolor: 'white',
-                                '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#1e40af' },
-                                '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#1e40af' }
-                              }}
-                            >
-                              <MenuItem value="">All Categories</MenuItem>
-                              {categories.map(c => <MenuItem key={c} value={c}>{c}</MenuItem>)}
-                            </Select>
-                          </FormControl>
                         </Box>
 
-                        <Box sx={{
-                          display: 'grid',
-                          gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(5, 1fr)' },
-                          gap: 1
-                        }}>
-                          <Button
-                            fullWidth
-                            size="small"
-                            variant="outlined"
-                            onClick={() => {
-                              setSearchFilter('');
-                              setStatusFilter('');
-                              setGradeFilter('');
-                              setBrandFilter('');
-                              setCategoryFilter('');
-                              setDateFromFilter('');
-                              setDateToFilter('');
-                              setPage(1);
-                            }}
-                            sx={{
-                              height: 34,
-                              fontSize: '0.72rem',
-                              fontWeight: 700,
-                              borderWidth: 2,
-                              borderColor: '#94a3b8',
-                              color: '#64748b',
-                              '&:hover': {
-                                borderWidth: 2,
-                                borderColor: '#64748b',
-                                bgcolor: '#f8fafc'
-                              }
-                            }}
-                          >
-                            🔄 RESET
-                          </Button>
-                          <Button
-                            fullWidth
-                            size="small"
-                            startIcon={<SettingsIcon sx={{ fontSize: '0.9rem' }} />}
-                            variant="outlined"
-                            onClick={() => { setListColumnSettingsOpen(true); setMobileActionsOpen(false); }}
-                            sx={{
-                              height: 34,
-                              fontSize: '0.72rem',
-                              fontWeight: 700,
-                              borderWidth: 2,
-                              borderColor: '#1e40af',
-                              color: '#1e40af',
-                              '&:hover': {
-                                borderWidth: 2,
-                                bgcolor: 'rgba(30, 64, 175, 0.1)'
-                              }
-                            }}
-                          >
-                            COLUMNS
-                          </Button>
-                          <Button
-                            fullWidth
-                            size="small"
-                            startIcon={<SettingsIcon sx={{ fontSize: '0.9rem' }} />}
-                            variant="outlined"
-                            onClick={() => { setGridSettingsOpen(true); setMobileActionsOpen(false); }}
-                            sx={{
-                              height: 34,
-                              fontSize: '0.72rem',
-                              fontWeight: 700,
-                              borderWidth: 2,
-                              borderColor: '#f59e0b',
-                              color: '#f59e0b',
-                              '&:hover': {
-                                borderWidth: 2,
-                                bgcolor: 'rgba(245, 158, 11, 0.1)'
-                              }
-                            }}
-                          >
-                            GRID
-                          </Button>
-                          <Button
-                            fullWidth
-                            size="small"
-                            startIcon={<DownloadIcon sx={{ fontSize: '0.9rem' }} />}
-                            variant="contained"
-                            onClick={() => { setExportDialogOpen(true); setMobileActionsOpen(false); }}
-                            sx={{
-                              height: 34,
-                              fontSize: '0.72rem',
-                              fontWeight: 700,
-                              background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                              boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
-                              '&:hover': {
-                                background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
-                                boxShadow: '0 6px 16px rgba(16, 185, 129, 0.4)'
-                              }
-                            }}
-                          >
-                            EXPORT
-                          </Button>
-                          <Button
-                            fullWidth
-                            size="small"
-                            startIcon={refreshing ? <CircularProgress size={14} /> : refreshSuccess ? <CheckCircle sx={{ color: '#10b981' }} /> : <RefreshIcon sx={{ fontSize: '0.9rem' }} />}
-                            variant="outlined"
-                            onClick={() => { loadQCList({ buttonRefresh: true }); setMobileActionsOpen(false); }}
-                            disabled={refreshing}
-                            sx={{
-                              height: 34,
-                              fontSize: '0.72rem',
-                              fontWeight: 700,
-                              borderWidth: 2,
-                              borderColor: '#3b82f6',
-                              color: '#3b82f6',
-                              '&:hover': {
-                                borderWidth: 2,
-                                bgcolor: 'rgba(59, 130, 246, 0.1)'
-                              }
-                            }}
-                          >
-                            {refreshing ? 'Refreshing...' : refreshSuccess ? 'Refreshed' : 'REFRESH'}
-                          </Button>
-                        </Box>
+                        <TextField
+                          select
+                          size="small"
+                          label="Status"
+                          value={statusFilter}
+                          onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
+                          fullWidth
+                          sx={{ '& .MuiOutlinedInput-root': { height: 40 } }}
+                        >
+                          <MenuItem value="">All Status</MenuItem>
+                          {QC_STATUSES.map(s => <MenuItem key={s} value={s}>{s}</MenuItem>)}
+                        </TextField>
+
+                        <TextField
+                          select
+                          size="small"
+                          label="Grade"
+                          value={gradeFilter}
+                          onChange={(e) => { setGradeFilter(e.target.value); setPage(1); }}
+                          fullWidth
+                          sx={{ '& .MuiOutlinedInput-root': { height: 40 } }}
+                        >
+                          <MenuItem value="">All Grades</MenuItem>
+                          {QC_GRADES.map(g => <MenuItem key={g} value={g}>{g}</MenuItem>)}
+                        </TextField>
+
+                        <TextField
+                          select
+                          size="small"
+                          label="Brand"
+                          value={brandFilter}
+                          onChange={(e) => { setBrandFilter(e.target.value); setPage(1); }}
+                          fullWidth
+                          sx={{ '& .MuiOutlinedInput-root': { height: 40 } }}
+                        >
+                          <MenuItem value="">All Brands</MenuItem>
+                          {brands.map(b => <MenuItem key={b} value={b}>{b}</MenuItem>)}
+                        </TextField>
+
+                        <TextField
+                          select
+                          size="small"
+                          label="Category"
+                          value={categoryFilter}
+                          onChange={(e) => { setCategoryFilter(e.target.value); setPage(1); }}
+                          fullWidth
+                          sx={{ '& .MuiOutlinedInput-root': { height: 40 } }}
+                        >
+                          <MenuItem value="">All Categories</MenuItem>
+                          {categories.map(c => <MenuItem key={c} value={c}>{c}</MenuItem>)}
+                        </TextField>
                       </Stack>
-                    </CardContent>
-                  </Card>
+                    </Box>
+
+                    {/* Action Buttons */}
+                    <Box>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1, color: isDarkMode ? '#94a3b8' : '#6b7280' }}>
+                        ⚡ Actions
+                      </Typography>
+
+                      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 1 }}>
+                        <Button
+                          variant="outlined"
+                          startIcon={<FilterListIcon />}
+                          onClick={() => {
+                            setSearchFilter('');
+                            setStatusFilter('');
+                            setGradeFilter('');
+                            setBrandFilter('');
+                            setCategoryFilter('');
+                            setDateFromFilter('');
+                            setDateToFilter('');
+                            setPage(1);
+                          }}
+                          sx={{ height: 44, fontSize: '0.85rem' }}
+                        >
+                          Clear
+                        </Button>
+
+                        <Button
+                          variant="outlined"
+                          startIcon={<SettingsIcon />}
+                          onClick={() => { setListColumnSettingsOpen(true); setMobileActionsOpen(false); }}
+                          sx={{ height: 44, fontSize: '0.85rem' }}
+                        >
+                          Columns
+                        </Button>
+
+                        <Button
+                          variant="outlined"
+                          startIcon={<SettingsIcon />}
+                          onClick={() => { setGridSettingsOpen(true); setMobileActionsOpen(false); }}
+                          sx={{ height: 44, fontSize: '0.85rem' }}
+                        >
+                          Grid
+                        </Button>
+
+                        <Button
+                          variant="outlined"
+                          startIcon={<DownloadIcon />}
+                          onClick={() => { setExportDialogOpen(true); setMobileActionsOpen(false); }}
+                          sx={{ height: 44, fontSize: '0.85rem' }}
+                        >
+                          Export
+                        </Button>
+
+                        <Button
+                          variant="outlined"
+                          startIcon={refreshing ? <CircularProgress size={14} /> : refreshSuccess ? <CheckCircle sx={{ color: '#10b981' }} /> : <RefreshIcon />}
+                          onClick={() => { loadQCList({ buttonRefresh: true }); setMobileActionsOpen(false); }}
+                          disabled={refreshing}
+                          sx={{ height: 44, fontSize: '0.85rem', gridColumn: 'span 2' }}
+                        >
+                          {refreshing ? 'Refreshing...' : refreshSuccess ? 'Refreshed' : 'Refresh'}
+                        </Button>
+                      </Box>
+                    </Box>
+                  </Stack>
                 </DialogContent>
 
-                <Box sx={{ position: 'sticky', bottom: 0, left: 0, right: 0, bgcolor: isDarkMode ? '#1e293b' : 'background.paper', p: 1, borderTop: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e0e0e0', display: 'flex', gap: 1 }}>
-                  <Button fullWidth variant="outlined" onClick={() => {
-                    setSearchFilter('');
-                    setStatusFilter('');
-                    setGradeFilter('');
-                    setBrandFilter('');
-                    setCategoryFilter('');
-                    setDateFromFilter('');
-                    setDateToFilter('');
-                    setPage(1);
-                  }}>Reset</Button>
-                  <Button fullWidth variant="contained" onClick={() => { setPage(1); setMobileActionsOpen(false); loadQCList(); }}>Apply</Button>
+                <Box sx={{ position: 'sticky', bottom: 0, left: 0, right: 0, bgcolor: isDarkMode ? '#1e293b' : 'background.paper', p: 2, borderTop: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e0e0e0', display: 'flex', gap: 1 }}>
+                  <Button
+                    fullWidth
+                    variant="outlined"
+                    onClick={() => {
+                      setSearchFilter('');
+                      setStatusFilter('');
+                      setGradeFilter('');
+                      setBrandFilter('');
+                      setCategoryFilter('');
+                      setDateFromFilter('');
+                      setDateToFilter('');
+                      setPage(1);
+                    }}
+                    sx={{ height: 48 }}
+                  >
+                    Reset Filters
+                  </Button>
+                  <Button
+                    fullWidth
+                    variant="contained"
+                    onClick={() => { setPage(1); setMobileActionsOpen(false); loadQCList(); }}
+                    sx={{ height: 48 }}
+                  >
+                    Apply
+                  </Button>
                 </Box>
               </Dialog>
 

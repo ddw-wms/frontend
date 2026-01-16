@@ -1338,13 +1338,12 @@ export default function DashboardPage() {
                 startIcon={<TuneIcon />}
                 sx={{
                   display: { xs: 'inline-flex', md: 'none' },
-                  height: 44,
+                  height: 40,
                   px: 2,
                   textTransform: 'none',
-                  fontWeight: 600,
-                  borderRadius: 2.5,
-                  boxShadow: "0 2px 8px rgba(30,64,175,0.25)",
-                  whiteSpace: "nowrap",
+                  flexShrink: 0,
+                  fontSize: '0.85rem',
+                  fontWeight: 600
                 }}
                 onClick={() => setMobileActionsOpen(true)}
               >
@@ -2182,7 +2181,7 @@ export default function DashboardPage() {
       <Box sx={{ display: { xs: 'none', md: 'none' } }} />
 
       {/* MOBILE ACTIONS DIALOG (Filters + Actions combined) */}
-      <Dialog fullScreen open={mobileActionsOpen} onClose={() => setMobileActionsOpen(false)} TransitionProps={{}}>
+      <Dialog fullScreen open={mobileActionsOpen} onClose={() => setMobileActionsOpen(false)}>
         <AppBar position="sticky" elevation={1} sx={{ bgcolor: isDarkMode ? '#1e293b' : 'background.paper', color: isDarkMode ? '#f1f5f9' : 'text.primary', borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e0e0e0' }}>
           <Toolbar>
             <IconButton edge="start" color="inherit" onClick={() => setMobileActionsOpen(false)} aria-label="close">
@@ -2195,71 +2194,178 @@ export default function DashboardPage() {
 
         <DialogContent sx={{ p: 2, bgcolor: isDarkMode ? '#0f172a' : 'background.default' }}>
           <Stack spacing={2}>
+            {/* Filters */}
             <Box>
-              <TextField fullWidth placeholder="Search WSN or Product" value={searchWSN} onChange={(e) => { setSearchWSN(e.target.value); }} size="small" sx={{ '& .MuiOutlinedInput-root': { height: 40 } }} />
+              <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1, color: isDarkMode ? '#94a3b8' : '#6b7280' }}>
+                📊 Filters
+              </Typography>
+
+              <Stack spacing={1.5}>
+                <TextField
+                  fullWidth
+                  placeholder="Search WSN or Product"
+                  value={searchWSN}
+                  onChange={(e) => { setSearchWSN(e.target.value); }}
+                  size="small"
+                  sx={{ '& .MuiOutlinedInput-root': { height: 40 } }}
+                />
+
+                <TextField
+                  select
+                  size="small"
+                  label="Stage"
+                  value={stageFilter}
+                  onChange={(e) => setStageFilter(e.target.value)}
+                  fullWidth
+                  SelectProps={{ MenuProps: { PaperProps: { style: { maxHeight: 300 } } } }}
+                  sx={{ '& .MuiOutlinedInput-root': { height: 40 } }}
+                >
+                  {PIPELINE_STAGES.map((s) => <MenuItem key={s.value} value={s.value}>{s.label}</MenuItem>)}
+                </TextField>
+
+                <TextField
+                  select
+                  size="small"
+                  label="Brand"
+                  value={brandFilter}
+                  onChange={(e) => setBrandFilter(e.target.value)}
+                  fullWidth
+                  SelectProps={{ MenuProps: { PaperProps: { style: { maxHeight: 300 } } } }}
+                  sx={{ '& .MuiOutlinedInput-root': { height: 40 } }}
+                >
+                  <MenuItem value="">All Brands</MenuItem>
+                  {(categoryFilter ? memoizedFilteredBrands : brands).map((b) => (<MenuItem key={b} value={b}>{b}</MenuItem>))}
+                </TextField>
+
+                <TextField
+                  select
+                  size="small"
+                  label="Category"
+                  value={categoryFilter}
+                  onChange={(e) => setCategoryFilter(e.target.value)}
+                  fullWidth
+                  SelectProps={{ MenuProps: { PaperProps: { style: { maxHeight: 300 } } } }}
+                  sx={{ '& .MuiOutlinedInput-root': { height: 40 } }}
+                >
+                  <MenuItem value="">All Categories</MenuItem>
+                  {(brandFilter ? filteredCategories : categories).map((c) => (<MenuItem key={c} value={c}>{c}</MenuItem>))}
+                </TextField>
+
+                <Box display="flex" gap={1}>
+                  <TextField
+                    label="From Date"
+                    type="date"
+                    size="small"
+                    variant="outlined"
+                    InputLabelProps={{ shrink: true }}
+                    value={dateFrom || ''}
+                    onChange={(e) => setDateFrom(e.target.value)}
+                    sx={{ flex: 1, '& .MuiOutlinedInput-root': { height: 40 } }}
+                  />
+                  <TextField
+                    label="To Date"
+                    type="date"
+                    size="small"
+                    variant="outlined"
+                    InputLabelProps={{ shrink: true }}
+                    value={dateTo || ''}
+                    onChange={(e) => setDateTo(e.target.value)}
+                    sx={{ flex: 1, '& .MuiOutlinedInput-root': { height: 40 } }}
+                  />
+                </Box>
+
+                <FormControlLabel
+                  control={<Checkbox checked={availableOnly} onChange={(e) => setAvailableOnly(e.target.checked)} />}
+                  label={<Typography sx={{ fontSize: '0.9rem', fontWeight: 600 }}>Available Only</Typography>}
+                />
+              </Stack>
             </Box>
 
-            <Box display="flex" gap={1} flexDirection="column">
-              <TextField select size="small" label="Stage" value={stageFilter} onChange={(e) => setStageFilter(e.target.value)} fullWidth SelectProps={{ MenuProps: { PaperProps: { style: { maxHeight: 300 } } } }} sx={{ '& .MuiOutlinedInput-root': { height: 40 } }}>
-                {PIPELINE_STAGES.map((s) => <MenuItem key={s.value} value={s.value}>{s.label}</MenuItem>)}
-              </TextField>
+            {/* Action Buttons */}
+            <Box>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1, color: isDarkMode ? '#94a3b8' : '#6b7280' }}>
+                ⚡ Actions
+              </Typography>
 
-              <TextField select size="small" label="Brand" value={brandFilter} onChange={(e) => setBrandFilter(e.target.value)} fullWidth SelectProps={{ MenuProps: { PaperProps: { style: { maxHeight: 300 } } } }} sx={{ '& .MuiOutlinedInput-root': { height: 40 } }}>
-                <MenuItem value="">All</MenuItem>
-                {(categoryFilter ? memoizedFilteredBrands : brands).map((b) => (<MenuItem key={b} value={b}>{b}</MenuItem>))}
-              </TextField>
+              <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 1 }}>
+                <Button
+                  variant="outlined"
+                  startIcon={<RestartAltIcon />}
+                  onClick={resetFilters}
+                  sx={{ height: 44, fontSize: '0.85rem' }}
+                >
+                  Clear
+                </Button>
 
-              <TextField select size="small" label="Category" value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} fullWidth SelectProps={{ MenuProps: { PaperProps: { style: { maxHeight: 300 } } } }} sx={{ '& .MuiOutlinedInput-root': { height: 40 } }}>
-                <MenuItem value="">All</MenuItem>
-                {(brandFilter ? filteredCategories : categories).map((c) => (<MenuItem key={c} value={c}>{c}</MenuItem>))}
-              </TextField>
+                <Button
+                  variant="outlined"
+                  startIcon={<SettingsIcon />}
+                  onClick={() => { setColumnDialogOpen(true); setMobileActionsOpen(false); }}
+                  sx={{ height: 44, fontSize: '0.85rem' }}
+                >
+                  Columns
+                </Button>
 
-              <Box display="flex" gap={1} alignItems="center">
-                <TextField label="From Date" type="date" size="small" variant="outlined" InputLabelProps={{ shrink: true }} value={dateFrom || ''} onChange={(e) => setDateFrom(e.target.value)} sx={{ flex: 1, '& .MuiOutlinedInput-root': { height: 40 } }} />
-                <TextField label="To Date" type="date" size="small" variant="outlined" InputLabelProps={{ shrink: true }} value={dateTo || ''} onChange={(e) => setDateTo(e.target.value)} sx={{ flex: 1, '& .MuiOutlinedInput-root': { height: 40 } }} />
+                <Button
+                  variant="outlined"
+                  startIcon={<TuneIcon />}
+                  onClick={() => { setGridSettingsOpen(true); setMobileActionsOpen(false); }}
+                  sx={{ height: 44, fontSize: '0.85rem' }}
+                >
+                  Grid
+                </Button>
+
+                <Button
+                  variant="outlined"
+                  startIcon={<DownloadIcon />}
+                  onClick={() => {
+                    setExportFilters({ dateFrom, dateTo, stage: stageFilter || 'all', brand: brandFilter, category: categoryFilter, availableOnly: availableOnly ? 'available' : 'all' });
+                    setExportDialogOpen(true);
+                    setMobileActionsOpen(false);
+                  }}
+                  sx={{ height: 44, fontSize: '0.85rem' }}
+                >
+                  Export
+                </Button>
+
+                <Button
+                  variant="outlined"
+                  startIcon={loading ? <CircularProgress size={14} /> : <RefreshIcon />}
+                  onClick={() => loadInventoryData()}
+                  disabled={loading}
+                  sx={{ height: 44, fontSize: '0.85rem', gridColumn: 'span 2' }}
+                >
+                  {loading ? 'Refreshing...' : 'Refresh'}
+                </Button>
               </Box>
-
-              <FormControlLabel control={<Checkbox checked={availableOnly} onChange={(e) => setAvailableOnly(e.target.checked)} />} label={<Typography sx={{ fontSize: '0.9rem', fontWeight: 700 }}>Available Only</Typography>} />
-
-              {/* Action buttons */}
-              <Box sx={{ display: 'grid', gap: 1, mt: 1, flexWrap: 'wrap', columnCount: 2, gridTemplateColumns: 'repeat(2, 1fr)' }}>
-                <Button variant="outlined" sx={{ width: 160 }} startIcon={<RestartAltIcon />} onClick={resetFilters}>Reset</Button>
-                {true && (
-                  <Button
-                    variant="outlined"
-                    sx={{ width: 160 }}
-                    startIcon={<DownloadIcon />}
-                    onClick={() => {
-                      console.log('Export button clicked - Mobile Actions Dialog');
-                      setExportFilters({ dateFrom, dateTo, stage: stageFilter || 'all', brand: brandFilter, category: categoryFilter, availableOnly: availableOnly ? 'available' : 'all' });
-                      setExportDialogOpen(true);
-                      setMobileActionsOpen(false);
-                    }}
-                  >
-                    Export
-                  </Button>
-                )}
-
-                {true && (
-                  <Button
-                    variant="outlined"
-                    sx={{ width: 160 }}
-                    startIcon={<SettingsIcon />}
-                    onClick={() => { setColumnDialogOpen(true); setMobileActionsOpen(false); }}
-                  >
-                    Columns
-                  </Button>
-                )}
-                <Button variant="outlined" sx={{ width: 160 }} startIcon={<TuneIcon />} onClick={() => setGridSettingsOpen(true)}>Grid</Button>
-              </Box>
-
             </Box>
           </Stack>
         </DialogContent>
 
-        <Box sx={{ position: 'sticky', bottom: 0, left: 0, right: 0, bgcolor: isDarkMode ? '#1e293b' : 'background.paper', p: 1, borderTop: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e0e0e0', display: 'flex', gap: 1 }}>
-          <Button fullWidth variant="outlined" onClick={() => { setDateFrom(''); setDateTo(''); setStageFilter('all'); setBrandFilter(''); setCategoryFilter(''); setAvailableOnly(false); }}>Reset</Button>
-          <Button fullWidth variant="contained" onClick={() => { setPage(1); setMobileActionsOpen(false); }}>Apply</Button>
+        <Box sx={{ position: 'sticky', bottom: 0, left: 0, right: 0, bgcolor: isDarkMode ? '#1e293b' : 'background.paper', p: 2, borderTop: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e0e0e0', display: 'flex', gap: 1 }}>
+          <Button
+            fullWidth
+            variant="outlined"
+            onClick={() => {
+              setDateFrom('');
+              setDateTo('');
+              setStageFilter('all');
+              setBrandFilter('');
+              setCategoryFilter('');
+              setAvailableOnly(false);
+            }}
+            sx={{ height: 48 }}
+          >
+            Reset Filters
+          </Button>
+          <Button
+            fullWidth
+            variant="contained"
+            onClick={() => { setPage(1); setMobileActionsOpen(false); }}
+            sx={{ height: 48 }}
+          >
+            Apply
+          </Button>
         </Box>
       </Dialog>
 

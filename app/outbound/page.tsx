@@ -1801,7 +1801,15 @@ export default function OutboundPage() {
                                         variant="contained"
                                         color="primary"
                                         startIcon={<TuneIcon />}
-                                        sx={{ display: { xs: 'inline-flex', md: 'none' }, size: 'small', height: 36, px: 2, textTransform: 'none' }}
+                                        sx={{
+                                            display: { xs: 'inline-flex', md: 'none' },
+                                            height: 40,
+                                            px: 2,
+                                            textTransform: 'none',
+                                            flexShrink: 0,
+                                            fontSize: '0.85rem',
+                                            fontWeight: 600
+                                        }}
                                         onClick={openMobileActions}
                                     >
                                         Actions
@@ -2505,7 +2513,7 @@ export default function OutboundPage() {
                 )}
 
                 {/* MOBILE ACTIONS DIALOG (Filters + Actions for mobile) */}
-                <Dialog fullScreen open={mobileActionsOpen} onClose={() => setMobileActionsOpen(false)} TransitionProps={{}}>
+                <Dialog fullScreen open={mobileActionsOpen} onClose={() => setMobileActionsOpen(false)}>
                     <AppBar position="sticky" elevation={1} sx={{ bgcolor: isDarkMode ? '#1e293b' : 'background.paper', color: isDarkMode ? '#f1f5f9' : 'text.primary', borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e0e0e0' }}>
                         <Toolbar>
                             <IconButton edge="start" color="inherit" onClick={() => setMobileActionsOpen(false)} aria-label="close">
@@ -2518,65 +2526,193 @@ export default function OutboundPage() {
 
                     <DialogContent sx={{ p: 2, bgcolor: isDarkMode ? '#0f172a' : 'background.default' }}>
                         <Stack spacing={2}>
-                            <Box display="flex" gap={1} flexDirection="column">
-                                <TextField select size="small" label="Source" value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value)} fullWidth SelectProps={{ MenuProps: { PaperProps: { style: { maxHeight: 300 } } } }} sx={{ '& .MuiOutlinedInput-root': { height: 40 } }}>
-                                    <MenuItem value="">All</MenuItem>
-                                    {sources.map((s) => (<MenuItem key={s} value={s}>{s}</MenuItem>))}
-                                </TextField>
+                            {/* Filters */}
+                            <Box>
+                                <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1, color: isDarkMode ? '#94a3b8' : '#6b7280' }}>
+                                    📊 Filters
+                                </Typography>
 
-                                <Autocomplete
-                                    freeSolo
-                                    options={customers}
-                                    value={customerFilter}
-                                    onChange={(event, newValue) => setCustomerFilter(newValue || '')}
-                                    onInputChange={(event, newInputValue) => setCustomerFilter(newInputValue)}
-                                    renderInput={(params) => (
+                                <Stack spacing={1.5}>
+                                    <TextField
+                                        select
+                                        size="small"
+                                        label="Source"
+                                        value={sourceFilter}
+                                        onChange={(e) => setSourceFilter(e.target.value)}
+                                        fullWidth
+                                        SelectProps={{ MenuProps: { PaperProps: { style: { maxHeight: 300 } } } }}
+                                        sx={{ '& .MuiOutlinedInput-root': { height: 40 } }}
+                                    >
+                                        <MenuItem value="">All Sources</MenuItem>
+                                        {sources.map((s) => (<MenuItem key={s} value={s}>{s}</MenuItem>))}
+                                    </TextField>
+
+                                    <Autocomplete
+                                        freeSolo
+                                        options={customers}
+                                        value={customerFilter}
+                                        onChange={(event, newValue) => setCustomerFilter(newValue || '')}
+                                        onInputChange={(event, newInputValue) => setCustomerFilter(newInputValue)}
+                                        renderInput={(params) => (
+                                            <TextField
+                                                {...params}
+                                                label="Customer"
+                                                size="small"
+                                                sx={{ '& .MuiOutlinedInput-root': { height: 40 } }}
+                                            />
+                                        )}
+                                        noOptionsText={customers.length === 0 ? "No customers available" : "No matching customers"}
+                                    />
+
+                                    <TextField
+                                        select
+                                        size="small"
+                                        label="Brand"
+                                        value={brandFilter}
+                                        onChange={(e) => setBrandFilter(e.target.value)}
+                                        fullWidth
+                                        SelectProps={{ MenuProps: { PaperProps: { style: { maxHeight: 300 } } } }}
+                                        sx={{ '& .MuiOutlinedInput-root': { height: 40 } }}
+                                    >
+                                        <MenuItem value="">All Brands</MenuItem>
+                                        {(filteredBrands.length > 0 ? filteredBrands : brands).map((b) => (<MenuItem key={b} value={b}>{b}</MenuItem>))}
+                                    </TextField>
+
+                                    <TextField
+                                        select
+                                        size="small"
+                                        label="Category"
+                                        value={categoryFilter}
+                                        onChange={(e) => setCategoryFilter(e.target.value)}
+                                        fullWidth
+                                        SelectProps={{ MenuProps: { PaperProps: { style: { maxHeight: 300 } } } }}
+                                        sx={{ '& .MuiOutlinedInput-root': { height: 40 } }}
+                                    >
+                                        <MenuItem value="">All Categories</MenuItem>
+                                        {(filteredCategories.length > 0 ? filteredCategories : categories).map((c) => (<MenuItem key={c} value={c}>{c}</MenuItem>))}
+                                    </TextField>
+
+                                    <Box display="flex" gap={1}>
                                         <TextField
-                                            {...params}
-                                            label="Customer"
+                                            label="From Date"
+                                            type="date"
                                             size="small"
-                                            sx={{ '& .MuiOutlinedInput-root': { height: 40 } }}
+                                            variant="outlined"
+                                            InputLabelProps={{ shrink: true }}
+                                            value={startDateFilter || ''}
+                                            onChange={(e) => setStartDateFilter(e.target.value)}
+                                            sx={{ flex: 1, '& .MuiOutlinedInput-root': { height: 40 } }}
                                         />
-                                    )}
-                                    noOptionsText={customers.length === 0 ? "No customers available" : "No matching customers"}
-                                />
+                                        <TextField
+                                            label="To Date"
+                                            type="date"
+                                            size="small"
+                                            variant="outlined"
+                                            InputLabelProps={{ shrink: true }}
+                                            value={endDateFilter || ''}
+                                            onChange={(e) => setEndDateFilter(e.target.value)}
+                                            sx={{ flex: 1, '& .MuiOutlinedInput-root': { height: 40 } }}
+                                        />
+                                    </Box>
 
-                                <TextField select size="small" label="Brand" value={brandFilter} onChange={(e) => setBrandFilter(e.target.value)} fullWidth SelectProps={{ MenuProps: { PaperProps: { style: { maxHeight: 300 } } } }} sx={{ '& .MuiOutlinedInput-root': { height: 40 } }}>
-                                    <MenuItem value="">All Brands</MenuItem>
-                                    {(filteredBrands.length > 0 ? filteredBrands : brands).map((b) => (<MenuItem key={b} value={b}>{b}</MenuItem>))}
-                                </TextField>
+                                    <TextField
+                                        select
+                                        size="small"
+                                        label="Batch ID"
+                                        value={batchFilter}
+                                        onChange={(e) => setBatchFilter(e.target.value)}
+                                        fullWidth
+                                        SelectProps={{ MenuProps: { PaperProps: { style: { maxHeight: 300 } } } }}
+                                        sx={{ '& .MuiOutlinedInput-root': { height: 40 } }}
+                                    >
+                                        <MenuItem value="">All Batches</MenuItem>
+                                        {batches.map((b: any) => (<MenuItem key={b.batch_id} value={b.batch_id}>{b.batch_id} {b.count ? `(${b.count})` : null}</MenuItem>))}
+                                    </TextField>
+                                </Stack>
+                            </Box>
 
-                                <TextField select size="small" label="Category" value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} fullWidth SelectProps={{ MenuProps: { PaperProps: { style: { maxHeight: 300 } } } }} sx={{ '& .MuiOutlinedInput-root': { height: 40 } }}>
-                                    <MenuItem value="">All Categories</MenuItem>
-                                    {(filteredCategories.length > 0 ? filteredCategories : categories).map((c) => (<MenuItem key={c} value={c}>{c}</MenuItem>))}
-                                </TextField>
+                            {/* Action Buttons */}
+                            <Box>
+                                <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1, color: isDarkMode ? '#94a3b8' : '#6b7280' }}>
+                                    ⚡ Actions
+                                </Typography>
 
-                                <Box display="flex" gap={1}>
-                                    <TextField label="From Date" type="date" size="small" variant="outlined" InputLabelProps={{ shrink: true }} value={startDateFilter || ''} onChange={(e) => setStartDateFilter(e.target.value)} sx={{ flex: 1, '& .MuiOutlinedInput-root': { height: 40 } }} />
-                                    <TextField label="To Date" type="date" size="small" variant="outlined" InputLabelProps={{ shrink: true }} value={endDateFilter || ''} onChange={(e) => setEndDateFilter(e.target.value)} sx={{ flex: 1, '& .MuiOutlinedInput-root': { height: 40 } }} />
+                                <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 1 }}>
+                                    <Button
+                                        variant="outlined"
+                                        startIcon={<FilterListIcon />}
+                                        onClick={() => { handleListReset(); }}
+                                        sx={{ height: 44, fontSize: '0.85rem' }}
+                                    >
+                                        Clear
+                                    </Button>
+
+                                    <Button
+                                        variant="outlined"
+                                        startIcon={<SettingsIcon />}
+                                        onClick={() => { setListColumnSettingsOpen(true); setMobileActionsOpen(false); }}
+                                        sx={{ height: 44, fontSize: '0.85rem' }}
+                                    >
+                                        Columns
+                                    </Button>
+
+                                    <Button
+                                        variant="outlined"
+                                        startIcon={<SettingsIcon />}
+                                        onClick={() => { setGridSettingsOpen(true); setMobileActionsOpen(false); }}
+                                        sx={{ height: 44, fontSize: '0.85rem' }}
+                                    >
+                                        Grid
+                                    </Button>
+
+                                    <Button
+                                        variant="outlined"
+                                        startIcon={<DownloadIcon />}
+                                        onClick={() => {
+                                            setExportStartDate(startDateFilter);
+                                            setExportEndDate(endDateFilter);
+                                            setExportCustomer(customerFilter);
+                                            setExportBatchId(batchFilter);
+                                            setExportSource(sourceFilter);
+                                            setExportDialogOpen(true);
+                                            setMobileActionsOpen(false);
+                                        }}
+                                        sx={{ height: 44, fontSize: '0.85rem' }}
+                                    >
+                                        Export
+                                    </Button>
+
+                                    <Button
+                                        variant="outlined"
+                                        startIcon={refreshing ? <CircularProgress size={14} /> : <RefreshIcon />}
+                                        onClick={() => loadOutboundList({ buttonRefresh: true })}
+                                        disabled={refreshing}
+                                        sx={{ height: 44, fontSize: '0.85rem', gridColumn: 'span 2' }}
+                                    >
+                                        {refreshing ? 'Refreshing...' : 'Refresh'}
+                                    </Button>
                                 </Box>
-
-                                <TextField select size="small" label="Batch ID" value={batchFilter} onChange={(e) => setBatchFilter(e.target.value)} fullWidth SelectProps={{ MenuProps: { PaperProps: { style: { maxHeight: 300 } } } }} sx={{ '& .MuiOutlinedInput-root': { height: 40 } }}>
-                                    <MenuItem value="">All</MenuItem>
-                                    {batches.map((b: any) => (<MenuItem key={b.batch_id} value={b.batch_id}>{b.batch_id} {b.count ? `(${b.count})` : null}</MenuItem>))}
-                                </TextField>
-
-                                {/* Action buttons */}
-                                <Box sx={{ display: 'grid', gap: 1, mt: 1, gridTemplateColumns: 'repeat(2, 1fr)' }}>
-                                    <Button variant="outlined" sx={{ width: 170 }} onClick={() => { handleListReset(); }}>Reset</Button>
-                                    <Button variant="outlined" sx={{ width: 170 }} startIcon={<DownloadIcon />} onClick={() => { setExportStartDate(startDateFilter); setExportEndDate(endDateFilter); setExportCustomer(customerFilter); setExportBatchId(batchFilter); setExportSource(sourceFilter); setExportDialogOpen(true); }}>Export</Button>
-
-                                    <Button variant="outlined" sx={{ width: 170 }} startIcon={<SettingsIcon />} onClick={() => setListColumnSettingsOpen(true)} disabled={!true}>Columns</Button>
-                                    <Button variant="outlined" sx={{ width: 170 }} startIcon={<TuneIcon />} onClick={() => setGridSettingsOpen(true)}>Grid</Button>
-                                </Box>
-
                             </Box>
                         </Stack>
                     </DialogContent>
 
-                    <Box sx={{ position: 'sticky', bottom: 0, left: 0, right: 0, bgcolor: isDarkMode ? '#1e293b' : 'background.paper', p: 1, borderTop: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e0e0e0', display: 'flex', gap: 1 }}>
-                        <Button fullWidth variant="outlined" onClick={() => { handleListReset(); }}>Reset</Button>
-                        <Button fullWidth variant="contained" onClick={() => { setPage(1); setMobileActionsOpen(false); }}>Apply</Button>
+                    <Box sx={{ position: 'sticky', bottom: 0, left: 0, right: 0, bgcolor: isDarkMode ? '#1e293b' : 'background.paper', p: 2, borderTop: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e0e0e0', display: 'flex', gap: 1 }}>
+                        <Button
+                            fullWidth
+                            variant="outlined"
+                            onClick={() => { handleListReset(); }}
+                            sx={{ height: 48 }}
+                        >
+                            Reset Filters
+                        </Button>
+                        <Button
+                            fullWidth
+                            variant="contained"
+                            onClick={() => { setPage(1); setMobileActionsOpen(false); }}
+                            sx={{ height: 48 }}
+                        >
+                            Apply
+                        </Button>
                     </Box>
                 </Dialog>
 

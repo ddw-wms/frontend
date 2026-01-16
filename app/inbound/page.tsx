@@ -3132,7 +3132,12 @@ export default function InboundPage() {
                       startIcon={<TuneIcon />}
                       sx={{
                         display: { xs: 'inline-flex', md: 'none' },
-                        size: 'small', height: 38, px: 2.5, textTransform: 'none'
+                        height: 40,
+                        px: 2,
+                        textTransform: 'none',
+                        flexShrink: 0,
+                        fontSize: '0.85rem',
+                        fontWeight: 600
                       }}
                       onClick={() => setMobileActionsOpen(true)}
                     >
@@ -3457,7 +3462,7 @@ export default function InboundPage() {
                   </Collapse>
 
                   {/* MOBILE ACTIONS DIALOG (Filters + Actions combined - mobile only) */}
-                  <Dialog fullScreen open={mobileActionsOpen} onClose={() => setMobileActionsOpen(false)} TransitionProps={{}}>
+                  <Dialog fullScreen open={mobileActionsOpen} onClose={() => setMobileActionsOpen(false)}>
                     <AppBar position="sticky" elevation={1} sx={{ bgcolor: isDarkMode ? '#1e293b' : 'background.paper', color: isDarkMode ? '#f1f5f9' : 'text.primary', borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e0e0e0' }}>
                       <Toolbar>
                         <IconButton edge="start" color="inherit" onClick={() => setMobileActionsOpen(false)} aria-label="close">
@@ -3470,46 +3475,147 @@ export default function InboundPage() {
 
                     <DialogContent sx={{ p: 2, bgcolor: isDarkMode ? '#0f172a' : 'background.default' }}>
                       <Stack spacing={2}>
-                        <Box display="flex" gap={1} flexDirection="column">
-                          <FormControl size="small">
-                            <InputLabel>Brand</InputLabel>
-                            <Select value={brandFilter} onChange={(e) => { setBrandFilter(e.target.value); setPage(1); }} fullWidth>
-                              <MenuItem value="">All</MenuItem>
+                        {/* Filters */}
+                        <Box>
+                          <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1, color: isDarkMode ? '#94a3b8' : '#6b7280' }}>
+                            📊 Filters
+                          </Typography>
+
+                          <Stack spacing={1.5}>
+                            <TextField
+                              select
+                              size="small"
+                              label="Brand"
+                              value={brandFilter}
+                              onChange={(e) => { setBrandFilter(e.target.value); setPage(1); }}
+                              fullWidth
+                              sx={{ '& .MuiOutlinedInput-root': { height: 40 } }}
+                            >
+                              <MenuItem value="">All Brands</MenuItem>
                               {(categoryFilter ? filteredBrands : brands).map((b) => (
                                 <MenuItem key={b} value={b}>{b}</MenuItem>
                               ))}
-                            </Select>
-                          </FormControl>
+                            </TextField>
 
-                          <FormControl size="small">
-                            <InputLabel>Category</InputLabel>
-                            <Select value={categoryFilter} onChange={(e) => { setCategoryFilter(e.target.value); setPage(1); }} fullWidth>
-                              <MenuItem value="">All</MenuItem>
+                            <TextField
+                              select
+                              size="small"
+                              label="Category"
+                              value={categoryFilter}
+                              onChange={(e) => { setCategoryFilter(e.target.value); setPage(1); }}
+                              fullWidth
+                              sx={{ '& .MuiOutlinedInput-root': { height: 40 } }}
+                            >
+                              <MenuItem value="">All Categories</MenuItem>
                               {(brandFilter ? filteredCategories : categories).map((c) => (
                                 <MenuItem key={c} value={c}>{c}</MenuItem>
                               ))}
-                            </Select>
-                          </FormControl>
+                            </TextField>
 
-                          <Box display="flex" gap={1} alignItems="center">
-                            <TextField label="From Date" type="date" size="small" InputLabelProps={{ shrink: true }} value={dateFromFilter} onChange={(e) => setDateFromFilter(e.target.value)} sx={{ flex: 1 }} />
-                            <TextField label="To Date" type="date" size="small" InputLabelProps={{ shrink: true }} value={dateToFilter} onChange={(e) => setDateToFilter(e.target.value)} sx={{ flex: 1 }} />
+                            <Box display="flex" gap={1}>
+                              <TextField
+                                label="From Date"
+                                type="date"
+                                size="small"
+                                InputLabelProps={{ shrink: true }}
+                                value={dateFromFilter}
+                                onChange={(e) => setDateFromFilter(e.target.value)}
+                                sx={{ flex: 1, '& .MuiOutlinedInput-root': { height: 40 } }}
+                              />
+                              <TextField
+                                label="To Date"
+                                type="date"
+                                size="small"
+                                InputLabelProps={{ shrink: true }}
+                                value={dateToFilter}
+                                onChange={(e) => setDateToFilter(e.target.value)}
+                                sx={{ flex: 1, '& .MuiOutlinedInput-root': { height: 40 } }}
+                              />
+                            </Box>
+                          </Stack>
+                        </Box>
+
+                        {/* Action Buttons */}
+                        <Box>
+                          <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1, color: isDarkMode ? '#94a3b8' : '#6b7280' }}>
+                            ⚡ Actions
+                          </Typography>
+
+                          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 1 }}>
+                            <Button
+                              variant="outlined"
+                              startIcon={<FilterListIcon />}
+                              onClick={() => { setSearchInput(''); setBrandFilter(''); setCategoryFilter(''); setDateFromFilter(''); setDateToFilter(''); setPage(1); }}
+                              sx={{ height: 44, fontSize: '0.85rem' }}
+                            >
+                              Clear
+                            </Button>
+
+                            <Button
+                              variant="outlined"
+                              startIcon={<SettingsIcon />}
+                              onClick={() => { setListColumnSettingsOpen(true); setMobileActionsOpen(false); }}
+                              sx={{ height: 44, fontSize: '0.85rem' }}
+                            >
+                              Columns
+                            </Button>
+
+                            <Button
+                              variant="outlined"
+                              startIcon={<SettingsIcon />}
+                              onClick={() => { setGridSettingsOpen(true); setMobileActionsOpen(false); }}
+                              sx={{ height: 44, fontSize: '0.85rem' }}
+                            >
+                              Grid
+                            </Button>
+
+                            <Button
+                              variant="outlined"
+                              startIcon={<DownloadIcon />}
+                              onClick={() => { setExportDialogOpen(true); setMobileActionsOpen(false); }}
+                              sx={{ height: 44, fontSize: '0.85rem' }}
+                            >
+                              Export
+                            </Button>
+
+                            <Button
+                              variant="outlined"
+                              startIcon={refreshing ? <CircularProgress size={14} /> : <RefreshIcon />}
+                              onClick={() => loadInboundList({ buttonRefresh: true })}
+                              disabled={refreshing}
+                              sx={{ height: 44, fontSize: '0.85rem', gridColumn: 'span 2' }}
+                            >
+                              {refreshing ? 'Refreshing...' : 'Refresh'}
+                            </Button>
                           </Box>
-
-                          <Box sx={{ display: 'grid', gap: 1, mt: 1, gridTemplateColumns: 'repeat(2, 1fr)' }}>
-                            <Button variant="outlined" onClick={() => { setSearchInput(''); setBrandFilter(''); setCategoryFilter(''); setDateFromFilter(''); setDateToFilter(''); setPage(1); }}>Reset</Button>
-                            <Button variant="outlined" onClick={() => { setListColumnSettingsOpen(true); }} disabled={!true}>Columns</Button>
-                            <Button variant="outlined" onClick={() => { setGridSettingsOpen(true); }}>Grid</Button>
-                            <Button variant="outlined" onClick={() => { setExportDialogOpen(true); }}>Export</Button>
-                          </Box>
-
                         </Box>
                       </Stack>
                     </DialogContent>
 
-                    <Box sx={{ position: 'sticky', bottom: 0, left: 0, right: 0, bgcolor: isDarkMode ? '#1e293b' : 'background.paper', p: 1, borderTop: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e0e0e0', display: 'flex', gap: 1 }}>
-                      <Button fullWidth variant="outlined" onClick={() => { setSearchInput(''); setBrandFilter(''); setCategoryFilter(''); setDateFromFilter(''); setDateToFilter(''); }}>Reset</Button>
-                      <Button fullWidth variant="contained" onClick={() => { setPage(1); setMobileActionsOpen(false); }}>Apply</Button>
+                    <Box sx={{ position: 'sticky', bottom: 0, left: 0, right: 0, bgcolor: isDarkMode ? '#1e293b' : 'background.paper', p: 2, borderTop: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e0e0e0', display: 'flex', gap: 1 }}>
+                      <Button
+                        fullWidth
+                        variant="outlined"
+                        onClick={() => {
+                          setSearchInput('');
+                          setBrandFilter('');
+                          setCategoryFilter('');
+                          setDateFromFilter('');
+                          setDateToFilter('');
+                          setPage(1);
+                        }}
+                        sx={{ height: 48 }}
+                      >
+                        Reset Filters
+                      </Button>
+                      <Button
+                        fullWidth
+                        variant="contained"
+                        onClick={() => { setPage(1); setMobileActionsOpen(false); }}
+                        sx={{ height: 48 }}
+                      >
+                        Apply
+                      </Button>
                     </Box>
                   </Dialog>
 
