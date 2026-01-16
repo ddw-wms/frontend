@@ -7,7 +7,7 @@
 
 // Authentication & Authorization
 export { useAuthGuard } from './useAuthGuard';
-export { usePermission } from './usePermission';
+export { useResourcePermissions } from './usePermission';
 export { usePermissionGuard } from './usePermissionGuard';
 export {
     usePagePermissions,
@@ -16,11 +16,11 @@ export {
     useQCPermissions,
     usePickingPermissions,
     useOutboundPermissions,
-    useSettingsPermissions,
-    useReportsPermissions,
-    useBackupsPermissions,
+    useCustomersPermissions,
+    useMasterDataPermissions,
+    useWarehousesPermissions,
+    useRacksPermissions,
     useUsersPermissions,
-    usePermissionsPermissions,
 } from './usePagePermissions';
 
 // UI & State Management
