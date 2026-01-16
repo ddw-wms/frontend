@@ -186,7 +186,7 @@ export default function RacksPage() {
     );
   }
 
-  const doDownloadTemplate = () => {
+  const doDownloadTemplate = async () => {
     const template = [
       {
         RACK_NAME: 'A-01',
