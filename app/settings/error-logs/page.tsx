@@ -118,7 +118,7 @@ export default function ErrorLogsPage() {
         try {
             setActionLoading(true);
             const res = await errorLogsAPI.cleanup(days);
-            toast.success(`Deleted ${res.data.deletedCount || 0} logs older than ${days} days`);
+            toast.success(`Deleted ${res.data.deleted || 0} logs older than ${days} days`);
             setCleanupDialogOpen(false);
             fetchLogs();
         } catch (err) {
