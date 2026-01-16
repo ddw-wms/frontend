@@ -3853,14 +3853,13 @@ export default function InboundPage() {
                   position: 'sticky',
                   bottom: 0,
                   zIndex: 10,
-                  backdropFilter: 'blur(8px)',
-                  backgroundColor: isDarkMode ? 'rgba(30, 41, 59, 0.95)' : 'rgba(255, 255, 255, 0.95)'
+                  backgroundColor: isDarkMode ? '#1e293b' : 'white'
                 }}>
                   <Typography
                     variant="body2"
                     sx={{
                       fontWeight: 700,
-                      color: '#475569',
+                      color: isDarkMode ? '#e2e8f0' : '#475569',
                       fontSize: { xs: '0.65rem', sm: '0.72rem' },
                       display: { xs: 'none', sm: 'block' }
                     }}
@@ -3872,7 +3871,7 @@ export default function InboundPage() {
                     variant="body2"
                     sx={{
                       fontWeight: 700,
-                      color: '#475569',
+                      color: isDarkMode ? '#e2e8f0' : '#475569',
                       fontSize: '0.65rem',
                       display: { xs: 'block', sm: 'none' }
                     }}
@@ -3885,7 +3884,41 @@ export default function InboundPage() {
                       <Select
                         value={limit}
                         onChange={(e) => { setLimit(Number(e.target.value)); setPage(1); }}
-                        sx={{ height: 34, fontSize: '0.75rem' }}
+                        sx={{
+                          height: 34,
+                          fontSize: '0.75rem',
+                          color: isDarkMode ? '#e2e8f0' : 'inherit',
+                          backgroundColor: isDarkMode ? '#334155' : 'transparent',
+                          '& .MuiOutlinedInput-notchedOutline': {
+                            borderColor: isDarkMode ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.23)'
+                          },
+                          '&:hover .MuiOutlinedInput-notchedOutline': {
+                            borderColor: isDarkMode ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.87)'
+                          },
+                          '& .MuiSvgIcon-root': {
+                            color: isDarkMode ? '#e2e8f0' : 'inherit'
+                          }
+                        }}
+                        MenuProps={{
+                          disableScrollLock: true,
+                          PaperProps: {
+                            sx: {
+                              bgcolor: isDarkMode ? '#334155' : 'white',
+                              color: isDarkMode ? '#e2e8f0' : 'inherit',
+                              '& .MuiMenuItem-root': {
+                                '&:hover': {
+                                  bgcolor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.04)'
+                                },
+                                '&.Mui-selected': {
+                                  bgcolor: isDarkMode ? 'rgba(59, 130, 246, 0.3)' : 'rgba(25, 118, 210, 0.08)',
+                                  '&:hover': {
+                                    bgcolor: isDarkMode ? 'rgba(59, 130, 246, 0.4)' : 'rgba(25, 118, 210, 0.12)'
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }}
                       >
                         <MenuItem value={50}>50 / page</MenuItem>
                         <MenuItem value={100}>100 / page</MenuItem>
@@ -3905,17 +3938,17 @@ export default function InboundPage() {
                         minWidth: { xs: 40, sm: 65 },
                         height: { xs: 26, sm: 30 },
                         borderWidth: 2,
-                        borderColor: '#1e40af',
-                        color: '#1e40af',
+                        borderColor: isDarkMode ? '#3b82f6' : '#1e40af',
+                        color: isDarkMode ? '#93c5fd' : '#1e40af',
                         px: { xs: 0.25, sm: 1 },
                         '&:hover': {
                           borderWidth: 2,
-                          bgcolor: 'rgba(30, 64, 175, 0.1)'
+                          bgcolor: isDarkMode ? 'rgba(59, 130, 246, 0.2)' : 'rgba(30, 64, 175, 0.1)'
                         },
                         '&.Mui-disabled': {
                           borderWidth: 2,
-                          borderColor: '#e2e8f0',
-                          color: '#cbd5e1'
+                          borderColor: isDarkMode ? '#475569' : '#e2e8f0',
+                          color: isDarkMode ? '#64748b' : '#cbd5e1'
                         }
                       }}
                     >
@@ -3925,15 +3958,17 @@ export default function InboundPage() {
                     <Box sx={{
                       px: { xs: 1, sm: 1.5 },
                       py: { xs: 0.25, sm: 0.4 },
-                      border: '2px solid #1e40af',
+                      border: isDarkMode ? '2px solid #3b82f6' : '2px solid #1e40af',
                       borderRadius: 1,
-                      background: 'linear-gradient(135deg, rgba(30, 64, 175, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%)',
+                      background: isDarkMode
+                        ? 'linear-gradient(135deg, rgba(59, 130, 246, 0.2) 0%, rgba(139, 92, 246, 0.2) 100%)'
+                        : 'linear-gradient(135deg, rgba(30, 64, 175, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%)',
                       minWidth: { xs: 50, sm: 60 },
                       textAlign: 'center'
                     }}>
                       <Typography sx={{
                         fontWeight: 800,
-                        color: '#1e40af',
+                        color: isDarkMode ? '#93c5fd' : '#1e40af',
                         fontSize: { xs: '0.68rem', sm: '0.75rem' },
                         lineHeight: 1.1
                       }}>
@@ -3952,17 +3987,17 @@ export default function InboundPage() {
                         minWidth: { xs: 40, sm: 65 },
                         height: { xs: 26, sm: 30 },
                         borderWidth: 2,
-                        borderColor: '#1e40af',
-                        color: '#1e40af',
+                        borderColor: isDarkMode ? '#3b82f6' : '#1e40af',
+                        color: isDarkMode ? '#93c5fd' : '#1e40af',
                         px: { xs: 0.25, sm: 1 },
                         '&:hover': {
                           borderWidth: 2,
-                          bgcolor: 'rgba(30, 64, 175, 0.1)'
+                          bgcolor: isDarkMode ? 'rgba(59, 130, 246, 0.2)' : 'rgba(30, 64, 175, 0.1)'
                         },
                         '&.Mui-disabled': {
                           borderWidth: 2,
-                          borderColor: '#e2e8f0',
-                          color: '#cbd5e1'
+                          borderColor: isDarkMode ? '#475569' : '#e2e8f0',
+                          color: isDarkMode ? '#64748b' : '#cbd5e1'
                         }
                       }}
                     >

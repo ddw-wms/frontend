@@ -21,6 +21,7 @@ import {
   CircularProgress,
   Snackbar,
   Alert,
+  Portal,
 } from '@mui/material';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ExpandLess, ExpandMore, Close as CloseIcon, Label } from '@mui/icons-material';
@@ -600,82 +601,84 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
 
       {/* Flyout disabled on mobile */}
       {flyoutVisible && collapsed && !isMobile && (
-        <Paper
-          onMouseEnter={() => setFlyoutHovered(true)}
-          onMouseLeave={() => setFlyoutHovered(false)}
-          elevation={6}
-          sx={{
-            position: 'fixed',
-            top: 70,
-            left: drawerWidth,
-            width: 220,
-            background: "linear-gradient(180deg, #0f172a 0%, #1e293b 100%)",
-            color: 'white',
-            p: 1.5,
-            borderRadius: 2,
-            zIndex: 2000,
-            boxShadow: '0 10px 40px rgba(0,0,0,0.3)',
-            border: '1px solid rgba(255,255,255,0.08)'
-          }}
-        >
-          <Typography sx={{ px: 1, pb: 1.5, fontSize: 12, fontWeight: 600, opacity: 0.6, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-            Settings
-          </Typography>
+        <Portal>
+          <Paper
+            onMouseEnter={() => setFlyoutHovered(true)}
+            onMouseLeave={() => setFlyoutHovered(false)}
+            elevation={24}
+            sx={{
+              position: 'fixed',
+              top: 70,
+              left: drawerWidth,
+              width: 220,
+              background: "linear-gradient(180deg, #0f172a 0%, #1e293b 100%)",
+              color: 'white',
+              p: 1.5,
+              borderRadius: 2,
+              zIndex: 99999,
+              boxShadow: '0 10px 40px rgba(0,0,0,0.5)',
+              border: '1px solid rgba(255,255,255,0.08)'
+            }}
+          >
+            <Typography sx={{ px: 1, pb: 1.5, fontSize: 12, fontWeight: 600, opacity: 0.6, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              Settings
+            </Typography>
 
-          <List sx={{ py: 0 }}>
-            {settingsMenu.map((item) => {
-              const Icon = item.icon;
-              return (
-                <ListItem key={item.path} disablePadding sx={{ mb: 0.25 }}>
-                  <ListItemButton
-                    onClick={() => navigate(item.path)}
-                    sx={{
-                      borderRadius: 1.5,
-                      color: 'rgba(255,255,255,0.8)',
-                      py: 0.875,
-                      transition: 'all 0.15s ease',
-                      '&:hover': {
-                        bgcolor: 'rgba(255,255,255,0.08)',
-                      },
-                    }}
-                  >
-                    <ListItemIcon sx={{ color: 'inherit', minWidth: 32 }}>
-                      <Icon sx={{ fontSize: 18 }} />
-                    </ListItemIcon>
-                    <ListItemText
-                      primary={item.label}
-                      primaryTypographyProps={{ fontSize: '0.85rem' }}
-                    />
-                  </ListItemButton>
-                </ListItem>
-              );
-            })}
+            <List sx={{ py: 0 }}>
+              {settingsMenu.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <ListItem key={item.path} disablePadding sx={{ mb: 0.25 }}>
+                    <ListItemButton
+                      onClick={() => navigate(item.path)}
+                      sx={{
+                        borderRadius: 1.5,
+                        color: 'rgba(255,255,255,0.8)',
+                        py: 0.875,
+                        transition: 'all 0.15s ease',
+                        '&:hover': {
+                          bgcolor: 'rgba(255,255,255,0.08)',
+                        },
+                      }}
+                    >
+                      <ListItemIcon sx={{ color: 'inherit', minWidth: 32 }}>
+                        <Icon sx={{ fontSize: 18 }} />
+                      </ListItemIcon>
+                      <ListItemText
+                        primary={item.label}
+                        primaryTypographyProps={{ fontSize: '0.85rem' }}
+                      />
+                    </ListItemButton>
+                  </ListItem>
+                );
+              })}
 
-            {/* Logout Button */}
-            <ListItem disablePadding sx={{ mt: 0.5 }}>
-              <ListItemButton
-                onClick={handleLogout}
-                sx={{
-                  borderRadius: 1.5,
-                  color: '#fca5a5',
-                  py: 0.875,
-                  transition: 'all 0.15s ease',
-                  '&:hover': {
-                    bgcolor: 'rgba(239, 68, 68, 0.15)',
-                  }
-                }}
-              >
-                <ListItemIcon sx={{ color: 'inherit', minWidth: 32 }}>
-                  <LogoutIcon sx={{ fontSize: 18 }} />
-                </ListItemIcon>
-                <ListItemText
-                  primary="Logout"
-                  primaryTypographyProps={{ fontSize: '0.85rem' }}
-                />
-              </ListItemButton>
-            </ListItem>
-          </List>
-        </Paper>
+              {/* Logout Button */}
+              <ListItem disablePadding sx={{ mt: 0.5 }}>
+                <ListItemButton
+                  onClick={handleLogout}
+                  sx={{
+                    borderRadius: 1.5,
+                    color: '#fca5a5',
+                    py: 0.875,
+                    transition: 'all 0.15s ease',
+                    '&:hover': {
+                      bgcolor: 'rgba(239, 68, 68, 0.15)',
+                    }
+                  }}
+                >
+                  <ListItemIcon sx={{ color: 'inherit', minWidth: 32 }}>
+                    <LogoutIcon sx={{ fontSize: 18 }} />
+                  </ListItemIcon>
+                  <ListItemText
+                    primary="Logout"
+                    primaryTypographyProps={{ fontSize: '0.85rem' }}
+                  />
+                </ListItemButton>
+              </ListItem>
+            </List>
+          </Paper>
+        </Portal>
       )}
 
 

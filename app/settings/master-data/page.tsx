@@ -9,14 +9,15 @@ import {
   Dialog, DialogTitle, DialogContent, DialogActions, Chip, CircularProgress,
   LinearProgress, IconButton, Tabs, Tab, Menu, MenuItem, Checkbox, ListItemText,
   TextField, FormControl, InputLabel, Select, InputAdornment, Badge, useTheme, useMediaQuery,
-  Collapse, Tooltip, FormControlLabel, Divider, Grid
+  Collapse, Tooltip, FormControlLabel, Divider, Grid, Card, CardContent
 } from '@mui/material';
 import {
   Upload as UploadIcon, Refresh as RefreshIcon, Logout as LogoutIcon,
   GetApp as ExportIcon, Visibility as VisibilityIcon, Cancel as CancelIcon,
   DeleteSweep as DeleteSweepIcon, Download as DownloadIcon, Search as SearchIcon,
   Speed as SpeedIcon, Clear as ClearIcon, CheckCircle, Settings as SettingsIcon,
-  Tune as TuneIcon, Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon
+  Tune as TuneIcon, Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon,
+  ExpandMore as ExpandMoreIcon, Close as CloseIcon
 } from '@mui/icons-material';
 import toast, { Toaster } from 'react-hot-toast';
 import { getStoredUser, logout } from '@/lib/auth';
@@ -304,6 +305,7 @@ export default function MasterDataPage() {
   const [filterCategory, setFilterCategory] = useState('');
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [mobileActionsOpen, setMobileActionsOpen] = useState(false);
+  const [filtersExpanded, setFiltersExpanded] = useState(false);
 
   // ✅ NEW: Brands and categories loaded from API (database)
   const [brandOptions, setBrandOptions] = useState<string[]>([]);
@@ -1454,465 +1456,395 @@ export default function MasterDataPage() {
 
                 {/* Tab 1: Master Data List */}
                 {actualTabIndex === 0 && (
-                  <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
-                    {/* Quick Search + Action Buttons Row */}
-                    <Paper elevation={0} sx={{ p: { xs: 0.5, sm: 0.75 }, borderBottom: '2px solid #e0e0e0', bgcolor: '#fafafa' }}>
-                      {/* DESKTOP LAYOUT - Responsive 2 Rows */}
-                      <Box sx={{ display: { xs: 'none', md: 'block' } }}>
-                        {/* Row 1: Search + Filters + Actions */}
-                        <Box sx={{
-                          display: 'flex',
-                          gap: 0.75,
-                          alignItems: 'center',
-                          flexWrap: 'nowrap'
-                        }}>
-                          {/* Search Field with Keyboard Shortcut */}
-                          <Tooltip title="Press Ctrl+K to focus (Esc to clear)" arrow>
-                            <TextField
-                              size="small"
-                              placeholder="🔍 Search (Ctrl+K)"
-                              value={searchQuery}
-                              onChange={(e) => setSearchQuery(e.target.value)}
-                              inputRef={searchInputRef}
-                              sx={{
-                                minWidth: 150,
-                                '& .MuiInputBase-root': { height: 34 },
-                                '& .MuiOutlinedInput-root': {
-                                  borderRadius: 0.5,
-                                  fontSize: '0.8rem',
-                                  '&:hover fieldset': { borderColor: '#1e40af' },
-                                  '&.Mui-focused fieldset': { borderColor: '#1e40af', borderWidth: 2 }
-                                }
-                              }}
-                            />
-                          </Tooltip>
-
-                          {/* Batch ID Filter */}
-                          <FormControl size="small" sx={{ minWidth: 110 }}>
-                            <InputLabel sx={{ fontSize: '0.8rem' }}>Batch ID</InputLabel>
-                            <Select
-                              value={filterBatchId}
-                              label="Batch ID"
-                              onChange={(e) => { setFilterBatchId(e.target.value); setPage(0); }}
-                              sx={{ height: 34, fontSize: '0.8rem' }}
-                            >
-                              <MenuItem value="">All</MenuItem>
-                              {batches.map(b => (
-                                <MenuItem key={b.batch_id} value={b.batch_id}>{b.batch_id} ({formatNumber(b.count)})</MenuItem>
-                              ))}
-                            </Select>
-                          </FormControl>
-
-                          {/* Brand Filter */}
-                          <FormControl size="small" sx={{ minWidth: 90 }}>
-                            <InputLabel sx={{ fontSize: '0.8rem' }}>Brand</InputLabel>
-                            <Select
-                              value={filterBrand}
-                              label="Brand"
-                              onChange={(e) => { setFilterBrand(e.target.value); setPage(0); }}
-                              sx={{ height: 34, fontSize: '0.8rem' }}
-                            >
-                              <MenuItem value="">All</MenuItem>
-                              {brandOptions.map(brand => (
-                                <MenuItem key={brand} value={brand}>{brand}</MenuItem>
-                              ))}
-                            </Select>
-                          </FormControl>
-
-                          {/* Category Filter */}
-                          <FormControl size="small" sx={{ minWidth: 95 }}>
-                            <InputLabel sx={{ fontSize: '0.8rem' }}>Category</InputLabel>
-                            <Select
-                              value={filterCategory}
-                              label="Category"
-                              onChange={(e) => { setFilterCategory(e.target.value); setPage(0); }}
-                              sx={{ height: 34, fontSize: '0.8rem' }}
-                            >
-                              <MenuItem value="">All</MenuItem>
-                              {categoryOptions.map(category => (
-                                <MenuItem key={category} value={category}>{category}</MenuItem>
-                              ))}
-                            </Select>
-                          </FormControl>
-
-                          {/* Add Product Button */}
-                          <Button
-                            variant="contained"
-                            size="small"
-                            startIcon={<AddIcon sx={{ fontSize: 16 }} />}
-                            onClick={handleOpenAddDialog}
-                            sx={{
-                              height: 34,
-                              fontSize: '0.75rem',
-                              px: 1.25,
-                              background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                              '&:hover': { boxShadow: 2, background: 'linear-gradient(135deg, #059669 0%, #047857 100%)' },
-                              whiteSpace: 'nowrap'
-                            }}
-                          >
-                            + Add
-                          </Button>
-
-                          {/* Upload Button */}
-                          {canSeeButton('upload') && (
-                            <Button
-                              variant="contained"
-                              size="small"
-                              startIcon={<UploadIcon sx={{ fontSize: 16 }} />}
-                              onClick={() => setUploadDialogOpen(true)}
-                              sx={{
-                                height: 34,
-                                fontSize: '0.75rem',
-                                px: 1.25,
-                                background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
-                                '&:hover': { boxShadow: 2 },
-                                whiteSpace: 'nowrap'
-                              }}
-                            >
-                              Upload
-                            </Button>
-                          )}
-
-                          {/* Template Button */}
-                          <Button
-                            variant="outlined"
-                            size="small"
-                            startIcon={<DownloadIcon sx={{ fontSize: 16 }} />}
-                            onClick={handleDownloadTemplate}
-                            sx={{ height: 34, fontSize: '0.75rem', px: 1, whiteSpace: 'nowrap' }}
-                          >
-                            Template
-                          </Button>
-
-                          {/* Export Button */}
-                          {canSeeButton('export') && (
-                            <Button
-                              variant="outlined"
-                              size="small"
-                              startIcon={<ExportIcon sx={{ fontSize: 16 }} />}
-                              onClick={() => setExportDialogOpen(true)}
-                              sx={{ height: 34, fontSize: '0.75rem', px: 1, whiteSpace: 'nowrap' }}
-                            >
-                              Export
-                            </Button>
-                          )}
-
-                          {/* Refresh Button - pushed to right */}
-                          <Button
-                            variant="outlined"
-                            size="small"
-                            startIcon={refreshing ? <CircularProgress size={14} /> : refreshSuccess ? <CheckCircle sx={{ color: '#10b981', fontSize: 16 }} /> : <RefreshIcon sx={{ fontSize: 16 }} />}
-                            onClick={() => loadMasterData({ buttonRefresh: true })}
-                            disabled={refreshing || loading}
-                            sx={{ height: 34, fontSize: '0.75rem', px: 1, whiteSpace: 'nowrap', ml: 'auto' }}
-                          >
-                            Refresh
-                          </Button>
-                        </Box>
-
-                        {/* Row 2: Column/Grid controls */}
-                        <Box sx={{
-                          display: 'flex',
-                          gap: 0.75,
-                          mt: 0.75,
-                          alignItems: 'center'
-                        }}>
-                          {/* Columns Button */}
-                          {canSeeButton('columns') && (
-                            <Button
-                              variant="outlined"
-                              size="small"
-                              startIcon={<VisibilityIcon sx={{ fontSize: 16 }} />}
-                              onClick={(e) => setColumnMenuAnchor(e.currentTarget)}
-                              sx={{ height: 32, fontSize: '0.7rem', px: 1, whiteSpace: 'nowrap' }}
-                            >
-                              Columns
-                            </Button>
-                          )}
-
-                          {/* Grid Settings Button */}
-                          <Button
-                            variant="outlined"
-                            size="small"
-                            startIcon={<TuneIcon sx={{ fontSize: 16 }} />}
-                            onClick={() => setGridSettingsOpen(true)}
-                            sx={{ height: 32, fontSize: '0.7rem', px: 1, whiteSpace: 'nowrap' }}
-                          >
-                            Grid
-                          </Button>
-
-                          {/* Reset Button */}
-                          <Button
-                            variant="outlined"
-                            size="small"
-                            startIcon={<ClearIcon sx={{ fontSize: 16 }} />}
-                            onClick={resetFilters}
-                            sx={{
-                              height: 32,
-                              fontSize: '0.7rem',
-                              px: 1,
-                              color: '#d32f2f',
-                              borderColor: '#d32f2f',
-                              '&:hover': { borderColor: '#b71c1c', bgcolor: '#ffebee' },
-                              whiteSpace: 'nowrap'
-                            }}
-                          >
-                            Reset
-                          </Button>
-                        </Box>
-                      </Box>
-
-                      {/* MOBILE LAYOUT */}
-                      <Box sx={{ display: { xs: 'block', md: 'none' } }}>
-                        <Stack direction="row" spacing={0.5} alignItems="center" sx={{ gap: 0.5 }}>
-                          {/* Search Field */}
-                          <TextField
-                            size="small"
-                            placeholder="🔍 Search..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            sx={{
-                              flex: 1,
-                              minWidth: 0,
-                              '& .MuiInputBase-root': { height: 36 },
-                              '& .MuiOutlinedInput-root': {
-                                borderRadius: 0.5,
-                                fontSize: '0.8rem',
-                                '&:hover fieldset': { borderColor: '#1e40af' }
+                  <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', p: { xs: 0.25, sm: 0.5 } }}>
+                    {/* SEARCH BAR + FILTERS TOGGLE */}
+                    <Box sx={{ flexShrink: 0, mb: 1, position: 'relative', zIndex: 95 }}>
+                      <Stack direction="row" spacing={1} alignItems="stretch" sx={{ mb: 1 }}>
+                        {/* Search Field */}
+                        <TextField
+                          fullWidth
+                          size="small"
+                          placeholder="🔍 Search by WSN, Product Title, or any field..."
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          inputRef={searchInputRef}
+                          sx={{
+                            flex: 1,
+                            '& .MuiOutlinedInput-root': {
+                              bgcolor: isDarkMode ? '#1e293b' : 'white',
+                              borderRadius: 1.5,
+                              height: 38,
+                              fontSize: { xs: '0.8rem', sm: '0.875rem' },
+                              fontWeight: 500,
+                              border: isDarkMode ? '2px solid rgba(255,255,255,0.15)' : '2px solid #e2e8f0',
+                              boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+                              '&:hover': {
+                                borderColor: isDarkMode ? 'rgba(255,255,255,0.25)' : '#cbd5e1',
+                                boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                              },
+                              '&.Mui-focused': {
+                                borderColor: '#1e40af',
+                                boxShadow: '0 4px 16px rgba(30, 64, 175, 0.2)'
+                              },
+                              '& fieldset': { border: 'none' },
+                              '& input': {
+                                py: 0.75,
+                                color: isDarkMode ? '#f1f5f9' : 'inherit'
                               }
-                            }}
-                            InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" sx={{ color: '#1e40af' }} /></InputAdornment> }}
-                          />
+                            }
+                          }}
+                        />
 
-                          {/* Mobile Actions Button */}
-                          <Button
-                            variant="contained"
-                            color="primary"
-                            startIcon={<TuneIcon />}
-                            sx={{
-                              height: 36,
-                              px: 2,
-                              textTransform: 'none',
-                              whiteSpace: 'nowrap'
-                            }}
-                            onClick={() => setMobileActionsOpen(true)}
-                          >
-                            Actions
-                          </Button>
+                        {/* Mobile Actions button */}
+                        <Button
+                          variant="contained"
+                          color="primary"
+                          startIcon={<TuneIcon />}
+                          sx={{
+                            display: { xs: 'inline-flex', md: 'none' },
+                            height: 40,
+                            px: 2,
+                            textTransform: 'none',
+                            flexShrink: 0,
+                            fontSize: '0.85rem',
+                            fontWeight: 600
+                          }}
+                          onClick={() => setMobileActionsOpen(true)}
+                        >
+                          Actions
+                        </Button>
 
-                          {/* Refresh Button */}
-                          <Button
-                            variant="outlined"
-                            size="small"
-                            onClick={() => loadMasterData({ buttonRefresh: true })}
-                            disabled={refreshing || loading}
-                            sx={{
-                              height: 36,
-                              minWidth: 36,
-                              px: 0.5,
-                              whiteSpace: 'nowrap'
-                            }}
-                          >
-                            {refreshing ? <CircularProgress size={16} /> : refreshSuccess ? <CheckCircle sx={{ color: '#10b981' }} fontSize="small" /> : <RefreshIcon fontSize="small" />}
-                          </Button>
-                        </Stack>
-                      </Box>
-                    </Paper>
+                        {/* Show Filters Toggle Button - Desktop */}
+                        <Button
+                          variant="outlined"
+                          onClick={() => setFiltersExpanded(!filtersExpanded)}
+                          sx={{
+                            display: { xs: 'none', md: 'inline-flex' },
+                            minWidth: 130,
+                            height: 38,
+                            borderWidth: 2,
+                            borderColor: filtersExpanded ? '#1e40af' : (isDarkMode ? 'rgba(255,255,255,0.2)' : '#cbd5e1'),
+                            bgcolor: filtersExpanded ? 'rgba(30, 64, 175, 0.1)' : (isDarkMode ? '#0f172a' : 'white'),
+                            color: filtersExpanded ? '#1e40af' : (isDarkMode ? '#94a3b8' : '#64748b'),
+                            fontWeight: 700,
+                            fontSize: '0.78rem',
+                            borderRadius: 1.5,
+                            boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+                            transition: 'all 0.2s',
+                            px: 1.5,
+                            '&:hover': {
+                              borderWidth: 2,
+                              borderColor: '#1e40af',
+                              bgcolor: 'rgba(30, 64, 175, 0.15)',
+                              boxShadow: '0 4px 12px rgba(30, 64, 175, 0.2)'
+                            },
+                            position: 'relative'
+                          }}
+                        >
+                          <FilterListIcon sx={{ fontSize: '1.15rem', mr: 0.5 }} />
+                          <Box component="span" sx={{ mr: 0.5 }}>
+                            {filtersExpanded ? "Hide Filters" : "Show Filters"}
+                          </Box>
+                          {(filterBatchId || filterBrand || filterCategory) && (
+                            <Box sx={{
+                              position: 'absolute',
+                              top: -5,
+                              right: -5,
+                              width: 14,
+                              height: 14,
+                              borderRadius: '50%',
+                              bgcolor: '#10b981',
+                              border: '2px solid white'
+                            }} />
+                          )}
+                          <ExpandMoreIcon sx={{ transform: filtersExpanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 200ms" }} />
+                        </Button>
+                      </Stack>
 
-                    {/* Advanced Filters - Mobile Only Collapsible (Unchanged) */}
-                    <Collapse in={showAdvancedFilters} timeout="auto">
-                      <Paper elevation={0} sx={{ p: 0.5, borderBottom: '1px solid #e0e0e0', bgcolor: '#f9f9f9', display: { xs: 'block', md: 'none' } }}>
-                        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 0.5 }}>
-                          {/* Row 1: Batch ID, Status, Brand */}
-                          <FormControl size="small" fullWidth>
-                            <InputLabel sx={{ fontSize: '0.7rem' }}>Batch ID</InputLabel>
-                            <Select
-                              value={filterBatchId}
-                              label="Batch ID"
-                              onChange={(e) => { setFilterBatchId(e.target.value); setPage(0); }}
-                              sx={{ height: 36, fontSize: '0.7rem' }}
-                            >
-                              <MenuItem value="">All</MenuItem>
-                              {batches.map(b => (
-                                <MenuItem key={b.batch_id} value={b.batch_id}>{b.batch_id} ({formatNumber(b.count)})</MenuItem>
-                              ))}
-                            </Select>
-                          </FormControl>
+                      {/* Collapsible Filter Card */}
+                      <Collapse in={filtersExpanded} timeout="auto">
+                        <Card sx={{
+                          borderRadius: 1.5,
+                          boxShadow: isDarkMode ? '0 4px 20px rgba(0,0,0,0.4)' : '0 4px 20px rgba(0,0,0,0.15)',
+                          background: isDarkMode ? 'linear-gradient(135deg, #1e293b 0%, #334155 100%)' : 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
+                          border: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e2e8f0',
+                          position: 'relative',
+                          zIndex: 95
+                        }}>
+                          <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+                            <Stack spacing={1.5}>
+                              {/* ROW 1: Filters */}
+                              <Box sx={{
+                                display: 'grid',
+                                gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)' },
+                                gap: 1
+                              }}>
+                                {/* Batch ID Filter */}
+                                <FormControl size="small">
+                                  <InputLabel sx={{ fontSize: '0.75rem' }}>Batch ID</InputLabel>
+                                  <Select
+                                    value={filterBatchId}
+                                    label="Batch ID"
+                                    onChange={(e) => { setFilterBatchId(e.target.value); setPage(0); }}
+                                    sx={{
+                                      height: 36,
+                                      fontSize: '0.8rem',
+                                      bgcolor: isDarkMode ? '#1e293b' : 'white',
+                                      '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#1e40af' },
+                                      '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#1e40af' }
+                                    }}
+                                  >
+                                    <MenuItem value="">All Batches</MenuItem>
+                                    {batches.map(b => (
+                                      <MenuItem key={b.batch_id} value={b.batch_id} sx={{ fontSize: '0.8rem' }}>{b.batch_id} ({formatNumber(b.count)})</MenuItem>
+                                    ))}
+                                  </Select>
+                                </FormControl>
 
-                          <FormControl size="small" fullWidth>
-                            <InputLabel sx={{ fontSize: '0.7rem' }}>Status</InputLabel>
-                            <Select
-                              value={filterStatus}
-                              label="Status"
-                              onChange={(e) => { setFilterStatus(e.target.value); setPage(0); }}
-                              sx={{ height: 36, fontSize: '0.7rem' }}
-                            >
-                              <MenuItem value="All">All</MenuItem>
-                              <MenuItem value="Received">✅ Received</MenuItem>
-                              <MenuItem value="Pending">❌ Pending</MenuItem>
-                            </Select>
-                          </FormControl>
+                                {/* Brand Filter */}
+                                <FormControl size="small">
+                                  <InputLabel sx={{ fontSize: '0.75rem' }}>Brand</InputLabel>
+                                  <Select
+                                    value={filterBrand}
+                                    label="Brand"
+                                    onChange={(e) => { setFilterBrand(e.target.value); setPage(0); }}
+                                    sx={{
+                                      height: 36,
+                                      fontSize: '0.8rem',
+                                      bgcolor: isDarkMode ? '#1e293b' : 'white',
+                                      '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#1e40af' },
+                                      '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#1e40af' }
+                                    }}
+                                  >
+                                    <MenuItem value="">All Brands</MenuItem>
+                                    {brandOptions.map(brand => (
+                                      <MenuItem key={brand} value={brand} sx={{ fontSize: '0.8rem' }}>{brand}</MenuItem>
+                                    ))}
+                                  </Select>
+                                </FormControl>
 
-                          <FormControl size="small" fullWidth>
-                            <InputLabel sx={{ fontSize: '0.7rem' }}>Brand</InputLabel>
-                            <Select
-                              value={filterBrand}
-                              label="Brand"
-                              onChange={(e) => { setFilterBrand(e.target.value); setPage(0); }}
-                              sx={{ height: 36, fontSize: '0.7rem' }}
-                            >
-                              <MenuItem value="">All</MenuItem>
-                              {brandOptions.map(brand => (
-                                <MenuItem key={brand} value={brand}>{brand}</MenuItem>
-                              ))}
-                            </Select>
-                          </FormControl>
+                                {/* Category Filter */}
+                                <FormControl size="small">
+                                  <InputLabel sx={{ fontSize: '0.75rem' }}>Category</InputLabel>
+                                  <Select
+                                    value={filterCategory}
+                                    label="Category"
+                                    onChange={(e) => { setFilterCategory(e.target.value); setPage(0); }}
+                                    sx={{
+                                      height: 36,
+                                      fontSize: '0.8rem',
+                                      bgcolor: isDarkMode ? '#1e293b' : 'white',
+                                      '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#1e40af' },
+                                      '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#1e40af' }
+                                    }}
+                                  >
+                                    <MenuItem value="">All Categories</MenuItem>
+                                    {categoryOptions.map(category => (
+                                      <MenuItem key={category} value={category} sx={{ fontSize: '0.8rem' }}>{category}</MenuItem>
+                                    ))}
+                                  </Select>
+                                </FormControl>
+                              </Box>
 
-                          {/* Row 2: Category, Upload, Export */}
-                          <FormControl size="small" fullWidth>
-                            <InputLabel sx={{ fontSize: '0.7rem' }}>Category</InputLabel>
-                            <Select
-                              value={filterCategory}
-                              label="Category"
-                              onChange={(e) => { setFilterCategory(e.target.value); setPage(0); }}
-                              sx={{ height: 36, fontSize: '0.7rem' }}
-                            >
-                              <MenuItem value="">All</MenuItem>
-                              {categoryOptions.map(category => (
-                                <MenuItem key={category} value={category}>{category}</MenuItem>
-                              ))}
-                            </Select>
-                          </FormControl>
+                              {/* ROW 2: Action Buttons */}
+                              <Box sx={{
+                                display: 'grid',
+                                gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(4, 1fr)', md: 'repeat(8, 1fr)' },
+                                gap: 1
+                              }}>
+                                {/* Reset Button */}
+                                <Button
+                                  fullWidth
+                                  size="small"
+                                  variant="outlined"
+                                  onClick={resetFilters}
+                                  sx={{
+                                    height: 34,
+                                    fontSize: '0.72rem',
+                                    fontWeight: 700,
+                                    borderWidth: 2,
+                                    borderColor: isDarkMode ? '#64748b' : '#94a3b8',
+                                    color: isDarkMode ? '#94a3b8' : '#64748b',
+                                    '&:hover': {
+                                      borderWidth: 2,
+                                      borderColor: isDarkMode ? '#94a3b8' : '#64748b',
+                                      bgcolor: isDarkMode ? 'rgba(255,255,255,0.05)' : '#f8fafc'
+                                    }
+                                  }}
+                                >
+                                  🔄 RESET
+                                </Button>
 
-                          <Button
-                            variant="contained"
-                            size="small"
-                            onClick={() => setUploadDialogOpen(true)}
-                            sx={{
-                              height: 36,
-                              fontSize: '0.65rem',
-                              px: 0.5,
-                              background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
-                              display: 'flex',
-                              flexDirection: 'column',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              lineHeight: 1,
-                              minWidth: 0
-                            }}
-                          >
-                            <UploadIcon sx={{ fontSize: 16 }} />
-                            <Box sx={{ fontSize: '0.55rem', fontWeight: 600, mt: 0.1 }}>Upload</Box>
-                          </Button>
+                                {/* Columns Button */}
+                                {canSeeButton('columns') && (
+                                  <Button
+                                    fullWidth
+                                    size="small"
+                                    startIcon={<VisibilityIcon sx={{ fontSize: '0.9rem' }} />}
+                                    variant="outlined"
+                                    onClick={(e) => setColumnMenuAnchor(e.currentTarget)}
+                                    sx={{
+                                      height: 34,
+                                      fontSize: '0.72rem',
+                                      fontWeight: 700,
+                                      borderWidth: 2,
+                                      borderColor: '#1e40af',
+                                      color: '#1e40af',
+                                      '&:hover': {
+                                        borderWidth: 2,
+                                        bgcolor: 'rgba(30, 64, 175, 0.1)'
+                                      }
+                                    }}
+                                  >
+                                    COLUMNS
+                                  </Button>
+                                )}
 
-                          <Button
-                            variant="outlined"
-                            size="small"
-                            onClick={() => setExportDialogOpen(true)}
-                            sx={{
-                              height: 36,
-                              fontSize: '0.65rem',
-                              px: 0.5,
-                              display: 'flex',
-                              flexDirection: 'column',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              lineHeight: 1,
-                              minWidth: 0
-                            }}
-                          >
-                            <ExportIcon sx={{ fontSize: 16 }} />
-                            <Box sx={{ fontSize: '0.55rem', fontWeight: 600, mt: 0.1 }}>Export</Box>
-                          </Button>
+                                {/* Grid Button */}
+                                <Button
+                                  fullWidth
+                                  size="small"
+                                  startIcon={<TuneIcon sx={{ fontSize: '0.9rem' }} />}
+                                  variant="outlined"
+                                  onClick={() => setGridSettingsOpen(true)}
+                                  sx={{
+                                    height: 34,
+                                    fontSize: '0.72rem',
+                                    fontWeight: 700,
+                                    borderWidth: 2,
+                                    borderColor: isDarkMode ? '#64748b' : '#94a3b8',
+                                    color: isDarkMode ? '#94a3b8' : '#475569',
+                                    '&:hover': {
+                                      borderWidth: 2,
+                                      bgcolor: isDarkMode ? 'rgba(255,255,255,0.05)' : '#f8fafc'
+                                    }
+                                  }}
+                                >
+                                  GRID
+                                </Button>
 
-                          {/* Row 3: Template, Columns, Grid, Reset */}
-                          <Button
-                            variant="outlined"
-                            size="small"
-                            onClick={handleDownloadTemplate}
-                            sx={{
-                              height: 36,
-                              fontSize: '0.65rem',
-                              px: 0.5,
-                              display: 'flex',
-                              flexDirection: 'column',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              lineHeight: 1,
-                              minWidth: 0
-                            }}
-                          >
-                            <DownloadIcon sx={{ fontSize: 16 }} />
-                            <Box sx={{ fontSize: '0.55rem', fontWeight: 600, mt: 0.1 }}>Template</Box>
-                          </Button>
+                                {/* Add Button */}
+                                <Button
+                                  fullWidth
+                                  size="small"
+                                  startIcon={<AddIcon sx={{ fontSize: '0.9rem' }} />}
+                                  variant="contained"
+                                  onClick={handleOpenAddDialog}
+                                  sx={{
+                                    height: 34,
+                                    fontSize: '0.72rem',
+                                    fontWeight: 700,
+                                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                                    boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
+                                    '&:hover': {
+                                      background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+                                      boxShadow: '0 6px 16px rgba(16, 185, 129, 0.4)'
+                                    }
+                                  }}
+                                >
+                                  + ADD
+                                </Button>
 
-                          <Button
-                            variant="outlined"
-                            size="small"
-                            onClick={(e) => setColumnMenuAnchor(e.currentTarget)}
-                            sx={{
-                              height: 36,
-                              fontSize: '0.65rem',
-                              px: 0.5,
-                              display: 'flex',
-                              flexDirection: 'column',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              lineHeight: 1,
-                              minWidth: 0
-                            }}
-                          >
-                            <VisibilityIcon sx={{ fontSize: 16 }} />
-                            <Box sx={{ fontSize: '0.55rem', fontWeight: 600, mt: 0.1 }}>Columns</Box>
-                          </Button>
+                                {/* Upload Button */}
+                                {canSeeButton('upload') && (
+                                  <Button
+                                    fullWidth
+                                    size="small"
+                                    startIcon={<UploadIcon sx={{ fontSize: '0.9rem' }} />}
+                                    variant="contained"
+                                    onClick={() => setUploadDialogOpen(true)}
+                                    sx={{
+                                      height: 34,
+                                      fontSize: '0.72rem',
+                                      fontWeight: 700,
+                                      background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
+                                      boxShadow: '0 4px 12px rgba(30, 64, 175, 0.3)',
+                                      '&:hover': {
+                                        background: 'linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%)',
+                                        boxShadow: '0 6px 16px rgba(30, 64, 175, 0.4)'
+                                      }
+                                    }}
+                                  >
+                                    UPLOAD
+                                  </Button>
+                                )}
 
-                          <Button
-                            variant="outlined"
-                            size="small"
-                            onClick={() => setGridSettingsOpen(true)}
-                            sx={{
-                              height: 36,
-                              fontSize: '0.65rem',
-                              px: 0.5,
-                              display: 'flex',
-                              flexDirection: 'column',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              lineHeight: 1,
-                              minWidth: 0
-                            }}
-                          >
-                            <TuneIcon sx={{ fontSize: 16 }} />
-                            <Box sx={{ fontSize: '0.55rem', fontWeight: 600, mt: 0.1 }}>Grid</Box>
-                          </Button>
+                                {/* Template Button */}
+                                <Button
+                                  fullWidth
+                                  size="small"
+                                  startIcon={<DownloadIcon sx={{ fontSize: '0.9rem' }} />}
+                                  variant="outlined"
+                                  onClick={handleDownloadTemplate}
+                                  sx={{
+                                    height: 34,
+                                    fontSize: '0.72rem',
+                                    fontWeight: 700,
+                                    borderWidth: 2,
+                                    borderColor: isDarkMode ? '#64748b' : '#94a3b8',
+                                    color: isDarkMode ? '#94a3b8' : '#475569',
+                                    '&:hover': {
+                                      borderWidth: 2,
+                                      bgcolor: isDarkMode ? 'rgba(255,255,255,0.05)' : '#f8fafc'
+                                    }
+                                  }}
+                                >
+                                  TEMPLATE
+                                </Button>
 
-                          <Button
-                            variant="outlined"
-                            size="small"
-                            onClick={resetFilters}
-                            sx={{
-                              height: 36,
-                              fontSize: '0.65rem',
-                              px: 0.5,
-                              color: '#d32f2f',
-                              borderColor: '#d32f2f',
-                              display: 'flex',
-                              flexDirection: 'column',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              lineHeight: 1,
-                              minWidth: 0
-                            }}
-                          >
-                            <ClearIcon sx={{ fontSize: 16 }} />
-                            <Box sx={{ fontSize: '0.55rem', fontWeight: 600, mt: 0.1 }}>Reset</Box>
-                          </Button>
-                        </Box>
-                      </Paper>
-                    </Collapse>
+                                {/* Export Button */}
+                                {canSeeButton('export') && (
+                                  <Button
+                                    fullWidth
+                                    size="small"
+                                    startIcon={<ExportIcon sx={{ fontSize: '0.9rem' }} />}
+                                    variant="contained"
+                                    onClick={() => setExportDialogOpen(true)}
+                                    sx={{
+                                      height: 34,
+                                      fontSize: '0.72rem',
+                                      fontWeight: 700,
+                                      background: 'linear-gradient(135deg, #7c3aed 0%, #a855f7 100%)',
+                                      boxShadow: '0 4px 12px rgba(124, 58, 237, 0.3)',
+                                      '&:hover': {
+                                        background: 'linear-gradient(135deg, #6d28d9 0%, #9333ea 100%)',
+                                        boxShadow: '0 6px 16px rgba(124, 58, 237, 0.4)'
+                                      }
+                                    }}
+                                  >
+                                    EXPORT
+                                  </Button>
+                                )}
 
-
-
+                                {/* Refresh Button */}
+                                <Button
+                                  fullWidth
+                                  size="small"
+                                  startIcon={refreshing ? <CircularProgress size={14} /> : refreshSuccess ? <CheckCircle sx={{ color: '#10b981' }} /> : <RefreshIcon sx={{ fontSize: '0.9rem' }} />}
+                                  variant="outlined"
+                                  onClick={() => loadMasterData({ buttonRefresh: true })}
+                                  disabled={refreshing}
+                                  sx={{
+                                    height: 34,
+                                    fontSize: '0.72rem',
+                                    fontWeight: 700,
+                                    borderWidth: 2,
+                                    borderColor: '#3b82f6',
+                                    color: '#3b82f6',
+                                    '&:hover': {
+                                      borderWidth: 2,
+                                      bgcolor: 'rgba(59, 130, 246, 0.1)'
+                                    }
+                                  }}
+                                >
+                                  {refreshing ? '...' : refreshSuccess ? '✓' : 'REFRESH'}
+                                </Button>
+                              </Box>
+                            </Stack>
+                          </CardContent>
+                        </Card>
+                      </Collapse>
+                    </Box>
 
                     {/* AG Grid Table */}
                     <Box sx={{
@@ -1969,7 +1901,7 @@ export default function MasterDataPage() {
                           left: 0,
                           right: 0,
                           bottom: 0,
-                          backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                          backgroundColor: isDarkMode ? 'rgba(15, 23, 42, 0.95)' : 'rgba(255, 255, 255, 0.95)',
                           zIndex: 5,
                           display: 'flex',
                           alignItems: 'center',
@@ -1990,10 +1922,10 @@ export default function MasterDataPage() {
                             }}>
                               📭
                             </Box>
-                            <Typography variant="h5" sx={{ fontWeight: 600, color: '#6b7280', mb: 0.5 }}>
+                            <Typography variant="h5" sx={{ fontWeight: 600, color: isDarkMode ? '#94a3b8' : '#6b7280', mb: 0.5 }}>
                               No Data Found
                             </Typography>
-                            <Typography variant="body2" sx={{ color: '#9ca3af', maxWidth: 400 }}>
+                            <Typography variant="body2" sx={{ color: isDarkMode ? '#64748b' : '#9ca3af', maxWidth: 400 }}>
                               No master data items match your current filters. Try adjusting your search criteria or reset filters to see all items.
                             </Typography>
                           </Box>
@@ -2147,24 +2079,40 @@ export default function MasterDataPage() {
                               fontSize: '0.85rem',
                               fontWeight: 500,
                               margin: 0,
-                              color: isDarkMode ? '#94a3b8' : 'inherit'
+                              color: isDarkMode ? '#e2e8f0' : 'inherit'
                             },
                             '& .MuiTablePagination-select': {
                               borderRadius: 1,
-                              color: isDarkMode ? '#f1f5f9' : 'inherit'
+                              color: isDarkMode ? '#f1f5f9' : 'inherit',
+                              backgroundColor: isDarkMode ? '#334155' : 'transparent',
+                              '&:focus': {
+                                backgroundColor: isDarkMode ? '#475569' : 'transparent'
+                              }
+                            },
+                            '& .MuiTablePagination-selectIcon': {
+                              color: isDarkMode ? '#e2e8f0' : 'inherit'
                             },
                             '& .MuiTablePagination-actions': {
-                              color: isDarkMode ? '#f1f5f9' : 'inherit'
+                              color: isDarkMode ? '#f1f5f9' : 'inherit',
+                              '& .MuiIconButton-root': {
+                                color: isDarkMode ? '#e2e8f0' : 'inherit',
+                                '&:hover': {
+                                  backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.04)'
+                                },
+                                '&.Mui-disabled': {
+                                  color: isDarkMode ? '#64748b' : 'rgba(0,0,0,0.26)'
+                                }
+                              }
                             },
                             '& .MuiIconButton-root': {
-                              color: isDarkMode ? '#94a3b8' : 'inherit'
+                              color: isDarkMode ? '#e2e8f0' : 'inherit'
                             }
                           }}
                           labelDisplayedRows={({ from, to, count }) => `${formatNumber(from)}–${formatNumber(to)} of ${formatNumber(count)}`}
                         />
                       </Box>
                     </Box>
-                  </Box>
+                  </Box >
                 )}
 
                 {/* Tab 2: Batch Management */}
@@ -3496,6 +3444,6 @@ export default function MasterDataPage() {
           </DialogActions>
         </Dialog>
       </Box>
-    </AppLayout>
+    </AppLayout >
   );
 }

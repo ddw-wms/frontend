@@ -1179,8 +1179,8 @@ export default function DashboardPage() {
               sm: "repeat(6, 1fr)",
               md: "repeat(6, 1fr)",
             },
-            gap: { xs: 1, sm: 1.5, md: 2 },
-            p: { xs: 1.5, sm: 2, md: 2 },
+            gap: { xs: 0.75, sm: 1.5, md: 2 },
+            p: { xs: 1, sm: 2, md: 2 },
             overflowX: "visible",
             bgcolor: isDarkMode ? '#0f172a' : 'transparent',
           }}
@@ -1199,15 +1199,15 @@ export default function DashboardPage() {
               key={index}
               elevation={0}
               sx={{
-                p: { xs: 1.25, sm: 1.5, md: 2 },
-                height: { xs: 72, sm: 80, md: 100 },
+                p: { xs: 0.75, sm: 1.5, md: 2 },
+                height: { xs: 62, sm: 80, md: 100 },
                 width: "100%",
                 textAlign: "center",
                 display: "flex",
                 flexDirection: "column",
                 justifyContent: "center",
                 alignItems: "center",
-                borderRadius: { xs: 2, md: 3 },
+                borderRadius: { xs: 1.5, md: 3 },
                 background: isDarkMode
                   ? `linear-gradient(135deg, ${m.color}15, ${m.color}25) !important`
                   : `linear-gradient(135deg, ${m.color}08, ${m.color}15)`,
@@ -1238,9 +1238,9 @@ export default function DashboardPage() {
                 sx={{
                   display: "flex",
                   justifyContent: "center",
-                  mb: { xs: 0.5, md: 0.75 },
+                  mb: { xs: 0.25, md: 0.75 },
                   "& svg": {
-                    fontSize: { xs: "1.1rem", sm: "1.25rem", md: "1.5rem" },
+                    fontSize: { xs: "0.9rem", sm: "1.25rem", md: "1.5rem" },
                     color: m.color,
                     opacity: 0.9,
                   },
@@ -1253,7 +1253,7 @@ export default function DashboardPage() {
               <Typography
                 sx={{
                   fontWeight: 700,
-                  fontSize: { xs: "1.1rem", sm: "1.25rem", md: "1.75rem" },
+                  fontSize: { xs: "0.85rem", sm: "1.25rem", md: "1.75rem" },
                   lineHeight: 1,
                   color: m.color,
                   letterSpacing: "-0.02em",
@@ -1265,12 +1265,13 @@ export default function DashboardPage() {
               {/* LABEL */}
               <Typography
                 sx={{
-                  fontSize: { xs: "0.65rem", sm: "0.7rem", md: "0.8rem" },
-                  mt: { xs: 0.25, md: 0.5 },
+                  fontSize: { xs: "0.5rem", sm: "0.7rem", md: "0.8rem" },
+                  mt: { xs: 0.15, md: 0.5 },
                   fontWeight: 600,
                   color: isDarkMode ? "#94a3b8" : "#64748b",
                   textTransform: "uppercase",
-                  letterSpacing: "0.03em",
+                  letterSpacing: "0.02em",
+                  lineHeight: 1.1,
                 }}
               >
                 {m.label}
@@ -1284,11 +1285,11 @@ export default function DashboardPage() {
         <Box
           sx={{
             background: isDarkMode ? '#1e293b' : 'white',
-            px: { xs: 1.5, sm: 2, md: 2 },
-            py: { xs: 1.25, sm: 1.5, md: 2 },
+            px: { xs: 1, sm: 2, md: 2 },
+            py: { xs: 1, sm: 1.5, md: 2 },
             display: "flex",
             flexDirection: "column",
-            gap: { xs: 1, md: 1.5 },
+            gap: { xs: 0.75, md: 1.5 },
             flexShrink: 0,
             borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(0,0,0,0.06)',
           }}
@@ -1303,7 +1304,7 @@ export default function DashboardPage() {
             }}
           >
             {/* Search + Mobile Actions */}
-            <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', width: '100%' }}>
+            <Box sx={{ display: 'flex', gap: 0.75, alignItems: 'center', width: '100%' }}>
               <TextField
                 size="small"
                 placeholder="🔍 Search WSN or Product"
@@ -1315,7 +1316,7 @@ export default function DashboardPage() {
                 fullWidth
                 sx={{
                   "& .MuiOutlinedInput-root": {
-                    height: { xs: 44, sm: 42 },
+                    height: { xs: 40, sm: 42 },
                     bgcolor: isDarkMode ? '#1e293b' : '#f8fafc',
                     borderRadius: 2.5,
                     transition: "all 0.2s ease",
@@ -1794,7 +1795,7 @@ export default function DashboardPage() {
             display: "flex",
             flexDirection: "column",
             overflow: "hidden",
-            pb: { xs: 10, md: 2 }, // reserve space for mobile action bar
+            pb: { xs: 0, md: 2 },
             bgcolor: isDarkMode ? '#0f172a' : 'transparent',
           }}
         >
@@ -2098,22 +2099,21 @@ export default function DashboardPage() {
             {/* ================= PAGINATION (ALWAYS ONE ROW + MOBILE COMPACT) ================= */}
             <Box
               sx={{
-                px: 2,
-                py: 0.5,
+                px: { xs: 1, sm: 2 },
+                py: { xs: 0.75, sm: 0.5 },
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
                 borderTop: isDarkMode ? "1px solid rgba(255,255,255,0.1)" : "1px solid #ddd",
                 bgcolor: isDarkMode ? '#1e293b' : "white",
                 flexShrink: 0,
-                overflowX: "auto",
-                whiteSpace: "nowrap",
-                gap: 1,
+                minHeight: { xs: 44, sm: 48 },
+                gap: { xs: 0.5, sm: 1 },
               }}
             >
               {/* Per Page */}
-              <Stack direction="row" spacing={1} alignItems="center">
-                <Typography sx={{ fontSize: "0.78rem", whiteSpace: "nowrap" }}>
+              <Stack direction="row" spacing={{ xs: 0.5, sm: 1 }} alignItems="center">
+                <Typography sx={{ fontSize: { xs: "0.7rem", sm: "0.78rem" }, whiteSpace: "nowrap", color: isDarkMode ? '#94a3b8' : 'inherit' }}>
                   Per page:
                 </Typography>
 
@@ -2124,7 +2124,13 @@ export default function DashboardPage() {
                     setLimit(Number(e.target.value));
                     setPage(1);
                   }}
-                  sx={{ minWidth: 70 }}
+                  sx={{
+                    minWidth: { xs: 58, sm: 70 },
+                    '& .MuiSelect-select': {
+                      py: { xs: 0.5, sm: 0.75 },
+                      fontSize: { xs: '0.75rem', sm: '0.875rem' },
+                    }
+                  }}
                 >
                   <MenuItem value={50}>50</MenuItem>
                   <MenuItem value={100}>100</MenuItem>
@@ -2136,8 +2142,9 @@ export default function DashboardPage() {
               {/* Count */}
               <Typography
                 sx={{
-                  fontSize: "0.78rem",
+                  fontSize: { xs: "0.7rem", sm: "0.78rem" },
                   whiteSpace: "nowrap",
+                  color: isDarkMode ? '#94a3b8' : 'inherit',
                 }}
               >
                 {(page - 1) * limit + 1} – {Math.min(page * limit, total)} of{" "}
@@ -2145,18 +2152,23 @@ export default function DashboardPage() {
               </Typography>
 
               {/* Pagination (Responsive) */}
-              {(typeof window !== "undefined" && window.innerWidth < 500 ? (
+              {(isMobile ? (
                 // MOBILE COMPACT PAGINATION
-                <Stack direction="row" spacing={1} alignItems="center">
+                <Stack direction="row" spacing={0.5} alignItems="center">
                   <Button
                     size="small"
                     disabled={page === 1}
                     onClick={() => setPage(page - 1)}
+                    sx={{
+                      minWidth: { xs: 40, sm: 64 },
+                      px: { xs: 0.5, sm: 2 },
+                      fontSize: { xs: '0.7rem', sm: '0.875rem' },
+                    }}
                   >
                     Prev
                   </Button>
 
-                  <Typography sx={{ fontSize: "0.85rem", fontWeight: 600 }}>
+                  <Typography sx={{ fontSize: { xs: "0.75rem", sm: "0.85rem" }, fontWeight: 600, minWidth: 40, textAlign: 'center' }}>
                     {page} / {Math.ceil(total / limit)}
                   </Typography>
 
@@ -2164,6 +2176,11 @@ export default function DashboardPage() {
                     size="small"
                     disabled={page === Math.ceil(total / limit)}
                     onClick={() => setPage(page + 1)}
+                    sx={{
+                      minWidth: { xs: 40, sm: 64 },
+                      px: { xs: 0.5, sm: 2 },
+                      fontSize: { xs: '0.7rem', sm: '0.875rem' },
+                    }}
                   >
                     Next
                   </Button>
