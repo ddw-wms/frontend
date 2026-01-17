@@ -116,7 +116,7 @@ export default function PickingPage() {
   const tableRowHeight = useTableRowHeight();
 
   // Permission hook
-  const { filterTabs, canSeeTab, canSeeButton, isAdmin, isLoading: permLoading } = usePickingPermissions();
+  const { filterTabs, canSeeTab, canSeeButton, canAccessButton, isAdmin, isLoading: permLoading } = usePickingPermissions();
 
   // Get visible tabs based on permissions
   const visibleTabs = useMemo(() => filterTabs(ALL_TABS, TAB_CODES), [filterTabs]);
@@ -1434,11 +1434,19 @@ export default function PickingPage() {
                         <Stack direction="row" spacing={0.5} sx={{ ml: 'auto', alignItems: 'center' }}>
                           <Button size="small" variant="outlined" onClick={handleListReset} sx={{ height: 40, minWidth: 70, fontSize: '0.7rem', fontWeight: 700 }}>Clear</Button>
                           {canSeeButton('list:columns') && (
-                            <Button size="small" variant="outlined" startIcon={<SettingsIcon />} onClick={() => setListColumnSettingsOpen(true)} sx={{ height: 40, fontSize: '0.7rem', fontWeight: 700 }}>Columns</Button>
+                            <Tooltip title={!canAccessButton('list:columns') ? "You don't have permission to use this feature" : "Manage Columns"} arrow>
+                              <span>
+                                <Button size="small" variant="outlined" startIcon={<SettingsIcon />} disabled={!canAccessButton('list:columns')} onClick={() => canAccessButton('list:columns') && setListColumnSettingsOpen(true)} sx={{ height: 40, fontSize: '0.7rem', fontWeight: 700 }}>Columns</Button>
+                              </span>
+                            </Tooltip>
                           )}
                           <Button size="small" variant="outlined" startIcon={<SettingsIcon />} onClick={() => setGridSettingsOpen(true)} sx={{ height: 40, fontSize: '0.7rem', fontWeight: 700 }}>Grid</Button>
                           {canSeeButton('list:export') && (
-                            <Button size="small" variant="outlined" startIcon={<DownloadIcon />} onClick={() => setExportDialogOpen(true)} sx={{ height: 40, fontSize: '0.7rem', fontWeight: 700 }}>Export</Button>
+                            <Tooltip title={!canAccessButton('list:export') ? "You don't have permission to use this feature" : "Export Data"} arrow>
+                              <span>
+                                <Button size="small" variant="outlined" startIcon={<DownloadIcon />} disabled={!canAccessButton('list:export')} onClick={() => canAccessButton('list:export') && setExportDialogOpen(true)} sx={{ height: 40, fontSize: '0.7rem', fontWeight: 700 }}>Export</Button>
+                              </span>
+                            </Tooltip>
                           )}
                           <Button
                             size="small"
@@ -2107,38 +2115,46 @@ export default function PickingPage() {
                         Clear
                       </Button>
 
-                      <Button
-                        variant="outlined"
-                        startIcon={<SettingsIcon />}
-                        onClick={() => { setListColumnSettingsOpen(true); }}
-                        sx={{ height: 44, fontSize: '0.85rem' }}
-                        disabled={!true}
-
-                      >
-                        Columns
-                      </Button>
+                      {canSeeButton('list:columns') && (
+                        <Tooltip title={!canAccessButton('list:columns') ? "You don't have permission to use this feature" : ""} arrow>
+                          <span style={{ width: '100%' }}>
+                            <Button
+                              variant="outlined"
+                              startIcon={<SettingsIcon />}
+                              disabled={!canAccessButton('list:columns')}
+                              onClick={() => { if (canAccessButton('list:columns')) setListColumnSettingsOpen(true); }}
+                              sx={{ height: 44, fontSize: '0.85rem', width: '100%' }}
+                            >
+                              Columns
+                            </Button>
+                          </span>
+                        </Tooltip>
+                      )}
 
                       <Button
                         variant="outlined"
                         startIcon={<SettingsIcon />}
                         onClick={() => { setGridSettingsOpen(true); }}
                         sx={{ height: 44, fontSize: '0.85rem' }}
-                        disabled={!true}
-
                       >
                         Grid
                       </Button>
 
-                      <Button
-                        variant="outlined"
-                        startIcon={<DownloadIcon />}
-                        onClick={() => { setExportDialogOpen(true); setMobileActionsOpen(false); }}
-                        sx={{ height: 44, fontSize: '0.85rem' }}
-                        disabled={!true}
-
-                      >
-                        Export
-                      </Button>
+                      {canSeeButton('list:export') && (
+                        <Tooltip title={!canAccessButton('list:export') ? "You don't have permission to use this feature" : ""} arrow>
+                          <span style={{ width: '100%' }}>
+                            <Button
+                              variant="outlined"
+                              startIcon={<DownloadIcon />}
+                              disabled={!canAccessButton('list:export')}
+                              onClick={() => { if (canAccessButton('list:export')) { setExportDialogOpen(true); setMobileActionsOpen(false); } }}
+                              sx={{ height: 44, fontSize: '0.85rem', width: '100%' }}
+                            >
+                              Export
+                            </Button>
+                          </span>
+                        </Tooltip>
+                      )}
 
                       <Button
                         variant="outlined"

@@ -233,7 +233,7 @@ export default function MasterDataPage() {
   const { activeWarehouse } = useWarehouse();
 
   // Permission hook
-  const { filterTabs, canSeeTab, canSeeButton, isAdmin, isLoading: permLoading } = useMasterDataPermissions();
+  const { filterTabs, canSeeTab, canSeeButton, canAccessButton, isAdmin, isLoading: permLoading } = useMasterDataPermissions();
 
   const [user, setUser] = useState<any>(null);
   const [masterData, setMasterData] = useState<any[]>([]);
@@ -1616,74 +1616,89 @@ export default function MasterDataPage() {
 
                                 {/* Add Button - Permission controlled */}
                                 {canSeeButton('add') && (
-                                  <Button
-                                    fullWidth
-                                    size="small"
-                                    startIcon={<AddIcon sx={{ fontSize: '0.9rem' }} />}
-                                    variant="contained"
-                                    onClick={handleOpenAddDialog}
-                                    sx={{
-                                      height: 34,
-                                      fontSize: '0.72rem',
-                                      fontWeight: 700,
-                                      background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                                      boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
-                                      '&:hover': {
-                                        background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
-                                        boxShadow: '0 6px 16px rgba(16, 185, 129, 0.4)'
-                                      }
-                                    }}
-                                  >
-                                    + ADD
-                                  </Button>
+                                  <Tooltip title={!canAccessButton('add') ? "You don't have permission to use this feature" : "Add Product"} arrow>
+                                    <span style={{ width: '100%' }}>
+                                      <Button
+                                        fullWidth
+                                        size="small"
+                                        startIcon={<AddIcon sx={{ fontSize: '0.9rem' }} />}
+                                        variant="contained"
+                                        disabled={!canAccessButton('add')}
+                                        onClick={() => canAccessButton('add') && handleOpenAddDialog()}
+                                        sx={{
+                                          height: 34,
+                                          fontSize: '0.72rem',
+                                          fontWeight: 700,
+                                          background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                                          boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
+                                          '&:hover': {
+                                            background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+                                            boxShadow: '0 6px 16px rgba(16, 185, 129, 0.4)'
+                                          }
+                                        }}
+                                      >
+                                        + ADD
+                                      </Button>
+                                    </span>
+                                  </Tooltip>
                                 )}
 
                                 {/* Upload Button */}
                                 {canSeeButton('upload') && (
-                                  <Button
-                                    fullWidth
-                                    size="small"
-                                    startIcon={<UploadIcon sx={{ fontSize: '0.9rem' }} />}
-                                    variant="contained"
-                                    onClick={() => setUploadDialogOpen(true)}
-                                    sx={{
-                                      height: 34,
-                                      fontSize: '0.72rem',
-                                      fontWeight: 700,
-                                      background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
-                                      boxShadow: '0 4px 12px rgba(30, 64, 175, 0.3)',
-                                      '&:hover': {
-                                        background: 'linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%)',
-                                        boxShadow: '0 6px 16px rgba(30, 64, 175, 0.4)'
-                                      }
-                                    }}
-                                  >
-                                    UPLOAD
-                                  </Button>
+                                  <Tooltip title={!canAccessButton('upload') ? "You don't have permission to use this feature" : "Upload Products"} arrow>
+                                    <span style={{ width: '100%' }}>
+                                      <Button
+                                        fullWidth
+                                        size="small"
+                                        startIcon={<UploadIcon sx={{ fontSize: '0.9rem' }} />}
+                                        variant="contained"
+                                        disabled={!canAccessButton('upload')}
+                                        onClick={() => canAccessButton('upload') && setUploadDialogOpen(true)}
+                                        sx={{
+                                          height: 34,
+                                          fontSize: '0.72rem',
+                                          fontWeight: 700,
+                                          background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
+                                          boxShadow: '0 4px 12px rgba(30, 64, 175, 0.3)',
+                                          '&:hover': {
+                                            background: 'linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%)',
+                                            boxShadow: '0 6px 16px rgba(30, 64, 175, 0.4)'
+                                          }
+                                        }}
+                                      >
+                                        UPLOAD
+                                      </Button>
+                                    </span>
+                                  </Tooltip>
                                 )}
 
                                 {/* Export Button */}
                                 {canSeeButton('export') && (
-                                  <Button
-                                    fullWidth
-                                    size="small"
-                                    startIcon={<ExportIcon sx={{ fontSize: '0.9rem' }} />}
-                                    variant="contained"
-                                    onClick={() => setExportDialogOpen(true)}
-                                    sx={{
-                                      height: 34,
-                                      fontSize: '0.72rem',
-                                      fontWeight: 700,
-                                      background: 'linear-gradient(135deg, #7c3aed 0%, #a855f7 100%)',
-                                      boxShadow: '0 4px 12px rgba(124, 58, 237, 0.3)',
-                                      '&:hover': {
-                                        background: 'linear-gradient(135deg, #6d28d9 0%, #9333ea 100%)',
-                                        boxShadow: '0 6px 16px rgba(124, 58, 237, 0.4)'
-                                      }
-                                    }}
-                                  >
-                                    EXPORT
-                                  </Button>
+                                  <Tooltip title={!canAccessButton('export') ? "You don't have permission to use this feature" : "Export Data"} arrow>
+                                    <span style={{ width: '100%' }}>
+                                      <Button
+                                        fullWidth
+                                        size="small"
+                                        startIcon={<ExportIcon sx={{ fontSize: '0.9rem' }} />}
+                                        variant="contained"
+                                        disabled={!canAccessButton('export')}
+                                        onClick={() => canAccessButton('export') && setExportDialogOpen(true)}
+                                        sx={{
+                                          height: 34,
+                                          fontSize: '0.72rem',
+                                          fontWeight: 700,
+                                          background: 'linear-gradient(135deg, #7c3aed 0%, #a855f7 100%)',
+                                          boxShadow: '0 4px 12px rgba(124, 58, 237, 0.3)',
+                                          '&:hover': {
+                                            background: 'linear-gradient(135deg, #6d28d9 0%, #9333ea 100%)',
+                                            boxShadow: '0 6px 16px rgba(124, 58, 237, 0.4)'
+                                          }
+                                        }}
+                                      >
+                                        EXPORT
+                                      </Button>
+                                    </span>
+                                  </Tooltip>
                                 )}
 
                                 {/* Template Button */}
@@ -1711,27 +1726,32 @@ export default function MasterDataPage() {
 
                                 {/* Columns Button */}
                                 {canSeeButton('columns') && (
-                                  <Button
-                                    fullWidth
-                                    size="small"
-                                    startIcon={<VisibilityIcon sx={{ fontSize: '0.9rem' }} />}
-                                    variant="outlined"
-                                    onClick={(e) => setColumnMenuAnchor(e.currentTarget)}
-                                    sx={{
-                                      height: 34,
-                                      fontSize: '0.72rem',
-                                      fontWeight: 700,
-                                      borderWidth: 2,
-                                      borderColor: '#1e40af',
-                                      color: '#1e40af',
-                                      '&:hover': {
-                                        borderWidth: 2,
-                                        bgcolor: 'rgba(30, 64, 175, 0.1)'
-                                      }
-                                    }}
-                                  >
-                                    COLUMNS
-                                  </Button>
+                                  <Tooltip title={!canAccessButton('columns') ? "You don't have permission to use this feature" : "Manage Columns"} arrow>
+                                    <span style={{ width: '100%' }}>
+                                      <Button
+                                        fullWidth
+                                        size="small"
+                                        startIcon={<VisibilityIcon sx={{ fontSize: '0.9rem' }} />}
+                                        variant="outlined"
+                                        disabled={!canAccessButton('columns')}
+                                        onClick={(e) => canAccessButton('columns') && setColumnMenuAnchor(e.currentTarget)}
+                                        sx={{
+                                          height: 34,
+                                          fontSize: '0.72rem',
+                                          fontWeight: 700,
+                                          borderWidth: 2,
+                                          borderColor: '#1e40af',
+                                          color: '#1e40af',
+                                          '&:hover': {
+                                            borderWidth: 2,
+                                            bgcolor: 'rgba(30, 64, 175, 0.1)'
+                                          }
+                                        }}
+                                      >
+                                        COLUMNS
+                                      </Button>
+                                    </span>
+                                  </Tooltip>
                                 )}
 
                                 {/* Grid Button */}
@@ -2641,27 +2661,39 @@ export default function MasterDataPage() {
               {/* Action buttons */}
               <Box sx={{ display: 'grid', gap: 1, mt: 2, gridTemplateColumns: 'repeat(2, 1fr)' }}>
                 {canSeeButton('add') && (
-                  <Button
-                    variant="contained"
-                    startIcon={<AddIcon />}
-                    onClick={() => { handleOpenAddDialog(); setMobileActionsOpen(false); }}
-                    fullWidth
-                    sx={{
-                      background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                      '&:hover': { background: 'linear-gradient(135deg, #059669 0%, #047857 100%)' }
-                    }}
-                  >
-                    Add Product
-                  </Button>
+                  <Tooltip title={!canAccessButton('add') ? "You don't have permission to use this feature" : ""} arrow>
+                    <span style={{ width: '100%' }}>
+                      <Button
+                        variant="contained"
+                        startIcon={<AddIcon />}
+                        disabled={!canAccessButton('add')}
+                        onClick={() => { if (canAccessButton('add')) { handleOpenAddDialog(); setMobileActionsOpen(false); } }}
+                        fullWidth
+                        sx={{
+                          background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                          '&:hover': { background: 'linear-gradient(135deg, #059669 0%, #047857 100%)' }
+                        }}
+                      >
+                        Add Product
+                      </Button>
+                    </span>
+                  </Tooltip>
                 )}
-                <Button
-                  variant="outlined"
-                  startIcon={<UploadIcon />}
-                  onClick={() => { setUploadDialogOpen(true); setMobileActionsOpen(false); }}
-                  fullWidth
-                >
-                  Upload
-                </Button>
+                {canSeeButton('upload') && (
+                  <Tooltip title={!canAccessButton('upload') ? "You don't have permission to use this feature" : ""} arrow>
+                    <span style={{ width: '100%' }}>
+                      <Button
+                        variant="outlined"
+                        startIcon={<UploadIcon />}
+                        disabled={!canAccessButton('upload')}
+                        onClick={() => { if (canAccessButton('upload')) { setUploadDialogOpen(true); setMobileActionsOpen(false); } }}
+                        fullWidth
+                      >
+                        Upload
+                      </Button>
+                    </span>
+                  </Tooltip>
+                )}
                 <Button
                   variant="outlined"
                   startIcon={<DownloadIcon />}
@@ -2670,22 +2702,36 @@ export default function MasterDataPage() {
                 >
                   Template
                 </Button>
-                <Button
-                  variant="outlined"
-                  startIcon={<ExportIcon />}
-                  onClick={() => { setExportDialogOpen(true); setMobileActionsOpen(false); }}
-                  fullWidth
-                >
-                  Export
-                </Button>
-                <Button
-                  variant="outlined"
-                  startIcon={<VisibilityIcon />}
-                  onClick={() => { setColumnMenuAnchor(document.body); setMobileActionsOpen(false); }}
-                  fullWidth
-                >
-                  Columns
-                </Button>
+                {canSeeButton('export') && (
+                  <Tooltip title={!canAccessButton('export') ? "You don't have permission to use this feature" : ""} arrow>
+                    <span style={{ width: '100%' }}>
+                      <Button
+                        variant="outlined"
+                        startIcon={<ExportIcon />}
+                        disabled={!canAccessButton('export')}
+                        onClick={() => { if (canAccessButton('export')) { setExportDialogOpen(true); setMobileActionsOpen(false); } }}
+                        fullWidth
+                      >
+                        Export
+                      </Button>
+                    </span>
+                  </Tooltip>
+                )}
+                {canSeeButton('columns') && (
+                  <Tooltip title={!canAccessButton('columns') ? "You don't have permission to use this feature" : ""} arrow>
+                    <span style={{ width: '100%' }}>
+                      <Button
+                        variant="outlined"
+                        startIcon={<VisibilityIcon />}
+                        disabled={!canAccessButton('columns')}
+                        onClick={() => { if (canAccessButton('columns')) { setColumnMenuAnchor(document.body); setMobileActionsOpen(false); } }}
+                        fullWidth
+                      >
+                        Columns
+                      </Button>
+                    </span>
+                  </Tooltip>
+                )}
                 <Button
                   variant="outlined"
                   startIcon={<TuneIcon />}

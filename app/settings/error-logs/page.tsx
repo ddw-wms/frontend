@@ -41,6 +41,7 @@ import { errorLogsAPI } from '@/lib/api';
 import { getStoredUser } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
 import toast, { Toaster } from 'react-hot-toast';
+import { usePermissions } from '@/app/context/PermissionContext';
 
 interface ErrorLog {
     id: number;
@@ -56,6 +57,7 @@ export default function ErrorLogsPage() {
     const router = useRouter();
     const theme = useTheme();
     const isDarkMode = theme.palette.mode === 'dark';
+    const { canSeeMenu, isAdmin, isLoading: permissionsLoading } = usePermissions();
     const [logs, setLogs] = useState<ErrorLog[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -66,14 +68,25 @@ export default function ErrorLogsPage() {
     const [actionLoading, setActionLoading] = useState(false);
     const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
 
-    // Check if user is super_admin
+    // Check if user has permission to view error logs
     useEffect(() => {
         const user = getStoredUser();
-        if (!user || user.role !== 'super_admin') {
+        // Allow super_admin, admin, or users with the errorlogs menu permission
+        if (!user) {
             router.push('/dashboard');
             return;
         }
-    }, [router]);
+
+        // Super admin and admin always have access
+        if (user.role === 'super_admin' || user.role === 'admin') {
+            return;
+        }
+
+        // For other users, check menu permission (wait for permissions to load)
+        if (!permissionsLoading && !canSeeMenu('menu:settings:errorlogs')) {
+            router.push('/dashboard');
+        }
+    }, [router, canSeeMenu, permissionsLoading]);
 
     const fetchLogs = useCallback(async () => {
         try {

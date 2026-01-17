@@ -212,7 +212,7 @@ export default function DashboardPage() {
   const tableRowHeight = useTableRowHeight();
 
   // Permission hook - import at top of file
-  const { canSeeButton, isAdmin, isLoading: permLoading } = useDashboardPermissions();
+  const { canSeeButton, canAccessButton, isAdmin, isLoading: permLoading } = useDashboardPermissions();
 
   const handleLogout = () => {
     logout();
@@ -1680,21 +1680,26 @@ export default function DashboardPage() {
 
 
                     {canSeeButton('columns') && (
-                      <Button
-                        size="small"
-                        startIcon={<SettingsIcon sx={{ fontSize: 11 }} />}
-                        variant="outlined"
-                        onClick={() => true && setColumnDialogOpen(true)}
-                        sx={{
-                          height: { xs: 34, md: 40 },
-                          px: 1,
-                          fontSize: { xs: '0.62rem', md: '0.65rem' },
-                          fontWeight: 600,
-                          width: "100%",
-                        }}
-                      >
-                        COLUMNS
-                      </Button>
+                      <Tooltip title={!canAccessButton('columns') ? "You don't have permission to use this feature" : "Manage Columns"} arrow>
+                        <span style={{ width: '100%' }}>
+                          <Button
+                            size="small"
+                            startIcon={<SettingsIcon sx={{ fontSize: 11 }} />}
+                            variant="outlined"
+                            disabled={!canAccessButton('columns')}
+                            onClick={() => canAccessButton('columns') && setColumnDialogOpen(true)}
+                            sx={{
+                              height: { xs: 34, md: 40 },
+                              px: 1,
+                              fontSize: { xs: '0.62rem', md: '0.65rem' },
+                              fontWeight: 600,
+                              width: "100%",
+                            }}
+                          >
+                            COLUMNS
+                          </Button>
+                        </span>
+                      </Tooltip>
                     )}
 
 
@@ -1716,33 +1721,39 @@ export default function DashboardPage() {
                     </Button>
 
                     {canSeeButton('export') && (
-                      <Button
-                        variant="outlined"
-                        size="small"
-                        startIcon={<DownloadIcon sx={{ fontSize: 11 }} />}
-                        onClick={() => {
-                          // Prefill export dialog with current active filters (use same stage codes as main filter)
-                          setExportFilters({
-                            dateFrom,
-                            dateTo,
-                            stage: stageFilter || 'all',
-                            brand: brandFilter,
-                            category: categoryFilter,
-                            availableOnly: availableOnly ? 'available' : 'all',
-                          });
+                      <Tooltip title={!canAccessButton('export') ? "You don't have permission to use this feature" : "Export Data"} arrow>
+                        <span style={{ width: '100%' }}>
+                          <Button
+                            variant="outlined"
+                            size="small"
+                            startIcon={<DownloadIcon sx={{ fontSize: 11 }} />}
+                            disabled={!canAccessButton('export')}
+                            onClick={() => {
+                              if (!canAccessButton('export')) return;
+                              // Prefill export dialog with current active filters (use same stage codes as main filter)
+                              setExportFilters({
+                                dateFrom,
+                                dateTo,
+                                stage: stageFilter || 'all',
+                                brand: brandFilter,
+                                category: categoryFilter,
+                                availableOnly: availableOnly ? 'available' : 'all',
+                              });
 
-                          setExportDialogOpen(true);
-                        }}
-                        sx={{
-                          height: { xs: 34, md: 40 },
-                          px: 1,
-                          fontSize: { xs: '0.62rem', md: '0.65rem' },
-                          fontWeight: 600,
-                          width: "100%",
-                        }}
-                      >
-                        EXPORT
-                      </Button>
+                              setExportDialogOpen(true);
+                            }}
+                            sx={{
+                              height: { xs: 34, md: 40 },
+                              px: 1,
+                              fontSize: { xs: '0.62rem', md: '0.65rem' },
+                              fontWeight: 600,
+                              width: "100%",
+                            }}
+                          >
+                            EXPORT
+                          </Button>
+                        </span>
+                      </Tooltip>
                     )}
 
                     <Button
@@ -2336,14 +2347,21 @@ export default function DashboardPage() {
                   Clear
                 </Button>
 
-                <Button
-                  variant="outlined"
-                  startIcon={<SettingsIcon />}
-                  onClick={() => { setColumnDialogOpen(true); setMobileActionsOpen(false); }}
-                  sx={{ height: 44, fontSize: '0.85rem' }}
-                >
-                  Columns
-                </Button>
+                {canSeeButton('columns') && (
+                  <Tooltip title={!canAccessButton('columns') ? "You don't have permission to use this feature" : ""} arrow>
+                    <span style={{ width: '100%' }}>
+                      <Button
+                        variant="outlined"
+                        startIcon={<SettingsIcon />}
+                        disabled={!canAccessButton('columns')}
+                        onClick={() => { if (canAccessButton('columns')) { setColumnDialogOpen(true); setMobileActionsOpen(false); } }}
+                        sx={{ height: 44, fontSize: '0.85rem', width: '100%' }}
+                      >
+                        Columns
+                      </Button>
+                    </span>
+                  </Tooltip>
+                )}
 
                 <Button
                   variant="outlined"
@@ -2354,18 +2372,26 @@ export default function DashboardPage() {
                   Grid
                 </Button>
 
-                <Button
-                  variant="outlined"
-                  startIcon={<DownloadIcon />}
-                  onClick={() => {
-                    setExportFilters({ dateFrom, dateTo, stage: stageFilter || 'all', brand: brandFilter, category: categoryFilter, availableOnly: availableOnly ? 'available' : 'all' });
-                    setExportDialogOpen(true);
-                    setMobileActionsOpen(false);
-                  }}
-                  sx={{ height: 44, fontSize: '0.85rem' }}
-                >
-                  Export
-                </Button>
+                {canSeeButton('export') && (
+                  <Tooltip title={!canAccessButton('export') ? "You don't have permission to use this feature" : ""} arrow>
+                    <span style={{ width: '100%' }}>
+                      <Button
+                        variant="outlined"
+                        startIcon={<DownloadIcon />}
+                        disabled={!canAccessButton('export')}
+                        onClick={() => {
+                          if (!canAccessButton('export')) return;
+                          setExportFilters({ dateFrom, dateTo, stage: stageFilter || 'all', brand: brandFilter, category: categoryFilter, availableOnly: availableOnly ? 'available' : 'all' });
+                          setExportDialogOpen(true);
+                          setMobileActionsOpen(false);
+                        }}
+                        sx={{ height: 44, fontSize: '0.85rem', width: '100%' }}
+                      >
+                        Export
+                      </Button>
+                    </span>
+                  </Tooltip>
+                )}
 
                 <Button
                   variant="outlined"

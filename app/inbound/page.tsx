@@ -130,7 +130,7 @@ export default function InboundPage() {
   const tableRowHeight = useTableRowHeight();
 
   // Permission hook
-  const { filterTabs, canSeeTab, canSeeButton, isAdmin, isLoading: permLoading } = useInboundPermissions();
+  const { filterTabs, canSeeTab, canSeeButton, canAccessButton, isAdmin, isLoading: permLoading } = useInboundPermissions();
 
   // Get visible tabs based on permissions
   const visibleTabs = useMemo(() => filterTabs(ALL_TABS, TAB_CODES), [filterTabs]);
@@ -3355,27 +3355,32 @@ export default function InboundPage() {
                             </Button>
                             <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
                               {canSeeButton('list:columns') && (
-                                <Button
-                                  fullWidth
-                                  size="small"
-                                  startIcon={<SettingsIcon sx={{ fontSize: '0.9rem' }} />}
-                                  variant="outlined"
-                                  onClick={() => setListColumnSettingsOpen(true)}
-                                  sx={{
-                                    height: 34,
-                                    fontSize: '0.72rem',
-                                    fontWeight: 700,
-                                    borderWidth: 2,
-                                    borderColor: '#1e40af',
-                                    color: '#1e40af',
-                                    '&:hover': {
-                                      borderWidth: 2,
-                                      bgcolor: 'rgba(30, 64, 175, 0.1)'
-                                    }
-                                  }}
-                                >
-                                  COLUMNS
-                                </Button>
+                                <Tooltip title={!canAccessButton('list:columns') ? "You don't have permission to use this feature" : "Manage Columns"} arrow>
+                                  <span style={{ width: '100%' }}>
+                                    <Button
+                                      fullWidth
+                                      size="small"
+                                      startIcon={<SettingsIcon sx={{ fontSize: '0.9rem' }} />}
+                                      variant="outlined"
+                                      disabled={!canAccessButton('list:columns')}
+                                      onClick={() => canAccessButton('list:columns') && setListColumnSettingsOpen(true)}
+                                      sx={{
+                                        height: 34,
+                                        fontSize: '0.72rem',
+                                        fontWeight: 700,
+                                        borderWidth: 2,
+                                        borderColor: '#1e40af',
+                                        color: '#1e40af',
+                                        '&:hover': {
+                                          borderWidth: 2,
+                                          bgcolor: 'rgba(30, 64, 175, 0.1)'
+                                        }
+                                      }}
+                                    >
+                                      COLUMNS
+                                    </Button>
+                                  </span>
+                                </Tooltip>
                               )}
 
                               <Button
@@ -3385,7 +3390,6 @@ export default function InboundPage() {
                                 startIcon={<SettingsIcon sx={{ fontSize: '0.9rem' }} />}
                                 variant="outlined"
                                 onClick={(e) => { e.stopPropagation(); setGridSettingsOpen(true); }}
-                                disabled={!true}
 
                                 sx={{
                                   height: 34,
@@ -3404,26 +3408,31 @@ export default function InboundPage() {
                               </Button>
                             </Stack>
                             {canSeeButton('list:export') && (
-                              <Button
-                                fullWidth
-                                size="small"
-                                startIcon={<DownloadIcon sx={{ fontSize: '0.9rem' }} />}
-                                variant="contained"
-                                onClick={exportToExcel}
-                                sx={{
-                                  height: 34,
-                                  fontSize: '0.72rem',
-                                  fontWeight: 700,
-                                  background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                                  boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
-                                  '&:hover': {
-                                    background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
-                                    boxShadow: '0 6px 16px rgba(16, 185, 129, 0.4)'
-                                  }
-                                }}
-                              >
-                                EXPORT
-                              </Button>
+                              <Tooltip title={!canAccessButton('list:export') ? "You don't have permission to use this feature" : "Export Data"} arrow>
+                                <span style={{ width: '100%' }}>
+                                  <Button
+                                    fullWidth
+                                    size="small"
+                                    startIcon={<DownloadIcon sx={{ fontSize: '0.9rem' }} />}
+                                    variant="contained"
+                                    disabled={!canAccessButton('list:export')}
+                                    onClick={() => canAccessButton('list:export') && exportToExcel()}
+                                    sx={{
+                                      height: 34,
+                                      fontSize: '0.72rem',
+                                      fontWeight: 700,
+                                      background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                                      boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
+                                      '&:hover': {
+                                        background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+                                        boxShadow: '0 6px 16px rgba(16, 185, 129, 0.4)'
+                                      }
+                                    }}
+                                  >
+                                    EXPORT
+                                  </Button>
+                                </span>
+                              </Tooltip>
                             )}
                             {true && (
                               <Button
@@ -3545,14 +3554,21 @@ export default function InboundPage() {
                               Clear
                             </Button>
 
-                            <Button
-                              variant="outlined"
-                              startIcon={<SettingsIcon />}
-                              onClick={() => { setListColumnSettingsOpen(true); setMobileActionsOpen(false); }}
-                              sx={{ height: 44, fontSize: '0.85rem' }}
-                            >
-                              Columns
-                            </Button>
+                            {canSeeButton('list:columns') && (
+                              <Tooltip title={!canAccessButton('list:columns') ? "You don't have permission to use this feature" : ""} arrow>
+                                <span style={{ width: '100%' }}>
+                                  <Button
+                                    variant="outlined"
+                                    startIcon={<SettingsIcon />}
+                                    disabled={!canAccessButton('list:columns')}
+                                    onClick={() => { if (canAccessButton('list:columns')) { setListColumnSettingsOpen(true); setMobileActionsOpen(false); } }}
+                                    sx={{ height: 44, fontSize: '0.85rem', width: '100%' }}
+                                  >
+                                    Columns
+                                  </Button>
+                                </span>
+                              </Tooltip>
+                            )}
 
                             <Button
                               variant="outlined"
@@ -3563,14 +3579,21 @@ export default function InboundPage() {
                               Grid
                             </Button>
 
-                            <Button
-                              variant="outlined"
-                              startIcon={<DownloadIcon />}
-                              onClick={() => { setExportDialogOpen(true); setMobileActionsOpen(false); }}
-                              sx={{ height: 44, fontSize: '0.85rem' }}
-                            >
-                              Export
-                            </Button>
+                            {canSeeButton('list:export') && (
+                              <Tooltip title={!canAccessButton('list:export') ? "You don't have permission to use this feature" : ""} arrow>
+                                <span style={{ width: '100%' }}>
+                                  <Button
+                                    variant="outlined"
+                                    startIcon={<DownloadIcon />}
+                                    disabled={!canAccessButton('list:export')}
+                                    onClick={() => { if (canAccessButton('list:export')) { setExportDialogOpen(true); setMobileActionsOpen(false); } }}
+                                    sx={{ height: 44, fontSize: '0.85rem', width: '100%' }}
+                                  >
+                                    Export
+                                  </Button>
+                                </span>
+                              </Tooltip>
+                            )}
 
                             <Button
                               variant="outlined"
