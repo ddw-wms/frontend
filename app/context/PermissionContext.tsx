@@ -55,6 +55,9 @@ export function PermissionProvider({ children }: PermissionProviderProps) {
     // Only super_admin has automatic full access bypass
     // Admin role should respect their role-based permission settings
     const isAdmin = role === 'super_admin';
+    
+    // Debug log
+    console.log('[PermissionContext] Current role:', role, 'isAdmin:', isAdmin);
 
     // Load permissions function - can be called anytime
     const loadPermissions = useCallback(async () => {
@@ -80,8 +83,16 @@ export function PermissionProvider({ children }: PermissionProviderProps) {
 
         try {
             const response = await permissionsAPI.getMyPermissions();
-            setPermissions(response.data.permissions || {});
+            const loadedPerms = response.data.permissions || {};
+            setPermissions(loadedPerms);
             setRole(response.data.role || user.role);
+
+            // Debug: Log specific permissions
+            console.log('[PermissionContext] Loaded permissions for role:', response.data.role);
+            console.log('[PermissionContext] Dashboard button permissions:', {
+                'btn:dashboard:columns': loadedPerms['btn:dashboard:columns'],
+                'btn:dashboard:export': loadedPerms['btn:dashboard:export'],
+            });
         } catch (error) {
             console.error('Failed to load permissions:', error);
             // Continue with empty permissions - will fall back to role check
@@ -142,8 +153,12 @@ export function PermissionProvider({ children }: PermissionProviderProps) {
     const canSee = useCallback((code: string): boolean => {
         if (isAdmin) return true;
         const perm = permissions[code];
+        // Debug for dashboard buttons only
+        if (code.includes('dashboard')) {
+            console.log(`[Permission Check] ${code}: visible=${perm?.is_visible}, isAdmin=${isAdmin}, role=${role}`);
+        }
         return perm?.is_visible === true;
-    }, [permissions, isAdmin]);
+    }, [permissions, isAdmin, role]);
 
     // Convenience methods with prefix handling
     const canAccessMenu = useCallback((code: string): boolean => {
