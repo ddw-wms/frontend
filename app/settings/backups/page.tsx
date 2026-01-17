@@ -566,7 +566,7 @@ export default function BackupPage() {
 
                 {/* ==================== HEADER SECTION ==================== */}
                 <StandardPageHeader
-                    title="Database Backup & Restore"
+                    title="Backup & Restore"
                     subtitle="Securely backup and restore your WMS database"
                     icon="💾"
                     warehouseName={activeWarehouse?.name}

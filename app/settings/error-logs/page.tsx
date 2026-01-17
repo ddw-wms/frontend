@@ -25,6 +25,7 @@ import {
     DialogActions,
     TextField,
     Collapse,
+    useTheme,
 } from '@mui/material';
 import {
     Delete as DeleteIcon,
@@ -53,6 +54,8 @@ interface ErrorLog {
 
 export default function ErrorLogsPage() {
     const router = useRouter();
+    const theme = useTheme();
+    const isDarkMode = theme.palette.mode === 'dark';
     const [logs, setLogs] = useState<ErrorLog[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -167,7 +170,13 @@ export default function ErrorLogsPage() {
     return (
         <AppLayout>
             <Toaster position="top-right" />
-            <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+            <Box sx={{
+                p: { xs: 0.75, md: 1 },
+                background: isDarkMode ? 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)' : 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
+                display: 'flex',
+                flexDirection: 'column',
+                height: '100%'
+            }}>
                 {/* Header */}
                 <StandardPageHeader
                     title="Error Logs"
@@ -417,6 +426,6 @@ export default function ErrorLogsPage() {
                     </Dialog>
                 </Box>
             </Box>
-        </AppLayout>
+        </AppLayout >
     );
 }

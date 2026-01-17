@@ -724,7 +724,7 @@ export default function PermissionsPage() {
             }}>
                 {/* ==================== HEADER SECTION ==================== */}
                 <StandardPageHeader
-                    title="Permissions Management"
+                    title="Permissions"
                     subtitle="Manage roles, user permissions and warehouse access"
                     icon="🔐"
                     warehouseName={activeWarehouse?.name}
