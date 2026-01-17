@@ -1430,6 +1430,10 @@ export default function OutboundPage() {
                     overlayStartRef.current = null;
                     try { setTopLoading(false); } catch { }
                 }
+                // Ensure any loading/refresh indicators are cleared on abort
+                try { setRefreshing(false); } catch { }
+                try { setListLoading(false); } catch { }
+
                 setIsFetching(false);
                 outboundAbortControllerRef.current = null;
                 return;
@@ -1476,6 +1480,9 @@ export default function OutboundPage() {
                     if (buttonRefresh) setRefreshing(false);
                     else setListLoading(false);
                 }
+                // Clear both loaders to avoid stuck spinner in empty-list + refresh cases
+                try { setRefreshing(false); } catch { }
+                try { setListLoading(false); } catch { }
 
                 // Clear fetching flag for latest request
                 setIsFetching(false);
