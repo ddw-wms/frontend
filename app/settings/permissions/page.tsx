@@ -601,25 +601,31 @@ export default function PermissionsPage() {
             <Box>
                 {/* Global Quick Actions */}
                 <Paper sx={{
-                    p: 1.5,
+                    p: { xs: 1, sm: 1.5 },
                     mb: 2,
                     bgcolor: isDarkMode ? alpha(theme.palette.primary.main, 0.1) : alpha(theme.palette.primary.main, 0.05),
                     border: '1px solid',
                     borderColor: isDarkMode ? alpha(theme.palette.primary.main, 0.3) : alpha(theme.palette.primary.main, 0.2),
                     borderRadius: 2
                 }}>
-                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }} justifyContent="space-between">
-                        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                    <Stack direction="column" spacing={1}>
+                        {/* First row: Enable/Disable/Show/Hide */}
+                        <Box sx={{
+                            display: 'grid',
+                            gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(4, auto) 1fr repeat(2, auto)' },
+                            gap: { xs: 0.5, sm: 1 },
+                            alignItems: 'center'
+                        }}>
                             <Tooltip title="Enable all permissions">
                                 <Button
                                     size="small"
                                     variant="outlined"
                                     color="success"
-                                    startIcon={<SelectAllIcon />}
+                                    startIcon={!isSmall && <SelectAllIcon />}
                                     onClick={() => handleSelectAllEnabled(true)}
-                                    sx={{ fontSize: '0.75rem' }}
+                                    sx={{ fontSize: { xs: '0.65rem', sm: '0.75rem' }, px: { xs: 0.5, sm: 1 }, minWidth: 0 }}
                                 >
-                                    Enable All
+                                    {isSmall ? '✓ All' : 'Enable All'}
                                 </Button>
                             </Tooltip>
                             <Tooltip title="Disable all permissions">
@@ -627,11 +633,11 @@ export default function PermissionsPage() {
                                     size="small"
                                     variant="outlined"
                                     color="error"
-                                    startIcon={<DeselectIcon />}
+                                    startIcon={!isSmall && <DeselectIcon />}
                                     onClick={() => handleSelectAllEnabled(false)}
-                                    sx={{ fontSize: '0.75rem' }}
+                                    sx={{ fontSize: { xs: '0.65rem', sm: '0.75rem' }, px: { xs: 0.5, sm: 1 }, minWidth: 0 }}
                                 >
-                                    Disable All
+                                    {isSmall ? '✗ All' : 'Disable All'}
                                 </Button>
                             </Tooltip>
                             <Tooltip title="Show all in UI">
@@ -639,37 +645,35 @@ export default function PermissionsPage() {
                                     size="small"
                                     variant="outlined"
                                     color="info"
-                                    startIcon={<VisibilityIcon />}
+                                    startIcon={!isSmall && <VisibilityIcon />}
                                     onClick={() => handleSelectAllVisible(true)}
-                                    sx={{ fontSize: '0.75rem' }}
+                                    sx={{ fontSize: { xs: '0.65rem', sm: '0.75rem' }, px: { xs: 0.5, sm: 1 }, minWidth: 0 }}
                                 >
-                                    Show All
+                                    {isSmall ? '👁 All' : 'Show All'}
                                 </Button>
                             </Tooltip>
                             <Tooltip title="Hide all from UI">
                                 <Button
                                     size="small"
                                     variant="outlined"
-                                    startIcon={<VisibilityOffIcon />}
+                                    startIcon={!isSmall && <VisibilityOffIcon />}
                                     onClick={() => handleSelectAllVisible(false)}
-                                    sx={{ fontSize: '0.75rem' }}
+                                    sx={{ fontSize: { xs: '0.65rem', sm: '0.75rem' }, px: { xs: 0.5, sm: 1 }, minWidth: 0 }}
                                 >
-                                    Hide All
+                                    {isSmall ? '🚫 All' : 'Hide All'}
                                 </Button>
                             </Tooltip>
-                        </Stack>
-                        <Divider orientation="vertical" flexItem sx={{ display: { xs: 'none', sm: 'block' } }} />
-                        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                            <Box sx={{ display: { xs: 'none', sm: 'block' } }} />
                             <Tooltip title="View Only: Enable menus, show all, disable actions">
                                 <Button
                                     size="small"
                                     variant="contained"
                                     color="warning"
-                                    startIcon={<ViewOnlyIcon />}
+                                    startIcon={!isSmall && <ViewOnlyIcon />}
                                     onClick={handleSetViewOnly}
-                                    sx={{ fontSize: '0.75rem' }}
+                                    sx={{ fontSize: { xs: '0.65rem', sm: '0.75rem' }, px: { xs: 0.5, sm: 1 }, minWidth: 0 }}
                                 >
-                                    View Only
+                                    {isSmall ? '👁 Only' : 'View Only'}
                                 </Button>
                             </Tooltip>
                             <Tooltip title="Full Access: Enable & show everything">
@@ -677,22 +681,22 @@ export default function PermissionsPage() {
                                     size="small"
                                     variant="contained"
                                     color="success"
-                                    startIcon={<FullAccessIcon />}
+                                    startIcon={!isSmall && <FullAccessIcon />}
                                     onClick={handleSetFullAccess}
-                                    sx={{ fontSize: '0.75rem' }}
+                                    sx={{ fontSize: { xs: '0.65rem', sm: '0.75rem' }, px: { xs: 0.5, sm: 1 }, minWidth: 0 }}
                                 >
-                                    Full Access
+                                    {isSmall ? 'Full' : 'Full Access'}
                                 </Button>
                             </Tooltip>
-                        </Stack>
+                        </Box>
                     </Stack>
-                    <Stack direction="row" spacing={2} mt={1.5}>
+                    <Stack direction="row" spacing={{ xs: 1, sm: 2 }} mt={1} flexWrap="wrap" useFlexGap>
                         <Chip
                             label={`Enabled: ${totalEnabled}/${totalPermissions}`}
                             size="small"
                             color="success"
                             variant="outlined"
-                            sx={{ fontSize: '0.7rem' }}
+                            sx={{ fontSize: { xs: '0.6rem', sm: '0.7rem' } }}
                         />
                         <Chip
                             label={`Visible: ${totalVisible}/${totalPermissions}`}
@@ -727,36 +731,40 @@ export default function PermissionsPage() {
                                 expandIcon={<ExpandMoreIcon />}
                                 sx={{
                                     bgcolor: isDarkMode ? '#1e293b' : 'grey.50',
-                                    minHeight: 48,
-                                    '&.Mui-expanded': { minHeight: 48 }
+                                    minHeight: { xs: 40, sm: 48 },
+                                    px: { xs: 1, sm: 2 },
+                                    '&.Mui-expanded': { minHeight: { xs: 40, sm: 48 } },
+                                    '& .MuiAccordionSummary-content': { my: { xs: 0.5, sm: 1 } }
                                 }}
                             >
-                                <Stack direction="row" alignItems="center" spacing={1} sx={{ flex: 1, mr: 2 }}>
-                                    <Typography fontWeight={600} fontSize="0.9rem">
-                                        {PAGE_LABELS[page] || page}
-                                    </Typography>
-                                    <Chip
-                                        label={grouped[page].length}
-                                        size="small"
-                                        sx={{ height: 20, fontSize: '0.7rem' }}
-                                    />
-                                    {pageAllEnabled && (
-                                        <Chip label="✓ All Enabled" size="small" color="success" variant="outlined" sx={{ height: 18, fontSize: '0.65rem' }} />
-                                    )}
-                                    {pageAllVisible && (
-                                        <Chip label="✓ All Visible" size="small" color="info" variant="outlined" sx={{ height: 18, fontSize: '0.65rem' }} />
-                                    )}
-                                </Stack>
+                                <Box sx={{ flex: 1, mr: 1, overflow: 'hidden' }}>
+                                    <Stack direction="row" alignItems="center" spacing={0.5} flexWrap="wrap" useFlexGap>
+                                        <Typography fontWeight={600} fontSize={{ xs: '0.75rem', sm: '0.9rem' }} noWrap sx={{ maxWidth: { xs: '120px', sm: 'none' } }}>
+                                            {PAGE_LABELS[page] || page}
+                                        </Typography>
+                                        <Chip
+                                            label={grouped[page].length}
+                                            size="small"
+                                            sx={{ height: { xs: 16, sm: 20 }, fontSize: { xs: '0.6rem', sm: '0.7rem' }, '& .MuiChip-label': { px: 0.5 } }}
+                                        />
+                                        {pageAllEnabled && (
+                                            <Chip label={isSmall ? '✓E' : '✓ Enabled'} size="small" color="success" variant="outlined" sx={{ height: { xs: 16, sm: 18 }, fontSize: { xs: '0.55rem', sm: '0.65rem' }, '& .MuiChip-label': { px: { xs: 0.3, sm: 0.5 } } }} />
+                                        )}
+                                        {pageAllVisible && (
+                                            <Chip label={isSmall ? '✓V' : '✓ Visible'} size="small" color="info" variant="outlined" sx={{ height: { xs: 16, sm: 18 }, fontSize: { xs: '0.55rem', sm: '0.65rem' }, '& .MuiChip-label': { px: { xs: 0.3, sm: 0.5 } } }} />
+                                        )}
+                                    </Stack>
+                                </Box>
                             </AccordionSummary>
                             <AccordionDetails sx={{ p: 0 }}>
                                 {/* Page-level quick actions */}
                                 <Box sx={{
-                                    p: 1,
+                                    p: { xs: 0.5, sm: 1 },
                                     bgcolor: isDarkMode ? alpha(theme.palette.grey[800], 0.5) : 'grey.100',
                                     borderBottom: '1px solid',
                                     borderColor: 'divider',
                                     display: 'flex',
-                                    gap: 1,
+                                    gap: { xs: 0.5, sm: 1 },
                                     flexWrap: 'wrap'
                                 }}>
                                     <Tooltip title={pageAllEnabled ? "Disable all in this section" : "Enable all in this section"}>
@@ -768,10 +776,10 @@ export default function PermissionsPage() {
                                                 e.stopPropagation();
                                                 handleSelectPageEnabled(page, !pageAllEnabled);
                                             }}
-                                            startIcon={pageAllEnabled ? <CheckBoxIcon /> : <CheckBoxOutlineBlankIcon />}
-                                            sx={{ fontSize: '0.7rem', py: 0.25 }}
+                                            startIcon={!isSmall && (pageAllEnabled ? <CheckBoxIcon /> : <CheckBoxOutlineBlankIcon />)}
+                                            sx={{ fontSize: { xs: '0.6rem', sm: '0.7rem' }, py: 0.25, px: { xs: 0.5, sm: 1 }, minWidth: 0 }}
                                         >
-                                            {pageAllEnabled ? 'All Enabled' : 'Enable All'}
+                                            {isSmall ? (pageAllEnabled ? '✓ Enable' : 'Enable') : (pageAllEnabled ? 'All Enabled' : 'Enable All')}
                                         </Button>
                                     </Tooltip>
                                     <Tooltip title={pageAllVisible ? "Hide all in this section" : "Show all in this section"}>
@@ -783,31 +791,31 @@ export default function PermissionsPage() {
                                                 e.stopPropagation();
                                                 handleSelectPageVisible(page, !pageAllVisible);
                                             }}
-                                            startIcon={pageAllVisible ? <VisibilityIcon /> : <VisibilityOffIcon />}
-                                            sx={{ fontSize: '0.7rem', py: 0.25 }}
+                                            startIcon={!isSmall && (pageAllVisible ? <VisibilityIcon /> : <VisibilityOffIcon />)}
+                                            sx={{ fontSize: { xs: '0.6rem', sm: '0.7rem' }, py: 0.25, px: { xs: 0.5, sm: 1 }, minWidth: 0 }}
                                         >
-                                            {pageAllVisible ? 'All Visible' : 'Show All'}
+                                            {isSmall ? (pageAllVisible ? '✓ Show' : 'Show') : (pageAllVisible ? 'All Visible' : 'Show All')}
                                         </Button>
                                     </Tooltip>
                                 </Box>
                                 <TableContainer>
-                                    <Table size="small">
+                                    <Table size="small" sx={{ tableLayout: 'fixed' }}>
                                         <TableHead>
                                             <TableRow sx={{ bgcolor: isDarkMode ? '#334155' : 'grey.100' }}>
-                                                <TableCell sx={{ fontWeight: 600, py: 1 }}>Permission</TableCell>
-                                                <TableCell align="center" sx={{ fontWeight: 600, py: 1, width: 80 }}>
+                                                <TableCell sx={{ fontWeight: 600, py: { xs: 0.5, sm: 1 }, fontSize: { xs: '0.7rem', sm: '0.875rem' }, width: { xs: 'auto', sm: 'auto' } }}>Permission</TableCell>
+                                                <TableCell align="center" sx={{ fontWeight: 600, py: { xs: 0.5, sm: 1 }, width: { xs: 50, sm: 80 }, px: { xs: 0.25, sm: 1 } }}>
                                                     <Tooltip title="Can use the feature">
-                                                        <Stack direction="row" alignItems="center" justifyContent="center" spacing={0.5}>
-                                                            <LockOpenIcon fontSize="small" sx={{ color: 'success.main' }} />
-                                                            {!isSmall && <span>Enable</span>}
+                                                        <Stack direction="row" alignItems="center" justifyContent="center" spacing={0.25}>
+                                                            <LockOpenIcon sx={{ fontSize: { xs: 14, sm: 18 }, color: 'success.main' }} />
+                                                            {!isSmall && <Typography component="span" sx={{ fontSize: '0.75rem' }}>Enable</Typography>}
                                                         </Stack>
                                                     </Tooltip>
                                                 </TableCell>
-                                                <TableCell align="center" sx={{ fontWeight: 600, py: 1, width: 80 }}>
+                                                <TableCell align="center" sx={{ fontWeight: 600, py: { xs: 0.5, sm: 1 }, width: { xs: 50, sm: 80 }, px: { xs: 0.25, sm: 1 } }}>
                                                     <Tooltip title="Can see in UI">
-                                                        <Stack direction="row" alignItems="center" justifyContent="center" spacing={0.5}>
-                                                            <VisibilityIcon fontSize="small" sx={{ color: 'info.main' }} />
-                                                            {!isSmall && <span>Show</span>}
+                                                        <Stack direction="row" alignItems="center" justifyContent="center" spacing={0.25}>
+                                                            <VisibilityIcon sx={{ fontSize: { xs: 14, sm: 18 }, color: 'info.main' }} />
+                                                            {!isSmall && <Typography component="span" sx={{ fontSize: '0.75rem' }}>Show</Typography>}
                                                         </Stack>
                                                     </Tooltip>
                                                 </TableCell>
@@ -816,30 +824,32 @@ export default function PermissionsPage() {
                                         <TableBody>
                                             {grouped[page].map(p => (
                                                 <TableRow key={p.code} hover>
-                                                    <TableCell sx={{ py: 0.75 }}>
-                                                        <Typography variant="body2" fontWeight={500}>
+                                                    <TableCell sx={{ py: { xs: 0.25, sm: 0.75 }, px: { xs: 0.5, sm: 2 } }}>
+                                                        <Typography variant="body2" fontWeight={500} sx={{ fontSize: { xs: '0.7rem', sm: '0.875rem' }, wordBreak: 'break-word' }}>
                                                             {p.name}
                                                         </Typography>
                                                         {!isSmall && (
-                                                            <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
+                                                            <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem', wordBreak: 'break-all' }}>
                                                                 {p.code}
                                                             </Typography>
                                                         )}
                                                     </TableCell>
-                                                    <TableCell align="center" sx={{ py: 0.75 }}>
+                                                    <TableCell align="center" sx={{ py: { xs: 0.25, sm: 0.75 }, px: { xs: 0, sm: 1 } }}>
                                                         <Checkbox
                                                             checked={p.is_enabled}
                                                             onChange={() => handleToggleRoleEnabled(p.code)}
                                                             color="success"
                                                             size="small"
+                                                            sx={{ p: { xs: 0.25, sm: 0.5 } }}
                                                         />
                                                     </TableCell>
-                                                    <TableCell align="center" sx={{ py: 0.75 }}>
+                                                    <TableCell align="center" sx={{ py: { xs: 0.25, sm: 0.75 }, px: { xs: 0, sm: 1 } }}>
                                                         <Checkbox
                                                             checked={p.is_visible}
                                                             onChange={() => handleToggleRoleVisible(p.code)}
                                                             color="info"
                                                             size="small"
+                                                            sx={{ p: { xs: 0.25, sm: 0.5 } }}
                                                         />
                                                     </TableCell>
                                                 </TableRow>
@@ -880,49 +890,53 @@ export default function PermissionsPage() {
                         <AccordionSummary
                             expandIcon={<ExpandMoreIcon />}
                             sx={{
-                                bgcolor: 'grey.50',
-                                minHeight: 48,
-                                '&.Mui-expanded': { minHeight: 48 }
+                                bgcolor: isDarkMode ? '#1e293b' : 'grey.50',
+                                minHeight: { xs: 40, sm: 48 },
+                                px: { xs: 1, sm: 2 },
+                                '&.Mui-expanded': { minHeight: { xs: 40, sm: 48 } },
+                                '& .MuiAccordionSummary-content': { my: { xs: 0.5, sm: 1 } }
                             }}
                         >
-                            <Typography fontWeight={600} fontSize="0.9rem">
+                            <Typography fontWeight={600} fontSize={{ xs: '0.75rem', sm: '0.9rem' }} noWrap>
                                 {PAGE_LABELS[page] || page}
                             </Typography>
                         </AccordionSummary>
                         <AccordionDetails sx={{ p: 0 }}>
                             <TableContainer>
-                                <Table size="small">
+                                <Table size="small" sx={{ tableLayout: 'fixed' }}>
                                     <TableHead>
-                                        <TableRow sx={{ bgcolor: 'grey.100' }}>
-                                            <TableCell sx={{ fontWeight: 600, py: 1 }}>Permission</TableCell>
-                                            <TableCell align="center" sx={{ fontWeight: 600, py: 1, width: 90 }}>Enable</TableCell>
-                                            <TableCell align="center" sx={{ fontWeight: 600, py: 1, width: 90 }}>Show</TableCell>
+                                        <TableRow sx={{ bgcolor: isDarkMode ? '#334155' : 'grey.100' }}>
+                                            <TableCell sx={{ fontWeight: 600, py: { xs: 0.5, sm: 1 }, fontSize: { xs: '0.7rem', sm: '0.875rem' } }}>Permission</TableCell>
+                                            <TableCell align="center" sx={{ fontWeight: 600, py: { xs: 0.5, sm: 1 }, width: { xs: 50, sm: 90 }, px: { xs: 0.25, sm: 1 }, fontSize: { xs: '0.65rem', sm: '0.875rem' } }}>Enable</TableCell>
+                                            <TableCell align="center" sx={{ fontWeight: 600, py: { xs: 0.5, sm: 1 }, width: { xs: 50, sm: 90 }, px: { xs: 0.25, sm: 1 }, fontSize: { xs: '0.65rem', sm: '0.875rem' } }}>Show</TableCell>
                                         </TableRow>
                                     </TableHead>
                                     <TableBody>
                                         {grouped[page].map(p => (
                                             <TableRow key={p.code} hover>
-                                                <TableCell sx={{ py: 0.75 }}>
-                                                    <Typography variant="body2" fontWeight={500}>{p.name}</Typography>
+                                                <TableCell sx={{ py: { xs: 0.25, sm: 0.75 }, px: { xs: 0.5, sm: 2 } }}>
+                                                    <Typography variant="body2" fontWeight={500} sx={{ fontSize: { xs: '0.7rem', sm: '0.875rem' }, wordBreak: 'break-word' }}>{p.name}</Typography>
                                                 </TableCell>
-                                                <TableCell align="center" sx={{ py: 0.75 }}>
+                                                <TableCell align="center" sx={{ py: { xs: 0.25, sm: 0.75 }, px: { xs: 0, sm: 1 } }}>
                                                     <Checkbox
                                                         checked={p.effective_enabled || false}
                                                         indeterminate={p.override_enabled === null}
                                                         onChange={() => handleToggleUserOverrideEnabled(p.code)}
                                                         size="small"
                                                         sx={{
+                                                            p: { xs: 0.25, sm: 0.5 },
                                                             color: p.override_enabled === null ? 'grey.400' : undefined
                                                         }}
                                                     />
                                                 </TableCell>
-                                                <TableCell align="center" sx={{ py: 0.75 }}>
+                                                <TableCell align="center" sx={{ py: { xs: 0.25, sm: 0.75 }, px: { xs: 0, sm: 1 } }}>
                                                     <Checkbox
                                                         checked={p.effective_visible || false}
                                                         indeterminate={p.override_visible === null}
                                                         onChange={() => handleToggleUserOverrideVisible(p.code)}
                                                         size="small"
                                                         sx={{
+                                                            p: { xs: 0.25, sm: 0.5 },
                                                             color: p.override_visible === null ? 'grey.400' : undefined
                                                         }}
                                                     />
@@ -1015,9 +1029,9 @@ export default function PermissionsPage() {
                                         variant="outlined"
                                         onClick={() => setMobileDrawerOpen(true)}
                                         startIcon={<GroupIcon />}
-                                        sx={{ mb: 1 }}
+                                        sx={{ mb: 1, fontSize: { xs: '0.75rem', sm: '0.875rem' }, py: { xs: 0.75, sm: 1 } }}
                                     >
-                                        {selectedRole ? `Selected: ${selectedRole.name}` : 'Select Role'}
+                                        {selectedRole ? (isSmall ? selectedRole.name : `Selected: ${selectedRole.name}`) : 'Select Role'}
                                     </Button>
                                     <Dialog
                                         open={mobileDrawerOpen}
@@ -1047,7 +1061,7 @@ export default function PermissionsPage() {
                                 {selectedRole ? (
                                     <>
                                         <Box sx={{
-                                            p: 2,
+                                            p: { xs: 1, sm: 2 },
                                             borderBottom: '1px solid',
                                             borderColor: 'divider',
                                             display: 'flex',
@@ -1056,20 +1070,21 @@ export default function PermissionsPage() {
                                             flexWrap: 'wrap',
                                             gap: 1
                                         }}>
-                                            <Typography variant="h6" fontWeight={600}>
+                                            <Typography variant="h6" fontWeight={600} sx={{ fontSize: { xs: '0.9rem', sm: '1.25rem' } }}>
                                                 {selectedRole.name} Permissions
                                             </Typography>
                                             <Button
                                                 variant="contained"
-                                                startIcon={saving ? <CircularProgress size={16} color="inherit" /> : <SaveIcon />}
+                                                startIcon={saving ? <CircularProgress size={14} color="inherit" /> : <SaveIcon sx={{ fontSize: { xs: 16, sm: 20 } }} />}
                                                 onClick={handleSaveRolePermissions}
                                                 disabled={saving}
-                                                size={isSmall ? "small" : "medium"}
+                                                size="small"
+                                                sx={{ fontSize: { xs: '0.7rem', sm: '0.875rem' }, px: { xs: 1, sm: 2 } }}
                                             >
-                                                {saving ? 'Saving...' : 'Save Changes'}
+                                                {saving ? 'Saving...' : (isSmall ? 'Save' : 'Save Changes')}
                                             </Button>
                                         </Box>
-                                        <Box sx={{ flex: 1, overflow: 'auto', p: 2 }}>
+                                        <Box sx={{ flex: 1, overflow: 'auto', p: { xs: 0.5, sm: 2 } }}>
                                             <RolePermissionAccordions />
                                         </Box>
                                     </>
@@ -1106,9 +1121,9 @@ export default function PermissionsPage() {
                                         variant="outlined"
                                         onClick={() => setMobileDrawerOpen(true)}
                                         startIcon={<PersonIcon />}
-                                        sx={{ mb: 1 }}
+                                        sx={{ mb: 1, fontSize: { xs: '0.75rem', sm: '0.875rem' }, py: { xs: 0.75, sm: 1 } }}
                                     >
-                                        {selectedUser ? `Selected: ${selectedUser.full_name || selectedUser.username}` : 'Select User'}
+                                        {selectedUser ? (isSmall ? (selectedUser.full_name || selectedUser.username).substring(0, 15) : `Selected: ${selectedUser.full_name || selectedUser.username}`) : 'Select User'}
                                     </Button>
                                     <Dialog
                                         open={mobileDrawerOpen}
@@ -1138,7 +1153,7 @@ export default function PermissionsPage() {
                                 {selectedUser ? (
                                     <>
                                         <Box sx={{
-                                            p: 2,
+                                            p: { xs: 1, sm: 2 },
                                             borderBottom: '1px solid',
                                             borderColor: 'divider',
                                             display: 'flex',
@@ -1147,28 +1162,34 @@ export default function PermissionsPage() {
                                             flexWrap: 'wrap',
                                             gap: 1
                                         }}>
-                                            <Box>
-                                                <Typography variant="h6" fontWeight={600}>
+                                            <Box sx={{ minWidth: 0, flex: 1 }}>
+                                                <Typography variant="h6" fontWeight={600} sx={{ fontSize: { xs: '0.85rem', sm: '1.25rem' } }} noWrap>
                                                     {selectedUser.full_name || selectedUser.username}
                                                 </Typography>
-                                                <Typography variant="body2" color="text.secondary">
-                                                    Role: <Chip label={userRole} size="small" sx={{ height: 20 }} />
-                                                    <Typography component="span" sx={{ ml: 1, fontSize: '0.75rem' }}>
-                                                        (grey checkbox = using role default)
+                                                <Stack direction="row" alignItems="center" spacing={0.5} flexWrap="wrap" useFlexGap>
+                                                    <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: '0.65rem', sm: '0.875rem' } }}>
+                                                        Role:
                                                     </Typography>
-                                                </Typography>
+                                                    <Chip label={userRole} size="small" sx={{ height: { xs: 16, sm: 20 }, fontSize: { xs: '0.6rem', sm: '0.75rem' } }} />
+                                                    {!isSmall && (
+                                                        <Typography component="span" sx={{ fontSize: '0.7rem', color: 'text.secondary' }}>
+                                                            (grey = role default)
+                                                        </Typography>
+                                                    )}
+                                                </Stack>
                                             </Box>
                                             <Button
                                                 variant="contained"
-                                                startIcon={saving ? <CircularProgress size={16} color="inherit" /> : <SaveIcon />}
+                                                startIcon={saving ? <CircularProgress size={14} color="inherit" /> : <SaveIcon sx={{ fontSize: { xs: 16, sm: 20 } }} />}
                                                 onClick={handleSaveUserOverrides}
                                                 disabled={saving}
-                                                size={isSmall ? "small" : "medium"}
+                                                size="small"
+                                                sx={{ fontSize: { xs: '0.7rem', sm: '0.875rem' }, px: { xs: 1, sm: 2 }, flexShrink: 0 }}
                                             >
-                                                {saving ? 'Saving...' : 'Save Overrides'}
+                                                {saving ? 'Saving...' : (isSmall ? 'Save' : 'Save Overrides')}
                                             </Button>
                                         </Box>
-                                        <Box sx={{ flex: 1, overflow: 'auto', p: 2 }}>
+                                        <Box sx={{ flex: 1, overflow: 'auto', p: { xs: 0.5, sm: 2 } }}>
                                             <UserOverrideAccordions />
                                         </Box>
                                     </>
@@ -1205,9 +1226,9 @@ export default function PermissionsPage() {
                                         variant="outlined"
                                         onClick={() => setMobileDrawerOpen(true)}
                                         startIcon={<PersonIcon />}
-                                        sx={{ mb: 1 }}
+                                        sx={{ mb: 1, fontSize: { xs: '0.75rem', sm: '0.875rem' }, py: { xs: 0.75, sm: 1 } }}
                                     >
-                                        {selectedUser ? `Selected: ${selectedUser.full_name || selectedUser.username}` : 'Select User'}
+                                        {selectedUser ? (isSmall ? (selectedUser.full_name || selectedUser.username).substring(0, 15) : `Selected: ${selectedUser.full_name || selectedUser.username}`) : 'Select User'}
                                     </Button>
                                     <Dialog
                                         open={mobileDrawerOpen}
@@ -1237,7 +1258,7 @@ export default function PermissionsPage() {
                                 {selectedUser ? (
                                     <>
                                         <Box sx={{
-                                            p: 2,
+                                            p: { xs: 1, sm: 2 },
                                             borderBottom: '1px solid',
                                             borderColor: 'divider',
                                             display: 'flex',
@@ -1246,15 +1267,16 @@ export default function PermissionsPage() {
                                             flexWrap: 'wrap',
                                             gap: 1
                                         }}>
-                                            <Typography variant="h6" fontWeight={600}>
-                                                Warehouse Access for {selectedUser.full_name || selectedUser.username}
+                                            <Typography variant="h6" fontWeight={600} sx={{ fontSize: { xs: '0.8rem', sm: '1.25rem' } }}>
+                                                {isSmall ? 'Warehouses' : `Warehouse Access for ${selectedUser.full_name || selectedUser.username}`}
                                             </Typography>
                                             <Button
                                                 variant="contained"
-                                                startIcon={saving ? <CircularProgress size={16} color="inherit" /> : <SaveIcon />}
+                                                startIcon={saving ? <CircularProgress size={14} color="inherit" /> : <SaveIcon sx={{ fontSize: { xs: 16, sm: 20 } }} />}
                                                 onClick={handleSaveUserWarehouses}
                                                 disabled={saving}
-                                                size={isSmall ? "small" : "medium"}
+                                                size="small"
+                                                sx={{ fontSize: { xs: '0.7rem', sm: '0.875rem' }, px: { xs: 1, sm: 2 } }}
                                             >
                                                 {saving ? 'Saving...' : 'Save'}
                                             </Button>
