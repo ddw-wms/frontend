@@ -220,7 +220,7 @@ export default function InboundPage() {
     });
   };
 
-  const [multiRows, setMultiRows] = useState<any[]>(generateEmptyRows(50));
+  const [multiRows, setMultiRows] = useState<any[]>(generateEmptyRows(500));
   const [multiLoading, setMultiLoading] = useState(false);
   const [multiResults, setMultiResults] = useState<any[]>([]);
   const [duplicateWSNs, setDuplicateWSNs] = useState<Set<string>>(new Set());
@@ -2321,13 +2321,13 @@ export default function InboundPage() {
 
 
   const add30Rows = () => {
-    const newRows = generateEmptyRows(30).map(row => ({
+    const newRows = generateEmptyRows(100).map(row => ({
       ...row,
       inbound_date: commonDate,
       vehicle_no: commonVehicle
     }));
     setMultiRows([...multiRows, ...newRows]);
-    //toast.success('✓ Added 30 rows');
+    //toast.success('✓ Added 100 rows');
   };
 
 
@@ -5167,7 +5167,7 @@ export default function InboundPage() {
                                 '&:hover': { background: '#db2777' }
                               }}
                             >
-                              + 30 ROWS
+                              + 100 ROWS
                             </Button>
 
                             {/* ✅ Multi Entry Grid Settings Button */}
