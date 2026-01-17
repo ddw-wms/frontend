@@ -1346,9 +1346,9 @@ export default function PickingPage() {
         {currentTabCode === 'list' && (
           <Box sx={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 230px)', transition: 'opacity 0.15s ease-in-out' }}>
             {/* FILTERS */}
-            <Card sx={{ mb: { xs: 0, md: 1 }, borderRadius: 1.5, boxShadow: isDarkMode ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.06)', background: isDarkMode ? '#1e293b' : 'rgba(255, 255, 255, 0.98)' }}>
+            <Card sx={{ mb: { xs: 0, md: 0.5 }, borderRadius: 1.5, boxShadow: isDarkMode ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.06)', background: isDarkMode ? '#1e293b' : 'rgba(255, 255, 255, 0.98)' }}>
               <CardContent sx={{ p: { xs: 0, md: 1 } }}>
-                <Stack spacing={{ xs: 0, md: 1 }}>
+                <Stack spacing={{ xs: 0, md: 0.5 }}>
                   <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: { xs: 1, md: 1 }, alignItems: { xs: 'stretch', md: 'center' }, width: '100%' }}>
                     <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center', width: '100%', overflow: 'hidden' }}>
                       <TextField size="small" placeholder="🔍 Search by WSN or Product" value={searchFilter} onChange={(e) => { setSearchFilter(e.target.value); setPage(1); }} sx={{ flex: '1 1 auto', flexGrow: 1, flexShrink: 1, minWidth: 0, maxWidth: { xs: 'calc(100% - 120px)', sm: 'calc(100% - 130px)', md: 'none' }, '& .MuiOutlinedInput-root': { height: 40 } }} />

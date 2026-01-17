@@ -1818,7 +1818,7 @@ export default function OutboundPage() {
                 {currentTabCode === 'list' && (
                     <Box sx={{ display: 'flex', flexDirection: 'column', height: 'calc(110vh - 200px)', transition: 'opacity 0.15s ease-in-out' }}>
                         {/* SEARCH + FILTERS TOGGLE */}
-                        <Box sx={{ mb: 0.5 }}>
+                        <Box sx={{ mb: 0.5, mt: 0.5 }}>
                             <Stack direction={{ xs: 'row', md: 'row' }} spacing={1} alignItems="center" sx={{ mb: 1 }}>
                                 <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', width: '100%' }}>
                                     <TextField size="small" placeholder="🔍 Search by WSN, Product or Customer" value={searchFilter} onChange={(e) => { setSearchFilter(e.target.value); setPage(1); }} sx={{ flex: 1, minWidth: 0, '& .MuiOutlinedInput-root': { height: 36 } }} />
@@ -1863,7 +1863,7 @@ export default function OutboundPage() {
                                     }}
                                 >
                                     <FilterListIcon sx={{ mr: 0.5 }} />
-                                    <Box component="span" sx={{ mr: 1 }}>{filtersExpanded ? 'Hide Filters' : 'Show Filters'}</Box>
+                                    <Box component="span" sx={{ mr: 1, width: 120, }}>{filtersExpanded ? 'Hide Filters' : 'Show Filters'}</Box>
                                     {filtersActive && (
                                         <Tooltip title="Filters active">
                                             <Box sx={{
