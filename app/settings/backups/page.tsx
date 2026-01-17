@@ -975,8 +975,8 @@ export default function BackupPage() {
                                                                     <DownloadIcon fontSize="small" />
                                                                 </IconButton>
                                                             </Tooltip>
-                                                            <Tooltip title="Restore" arrow>
-                                                                {canSeeButton('restore') && (
+                                                            {canSeeButton('restore') && (
+                                                                <Tooltip title="Restore" arrow>
                                                                     <IconButton
                                                                         size="small"
                                                                         color="success"
@@ -993,10 +993,10 @@ export default function BackupPage() {
                                                                     >
                                                                         <RestoreIcon fontSize="small" />
                                                                     </IconButton>
-                                                                )}
-                                                            </Tooltip>
-                                                            <Tooltip title="Delete" arrow>
-                                                                {canSeeButton('delete') && (
+                                                                </Tooltip>
+                                                            )}
+                                                            {canSeeButton('delete') && (
+                                                                <Tooltip title="Delete" arrow>
                                                                     <IconButton
                                                                         size="small"
                                                                         color="error"
@@ -1010,8 +1010,8 @@ export default function BackupPage() {
                                                                     >
                                                                         <DeleteIcon fontSize="small" />
                                                                     </IconButton>
-                                                                )}
-                                                            </Tooltip>
+                                                                </Tooltip>
+                                                            )}
                                                         </Stack>
                                                     </TableCell>
                                                 </TableRow>
