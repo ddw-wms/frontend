@@ -32,6 +32,8 @@ const pathMenuMap: Record<string, string> = {
     '/settings/printers': 'menu:settings:printers',
     '/settings/backups': 'menu:settings:backups',
     '/settings/permissions': 'menu:settings:permissions',
+    '/settings/appearance': 'menu:settings:appearance',
+    '/settings/error-logs': 'menu:settings:errorlogs',
 };
 
 /**
@@ -84,15 +86,15 @@ export default function RouteGuard({
         // Get user for role check - do this FIRST before waiting for permissions API
         const user = getStoredUser();
 
-        // Admin and super_admin always have access IMMEDIATELY (don't wait for permissions API)
-        // This prevents unresponsive feeling on slow networks for admin users
-        if (isAdmin || user?.role === 'admin' || user?.role === 'super_admin') {
+        // Only super_admin has automatic access bypass (not admin)
+        // Admin role should respect their permission settings
+        if (isAdmin || user?.role === 'super_admin') {
             setAuthorized(true);
             setCheckingAuth(false);
             return;
         }
 
-        // For non-admin users, allow access while permissions are still loading
+        // For non-super_admin users (including admin), allow access while permissions are still loading
         // This prevents the app from feeling frozen on slow networks
         // The actual permission will be enforced once loaded (shows access denied if not allowed)
         if (isLoading) {

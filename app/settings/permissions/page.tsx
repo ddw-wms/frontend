@@ -105,6 +105,8 @@ const PAGE_LABELS: Record<string, string> = {
     'settings-printers': '12. Settings/Printers',
     'settings-backups': '13. Settings/Backups',
     'settings-permissions': '14. Settings/Permissions',
+    'settings-appearance': '15. Settings/Appearance',
+    'settings-errorlogs': '16. Settings/Error Logs',
 };
 
 // Merge duplicate pages into single groups
@@ -128,7 +130,8 @@ const mergePagePermissions = (perms: Permission[]): Record<string, Permission[]>
 const PAGE_ORDER = [
     'dashboard', 'inbound', 'qc', 'picking', 'outbound', 'customers',
     'reports', 'settings-masterdata', 'settings-warehouses', 'settings-racks',
-    'settings-users', 'settings-printers', 'settings-backups', 'settings-permissions'
+    'settings-users', 'settings-printers', 'settings-backups', 'settings-permissions',
+    'settings-appearance', 'settings-errorlogs'
 ];
 
 export default function PermissionsPage() {
@@ -412,10 +415,11 @@ export default function PermissionsPage() {
         );
     };
 
-    // User List Component
+    // User List Component - Filter out super_admin users (they have all permissions by default)
     const UserList = () => {
         const filteredUsers = users.filter(u =>
             u.is_active &&
+            u.role !== 'super_admin' && // Exclude super_admin users - they have full access by default
             (searchQuery === '' ||
                 u.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
                 (u.full_name && u.full_name.toLowerCase().includes(searchQuery.toLowerCase())))
@@ -703,7 +707,12 @@ export default function PermissionsPage() {
         );
     }
 
-    if (!isAdmin) {
+    // Allow super_admin and admin roles to access permissions page
+    // For admin, their permissions are checked via RouteGuard
+    const currentUserRole = user?.role;
+    const canAccessPermissionsPage = isAdmin || currentUserRole === 'admin' || currentUserRole === 'super_admin';
+
+    if (!canAccessPermissionsPage) {
         return (
             <AppLayout>
                 <Alert severity="error">You do not have permission to access this page.</Alert>

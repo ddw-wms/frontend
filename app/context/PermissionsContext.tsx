@@ -197,12 +197,13 @@ export const PermissionsProvider: React.FC<PermissionsProviderProps> = ({ childr
     };
 
     const hasPermission = (permissionKey: string): boolean => {
-        // Admin always has permission
+        // Only super_admin has automatic full access bypass
+        // Admin role should respect their permission settings
         const user = localStorage.getItem('user');
         if (user) {
             try {
                 const userData = JSON.parse(user);
-                if (userData.role === 'admin') {
+                if (userData.role === 'super_admin') {
                     return true;
                 }
             } catch (e) {

@@ -52,7 +52,9 @@ export function PermissionProvider({ children }: PermissionProviderProps) {
     // Track if permissions have been loaded at least once
     const [_initialized, setInitialized] = useState(false);
 
-    const isAdmin = role === 'super_admin' || role === 'admin';
+    // Only super_admin has automatic full access bypass
+    // Admin role should respect their role-based permission settings
+    const isAdmin = role === 'super_admin';
 
     // Load permissions function - can be called anytime
     const loadPermissions = useCallback(async () => {
@@ -68,8 +70,9 @@ export function PermissionProvider({ children }: PermissionProviderProps) {
 
         setRole(user.role || '');
 
-        // Admin roles get full access immediately
-        if (user.role === 'super_admin' || user.role === 'admin') {
+        // Only super_admin gets full access immediately without loading permissions
+        // Admin role should load permissions from API (which respects role settings)
+        if (user.role === 'super_admin') {
             setIsLoading(false);
             setInitialized(true);
             return;

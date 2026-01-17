@@ -179,10 +179,12 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
   const mainMenu = useMemo(() => {
     // Get user from storage for immediate admin check
     const user = getStoredUser();
-    const isUserAdmin = user?.role === 'admin' || user?.role === 'super_admin';
+    // Only super_admin gets automatic all menu access (not admin)
+    const isSuperAdmin = user?.role === 'super_admin';
 
-    // Admin gets all menu items immediately (no waiting for permissions to load)
-    if (isAdmin || isUserAdmin) {
+    // Only super_admin gets all menu items immediately
+    // Admin should respect their permission settings
+    if (isAdmin || isSuperAdmin) {
       return allMainMenuItems;
     }
 
@@ -195,16 +197,17 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
   const settingsMenu = useMemo(() => {
     // Get user from storage for immediate admin check
     const user = getStoredUser();
-    const isUserAdmin = user?.role === 'admin' || user?.role === 'super_admin';
+    // Only super_admin gets automatic all settings access (not admin)
     const isSuperAdmin = user?.role === 'super_admin';
 
-    // Filter items based on role
+    // Filter items based on role - Error Logs is super_admin only
     const filterSuperAdminItems = (items: typeof allSettingsMenuItems) => {
       return items.filter(item => !item.superAdminOnly || isSuperAdmin);
     };
 
-    // Admin gets all menu items immediately (but super_admin-only items filtered)
-    if (isAdmin || isUserAdmin) {
+    // Only super_admin gets all menu items immediately
+    // Admin should respect their permission settings  
+    if (isAdmin || isSuperAdmin) {
       return filterSuperAdminItems(allSettingsMenuItems);
     }
 

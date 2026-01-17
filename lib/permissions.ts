@@ -40,12 +40,13 @@ export async function fetchUserPermissions(): Promise<UserPermissions> {
  * Check if user has a specific permission
  */
 export function hasPermission(permissions: UserPermissions, permissionKey: string): boolean {
-    // Check if user is admin (admins have all permissions)
+    // Only super_admin has automatic full access bypass
+    // Admin role should respect their permission settings
     const user = localStorage.getItem('user');
     if (user) {
         try {
             const userData = JSON.parse(user);
-            if (userData.role === 'admin') {
+            if (userData.role === 'super_admin') {
                 return true;
             }
         } catch (e) {
