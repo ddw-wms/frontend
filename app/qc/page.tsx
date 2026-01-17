@@ -1718,7 +1718,7 @@ export default function QCPage() {
                         {/* ROW 1: Date Filters + Status + Grade + Brand + Category */}
                         <Box sx={{
                           display: 'grid',
-                          gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', md: 'repeat(6, 1fr)' },
+                          gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', md: 'repeat(5, 1fr)' },
                           gap: 1
                         }}>
                           <TextField
@@ -1761,24 +1761,7 @@ export default function QCPage() {
                               }
                             }}
                           />
-                          <FormControl size="small">
-                            <InputLabel sx={{ fontSize: '0.75rem' }}>Status</InputLabel>
-                            <Select
-                              value={statusFilter}
-                              label="Status"
-                              onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
-                              sx={{
-                                height: 36,
-                                fontSize: '0.8rem',
-                                bgcolor: 'white',
-                                '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#1e40af' },
-                                '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#1e40af' }
-                              }}
-                            >
-                              <MenuItem value="">All Status</MenuItem>
-                              {QC_STATUSES.map(s => <MenuItem key={s} value={s} sx={{ fontSize: '0.8rem' }}>{s}</MenuItem>)}
-                            </Select>
-                          </FormControl>
+
                           <FormControl size="small">
                             <InputLabel sx={{ fontSize: '0.75rem' }}>Grade</InputLabel>
                             <Select
