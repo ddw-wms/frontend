@@ -503,12 +503,12 @@ export const permissionsAPI = {
   getRoles: () => api.get('/permissions/roles'),
   getRolePermissions: (roleId: number) => api.get(`/permissions/roles/${roleId}/permissions`),
   updateRolePermissions: (roleId: number, permissions: { code: string; is_enabled: boolean; is_visible: boolean }[]) =>
-    api.put(`/permissions/roles/${roleId}/permissions`, { permissions }),
+    api.put(`/permissions/roles/${roleId}/permissions`, { permissions }, { timeout: 30000 }), // Extended timeout for batch update
 
   // User overrides
   getUserOverrides: (userId: number) => api.get(`/permissions/users/${userId}/overrides`),
   updateUserOverrides: (userId: number, overrides: { code: string; is_enabled: boolean | null; is_visible: boolean | null }[]) =>
-    api.put(`/permissions/users/${userId}/overrides`, { overrides }),
+    api.put(`/permissions/users/${userId}/overrides`, { overrides }, { timeout: 30000 }), // Extended timeout for batch update
 
   // User warehouses
   getUserWarehouses: (userId: number) => api.get(`/permissions/users/${userId}/warehouses`),

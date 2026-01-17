@@ -253,10 +253,12 @@ export default function PermissionsPage() {
                     is_visible: p.is_visible
                 }))
             );
-            showSnackbar('Role permissions saved', 'success');
+            showSnackbar('Role permissions saved successfully', 'success');
             await refreshPermissions();
-        } catch (error) {
-            showSnackbar('Failed to save role permissions', 'error');
+        } catch (error: any) {
+            console.error('Save role permissions error:', error);
+            const errorMsg = error?.response?.data?.error || error?.message || 'Network error';
+            showSnackbar(`Failed to save: ${errorMsg}`, 'error');
         } finally {
             setSaving(false);
         }
@@ -321,9 +323,11 @@ export default function PermissionsPage() {
                     is_visible: p.override_visible ?? null
                 }));
             await permissionsAPI.updateUserOverrides(selectedUser.id, overrides);
-            showSnackbar('User overrides saved', 'success');
-        } catch (error) {
-            showSnackbar('Failed to save user overrides', 'error');
+            showSnackbar('User overrides saved successfully', 'success');
+        } catch (error: any) {
+            console.error('Save user overrides error:', error);
+            const errorMsg = error?.response?.data?.error || error?.message || 'Network error';
+            showSnackbar(`Failed to save: ${errorMsg}`, 'error');
         } finally {
             setSaving(false);
         }
@@ -354,9 +358,11 @@ export default function PermissionsPage() {
                 userWarehouses,
                 defaultWarehouseId || undefined
             );
-            showSnackbar('User warehouses saved', 'success');
-        } catch (error) {
-            showSnackbar('Failed to save user warehouses', 'error');
+            showSnackbar('User warehouses saved successfully', 'success');
+        } catch (error: any) {
+            console.error('Save user warehouses error:', error);
+            const errorMsg = error?.response?.data?.error || error?.message || 'Network error';
+            showSnackbar(`Failed to save: ${errorMsg}`, 'error');
         } finally {
             setSaving(false);
         }
