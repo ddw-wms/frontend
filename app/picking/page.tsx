@@ -876,6 +876,11 @@ export default function PickingPage() {
           overlayStartRef.current = null;
           try { setTopLoading(false); } catch { }
         }
+        // Ensure any loading/refresh indicators are cleared on abort
+        try { setRefreshing(false); } catch { }
+        try { setLoading(false); } catch { }
+
+
         setIsFetching(false);
         pickingAbortControllerRef.current = null;
         return;
@@ -923,6 +928,9 @@ export default function PickingPage() {
           if (buttonRefresh) setRefreshing(false);
           else setLoading(false);
         }
+        // Clear both loaders to avoid stuck spinner in empty-list + refresh cases
+        try { setRefreshing(false); } catch { }
+        try { setLoading(false); } catch { }
 
         setIsFetching(false);
         pickingAbortControllerRef.current = null;
