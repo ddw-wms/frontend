@@ -22,7 +22,10 @@ import {
     RadioButtonUnchecked as RadioButtonUncheckedIcon,
     Dashboard as DashboardIcon, Inventory as InventoryIcon,
     LocalShipping as ShippingIcon, Assignment as AssignmentIcon,
-    Settings as SettingsIcon, Security as SecurityIcon
+    Settings as SettingsIcon, Security as SecurityIcon,
+    SelectAll as SelectAllIcon, Deselect as DeselectIcon,
+    RemoveRedEye as ViewOnlyIcon, AdminPanelSettings as FullAccessIcon,
+    CheckBox as CheckBoxIcon, CheckBoxOutlineBlank as CheckBoxOutlineBlankIcon
 } from '@mui/icons-material';
 import { permissionsAPI, usersAPI, warehousesAPI } from '@/lib/api';
 import { usePermissions } from '@/app/context/PermissionContext';
@@ -239,6 +242,78 @@ export default function PermissionsPage() {
         setRolePermissions(prev => prev.map(p =>
             p.code === code ? { ...p, is_visible: !p.is_visible } : p
         ));
+    };
+
+    // =====================================================
+    // BULK ACTIONS FOR ROLE PERMISSIONS
+    // =====================================================
+
+    // Select/Unselect all enabled for entire role
+    const handleSelectAllEnabled = (enabled: boolean) => {
+        setRolePermissions(prev => prev.map(p => ({ ...p, is_enabled: enabled })));
+    };
+
+    // Select/Unselect all visible for entire role
+    const handleSelectAllVisible = (visible: boolean) => {
+        setRolePermissions(prev => prev.map(p => ({ ...p, is_visible: visible })));
+    };
+
+    // Select/Unselect all for a specific page
+    const handleSelectPageEnabled = (page: string, enabled: boolean) => {
+        setRolePermissions(prev => prev.map(p => {
+            let normalizedPage = p.page;
+            if (p.page === 'warehouses') normalizedPage = 'settings-warehouses';
+            if (p.page === 'racks') normalizedPage = 'settings-racks';
+            return normalizedPage === page ? { ...p, is_enabled: enabled } : p;
+        }));
+    };
+
+    const handleSelectPageVisible = (page: string, visible: boolean) => {
+        setRolePermissions(prev => prev.map(p => {
+            let normalizedPage = p.page;
+            if (p.page === 'warehouses') normalizedPage = 'settings-warehouses';
+            if (p.page === 'racks') normalizedPage = 'settings-racks';
+            return normalizedPage === page ? { ...p, is_visible: visible } : p;
+        }));
+    };
+
+    // Set view-only permissions (all visible, only menu enabled)
+    const handleSetViewOnly = () => {
+        setRolePermissions(prev => prev.map(p => ({
+            ...p,
+            is_enabled: p.code.startsWith('menu:'), // Only enable menu permissions
+            is_visible: true // All visible
+        })));
+    };
+
+    // Set full access
+    const handleSetFullAccess = () => {
+        setRolePermissions(prev => prev.map(p => ({
+            ...p,
+            is_enabled: true,
+            is_visible: true
+        })));
+    };
+
+    // Check if page has all enabled/visible
+    const isPageAllEnabled = (page: string): boolean => {
+        const pagePerms = rolePermissions.filter(p => {
+            let normalizedPage = p.page;
+            if (p.page === 'warehouses') normalizedPage = 'settings-warehouses';
+            if (p.page === 'racks') normalizedPage = 'settings-racks';
+            return normalizedPage === page;
+        });
+        return pagePerms.length > 0 && pagePerms.every(p => p.is_enabled);
+    };
+
+    const isPageAllVisible = (page: string): boolean => {
+        const pagePerms = rolePermissions.filter(p => {
+            let normalizedPage = p.page;
+            if (p.page === 'warehouses') normalizedPage = 'settings-warehouses';
+            if (p.page === 'racks') normalizedPage = 'settings-racks';
+            return normalizedPage === page;
+        });
+        return pagePerms.length > 0 && pagePerms.every(p => p.is_visible);
     };
 
     const handleSaveRolePermissions = async () => {
@@ -517,101 +592,265 @@ export default function PermissionsPage() {
         const grouped = mergePagePermissions(rolePermissions);
         const sortedPages = PAGE_ORDER.filter(p => grouped[p]?.length > 0);
 
+        // Calculate totals
+        const totalEnabled = rolePermissions.filter(p => p.is_enabled).length;
+        const totalVisible = rolePermissions.filter(p => p.is_visible).length;
+        const totalPermissions = rolePermissions.length;
+
         return (
             <Box>
-                {sortedPages.map((page) => (
-                    <Accordion
-                        key={page}
-                        expanded={expandedAccordions[`role_${page}`] || false}
-                        onChange={handleAccordionChange(`role_${page}`)}
-                        sx={{
-                            '&:before': { display: 'none' },
-                            boxShadow: 'none',
-                            border: '1px solid',
-                            borderColor: 'divider',
-                            mb: 1,
-                            borderRadius: '8px !important',
-                            overflow: 'hidden'
-                        }}
-                    >
-                        <AccordionSummary
-                            expandIcon={<ExpandMoreIcon />}
+                {/* Global Quick Actions */}
+                <Paper sx={{
+                    p: 1.5,
+                    mb: 2,
+                    bgcolor: isDarkMode ? alpha(theme.palette.primary.main, 0.1) : alpha(theme.palette.primary.main, 0.05),
+                    border: '1px solid',
+                    borderColor: isDarkMode ? alpha(theme.palette.primary.main, 0.3) : alpha(theme.palette.primary.main, 0.2),
+                    borderRadius: 2
+                }}>
+                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }} justifyContent="space-between">
+                        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                            <Tooltip title="Enable all permissions">
+                                <Button
+                                    size="small"
+                                    variant="outlined"
+                                    color="success"
+                                    startIcon={<SelectAllIcon />}
+                                    onClick={() => handleSelectAllEnabled(true)}
+                                    sx={{ fontSize: '0.75rem' }}
+                                >
+                                    Enable All
+                                </Button>
+                            </Tooltip>
+                            <Tooltip title="Disable all permissions">
+                                <Button
+                                    size="small"
+                                    variant="outlined"
+                                    color="error"
+                                    startIcon={<DeselectIcon />}
+                                    onClick={() => handleSelectAllEnabled(false)}
+                                    sx={{ fontSize: '0.75rem' }}
+                                >
+                                    Disable All
+                                </Button>
+                            </Tooltip>
+                            <Tooltip title="Show all in UI">
+                                <Button
+                                    size="small"
+                                    variant="outlined"
+                                    color="info"
+                                    startIcon={<VisibilityIcon />}
+                                    onClick={() => handleSelectAllVisible(true)}
+                                    sx={{ fontSize: '0.75rem' }}
+                                >
+                                    Show All
+                                </Button>
+                            </Tooltip>
+                            <Tooltip title="Hide all from UI">
+                                <Button
+                                    size="small"
+                                    variant="outlined"
+                                    startIcon={<VisibilityOffIcon />}
+                                    onClick={() => handleSelectAllVisible(false)}
+                                    sx={{ fontSize: '0.75rem' }}
+                                >
+                                    Hide All
+                                </Button>
+                            </Tooltip>
+                        </Stack>
+                        <Divider orientation="vertical" flexItem sx={{ display: { xs: 'none', sm: 'block' } }} />
+                        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                            <Tooltip title="View Only: Enable menus, show all, disable actions">
+                                <Button
+                                    size="small"
+                                    variant="contained"
+                                    color="warning"
+                                    startIcon={<ViewOnlyIcon />}
+                                    onClick={handleSetViewOnly}
+                                    sx={{ fontSize: '0.75rem' }}
+                                >
+                                    View Only
+                                </Button>
+                            </Tooltip>
+                            <Tooltip title="Full Access: Enable & show everything">
+                                <Button
+                                    size="small"
+                                    variant="contained"
+                                    color="success"
+                                    startIcon={<FullAccessIcon />}
+                                    onClick={handleSetFullAccess}
+                                    sx={{ fontSize: '0.75rem' }}
+                                >
+                                    Full Access
+                                </Button>
+                            </Tooltip>
+                        </Stack>
+                    </Stack>
+                    <Stack direction="row" spacing={2} mt={1.5}>
+                        <Chip
+                            label={`Enabled: ${totalEnabled}/${totalPermissions}`}
+                            size="small"
+                            color="success"
+                            variant="outlined"
+                            sx={{ fontSize: '0.7rem' }}
+                        />
+                        <Chip
+                            label={`Visible: ${totalVisible}/${totalPermissions}`}
+                            size="small"
+                            color="info"
+                            variant="outlined"
+                            sx={{ fontSize: '0.7rem' }}
+                        />
+                    </Stack>
+                </Paper>
+
+                {sortedPages.map((page) => {
+                    const pageAllEnabled = isPageAllEnabled(page);
+                    const pageAllVisible = isPageAllVisible(page);
+
+                    return (
+                        <Accordion
+                            key={page}
+                            expanded={expandedAccordions[`role_${page}`] || false}
+                            onChange={handleAccordionChange(`role_${page}`)}
                             sx={{
-                                bgcolor: 'grey.50',
-                                minHeight: 48,
-                                '&.Mui-expanded': { minHeight: 48 }
+                                '&:before': { display: 'none' },
+                                boxShadow: 'none',
+                                border: '1px solid',
+                                borderColor: 'divider',
+                                mb: 1,
+                                borderRadius: '8px !important',
+                                overflow: 'hidden'
                             }}
                         >
-                            <Typography fontWeight={600} fontSize="0.9rem">
-                                {PAGE_LABELS[page] || page}
-                            </Typography>
-                            <Chip
-                                label={grouped[page].length}
-                                size="small"
-                                sx={{ ml: 1, height: 20, fontSize: '0.7rem' }}
-                            />
-                        </AccordionSummary>
-                        <AccordionDetails sx={{ p: 0 }}>
-                            <TableContainer>
-                                <Table size="small">
-                                    <TableHead>
-                                        <TableRow sx={{ bgcolor: 'grey.100' }}>
-                                            <TableCell sx={{ fontWeight: 600, py: 1 }}>Permission</TableCell>
-                                            <TableCell align="center" sx={{ fontWeight: 600, py: 1, width: 80 }}>
-                                                <Tooltip title="Can use the feature">
-                                                    <Stack direction="row" alignItems="center" justifyContent="center" spacing={0.5}>
-                                                        <LockOpenIcon fontSize="small" sx={{ color: 'success.main' }} />
-                                                        {!isSmall && <span>Enable</span>}
-                                                    </Stack>
-                                                </Tooltip>
-                                            </TableCell>
-                                            <TableCell align="center" sx={{ fontWeight: 600, py: 1, width: 80 }}>
-                                                <Tooltip title="Can see in UI">
-                                                    <Stack direction="row" alignItems="center" justifyContent="center" spacing={0.5}>
-                                                        <VisibilityIcon fontSize="small" sx={{ color: 'info.main' }} />
-                                                        {!isSmall && <span>Show</span>}
-                                                    </Stack>
-                                                </Tooltip>
-                                            </TableCell>
-                                        </TableRow>
-                                    </TableHead>
-                                    <TableBody>
-                                        {grouped[page].map(p => (
-                                            <TableRow key={p.code} hover>
-                                                <TableCell sx={{ py: 0.75 }}>
-                                                    <Typography variant="body2" fontWeight={500}>
-                                                        {p.name}
-                                                    </Typography>
-                                                    {!isSmall && (
-                                                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
-                                                            {p.code}
-                                                        </Typography>
-                                                    )}
+                            <AccordionSummary
+                                expandIcon={<ExpandMoreIcon />}
+                                sx={{
+                                    bgcolor: isDarkMode ? '#1e293b' : 'grey.50',
+                                    minHeight: 48,
+                                    '&.Mui-expanded': { minHeight: 48 }
+                                }}
+                            >
+                                <Stack direction="row" alignItems="center" spacing={1} sx={{ flex: 1, mr: 2 }}>
+                                    <Typography fontWeight={600} fontSize="0.9rem">
+                                        {PAGE_LABELS[page] || page}
+                                    </Typography>
+                                    <Chip
+                                        label={grouped[page].length}
+                                        size="small"
+                                        sx={{ height: 20, fontSize: '0.7rem' }}
+                                    />
+                                    {pageAllEnabled && (
+                                        <Chip label="✓ All Enabled" size="small" color="success" variant="outlined" sx={{ height: 18, fontSize: '0.65rem' }} />
+                                    )}
+                                    {pageAllVisible && (
+                                        <Chip label="✓ All Visible" size="small" color="info" variant="outlined" sx={{ height: 18, fontSize: '0.65rem' }} />
+                                    )}
+                                </Stack>
+                            </AccordionSummary>
+                            <AccordionDetails sx={{ p: 0 }}>
+                                {/* Page-level quick actions */}
+                                <Box sx={{
+                                    p: 1,
+                                    bgcolor: isDarkMode ? alpha(theme.palette.grey[800], 0.5) : 'grey.100',
+                                    borderBottom: '1px solid',
+                                    borderColor: 'divider',
+                                    display: 'flex',
+                                    gap: 1,
+                                    flexWrap: 'wrap'
+                                }}>
+                                    <Tooltip title={pageAllEnabled ? "Disable all in this section" : "Enable all in this section"}>
+                                        <Button
+                                            size="small"
+                                            variant={pageAllEnabled ? "contained" : "outlined"}
+                                            color="success"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleSelectPageEnabled(page, !pageAllEnabled);
+                                            }}
+                                            startIcon={pageAllEnabled ? <CheckBoxIcon /> : <CheckBoxOutlineBlankIcon />}
+                                            sx={{ fontSize: '0.7rem', py: 0.25 }}
+                                        >
+                                            {pageAllEnabled ? 'All Enabled' : 'Enable All'}
+                                        </Button>
+                                    </Tooltip>
+                                    <Tooltip title={pageAllVisible ? "Hide all in this section" : "Show all in this section"}>
+                                        <Button
+                                            size="small"
+                                            variant={pageAllVisible ? "contained" : "outlined"}
+                                            color="info"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleSelectPageVisible(page, !pageAllVisible);
+                                            }}
+                                            startIcon={pageAllVisible ? <VisibilityIcon /> : <VisibilityOffIcon />}
+                                            sx={{ fontSize: '0.7rem', py: 0.25 }}
+                                        >
+                                            {pageAllVisible ? 'All Visible' : 'Show All'}
+                                        </Button>
+                                    </Tooltip>
+                                </Box>
+                                <TableContainer>
+                                    <Table size="small">
+                                        <TableHead>
+                                            <TableRow sx={{ bgcolor: isDarkMode ? '#334155' : 'grey.100' }}>
+                                                <TableCell sx={{ fontWeight: 600, py: 1 }}>Permission</TableCell>
+                                                <TableCell align="center" sx={{ fontWeight: 600, py: 1, width: 80 }}>
+                                                    <Tooltip title="Can use the feature">
+                                                        <Stack direction="row" alignItems="center" justifyContent="center" spacing={0.5}>
+                                                            <LockOpenIcon fontSize="small" sx={{ color: 'success.main' }} />
+                                                            {!isSmall && <span>Enable</span>}
+                                                        </Stack>
+                                                    </Tooltip>
                                                 </TableCell>
-                                                <TableCell align="center" sx={{ py: 0.75 }}>
-                                                    <Checkbox
-                                                        checked={p.is_enabled}
-                                                        onChange={() => handleToggleRoleEnabled(p.code)}
-                                                        color="success"
-                                                        size="small"
-                                                    />
-                                                </TableCell>
-                                                <TableCell align="center" sx={{ py: 0.75 }}>
-                                                    <Checkbox
-                                                        checked={p.is_visible}
-                                                        onChange={() => handleToggleRoleVisible(p.code)}
-                                                        color="info"
-                                                        size="small"
-                                                    />
+                                                <TableCell align="center" sx={{ fontWeight: 600, py: 1, width: 80 }}>
+                                                    <Tooltip title="Can see in UI">
+                                                        <Stack direction="row" alignItems="center" justifyContent="center" spacing={0.5}>
+                                                            <VisibilityIcon fontSize="small" sx={{ color: 'info.main' }} />
+                                                            {!isSmall && <span>Show</span>}
+                                                        </Stack>
+                                                    </Tooltip>
                                                 </TableCell>
                                             </TableRow>
-                                        ))}
-                                    </TableBody>
-                                </Table>
-                            </TableContainer>
-                        </AccordionDetails>
-                    </Accordion>
-                ))}
+                                        </TableHead>
+                                        <TableBody>
+                                            {grouped[page].map(p => (
+                                                <TableRow key={p.code} hover>
+                                                    <TableCell sx={{ py: 0.75 }}>
+                                                        <Typography variant="body2" fontWeight={500}>
+                                                            {p.name}
+                                                        </Typography>
+                                                        {!isSmall && (
+                                                            <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
+                                                                {p.code}
+                                                            </Typography>
+                                                        )}
+                                                    </TableCell>
+                                                    <TableCell align="center" sx={{ py: 0.75 }}>
+                                                        <Checkbox
+                                                            checked={p.is_enabled}
+                                                            onChange={() => handleToggleRoleEnabled(p.code)}
+                                                            color="success"
+                                                            size="small"
+                                                        />
+                                                    </TableCell>
+                                                    <TableCell align="center" sx={{ py: 0.75 }}>
+                                                        <Checkbox
+                                                            checked={p.is_visible}
+                                                            onChange={() => handleToggleRoleVisible(p.code)}
+                                                            color="info"
+                                                            size="small"
+                                                        />
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+                                </TableContainer>
+                            </AccordionDetails>
+                        </Accordion>
+                    );
+                })}
             </Box>
         );
     };
