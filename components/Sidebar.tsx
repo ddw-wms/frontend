@@ -172,7 +172,7 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
     { label: 'Backups', icon: StorageIcon, path: '/settings/backups', code: 'menu:settings:backups' },
     { label: 'Permissions', icon: PermissionsIcon, path: '/settings/permissions', code: 'menu:settings:permissions' },
     { label: 'Appearance', icon: AppearanceIcon, path: '/settings/appearance', code: 'menu:settings:appearance' },
-    { label: 'Error Logs', icon: ErrorLogsIcon, path: '/settings/error-logs', code: 'super_admin_only', superAdminOnly: true },
+    { label: 'Error Logs', icon: ErrorLogsIcon, path: '/settings/error-logs', code: 'menu:settings:errorlogs' },
   ], []);
 
   // Filter menu items based on permissions
@@ -184,7 +184,7 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
 
     // Only super_admin gets all menu items immediately
     // Admin should respect their permission settings
-    if (isAdmin || isSuperAdmin) {
+    if (isSuperAdmin) {
       return allMainMenuItems;
     }
 
@@ -192,7 +192,7 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
     // This prevents app from feeling unresponsive on slow networks
     if (permissionsLoading) return allMainMenuItems;
     return allMainMenuItems.filter(item => canSeeMenu(item.code));
-  }, [allMainMenuItems, canSeeMenu, isAdmin, permissionsLoading]);
+  }, [allMainMenuItems, canSeeMenu, permissionsLoading]);
 
   const settingsMenu = useMemo(() => {
     // Get user from storage for immediate admin check
@@ -200,22 +200,17 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
     // Only super_admin gets automatic all settings access (not admin)
     const isSuperAdmin = user?.role === 'super_admin';
 
-    // Filter items based on role - Error Logs is super_admin only
-    const filterSuperAdminItems = (items: typeof allSettingsMenuItems) => {
-      return items.filter(item => !item.superAdminOnly || isSuperAdmin);
-    };
-
     // Only super_admin gets all menu items immediately
     // Admin should respect their permission settings  
-    if (isAdmin || isSuperAdmin) {
-      return filterSuperAdminItems(allSettingsMenuItems);
+    if (isSuperAdmin) {
+      return allSettingsMenuItems;
     }
 
     // Show all settings items while loading to prevent blank menu
     // This prevents app from feeling unresponsive on slow networks
-    if (permissionsLoading) return filterSuperAdminItems(allSettingsMenuItems);
-    return filterSuperAdminItems(allSettingsMenuItems.filter(item => canSeeMenu(item.code)));
-  }, [allSettingsMenuItems, canSeeMenu, isAdmin, permissionsLoading]);
+    if (permissionsLoading) return allSettingsMenuItems;
+    return allSettingsMenuItems.filter(item => canSeeMenu(item.code));
+  }, [allSettingsMenuItems, canSeeMenu, permissionsLoading]);
 
   const navigate = (path: string) => {
     // Close mobile drawer IMMEDIATELY for instant feedback (don't wait for navigation)
