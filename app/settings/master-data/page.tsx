@@ -1534,10 +1534,10 @@ export default function MasterDataPage() {
                         }}>
                           <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
                             <Stack spacing={1.5}>
-                              {/* ROW 1: Filters */}
+                              {/* ROW 1: All Filters in one row */}
                               <Box sx={{
                                 display: 'grid',
-                                gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)' },
+                                gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(4, 1fr)', md: 'repeat(4, 1fr)' },
                                 gap: 1
                               }}>
                                 {/* Batch ID Filter */}
@@ -1559,6 +1559,27 @@ export default function MasterDataPage() {
                                     {batches.map(b => (
                                       <MenuItem key={b.batch_id} value={b.batch_id} sx={{ fontSize: '0.8rem' }}>{b.batch_id} ({formatNumber(b.count)})</MenuItem>
                                     ))}
+                                  </Select>
+                                </FormControl>
+
+                                {/* Status Filter */}
+                                <FormControl size="small">
+                                  <InputLabel sx={{ fontSize: '0.75rem' }}>Status</InputLabel>
+                                  <Select
+                                    value={filterStatus}
+                                    label="Status"
+                                    onChange={(e) => { setFilterStatus(e.target.value); setPage(0); }}
+                                    sx={{
+                                      height: 36,
+                                      fontSize: '0.8rem',
+                                      bgcolor: isDarkMode ? '#1e293b' : 'white',
+                                      '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#1e40af' },
+                                      '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#1e40af' }
+                                    }}
+                                  >
+                                    <MenuItem value="All" sx={{ fontSize: '0.8rem' }}>All</MenuItem>
+                                    <MenuItem value="Received" sx={{ fontSize: '0.8rem' }}>✅ Received</MenuItem>
+                                    <MenuItem value="Pending" sx={{ fontSize: '0.8rem' }}>❌ Pending</MenuItem>
                                   </Select>
                                 </FormControl>
 
@@ -1607,7 +1628,7 @@ export default function MasterDataPage() {
                                 </FormControl>
                               </Box>
 
-                              {/* ROW 2: Action Buttons */}
+                              {/* ROW 2: All Action Buttons in one row */}
                               <Box sx={{
                                 display: 'grid',
                                 gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(4, 1fr)', md: 'repeat(8, 1fr)' },
