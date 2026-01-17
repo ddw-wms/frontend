@@ -298,51 +298,58 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
 
           return (
             <ListItem key={item.path} disablePadding sx={{ mb: 0.25 }}>
-              <Tooltip title={collapsed ? item.label : ''} placement="right" arrow>
-                <ListItemButton
-                  onClick={() => navigate(item.path)}
+              <ListItemButton
+                onClick={() => navigate(item.path)}
+                // Disable ripple delay for instant feedback
+                disableRipple={false}
+                sx={{
+                  mx: 0.75,
+                  py: { xs: 1.25, sm: 1 },
+                  borderRadius: 2,
+                  bgcolor: active ? 'rgba(59,130,246,0.2)' : 'transparent',
+                  color: active ? '#93c5fd' : 'rgba(255,255,255,0.75)',
+                  // Remove transition delay for instant visual feedback
+                  transition: 'none',
+                  WebkitTapHighlightColor: 'transparent',
+                  // Ensure touch events work properly
+                  touchAction: 'manipulation',
+                  cursor: 'pointer',
+                  userSelect: 'none',
+                  '&:hover': {
+                    bgcolor: active ? 'rgba(59,130,246,0.25)' : 'rgba(255,255,255,0.08)',
+                  },
+                  '&:active': {
+                    bgcolor: 'rgba(59,130,246,0.3)',
+                  },
+                  // Active indicator left border
+                  ...(active && {
+                    borderLeft: '3px solid #3b82f6',
+                    pl: 1.5,
+                  }),
+                }}
+              >
+                <ListItemIcon
                   sx={{
-                    mx: 0.75,
-                    py: { xs: 1.25, sm: 1 },
-                    borderRadius: 2,
-                    bgcolor: active ? 'rgba(59,130,246,0.2)' : 'transparent',
-                    color: active ? '#93c5fd' : 'rgba(255,255,255,0.75)',
-                    transition: 'background-color 0.15s ease, color 0.15s ease',
-                    WebkitTapHighlightColor: 'transparent',
-                    '&:hover': {
-                      bgcolor: active ? 'rgba(59,130,246,0.25)' : 'rgba(255,255,255,0.08)',
-                    },
-                    '&:active': {
-                      bgcolor: 'rgba(59,130,246,0.3)',
-                    },
-                    // Active indicator left border
-                    ...(active && {
-                      borderLeft: '3px solid #3b82f6',
-                      pl: 1.5,
-                    }),
+                    color: 'inherit',
+                    minWidth: collapsed ? 'auto' : 40,
+                    justifyContent: collapsed ? 'center' : 'flex-start',
+                    pointerEvents: 'none', // Don't let icon intercept clicks
                   }}
                 >
-                  <ListItemIcon
-                    sx={{
-                      color: 'inherit',
-                      minWidth: collapsed ? 'auto' : 40,
-                      justifyContent: collapsed ? 'center' : 'flex-start',
-                    }}
-                  >
-                    <Icon sx={{ fontSize: { xs: 22, sm: 24 } }} />
-                  </ListItemIcon>
+                  <Icon sx={{ fontSize: { xs: 22, sm: 24 } }} />
+                </ListItemIcon>
 
-                  {!collapsed && (
-                    <ListItemText
-                      primary={item.label}
-                      primaryTypographyProps={{
-                        fontSize: { xs: '0.875rem', sm: '0.9rem' },
-                        fontWeight: active ? 600 : 500,
-                      }}
-                    />
-                  )}
-                </ListItemButton>
-              </Tooltip>
+                {!collapsed && (
+                  <ListItemText
+                    primary={item.label}
+                    sx={{ pointerEvents: 'none' }} // Don't let text intercept clicks
+                    primaryTypographyProps={{
+                      fontSize: { xs: '0.875rem', sm: '0.9rem' },
+                      fontWeight: active ? 600 : 500,
+                    }}
+                  />
+                )}
+              </ListItemButton>
             </ListItem>
           );
         })}
@@ -364,9 +371,18 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
                 py: { xs: 1.25, sm: 1 },
                 borderRadius: 2,
                 color: 'rgba(255,255,255,0.75)',
-                transition: 'all 0.2s ease',
+                // Remove transition for instant feedback
+                transition: 'none',
+                // Proper touch handling
+                touchAction: 'manipulation',
+                cursor: 'pointer',
+                userSelect: 'none',
+                WebkitTapHighlightColor: 'transparent',
                 '&:hover': {
                   bgcolor: 'rgba(255,255,255,0.08)',
+                },
+                '&:active': {
+                  bgcolor: 'rgba(255,255,255,0.12)',
                 },
               }}
             >
@@ -375,6 +391,7 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
                   color: 'inherit',
                   minWidth: collapsed ? 'auto' : 40,
                   justifyContent: collapsed ? 'center' : 'flex-start',
+                  pointerEvents: 'none', // Don't let icon intercept clicks
                 }}
               >
                 <SettingsIcon sx={{ fontSize: { xs: 22, sm: 24 } }} />
@@ -384,12 +401,13 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
                 <>
                   <ListItemText
                     primary="Settings"
+                    sx={{ pointerEvents: 'none' }} // Don't let text intercept clicks
                     primaryTypographyProps={{
                       fontSize: { xs: '0.875rem', sm: '0.9rem' },
                       fontWeight: 500,
                     }}
                   />
-                  {settingsOpen ? <ExpandLess /> : <ExpandMore />}
+                  {settingsOpen ? <ExpandLess sx={{ pointerEvents: 'none' }} /> : <ExpandMore sx={{ pointerEvents: 'none' }} />}
                 </>
               )}
             </ListItemButton>
@@ -419,9 +437,18 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
                           borderRadius: 1.5,
                           color: active ? '#93c5fd' : 'rgba(255,255,255,0.7)',
                           bgcolor: active ? 'rgba(59,130,246,0.2)' : 'transparent',
-                          transition: 'all 0.2s ease',
+                          // Remove transition for instant feedback
+                          transition: 'none',
+                          // Proper touch handling
+                          touchAction: 'manipulation',
+                          cursor: 'pointer',
+                          userSelect: 'none',
+                          WebkitTapHighlightColor: 'transparent',
                           '&:hover': {
                             bgcolor: active ? 'rgba(59,130,246,0.25)' : 'rgba(255,255,255,0.06)',
+                          },
+                          '&:active': {
+                            bgcolor: 'rgba(59,130,246,0.3)',
                           },
                           // Active indicator left border
                           ...(active && {
@@ -430,11 +457,12 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
                           }),
                         }}
                       >
-                        <ListItemIcon sx={{ color: 'inherit', minWidth: 32 }}>
+                        <ListItemIcon sx={{ color: 'inherit', minWidth: 32, pointerEvents: 'none' }}>
                           <Icon sx={{ fontSize: 18 }} />
                         </ListItemIcon>
                         <ListItemText
                           primary={item.label}
+                          sx={{ pointerEvents: 'none' }}
                           primaryTypographyProps={{
                             fontSize: { xs: '0.8125rem', sm: '0.85rem' },
                             fontWeight: active ? 600 : 400,
@@ -454,18 +482,26 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
                       borderRadius: 1.5,
                       color: '#fca5a5',
                       bgcolor: 'transparent',
-                      transition: 'all 0.2s ease',
+                      transition: 'none',
+                      touchAction: 'manipulation',
+                      cursor: 'pointer',
+                      userSelect: 'none',
+                      WebkitTapHighlightColor: 'transparent',
                       '&:hover': {
                         bgcolor: 'rgba(239, 68, 68, 0.15)',
                         color: '#fecaca',
+                      },
+                      '&:active': {
+                        bgcolor: 'rgba(239, 68, 68, 0.25)',
                       }
                     }}
                   >
-                    <ListItemIcon sx={{ color: 'inherit', minWidth: 32 }}>
+                    <ListItemIcon sx={{ color: 'inherit', minWidth: 32, pointerEvents: 'none' }}>
                       <LogoutIcon sx={{ fontSize: 18 }} />
                     </ListItemIcon>
                     <ListItemText
                       primary="Logout"
+                      sx={{ pointerEvents: 'none' }}
                       primaryTypographyProps={{
                         fontSize: { xs: '0.8125rem', sm: '0.85rem' },
                         fontWeight: 500,
@@ -638,17 +674,23 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
                         borderRadius: 1.5,
                         color: 'rgba(255,255,255,0.8)',
                         py: 0.875,
-                        transition: 'all 0.15s ease',
+                        transition: 'none',
+                        touchAction: 'manipulation',
+                        cursor: 'pointer',
                         '&:hover': {
                           bgcolor: 'rgba(255,255,255,0.08)',
                         },
+                        '&:active': {
+                          bgcolor: 'rgba(255,255,255,0.15)',
+                        },
                       }}
                     >
-                      <ListItemIcon sx={{ color: 'inherit', minWidth: 32 }}>
+                      <ListItemIcon sx={{ color: 'inherit', minWidth: 32, pointerEvents: 'none' }}>
                         <Icon sx={{ fontSize: 18 }} />
                       </ListItemIcon>
                       <ListItemText
                         primary={item.label}
+                        sx={{ pointerEvents: 'none' }}
                         primaryTypographyProps={{ fontSize: '0.85rem' }}
                       />
                     </ListItemButton>
@@ -664,17 +706,23 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
                     borderRadius: 1.5,
                     color: '#fca5a5',
                     py: 0.875,
-                    transition: 'all 0.15s ease',
+                    transition: 'none',
+                    touchAction: 'manipulation',
+                    cursor: 'pointer',
                     '&:hover': {
                       bgcolor: 'rgba(239, 68, 68, 0.15)',
+                    },
+                    '&:active': {
+                      bgcolor: 'rgba(239, 68, 68, 0.25)',
                     }
                   }}
                 >
-                  <ListItemIcon sx={{ color: 'inherit', minWidth: 32 }}>
+                  <ListItemIcon sx={{ color: 'inherit', minWidth: 32, pointerEvents: 'none' }}>
                     <LogoutIcon sx={{ fontSize: 18 }} />
                   </ListItemIcon>
                   <ListItemText
                     primary="Logout"
+                    sx={{ pointerEvents: 'none' }}
                     primaryTypographyProps={{ fontSize: '0.85rem' }}
                   />
                 </ListItemButton>
