@@ -1614,27 +1614,29 @@ export default function MasterDataPage() {
                                 gap: 1
                               }}>
 
-                                {/* Add Button */}
-                                <Button
-                                  fullWidth
-                                  size="small"
-                                  startIcon={<AddIcon sx={{ fontSize: '0.9rem' }} />}
-                                  variant="contained"
-                                  onClick={handleOpenAddDialog}
-                                  sx={{
-                                    height: 34,
-                                    fontSize: '0.72rem',
-                                    fontWeight: 700,
-                                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                                    boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
-                                    '&:hover': {
-                                      background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
-                                      boxShadow: '0 6px 16px rgba(16, 185, 129, 0.4)'
-                                    }
-                                  }}
-                                >
-                                  + ADD
-                                </Button>
+                                {/* Add Button - Permission controlled */}
+                                {canSeeButton('add') && (
+                                  <Button
+                                    fullWidth
+                                    size="small"
+                                    startIcon={<AddIcon sx={{ fontSize: '0.9rem' }} />}
+                                    variant="contained"
+                                    onClick={handleOpenAddDialog}
+                                    sx={{
+                                      height: 34,
+                                      fontSize: '0.72rem',
+                                      fontWeight: 700,
+                                      background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                                      boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
+                                      '&:hover': {
+                                        background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+                                        boxShadow: '0 6px 16px rgba(16, 185, 129, 0.4)'
+                                      }
+                                    }}
+                                  >
+                                    + ADD
+                                  </Button>
+                                )}
 
                                 {/* Upload Button */}
                                 {canSeeButton('upload') && (
@@ -2638,18 +2640,20 @@ export default function MasterDataPage() {
 
               {/* Action buttons */}
               <Box sx={{ display: 'grid', gap: 1, mt: 2, gridTemplateColumns: 'repeat(2, 1fr)' }}>
-                <Button
-                  variant="contained"
-                  startIcon={<AddIcon />}
-                  onClick={() => { handleOpenAddDialog(); setMobileActionsOpen(false); }}
-                  fullWidth
-                  sx={{
-                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                    '&:hover': { background: 'linear-gradient(135deg, #059669 0%, #047857 100%)' }
-                  }}
-                >
-                  Add Product
-                </Button>
+                {canSeeButton('add') && (
+                  <Button
+                    variant="contained"
+                    startIcon={<AddIcon />}
+                    onClick={() => { handleOpenAddDialog(); setMobileActionsOpen(false); }}
+                    fullWidth
+                    sx={{
+                      background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                      '&:hover': { background: 'linear-gradient(135deg, #059669 0%, #047857 100%)' }
+                    }}
+                  >
+                    Add Product
+                  </Button>
+                )}
                 <Button
                   variant="outlined"
                   startIcon={<UploadIcon />}

@@ -133,5 +133,6 @@ export const useWarehousesPermissions = () => usePagePermissions('warehouses');
 export const useRacksPermissions = () => usePagePermissions('racks');
 export const useUsersPermissions = () => usePagePermissions('users');
 export const useDashboardPermissions = () => usePagePermissions('dashboard');
+export const useBackupsPermissions = () => usePagePermissions('backups');
 
 export default usePagePermissions;

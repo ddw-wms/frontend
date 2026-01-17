@@ -52,6 +52,7 @@ import api from '@/lib/api';
 import toast, { Toaster } from 'react-hot-toast';
 import { useWarehouse } from '@/app/context/WarehouseContext';
 import { getStoredUser } from '@/lib/auth';
+import { useBackupsPermissions } from '@/hooks/usePagePermissions';
 
 interface Backup {
     id: number;
@@ -111,6 +112,7 @@ export default function BackupPage() {
     const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
     const isDarkMode = theme.palette.mode === 'dark';
     const { activeWarehouse } = useWarehouse();
+    const { canSeeButton, isAdmin, isLoading: permLoading } = useBackupsPermissions();
     const [user, setUser] = useState<any>(null);
 
     // Load user on mount
@@ -732,14 +734,16 @@ export default function BackupPage() {
                                         📊 Backup Health Dashboard
                                     </Typography>
                                 </Stack>
-                                <Button
-                                    variant="outlined"
-                                    size="small"
-                                    onClick={() => setSchedulesDialogOpen(true)}
-                                    sx={{ fontSize: { xs: '0.7rem', sm: '0.85rem' } }}
-                                >
-                                    ⏰ Schedules ({schedules.length})
-                                </Button>
+                                {canSeeButton('schedules') && (
+                                    <Button
+                                        variant="outlined"
+                                        size="small"
+                                        onClick={() => setSchedulesDialogOpen(true)}
+                                        sx={{ fontSize: { xs: '0.7rem', sm: '0.85rem' } }}
+                                    >
+                                        ⏰ Schedules ({schedules.length})
+                                    </Button>
+                                )}
                             </Stack>
 
                             <Box sx={{
@@ -808,28 +812,30 @@ export default function BackupPage() {
 
                     {/* Action Buttons */}
                     <Box sx={{ mb: 3 }}>
-                        <Button
-                            variant="contained"
-                            size="large"
-                            startIcon={<BackupIcon />}
-                            onClick={() => setCreateDialogOpen(true)}
-                            sx={{
-                                py: 1.5,
-                                px: 3,
-                                background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
-                                boxShadow: '0 4px 12px rgba(59, 130, 246, 0.3)',
-                                fontWeight: 600,
-                                fontSize: '1rem',
-                                '&:hover': {
-                                    background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
-                                    boxShadow: '0 6px 20px rgba(59, 130, 246, 0.4)',
-                                    transform: 'translateY(-2px)',
-                                },
-                                transition: 'all 0.2s'
-                            }}
-                        >
-                            Create New Backup
-                        </Button>
+                        {canSeeButton('create') && (
+                            <Button
+                                variant="contained"
+                                size="large"
+                                startIcon={<BackupIcon />}
+                                onClick={() => setCreateDialogOpen(true)}
+                                sx={{
+                                    py: 1.5,
+                                    px: 3,
+                                    background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+                                    boxShadow: '0 4px 12px rgba(59, 130, 246, 0.3)',
+                                    fontWeight: 600,
+                                    fontSize: '1rem',
+                                    '&:hover': {
+                                        background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
+                                        boxShadow: '0 6px 20px rgba(59, 130, 246, 0.4)',
+                                        transform: 'translateY(-2px)',
+                                    },
+                                    transition: 'all 0.2s'
+                                }}
+                            >
+                                Create New Backup
+                            </Button>
+                        )}
                     </Box>
 
                     {/* Important Notice */}
@@ -875,13 +881,15 @@ export default function BackupPage() {
                             <Typography variant="body2" color="text.secondary" mb={3}>
                                 Create your first backup to secure your data
                             </Typography>
-                            <Button
-                                variant="contained"
-                                startIcon={<BackupIcon />}
-                                onClick={() => setCreateDialogOpen(true)}
-                            >
-                                Create First Backup
-                            </Button>
+                            {canSeeButton('create') && (
+                                <Button
+                                    variant="contained"
+                                    startIcon={<BackupIcon />}
+                                    onClick={() => setCreateDialogOpen(true)}
+                                >
+                                    Create First Backup
+                                </Button>
+                            )}
                         </Paper>
                     ) : (
                         <>
@@ -968,37 +976,41 @@ export default function BackupPage() {
                                                                 </IconButton>
                                                             </Tooltip>
                                                             <Tooltip title="Restore" arrow>
-                                                                <IconButton
-                                                                    size="small"
-                                                                    color="success"
-                                                                    onClick={() => {
-                                                                        setSelectedBackup(backup);
-                                                                        setRestoreDialogOpen(true);
-                                                                    }}
-                                                                    sx={{
-                                                                        '&:hover': {
-                                                                            bgcolor: 'success.light',
-                                                                            color: 'white'
-                                                                        }
-                                                                    }}
-                                                                >
-                                                                    <RestoreIcon fontSize="small" />
-                                                                </IconButton>
+                                                                {canSeeButton('restore') && (
+                                                                    <IconButton
+                                                                        size="small"
+                                                                        color="success"
+                                                                        onClick={() => {
+                                                                            setSelectedBackup(backup);
+                                                                            setRestoreDialogOpen(true);
+                                                                        }}
+                                                                        sx={{
+                                                                            '&:hover': {
+                                                                                bgcolor: 'success.light',
+                                                                                color: 'white'
+                                                                            }
+                                                                        }}
+                                                                    >
+                                                                        <RestoreIcon fontSize="small" />
+                                                                    </IconButton>
+                                                                )}
                                                             </Tooltip>
                                                             <Tooltip title="Delete" arrow>
-                                                                <IconButton
-                                                                    size="small"
-                                                                    color="error"
-                                                                    onClick={() => handleDeleteBackup(backup)}
-                                                                    sx={{
-                                                                        '&:hover': {
-                                                                            bgcolor: 'error.light',
-                                                                            color: 'white'
-                                                                        }
-                                                                    }}
-                                                                >
-                                                                    <DeleteIcon fontSize="small" />
-                                                                </IconButton>
+                                                                {canSeeButton('delete') && (
+                                                                    <IconButton
+                                                                        size="small"
+                                                                        color="error"
+                                                                        onClick={() => handleDeleteBackup(backup)}
+                                                                        sx={{
+                                                                            '&:hover': {
+                                                                                bgcolor: 'error.light',
+                                                                                color: 'white'
+                                                                            }
+                                                                        }}
+                                                                    >
+                                                                        <DeleteIcon fontSize="small" />
+                                                                    </IconButton>
+                                                                )}
                                                             </Tooltip>
                                                         </Stack>
                                                     </TableCell>
@@ -1087,31 +1099,35 @@ export default function BackupPage() {
                                                         >
                                                             Download
                                                         </Button>
-                                                        <Button
-                                                            size="small"
-                                                            variant="outlined"
-                                                            color="success"
-                                                            startIcon={<RestoreIcon />}
-                                                            onClick={() => {
-                                                                setSelectedBackup(backup);
-                                                                setRestoreDialogOpen(true);
-                                                            }}
-                                                            fullWidth
-                                                        >
-                                                            Restore
-                                                        </Button>
-                                                        <IconButton
-                                                            size="small"
-                                                            color="error"
-                                                            onClick={() => handleDeleteBackup(backup)}
-                                                            sx={{
-                                                                border: '1px solid',
-                                                                borderColor: 'error.main',
-                                                                borderRadius: 1
-                                                            }}
-                                                        >
-                                                            <DeleteIcon fontSize="small" />
-                                                        </IconButton>
+                                                        {canSeeButton('restore') && (
+                                                            <Button
+                                                                size="small"
+                                                                variant="outlined"
+                                                                color="success"
+                                                                startIcon={<RestoreIcon />}
+                                                                onClick={() => {
+                                                                    setSelectedBackup(backup);
+                                                                    setRestoreDialogOpen(true);
+                                                                }}
+                                                                fullWidth
+                                                            >
+                                                                Restore
+                                                            </Button>
+                                                        )}
+                                                        {canSeeButton('delete') && (
+                                                            <IconButton
+                                                                size="small"
+                                                                color="error"
+                                                                onClick={() => handleDeleteBackup(backup)}
+                                                                sx={{
+                                                                    border: '1px solid',
+                                                                    borderColor: 'error.main',
+                                                                    borderRadius: 1
+                                                                }}
+                                                            >
+                                                                <DeleteIcon fontSize="small" />
+                                                            </IconButton>
+                                                        )}
                                                     </Stack>
                                                 </Stack>
                                             </CardContent>

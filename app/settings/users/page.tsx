@@ -471,7 +471,7 @@ export default function UsersPage() {
                                 <KeyIcon sx={{ fontSize: 16 }} />
                               </IconButton>
                             )}
-                            {isOnline && canLogoutUser(user) && (
+                            {canSeeButton('force_logout') && isOnline && canLogoutUser(user) && (
                               <Tooltip title="Force Logout">
                                 <IconButton
                                   size="small"
