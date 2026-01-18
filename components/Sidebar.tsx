@@ -640,182 +640,189 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
       <Box sx={{ flexGrow: 1 }} />
 
       {/* Sidebar Control Menu - Like Supabase */}
-      {!isMobile && (
-        <Tooltip
-          title={collapsed ? "Sidebar control" : ""}
-          placement="right"
-          arrow
-          slotProps={{
-            tooltip: {
-              sx: {
-                bgcolor: '#1e293b',
-                color: 'white',
-                fontSize: '0.8rem',
-                fontWeight: 500,
-                px: 1.5,
-                py: 0.75,
-                borderRadius: 1,
-                boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
+      {!isMobile && (() => {
+        // Compute mode checks outside conditional to avoid TypeScript narrowing issues
+        const isExpandedMode = sidebarMode === 'expanded';
+        const isCollapsedMode = sidebarMode === 'collapsed';
+        const isHoverMode = sidebarMode === 'hover';
+
+        return (
+          <Tooltip
+            title={collapsed ? "Sidebar control" : ""}
+            placement="right"
+            arrow
+            slotProps={{
+              tooltip: {
+                sx: {
+                  bgcolor: '#1e293b',
+                  color: 'white',
+                  fontSize: '0.8rem',
+                  fontWeight: 500,
+                  px: 1.5,
+                  py: 0.75,
+                  borderRadius: 1,
+                  boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
+                }
+              },
+              arrow: {
+                sx: {
+                  color: '#1e293b',
+                }
               }
-            },
-            arrow: {
-              sx: {
-                color: '#1e293b',
-              }
-            }
-          }}
-        >
-          <Box sx={{ px: 1, pb: 1 }}>
-            <ListItemButton
-              onClick={() => setSidebarControlOpen(!sidebarControlOpen)}
-              sx={{
-                py: 0.75,
-                px: 1.5,
-                borderRadius: 1.5,
-                color: 'rgba(255,255,255,0.6)',
-                bgcolor: sidebarControlOpen ? 'rgba(255,255,255,0.08)' : 'transparent',
-                transition: 'all 0.15s ease',
-                '&:hover': {
-                  bgcolor: 'rgba(255,255,255,0.1)',
-                  color: 'rgba(255,255,255,0.9)',
-                },
-              }}
-            >
-              <ListItemIcon sx={{
-                color: 'inherit',
-                minWidth: collapsed ? 'auto' : 32,
-                transition: 'min-width 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
-              }}>
-                <SidebarIcon sx={{ fontSize: 18 }} />
-              </ListItemIcon>
-              {!collapsed && (
-                <>
-                  <ListItemText
-                    primary="Sidebar control"
-                    sx={{
-                      opacity: collapsed ? 0 : 1,
-                      transition: 'opacity 0.2s ease',
-                      whiteSpace: 'nowrap',
-                    }}
-                    primaryTypographyProps={{
-                      fontSize: '0.8rem',
-                      fontWeight: 500,
-                    }}
-                  />
-                  {sidebarControlOpen ? <ExpandLess sx={{ fontSize: 18 }} /> : <ExpandMore sx={{ fontSize: 18 }} />}
-                </>
-              )}
-            </ListItemButton>
-
-            <AnimatePresence>
-              {sidebarControlOpen && !collapsed && (
-                <motion.div
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: 'auto', opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  transition={{ duration: 0.15 }}
-                  style={{ overflow: 'hidden' }}
-                >
-                  <Box sx={{ pl: 1, pr: 0.5, py: 0.5 }}>
-                    {/* Expanded Option */}
-                    <ListItemButton
-                      onClick={() => setSidebarMode('expanded')}
+            }}
+          >
+            <Box sx={{ px: 1, pb: 1 }}>
+              <ListItemButton
+                onClick={() => setSidebarControlOpen(!sidebarControlOpen)}
+                sx={{
+                  py: 0.75,
+                  px: 1.5,
+                  borderRadius: 1.5,
+                  color: 'rgba(255,255,255,0.6)',
+                  bgcolor: sidebarControlOpen ? 'rgba(255,255,255,0.08)' : 'transparent',
+                  transition: 'all 0.15s ease',
+                  '&:hover': {
+                    bgcolor: 'rgba(255,255,255,0.1)',
+                    color: 'rgba(255,255,255,0.9)',
+                  },
+                }}
+              >
+                <ListItemIcon sx={{
+                  color: 'inherit',
+                  minWidth: collapsed ? 'auto' : 32,
+                  transition: 'min-width 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+                }}>
+                  <SidebarIcon sx={{ fontSize: 18 }} />
+                </ListItemIcon>
+                {!collapsed && (
+                  <>
+                    <ListItemText
+                      primary="Sidebar control"
                       sx={{
-                        py: 0.5,
-                        px: 1,
-                        borderRadius: 1,
-                        color: sidebarMode === 'expanded' ? '#60a5fa' : 'rgba(255,255,255,0.7)',
-                        bgcolor: sidebarMode === 'expanded' ? 'rgba(59,130,246,0.15)' : 'transparent',
-                        '&:hover': {
-                          bgcolor: sidebarMode === 'expanded' ? 'rgba(59,130,246,0.2)' : 'rgba(255,255,255,0.06)',
-                        },
+                        opacity: collapsed ? 0 : 1,
+                        transition: 'opacity 0.2s ease',
+                        whiteSpace: 'nowrap',
                       }}
-                    >
-                      <Box sx={{ display: 'flex', alignItems: 'center', width: '100%', gap: 1.5 }}>
-                        {sidebarMode === 'expanded' ? (
-                          <Box sx={{
-                            width: 6, height: 6, borderRadius: '50%',
-                            bgcolor: '#60a5fa',
-                            boxShadow: '0 0 8px rgba(96,165,250,0.6)'
-                          }} />
-                        ) : (
-                          <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: 'transparent', border: '1px solid rgba(255,255,255,0.3)' }} />
-                        )}
-                        <ExpandIcon sx={{ fontSize: 16, opacity: 0.8 }} />
-                        <Typography sx={{ fontSize: '0.8rem', fontWeight: sidebarMode === 'expanded' ? 600 : 400 }}>
-                          Expanded
-                        </Typography>
-                      </Box>
-                    </ListItemButton>
+                      primaryTypographyProps={{
+                        fontSize: '0.8rem',
+                        fontWeight: 500,
+                      }}
+                    />
+                    {sidebarControlOpen ? <ExpandLess sx={{ fontSize: 18 }} /> : <ExpandMore sx={{ fontSize: 18 }} />}
+                  </>
+                )}
+              </ListItemButton>
 
-                    {/* Collapsed Option */}
-                    <ListItemButton
-                      onClick={() => setSidebarMode('collapsed')}
-                      sx={{
-                        py: 0.5,
-                        px: 1,
-                        borderRadius: 1,
-                        color: sidebarMode === 'collapsed' ? '#60a5fa' : 'rgba(255,255,255,0.7)',
-                        bgcolor: sidebarMode === 'collapsed' ? 'rgba(59,130,246,0.15)' : 'transparent',
-                        '&:hover': {
-                          bgcolor: sidebarMode === 'collapsed' ? 'rgba(59,130,246,0.2)' : 'rgba(255,255,255,0.06)',
-                        },
-                      }}
-                    >
-                      <Box sx={{ display: 'flex', alignItems: 'center', width: '100%', gap: 1.5 }}>
-                        {sidebarMode === 'collapsed' ? (
-                          <Box sx={{
-                            width: 6, height: 6, borderRadius: '50%',
-                            bgcolor: '#60a5fa',
-                            boxShadow: '0 0 8px rgba(96,165,250,0.6)'
-                          }} />
-                        ) : (
-                          <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: 'transparent', border: '1px solid rgba(255,255,255,0.3)' }} />
-                        )}
-                        <CollapseIcon sx={{ fontSize: 16, opacity: 0.8 }} />
-                        <Typography sx={{ fontSize: '0.8rem', fontWeight: sidebarMode === 'collapsed' ? 600 : 400 }}>
-                          Collapsed
-                        </Typography>
-                      </Box>
-                    </ListItemButton>
+              <AnimatePresence>
+                {sidebarControlOpen && !collapsed && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.15 }}
+                    style={{ overflow: 'hidden' }}
+                  >
+                    <Box sx={{ pl: 1, pr: 0.5, py: 0.5 }}>
+                      {/* Expanded Option */}
+                      <ListItemButton
+                        onClick={() => setSidebarMode('expanded')}
+                        sx={{
+                          py: 0.5,
+                          px: 1,
+                          borderRadius: 1,
+                          color: isExpandedMode ? '#60a5fa' : 'rgba(255,255,255,0.7)',
+                          bgcolor: isExpandedMode ? 'rgba(59,130,246,0.15)' : 'transparent',
+                          '&:hover': {
+                            bgcolor: isExpandedMode ? 'rgba(59,130,246,0.2)' : 'rgba(255,255,255,0.06)',
+                          },
+                        }}
+                      >
+                        <Box sx={{ display: 'flex', alignItems: 'center', width: '100%', gap: 1.5 }}>
+                          {isExpandedMode ? (
+                            <Box sx={{
+                              width: 6, height: 6, borderRadius: '50%',
+                              bgcolor: '#60a5fa',
+                              boxShadow: '0 0 8px rgba(96,165,250,0.6)'
+                            }} />
+                          ) : (
+                            <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: 'transparent', border: '1px solid rgba(255,255,255,0.3)' }} />
+                          )}
+                          <ExpandIcon sx={{ fontSize: 16, opacity: 0.8 }} />
+                          <Typography sx={{ fontSize: '0.8rem', fontWeight: isExpandedMode ? 600 : 400 }}>
+                            Expanded
+                          </Typography>
+                        </Box>
+                      </ListItemButton>
 
-                    {/* Expand on Hover Option */}
-                    <ListItemButton
-                      onClick={() => setSidebarMode('hover')}
-                      sx={{
-                        py: 0.5,
-                        px: 1,
-                        borderRadius: 1,
-                        color: sidebarMode === 'hover' ? '#60a5fa' : 'rgba(255,255,255,0.7)',
-                        bgcolor: sidebarMode === 'hover' ? 'rgba(59,130,246,0.15)' : 'transparent',
-                        '&:hover': {
-                          bgcolor: sidebarMode === 'hover' ? 'rgba(59,130,246,0.2)' : 'rgba(255,255,255,0.06)',
-                        },
-                      }}
-                    >
-                      <Box sx={{ display: 'flex', alignItems: 'center', width: '100%', gap: 1.5 }}>
-                        {sidebarMode === 'hover' ? (
-                          <Box sx={{
-                            width: 6, height: 6, borderRadius: '50%',
-                            bgcolor: '#60a5fa',
-                            boxShadow: '0 0 8px rgba(96,165,250,0.6)'
-                          }} />
-                        ) : (
-                          <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: 'transparent', border: '1px solid rgba(255,255,255,0.3)' }} />
-                        )}
-                        <HoverIcon sx={{ fontSize: 16, opacity: 0.8 }} />
-                        <Typography sx={{ fontSize: '0.8rem', fontWeight: sidebarMode === 'hover' ? 600 : 400 }}>
-                          Expand on hover
-                        </Typography>
-                      </Box>
-                    </ListItemButton>
-                  </Box>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </Box>
-        </Tooltip>
-      )}
+                      {/* Collapsed Option */}
+                      <ListItemButton
+                        onClick={() => setSidebarMode('collapsed')}
+                        sx={{
+                          py: 0.5,
+                          px: 1,
+                          borderRadius: 1,
+                          color: isCollapsedMode ? '#60a5fa' : 'rgba(255,255,255,0.7)',
+                          bgcolor: isCollapsedMode ? 'rgba(59,130,246,0.15)' : 'transparent',
+                          '&:hover': {
+                            bgcolor: isCollapsedMode ? 'rgba(59,130,246,0.2)' : 'rgba(255,255,255,0.06)',
+                          },
+                        }}
+                      >
+                        <Box sx={{ display: 'flex', alignItems: 'center', width: '100%', gap: 1.5 }}>
+                          {isCollapsedMode ? (
+                            <Box sx={{
+                              width: 6, height: 6, borderRadius: '50%',
+                              bgcolor: '#60a5fa',
+                              boxShadow: '0 0 8px rgba(96,165,250,0.6)'
+                            }} />
+                          ) : (
+                            <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: 'transparent', border: '1px solid rgba(255,255,255,0.3)' }} />
+                          )}
+                          <CollapseIcon sx={{ fontSize: 16, opacity: 0.8 }} />
+                          <Typography sx={{ fontSize: '0.8rem', fontWeight: isCollapsedMode ? 600 : 400 }}>
+                            Collapsed
+                          </Typography>
+                        </Box>
+                      </ListItemButton>
+
+                      {/* Expand on Hover Option */}
+                      <ListItemButton
+                        onClick={() => setSidebarMode('hover')}
+                        sx={{
+                          py: 0.5,
+                          px: 1,
+                          borderRadius: 1,
+                          color: isHoverMode ? '#60a5fa' : 'rgba(255,255,255,0.7)',
+                          bgcolor: isHoverMode ? 'rgba(59,130,246,0.15)' : 'transparent',
+                          '&:hover': {
+                            bgcolor: isHoverMode ? 'rgba(59,130,246,0.2)' : 'rgba(255,255,255,0.06)',
+                          },
+                        }}
+                      >
+                        <Box sx={{ display: 'flex', alignItems: 'center', width: '100%', gap: 1.5 }}>
+                          {isHoverMode ? (
+                            <Box sx={{
+                              width: 6, height: 6, borderRadius: '50%',
+                              bgcolor: '#60a5fa',
+                              boxShadow: '0 0 8px rgba(96,165,250,0.6)'
+                            }} />
+                          ) : (
+                            <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: 'transparent', border: '1px solid rgba(255,255,255,0.3)' }} />
+                          )}
+                          <HoverIcon sx={{ fontSize: 16, opacity: 0.8 }} />
+                          <Typography sx={{ fontSize: '0.8rem', fontWeight: isHoverMode ? 600 : 400 }}>
+                            Expand on hover
+                          </Typography>
+                        </Box>
+                      </ListItemButton>
+                    </Box>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </Box>
+          </Tooltip>
+        );
+      })()}
 
       {!collapsed && (
         <Box sx={{
