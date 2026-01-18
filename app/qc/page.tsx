@@ -386,7 +386,7 @@ export default function QCPage() {
   };
 
 
-  const [multiRows, setMultiRows] = useState<any[]>(generateEmptyRows(50));
+  const [multiRows, setMultiRows] = useState<any[]>(generateEmptyRows(500));
   const [multiLoading, setMultiLoading] = useState(false);
   const [multiResults, setMultiResults] = useState<any[]>([]);
   const [columnSettingsOpen, setColumnSettingsOpen] = useState(false);
@@ -1343,12 +1343,8 @@ export default function QCPage() {
 
 
   // TAB 3: MULTI ENTRY ACTIONS
-  const addMultiRow = () => {
-    setMultiRows([...multiRows, ...generateEmptyRows(10)]);
-  };
-
-  const add30Rows = () => {
-    setMultiRows([...multiRows, ...generateEmptyRows(30)]);
+  const add500Rows = () => {
+    setMultiRows([...multiRows, ...generateEmptyRows(500)]);
   };
 
   // Column widths matching inbound page
@@ -1412,7 +1408,7 @@ export default function QCPage() {
       toast.success(`✓ ${response.data?.successCount || 0} entries created`);
 
       // Reset rows
-      setMultiRows(generateEmptyRows(10));
+      setMultiRows(generateEmptyRows(500));
 
       // Clear saved draft after successful submit
       await clearDraft();
@@ -3444,7 +3440,7 @@ export default function QCPage() {
                           <Button
                             size="small"
                             variant="outlined"
-                            onClick={add30Rows}
+                            onClick={add500Rows}
                             sx={{
                               fontSize: '0.7rem',
                               fontWeight: 700,
@@ -3455,7 +3451,7 @@ export default function QCPage() {
                               }
                             }}
                           >
-                            +30 Rows
+                            +500 Rows
                           </Button>
                           <Button
                             size="small"
@@ -3531,7 +3527,7 @@ export default function QCPage() {
                         <Button
                           size="small"
                           variant="outlined"
-                          onClick={add30Rows}
+                          onClick={add500Rows}
                           sx={{
                             fontSize: '0.7rem',
                             fontWeight: 700,
@@ -3541,7 +3537,7 @@ export default function QCPage() {
                             }
                           }}
                         >
-                          +30 Rows
+                          +500 Rows
                         </Button>
 
                         <Button
@@ -3849,9 +3845,9 @@ export default function QCPage() {
 
 
 
-                        // Auto add new row at last row
+                        // Auto add new rows at last row
                         if (rowIndex === event.api.getDisplayedRowCount() - 1) {
-                          addMultiRow();
+                          add500Rows();
                         }
 
                         // Fetch master data

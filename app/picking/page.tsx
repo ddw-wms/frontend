@@ -195,7 +195,7 @@ export default function PickingPage() {
     });
   };
 
-  const [multiRows, setMultiRows] = useState<any[]>(generateEmptyRows(50));
+  const [multiRows, setMultiRows] = useState<any[]>(generateEmptyRows(500));
   const [existingWSNs, setExistingWSNs] = useState<string[]>([]);
   const [multiLoading, setMultiLoading] = useState(false);
 
@@ -674,12 +674,8 @@ export default function PickingPage() {
   }, [visibleColumns]);
 
   // Add new rows
-  const addMultiRow = () => {
-    setMultiRows([...multiRows, ...generateEmptyRows(10)]);
-  };
-
-  const add30Rows = () => {
-    setMultiRows([...multiRows, ...generateEmptyRows(30)]);
+  const add500Rows = () => {
+    setMultiRows([...multiRows, ...generateEmptyRows(500)]);
   };
 
   // Submit multi entry
@@ -736,7 +732,7 @@ export default function PickingPage() {
       }
 
       // Reset rows
-      setMultiRows(generateEmptyRows(50));
+      setMultiRows(generateEmptyRows(500));
       setGridDuplicateWSNs(new Set());
       setCrossWarehouseWSNs(new Set());
 
@@ -2538,7 +2534,7 @@ export default function PickingPage() {
                   {/* RIGHT: Actions */}
                   <Box sx={{ gridColumn: { xs: '2 / span 1', md: '3 / span 1' }, display: 'flex', gap: 0.5, justifyContent: { xs: 'flex-end', md: 'flex-end' }, alignItems: 'center', pt: { xs: 0.5, md: 0 } }}>
                     <Button size="small" variant="outlined" onClick={() => setColumnSettingsOpen(true)} sx={{ fontSize: '0.7rem', fontWeight: 700, px: 0.6, height: { xs: 40, md: 'auto' }, textTransform: 'none', minWidth: { xs: 92, md: 'auto' } }}>⚙️ Columns</Button>
-                    <Button size="small" variant="contained" onClick={add30Rows} sx={{ fontSize: '0.7rem', fontWeight: 700, background: '#ec4899', px: 0.6, height: { xs: 40, md: 'auto' }, minWidth: { xs: 92, md: 'auto' } }}>+30 Add Rows</Button>
+                    <Button size="small" variant="contained" onClick={add500Rows} sx={{ fontSize: '0.7rem', fontWeight: 700, background: '#ec4899', px: 0.6, height: { xs: 40, md: 'auto' }, minWidth: { xs: 92, md: 'auto' } }}>+500 Add Rows</Button>
                   </Box>
                 </Box>
               </CardContent>

@@ -5219,7 +5219,7 @@ export default function InboundPage() {
                                 '&:hover': { background: '#db2777' }
                               }}
                             >
-                              + 100 ROWS
+                              +500 Add Rows
                             </Button>
 
                             {/* ✅ Multi Entry Grid Settings Button */}
@@ -5426,7 +5426,7 @@ export default function InboundPage() {
                               }}
 
                             >
-                              + 30 ROWS
+                              +500 Add Rows
                             </Button>
                             {/* ✅ Multi Entry Grid Settings Button (Mobile) */}
                             <Button

@@ -255,12 +255,12 @@ export default function OutboundPage() {
         }));
     };
 
-    // Fast add 30 rows (used by Add +30 button) — use functional update for performance
-    const add30Rows = () => {
-        setMultiRows(prev => [...prev, ...generateEmptyRows(30)]);
+    // Fast add 500 rows (used by Add +500 button) — use functional update for performance
+    const add500Rows = () => {
+        setMultiRows(prev => [...prev, ...generateEmptyRows(500)]);
     };
 
-    const [multiRows, setMultiRows] = useState<OutboundItem[]>(generateEmptyRows(10));
+    const [multiRows, setMultiRows] = useState<OutboundItem[]>(generateEmptyRows(500));
     const [multiLoading, setMultiLoading] = useState(false);
     //   const [multiResults, setMultiResults] = useState<any[]>([]);
     const [existingOutboundWSNs, setExistingOutboundWSNs] = useState<Set<string>>(new Set());
@@ -1085,7 +1085,7 @@ export default function OutboundPage() {
             toast.success(`✓ ${res.data.successCount}/${res.data.totalCount} entries created (Batch: ${res.data.batchId})`);
 
             // Reset grid and common fields
-            setMultiRows(generateEmptyRows(10));
+            setMultiRows(generateEmptyRows(500));
             setDuplicateWSNs(new Set());
             setGridDuplicateWSNs(new Set());
             setCrossWarehouseWSNs(new Set());
@@ -3229,10 +3229,10 @@ export default function OutboundPage() {
                                             <Button
                                                 size="small"
                                                 variant="contained"
-                                                onClick={add30Rows}
+                                                onClick={add500Rows}
                                                 sx={{ height: 32, fontSize: '0.7rem', fontWeight: 600, background: '#ec4899' }}
                                             >
-                                                +30 Add Rows
+                                                +500 Add Rows
                                             </Button>
 
                                             <Button
@@ -3289,10 +3289,10 @@ export default function OutboundPage() {
                                         <Button
                                             size="small"
                                             variant="contained"
-                                            onClick={add30Rows}
+                                            onClick={add500Rows}
                                             sx={{ height: 32, fontSize: '0.7rem', fontWeight: 600, background: '#ec4899' }}
                                         >
-                                            +30 Add Rows
+                                            +500 Add Rows
                                         </Button>
 
                                         <Button
