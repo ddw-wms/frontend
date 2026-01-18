@@ -112,7 +112,8 @@ export default function AppLayout({ children, requiredPermission, skipRouteGuard
         height: '100vh',
         flexShrink: 0,
         position: 'relative',
-        zIndex: 1
+        zIndex: 1200,
+        transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
       }}>
         <Sidebar mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} />
       </Box>
@@ -128,6 +129,7 @@ export default function AppLayout({ children, requiredPermission, skipRouteGuard
           overflowX: 'hidden',
           display: 'flex',
           flexDirection: 'column',
+          transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
           bgcolor: isDarkMode ? '#0f172a' : '#f5f7fa',
           transition: 'background-color 0.3s ease',
           WebkitOverflowScrolling: 'touch',

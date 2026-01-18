@@ -46,6 +46,11 @@ import {
   Logout as LogoutIcon,
   BugReport as ErrorLogsIcon,
   Palette as AppearanceIcon,
+  ViewSidebar as SidebarIcon,
+  UnfoldMore as ExpandIcon,
+  UnfoldLess as CollapseIcon,
+  TouchApp as HoverIcon,
+  Check as CheckMarkIcon,
 } from '@mui/icons-material';
 import { getStoredUser, logout } from '@/lib/auth';
 import { usePermissions } from '@/app/context/PermissionContext';
@@ -70,12 +75,29 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
   // Use Permission context
   const { canSeeMenu, isAdmin, isLoading: permissionsLoading } = usePermissions();
 
-  const [collapsed, setCollapsed] = useState(() => {
+  // Sidebar mode: 'expanded' | 'collapsed' | 'hover'
+  const [sidebarMode, setSidebarMode] = useState<'expanded' | 'collapsed' | 'hover'>(() => {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('sidebar-collapsed') === 'true';
+      const savedMode = localStorage.getItem('sidebar-mode');
+      if (savedMode === 'collapsed' || savedMode === 'hover') return savedMode;
+      // Check legacy storage - if was collapsed, keep it collapsed
+      const legacyCollapsed = localStorage.getItem('sidebar-collapsed');
+      if (legacyCollapsed === 'true') return 'collapsed';
     }
-    return false;
+    // Default to EXPANDED on first visit (desktop)
+    return 'expanded';
   });
+
+  const [sidebarControlOpen, setSidebarControlOpen] = useState(false);
+  const [isHovering, setIsHovering] = useState(false);
+
+  // Compute collapsed state from mode
+  const collapsed = sidebarMode === 'collapsed' || (sidebarMode === 'hover' && !isHovering);
+
+  // Legacy setter for compatibility
+  const setCollapsed = (value: boolean) => {
+    setSidebarMode(value ? 'collapsed' : 'expanded');
+  };
 
   // Listen for appearance settings changes
   useEffect(() => {
@@ -141,9 +163,11 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
+      localStorage.setItem('sidebar-mode', sidebarMode);
+      // Also save legacy for backwards compatibility
       localStorage.setItem('sidebar-collapsed', collapsed.toString());
     }
-  }, [collapsed]);
+  }, [sidebarMode, collapsed]);
 
   useEffect(() => {
     setMobileOpen?.(false);
@@ -294,7 +318,7 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
           const Icon = item.icon;
           const active = pathname === item.path || pathname.startsWith(item.path + '/');
 
-          return (
+          const buttonContent = (
             <ListItem key={item.path} disablePadding sx={{ mb: 0.25 }}>
               <ListItemButton
                 onClick={() => navigate(item.path)}
@@ -304,24 +328,40 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
                   mx: 0.75,
                   py: { xs: 1.25, sm: 1 },
                   borderRadius: 2,
-                  bgcolor: active ? 'rgba(59,130,246,0.2)' : 'transparent',
-                  color: active ? '#93c5fd' : 'rgba(255,255,255,0.75)',
+                  bgcolor: active
+                    ? 'linear-gradient(135deg, rgba(59,130,246,0.35) 0%, rgba(99,102,241,0.25) 100%)'
+                    : 'transparent',
+                  background: active
+                    ? 'linear-gradient(135deg, rgba(59,130,246,0.35) 0%, rgba(99,102,241,0.25) 100%)'
+                    : 'transparent',
+                  color: active ? '#fff' : 'rgba(255,255,255,0.75)',
+                  // Glow effect for active state
+                  boxShadow: active
+                    ? '0 0 20px rgba(59,130,246,0.4), inset 0 1px 0 rgba(255,255,255,0.1)'
+                    : 'none',
                   // Remove transition delay for instant visual feedback
-                  transition: 'none',
+                  transition: 'all 0.15s ease',
                   WebkitTapHighlightColor: 'transparent',
                   // Ensure touch events work properly
                   touchAction: 'manipulation',
                   cursor: 'pointer',
                   userSelect: 'none',
                   '&:hover': {
-                    bgcolor: active ? 'rgba(59,130,246,0.25)' : 'rgba(255,255,255,0.08)',
+                    bgcolor: active
+                      ? 'linear-gradient(135deg, rgba(59,130,246,0.45) 0%, rgba(99,102,241,0.35) 100%)'
+                      : 'rgba(255,255,255,0.08)',
+                    background: active
+                      ? 'linear-gradient(135deg, rgba(59,130,246,0.45) 0%, rgba(99,102,241,0.35) 100%)'
+                      : 'rgba(255,255,255,0.08)',
+                    transform: 'translateX(2px)',
                   },
                   '&:active': {
-                    bgcolor: 'rgba(59,130,246,0.3)',
+                    bgcolor: 'rgba(59,130,246,0.4)',
+                    transform: 'scale(0.98)',
                   },
-                  // Active indicator left border
+                  // Active indicator left border with glow
                   ...(active && {
-                    borderLeft: '3px solid #3b82f6',
+                    borderLeft: '3px solid #60a5fa',
                     pl: 1.5,
                   }),
                 }}
@@ -332,6 +372,7 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
                     minWidth: collapsed ? 'auto' : 40,
                     justifyContent: collapsed ? 'center' : 'flex-start',
                     pointerEvents: 'none', // Don't let icon intercept clicks
+                    transition: 'min-width 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
                   }}
                 >
                   <Icon sx={{ fontSize: { xs: 22, sm: 24 } }} />
@@ -340,7 +381,12 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
                 {!collapsed && (
                   <ListItemText
                     primary={item.label}
-                    sx={{ pointerEvents: 'none' }} // Don't let text intercept clicks
+                    sx={{
+                      pointerEvents: 'none', // Don't let text intercept clicks
+                      opacity: collapsed ? 0 : 1,
+                      transition: 'opacity 0.2s ease',
+                      whiteSpace: 'nowrap',
+                    }}
                     primaryTypographyProps={{
                       fontSize: { xs: '0.875rem', sm: '0.9rem' },
                       fontWeight: active ? 600 : 500,
@@ -350,66 +396,128 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
               </ListItemButton>
             </ListItem>
           );
+
+          // Wrap with Tooltip when collapsed (desktop only)
+          return collapsed && !isMobile ? (
+            <Tooltip
+              key={item.path}
+              title={item.label}
+              placement="right"
+              arrow
+              slotProps={{
+                tooltip: {
+                  sx: {
+                    bgcolor: '#1e293b',
+                    color: 'white',
+                    fontSize: '0.8rem',
+                    fontWeight: 500,
+                    px: 1.5,
+                    py: 0.75,
+                    borderRadius: 1,
+                    boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
+                  }
+                },
+                arrow: {
+                  sx: {
+                    color: '#1e293b',
+                  }
+                }
+              }}
+            >
+              {buttonContent}
+            </Tooltip>
+          ) : buttonContent;
         })}
 
         <Divider sx={{ my: 1.5, bgcolor: 'rgba(255,255,255,0.08)' }} />
 
         {/* Only show Settings if user has settings menu items */}
         {settingsMenu.length > 0 && (
-          <ListItem
-            disablePadding
-            onMouseEnter={() => setSettingsHovered(true)}
-            onMouseLeave={() => setSettingsHovered(false)}
-            sx={{ mb: 0.25 }}
+          <Tooltip
+            title={collapsed && !isMobile ? "Settings" : ""}
+            placement="right"
+            arrow
+            slotProps={{
+              tooltip: {
+                sx: {
+                  bgcolor: '#1e293b',
+                  color: 'white',
+                  fontSize: '0.8rem',
+                  fontWeight: 500,
+                  px: 1.5,
+                  py: 0.75,
+                  borderRadius: 1,
+                  boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
+                }
+              },
+              arrow: {
+                sx: {
+                  color: '#1e293b',
+                }
+              }
+            }}
           >
-            <ListItemButton
-              onClick={() => { setSettingsOpen(!settingsOpen); }}
-              sx={{
-                mx: 0.75,
-                py: { xs: 1.25, sm: 1 },
-                borderRadius: 2,
-                color: 'rgba(255,255,255,0.75)',
-                // Remove transition for instant feedback
-                transition: 'none',
-                // Proper touch handling
-                touchAction: 'manipulation',
-                cursor: 'pointer',
-                userSelect: 'none',
-                WebkitTapHighlightColor: 'transparent',
-                '&:hover': {
-                  bgcolor: 'rgba(255,255,255,0.08)',
-                },
-                '&:active': {
-                  bgcolor: 'rgba(255,255,255,0.12)',
-                },
-              }}
+            <ListItem
+              disablePadding
+              onMouseEnter={() => setSettingsHovered(true)}
+              onMouseLeave={() => setSettingsHovered(false)}
+              sx={{ mb: 0.25 }}
             >
-              <ListItemIcon
+              <ListItemButton
+                onClick={() => { setSettingsOpen(!settingsOpen); }}
                 sx={{
-                  color: 'inherit',
-                  minWidth: collapsed ? 'auto' : 40,
-                  justifyContent: collapsed ? 'center' : 'flex-start',
-                  pointerEvents: 'none', // Don't let icon intercept clicks
+                  mx: 0.75,
+                  py: { xs: 1.25, sm: 1 },
+                  borderRadius: 2,
+                  color: 'rgba(255,255,255,0.75)',
+                  // Remove transition for instant feedback
+                  transition: 'none',
+                  // Proper touch handling
+                  touchAction: 'manipulation',
+                  cursor: 'pointer',
+                  userSelect: 'none',
+                  WebkitTapHighlightColor: 'transparent',
+                  '&:hover': {
+                    bgcolor: 'rgba(255,255,255,0.08)',
+                  },
+                  '&:active': {
+                    bgcolor: 'rgba(255,255,255,0.12)',
+                  },
                 }}
               >
-                <SettingsIcon sx={{ fontSize: { xs: 22, sm: 24 } }} />
-              </ListItemIcon>
+                <ListItemIcon
+                  sx={{
+                    color: 'inherit',
+                    minWidth: collapsed ? 'auto' : 40,
+                    justifyContent: collapsed ? 'center' : 'flex-start',
+                    pointerEvents: 'none', // Don't let icon intercept clicks
+                    transition: 'min-width 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+                  }}
+                >
+                  <SettingsIcon sx={{ fontSize: { xs: 22, sm: 24 } }} />
+                </ListItemIcon>
 
-              {!collapsed && (
-                <>
-                  <ListItemText
-                    primary="Settings"
-                    sx={{ pointerEvents: 'none' }} // Don't let text intercept clicks
-                    primaryTypographyProps={{
-                      fontSize: { xs: '0.875rem', sm: '0.9rem' },
-                      fontWeight: 500,
-                    }}
-                  />
-                  {settingsOpen ? <ExpandLess sx={{ pointerEvents: 'none' }} /> : <ExpandMore sx={{ pointerEvents: 'none' }} />}
-                </>
-              )}
-            </ListItemButton>
-          </ListItem>
+                {!collapsed && (
+                  <>
+                    <ListItemText
+                      primary="Settings"
+                      sx={{
+                        pointerEvents: 'none', // Don't let text intercept clicks
+                        opacity: collapsed ? 0 : 1,
+                        transition: 'opacity 0.2s ease',
+                        whiteSpace: 'nowrap',
+                      }}
+                      primaryTypographyProps={{
+                        fontSize: { xs: '0.875rem', sm: '0.9rem' },
+                        fontWeight: 500,
+                      }}
+                    />
+                    {settingsOpen ? <ExpandLess sx={{ pointerEvents: 'none' }} /> : <ExpandMore sx={{ pointerEvents: 'none' }} />}
+                  </>
+                )}
+              </ListItemButton>
+            </ListItem>
+          </Tooltip>
         )}
 
         <AnimatePresence>
@@ -433,24 +541,39 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
                         sx={{
                           py: { xs: 1, sm: 0.75 },
                           borderRadius: 1.5,
-                          color: active ? '#93c5fd' : 'rgba(255,255,255,0.7)',
-                          bgcolor: active ? 'rgba(59,130,246,0.2)' : 'transparent',
-                          // Remove transition for instant feedback
-                          transition: 'none',
+                          color: active ? '#fff' : 'rgba(255,255,255,0.7)',
+                          bgcolor: active
+                            ? 'linear-gradient(135deg, rgba(59,130,246,0.3) 0%, rgba(99,102,241,0.2) 100%)'
+                            : 'transparent',
+                          background: active
+                            ? 'linear-gradient(135deg, rgba(59,130,246,0.3) 0%, rgba(99,102,241,0.2) 100%)'
+                            : 'transparent',
+                          boxShadow: active
+                            ? '0 0 15px rgba(59,130,246,0.3), inset 0 1px 0 rgba(255,255,255,0.08)'
+                            : 'none',
+                          // Smooth transition
+                          transition: 'all 0.15s ease',
                           // Proper touch handling
                           touchAction: 'manipulation',
                           cursor: 'pointer',
                           userSelect: 'none',
                           WebkitTapHighlightColor: 'transparent',
                           '&:hover': {
-                            bgcolor: active ? 'rgba(59,130,246,0.25)' : 'rgba(255,255,255,0.06)',
+                            bgcolor: active
+                              ? 'linear-gradient(135deg, rgba(59,130,246,0.4) 0%, rgba(99,102,241,0.3) 100%)'
+                              : 'rgba(255,255,255,0.06)',
+                            background: active
+                              ? 'linear-gradient(135deg, rgba(59,130,246,0.4) 0%, rgba(99,102,241,0.3) 100%)'
+                              : 'rgba(255,255,255,0.06)',
+                            transform: 'translateX(2px)',
                           },
                           '&:active': {
-                            bgcolor: 'rgba(59,130,246,0.3)',
+                            bgcolor: 'rgba(59,130,246,0.4)',
+                            transform: 'scale(0.98)',
                           },
-                          // Active indicator left border
+                          // Active indicator left border with glow
                           ...(active && {
-                            borderLeft: '3px solid #3b82f6',
+                            borderLeft: '3px solid #60a5fa',
                             pl: 1,
                           }),
                         }}
@@ -515,6 +638,184 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
       </List>
 
       <Box sx={{ flexGrow: 1 }} />
+
+      {/* Sidebar Control Menu - Like Supabase */}
+      {!isMobile && (
+        <Tooltip
+          title={collapsed ? "Sidebar control" : ""}
+          placement="right"
+          arrow
+          slotProps={{
+            tooltip: {
+              sx: {
+                bgcolor: '#1e293b',
+                color: 'white',
+                fontSize: '0.8rem',
+                fontWeight: 500,
+                px: 1.5,
+                py: 0.75,
+                borderRadius: 1,
+                boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
+              }
+            },
+            arrow: {
+              sx: {
+                color: '#1e293b',
+              }
+            }
+          }}
+        >
+          <Box sx={{ px: 1, pb: 1 }}>
+            <ListItemButton
+              onClick={() => setSidebarControlOpen(!sidebarControlOpen)}
+              sx={{
+                py: 0.75,
+                px: 1.5,
+                borderRadius: 1.5,
+                color: 'rgba(255,255,255,0.6)',
+                bgcolor: sidebarControlOpen ? 'rgba(255,255,255,0.08)' : 'transparent',
+                transition: 'all 0.15s ease',
+                '&:hover': {
+                  bgcolor: 'rgba(255,255,255,0.1)',
+                  color: 'rgba(255,255,255,0.9)',
+                },
+              }}
+            >
+              <ListItemIcon sx={{
+                color: 'inherit',
+                minWidth: collapsed ? 'auto' : 32,
+                transition: 'min-width 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+              }}>
+                <SidebarIcon sx={{ fontSize: 18 }} />
+              </ListItemIcon>
+              {!collapsed && (
+                <>
+                  <ListItemText
+                    primary="Sidebar control"
+                    sx={{
+                      opacity: collapsed ? 0 : 1,
+                      transition: 'opacity 0.2s ease',
+                      whiteSpace: 'nowrap',
+                    }}
+                    primaryTypographyProps={{
+                      fontSize: '0.8rem',
+                      fontWeight: 500,
+                    }}
+                  />
+                  {sidebarControlOpen ? <ExpandLess sx={{ fontSize: 18 }} /> : <ExpandMore sx={{ fontSize: 18 }} />}
+                </>
+              )}
+            </ListItemButton>
+
+            <AnimatePresence>
+              {sidebarControlOpen && !collapsed && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.15 }}
+                  style={{ overflow: 'hidden' }}
+                >
+                  <Box sx={{ pl: 1, pr: 0.5, py: 0.5 }}>
+                    {/* Expanded Option */}
+                    <ListItemButton
+                      onClick={() => setSidebarMode('expanded')}
+                      sx={{
+                        py: 0.5,
+                        px: 1,
+                        borderRadius: 1,
+                        color: sidebarMode === 'expanded' ? '#60a5fa' : 'rgba(255,255,255,0.7)',
+                        bgcolor: sidebarMode === 'expanded' ? 'rgba(59,130,246,0.15)' : 'transparent',
+                        '&:hover': {
+                          bgcolor: sidebarMode === 'expanded' ? 'rgba(59,130,246,0.2)' : 'rgba(255,255,255,0.06)',
+                        },
+                      }}
+                    >
+                      <Box sx={{ display: 'flex', alignItems: 'center', width: '100%', gap: 1.5 }}>
+                        {sidebarMode === 'expanded' ? (
+                          <Box sx={{
+                            width: 6, height: 6, borderRadius: '50%',
+                            bgcolor: '#60a5fa',
+                            boxShadow: '0 0 8px rgba(96,165,250,0.6)'
+                          }} />
+                        ) : (
+                          <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: 'transparent', border: '1px solid rgba(255,255,255,0.3)' }} />
+                        )}
+                        <ExpandIcon sx={{ fontSize: 16, opacity: 0.8 }} />
+                        <Typography sx={{ fontSize: '0.8rem', fontWeight: sidebarMode === 'expanded' ? 600 : 400 }}>
+                          Expanded
+                        </Typography>
+                      </Box>
+                    </ListItemButton>
+
+                    {/* Collapsed Option */}
+                    <ListItemButton
+                      onClick={() => setSidebarMode('collapsed')}
+                      sx={{
+                        py: 0.5,
+                        px: 1,
+                        borderRadius: 1,
+                        color: sidebarMode === 'collapsed' ? '#60a5fa' : 'rgba(255,255,255,0.7)',
+                        bgcolor: sidebarMode === 'collapsed' ? 'rgba(59,130,246,0.15)' : 'transparent',
+                        '&:hover': {
+                          bgcolor: sidebarMode === 'collapsed' ? 'rgba(59,130,246,0.2)' : 'rgba(255,255,255,0.06)',
+                        },
+                      }}
+                    >
+                      <Box sx={{ display: 'flex', alignItems: 'center', width: '100%', gap: 1.5 }}>
+                        {sidebarMode === 'collapsed' ? (
+                          <Box sx={{
+                            width: 6, height: 6, borderRadius: '50%',
+                            bgcolor: '#60a5fa',
+                            boxShadow: '0 0 8px rgba(96,165,250,0.6)'
+                          }} />
+                        ) : (
+                          <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: 'transparent', border: '1px solid rgba(255,255,255,0.3)' }} />
+                        )}
+                        <CollapseIcon sx={{ fontSize: 16, opacity: 0.8 }} />
+                        <Typography sx={{ fontSize: '0.8rem', fontWeight: sidebarMode === 'collapsed' ? 600 : 400 }}>
+                          Collapsed
+                        </Typography>
+                      </Box>
+                    </ListItemButton>
+
+                    {/* Expand on Hover Option */}
+                    <ListItemButton
+                      onClick={() => setSidebarMode('hover')}
+                      sx={{
+                        py: 0.5,
+                        px: 1,
+                        borderRadius: 1,
+                        color: sidebarMode === 'hover' ? '#60a5fa' : 'rgba(255,255,255,0.7)',
+                        bgcolor: sidebarMode === 'hover' ? 'rgba(59,130,246,0.15)' : 'transparent',
+                        '&:hover': {
+                          bgcolor: sidebarMode === 'hover' ? 'rgba(59,130,246,0.2)' : 'rgba(255,255,255,0.06)',
+                        },
+                      }}
+                    >
+                      <Box sx={{ display: 'flex', alignItems: 'center', width: '100%', gap: 1.5 }}>
+                        {sidebarMode === 'hover' ? (
+                          <Box sx={{
+                            width: 6, height: 6, borderRadius: '50%',
+                            bgcolor: '#60a5fa',
+                            boxShadow: '0 0 8px rgba(96,165,250,0.6)'
+                          }} />
+                        ) : (
+                          <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: 'transparent', border: '1px solid rgba(255,255,255,0.3)' }} />
+                        )}
+                        <HoverIcon sx={{ fontSize: 16, opacity: 0.8 }} />
+                        <Typography sx={{ fontSize: '0.8rem', fontWeight: sidebarMode === 'hover' ? 600 : 400 }}>
+                          Expand on hover
+                        </Typography>
+                      </Box>
+                    </ListItemButton>
+                  </Box>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </Box>
+        </Tooltip>
+      )}
 
       {!collapsed && (
         <Box sx={{
@@ -595,24 +896,31 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
       ) : (
         <Drawer
           variant="permanent"
+          onMouseEnter={() => sidebarMode === 'hover' && setIsHovering(true)}
+          onMouseLeave={() => sidebarMode === 'hover' && setIsHovering(false)}
           sx={{
             width: drawerWidth,
             flexShrink: 0,
             height: '100vh',
+            zIndex: 1200,
+            transition: 'width 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
             '& .MuiDrawer-paper': {
               width: drawerWidth,
               background: "linear-gradient(180deg, #0f172a 0%, #1e293b 50%, #334155 100%)",
               color: 'white',
-              transition: 'width 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+              transition: 'width 0.25s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.25s ease',
               overflowX: 'hidden',
               overflowY: 'auto',
               position: 'relative',
+              zIndex: 1200,
               height: '100%',
               maxHeight: '100vh',
               display: 'flex',
               flexDirection: 'column',
               borderRight: 'none',
-              boxShadow: '2px 0 20px rgba(0,0,0,0.1)',
+              boxShadow: sidebarMode === 'hover' && isHovering
+                ? '4px 0 30px rgba(0,0,0,0.3)'
+                : '2px 0 20px rgba(0,0,0,0.1)',
               scrollbarWidth: 'thin',
               scrollbarColor: 'rgba(255,255,255,0.2) transparent',
               '&::-webkit-scrollbar': {

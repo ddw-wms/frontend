@@ -152,6 +152,9 @@ export default function PermissionsPage() {
         setUser(storedUser);
     }, []);
 
+    // Only super_admin can access User Overrides and Warehouse Access tabs
+    const isSuperAdmin = user?.role === 'super_admin';
+
     const [tabValue, setTabValue] = useState(0);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -999,15 +1002,20 @@ export default function PermissionsPage() {
                     userName={user?.full_name}
                 />
 
-                {/* Tabs */}
+                {/* Tabs - User Overrides & Warehouse Access only for super_admin */}
                 <StandardTabs
                     value={tabValue}
                     onChange={(_, v) => {
+                        // Prevent non-super_admin from accessing restricted tabs
+                        if (!isSuperAdmin && v > 0) return;
                         setTabValue(v);
                         setSelectedRole(null);
                         setSelectedUser(null);
                     }}
-                    tabs={['👥 Role Permissions', '👤 User Overrides', '🏢 Warehouse Access']}
+                    tabs={isSuperAdmin
+                        ? ['👥 Role Permissions', '👤 User Overrides', '🏢 Warehouse Access']
+                        : ['👥 Role Permissions']
+                    }
                     color="#1e40af"
                 />
 
@@ -1105,276 +1113,280 @@ export default function PermissionsPage() {
                         </Box>
                     </TabPanel>
 
-                    {/* TAB 1: User Overrides */}
-                    <TabPanel value={tabValue} index={1}>
-                        <Box sx={{
-                            display: 'flex',
-                            gap: 2,
-                            height: 'calc(100vh - 220px)',
-                            flexDirection: { xs: 'column', md: 'row' }
-                        }}>
-                            {/* User List */}
-                            {isMobile ? (
-                                <>
-                                    <Button
-                                        fullWidth
-                                        variant="outlined"
-                                        onClick={() => setMobileDrawerOpen(true)}
-                                        startIcon={<PersonIcon />}
-                                        sx={{ mb: 1, fontSize: { xs: '0.75rem', sm: '0.875rem' }, py: { xs: 0.75, sm: 1 } }}
-                                    >
-                                        {selectedUser ? (isSmall ? (selectedUser.full_name || selectedUser.username).substring(0, 15) : `Selected: ${selectedUser.full_name || selectedUser.username}`) : 'Select User'}
-                                    </Button>
-                                    <Dialog
-                                        open={mobileDrawerOpen}
-                                        onClose={() => setMobileDrawerOpen(false)}
-                                        fullWidth
-                                        maxWidth="xs"
-                                        PaperProps={{ sx: { borderRadius: 2, maxHeight: '70vh' } }}
-                                    >
-                                        <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                            <Typography fontWeight={600}>Select User</Typography>
-                                            <IconButton onClick={() => setMobileDrawerOpen(false)}>
-                                                <CloseIcon />
-                                            </IconButton>
-                                        </Box>
-                                        <Divider />
-                                        <UserList />
-                                    </Dialog>
-                                </>
-                            ) : (
-                                <Paper sx={{ width: 280, overflow: 'hidden', flexShrink: 0, bgcolor: isDarkMode ? '#1e293b' : 'white' }}>
-                                    <UserList />
-                                </Paper>
-                            )}
-
-                            {/* Overrides Panel */}
-                            <Paper sx={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', bgcolor: isDarkMode ? '#1e293b' : 'white' }}>
-                                {selectedUser ? (
+                    {/* TAB 1: User Overrides - Super Admin Only */}
+                    {isSuperAdmin && (
+                        <TabPanel value={tabValue} index={1}>
+                            <Box sx={{
+                                display: 'flex',
+                                gap: 2,
+                                height: 'calc(100vh - 220px)',
+                                flexDirection: { xs: 'column', md: 'row' }
+                            }}>
+                                {/* User List */}
+                                {isMobile ? (
                                     <>
-                                        <Box sx={{
-                                            p: { xs: 1, sm: 2 },
-                                            borderBottom: '1px solid',
-                                            borderColor: 'divider',
-                                            display: 'flex',
-                                            justifyContent: 'space-between',
-                                            alignItems: 'center',
-                                            flexWrap: 'wrap',
-                                            gap: 1
-                                        }}>
-                                            <Box sx={{ minWidth: 0, flex: 1 }}>
-                                                <Typography variant="h6" fontWeight={600} sx={{ fontSize: { xs: '0.85rem', sm: '1.25rem' } }} noWrap>
-                                                    {selectedUser.full_name || selectedUser.username}
-                                                </Typography>
-                                                <Stack direction="row" alignItems="center" spacing={0.5} flexWrap="wrap" useFlexGap>
-                                                    <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: '0.65rem', sm: '0.875rem' } }}>
-                                                        Role:
-                                                    </Typography>
-                                                    <Chip label={userRole} size="small" sx={{ height: { xs: 16, sm: 20 }, fontSize: { xs: '0.6rem', sm: '0.75rem' } }} />
-                                                    {!isSmall && (
-                                                        <Typography component="span" sx={{ fontSize: '0.7rem', color: 'text.secondary' }}>
-                                                            (grey = role default)
-                                                        </Typography>
-                                                    )}
-                                                </Stack>
+                                        <Button
+                                            fullWidth
+                                            variant="outlined"
+                                            onClick={() => setMobileDrawerOpen(true)}
+                                            startIcon={<PersonIcon />}
+                                            sx={{ mb: 1, fontSize: { xs: '0.75rem', sm: '0.875rem' }, py: { xs: 0.75, sm: 1 } }}
+                                        >
+                                            {selectedUser ? (isSmall ? (selectedUser.full_name || selectedUser.username).substring(0, 15) : `Selected: ${selectedUser.full_name || selectedUser.username}`) : 'Select User'}
+                                        </Button>
+                                        <Dialog
+                                            open={mobileDrawerOpen}
+                                            onClose={() => setMobileDrawerOpen(false)}
+                                            fullWidth
+                                            maxWidth="xs"
+                                            PaperProps={{ sx: { borderRadius: 2, maxHeight: '70vh' } }}
+                                        >
+                                            <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                <Typography fontWeight={600}>Select User</Typography>
+                                                <IconButton onClick={() => setMobileDrawerOpen(false)}>
+                                                    <CloseIcon />
+                                                </IconButton>
                                             </Box>
-                                            <Button
-                                                variant="contained"
-                                                startIcon={saving ? <CircularProgress size={14} color="inherit" /> : <SaveIcon sx={{ fontSize: { xs: 16, sm: 20 } }} />}
-                                                onClick={handleSaveUserOverrides}
-                                                disabled={saving}
-                                                size="small"
-                                                sx={{ fontSize: { xs: '0.7rem', sm: '0.875rem' }, px: { xs: 1, sm: 2 }, flexShrink: 0 }}
-                                            >
-                                                {saving ? 'Saving...' : (isSmall ? 'Save' : 'Save Overrides')}
-                                            </Button>
-                                        </Box>
-                                        <Box sx={{ flex: 1, overflow: 'auto', p: { xs: 0.5, sm: 2 } }}>
-                                            <UserOverrideAccordions />
-                                        </Box>
+                                            <Divider />
+                                            <UserList />
+                                        </Dialog>
                                     </>
                                 ) : (
-                                    <Box sx={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        height: '100%',
-                                        flexDirection: 'column',
-                                        color: 'text.secondary'
-                                    }}>
-                                        <PersonIcon sx={{ fontSize: 64, opacity: 0.3, mb: 2 }} />
-                                        <Typography>Select a user to manage overrides</Typography>
-                                    </Box>
-                                )}
-                            </Paper>
-                        </Box>
-                    </TabPanel>
-
-                    {/* TAB 2: Warehouse Access */}
-                    <TabPanel value={tabValue} index={2}>
-                        <Box sx={{
-                            display: 'flex',
-                            gap: 2,
-                            height: 'calc(100vh - 220px)',
-                            flexDirection: { xs: 'column', md: 'row' }
-                        }}>
-                            {/* User List */}
-                            {isMobile ? (
-                                <>
-                                    <Button
-                                        fullWidth
-                                        variant="outlined"
-                                        onClick={() => setMobileDrawerOpen(true)}
-                                        startIcon={<PersonIcon />}
-                                        sx={{ mb: 1, fontSize: { xs: '0.75rem', sm: '0.875rem' }, py: { xs: 0.75, sm: 1 } }}
-                                    >
-                                        {selectedUser ? (isSmall ? (selectedUser.full_name || selectedUser.username).substring(0, 15) : `Selected: ${selectedUser.full_name || selectedUser.username}`) : 'Select User'}
-                                    </Button>
-                                    <Dialog
-                                        open={mobileDrawerOpen}
-                                        onClose={() => setMobileDrawerOpen(false)}
-                                        fullWidth
-                                        maxWidth="xs"
-                                        PaperProps={{ sx: { borderRadius: 2, maxHeight: '70vh' } }}
-                                    >
-                                        <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                            <Typography fontWeight={600}>Select User</Typography>
-                                            <IconButton onClick={() => setMobileDrawerOpen(false)}>
-                                                <CloseIcon />
-                                            </IconButton>
-                                        </Box>
-                                        <Divider />
+                                    <Paper sx={{ width: 280, overflow: 'hidden', flexShrink: 0, bgcolor: isDarkMode ? '#1e293b' : 'white' }}>
                                         <UserList />
-                                    </Dialog>
-                                </>
-                            ) : (
-                                <Paper sx={{ width: 280, overflow: 'hidden', flexShrink: 0, bgcolor: isDarkMode ? '#1e293b' : 'white' }}>
-                                    <UserList />
-                                </Paper>
-                            )}
+                                    </Paper>
+                                )}
 
-                            {/* Warehouse Access Panel */}
-                            <Paper sx={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', bgcolor: isDarkMode ? '#1e293b' : 'white' }}>
-                                {selectedUser ? (
-                                    <>
+                                {/* Overrides Panel */}
+                                <Paper sx={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', bgcolor: isDarkMode ? '#1e293b' : 'white' }}>
+                                    {selectedUser ? (
+                                        <>
+                                            <Box sx={{
+                                                p: { xs: 1, sm: 2 },
+                                                borderBottom: '1px solid',
+                                                borderColor: 'divider',
+                                                display: 'flex',
+                                                justifyContent: 'space-between',
+                                                alignItems: 'center',
+                                                flexWrap: 'wrap',
+                                                gap: 1
+                                            }}>
+                                                <Box sx={{ minWidth: 0, flex: 1 }}>
+                                                    <Typography variant="h6" fontWeight={600} sx={{ fontSize: { xs: '0.85rem', sm: '1.25rem' } }} noWrap>
+                                                        {selectedUser.full_name || selectedUser.username}
+                                                    </Typography>
+                                                    <Stack direction="row" alignItems="center" spacing={0.5} flexWrap="wrap" useFlexGap>
+                                                        <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: '0.65rem', sm: '0.875rem' } }}>
+                                                            Role:
+                                                        </Typography>
+                                                        <Chip label={userRole} size="small" sx={{ height: { xs: 16, sm: 20 }, fontSize: { xs: '0.6rem', sm: '0.75rem' } }} />
+                                                        {!isSmall && (
+                                                            <Typography component="span" sx={{ fontSize: '0.7rem', color: 'text.secondary' }}>
+                                                                (grey = role default)
+                                                            </Typography>
+                                                        )}
+                                                    </Stack>
+                                                </Box>
+                                                <Button
+                                                    variant="contained"
+                                                    startIcon={saving ? <CircularProgress size={14} color="inherit" /> : <SaveIcon sx={{ fontSize: { xs: 16, sm: 20 } }} />}
+                                                    onClick={handleSaveUserOverrides}
+                                                    disabled={saving}
+                                                    size="small"
+                                                    sx={{ fontSize: { xs: '0.7rem', sm: '0.875rem' }, px: { xs: 1, sm: 2 }, flexShrink: 0 }}
+                                                >
+                                                    {saving ? 'Saving...' : (isSmall ? 'Save' : 'Save Overrides')}
+                                                </Button>
+                                            </Box>
+                                            <Box sx={{ flex: 1, overflow: 'auto', p: { xs: 0.5, sm: 2 } }}>
+                                                <UserOverrideAccordions />
+                                            </Box>
+                                        </>
+                                    ) : (
                                         <Box sx={{
-                                            p: { xs: 1, sm: 2 },
-                                            borderBottom: '1px solid',
-                                            borderColor: 'divider',
                                             display: 'flex',
-                                            justifyContent: 'space-between',
                                             alignItems: 'center',
-                                            flexWrap: 'wrap',
-                                            gap: 1
+                                            justifyContent: 'center',
+                                            height: '100%',
+                                            flexDirection: 'column',
+                                            color: 'text.secondary'
                                         }}>
-                                            <Typography variant="h6" fontWeight={600} sx={{ fontSize: { xs: '0.8rem', sm: '1.25rem' } }}>
-                                                {isSmall ? 'Warehouses' : `Warehouse Access for ${selectedUser.full_name || selectedUser.username}`}
-                                            </Typography>
-                                            <Button
-                                                variant="contained"
-                                                startIcon={saving ? <CircularProgress size={14} color="inherit" /> : <SaveIcon sx={{ fontSize: { xs: 16, sm: 20 } }} />}
-                                                onClick={handleSaveUserWarehouses}
-                                                disabled={saving}
-                                                size="small"
-                                                sx={{ fontSize: { xs: '0.7rem', sm: '0.875rem' }, px: { xs: 1, sm: 2 } }}
-                                            >
-                                                {saving ? 'Saving...' : 'Save'}
-                                            </Button>
+                                            <PersonIcon sx={{ fontSize: 64, opacity: 0.3, mb: 2 }} />
+                                            <Typography>Select a user to manage overrides</Typography>
                                         </Box>
-                                        <Box sx={{ flex: 1, overflow: 'auto', p: 2 }}>
-                                            <Alert severity="info" sx={{ mb: 2 }}>
-                                                <Typography variant="body2">
-                                                    <strong>No warehouses selected</strong> = User can access ALL warehouses.
-                                                    <br />
-                                                    <strong>Select specific warehouses</strong> = User can ONLY access selected warehouses.
-                                                    <br />
-                                                    <strong style={{ color: '#ed6c02' }}>Note:</strong> User must <strong>logout and login again</strong> for changes to take effect.
-                                                </Typography>
-                                            </Alert>
+                                    )}
+                                </Paper>
+                            </Box>
+                        </TabPanel>
+                    )}
 
-                                            <Grid container spacing={2}>
-                                                {warehouses.map(wh => (
-                                                    <Grid size={{ xs: 12, sm: 6, md: 4 }} key={wh.id}>
-                                                        <Card
-                                                            variant="outlined"
-                                                            sx={{
-                                                                cursor: 'pointer',
-                                                                transition: 'all 0.2s',
-                                                                borderColor: userWarehouses.includes(wh.id) ? 'primary.main' : 'divider',
-                                                                bgcolor: userWarehouses.includes(wh.id) ? alpha(theme.palette.primary.main, 0.05) : 'white',
-                                                                '&:hover': {
-                                                                    borderColor: 'primary.main',
-                                                                    boxShadow: 2
-                                                                }
-                                                            }}
-                                                            onClick={() => handleToggleWarehouse(wh.id)}
-                                                        >
-                                                            <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
-                                                                <Stack direction="row" alignItems="center" spacing={1}>
-                                                                    <Checkbox
-                                                                        checked={userWarehouses.includes(wh.id)}
-                                                                        color="primary"
-                                                                        sx={{ p: 0 }}
-                                                                    />
-                                                                    <Box sx={{ flex: 1, minWidth: 0 }}>
-                                                                        <Typography fontWeight={600} noWrap>
-                                                                            {wh.name}
-                                                                        </Typography>
-                                                                        <Typography variant="caption" color="text.secondary">
-                                                                            {wh.code}
-                                                                        </Typography>
-                                                                    </Box>
-                                                                    {userWarehouses.includes(wh.id) && (
-                                                                        <Tooltip title={defaultWarehouseId === wh.id ? "Default warehouse" : "Set as default"}>
-                                                                            <IconButton
-                                                                                size="small"
-                                                                                onClick={(e) => {
-                                                                                    e.stopPropagation();
-                                                                                    setDefaultWarehouseId(wh.id);
-                                                                                }}
-                                                                                color={defaultWarehouseId === wh.id ? "primary" : "default"}
-                                                                            >
-                                                                                {defaultWarehouseId === wh.id ? (
-                                                                                    <CheckCircleIcon />
-                                                                                ) : (
-                                                                                    <RadioButtonUncheckedIcon />
-                                                                                )}
-                                                                            </IconButton>
-                                                                        </Tooltip>
-                                                                    )}
-                                                                </Stack>
-                                                            </CardContent>
-                                                        </Card>
-                                                    </Grid>
-                                                ))}
-                                            </Grid>
-
-                                            {userWarehouses.length > 0 && (
-                                                <Alert severity="success" sx={{ mt: 2 }}>
-                                                    User has access to <strong>{userWarehouses.length}</strong> warehouse(s).
-                                                    {defaultWarehouseId && (
-                                                        <span> Default: <strong>{warehouses.find(w => w.id === defaultWarehouseId)?.name}</strong></span>
-                                                    )}
-                                                </Alert>
-                                            )}
-                                        </Box>
+                    {/* TAB 2: Warehouse Access - Super Admin Only */}
+                    {isSuperAdmin && (
+                        <TabPanel value={tabValue} index={2}>
+                            <Box sx={{
+                                display: 'flex',
+                                gap: 2,
+                                height: 'calc(100vh - 220px)',
+                                flexDirection: { xs: 'column', md: 'row' }
+                            }}>
+                                {/* User List */}
+                                {isMobile ? (
+                                    <>
+                                        <Button
+                                            fullWidth
+                                            variant="outlined"
+                                            onClick={() => setMobileDrawerOpen(true)}
+                                            startIcon={<PersonIcon />}
+                                            sx={{ mb: 1, fontSize: { xs: '0.75rem', sm: '0.875rem' }, py: { xs: 0.75, sm: 1 } }}
+                                        >
+                                            {selectedUser ? (isSmall ? (selectedUser.full_name || selectedUser.username).substring(0, 15) : `Selected: ${selectedUser.full_name || selectedUser.username}`) : 'Select User'}
+                                        </Button>
+                                        <Dialog
+                                            open={mobileDrawerOpen}
+                                            onClose={() => setMobileDrawerOpen(false)}
+                                            fullWidth
+                                            maxWidth="xs"
+                                            PaperProps={{ sx: { borderRadius: 2, maxHeight: '70vh' } }}
+                                        >
+                                            <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                <Typography fontWeight={600}>Select User</Typography>
+                                                <IconButton onClick={() => setMobileDrawerOpen(false)}>
+                                                    <CloseIcon />
+                                                </IconButton>
+                                            </Box>
+                                            <Divider />
+                                            <UserList />
+                                        </Dialog>
                                     </>
                                 ) : (
-                                    <Box sx={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        height: '100%',
-                                        flexDirection: 'column',
-                                        color: 'text.secondary'
-                                    }}>
-                                        <WarehouseIcon sx={{ fontSize: 64, opacity: 0.3, mb: 2 }} />
-                                        <Typography>Select a user to manage warehouse access</Typography>
-                                    </Box>
+                                    <Paper sx={{ width: 280, overflow: 'hidden', flexShrink: 0, bgcolor: isDarkMode ? '#1e293b' : 'white' }}>
+                                        <UserList />
+                                    </Paper>
                                 )}
-                            </Paper>
-                        </Box>
-                    </TabPanel>
+
+                                {/* Warehouse Access Panel */}
+                                <Paper sx={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', bgcolor: isDarkMode ? '#1e293b' : 'white' }}>
+                                    {selectedUser ? (
+                                        <>
+                                            <Box sx={{
+                                                p: { xs: 1, sm: 2 },
+                                                borderBottom: '1px solid',
+                                                borderColor: 'divider',
+                                                display: 'flex',
+                                                justifyContent: 'space-between',
+                                                alignItems: 'center',
+                                                flexWrap: 'wrap',
+                                                gap: 1
+                                            }}>
+                                                <Typography variant="h6" fontWeight={600} sx={{ fontSize: { xs: '0.8rem', sm: '1.25rem' } }}>
+                                                    {isSmall ? 'Warehouses' : `Warehouse Access for ${selectedUser.full_name || selectedUser.username}`}
+                                                </Typography>
+                                                <Button
+                                                    variant="contained"
+                                                    startIcon={saving ? <CircularProgress size={14} color="inherit" /> : <SaveIcon sx={{ fontSize: { xs: 16, sm: 20 } }} />}
+                                                    onClick={handleSaveUserWarehouses}
+                                                    disabled={saving}
+                                                    size="small"
+                                                    sx={{ fontSize: { xs: '0.7rem', sm: '0.875rem' }, px: { xs: 1, sm: 2 } }}
+                                                >
+                                                    {saving ? 'Saving...' : 'Save'}
+                                                </Button>
+                                            </Box>
+                                            <Box sx={{ flex: 1, overflow: 'auto', p: 2 }}>
+                                                <Alert severity="info" sx={{ mb: 2 }}>
+                                                    <Typography variant="body2">
+                                                        <strong>No warehouses selected</strong> = User can access ALL warehouses.
+                                                        <br />
+                                                        <strong>Select specific warehouses</strong> = User can ONLY access selected warehouses.
+                                                        <br />
+                                                        <strong style={{ color: '#ed6c02' }}>Note:</strong> User must <strong>logout and login again</strong> for changes to take effect.
+                                                    </Typography>
+                                                </Alert>
+
+                                                <Grid container spacing={2}>
+                                                    {warehouses.map(wh => (
+                                                        <Grid size={{ xs: 12, sm: 6, md: 4 }} key={wh.id}>
+                                                            <Card
+                                                                variant="outlined"
+                                                                sx={{
+                                                                    cursor: 'pointer',
+                                                                    transition: 'all 0.2s',
+                                                                    borderColor: userWarehouses.includes(wh.id) ? 'primary.main' : 'divider',
+                                                                    bgcolor: userWarehouses.includes(wh.id) ? alpha(theme.palette.primary.main, 0.05) : 'white',
+                                                                    '&:hover': {
+                                                                        borderColor: 'primary.main',
+                                                                        boxShadow: 2
+                                                                    }
+                                                                }}
+                                                                onClick={() => handleToggleWarehouse(wh.id)}
+                                                            >
+                                                                <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
+                                                                    <Stack direction="row" alignItems="center" spacing={1}>
+                                                                        <Checkbox
+                                                                            checked={userWarehouses.includes(wh.id)}
+                                                                            color="primary"
+                                                                            sx={{ p: 0 }}
+                                                                        />
+                                                                        <Box sx={{ flex: 1, minWidth: 0 }}>
+                                                                            <Typography fontWeight={600} noWrap>
+                                                                                {wh.name}
+                                                                            </Typography>
+                                                                            <Typography variant="caption" color="text.secondary">
+                                                                                {wh.code}
+                                                                            </Typography>
+                                                                        </Box>
+                                                                        {userWarehouses.includes(wh.id) && (
+                                                                            <Tooltip title={defaultWarehouseId === wh.id ? "Default warehouse" : "Set as default"}>
+                                                                                <IconButton
+                                                                                    size="small"
+                                                                                    onClick={(e) => {
+                                                                                        e.stopPropagation();
+                                                                                        setDefaultWarehouseId(wh.id);
+                                                                                    }}
+                                                                                    color={defaultWarehouseId === wh.id ? "primary" : "default"}
+                                                                                >
+                                                                                    {defaultWarehouseId === wh.id ? (
+                                                                                        <CheckCircleIcon />
+                                                                                    ) : (
+                                                                                        <RadioButtonUncheckedIcon />
+                                                                                    )}
+                                                                                </IconButton>
+                                                                            </Tooltip>
+                                                                        )}
+                                                                    </Stack>
+                                                                </CardContent>
+                                                            </Card>
+                                                        </Grid>
+                                                    ))}
+                                                </Grid>
+
+                                                {userWarehouses.length > 0 && (
+                                                    <Alert severity="success" sx={{ mt: 2 }}>
+                                                        User has access to <strong>{userWarehouses.length}</strong> warehouse(s).
+                                                        {defaultWarehouseId && (
+                                                            <span> Default: <strong>{warehouses.find(w => w.id === defaultWarehouseId)?.name}</strong></span>
+                                                        )}
+                                                    </Alert>
+                                                )}
+                                            </Box>
+                                        </>
+                                    ) : (
+                                        <Box sx={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            height: '100%',
+                                            flexDirection: 'column',
+                                            color: 'text.secondary'
+                                        }}>
+                                            <WarehouseIcon sx={{ fontSize: 64, opacity: 0.3, mb: 2 }} />
+                                            <Typography>Select a user to manage warehouse access</Typography>
+                                        </Box>
+                                    )}
+                                </Paper>
+                            </Box>
+                        </TabPanel>
+                    )}
                 </Box>
 
                 {/* Snackbar */}
