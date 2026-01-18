@@ -413,7 +413,21 @@ export default function MasterDataPage() {
   useEffect(() => {
     const visibleCols = columns.filter(col => columnVisibility[col.id as keyof typeof columnVisibility]);
 
-    const defs: any = visibleCols.map((col) => {
+    // SR.NO column - always first
+    const srCol = {
+      headerName: 'SR.NO',
+      field: '__sr',
+      valueGetter: (params: any) => params.node ? page * rowsPerPage + params.node.rowIndex + 1 : undefined,
+      width: 80,
+      minWidth: 80,
+      maxWidth: 100,
+      suppressMovable: true,
+      sortable: false,
+      filter: false,
+      cellStyle: { fontWeight: 700, textAlign: 'center', backgroundColor: '#fafafa' },
+    };
+
+    const defs: any = [srCol, ...visibleCols.map((col) => {
       const base: any = {
         field: col.id,
         headerName: col.label,
@@ -490,7 +504,7 @@ export default function MasterDataPage() {
       }
 
       return base;
-    });
+    })];
 
     // Add Actions column at the end
     defs.push({
@@ -506,7 +520,7 @@ export default function MasterDataPage() {
     });
 
     setColumnDefs(defs);
-  }, [columnVisibility, enableSorting, enableColumnFilters, enableColumnResize, isMobile]);
+  }, [columnVisibility, enableSorting, enableColumnFilters, enableColumnResize, isMobile, page, rowsPerPage]);
 
   // Save grid settings to localStorage
   useEffect(() => {
@@ -1950,31 +1964,62 @@ export default function MasterDataPage() {
                         pb: 1,
                         display: 'flex',
                         flexDirection: 'column',
-                        bgcolor: isDarkMode ? '#1e293b' : 'transparent',
-                        '& .ag-root-wrapper': { height: '100%', backgroundColor: isDarkMode ? '#1e293b' : 'transparent' },
-                        '& .ag-row': { height: 36 },
-                        '& .ag-row-even': { backgroundColor: isDarkMode ? '#1a2536' : '#ffffff' },
-                        '& .ag-row-odd': { backgroundColor: isDarkMode ? '#1e293b' : '#f9fafb' },
-                        '& .ag-cell-focus': { border: isDarkMode ? '2px solid #38bdf8 !important' : '2px solid #2563eb !important', boxShadow: isDarkMode ? '0 0 0 1px #38bdf8, inset 0 0 0 1px rgba(56, 189, 248, 0.3)' : 'none' },
-                        '& .ag-row-hover': { backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.15) !important' : '#e5f3ff !important' },
-                        '& .ag-header-cell': {
-                          backgroundColor: isDarkMode ? '#334155' : '#1565c0',
-                          color: 'white',
-                          fontWeight: 700,
-                          fontSize: '0.8rem',
-                          textTransform: 'uppercase',
-                          letterSpacing: '0.3px',
-                          opacity: '1 !important'
+                        bgcolor: isDarkMode ? '#1e293b' : '#ffffff',
+                        border: isDarkMode ? '1px solid #475569' : '1px solid #d1d5db',
+                        borderRadius: '4px',
+                        '& .ag-root-wrapper': {
+                          height: '100%',
+                          backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
+                          border: 'none',
                         },
                         '& .ag-header': {
+                          backgroundColor: isDarkMode ? '#334155' : '#f1f5f9',
+                          borderBottom: isDarkMode ? '2px solid #475569' : '2px solid #d1d5db',
                           opacity: '1 !important',
                           zIndex: 15,
                           position: 'relative'
                         },
+                        '& .ag-header-cell': {
+                          backgroundColor: isDarkMode ? '#334155' : '#f1f5f9',
+                          color: isDarkMode ? '#f1f5f9' : '#1e293b',
+                          fontWeight: 700,
+                          fontSize: '0.8rem',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.3px',
+                          borderRight: isDarkMode ? '1px solid #475569' : '1px solid #d1d5db',
+                          opacity: '1 !important'
+                        },
+                        '& .ag-header-cell:last-child': {
+                          borderRight: 'none',
+                        },
                         '& .ag-body-viewport': {
                           opacity: loading ? 0.3 : 1,
-                          transition: 'opacity 0.2s ease-in-out'
-                        }
+                          transition: 'opacity 0.2s ease-in-out',
+                          backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
+                        },
+                        '& .ag-row': {
+                          height: 36,
+                          borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #e5e7eb',
+                        },
+                        '& .ag-row-even': { backgroundColor: isDarkMode ? '#1e293b' : '#ffffff' },
+                        '& .ag-row-odd': { backgroundColor: isDarkMode ? '#1a2536' : '#f8fafc' },
+                        '& .ag-cell': {
+                          borderRight: isDarkMode ? '1px solid #334155' : '1px solid #e5e7eb',
+                          color: isDarkMode ? '#f1f5f9' : '#1e293b',
+                          display: 'flex',
+                          alignItems: 'center',
+                        },
+                        '& .ag-cell:last-child': {
+                          borderRight: 'none',
+                        },
+                        '& .ag-cell-focus': {
+                          border: isDarkMode ? '2px solid #38bdf8 !important' : '2px solid #2563eb !important',
+                          outline: 'none',
+                        },
+                        '& .ag-cell-range-selected': {
+                          backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.25) !important' : '#dbeafe !important',
+                        },
+                        '& .ag-row-hover': { backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.15) !important' : '#eff6ff !important' },
                       }}>
                         <div className="ag-theme-quartz" style={{ height: '100%', width: '100%' }}>
                           <AgGridReact

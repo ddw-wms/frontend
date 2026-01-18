@@ -1656,8 +1656,13 @@ export default function OutboundPage() {
             headerName: 'SR.NO',
             field: '__sr',
             valueGetter: (params: any) => params.node ? params.node.rowIndex + 1 : undefined,
-            width: 80,
-            cellStyle: { fontWeight: 700, textAlign: 'center', backgroundColor: '#fafafa' },
+            width: 70,
+            cellStyle: {
+                fontWeight: 700,
+                textAlign: 'center',
+                backgroundColor: isDarkMode ? '#1a2536' : '#f1f5f9',
+                color: isDarkMode ? '#94a3b8' : '#64748b'
+            },
             suppressMovable: true,
             sortable: false,
             filter: false,
@@ -1667,19 +1672,41 @@ export default function OutboundPage() {
             const isEditable = EDITABLE_COLUMNS.includes(col);
             // ✅ Use saved width if available, otherwise use default
             const savedWidth = multiColumnWidths[col];
-            const defaultWidth = col === 'wsn' ? 180 : col === 'dispatch_date' ? 140 : 150;
+            const defaultWidth = col === 'wsn' ? 140 : col === 'dispatch_date' ? 140 : 130;
 
             return {
                 field: col,
                 headerName: col.replace(/_/g, ' ').toUpperCase(),
                 editable: isEditable,
                 width: savedWidth || defaultWidth,
-                cellStyle: isEditable ? { backgroundColor: '#f9f9f9' } : undefined,
+                cellStyle: (params: any) => {
+                    const wsn = params.data?.wsn?.trim()?.toUpperCase();
+                    const styles: any = {};
+
+                    // Read-only master data columns get subtle background
+                    if (!isEditable) {
+                        styles.backgroundColor = isDarkMode ? '#1a2536' : '#f8fafc';
+                        styles.color = isDarkMode ? '#94a3b8' : '#64748b';
+                    }
+
+                    // WSN validation colors
+                    if (wsn && col === 'wsn') {
+                        if (crossWarehouseWSNs.has(wsn)) {
+                            styles.backgroundColor = isDarkMode ? '#7f1d1d' : '#fee2e2';
+                            styles.color = isDarkMode ? '#fca5a5' : '#dc2626';
+                        } else if (gridDuplicateWSNs.has(wsn)) {
+                            styles.backgroundColor = isDarkMode ? '#78350f' : '#fef3c7';
+                            styles.color = isDarkMode ? '#fcd34d' : '#92400e';
+                        }
+                    }
+
+                    return styles;
+                },
             };
         });
 
         return [srCol, ...cols];
-    }, [visibleColumns, multiColumnWidths]);
+    }, [visibleColumns, multiColumnWidths, isDarkMode, crossWarehouseWSNs, gridDuplicateWSNs]);
 
     const defaultColDef = useMemo(
         () => ({
@@ -1800,7 +1827,8 @@ export default function OutboundPage() {
 
             <Box sx={{
                 p: { xs: 0.75, md: 1 },
-                background: isDarkMode ? 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)' : 'linear-gradient(135deg, #f0f4f8 0%, #d9e2ec 100%)', minHeight: '100vh', width: '100%'
+                background: isDarkMode ? 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)' : 'linear-gradient(135deg, #f0f4f8 0%, #d9e2ec 100%)', minHeight: '100vh', width: '100%',
+                display: 'flex', flexDirection: 'column'
             }}>
                 {/* HEADER */}
                 <StandardPageHeader
@@ -2307,50 +2335,69 @@ export default function OutboundPage() {
                                 </Box>
                             )}
 
-                            <Box sx={{ height: '100%', width: '100%', bgcolor: isDarkMode ? '#1e293b' : 'transparent' }}>
-                                <div className="ag-theme-quartz" style={{ height: '100%', width: '100%', position: 'relative', backgroundColor: isDarkMode ? '#1e293b' : 'transparent' }}>
+                            <Box sx={{ height: '100%', width: '100%', bgcolor: isDarkMode ? '#1e293b' : '#ffffff' }}>
+                                <div className="ag-theme-quartz" style={{ height: '100%', width: '100%', position: 'relative', backgroundColor: isDarkMode ? '#1e293b' : '#ffffff' }}>
                                     <Box sx={{
                                         height: '100%',
                                         width: '100%',
-                                        bgcolor: isDarkMode ? '#1e293b' : 'transparent',
+                                        bgcolor: isDarkMode ? '#1e293b' : '#ffffff',
+                                        border: isDarkMode ? '1px solid #475569' : '1px solid #d1d5db',
+                                        borderRadius: '4px',
+                                        overflow: 'hidden',
                                         '& .ag-root-wrapper': {
-                                            backgroundColor: isDarkMode ? '#1e293b' : 'transparent',
+                                            backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
+                                            border: 'none',
                                         },
                                         '& .ag-header': {
-                                            background: isDarkMode ? '#334155' : 'linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%)',
-                                            borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e5e7eb',
+                                            backgroundColor: isDarkMode ? '#334155' : '#f1f5f9',
+                                            borderBottom: isDarkMode ? '2px solid #475569' : '2px solid #d1d5db',
                                             opacity: '1 !important',
                                             zIndex: 15,
                                             position: 'relative'
                                         },
                                         '& .ag-header-cell': {
-                                            backgroundColor: 'transparent',
+                                            backgroundColor: isDarkMode ? '#334155' : '#f1f5f9',
                                             color: isDarkMode ? '#f1f5f9' : '#1e293b',
-                                            fontWeight: 800,
+                                            fontWeight: 700,
                                             fontSize: '0.75rem',
-                                            borderRight: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e5e7eb',
+                                            borderRight: isDarkMode ? '1px solid #475569' : '1px solid #d1d5db',
                                             opacity: '1 !important'
+                                        },
+                                        '& .ag-header-cell:last-child': {
+                                            borderRight: 'none',
                                         },
                                         '& .ag-body-viewport': {
                                             opacity: listLoading ? 0.3 : 1,
                                             transition: 'opacity 0.2s ease-in-out',
-                                            backgroundColor: isDarkMode ? '#1e293b' : 'transparent',
+                                            backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
                                         },
                                         '& .ag-row': {
-                                            backgroundColor: isDarkMode ? '#1e293b' : 'transparent',
+                                            borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #e5e7eb',
                                         },
                                         '& .ag-row-even': {
-                                            backgroundColor: isDarkMode ? '#1a2536' : '#ffffff',
+                                            backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
                                         },
                                         '& .ag-row-odd': {
-                                            backgroundColor: isDarkMode ? '#1e293b' : 'rgba(248,250,252,0.5)',
+                                            backgroundColor: isDarkMode ? '#1a2536' : '#f8fafc',
                                         },
                                         '& .ag-cell': {
-                                            borderRight: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #f1f5f9',
-                                            color: isDarkMode ? '#f1f5f9' : 'inherit',
+                                            borderRight: isDarkMode ? '1px solid #334155' : '1px solid #e5e7eb',
+                                            color: isDarkMode ? '#f1f5f9' : '#1e293b',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                        },
+                                        '& .ag-cell:last-child': {
+                                            borderRight: 'none',
                                         },
                                         '& .ag-row-hover': {
-                                            backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.15) !important' : 'rgba(30,64,175,0.04) !important',
+                                            backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.15) !important' : '#eff6ff !important',
+                                        },
+                                        '& .ag-cell-focus': {
+                                            border: isDarkMode ? '2px solid #38bdf8 !important' : '2px solid #2563eb !important',
+                                            outline: 'none',
+                                        },
+                                        '& .ag-cell-range-selected': {
+                                            backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.25) !important' : '#dbeafe !important',
                                         },
                                     }}>
                                         <AgGridReact
@@ -3123,7 +3170,9 @@ export default function OutboundPage() {
                     <Box sx={{
                         display: 'flex',
                         flexDirection: 'column',
-                        height: 'calc(100vh - 185px)',
+                        flex: 1,
+                        minHeight: 0,
+                        overflow: 'hidden',
                         bgcolor: isDarkMode ? '#0f172a' : '#f5f7fa',
                         // Prevent white flash during tab switch
                         '& *': { transition: 'none !important' },
@@ -3390,25 +3439,61 @@ export default function OutboundPage() {
                             </Alert>
                         )}
 
-                        {/* AG Grid */}
+                        {/* AG Grid - Professional Excel-like styling */}
                         <Box sx={{
                             flex: 1,
                             minHeight: 0,
-                            borderRadius: 0,
+                            borderRadius: '6px',
                             overflow: 'hidden',
-                            border: isDarkMode ? '1px solid #475569' : '1px solid #cbd5e1',
+                            border: isDarkMode ? '1px solid #334155' : '1px solid #c7d2e0',
                             bgcolor: isDarkMode ? '#1e293b' : '#ffffff',
-                            '& .ag-root-wrapper': { borderRadius: 0, backgroundColor: isDarkMode ? '#1e293b' : 'transparent' },
-                            '& .ag-header': { borderBottom: isDarkMode ? '1px solid #475569' : '1px solid #cbd5e1', backgroundColor: isDarkMode ? '#334155' : 'transparent' },
-                            '& .ag-header-cell': { backgroundColor: isDarkMode ? '#334155' : '#e5e7eb', color: isDarkMode ? '#f1f5f9' : '#111827', fontWeight: 700, borderRight: isDarkMode ? '1px solid #475569' : '1px solid #d1d5db', fontSize: '11px', padding: '0 6px' },
-                            '& .ag-cell': { borderRight: isDarkMode ? '1px solid #334155' : '1px solid #e5e7eb', borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #e5e7eb', fontSize: '11px', padding: '2px 6px', display: 'flex', alignItems: 'center', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', color: isDarkMode ? '#f1f5f9' : 'inherit' },
-                            '& .ag-row': { height: 26, overflow: 'visible' },
-                            '& .ag-row-even': { backgroundColor: isDarkMode ? '#1a2536' : '#ffffff' },
-                            '& .ag-row-odd': { backgroundColor: isDarkMode ? '#1e293b' : '#f9fafb' },
-                            '& .ag-cell-focus': { border: isDarkMode ? '2px solid #38bdf8 !important' : '2px solid #2563eb !important', boxShadow: isDarkMode ? '0 0 0 1px #38bdf8, inset 0 0 0 1px rgba(56, 189, 248, 0.3)' : 'none', boxSizing: 'border-box' },
-                            '& .ag-cell-range-selected': { backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.3) !important' : '#dbeafe !important' },
+                            boxShadow: isDarkMode ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.08)',
+                            '& .ag-root-wrapper': { borderRadius: 0, backgroundColor: isDarkMode ? '#1e293b' : '#ffffff', border: 'none' },
+
+                            // Professional dark header
+                            '& .ag-header': {
+                                backgroundColor: isDarkMode ? '#1e3a5f' : '#1e3a5f',
+                                borderBottom: isDarkMode ? '2px solid #2563eb' : '2px solid #2563eb',
+                            },
+                            '& .ag-header-cell': {
+                                backgroundColor: isDarkMode ? '#1e3a5f' : '#1e3a5f',
+                                color: '#ffffff',
+                                fontWeight: 700,
+                                fontSize: '11px',
+                                padding: '0 8px',
+                                borderRight: '1px solid #2d4a6f',
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.02em',
+                            },
+                            '& .ag-header-cell:last-child': { borderRight: 'none' },
+                            '& .ag-header-cell-label': { color: '#ffffff' },
+                            '& .ag-icon': { color: '#94a3b8' },
+                            '& .ag-header-icon': { color: '#94a3b8' },
+
+                            // Excel-style cells
+                            '& .ag-cell': {
+                                borderRight: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0',
+                                fontSize: '12px',
+                                padding: '0 8px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                overflow: 'hidden',
+                                whiteSpace: 'nowrap',
+                                textOverflow: 'ellipsis',
+                                color: isDarkMode ? '#f1f5f9' : '#1e293b',
+                            },
+                            '& .ag-cell:last-child': { borderRight: 'none' },
+
+                            // Professional rows
+                            '& .ag-row': { height: 36, overflow: 'visible', borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0' },
+                            '& .ag-row-even': { backgroundColor: isDarkMode ? '#1e293b' : '#ffffff' },
+                            '& .ag-row-odd': { backgroundColor: isDarkMode ? '#1a2536' : '#f8fafc' },
+
+                            // Active cell focus
+                            '& .ag-cell-focus': { border: '2px solid #2563eb !important', outline: 'none', boxShadow: '0 0 0 1px rgba(37, 99, 235, 0.3)' },
+                            '& .ag-cell-range-selected': { backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.25) !important' : '#dbeafe !important' },
                             '& .ag-cell-range-single-cell': { backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.2) !important' : '#eff6ff !important' },
-                            '& .ag-row-hover': { backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.15) !important' : '#e5f3ff !important' },
+                            '& .ag-row-hover': { backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.12) !important' : '#f0f7ff !important' },
                         }}>
                             <AgGridReact
                                 ref={gridRef}
@@ -3514,65 +3599,65 @@ export default function OutboundPage() {
                                 SUBMIT ALL ({multiRows.filter((r) => r.wsn?.trim()).length} rows)
                             </Button>
                         </Box>
-
-                        {/* Column Settings Dialog */}
-                        <Dialog open={columnSettingsOpen} onClose={() => setColumnSettingsOpen(false)} maxWidth="sm" fullWidth>
-                            <DialogTitle>⚙️ Columns View Settings</DialogTitle>
-                            <DialogContent>
-                                <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
-                                    Editable: {EDITABLE_COLUMNS.join(', ')}
-                                </Typography>
-                                <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#6b21a8', mb: 1 }}>EDITABLE FIELDS</Typography>
-                                <Stack spacing={1} sx={{ mb: 2 }}>
-                                    {EDITABLE_COLUMNS.map((col) => (
-                                        <FormControlLabel
-                                            key={col}
-                                            control={
-                                                <Checkbox
-                                                    checked={visibleColumns.includes(col)}
-                                                    onChange={(e) => {
-                                                        if (e.target.checked) {
-                                                            saveColumnSettings([...visibleColumns, col]);
-                                                        } else {
-                                                            saveColumnSettings(visibleColumns.filter((c) => c !== col));
-                                                        }
-                                                    }}
-                                                />
-                                            }
-                                            label={col.replace(/_/g, ' ').toUpperCase()}
-                                        />
-                                    ))}
-                                </Stack>
-                                <Divider sx={{ my: 1 }} />
-                                <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#6b21a8', mb: 1 }}>READ-ONLY MASTER DATA</Typography>
-                                <Stack spacing={1} sx={{ mt: 1 }}>
-                                    {ALL_MULTI_COLUMNS.filter((col) => !EDITABLE_COLUMNS.includes(col)).map((col) => (
-                                        <FormControlLabel
-                                            key={col}
-                                            control={
-                                                <Checkbox
-                                                    checked={visibleColumns.includes(col)}
-                                                    onChange={(e) => {
-                                                        if (e.target.checked) {
-                                                            saveColumnSettings([...visibleColumns, col]);
-                                                        } else {
-                                                            saveColumnSettings(visibleColumns.filter((c) => c !== col));
-                                                        }
-                                                    }}
-                                                />
-                                            }
-                                            label={col.replace(/_/g, ' ').toUpperCase()}
-                                        />
-                                    ))}
-                                </Stack>
-                            </DialogContent>
-                            <DialogActions sx={{ justifyContent: 'space-between' }}>
-                                <Button onClick={() => setColumnSettingsOpen(false)}>CLOSE</Button>
-                                <Button onClick={() => setColumnSettingsOpen(false)} variant="contained" sx={{ background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)', color: '#fff' }}>DONE</Button>
-                            </DialogActions>
-                        </Dialog>
                     </Box>
                 )}
+
+                {/* Column Settings Dialog - Outside flex container */}
+                <Dialog open={columnSettingsOpen} onClose={() => setColumnSettingsOpen(false)} maxWidth="sm" fullWidth>
+                    <DialogTitle>⚙️ Columns View Settings</DialogTitle>
+                    <DialogContent>
+                        <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
+                            Editable: {EDITABLE_COLUMNS.join(', ')}
+                        </Typography>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#6b21a8', mb: 1 }}>EDITABLE FIELDS</Typography>
+                        <Stack spacing={1} sx={{ mb: 2 }}>
+                            {EDITABLE_COLUMNS.map((col) => (
+                                <FormControlLabel
+                                    key={col}
+                                    control={
+                                        <Checkbox
+                                            checked={visibleColumns.includes(col)}
+                                            onChange={(e) => {
+                                                if (e.target.checked) {
+                                                    saveColumnSettings([...visibleColumns, col]);
+                                                } else {
+                                                    saveColumnSettings(visibleColumns.filter((c) => c !== col));
+                                                }
+                                            }}
+                                        />
+                                    }
+                                    label={col.replace(/_/g, ' ').toUpperCase()}
+                                />
+                            ))}
+                        </Stack>
+                        <Divider sx={{ my: 1 }} />
+                        <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#6b21a8', mb: 1 }}>READ-ONLY MASTER DATA</Typography>
+                        <Stack spacing={1} sx={{ mt: 1 }}>
+                            {ALL_MULTI_COLUMNS.filter((col) => !EDITABLE_COLUMNS.includes(col)).map((col) => (
+                                <FormControlLabel
+                                    key={col}
+                                    control={
+                                        <Checkbox
+                                            checked={visibleColumns.includes(col)}
+                                            onChange={(e) => {
+                                                if (e.target.checked) {
+                                                    saveColumnSettings([...visibleColumns, col]);
+                                                } else {
+                                                    saveColumnSettings(visibleColumns.filter((c) => c !== col));
+                                                }
+                                            }}
+                                        />
+                                    }
+                                    label={col.replace(/_/g, ' ').toUpperCase()}
+                                />
+                            ))}
+                        </Stack>
+                    </DialogContent>
+                    <DialogActions sx={{ justifyContent: 'space-between' }}>
+                        <Button onClick={() => setColumnSettingsOpen(false)}>CLOSE</Button>
+                        <Button onClick={() => setColumnSettingsOpen(false)} variant="contained" sx={{ background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)', color: '#fff' }}>DONE</Button>
+                    </DialogActions>
+                </Dialog>
 
                 {/* ====== TAB 4: BATCH MANAGEMENT ====== */}
                 {currentTabCode === 'batches' && (

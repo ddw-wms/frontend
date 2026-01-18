@@ -231,6 +231,11 @@ export default function DashboardPage() {
   const [pickingWSNs, setPickingWSNs] = useState<Set<string>>(new Set());
   const [outboundWSNs, setOutboundWSNs] = useState<Set<string>>(new Set());
 
+  // Pagination state - declared early for use in column defs
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(50);
+  const [total, setTotal] = useState(0);
+
   // Smooth loading helpers (avoid blinking): debounce, abort controller, delayed overlay
   const currentLoadIdRef = useRef(0);
   const inventoryAbortControllerRef = useRef<AbortController | null>(null);
@@ -322,7 +327,21 @@ export default function DashboardPage() {
   }, [isMobile]);
 
   useEffect(() => {
-    const defs: any = visibleColumns.map((col) => {
+    // SR.NO column - always first
+    const srCol = {
+      headerName: 'SR.NO',
+      field: '__sr',
+      valueGetter: (params: any) => params.node ? (page - 1) * limit + params.node.rowIndex + 1 : undefined,
+      width: 80,
+      minWidth: 80,
+      maxWidth: 100,
+      suppressMovable: true,
+      sortable: false,
+      filter: false,
+      cellStyle: { fontWeight: 700, textAlign: 'center' },
+    };
+
+    const defs: any = [srCol, ...visibleColumns.map((col) => {
       const headerName = col.replace(/_/g, ' ').toUpperCase();
       const base: any = {
         field: col,
@@ -406,7 +425,7 @@ export default function DashboardPage() {
         ...sizing,
         minWidth: sizing?.minWidth || 150,
       };
-    });
+    })];
 
     // Action column
     defs.push({
@@ -431,7 +450,7 @@ export default function DashboardPage() {
     });
 
     setColumnDefs(defs);
-  }, [visibleColumns, enableSorting, enableColumnFilters, enableColumnResize, isMobile]);
+  }, [visibleColumns, enableSorting, enableColumnFilters, enableColumnResize, isMobile, page, limit]);
 
 
 
@@ -444,9 +463,6 @@ export default function DashboardPage() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
 
-  const [page, setPage] = useState(1);
-  const [limit, setLimit] = useState(50);
-  const [total, setTotal] = useState(0);
   const [categories, setCategories] = useState<string[]>([]);
   const [brands, setBrands] = useState<string[]>([]);
 

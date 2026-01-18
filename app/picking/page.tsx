@@ -13,7 +13,7 @@ import {
 } from '@mui/material';
 import {
   Add as AddIcon, Download as DownloadIcon, Settings as SettingsIcon,
-  CheckCircle as CheckIcon, Delete as DeleteIcon, Refresh as RefreshIcon, Visibility as VisibilityIcon,
+  CheckCircle as CheckIcon, CheckCircle, Delete as DeleteIcon, Refresh as RefreshIcon, Visibility as VisibilityIcon,
   FilterList as FilterListIcon, ExpandMore as ExpandMoreIcon, Info as InfoIcon,
   Tune as TuneIcon, Close as CloseIcon
 } from '@mui/icons-material';
@@ -1246,6 +1246,7 @@ export default function PickingPage() {
     // ✅ Use saved width if available, otherwise use default
     const savedWidth = multiColumnWidths[field];
     const widthConfig = savedWidth ? { width: savedWidth } : (COLUMN_WIDTHS[field] || {});
+    const isEditable = EDITABLE_COLUMNS.includes(field);
     const baseColDef: any = {
       field,
       headerName: field === 'sno' ? 'S.No' : field.replace(/_/g, ' ').toUpperCase(),
@@ -1256,25 +1257,27 @@ export default function PickingPage() {
 
         // SNO special styling
         if (field === 'sno') {
-          styles.backgroundColor = '#f8fafc';
+          styles.backgroundColor = isDarkMode ? '#1a2536' : '#f1f5f9';
           styles.fontWeight = 700;
-          styles.color = '#64748b';
+          styles.color = isDarkMode ? '#94a3b8' : '#64748b';
           styles.textAlign = 'center';
+          return styles;
         }
 
-        // Master data columns get gray background
-        if (ALL_MASTER_COLUMNS.includes(field)) {
-          styles.backgroundColor = '#f5f5f5';
+        // Read-only master data columns get subtle background
+        if (!isEditable) {
+          styles.backgroundColor = isDarkMode ? '#1a2536' : '#f8fafc';
+          styles.color = isDarkMode ? '#94a3b8' : '#64748b';
         }
 
         // WSN validation colors
         if (wsn && field === 'wsn') {
           if (crossWarehouseWSNs.has(wsn)) {
-            styles.backgroundColor = '#fee';
-            styles.color = '#c00';
+            styles.backgroundColor = isDarkMode ? '#7f1d1d' : '#fee2e2';
+            styles.color = isDarkMode ? '#fca5a5' : '#dc2626';
           } else if (gridDuplicateWSNs.has(wsn)) {
-            styles.backgroundColor = '#fff3cd';
-            styles.color = '#856404';
+            styles.backgroundColor = isDarkMode ? '#78350f' : '#fef3c7';
+            styles.color = isDarkMode ? '#fcd34d' : '#92400e';
           }
         }
 
@@ -1331,7 +1334,9 @@ export default function PickingPage() {
         p: { xs: 0.75, md: 1 },
         background: isDarkMode ? 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)' : 'linear-gradient(135deg, #f0f4f8 0%, #d9e2ec 100%)',
         minHeight: '100vh',
-        width: '100%'
+        width: '100%',
+        display: 'flex',
+        flexDirection: 'column'
       }}>
         {/* HEADER */}
         <StandardPageHeader
@@ -1752,50 +1757,69 @@ export default function PickingPage() {
                 </Box>
               )}
 
-              <Box sx={{ height: '100%', width: '100%', bgcolor: isDarkMode ? '#1e293b' : 'transparent' }}>
+              <Box sx={{ height: '100%', width: '100%', bgcolor: isDarkMode ? '#1e293b' : '#ffffff' }}>
                 <div className="ag-theme-quartz" style={{ height: '100%', width: '100%', position: 'relative' }}>
                   <Box sx={{
                     height: '100%',
                     width: '100%',
-                    bgcolor: isDarkMode ? '#1e293b' : 'transparent',
+                    bgcolor: isDarkMode ? '#1e293b' : '#ffffff',
+                    border: isDarkMode ? '1px solid #475569' : '1px solid #d1d5db',
+                    borderRadius: '4px',
+                    overflow: 'hidden',
                     '& .ag-root-wrapper': {
-                      backgroundColor: isDarkMode ? '#1e293b' : 'transparent',
+                      backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
+                      border: 'none',
                     },
                     '& .ag-header': {
-                      background: isDarkMode ? '#334155' : 'linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%)',
-                      borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e5e7eb',
+                      backgroundColor: isDarkMode ? '#334155' : '#f1f5f9',
+                      borderBottom: isDarkMode ? '2px solid #475569' : '2px solid #d1d5db',
                       opacity: '1 !important',
                       zIndex: 15,
                       position: 'relative'
                     },
                     '& .ag-header-cell': {
-                      backgroundColor: 'transparent',
+                      backgroundColor: isDarkMode ? '#334155' : '#f1f5f9',
                       color: isDarkMode ? '#f1f5f9' : '#1e293b',
-                      fontWeight: 800,
+                      fontWeight: 700,
                       fontSize: '0.75rem',
-                      borderRight: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e5e7eb',
+                      borderRight: isDarkMode ? '1px solid #475569' : '1px solid #d1d5db',
                       opacity: '1 !important'
+                    },
+                    '& .ag-header-cell:last-child': {
+                      borderRight: 'none',
                     },
                     '& .ag-body-viewport': {
                       opacity: loading ? 0.3 : 1,
                       transition: 'opacity 0.2s ease-in-out',
-                      backgroundColor: isDarkMode ? '#1e293b' : 'transparent',
+                      backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
                     },
                     '& .ag-row': {
-                      backgroundColor: isDarkMode ? '#1e293b' : 'transparent',
+                      borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #e5e7eb',
                     },
                     '& .ag-row-even': {
-                      backgroundColor: isDarkMode ? '#1a2536' : '#ffffff',
+                      backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
                     },
                     '& .ag-row-odd': {
-                      backgroundColor: isDarkMode ? '#1e293b' : 'rgba(248,250,252,0.5)',
+                      backgroundColor: isDarkMode ? '#1a2536' : '#f8fafc',
                     },
                     '& .ag-cell': {
-                      borderRight: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #f1f5f9',
-                      color: isDarkMode ? '#f1f5f9' : 'inherit',
+                      borderRight: isDarkMode ? '1px solid #334155' : '1px solid #e5e7eb',
+                      color: isDarkMode ? '#f1f5f9' : '#1e293b',
+                      display: 'flex',
+                      alignItems: 'center',
+                    },
+                    '& .ag-cell:last-child': {
+                      borderRight: 'none',
                     },
                     '& .ag-row-hover': {
-                      backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.15) !important' : 'rgba(30,64,175,0.04) !important',
+                      backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.15) !important' : '#eff6ff !important',
+                    },
+                    '& .ag-cell-focus': {
+                      border: isDarkMode ? '2px solid #38bdf8 !important' : '2px solid #2563eb !important',
+                      outline: 'none',
+                    },
+                    '& .ag-cell-range-selected': {
+                      backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.25) !important' : '#dbeafe !important',
                     },
                   }}>
                     <AgGridReact
@@ -2463,7 +2487,7 @@ export default function PickingPage() {
 
         {/* ========== TAB 1: MULTI PICKING (AG GRID) ========== */}
         {currentTabCode === 'multi' && (
-          <Box sx={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 185px)', gap: 0.5, mt: 0 }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, gap: 0.5, mt: 0, overflow: 'hidden' }}>
             {/* HEADER */}
             <Card sx={{ borderRadius: 1, boxShadow: isDarkMode ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.06)', bgcolor: isDarkMode ? '#1e293b' : 'white' }}>
               <CardContent sx={{ p: 1.2, '&:last-child': { pb: 1.2 } }}>
@@ -2533,48 +2557,67 @@ export default function PickingPage() {
               </Alert>
             )}
 
-            {/* AG GRID */}
+            {/* AG GRID - Professional Excel-like styling */}
             <Box
               sx={{
                 flex: 1,
                 minHeight: 0,
-                border: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #cbd5e1',
-                borderRadius: 0,
-                bgcolor: isDarkMode ? '#1e293b' : 'transparent',
-                '& .ag-root-wrapper': { borderRadius: 0, height: '100%', backgroundColor: isDarkMode ? '#1e293b' : 'transparent' },
-                '& .ag-header': { borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #cbd5e1', backgroundColor: isDarkMode ? '#334155' : 'transparent' },
-                '& .ag-header-cell': {
-                  backgroundColor: isDarkMode ? '#334155' : '#e5e7eb',
-                  color: isDarkMode ? '#f1f5f9' : '#111827',
-                  fontWeight: 700,
-                  borderRight: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #d1d5db',
-                  fontSize: '11px',
-                  padding: '0 4px',
+                border: isDarkMode ? '1px solid #334155' : '1px solid #c7d2e0',
+                borderRadius: '6px',
+                overflow: 'hidden',
+                bgcolor: isDarkMode ? '#1e293b' : '#ffffff',
+                boxShadow: isDarkMode ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.08)',
+                '& .ag-root-wrapper': { borderRadius: 0, height: '100%', backgroundColor: isDarkMode ? '#1e293b' : '#ffffff', border: 'none' },
+
+                // Professional dark header
+                '& .ag-header': {
+                  backgroundColor: isDarkMode ? '#1e3a5f' : '#1e3a5f',
+                  borderBottom: isDarkMode ? '2px solid #f59e0b' : '2px solid #f59e0b',
                 },
-                '& .ag-cell': {
-                  borderRight: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e5e7eb',
-                  borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e5e7eb',
+                '& .ag-header-cell': {
+                  backgroundColor: isDarkMode ? '#1e3a5f' : '#1e3a5f',
+                  color: '#ffffff',
+                  fontWeight: 700,
                   fontSize: '11px',
-                  padding: '1px 4px',
+                  padding: '0 8px',
+                  borderRight: '1px solid #2d4a6f',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.02em',
+                },
+                '& .ag-header-cell:last-child': { borderRight: 'none' },
+                '& .ag-header-cell-label': { color: '#ffffff' },
+                '& .ag-icon': { color: '#94a3b8' },
+                '& .ag-header-icon': { color: '#94a3b8' },
+
+                // Excel-style cells
+                '& .ag-cell': {
+                  borderRight: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0',
+                  fontSize: '12px',
+                  padding: '0 8px',
                   display: 'flex',
                   alignItems: 'center',
                   overflow: 'hidden',
                   whiteSpace: 'nowrap',
                   textOverflow: 'ellipsis',
-                  color: isDarkMode ? '#f1f5f9' : 'inherit',
+                  color: isDarkMode ? '#f1f5f9' : '#1e293b',
                 },
-                '& .ag-row': { height: 26, overflow: 'visible' },
-                '& .ag-row-even': { backgroundColor: isDarkMode ? '#1a2536' : '#ffffff' },
-                '& .ag-row-odd': { backgroundColor: isDarkMode ? '#1e293b' : '#f9fafb' },
+                '& .ag-cell:last-child': { borderRight: 'none' },
+
+                // Professional rows
+                '& .ag-row': { height: 36, overflow: 'visible', borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0' },
+                '& .ag-row-even': { backgroundColor: isDarkMode ? '#1e293b' : '#ffffff' },
+                '& .ag-row-odd': { backgroundColor: isDarkMode ? '#1a2536' : '#f8fafc' },
+
+                // Active cell focus
                 '& .ag-cell-focus': {
-                  border: isDarkMode ? '2px solid #38bdf8 !important' : '2px solid #2563eb !important',
-                  boxShadow: isDarkMode ? '0 0 0 1px #38bdf8, inset 0 0 0 1px rgba(56, 189, 248, 0.3)' : 'none',
+                  border: '2px solid #f59e0b !important',
+                  boxShadow: '0 0 0 1px rgba(245, 158, 11, 0.3)',
                   boxSizing: 'border-box',
+                  outline: 'none',
                 },
-                '& .ag-cell-range-selected': { backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.3) !important' : '#dbeafe !important' },
-                '& .ag-cell-range-single-cell': { backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.2) !important' : '#eff6ff !important' },
-                '& .ag-row-hover': { backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.15) !important' : '#e5f3ff !important' },
-                '& .ag-row-focus': { outline: '1px solid #60a5fa' },
+                '& .ag-cell-range-selected': { backgroundColor: isDarkMode ? 'rgba(245, 158, 11, 0.25) !important' : '#fef3c7 !important' },
+                '& .ag-cell-range-single-cell': { backgroundColor: isDarkMode ? 'rgba(245, 158, 11, 0.2) !important' : '#fffbeb !important' },
+                '& .ag-row-hover': { backgroundColor: isDarkMode ? 'rgba(245, 158, 11, 0.12) !important' : '#fffdf5 !important' },
               }}
             >
               <AgGridReact
@@ -3063,106 +3106,103 @@ export default function PickingPage() {
               {/* SUBMIT BUTTON */}
               <Button
                 variant="contained"
-                size="medium"
                 onClick={handleMultiSubmit}
                 disabled={multiLoading || gridDuplicateWSNs.size > 0 || crossWarehouseWSNs.size > 0}
+                startIcon={multiLoading ? <CircularProgress size={18} sx={{ color: 'white' }} /> : <CheckCircle sx={{ fontSize: 18 }} />}
                 sx={{
                   ml: 'auto',
-                  py: 0.75,
-                  px: { xs: 2, sm: 3 },
-                  borderRadius: 1.5,
-                  fontWeight: 800,
-                  fontSize: '0.8rem',
-                  background: 'linear-gradient(135deg, #f59e0b 0%, #ea580c 100%)',
-                  boxShadow: '0 4px 12px rgba(245, 158, 11, 0.3)',
+                  height: 38,
+                  fontSize: '0.75rem',
+                  fontWeight: 600,
                   minWidth: { xs: 150, sm: 200 },
+                  background: 'linear-gradient(135deg, #f59e0b 0%, #ea580c 100%)'
                 }}
               >
-                ✓ SUBMIT ALL ({multiRows.filter((r) => r.wsn?.trim()).length} rows)
+                SUBMIT ALL ({multiRows.filter((r) => r.wsn?.trim()).length} rows)
               </Button>
             </Box>
-
-            {/* COLUMN SETTINGS DIALOG */}
-            <Dialog
-              open={columnSettingsOpen}
-              onClose={() => setColumnSettingsOpen(false)}
-              maxWidth="sm"
-              fullWidth
-              PaperProps={{ sx: { borderRadius: 2 } }}
-            >
-              <DialogTitle sx={{ fontWeight: 800, background: 'linear-gradient(135deg, #f59e0b 0%, #ea580c 100%)', color: 'white', py: 2 }}>
-                📋 Column Settings
-              </DialogTitle>
-              <DialogContent sx={{ mt: 2 }}>
-                <Stack spacing={1.5}>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#64748b', textTransform: 'uppercase', fontSize: '0.75rem' }}>
-                    Editable Columns
-                  </Typography>
-
-                  {/* Locked S.No column — always visible */}
-                  <FormControlLabel
-                    key="sno"
-                    control={<Checkbox checked={visibleColumns.includes('sno')} disabled />}
-                    label="S. No"
-                  />
-
-                  {EDITABLE_COLUMNS.map((col) => (
-                    <FormControlLabel
-                      key={col}
-                      control={
-                        <Checkbox
-                          checked={visibleColumns.includes(col)}
-                          onChange={() => {
-                            if (visibleColumns.includes(col)) {
-                              if (visibleColumns.length === 1) {
-                                toast.error('At least one column must be visible');
-                                return;
-                              }
-                              setVisibleColumns(visibleColumns.filter(c => c !== col));
-                            } else {
-                              setVisibleColumns([...visibleColumns, col]);
-                            }
-                          }}
-                        />
-                      }
-                      label={col.replace(/_/g, ' ').toUpperCase()}
-                    />
-                  ))}
-
-                  <Divider sx={{ my: 1 }} />
-
-                  <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#64748b', textTransform: 'uppercase', fontSize: '0.75rem' }}>
-                    Master Data Columns (Read-only)
-                  </Typography>
-                  {ALL_MASTER_COLUMNS.map((col) => (
-                    <FormControlLabel
-                      key={col}
-                      control={
-                        <Checkbox
-                          checked={visibleColumns.includes(col)}
-                          onChange={() => {
-                            if (visibleColumns.includes(col)) {
-                              setVisibleColumns(visibleColumns.filter(c => c !== col));
-                            } else {
-                              setVisibleColumns([...visibleColumns, col]);
-                            }
-                          }}
-                        />
-                      }
-                      label={col.replace(/_/g, ' ').toUpperCase()}
-                    />
-                  ))}
-                </Stack>
-              </DialogContent>
-              <DialogActions sx={{ p: 2 }}>
-                <Button onClick={() => setColumnSettingsOpen(false)} variant="outlined">Close</Button>
-                <Button onClick={() => setVisibleColumns(DEFAULT_MULTI_COLUMNS)} variant="contained" sx={{ background: 'linear-gradient(135deg, #f59e0b 0%, #ea580c 100%)' }}>
-                  Reset to Default
-                </Button>
-              </DialogActions>
-            </Dialog>
           </Box>
         )}
+
+        {/* COLUMN SETTINGS DIALOG - Outside flex container */}
+        <Dialog
+          open={columnSettingsOpen}
+          onClose={() => setColumnSettingsOpen(false)}
+          maxWidth="sm"
+          fullWidth
+          PaperProps={{ sx: { borderRadius: 2 } }}
+        >
+          <DialogTitle sx={{ fontWeight: 800, background: 'linear-gradient(135deg, #f59e0b 0%, #ea580c 100%)', color: 'white', py: 2 }}>
+            📋 Column Settings
+          </DialogTitle>
+          <DialogContent sx={{ mt: 2 }}>
+            <Stack spacing={1.5}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#64748b', textTransform: 'uppercase', fontSize: '0.75rem' }}>
+                Editable Columns
+              </Typography>
+
+              {/* Locked S.No column — always visible */}
+              <FormControlLabel
+                key="sno"
+                control={<Checkbox checked={visibleColumns.includes('sno')} disabled />}
+                label="S. No"
+              />
+
+              {EDITABLE_COLUMNS.map((col) => (
+                <FormControlLabel
+                  key={col}
+                  control={
+                    <Checkbox
+                      checked={visibleColumns.includes(col)}
+                      onChange={() => {
+                        if (visibleColumns.includes(col)) {
+                          if (visibleColumns.length === 1) {
+                            toast.error('At least one column must be visible');
+                            return;
+                          }
+                          setVisibleColumns(visibleColumns.filter(c => c !== col));
+                        } else {
+                          setVisibleColumns([...visibleColumns, col]);
+                        }
+                      }}
+                    />
+                  }
+                  label={col.replace(/_/g, ' ').toUpperCase()}
+                />
+              ))}
+
+              <Divider sx={{ my: 1 }} />
+
+              <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#64748b', textTransform: 'uppercase', fontSize: '0.75rem' }}>
+                Master Data Columns (Read-only)
+              </Typography>
+              {ALL_MASTER_COLUMNS.map((col) => (
+                <FormControlLabel
+                  key={col}
+                  control={
+                    <Checkbox
+                      checked={visibleColumns.includes(col)}
+                      onChange={() => {
+                        if (visibleColumns.includes(col)) {
+                          setVisibleColumns(visibleColumns.filter(c => c !== col));
+                        } else {
+                          setVisibleColumns([...visibleColumns, col]);
+                        }
+                      }}
+                    />
+                  }
+                  label={col.replace(/_/g, ' ').toUpperCase()}
+                />
+              ))}
+            </Stack>
+          </DialogContent>
+          <DialogActions sx={{ p: 2 }}>
+            <Button onClick={() => setColumnSettingsOpen(false)} variant="outlined">Close</Button>
+            <Button onClick={() => setVisibleColumns(DEFAULT_MULTI_COLUMNS)} variant="contained" sx={{ background: 'linear-gradient(135deg, #f59e0b 0%, #ea580c 100%)' }}>
+              Reset to Default
+            </Button>
+          </DialogActions>
+        </Dialog>
 
         {/* ========== TAB 2: BATCH MANAGEMENT ========== */}
         {currentTabCode === 'batches' && (
