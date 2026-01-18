@@ -165,7 +165,11 @@ const MasterDataRow = memo(({
         <Chip
           label={row.actual_received || 'Pending'}
           size="small"
-          color={row.actual_received === 'Received' ? 'success' : 'warning'}
+          color={
+            row.actual_received === 'Received' ? 'success' :
+              row.actual_received === 'Receiving' ? 'info' :
+                'warning'
+          }
           variant="outlined"
           sx={{ height: 20, fontSize: '0.75rem', fontWeight: 'bold' }}
         />
@@ -417,7 +421,7 @@ export default function MasterDataPage() {
   useEffect(() => {
     const visibleCols = columns.filter(col => columnVisibility[col.id as keyof typeof columnVisibility]);
 
-    // SR.NO column - always first
+    // SR.NO column - always first, pinned to left
     const srCol = {
       headerName: 'SR.NO',
       field: '__sr',
@@ -428,7 +432,9 @@ export default function MasterDataPage() {
       suppressMovable: true,
       sortable: false,
       filter: false,
-      cellStyle: { fontWeight: 700, textAlign: 'center', backgroundColor: '#fafafa' },
+      pinned: 'left',
+      lockPinned: true,
+      cellStyle: { fontWeight: 700, textAlign: 'center', backgroundColor: isDarkMode ? '#1e293b' : '#fafafa' },
     };
 
     const defs: any = [srCol, ...visibleCols.map((col) => {
@@ -450,14 +456,16 @@ export default function MasterDataPage() {
         };
       }
 
-      // Actual received column - plain text with color
+      // Actual received column - plain text with color (bright colors for dark mode visibility)
       if (col.id === 'actual_received') {
         return {
           ...base,
           valueFormatter: (p: any) => p.value || 'Pending',
           cellStyle: (p: any) => {
             const status = p.value || 'Pending';
-            const color = status === 'Received' ? '#4caf50' : '#ff9800';
+            // Brighter colors for better visibility in dark mode
+            const color = status === 'Received' ? '#4ade80' :  // bright green
+              status === 'Receiving' ? '#60a5fa' : '#fbbf24';   // bright blue / bright amber
             return {
               color: color,
               fontWeight: 600,
@@ -1598,6 +1606,7 @@ export default function MasterDataPage() {
                                   >
                                     <MenuItem value="All" sx={{ fontSize: '0.8rem' }}>All</MenuItem>
                                     <MenuItem value="Received" sx={{ fontSize: '0.8rem' }}>✅ Received</MenuItem>
+                                    <MenuItem value="Receiving" sx={{ fontSize: '0.8rem' }}>🔄 Receiving</MenuItem>
                                     <MenuItem value="Pending" sx={{ fontSize: '0.8rem' }}>❌ Pending</MenuItem>
                                   </Select>
                                 </FormControl>
@@ -2692,6 +2701,7 @@ export default function MasterDataPage() {
                   >
                     <MenuItem value="All">All</MenuItem>
                     <MenuItem value="Received">✅ Received</MenuItem>
+                    <MenuItem value="Receiving">🔄 Receiving</MenuItem>
                     <MenuItem value="Pending">❌ Pending</MenuItem>
                   </Select>
                 </FormControl>

@@ -163,6 +163,15 @@ export const inboundAPI = {
   multiEntry: (entries: any[], warehouse_id: number) =>
     api.post('inbound/multi-entry', { entries, warehouse_id }),
   getWarehouseRacks: (warehouseId: number) => api.get(`inbound/racks/${warehouseId}`),
+
+  // Receiving WSNs tracking (for multi-entry scanning status in master data)
+  syncReceivingWSNs: (wsns: string[], warehouse_id: number) =>
+    api.post('inbound/receiving-wsns/sync', { wsns, warehouse_id }),
+  clearReceivingWSNs: (warehouse_id?: number) =>
+    api.post('inbound/receiving-wsns/clear', { warehouse_id }),
+  getReceivingWSNs: (warehouse_id?: number) =>
+    api.get('inbound/receiving-wsns', { params: { warehouse_id } }),
+
   getBatches: (warehouseId?: string) => {
     const params = warehouseId ? `?warehouse_id=${warehouseId}` : '';
     return api.get(`inbound/batches${params}`);

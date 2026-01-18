@@ -256,6 +256,10 @@ export default function InboundPage() {
   const lastChangeAtRef = useRef<number | null>(null);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  // ---- Receiving WSNs Sync (for master data "Receiving" status) ----
+  const receivingSyncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastSyncedWSNsRef = useRef<string>(''); // JSON string for comparison
+
   const [crossWarehouseWSNs, setCrossWarehouseWSNs] = useState<Set<string>>(new Set());
   const [gridDuplicateWSNs, setGridDuplicateWSNs] = useState<Set<string>>(new Set());
 
@@ -630,6 +634,47 @@ export default function InboundPage() {
     }
   };
 
+  // ---- Sync receiving WSNs to server (for master data "Receiving" status) ----
+  const syncReceivingWSNs = async (rowsToSync = multiRows) => {
+    if (!activeWarehouse?.id) return;
+
+    // Extract valid WSNs from rows
+    const wsns = rowsToSync
+      .map((r: any) => r.wsn?.trim()?.toUpperCase())
+      .filter((w: string) => w && w.length > 0);
+
+    // Create a hash to compare with last synced
+    const wsnsHash = JSON.stringify(wsns.sort());
+
+    // Skip if no change
+    if (wsnsHash === lastSyncedWSNsRef.current) return;
+
+    // Skip API call if no valid WSNs (just update ref to avoid re-calling)
+    if (wsns.length === 0) {
+      lastSyncedWSNsRef.current = wsnsHash;
+      return;
+    }
+
+    try {
+      await inboundAPI.syncReceivingWSNs(wsns, activeWarehouse.id);
+      lastSyncedWSNsRef.current = wsnsHash;
+      console.log('📡 Synced receiving WSNs:', wsns.length);
+    } catch (err) {
+      console.error('Failed to sync receiving WSNs', err);
+    }
+  };
+
+  const clearReceivingWSNs = async () => {
+    if (!activeWarehouse?.id) return;
+    try {
+      await inboundAPI.clearReceivingWSNs(activeWarehouse.id);
+      lastSyncedWSNsRef.current = '';
+      console.log('🧹 Cleared receiving WSNs');
+    } catch (err) {
+      console.error('Failed to clear receiving WSNs', err);
+    }
+  };
+
   // Load draft when warehouse/user become available
   useEffect(() => {
     let mounted = true;
@@ -679,6 +724,40 @@ export default function InboundPage() {
       if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
     };
   }, [multiRows, activeWarehouse?.id, user?.id]);
+
+  // Sync receiving WSNs to server (debounced) for master data "Receiving" status
+  useEffect(() => {
+    // Skip if no warehouse selected
+    if (!activeWarehouse?.id) return;
+
+    // Skip initial sync when rows are empty (avoid unnecessary API calls)
+    const hasAnyWSN = multiRows.some(r => r.wsn?.trim());
+    if (!hasAnyWSN) return;
+
+    // Debounce sync (longer interval than draft save)
+    if (receivingSyncTimeoutRef.current) clearTimeout(receivingSyncTimeoutRef.current);
+    receivingSyncTimeoutRef.current = setTimeout(() => {
+      syncReceivingWSNs(multiRows);
+    }, 1000); // 1 second debounce
+
+    return () => {
+      if (receivingSyncTimeoutRef.current) clearTimeout(receivingSyncTimeoutRef.current);
+    };
+  }, [multiRows, activeWarehouse?.id]);
+
+  // Clear receiving WSNs on page unload
+  useEffect(() => {
+    const onUnload = () => {
+      // Use sendBeacon for reliable unload sync
+      if (activeWarehouse?.id && navigator.sendBeacon) {
+        const url = `${process.env.NEXT_PUBLIC_API_URL}/api/inbound/receiving-wsns/clear`;
+        const data = JSON.stringify({ warehouse_id: activeWarehouse.id });
+        navigator.sendBeacon(url, new Blob([data], { type: 'application/json' }));
+      }
+    };
+    window.addEventListener('unload', onUnload);
+    return () => window.removeEventListener('unload', onUnload);
+  }, [activeWarehouse?.id]);
 
   // Warn on unload if there are unsaved changes
   useEffect(() => {
@@ -2610,6 +2689,9 @@ export default function InboundPage() {
 
       // Clear saved draft after successful submit
       await clearDraft();
+
+      // Clear receiving WSNs from server (they are now inbound)
+      await clearReceivingWSNs();
 
       loadInboundList();
 
