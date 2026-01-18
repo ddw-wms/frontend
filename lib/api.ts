@@ -482,7 +482,27 @@ export const dashboardAPI = {
 
   // ✅ FIXED: Get data for export with complete details
   getInventoryDataForExport: (queryString: string) =>
-    api.get(`/dashboard/export-data?${queryString}`)
+    api.get(`/dashboard/export-data?${queryString}`),
+
+  // ✅ PIVOT TABLE APIs - Server-side aggregation
+  // Get pivot summary (category-wise qty count)
+  getPivotSummary: (params: { warehouseId: number; groupBy?: string; brand?: string; category?: string }) =>
+    api.get('/dashboard/pivot-summary', { params }),
+
+  // Get pivot filter options (brands, categories)
+  getPivotFilters: (params: { warehouseId: number }) =>
+    api.get('/dashboard/pivot-filters', { params }),
+
+  // Get drill-down data for a specific category (with all master_data columns)
+  getPivotDrilldown: (params: {
+    warehouseId: number;
+    groupBy?: string;
+    categoryValue: string;
+    page?: number;
+    limit?: number;
+    exportAll?: boolean;
+  }) =>
+    api.get('/dashboard/pivot-drilldown', { params }),
 };
 
 

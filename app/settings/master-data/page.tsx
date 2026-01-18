@@ -352,16 +352,20 @@ export default function MasterDataPage() {
   const [enableColumnResize, setEnableColumnResize] = useState<boolean>(() => {
     try { return localStorage.getItem('masterdata_enableColumnResize') !== 'false'; } catch { return true; }
   });
+  const [enableCellEditing, setEnableCellEditing] = useState<boolean>(() => {
+    try { return localStorage.getItem('masterdata_enableCellEditing') !== 'false'; } catch { return true; }
+  });
 
   const defaultColDef = useMemo(() => ({
     sortable: !!enableSorting,
     resizable: !!enableColumnResize,
     filter: !!enableColumnFilters,
+    editable: !!enableCellEditing,
     minWidth: 80,
     tooltipComponentParams: { color: '#ececec' },
     wrapHeaderText: true,
     autoHeaderHeight: true,
-  }), [enableSorting, enableColumnFilters, enableColumnResize]);
+  }), [enableSorting, enableColumnFilters, enableColumnResize, enableCellEditing]);
 
   const columns = [
     { id: 'wsn', label: 'WSN', width: 120 },
@@ -528,8 +532,9 @@ export default function MasterDataPage() {
       localStorage.setItem('masterdata_enableSorting', String(enableSorting));
       localStorage.setItem('masterdata_enableColumnFilters', String(enableColumnFilters));
       localStorage.setItem('masterdata_enableColumnResize', String(enableColumnResize));
+      localStorage.setItem('masterdata_enableCellEditing', String(enableCellEditing));
     } catch { }
-  }, [enableSorting, enableColumnFilters, enableColumnResize]);
+  }, [enableSorting, enableColumnFilters, enableColumnResize, enableCellEditing]);
 
   // ✅ Keyboard shortcut: Ctrl/Cmd + K to focus search
   useEffect(() => {

@@ -46,6 +46,7 @@ import {
   RestartAlt as RestartAltIcon,
   Close as CloseIcon,
   InventoryRounded,
+  PivotTableChart as PivotIcon,
 } from "@mui/icons-material";
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { dashboardAPI, inventoryAPI, inboundAPI, pickingAPI, outboundAPI } from "@/lib/api";
@@ -56,6 +57,7 @@ import { useDashboardPermissions } from '@/hooks/usePagePermissions';
 import AppLayout from "@/components/AppLayout";
 import { StandardPageHeader } from '@/components';
 import { useTableRowHeight } from '@/app/context/AppearanceContext';
+import PivotTableDrawer from '@/components/PivotTableDrawer';
 import toast, { Toaster } from "react-hot-toast";
 // ⚡ OPTIMIZED: XLSX loaded dynamically on export to reduce bundle size
 // import * as XLSX from "xlsx"; // Removed static import
@@ -177,17 +179,39 @@ const DEFAULT_VISIBLE_COLUMNS = [
 // Column width configuration - adjust per column. Use numbers for fixed widths (px) or flex for flexible columns.
 // You can add mobile overrides using a `mobile` key; otherwise the helper will scale widths on small screens.
 const COLUMN_WIDTHS: Record<string, any> = {
-  wsn: { width: 110, minWidth: 90 },
+  wid: { width: 120, minWidth: 60 },
+  fsn: { width: 130, minWidth: 80 },
+  order_id: { width: 130, minWidth: 60 },
+  fkqc_remark: { width: 150, minWidth: 60 },
+  fk_grade: { width: 100, minWidth: 60 },
+  hsn_sac: { width: 120, minWidth: 60 },
+  igst_rate: { width: 100, minWidth: 60 },
+  invoice_date: { width: 120, minWidth: 60 },
+  fkt_link: { width: 120, minWidth: 60 },
+  wh_location: { width: 120, minWidth: 60 },
+  vrp: { width: 100, minWidth: 60 },
+  yield_value: { width: 100, minWidth: 60 },
+  p_type: { width: 100, minWidth: 60 },
+  p_size: { width: 100, minWidth: 60 },
+  wsn: { width: 110, minWidth: 60 },
   product_title: { width: 350, minWidth: 280 },
-  brand: { width: 110 },
-  cms_vertical: { width: 120 },
-  fsp: { width: 100, minWidth: 80 },
-  mrp: { width: 100, minWidth: 80 },
-  inbound_status: { width: 120 },
-  qc_status: { width: 120 },
-  picking_status: { width: 110 },
-  outbound_status: { width: 110 },
-  current_stage: { width: 140 },
+  brand: { width: 100, minWidth: 60 },
+  cms_vertical: { width: 120, minWidth: 60 },
+  fsp: { width: 100, minWidth: 60 },
+  mrp: { width: 100, minWidth: 60 },
+  inbound_status: { width: 100, minWidth: 60 },
+  qc_status: { width: 100, minWidth: 60 },
+  qc_grade: { width: 100, minWidth: 60 },
+  picking_status: { width: 100, minWidth: 60 },
+  outbound_status: { width: 100, minWidth: 60 },
+  current_stage: { width: 100, minWidth: 60 },
+  vehicle_no: { width: 130, minWidth: 60 },
+  warehouse_location: { width: 150, minWidth: 60 },
+  rack_no: { width: 120, minWidth: 60 },
+  inbound_date: { width: 120, minWidth: 60 },
+  qc_date: { width: 120, minWidth: 60 },
+  picking_date: { width: 120, minWidth: 60 },
+  outbound_date: { width: 120, minWidth: 60 },
 };
 
 const PIPELINE_STAGES = [
@@ -257,19 +281,25 @@ export default function DashboardPage() {
   const [enableColumnResize, setEnableColumnResize] = useState<boolean>(() => {
     try { return localStorage.getItem('dashboard_enableColumnResize') !== 'false'; } catch { return true; }
   });
+  const [enableCellEditing, setEnableCellEditing] = useState<boolean>(() => {
+    try { return localStorage.getItem('dashboard_enableCellEditing') !== 'false'; } catch { return true; }
+  });
 
   const defaultColDef = useMemo(() => ({
     sortable: !!enableSorting,
     resizable: !!enableColumnResize,
     filter: !!enableColumnFilters,
+    editable: false,
     minWidth: 100,
-    flex: 1, // allow columns to flex and fill available width
+    flex: 1,
     tooltipComponentParams: { color: '#ececec' },
+    cellStyle: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   }), [enableSorting, enableColumnFilters, enableColumnResize]);
   const [columnDialogOpen, setColumnDialogOpen] = useState(false);
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
   const [gridSettingsOpen, setGridSettingsOpen] = useState(false);
+  const [pivotOpen, setPivotOpen] = useState(false);
 
   // Grid settings
   useEffect(() => {
@@ -277,9 +307,11 @@ export default function DashboardPage() {
       const s = localStorage.getItem('dashboard_enableSorting');
       const f = localStorage.getItem('dashboard_enableColumnFilters');
       const r = localStorage.getItem('dashboard_enableColumnResize');
+      const e = localStorage.getItem('dashboard_enableCellEditing');
       if (s !== null) setEnableSorting(s === 'true');
       if (f !== null) setEnableColumnFilters(f === 'true');
       if (r !== null) setEnableColumnResize(r === 'true');
+      if (e !== null) setEnableCellEditing(e === 'true');
     } catch { /* ignore */ }
   }, []);
 
@@ -288,8 +320,9 @@ export default function DashboardPage() {
       localStorage.setItem('dashboard_enableSorting', String(enableSorting));
       localStorage.setItem('dashboard_enableColumnFilters', String(enableColumnFilters));
       localStorage.setItem('dashboard_enableColumnResize', String(enableColumnResize));
+      localStorage.setItem('dashboard_enableCellEditing', String(enableCellEditing));
     } catch { }
-  }, [enableSorting, enableColumnFilters, enableColumnResize]);
+  }, [enableSorting, enableColumnFilters, enableColumnResize, enableCellEditing]);
 
   const formatGridDate = (raw: any) => {
     if (!raw) return '-';
@@ -1504,6 +1537,44 @@ export default function DashboardPage() {
                   fontSize: "1.1rem",
                 }} />
               </Button>
+
+              {/* Pivot Table Button (desktop only) */}
+              <Tooltip title="Open Pivot Analysis - Excel-style pivot table">
+                <Button
+                  variant={pivotOpen ? "contained" : "outlined"}
+                  size="small"
+                  onClick={() => setPivotOpen(!pivotOpen)}
+                  sx={{
+                    display: { xs: 'none', md: 'inline-flex' },
+                    height: 42,
+                    minWidth: 110,
+                    fontSize: "0.75rem",
+                    fontWeight: 600,
+                    ml: 0.5,
+                    whiteSpace: "nowrap",
+                    px: 2,
+                    borderRadius: 2.5,
+                    ...(pivotOpen ? {
+                      background: "linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)",
+                    } : {
+                      borderColor: '#7c3aed',
+                      color: '#7c3aed',
+                      borderWidth: 1.5,
+                      "&:hover": {
+                        borderWidth: 1.5,
+                        borderColor: '#6d28d9',
+                        bgcolor: 'rgba(124, 58, 237, 0.08)',
+                      },
+                    }),
+                  }}
+                >
+                  <PivotIcon sx={{
+                    fontSize: '1.1rem',
+                    mr: 0.75,
+                  }} />
+                  Pivot
+                </Button>
+              </Tooltip>
             </Box>
 
             {/* BODY: collapsible */}
@@ -2095,6 +2166,8 @@ export default function DashboardPage() {
                       rowSelection={{ mode: 'singleRow', checkboxes: false, enableClickSelection: true }}
                       loading={false}
                       suppressNoRowsOverlay={true}
+                      enableCellTextSelection={true}
+                      ensureDomOrder={true}
                       getRowId={(params: any) => String(params.data?.wsn || params.data?.wid || params.rowIndex)}
                       onGridReady={(params: any) => {
                         gridRef.current = params.api;
@@ -2827,6 +2900,13 @@ export default function DashboardPage() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Pivot Table Drawer */}
+      <PivotTableDrawer
+        open={pivotOpen}
+        onClose={() => setPivotOpen(false)}
+        warehouseId={activeWarehouse?.id}
+      />
 
     </AppLayout >
   );

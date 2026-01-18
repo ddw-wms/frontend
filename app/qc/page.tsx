@@ -975,8 +975,10 @@ export default function QCPage() {
     sortable: !!enableSorting,
     resizable: !!enableColumnResize,
     filter: !!enableColumnFilters,
+    editable: false,
     suppressHeaderMenuButton: false,
     minWidth: 100,
+    cellStyle: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   }), [enableSorting, enableColumnFilters, enableColumnResize]);
 
   // LOAD FUNCTIONS
@@ -2356,6 +2358,8 @@ export default function QCPage() {
                         rowSelection={{ mode: 'singleRow', checkboxes: false, enableClickSelection: true }}
                         loading={false}
                         suppressNoRowsOverlay={true}
+                        enableCellTextSelection={true}
+                        ensureDomOrder={true}
                         animateRows={false}
                         gridOptions={{ getRowId: (params: any) => String(params.data?.id || params.data?.wsn || params.rowIndex), suppressRowTransform: true }}
                         onGridReady={(params: any) => {
@@ -4003,33 +4007,6 @@ export default function QCPage() {
                               </Typography>
                               <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem' }}>
                                 Drag column borders to adjust width
-                              </Typography>
-                            </Box>
-                          }
-                        />
-                      </Box>
-
-                      <Divider sx={{ my: 0.5 }} />
-
-                      {/* EDITABLE */}
-                      <Box>
-                        <FormControlLabel
-                          control={
-                            <Checkbox
-                              checked={gridSettings.editable}
-                              onChange={(e) => updateGridSettings({ ...gridSettings, editable: e.target.checked })}
-                              sx={{
-                                '&.Mui-checked': { color: '#f59e0b' }
-                              }}
-                            />
-                          }
-                          label={
-                            <Box>
-                              <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#1e293b' }}>
-                                ✏️ Enable Cell Editing
-                              </Typography>
-                              <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem' }}>
-                                Double-click or press Enter to edit cells
                               </Typography>
                             </Box>
                           }

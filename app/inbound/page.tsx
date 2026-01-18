@@ -844,8 +844,9 @@ export default function InboundPage() {
     sortable: gridSettings.sortable,
     filter: gridSettings.filter,
     resizable: gridSettings.resizable,
-    editable: gridSettings.editable,
+    editable: false,
     suppressMovable: true,
+    cellStyle: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   }), [gridSettings]);
 
   // Autosize / overlays when data or loading state changes
@@ -3835,6 +3836,7 @@ export default function InboundPage() {
 
                       suppressScrollOnNewData={false}
                       ensureDomOrder={true}
+                      enableCellTextSelection={true}
                       suppressRowTransform={true}
                       onGridReady={(params: any) => {
                         columnApiRef.current = params.columnApi;
@@ -4536,33 +4538,6 @@ export default function InboundPage() {
                               </Typography>
                               <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem' }}>
                                 Drag column borders to adjust width
-                              </Typography>
-                            </Box>
-                          }
-                        />
-                      </Box>
-
-                      <Divider sx={{ my: 0.5 }} />
-
-                      {/* EDITABLE */}
-                      <Box>
-                        <FormControlLabel
-                          control={
-                            <Checkbox
-                              checked={gridSettings.editable}
-                              onChange={(e) => updateGridSettings({ ...gridSettings, editable: e.target.checked })}
-                              sx={{
-                                '&.Mui-checked': { color: '#f59e0b' }
-                              }}
-                            />
-                          }
-                          label={
-                            <Box>
-                              <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#1e293b' }}>
-                                ✏️ Enable Cell Editing
-                              </Typography>
-                              <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem' }}>
-                                Double-click or press Enter to edit cells
                               </Typography>
                             </Box>
                           }
@@ -6642,33 +6617,6 @@ export default function InboundPage() {
                               </Typography>
                               <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem' }}>
                                 Drag column borders to adjust width
-                              </Typography>
-                            </Box>
-                          }
-                        />
-                      </Box>
-
-                      <Divider sx={{ my: 0.5 }} />
-
-                      {/* EDITABLE */}
-                      <Box>
-                        <FormControlLabel
-                          control={
-                            <Checkbox
-                              checked={multiGridSettings.editable}
-                              onChange={(e) => updateMultiGridSettings({ ...multiGridSettings, editable: e.target.checked })}
-                              sx={{
-                                '&.Mui-checked': { color: '#1e40af' }
-                              }}
-                            />
-                          }
-                          label={
-                            <Box>
-                              <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#1e293b' }}>
-                                ✏️ Enable Cell Editing
-                              </Typography>
-                              <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem' }}>
-                                Double-click or type to edit cell values
                               </Typography>
                             </Box>
                           }

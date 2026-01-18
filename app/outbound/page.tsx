@@ -330,6 +330,9 @@ export default function OutboundPage() {
     const [enableColumnResize, setEnableColumnResize] = useState<boolean>(() => {
         try { return localStorage.getItem('outbound_enableColumnResize') !== 'false'; } catch { return true; }
     });
+    const [enableCellEditing, setEnableCellEditing] = useState<boolean>(() => {
+        try { return localStorage.getItem('outbound_enableCellEditing') !== 'false'; } catch { return true; }
+    });
     const [gridSettingsOpen, setGridSettingsOpen] = useState(false);
     const [mobileActionsOpen, setMobileActionsOpen] = useState(false);
 
@@ -1582,9 +1585,11 @@ export default function OutboundPage() {
             const s = localStorage.getItem('outbound_enableSorting');
             const f = localStorage.getItem('outbound_enableColumnFilters');
             const r = localStorage.getItem('outbound_enableColumnResize');
+            const e = localStorage.getItem('outbound_enableCellEditing');
             if (s !== null) setEnableSorting(s === 'true');
             if (f !== null) setEnableColumnFilters(f === 'true');
             if (r !== null) setEnableColumnResize(r === 'true');
+            if (e !== null) setEnableCellEditing(e === 'true');
         } catch { /* ignore */ }
     }, []);
 
@@ -1595,8 +1600,9 @@ export default function OutboundPage() {
             localStorage.setItem('outbound_enableSorting', String(enableSorting));
             localStorage.setItem('outbound_enableColumnFilters', String(enableColumnFilters));
             localStorage.setItem('outbound_enableColumnResize', String(enableColumnResize));
+            localStorage.setItem('outbound_enableCellEditing', String(enableCellEditing));
         } catch { }
-    }, [enableSorting, enableColumnFilters, enableColumnResize]);
+    }, [enableSorting, enableColumnFilters, enableColumnResize, enableCellEditing]);
 
     // Ensure AG Grid shows the correct overlay while fetching or when empty
     useEffect(() => {
@@ -1784,8 +1790,10 @@ export default function OutboundPage() {
         sortable: !!enableSorting,
         resizable: !!enableColumnResize,
         filter: !!enableColumnFilters,
+        editable: false,
         suppressHeaderMenuButton: false,
         minWidth: 100,
+        cellStyle: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
     }), [enableSorting, enableColumnFilters, enableColumnResize]);
 
     if (!user) {
@@ -2401,6 +2409,8 @@ export default function OutboundPage() {
                                             rowSelection={{ mode: 'singleRow', checkboxes: false, enableClickSelection: true }}
                                             loading={false}
                                             suppressNoRowsOverlay={true}
+                                            enableCellTextSelection={true}
+                                            ensureDomOrder={true}
                                             animateRows={false}
                                             gridOptions={{ getRowId: (params: any) => String(params.data?.wsn || params.data?.wid || params.data?.id || params.rowIndex), suppressRowTransform: true }}
                                             onGridReady={(params: any) => {

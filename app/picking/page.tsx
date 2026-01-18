@@ -426,6 +426,9 @@ export default function PickingPage() {
   const [enableColumnResize, setEnableColumnResize] = useState<boolean>(() => {
     try { return localStorage.getItem('picking_enableColumnResize') !== 'false'; } catch { return true; }
   });
+  const [enableCellEditing, setEnableCellEditing] = useState<boolean>(() => {
+    try { return localStorage.getItem('picking_enableCellEditing') !== 'false'; } catch { return true; }
+  });
   const [gridSettingsOpen, setGridSettingsOpen] = useState(false);
 
   const filtersActive = Boolean(
@@ -588,9 +591,11 @@ export default function PickingPage() {
       const s = localStorage.getItem('picking_enableSorting');
       const f = localStorage.getItem('picking_enableColumnFilters');
       const r = localStorage.getItem('picking_enableColumnResize');
+      const e = localStorage.getItem('picking_enableCellEditing');
       if (s !== null) setEnableSorting(s === 'true');
       if (f !== null) setEnableColumnFilters(f === 'true');
       if (r !== null) setEnableColumnResize(r === 'true');
+      if (e !== null) setEnableCellEditing(e === 'true');
     } catch { /* ignore */ }
   }, []);
 
@@ -599,8 +604,9 @@ export default function PickingPage() {
       localStorage.setItem('picking_enableSorting', String(enableSorting));
       localStorage.setItem('picking_enableColumnFilters', String(enableColumnFilters));
       localStorage.setItem('picking_enableColumnResize', String(enableColumnResize));
+      localStorage.setItem('picking_enableCellEditing', String(enableCellEditing));
     } catch { }
-  }, [enableSorting, enableColumnFilters, enableColumnResize]);
+  }, [enableSorting, enableColumnFilters, enableColumnResize, enableCellEditing]);
 
   // Load customers from customers table
   const loadCustomers = async () => {
@@ -1215,8 +1221,10 @@ export default function PickingPage() {
     sortable: !!enableSorting,
     resizable: !!enableColumnResize,
     filter: !!enableColumnFilters,
+    editable: false,
     suppressHeaderMenuButton: false,
     minWidth: 100,
+    cellStyle: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   }), [enableSorting, enableColumnFilters, enableColumnResize]);
 
   // Column widths for AG Grid
@@ -1819,6 +1827,8 @@ export default function PickingPage() {
                       rowSelection={{ mode: 'singleRow', checkboxes: false, enableClickSelection: true }}
                       loading={false}
                       suppressNoRowsOverlay={true}
+                      enableCellTextSelection={true}
+                      ensureDomOrder={true}
                       animateRows={false}
                       gridOptions={{ getRowId: (params: any) => String(params.data?.wsn || params.data?.id || params.rowIndex), suppressRowTransform: true }}
                       onGridReady={(params: any) => {
