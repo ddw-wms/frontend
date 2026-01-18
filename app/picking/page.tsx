@@ -1163,7 +1163,7 @@ export default function PickingPage() {
       field: '__sr',
       valueGetter: (params: any) => params.node ? params.node.rowIndex + 1 + (page - 1) * limit : undefined,
       width: 80,
-      cellStyle: { fontWeight: 700, textAlign: 'center', backgroundColor: '#fafafa' },
+      cellStyle: { fontWeight: 700, textAlign: 'center', color: isDarkMode ? '#94a3b8' : '#64748b' },
       suppressMovable: true,
       sortable: false,
       filter: false,
@@ -1251,19 +1251,12 @@ export default function PickingPage() {
         const wsn = params.data?.wsn?.trim()?.toUpperCase();
         const styles: any = {};
 
-        // SNO special styling
+        // SNO special styling - no background, just centered bold text
         if (field === 'sno') {
-          styles.backgroundColor = isDarkMode ? '#1a2536' : '#f1f5f9';
           styles.fontWeight = 700;
           styles.color = isDarkMode ? '#94a3b8' : '#64748b';
           styles.textAlign = 'center';
           return styles;
-        }
-
-        // Read-only master data columns get subtle background
-        if (!isEditable) {
-          styles.backgroundColor = isDarkMode ? '#1a2536' : '#f8fafc';
-          styles.color = isDarkMode ? '#94a3b8' : '#64748b';
         }
 
         // WSN validation colors
@@ -2558,17 +2551,17 @@ export default function PickingPage() {
               sx={{
                 flex: 1,
                 minHeight: 0,
-                border: isDarkMode ? '1px solid #334155' : '1px solid #c7d2e0',
+                border: isDarkMode ? '1px solid #334155' : '2px solid #94a3b8',
                 borderRadius: '6px',
                 overflow: 'hidden',
                 bgcolor: isDarkMode ? '#1e293b' : '#ffffff',
-                boxShadow: isDarkMode ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.08)',
+                boxShadow: isDarkMode ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.12)',
                 '& .ag-root-wrapper': { borderRadius: 0, height: '100%', backgroundColor: isDarkMode ? '#1e293b' : '#ffffff', border: 'none' },
 
                 // Professional dark header
                 '& .ag-header': {
                   backgroundColor: isDarkMode ? '#1e3a5f' : '#1e3a5f',
-                  borderBottom: isDarkMode ? '2px solid #f59e0b' : '2px solid #f59e0b',
+                  borderBottom: isDarkMode ? '2px solid #f59e0b' : '2px solid #d97706',
                 },
                 '& .ag-header-cell': {
                   backgroundColor: isDarkMode ? '#1e3a5f' : '#1e3a5f',
@@ -2576,7 +2569,7 @@ export default function PickingPage() {
                   fontWeight: 700,
                   fontSize: '11px',
                   padding: '0 8px',
-                  borderRight: '1px solid #2d4a6f',
+                  borderRight: '1px solid #3b5998',
                   textTransform: 'uppercase',
                   letterSpacing: '0.02em',
                 },
@@ -2585,9 +2578,9 @@ export default function PickingPage() {
                 '& .ag-icon': { color: '#94a3b8' },
                 '& .ag-header-icon': { color: '#94a3b8' },
 
-                // Excel-style cells
+                // Excel-style cells with visible borders
                 '& .ag-cell': {
-                  borderRight: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0',
+                  borderRight: isDarkMode ? '1px solid #334155' : '1px solid #cbd5e1',
                   fontSize: '12px',
                   padding: '0 8px',
                   display: 'flex',
@@ -2597,12 +2590,12 @@ export default function PickingPage() {
                   textOverflow: 'ellipsis',
                   color: isDarkMode ? '#f1f5f9' : '#1e293b',
                 },
-                '& .ag-cell:last-child': { borderRight: 'none' },
+                '& .ag-cell:last-child': { borderRight: isDarkMode ? 'none' : '1px solid #cbd5e1' },
 
-                // Professional rows
-                '& .ag-row': { height: 36, overflow: 'visible', borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0' },
+                // Professional rows with visible borders
+                '& .ag-row': { height: 36, overflow: 'visible', borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #cbd5e1' },
                 '& .ag-row-even': { backgroundColor: isDarkMode ? '#1e293b' : '#ffffff' },
-                '& .ag-row-odd': { backgroundColor: isDarkMode ? '#1a2536' : '#f8fafc' },
+                '& .ag-row-odd': { backgroundColor: isDarkMode ? '#1a2536' : '#f1f5f9' },
 
                 // Active cell focus
                 '& .ag-cell-focus': {
@@ -2613,7 +2606,7 @@ export default function PickingPage() {
                 },
                 '& .ag-cell-range-selected': { backgroundColor: isDarkMode ? 'rgba(245, 158, 11, 0.25) !important' : '#fef3c7 !important' },
                 '& .ag-cell-range-single-cell': { backgroundColor: isDarkMode ? 'rgba(245, 158, 11, 0.2) !important' : '#fffbeb !important' },
-                '& .ag-row-hover': { backgroundColor: isDarkMode ? 'rgba(245, 158, 11, 0.12) !important' : '#fffdf5 !important' },
+                '& .ag-row-hover': { backgroundColor: isDarkMode ? 'rgba(245, 158, 11, 0.12) !important' : '#fefce8 !important' },
               }}
             >
               <AgGridReact

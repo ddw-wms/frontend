@@ -818,6 +818,7 @@ export default function InboundPage() {
       field: '__sr',
       valueGetter: (params: any) => (params.node ? (page - 1) * limit + params.node.rowIndex + 1 : undefined),
       width: 80,
+      cellStyle: { fontWeight: 700, textAlign: 'center', color: isDarkMode ? '#94a3b8' : '#64748b' },
       suppressMovable: true,
       sortable: false,
       filter: false,
@@ -2767,7 +2768,7 @@ export default function InboundPage() {
       cellRenderer: (params: any) => {
         return <span style={{ fontWeight: 700, color: isDarkMode ? '#94a3b8' : '#64748b' }}>{params.node.rowIndex + 1}</span>;
       },
-      cellStyle: { textAlign: 'center', backgroundColor: isDarkMode ? '#1a2536' : '#f1f5f9' }
+      cellStyle: { textAlign: 'center' }
     };
 
     // Print column at the end
@@ -2829,16 +2830,8 @@ export default function InboundPage() {
         resizable: true,
         minWidth: 80,
         ...(savedWidth ? { width: savedWidth } : {}),
-        // Consistent cell styling
-        cellStyle: () => {
-          if (!isEditable) {
-            return {
-              backgroundColor: isDarkMode ? '#1a2536' : '#f8fafc',
-              color: isDarkMode ? '#94a3b8' : '#64748b'
-            };
-          }
-          return {};
-        }
+        // Clean consistent cell styling - no different backgrounds
+        cellStyle: () => ({})
       };
 
       const columnWidthConfig = savedWidth ? {} : (COLUMN_WIDTHS[col] || {});
@@ -5603,11 +5596,11 @@ export default function InboundPage() {
                   sx={{
                     flex: 1,
                     minHeight: 300,
-                    border: isDarkMode ? '1px solid #334155' : '1px solid #c7d2e0',
+                    border: isDarkMode ? '1px solid #334155' : '2px solid #94a3b8',
                     borderRadius: '6px',
                     overflow: 'hidden',
                     bgcolor: isDarkMode ? '#1e293b' : '#ffffff',
-                    boxShadow: isDarkMode ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.08)',
+                    boxShadow: isDarkMode ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.12)',
                     // Prevent white flash in dark mode - target all possible AG Grid containers
                     '& *': { transition: 'none !important' },
                     '& .ag-theme-quartz, & .ag-theme-quartz-dark': { backgroundColor: isDarkMode ? '#1e293b !important' : '#ffffff !important' },
@@ -5619,7 +5612,7 @@ export default function InboundPage() {
                     // Professional dark header
                     '& .ag-header': {
                       backgroundColor: isDarkMode ? '#1e3a5f' : '#1e3a5f',
-                      borderBottom: isDarkMode ? '2px solid #10b981' : '2px solid #10b981',
+                      borderBottom: isDarkMode ? '2px solid #10b981' : '2px solid #059669',
                     },
                     '& .ag-header-cell': {
                       backgroundColor: isDarkMode ? '#1e3a5f' : '#1e3a5f',
@@ -5627,7 +5620,7 @@ export default function InboundPage() {
                       fontWeight: 700,
                       fontSize: '11px',
                       padding: '0 8px',
-                      borderRight: '1px solid #2d4a6f',
+                      borderRight: '1px solid #3b5998',
                       textTransform: 'uppercase',
                       letterSpacing: '0.02em',
                     },
@@ -5636,9 +5629,9 @@ export default function InboundPage() {
                     '& .ag-icon': { color: '#94a3b8' },
                     '& .ag-header-icon': { color: '#94a3b8' },
 
-                    // Excel-style cells
+                    // Excel-style cells with visible borders
                     '& .ag-cell': {
-                      borderRight: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0',
+                      borderRight: isDarkMode ? '1px solid #334155' : '1px solid #cbd5e1',
                       fontSize: '12px',
                       padding: '0 8px',
                       display: 'flex',
@@ -5648,16 +5641,16 @@ export default function InboundPage() {
                       whiteSpace: 'nowrap',
                       textOverflow: 'ellipsis',
                     },
-                    '& .ag-cell:last-child': { borderRight: 'none' },
+                    '& .ag-cell:last-child': { borderRight: isDarkMode ? 'none' : '1px solid #cbd5e1' },
 
-                    // Professional rows
+                    // Professional rows with visible borders
                     '& .ag-row': {
                       height: 36,
                       overflow: 'visible',
-                      borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0',
+                      borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #cbd5e1',
                     },
                     '& .ag-row-even': { backgroundColor: isDarkMode ? '#1e293b' : '#ffffff' },
-                    '& .ag-row-odd': { backgroundColor: isDarkMode ? '#1a2536' : '#f8fafc' },
+                    '& .ag-row-odd': { backgroundColor: isDarkMode ? '#1a2536' : '#f1f5f9' },
 
                     // ⚡ EXCEL ENHANCEMENT: Highlight animation for newly added rows
                     '& .ag-row-highlight-new': {
@@ -5713,7 +5706,7 @@ export default function InboundPage() {
 
                     // Hover effect
                     '& .ag-row-hover': {
-                      backgroundColor: isDarkMode ? 'rgba(16, 185, 129, 0.12) !important' : '#ecfdf5 !important',
+                      backgroundColor: isDarkMode ? 'rgba(16, 185, 129, 0.12) !important' : '#d1fae5 !important',
                     },
                     // Prevent white flash in dark mode - apply to inner container immediately
                     '& > div': {
