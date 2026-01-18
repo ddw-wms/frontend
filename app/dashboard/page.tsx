@@ -830,12 +830,14 @@ export default function DashboardPage() {
         inventoryLoadDebounceRef.current = null;
       }, 100);
 
+      // ⚡ EGRESS OPTIMIZATION: Reduced polling from 5s to 60s (saves ~1.3GB/day)
+      // Manual refresh still available via Refresh button
       const interval = setInterval(() => {
         loadMetrics();
         loadInventorySummary();
         // refresh existing stage WSNs periodically as well
         loadExistingStageWSNs();
-      }, 5000);
+      }, 60000);
       return () => {
         clearInterval(interval);
         if (inventoryLoadDebounceRef.current) {
