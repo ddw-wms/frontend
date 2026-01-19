@@ -6791,7 +6791,7 @@ export default function InboundPage() {
 
                     {/* Refresh batches button */}
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
-                      <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#374151' }}>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'text.primary' }}>
                         Available Batches ({availableBatches.length})
                       </Typography>
                       <Button
@@ -6826,13 +6826,13 @@ export default function InboundPage() {
                             sx={{
                               p: 1.5,
                               borderRadius: 1.5,
-                              border: `2px solid ${selectedBatchIds.includes(batch.batch_id) ? '#8b5cf6' : '#e5e7eb'}`,
-                              bgcolor: selectedBatchIds.includes(batch.batch_id) ? 'rgba(139, 92, 246, 0.08)' : 'white',
+                              border: (theme) => `2px solid ${selectedBatchIds.includes(batch.batch_id) ? '#8b5cf6' : theme.palette.divider}`,
+                              bgcolor: (theme) => selectedBatchIds.includes(batch.batch_id) ? 'rgba(139, 92, 246, 0.15)' : theme.palette.background.paper,
                               cursor: 'pointer',
                               transition: 'all 0.2s',
                               '&:hover': {
                                 borderColor: '#8b5cf6',
-                                bgcolor: 'rgba(139, 92, 246, 0.05)'
+                                bgcolor: 'rgba(139, 92, 246, 0.1)'
                               }
                             }}
                           >
@@ -6847,7 +6847,7 @@ export default function InboundPage() {
                                     '&.Mui-checked': { color: '#8b5cf6' }
                                   }}
                                 />
-                                <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', fontFamily: 'monospace' }}>
+                                <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', fontFamily: 'monospace', color: 'text.primary' }}>
                                   {batch.batch_id}
                                 </Typography>
                               </Box>
@@ -6855,14 +6855,14 @@ export default function InboundPage() {
                                 size="small"
                                 label={`${batch.count.toLocaleString()} items`}
                                 sx={{
-                                  bgcolor: '#dbeafe',
-                                  color: '#1e40af',
+                                  bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(99, 102, 241, 0.3)' : '#dbeafe',
+                                  color: (theme) => theme.palette.mode === 'dark' ? '#a5b4fc' : '#1e40af',
                                   fontWeight: 600,
                                   fontSize: '0.7rem'
                                 }}
                               />
                             </Box>
-                            <Typography variant="caption" sx={{ color: '#6b7280', ml: 3.5 }}>
+                            <Typography variant="caption" sx={{ color: 'text.secondary', ml: 3.5 }}>
                               Created: {new Date(batch.created_at).toLocaleDateString('en-IN', {
                                 day: '2-digit',
                                 month: 'short',
@@ -6878,15 +6878,15 @@ export default function InboundPage() {
 
                     {/* Selected summary */}
                     {selectedBatchIds.length > 0 && (
-                      <Box sx={{ mt: 2, p: 1.5, bgcolor: 'rgba(139, 92, 246, 0.1)', borderRadius: 1.5 }}>
-                        <Typography variant="body2" sx={{ fontWeight: 600, color: '#8b5cf6' }}>
+                      <Box sx={{ mt: 2, p: 1.5, bgcolor: 'rgba(139, 92, 246, 0.15)', borderRadius: 1.5 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 600, color: '#a78bfa' }}>
                           ✅ {selectedBatchIds.length} batch(es) selected
                           {cacheStats && ` • ${cacheStats.totalRecords.toLocaleString()} products cached`}
                         </Typography>
                       </Box>
                     )}
                   </DialogContent>
-                  <DialogActions sx={{ p: 2, pt: 1, background: '#f9fafb', gap: 1 }}>
+                  <DialogActions sx={{ p: 2, pt: 1, bgcolor: 'background.default', gap: 1 }}>
                     <Button
                       onClick={() => {
                         setSelectedBatchIds([]);

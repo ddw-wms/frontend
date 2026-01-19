@@ -222,6 +222,62 @@ const ActionsCellRenderer = memo((props: any) => {
 });
 ActionsCellRenderer.displayName = 'ActionsCellRenderer';
 
+// Actual Received Cell Renderer Component for AG Grid - visible in both themes
+const ActualReceivedCellRenderer = memo((props: any) => {
+  const { value } = props;
+  const status = value || 'Pending';
+
+  const getStyles = () => {
+    if (status === 'Received') {
+      return {
+        bgcolor: '#22c55e',  // solid green background
+        color: '#ffffff',    // white text
+        borderColor: '#16a34a',
+      };
+    } else if (status === 'Receiving') {
+      return {
+        bgcolor: '#3b82f6',  // solid blue background
+        color: '#ffffff',    // white text
+        borderColor: '#2563eb',
+      };
+    } else {
+      return {
+        bgcolor: '#f59e0b',  // solid amber background
+        color: '#ffffff',    // white text
+        borderColor: '#d97706',
+      };
+    }
+  };
+
+  const styles = getStyles();
+
+  return (
+    <Box sx={{
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      height: '100%',
+    }}>
+      <Chip
+        label={status}
+        size="small"
+        sx={{
+          bgcolor: `${styles.bgcolor} !important`,
+          color: `${styles.color} !important`,
+          border: `1px solid ${styles.borderColor} !important`,
+          fontWeight: 700,
+          fontSize: '0.75rem',
+          height: 24,
+          '& .MuiChip-label': {
+            color: `${styles.color} !important`,
+          }
+        }}
+      />
+    </Box>
+  );
+});
+ActualReceivedCellRenderer.displayName = 'ActualReceivedCellRenderer';
+
 export default function MasterDataPage() {
 
 
@@ -456,22 +512,11 @@ export default function MasterDataPage() {
         };
       }
 
-      // Actual received column - plain text with color (bright colors for dark mode visibility)
+      // Actual received column - with bright visible colors using custom renderer
       if (col.id === 'actual_received') {
         return {
           ...base,
-          valueFormatter: (p: any) => p.value || 'Pending',
-          cellStyle: (p: any) => {
-            const status = p.value || 'Pending';
-            // Brighter colors for better visibility in dark mode
-            const color = status === 'Received' ? '#4ade80' :  // bright green
-              status === 'Receiving' ? '#60a5fa' : '#fbbf24';   // bright blue / bright amber
-            return {
-              color: color,
-              fontWeight: 600,
-              fontSize: '0.8rem'
-            };
-          },
+          cellRenderer: ActualReceivedCellRenderer,
         };
       }
 
@@ -1893,7 +1938,8 @@ export default function MasterDataPage() {
                       flexDirection: 'column',
                       borderLeft: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e0e0e0',
                       borderRight: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e0e0e0',
-                      position: 'relative'
+                      position: 'relative',
+                      bgcolor: isDarkMode ? '#1e293b' : '#ffffff',
                     }}>
 
                       {/* Loading Overlay with Spinner */}
@@ -2034,6 +2080,12 @@ export default function MasterDataPage() {
                           backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.25) !important' : '#dbeafe !important',
                         },
                         '& .ag-row-hover': { backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.15) !important' : '#eff6ff !important' },
+                        '& .ag-overlay-loading-wrapper': {
+                          backgroundColor: isDarkMode ? 'rgba(30, 41, 59, 0.9)' : 'rgba(255, 255, 255, 0.9)',
+                        },
+                        '& .ag-overlay-no-rows-wrapper': {
+                          backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
+                        },
                       }}>
                         <div className="ag-theme-quartz" style={{ height: '100%', width: '100%' }}>
                           <AgGridReact
