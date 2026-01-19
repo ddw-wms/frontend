@@ -179,6 +179,17 @@ export default function InboundPage() {
     return true;
   });
 
+  // ====== CTRL+P REPRINT SHORTCUT STATE ======
+  const [ctrlPPrintEnabled, setCtrlPPrintEnabled] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('inbound_ctrlPPrintEnabled');
+      return saved !== 'false'; // Default to true
+    }
+    return true;
+  });
+  // Track last scanned row data for Ctrl+P reprint
+  const lastScannedRowRef = useRef<any>(null);
+
   //state variables for responsive UI
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
@@ -839,6 +850,12 @@ export default function InboundPage() {
       localStorage.setItem('inbound_multiPrintEnabled', String(multiPrintEnabled));
     }
   }, [multiPrintEnabled]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('inbound_ctrlPPrintEnabled', String(ctrlPPrintEnabled));
+    }
+  }, [ctrlPPrintEnabled]);
 
   // ====== KEEP multiRowsRef IN SYNC WITH multiRows STATE ======
   useEffect(() => {
@@ -2068,6 +2085,32 @@ export default function InboundPage() {
       // Don't handle if editing in input/textarea (except for specific shortcuts)
       const activeEl = document.activeElement;
       const isEditing = activeEl?.tagName === 'INPUT' || activeEl?.tagName === 'TEXTAREA';
+
+      // Ctrl+P → Print last scanned WSN label (custom shortcut)
+      if (ctrlKey && e.key.toLowerCase() === 'p') {
+        e.preventDefault();
+        e.stopPropagation();
+
+        if (!ctrlPPrintEnabled) {
+          toast('Ctrl+P shortcut is disabled', { icon: '⚠️', duration: 1500 });
+          return;
+        }
+
+        if (!lastScannedRowRef.current?.wsn?.trim()) {
+          toast.error('No scanned WSN to print', { duration: 2000 });
+          return;
+        }
+
+        if (!agentReady) {
+          toast.error('Print agent not available', { duration: 2000 });
+          return;
+        }
+
+        // Print the last scanned WSN
+        const rowData = lastScannedRowRef.current;
+        printRowWSN(rowData);
+        return;
+      }
 
       // Ctrl+Z → Undo (global, works even outside grid)
       if (ctrlKey && e.key.toLowerCase() === 'z' && !shiftKey) {
@@ -5301,6 +5344,48 @@ export default function InboundPage() {
                               />
                             </Box>
 
+                            {/* Ctrl+P Reprint Toggle */}
+                            <Tooltip title="Ctrl+P: Reprint last scanned WSN label" placement="top">
+                              <Box
+                                sx={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 0.5,
+                                  border: `2px solid ${ctrlPPrintEnabled ? '#2563eb' : '#9ca3af'}`,
+                                  borderRadius: 1,
+                                  px: 1,
+                                  py: 0.25,
+                                  height: 32,
+                                  cursor: 'pointer',
+                                  '&:hover': {
+                                    bgcolor: ctrlPPrintEnabled ? 'rgba(37, 99, 235, 0.08)' : 'rgba(156, 163, 175, 0.08)'
+                                  }
+                                }}
+                                onClick={() => setCtrlPPrintEnabled(!ctrlPPrintEnabled)}
+                              >
+                                <Typography
+                                  variant="caption"
+                                  sx={{
+                                    color: ctrlPPrintEnabled ? '#2563eb' : '#9ca3af',
+                                    fontWeight: 700,
+                                    fontSize: '0.65rem'
+                                  }}
+                                >
+                                  Ctrl+P {ctrlPPrintEnabled ? 'ON' : 'OFF'}
+                                </Typography>
+                                <Switch
+                                  size="small"
+                                  checked={ctrlPPrintEnabled}
+                                  onChange={(e) => setCtrlPPrintEnabled(e.target.checked)}
+                                  sx={{
+                                    transform: 'scale(0.7)',
+                                    '& .MuiSwitch-switchBase.Mui-checked': { color: '#2563eb' },
+                                    '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { backgroundColor: '#2563eb' },
+                                  }}
+                                />
+                              </Box>
+                            </Tooltip>
+
                             {/* Cache Status Indicator */}
                             <Chip
                               size="small"
@@ -5498,6 +5583,34 @@ export default function InboundPage() {
                                 }}
                               >
                                 🖨️ {multiPrintEnabled ? 'ON' : 'OFF'}
+                              </Typography>
+                            </Box>
+
+                            {/* Ctrl+P Reprint Toggle (Mobile) */}
+                            <Box
+                              onClick={() => setCtrlPPrintEnabled(!ctrlPPrintEnabled)}
+                              sx={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                border: `2px solid ${ctrlPPrintEnabled ? '#2563eb' : '#9ca3af'}`,
+                                borderRadius: 1,
+                                px: 0.75,
+                                height: 28,
+                                minWidth: 55,
+                                cursor: 'pointer',
+                                '&:hover': { opacity: 0.8 }
+                              }}
+                            >
+                              <Typography
+                                variant="caption"
+                                sx={{
+                                  color: ctrlPPrintEnabled ? '#2563eb' : '#9ca3af',
+                                  fontWeight: 700,
+                                  fontSize: '0.55rem'
+                                }}
+                              >
+                                Ctrl+P {ctrlPPrintEnabled ? 'ON' : 'OFF'}
                               </Typography>
                             </Box>
 
@@ -6253,6 +6366,10 @@ export default function InboundPage() {
                               ALL_MASTER_COLUMNS.forEach((masterCol) => {
                                 updatedRows[rowIndex][masterCol] = masterInfo[masterCol] || null;
                               });
+
+                              // ⚡ CTRL+P REPRINT: Save last scanned row data for Ctrl+P shortcut
+                              lastScannedRowRef.current = { ...updatedRows[rowIndex], wsn: wsnUpper };
+
                               return updatedRows;
                             });
 
