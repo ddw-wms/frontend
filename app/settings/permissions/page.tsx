@@ -25,7 +25,11 @@ import {
     Settings as SettingsIcon, Security as SecurityIcon,
     SelectAll as SelectAllIcon, Deselect as DeselectIcon,
     RemoveRedEye as ViewOnlyIcon, AdminPanelSettings as FullAccessIcon,
-    CheckBox as CheckBoxIcon, CheckBoxOutlineBlank as CheckBoxOutlineBlankIcon
+    CheckBox as CheckBoxIcon, CheckBoxOutlineBlank as CheckBoxOutlineBlankIcon,
+    Send as SendIcon, Pending as PendingIcon, History as HistoryIcon,
+    ThumbUp as ApproveIcon, ThumbDown as RejectIcon, Cancel as CancelIcon,
+    ArrowForward as ArrowForwardIcon, ArrowBack as ArrowBackIcon,
+    Notifications as NotificationsIcon
 } from '@mui/icons-material';
 import { permissionsAPI, usersAPI, warehousesAPI } from '@/lib/api';
 import { usePermissions } from '@/app/context/PermissionContext';
@@ -76,6 +80,45 @@ interface TabPanelProps {
     children?: React.ReactNode;
     index: number;
     value: number;
+}
+
+// Approval Request interfaces
+interface ApprovalRequest {
+    id: number;
+    request_type: 'role' | 'user_override';
+    role_id: number | null;
+    target_user_id: number | null;
+    requested_by: number;
+    status: 'pending' | 'approved' | 'rejected' | 'partially_approved';
+    reviewer_id: number | null;
+    reviewed_at: string | null;
+    review_note: string | null;
+    created_at: string;
+    role_name: string | null;
+    target_username: string | null;
+    target_full_name: string | null;
+    requester_username: string;
+    requester_full_name: string | null;
+    reviewer_username: string | null;
+    reviewer_full_name: string | null;
+    total_changes: number;
+    approved_changes: number;
+    rejected_changes: number;
+    pending_changes: number;
+}
+
+interface ChangeDetail {
+    id: number;
+    request_id: number;
+    permission_code: string;
+    permission_name: string;
+    category: string;
+    page: string;
+    old_is_enabled: boolean | null;
+    new_is_enabled: boolean | null;
+    old_is_visible: boolean | null;
+    new_is_visible: boolean | null;
+    is_approved: boolean | null;
 }
 
 function TabPanel({ children, value, index }: TabPanelProps) {
@@ -184,6 +227,20 @@ export default function PermissionsPage() {
     // Accordion expanded state - track which pages are expanded
     const [expandedAccordions, setExpandedAccordions] = useState<Record<string, boolean>>({});
 
+    // =====================================================
+    // APPROVAL WORKFLOW STATE
+    // =====================================================
+    const [pendingApprovalCount, setPendingApprovalCount] = useState(0);
+    const [approvalRequests, setApprovalRequests] = useState<ApprovalRequest[]>([]);
+    const [myRequests, setMyRequests] = useState<ApprovalRequest[]>([]);
+    const [selectedRequest, setSelectedRequest] = useState<ApprovalRequest | null>(null);
+    const [requestDetails, setRequestDetails] = useState<ChangeDetail[]>([]);
+    const [selectedChanges, setSelectedChanges] = useState<Set<number>>(new Set());
+    const [approvalNote, setApprovalNote] = useState('');
+    const [loadingApproval, setLoadingApproval] = useState(false);
+    const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+    const [originalRolePermissions, setOriginalRolePermissions] = useState<Permission[]>([]);
+
     const handleAccordionChange = (page: string) => (event: React.SyntheticEvent, isExpanded: boolean) => {
         setExpandedAccordions(prev => ({
             ...prev,
@@ -209,11 +266,146 @@ export default function PermissionsPage() {
             setAllPermissions(permRes.data?.permissions || []);
             setUsers(usersRes.data || []);
             setWarehouses(whRes.data || []);
+
+            // Load approval data
+            await loadApprovalData();
         } catch (error) {
             console.error('Load data error:', error);
             showSnackbar('Failed to load data', 'error');
         } finally {
             setLoading(false);
+        }
+    };
+
+    // =====================================================
+    // APPROVAL WORKFLOW FUNCTIONS
+    // =====================================================
+    const loadApprovalData = async () => {
+        try {
+            // Load pending count for badge
+            const countRes = await permissionsAPI.getPendingApprovalCount();
+            setPendingApprovalCount(countRes.data.count || 0);
+
+            // Super admin: load all pending requests
+            if (user?.role === 'super_admin') {
+                const requestsRes = await permissionsAPI.getApprovalRequests('pending');
+                setApprovalRequests(requestsRes.data || []);
+            }
+
+            // Load my requests
+            const myRes = await permissionsAPI.getMyApprovalRequests();
+            setMyRequests(myRes.data || []);
+        } catch (error) {
+            console.error('Load approval data error:', error);
+        }
+    };
+
+    // Reload approval data when user changes
+    useEffect(() => {
+        if (user) {
+            loadApprovalData();
+        }
+    }, [user]);
+
+    const loadRequestDetails = async (request: ApprovalRequest) => {
+        try {
+            setLoadingApproval(true);
+            const res = await permissionsAPI.getApprovalRequestDetails(request.id);
+            setRequestDetails(res.data.details || []);
+            setSelectedChanges(new Set()); // Reset selections
+        } catch (error) {
+            showSnackbar('Failed to load request details', 'error');
+        } finally {
+            setLoadingApproval(false);
+        }
+    };
+
+    const handleSelectRequest = async (request: ApprovalRequest) => {
+        setSelectedRequest(request);
+        await loadRequestDetails(request);
+    };
+
+    const handleToggleChangeSelection = (detailId: number) => {
+        setSelectedChanges(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(detailId)) {
+                newSet.delete(detailId);
+            } else {
+                newSet.add(detailId);
+            }
+            return newSet;
+        });
+    };
+
+    const handleSelectAllChanges = () => {
+        const pendingIds = requestDetails.filter(d => d.is_approved === null).map(d => d.id);
+        setSelectedChanges(new Set(pendingIds));
+    };
+
+    const handleDeselectAllChanges = () => {
+        setSelectedChanges(new Set());
+    };
+
+    const handleApproveSelected = async () => {
+        if (selectedChanges.size === 0 || !selectedRequest) return;
+        try {
+            setLoadingApproval(true);
+            const changes = Array.from(selectedChanges).map(id => ({ detailId: id, is_approved: true }));
+            await permissionsAPI.updateChangeApprovals(selectedRequest.id, changes);
+            showSnackbar(`${changes.length} changes approved`, 'success');
+            await loadRequestDetails(selectedRequest);
+        } catch (error) {
+            showSnackbar('Failed to approve changes', 'error');
+        } finally {
+            setLoadingApproval(false);
+        }
+    };
+
+    const handleRejectSelected = async () => {
+        if (selectedChanges.size === 0 || !selectedRequest) return;
+        try {
+            setLoadingApproval(true);
+            const changes = Array.from(selectedChanges).map(id => ({ detailId: id, is_approved: false }));
+            await permissionsAPI.updateChangeApprovals(selectedRequest.id, changes);
+            showSnackbar(`${changes.length} changes rejected`, 'success');
+            await loadRequestDetails(selectedRequest);
+        } catch (error) {
+            showSnackbar('Failed to reject changes', 'error');
+        } finally {
+            setLoadingApproval(false);
+        }
+    };
+
+    const handleFinalizeRequest = async (action: 'approve' | 'reject' | 'partial') => {
+        if (!selectedRequest) return;
+        try {
+            setLoadingApproval(true);
+            await permissionsAPI.finalizeRequest(
+                selectedRequest.id,
+                action,
+                approvalNote || undefined,
+                action === 'approve'
+            );
+            showSnackbar(`Request ${action === 'approve' ? 'approved' : action === 'reject' ? 'rejected' : 'finalized'}`, 'success');
+            setSelectedRequest(null);
+            setRequestDetails([]);
+            setApprovalNote('');
+            await loadApprovalData();
+            await refreshPermissions();
+        } catch (error) {
+            showSnackbar('Failed to finalize request', 'error');
+        } finally {
+            setLoadingApproval(false);
+        }
+    };
+
+    const handleCancelRequest = async (requestId: number) => {
+        try {
+            await permissionsAPI.cancelRequest(requestId);
+            showSnackbar('Request cancelled', 'success');
+            await loadApprovalData();
+        } catch (error) {
+            showSnackbar('Failed to cancel request', 'error');
         }
     };
 
@@ -227,9 +419,12 @@ export default function PermissionsPage() {
     const handleSelectRole = async (role: Role) => {
         setSelectedRole(role);
         setMobileDrawerOpen(false);
+        setHasUnsavedChanges(false);
         try {
             const res = await permissionsAPI.getRolePermissions(role.id);
-            setRolePermissions(res.data || []);
+            const perms = res.data || [];
+            setRolePermissions(perms);
+            setOriginalRolePermissions(JSON.parse(JSON.stringify(perms))); // Deep copy
         } catch (error) {
             showSnackbar('Failed to load role permissions', 'error');
         }
@@ -239,12 +434,14 @@ export default function PermissionsPage() {
         setRolePermissions(prev => prev.map(p =>
             p.code === code ? { ...p, is_enabled: !p.is_enabled } : p
         ));
+        setHasUnsavedChanges(true);
     };
 
     const handleToggleRoleVisible = (code: string) => {
         setRolePermissions(prev => prev.map(p =>
             p.code === code ? { ...p, is_visible: !p.is_visible } : p
         ));
+        setHasUnsavedChanges(true);
     };
 
     // =====================================================
@@ -254,11 +451,13 @@ export default function PermissionsPage() {
     // Select/Unselect all enabled for entire role
     const handleSelectAllEnabled = (enabled: boolean) => {
         setRolePermissions(prev => prev.map(p => ({ ...p, is_enabled: enabled })));
+        setHasUnsavedChanges(true);
     };
 
     // Select/Unselect all visible for entire role
     const handleSelectAllVisible = (visible: boolean) => {
         setRolePermissions(prev => prev.map(p => ({ ...p, is_visible: visible })));
+        setHasUnsavedChanges(true);
     };
 
     // Select/Unselect all for a specific page
@@ -269,6 +468,7 @@ export default function PermissionsPage() {
             if (p.page === 'racks') normalizedPage = 'settings-racks';
             return normalizedPage === page ? { ...p, is_enabled: enabled } : p;
         }));
+        setHasUnsavedChanges(true);
     };
 
     const handleSelectPageVisible = (page: string, visible: boolean) => {
@@ -278,6 +478,7 @@ export default function PermissionsPage() {
             if (p.page === 'racks') normalizedPage = 'settings-racks';
             return normalizedPage === page ? { ...p, is_visible: visible } : p;
         }));
+        setHasUnsavedChanges(true);
     };
 
     // Set view-only permissions (all visible, only menu enabled)
@@ -287,6 +488,7 @@ export default function PermissionsPage() {
             is_enabled: p.code.startsWith('menu:'), // Only enable menu permissions
             is_visible: true // All visible
         })));
+        setHasUnsavedChanges(true);
     };
 
     // Set full access
@@ -296,6 +498,7 @@ export default function PermissionsPage() {
             is_enabled: true,
             is_visible: true
         })));
+        setHasUnsavedChanges(true);
     };
 
     // Check if page has all enabled/visible
@@ -319,11 +522,49 @@ export default function PermissionsPage() {
         return pagePerms.length > 0 && pagePerms.every(p => p.is_visible);
     };
 
+    // Count changed permissions for display
+    const getChangedPermissionsCount = (): number => {
+        if (originalRolePermissions.length === 0) return 0;
+        return rolePermissions.filter((p, idx) => {
+            const orig = originalRolePermissions.find(o => o.code === p.code);
+            if (!orig) return false;
+            return p.is_enabled !== orig.is_enabled || p.is_visible !== orig.is_visible;
+        }).length;
+    };
+
     const handleSaveRolePermissions = async () => {
         if (!selectedRole) return;
+
+        // Super admin: Direct save
+        if (isSuperAdmin) {
+            try {
+                setSaving(true);
+                await permissionsAPI.updateRolePermissions(
+                    selectedRole.id,
+                    rolePermissions.map(p => ({
+                        code: p.code,
+                        is_enabled: p.is_enabled,
+                        is_visible: p.is_visible
+                    }))
+                );
+                showSnackbar('Role permissions saved successfully', 'success');
+                setHasUnsavedChanges(false);
+                setOriginalRolePermissions(JSON.parse(JSON.stringify(rolePermissions)));
+                await refreshPermissions();
+            } catch (error: any) {
+                console.error('Save role permissions error:', error);
+                const errorMsg = error?.response?.data?.error || error?.message || 'Network error';
+                showSnackbar(`Failed to save: ${errorMsg}`, 'error');
+            } finally {
+                setSaving(false);
+            }
+            return;
+        }
+
+        // Non-super_admin: Create approval request
         try {
             setSaving(true);
-            await permissionsAPI.updateRolePermissions(
+            await permissionsAPI.createRolePermissionRequest(
                 selectedRole.id,
                 rolePermissions.map(p => ({
                     code: p.code,
@@ -331,12 +572,15 @@ export default function PermissionsPage() {
                     is_visible: p.is_visible
                 }))
             );
-            showSnackbar('Role permissions saved successfully', 'success');
-            await refreshPermissions();
+            showSnackbar('Permission change request submitted for approval', 'success');
+            setHasUnsavedChanges(false);
+            // Reset to original
+            setRolePermissions(JSON.parse(JSON.stringify(originalRolePermissions)));
+            await loadApprovalData();
         } catch (error: any) {
-            console.error('Save role permissions error:', error);
+            console.error('Create approval request error:', error);
             const errorMsg = error?.response?.data?.error || error?.message || 'Network error';
-            showSnackbar(`Failed to save: ${errorMsg}`, 'error');
+            showSnackbar(`Failed to submit: ${errorMsg}`, 'error');
         } finally {
             setSaving(false);
         }
@@ -1006,15 +1250,25 @@ export default function PermissionsPage() {
                 <StandardTabs
                     value={tabValue}
                     onChange={(_, v) => {
-                        // Prevent non-super_admin from accessing restricted tabs
-                        if (!isSuperAdmin && v > 0) return;
+                        // Prevent non-super_admin from accessing restricted tabs (except My Requests)
+                        if (!isSuperAdmin && v > 1) return;
                         setTabValue(v);
                         setSelectedRole(null);
                         setSelectedUser(null);
+                        setSelectedRequest(null);
                     }}
                     tabs={isSuperAdmin
-                        ? ['👥 Role Permissions', '👤 User Overrides', '🏢 Warehouse Access']
-                        : ['👥 Role Permissions']
+                        ? [
+                            '👥 Role Permissions',
+                            `🔔 Approval Queue${pendingApprovalCount > 0 ? ` (${pendingApprovalCount})` : ''}`,
+                            '📋 My Requests',
+                            '👤 User Overrides',
+                            '🏢 Warehouse Access'
+                        ]
+                        : [
+                            '👥 Role Permissions',
+                            '📋 My Requests'
+                        ]
                     }
                     color="#1e40af"
                 />
@@ -1078,19 +1332,43 @@ export default function PermissionsPage() {
                                             flexWrap: 'wrap',
                                             gap: 1
                                         }}>
-                                            <Typography variant="h6" fontWeight={600} sx={{ fontSize: { xs: '0.9rem', sm: '1.25rem' } }}>
-                                                {selectedRole.name} Permissions
-                                            </Typography>
-                                            <Button
-                                                variant="contained"
-                                                startIcon={saving ? <CircularProgress size={14} color="inherit" /> : <SaveIcon sx={{ fontSize: { xs: 16, sm: 20 } }} />}
-                                                onClick={handleSaveRolePermissions}
-                                                disabled={saving}
-                                                size="small"
-                                                sx={{ fontSize: { xs: '0.7rem', sm: '0.875rem' }, px: { xs: 1, sm: 2 } }}
-                                            >
-                                                {saving ? 'Saving...' : (isSmall ? 'Save' : 'Save Changes')}
-                                            </Button>
+                                            <Box>
+                                                <Typography variant="h6" fontWeight={600} sx={{ fontSize: { xs: '0.9rem', sm: '1.25rem' } }}>
+                                                    {selectedRole.name} Permissions
+                                                </Typography>
+                                                {hasUnsavedChanges && (
+                                                    <Typography variant="caption" color="warning.main">
+                                                        {getChangedPermissionsCount()} permission(s) changed
+                                                    </Typography>
+                                                )}
+                                            </Box>
+                                            <Stack direction="row" spacing={1}>
+                                                {!isSuperAdmin && hasUnsavedChanges && (
+                                                    <Chip
+                                                        label="Needs Super Admin Approval"
+                                                        color="warning"
+                                                        size="small"
+                                                        icon={<PendingIcon />}
+                                                    />
+                                                )}
+                                                <Button
+                                                    variant="contained"
+                                                    color={isSuperAdmin ? "primary" : "warning"}
+                                                    startIcon={saving ? <CircularProgress size={14} color="inherit" /> : (isSuperAdmin ? <SaveIcon sx={{ fontSize: { xs: 16, sm: 20 } }} /> : <SendIcon sx={{ fontSize: { xs: 16, sm: 20 } }} />)}
+                                                    onClick={handleSaveRolePermissions}
+                                                    disabled={saving || !hasUnsavedChanges}
+                                                    size="small"
+                                                    sx={{ fontSize: { xs: '0.7rem', sm: '0.875rem' }, px: { xs: 1, sm: 2 } }}
+                                                >
+                                                    {saving
+                                                        ? (isSuperAdmin ? 'Saving...' : 'Submitting...')
+                                                        : (isSuperAdmin
+                                                            ? (isSmall ? 'Save' : 'Save Changes')
+                                                            : (isSmall ? 'Submit' : 'Submit for Approval')
+                                                        )
+                                                    }
+                                                </Button>
+                                            </Stack>
                                         </Box>
                                         <Box sx={{ flex: 1, overflow: 'auto', p: { xs: 0.5, sm: 2 } }}>
                                             <RolePermissionAccordions />
@@ -1113,9 +1391,399 @@ export default function PermissionsPage() {
                         </Box>
                     </TabPanel>
 
-                    {/* TAB 1: User Overrides - Super Admin Only */}
+                    {/* TAB 1: Approval Queue - Super Admin Only */}
                     {isSuperAdmin && (
                         <TabPanel value={tabValue} index={1}>
+                            <Box sx={{ height: 'calc(100vh - 220px)', display: 'flex', gap: 2, flexDirection: { xs: 'column', md: 'row' } }}>
+                                {/* Request List */}
+                                <Paper sx={{ width: { xs: '100%', md: 300 }, overflow: 'hidden', flexShrink: 0 }}>
+                                    <Box sx={{ p: 2, bgcolor: isDarkMode ? '#1e293b' : 'grey.100', borderBottom: '1px solid', borderColor: 'divider' }}>
+                                        <Typography variant="subtitle1" fontWeight={600}>
+                                            🔔 Pending Requests ({approvalRequests.length})
+                                        </Typography>
+                                    </Box>
+                                    <List dense sx={{ overflow: 'auto', maxHeight: 'calc(100vh - 320px)' }}>
+                                        {approvalRequests.length === 0 ? (
+                                            <Box sx={{ p: 3, textAlign: 'center', color: 'text.secondary' }}>
+                                                <CheckCircleIcon sx={{ fontSize: 48, opacity: 0.3, mb: 1 }} />
+                                                <Typography>No pending requests</Typography>
+                                            </Box>
+                                        ) : (
+                                            approvalRequests.map(req => (
+                                                <ListItemButton
+                                                    key={req.id}
+                                                    selected={selectedRequest?.id === req.id}
+                                                    onClick={() => handleSelectRequest(req)}
+                                                    sx={{
+                                                        borderBottom: '1px solid',
+                                                        borderColor: 'divider',
+                                                        '&.Mui-selected': {
+                                                            bgcolor: alpha(theme.palette.primary.main, 0.12),
+                                                            borderLeft: `3px solid ${theme.palette.primary.main}`,
+                                                        }
+                                                    }}
+                                                >
+                                                    <ListItemText
+                                                        primary={
+                                                            <Stack direction="row" alignItems="center" spacing={1}>
+                                                                <Typography fontWeight={500} fontSize="0.875rem">
+                                                                    {req.request_type === 'role' ? `Role: ${req.role_name}` : `User: ${req.target_full_name || req.target_username}`}
+                                                                </Typography>
+                                                            </Stack>
+                                                        }
+                                                        secondary={
+                                                            <Stack spacing={0.5}>
+                                                                <Typography variant="caption">
+                                                                    By: {req.requester_full_name || req.requester_username}
+                                                                </Typography>
+                                                                <Stack direction="row" spacing={0.5}>
+                                                                    <Chip label={`${req.total_changes} changes`} size="small" sx={{ height: 18, fontSize: '0.65rem' }} />
+                                                                    <Chip label={new Date(req.created_at).toLocaleDateString()} size="small" variant="outlined" sx={{ height: 18, fontSize: '0.65rem' }} />
+                                                                </Stack>
+                                                            </Stack>
+                                                        }
+                                                    />
+                                                </ListItemButton>
+                                            ))
+                                        )}
+                                    </List>
+                                    <Button
+                                        fullWidth
+                                        variant="text"
+                                        startIcon={<RefreshIcon />}
+                                        onClick={loadApprovalData}
+                                        sx={{ borderTop: '1px solid', borderColor: 'divider' }}
+                                    >
+                                        Refresh
+                                    </Button>
+                                </Paper>
+
+                                {/* Request Details Panel */}
+                                <Paper sx={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                                    {selectedRequest ? (
+                                        <>
+                                            <Box sx={{ p: 2, borderBottom: '1px solid', borderColor: 'divider', bgcolor: isDarkMode ? '#1e293b' : 'grey.50' }}>
+                                                <Stack direction="row" justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap={1}>
+                                                    <Box>
+                                                        <Typography variant="h6" fontWeight={600}>
+                                                            Request #{selectedRequest.id}
+                                                        </Typography>
+                                                        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                                                            <Chip
+                                                                label={selectedRequest.request_type === 'role' ? `Role: ${selectedRequest.role_name}` : `User: ${selectedRequest.target_full_name}`}
+                                                                color="primary"
+                                                                size="small"
+                                                            />
+                                                            <Chip
+                                                                label={`By: ${selectedRequest.requester_full_name || selectedRequest.requester_username}`}
+                                                                variant="outlined"
+                                                                size="small"
+                                                            />
+                                                            <Chip
+                                                                label={new Date(selectedRequest.created_at).toLocaleString()}
+                                                                variant="outlined"
+                                                                size="small"
+                                                            />
+                                                        </Stack>
+                                                    </Box>
+                                                    <Stack direction="row" spacing={1}>
+                                                        <Button
+                                                            variant="contained"
+                                                            color="success"
+                                                            size="small"
+                                                            startIcon={<ApproveIcon />}
+                                                            onClick={() => handleFinalizeRequest('approve')}
+                                                            disabled={loadingApproval}
+                                                        >
+                                                            Approve All
+                                                        </Button>
+                                                        <Button
+                                                            variant="contained"
+                                                            color="error"
+                                                            size="small"
+                                                            startIcon={<RejectIcon />}
+                                                            onClick={() => handleFinalizeRequest('reject')}
+                                                            disabled={loadingApproval}
+                                                        >
+                                                            Reject All
+                                                        </Button>
+                                                    </Stack>
+                                                </Stack>
+                                            </Box>
+
+                                            {/* Selection Actions */}
+                                            <Box sx={{ p: 1, bgcolor: isDarkMode ? alpha(theme.palette.info.main, 0.1) : alpha(theme.palette.info.main, 0.05), borderBottom: '1px solid', borderColor: 'divider' }}>
+                                                <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                                                    <Button size="small" startIcon={<SelectAllIcon />} onClick={handleSelectAllChanges}>
+                                                        Select All
+                                                    </Button>
+                                                    <Button size="small" startIcon={<DeselectIcon />} onClick={handleDeselectAllChanges}>
+                                                        Deselect All
+                                                    </Button>
+                                                    <Divider orientation="vertical" flexItem />
+                                                    <Button
+                                                        size="small"
+                                                        color="success"
+                                                        variant="outlined"
+                                                        startIcon={<ApproveIcon />}
+                                                        onClick={handleApproveSelected}
+                                                        disabled={selectedChanges.size === 0 || loadingApproval}
+                                                    >
+                                                        Approve Selected ({selectedChanges.size})
+                                                    </Button>
+                                                    <Button
+                                                        size="small"
+                                                        color="error"
+                                                        variant="outlined"
+                                                        startIcon={<RejectIcon />}
+                                                        onClick={handleRejectSelected}
+                                                        disabled={selectedChanges.size === 0 || loadingApproval}
+                                                    >
+                                                        Reject Selected ({selectedChanges.size})
+                                                    </Button>
+                                                    {selectedChanges.size > 0 && (
+                                                        <Button
+                                                            size="small"
+                                                            color="primary"
+                                                            variant="contained"
+                                                            onClick={() => handleFinalizeRequest('partial')}
+                                                            disabled={loadingApproval}
+                                                        >
+                                                            Finalize Partial
+                                                        </Button>
+                                                    )}
+                                                </Stack>
+                                            </Box>
+
+                                            {/* Changes Table */}
+                                            <Box sx={{ flex: 1, overflow: 'auto' }}>
+                                                {loadingApproval ? (
+                                                    <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
+                                                        <CircularProgress />
+                                                    </Box>
+                                                ) : (
+                                                    <TableContainer>
+                                                        <Table size="small" stickyHeader>
+                                                            <TableHead>
+                                                                <TableRow>
+                                                                    <TableCell padding="checkbox" sx={{ bgcolor: isDarkMode ? '#334155' : 'grey.100' }}>
+                                                                        <Checkbox
+                                                                            indeterminate={selectedChanges.size > 0 && selectedChanges.size < requestDetails.filter(d => d.is_approved === null).length}
+                                                                            checked={requestDetails.filter(d => d.is_approved === null).length > 0 && selectedChanges.size === requestDetails.filter(d => d.is_approved === null).length}
+                                                                            onChange={(e) => e.target.checked ? handleSelectAllChanges() : handleDeselectAllChanges()}
+                                                                        />
+                                                                    </TableCell>
+                                                                    <TableCell sx={{ fontWeight: 600, bgcolor: isDarkMode ? '#334155' : 'grey.100' }}>Permission</TableCell>
+                                                                    <TableCell align="center" sx={{ fontWeight: 600, bgcolor: isDarkMode ? '#334155' : 'grey.100', width: 120 }}>Enable</TableCell>
+                                                                    <TableCell align="center" sx={{ fontWeight: 600, bgcolor: isDarkMode ? '#334155' : 'grey.100', width: 120 }}>Visible</TableCell>
+                                                                    <TableCell align="center" sx={{ fontWeight: 600, bgcolor: isDarkMode ? '#334155' : 'grey.100', width: 100 }}>Status</TableCell>
+                                                                </TableRow>
+                                                            </TableHead>
+                                                            <TableBody>
+                                                                {requestDetails.map(detail => (
+                                                                    <TableRow
+                                                                        key={detail.id}
+                                                                        hover
+                                                                        selected={selectedChanges.has(detail.id)}
+                                                                        sx={{
+                                                                            bgcolor: detail.is_approved === true
+                                                                                ? alpha(theme.palette.success.main, 0.1)
+                                                                                : detail.is_approved === false
+                                                                                    ? alpha(theme.palette.error.main, 0.1)
+                                                                                    : 'inherit'
+                                                                        }}
+                                                                    >
+                                                                        <TableCell padding="checkbox">
+                                                                            <Checkbox
+                                                                                checked={selectedChanges.has(detail.id)}
+                                                                                onChange={() => handleToggleChangeSelection(detail.id)}
+                                                                                disabled={detail.is_approved !== null}
+                                                                            />
+                                                                        </TableCell>
+                                                                        <TableCell>
+                                                                            <Typography fontWeight={500} fontSize="0.875rem">{detail.permission_name}</Typography>
+                                                                            <Typography variant="caption" color="text.secondary">{detail.permission_code}</Typography>
+                                                                        </TableCell>
+                                                                        <TableCell align="center">
+                                                                            <Stack direction="row" alignItems="center" justifyContent="center" spacing={0.5}>
+                                                                                <Chip
+                                                                                    label={detail.old_is_enabled ? 'ON' : 'OFF'}
+                                                                                    size="small"
+                                                                                    color={detail.old_is_enabled ? 'success' : 'default'}
+                                                                                    sx={{ height: 20, fontSize: '0.65rem' }}
+                                                                                />
+                                                                                <ArrowForwardIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
+                                                                                <Chip
+                                                                                    label={detail.new_is_enabled ? 'ON' : 'OFF'}
+                                                                                    size="small"
+                                                                                    color={detail.new_is_enabled ? 'success' : 'default'}
+                                                                                    variant={detail.old_is_enabled !== detail.new_is_enabled ? 'filled' : 'outlined'}
+                                                                                    sx={{ height: 20, fontSize: '0.65rem' }}
+                                                                                />
+                                                                            </Stack>
+                                                                        </TableCell>
+                                                                        <TableCell align="center">
+                                                                            <Stack direction="row" alignItems="center" justifyContent="center" spacing={0.5}>
+                                                                                <Chip
+                                                                                    label={detail.old_is_visible ? 'SHOW' : 'HIDE'}
+                                                                                    size="small"
+                                                                                    color={detail.old_is_visible ? 'info' : 'default'}
+                                                                                    sx={{ height: 20, fontSize: '0.65rem' }}
+                                                                                />
+                                                                                <ArrowForwardIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
+                                                                                <Chip
+                                                                                    label={detail.new_is_visible ? 'SHOW' : 'HIDE'}
+                                                                                    size="small"
+                                                                                    color={detail.new_is_visible ? 'info' : 'default'}
+                                                                                    variant={detail.old_is_visible !== detail.new_is_visible ? 'filled' : 'outlined'}
+                                                                                    sx={{ height: 20, fontSize: '0.65rem' }}
+                                                                                />
+                                                                            </Stack>
+                                                                        </TableCell>
+                                                                        <TableCell align="center">
+                                                                            {detail.is_approved === true && (
+                                                                                <Chip label="Approved" color="success" size="small" icon={<CheckCircleIcon />} />
+                                                                            )}
+                                                                            {detail.is_approved === false && (
+                                                                                <Chip label="Rejected" color="error" size="small" icon={<CancelIcon />} />
+                                                                            )}
+                                                                            {detail.is_approved === null && (
+                                                                                <Chip label="Pending" color="warning" size="small" icon={<PendingIcon />} />
+                                                                            )}
+                                                                        </TableCell>
+                                                                    </TableRow>
+                                                                ))}
+                                                            </TableBody>
+                                                        </Table>
+                                                    </TableContainer>
+                                                )}
+                                            </Box>
+
+                                            {/* Note Input */}
+                                            <Box sx={{ p: 2, borderTop: '1px solid', borderColor: 'divider' }}>
+                                                <TextField
+                                                    fullWidth
+                                                    size="small"
+                                                    label="Review Note (optional)"
+                                                    placeholder="Add a note for the requester..."
+                                                    value={approvalNote}
+                                                    onChange={(e) => setApprovalNote(e.target.value)}
+                                                    multiline
+                                                    rows={2}
+                                                />
+                                            </Box>
+                                        </>
+                                    ) : (
+                                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', flexDirection: 'column', color: 'text.secondary' }}>
+                                            <NotificationsIcon sx={{ fontSize: 64, opacity: 0.3, mb: 2 }} />
+                                            <Typography>Select a request to review</Typography>
+                                        </Box>
+                                    )}
+                                </Paper>
+                            </Box>
+                        </TabPanel>
+                    )}
+
+                    {/* TAB 2 (super_admin) / TAB 1 (others): My Requests */}
+                    <TabPanel value={tabValue} index={isSuperAdmin ? 2 : 1}>
+                        <Box sx={{ height: 'calc(100vh - 220px)', overflow: 'auto' }}>
+                            <Paper sx={{ p: 2 }}>
+                                <Typography variant="h6" fontWeight={600} sx={{ mb: 2 }}>
+                                    📋 My Permission Change Requests
+                                </Typography>
+                                {myRequests.length === 0 ? (
+                                    <Alert severity="info">
+                                        You haven't submitted any permission change requests yet.
+                                    </Alert>
+                                ) : (
+                                    <TableContainer>
+                                        <Table>
+                                            <TableHead>
+                                                <TableRow sx={{ bgcolor: isDarkMode ? '#334155' : 'grey.100' }}>
+                                                    <TableCell sx={{ fontWeight: 600 }}>ID</TableCell>
+                                                    <TableCell sx={{ fontWeight: 600 }}>Type</TableCell>
+                                                    <TableCell sx={{ fontWeight: 600 }}>Target</TableCell>
+                                                    <TableCell sx={{ fontWeight: 600 }}>Changes</TableCell>
+                                                    <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
+                                                    <TableCell sx={{ fontWeight: 600 }}>Submitted</TableCell>
+                                                    <TableCell sx={{ fontWeight: 600 }}>Reviewed</TableCell>
+                                                    <TableCell sx={{ fontWeight: 600 }}>Actions</TableCell>
+                                                </TableRow>
+                                            </TableHead>
+                                            <TableBody>
+                                                {myRequests.map(req => (
+                                                    <TableRow key={req.id} hover>
+                                                        <TableCell>#{req.id}</TableCell>
+                                                        <TableCell>
+                                                            <Chip
+                                                                label={req.request_type === 'role' ? 'Role' : 'User Override'}
+                                                                size="small"
+                                                                color={req.request_type === 'role' ? 'primary' : 'secondary'}
+                                                            />
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            {req.request_type === 'role' ? req.role_name : (req.target_full_name || req.target_username)}
+                                                        </TableCell>
+                                                        <TableCell>{req.total_changes}</TableCell>
+                                                        <TableCell>
+                                                            <Chip
+                                                                label={req.status}
+                                                                size="small"
+                                                                color={
+                                                                    req.status === 'approved' ? 'success' :
+                                                                        req.status === 'rejected' ? 'error' :
+                                                                            req.status === 'partially_approved' ? 'warning' :
+                                                                                'default'
+                                                                }
+                                                                icon={
+                                                                    req.status === 'approved' ? <CheckCircleIcon /> :
+                                                                        req.status === 'rejected' ? <CancelIcon /> :
+                                                                            req.status === 'pending' ? <PendingIcon /> :
+                                                                                undefined
+                                                                }
+                                                            />
+                                                        </TableCell>
+                                                        <TableCell>{new Date(req.created_at).toLocaleString()}</TableCell>
+                                                        <TableCell>
+                                                            {req.reviewed_at ? (
+                                                                <Stack>
+                                                                    <Typography variant="caption">{new Date(req.reviewed_at).toLocaleString()}</Typography>
+                                                                    <Typography variant="caption" color="text.secondary">by {req.reviewer_username}</Typography>
+                                                                </Stack>
+                                                            ) : '-'}
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            {req.status === 'pending' && (
+                                                                <Button
+                                                                    size="small"
+                                                                    color="error"
+                                                                    startIcon={<CancelIcon />}
+                                                                    onClick={() => handleCancelRequest(req.id)}
+                                                                >
+                                                                    Cancel
+                                                                </Button>
+                                                            )}
+                                                            {req.review_note && (
+                                                                <Tooltip title={req.review_note}>
+                                                                    <IconButton size="small">
+                                                                        <AssignmentIcon />
+                                                                    </IconButton>
+                                                                </Tooltip>
+                                                            )}
+                                                        </TableCell>
+                                                    </TableRow>
+                                                ))}
+                                            </TableBody>
+                                        </Table>
+                                    </TableContainer>
+                                )}
+                            </Paper>
+                        </Box>
+                    </TabPanel>
+
+                    {/* TAB 3: User Overrides - Super Admin Only */}
+                    {isSuperAdmin && (
+                        <TabPanel value={tabValue} index={3}>
                             <Box sx={{
                                 display: 'flex',
                                 gap: 2,
@@ -1220,9 +1888,9 @@ export default function PermissionsPage() {
                         </TabPanel>
                     )}
 
-                    {/* TAB 2: Warehouse Access - Super Admin Only */}
+                    {/* TAB 4: Warehouse Access - Super Admin Only */}
                     {isSuperAdmin && (
-                        <TabPanel value={tabValue} index={2}>
+                        <TabPanel value={tabValue} index={4}>
                             <Box sx={{
                                 display: 'flex',
                                 gap: 2,

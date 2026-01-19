@@ -543,6 +543,41 @@ export const permissionsAPI = {
   getUserWarehouses: (userId: number) => api.get(`/permissions/users/${userId}/warehouses`),
   updateUserWarehouses: (userId: number, warehouse_ids: number[], default_warehouse_id?: number) =>
     api.put(`/permissions/users/${userId}/warehouses`, { warehouse_ids, default_warehouse_id }),
+
+  // ============== Approval Workflow APIs ==============
+  // Get pending approval count (for badge)
+  getPendingApprovalCount: () => api.get('/permissions/approval/pending-count'),
+
+  // Get all approval requests (super_admin only)
+  getApprovalRequests: (status?: string) =>
+    api.get('/permissions/approval/requests', { params: { status: status || 'all' } }),
+
+  // Get single request with details
+  getApprovalRequestDetails: (requestId: number) =>
+    api.get(`/permissions/approval/requests/${requestId}`),
+
+  // Get current user's requests
+  getMyApprovalRequests: () => api.get('/permissions/approval/my-requests'),
+
+  // Create role permission change request
+  createRolePermissionRequest: (roleId: number, permissions: { code: string; is_enabled: boolean; is_visible: boolean }[]) =>
+    api.post('/permissions/approval/role-request', { roleId, permissions }),
+
+  // Create user override change request
+  createUserOverrideRequest: (targetUserId: number, overrides: { code: string; is_enabled: boolean | null; is_visible: boolean | null }[]) =>
+    api.post('/permissions/approval/user-request', { targetUserId, overrides }),
+
+  // Update individual change approvals (super_admin)
+  updateChangeApprovals: (requestId: number, changes: { detailId: number; is_approved: boolean }[]) =>
+    api.put(`/permissions/approval/requests/${requestId}/changes`, { changes }),
+
+  // Finalize request (approve/reject/partial)
+  finalizeRequest: (requestId: number, action: 'approve' | 'reject' | 'partial', note?: string, approveAll?: boolean) =>
+    api.post(`/permissions/approval/requests/${requestId}/finalize`, { action, note, approveAll }),
+
+  // Cancel request
+  cancelRequest: (requestId: number) =>
+    api.delete(`/permissions/approval/requests/${requestId}`),
 };
 
 // ================= Error Logs API (Super Admin Only) =======================
