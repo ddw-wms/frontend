@@ -253,7 +253,7 @@ export default function QCPage() {
 
   // ⚡ EXCEL-LIKE: Refs for smooth scrolling and selection
   const userScrolledRef = useRef(false);
-  const userScrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const userScrollTimeoutRef = useRef<number | null>(null);
   const lastGridScrollTopRef = useRef(0);
   const isAutoScrollingRef = useRef(false);
   const desiredRowIndexRef = useRef<number | null>(null);
@@ -3987,7 +3987,7 @@ export default function QCPage() {
                     rowData={multiRows}
                     columnDefs={columnDefs}
                     rowHeight={tableRowHeight}
-                    getRowId={(params) => String(params.data?.id || params.rowIndex)}
+                    getRowId={(params: any) => String(params.data?.id || params.node?.rowIndex || Math.random())}
 
                     onGridReady={(params: any) => {
                       gridRef.current = params.api;
@@ -4087,9 +4087,9 @@ export default function QCPage() {
                         if (scrollDelta > 10) {
                           userScrolledRef.current = true;
                           if (userScrollTimeoutRef.current) window.clearTimeout(userScrollTimeoutRef.current);
-                          userScrollTimeoutRef.current = window.setTimeout(() => {
+                          userScrollTimeoutRef.current = setTimeout(() => {
                             userScrolledRef.current = false;
-                          }, 1500);
+                          }, 1500) as unknown as number;
                           lastGridScrollTopRef.current = currentScrollTop;
                         }
                       }

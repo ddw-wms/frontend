@@ -114,7 +114,7 @@ export default function PickingPage() {
 
   // ⚡ EXCEL-LIKE: Refs for smooth scrolling and selection
   const userScrolledRef = useRef(false);
-  const userScrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const userScrollTimeoutRef = useRef<number | null>(null);
   const lastGridScrollTopRef = useRef(0);
   const isAutoScrollingRef = useRef(false);
   const multiRowsRef = useRef([] as any[]);
@@ -3040,9 +3040,9 @@ export default function PickingPage() {
                     if (scrollDelta > 10) {
                       userScrolledRef.current = true;
                       if (userScrollTimeoutRef.current) window.clearTimeout(userScrollTimeoutRef.current);
-                      userScrollTimeoutRef.current = window.setTimeout(() => {
+                      userScrollTimeoutRef.current = setTimeout(() => {
                         userScrolledRef.current = false;
-                      }, 1500);
+                      }, 1500) as unknown as number;
                       lastGridScrollTopRef.current = currentScrollTop;
                     }
                   }
