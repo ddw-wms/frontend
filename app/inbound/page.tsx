@@ -157,6 +157,10 @@ export default function InboundPage() {
   const scanningModeRef = useRef<boolean>(false);
   // Track a desired row index to keep visible during scanning sessions
   const desiredRowIndexRef = useRef<number | null>(null);
+  // Track user manual scroll to avoid overriding it
+  const userScrolledRef = useRef<boolean>(false);
+  const userScrollTimeoutRef = useRef<number | null>(null);
+  const lastGridScrollTopRef = useRef<number>(0);
   const [agentReady, setAgentReady] = useState(false);
 
   // ====== PRINT TOGGLE STATE ======
@@ -2200,6 +2204,14 @@ export default function InboundPage() {
       // Enable scanning mode immediately for responsiveness
       scanningModeRef.current = true;
 
+      // ⚡ SMOOTH SCROLL FIX: Clear user scroll flag when scanner is actively scanning
+      // This allows auto-scroll during continuous scanning operations
+      userScrolledRef.current = false;
+      if (userScrollTimeoutRef.current) {
+        window.clearTimeout(userScrollTimeoutRef.current);
+        userScrollTimeoutRef.current = null;
+      }
+
       // Exit scanning mode after a longer inactivity window (3s) to be robust for long runs
       scanModeTimeoutRef.current = window.setTimeout(() => {
         scanCountRef.current = 0;
@@ -2236,17 +2248,14 @@ export default function InboundPage() {
     onComplete?: () => void,
     immediate = false
   ) {
-    // If scanning mode is active, force immediate behavior
-    if (scanningModeRef.current) immediate = true;
+    // ⚡ SMOOTH SCROLL FIX: If user recently scrolled manually, don't auto-scroll
+    // This prevents the jarring jump when user scrolls up and scans
+    if (userScrolledRef.current && !immediate) {
+      onComplete?.();
+      return;
+    }
 
-    try {
-      const api = gridRef.current;
-      if (api) {
-        api.ensureIndexVisible(rowIndex, position);
-      }
-    } catch (e) { /* ignore AG Grid errors */ }
-
-    // Cancel any ongoing smooth-scroll checks
+    // Cancel any ongoing scroll operations
     if (scrollAnimationFrameRef.current) {
       cancelAnimationFrame(scrollAnimationFrameRef.current);
       scrollAnimationFrameRef.current = null;
@@ -2258,89 +2267,52 @@ export default function InboundPage() {
 
     isAutoScrollingRef.current = true;
 
-    scrollTimeoutRef.current = window.setTimeout(async () => {
-      try {
-        const container = scrollContainerRef.current as HTMLElement | null;
-        if (!container) {
-          isAutoScrollingRef.current = false;
-          onComplete?.();
-          return;
-        }
-
-        const rowEl = await waitForRowElement(rowIndex, 700);
-        if (!rowEl) {
-          isAutoScrollingRef.current = false;
-          onComplete?.();
-          return;
-        }
-
-        // Compute whether the row is already comfortably visible; only adjust when needed.
-        const rowTop = rowEl.offsetTop;
-        const rowHeight = Math.max(24, rowEl.getBoundingClientRect().height || 36);
-        const containerTop = container.scrollTop;
-        const containerBottom = containerTop + container.clientHeight;
-        const headerEl = container.querySelector('.ag-header') as HTMLElement | null;
-        const headerHeight = headerEl ? Math.ceil(headerEl.getBoundingClientRect().height) : 0;
-        const topPadding = headerHeight + 8;
-        const desiredBottomSpace = rowsBelow * rowHeight + 8; // space to leave below the target row
-        const allowedMaxRowTop = containerBottom - desiredBottomSpace - rowHeight;
-
-        const now = Date.now();
-        const recent = lastAutoScrollTsRef.current && (now - lastAutoScrollTsRef.current < 300);
-
-        lastAutoScrollTsRef.current = now;
-
-        // If row is already comfortably visible, do nothing
-        if (rowTop >= containerTop + topPadding && rowTop <= allowedMaxRowTop) {
-          isAutoScrollingRef.current = false;
-          onComplete?.();
-          return;
-        }
-
-        // Compute targetTop to bring row into view while leaving rowsBelow visible where possible
-        let targetTop: number;
-        if (rowTop < containerTop + topPadding) {
-          // row is above current view — scroll up so row is near top (but keep it visible)
-          targetTop = Math.max(0, rowTop - topPadding);
-        } else {
-          // row is below allowed area — scroll down so rowsBelow remain visible
-          targetTop = Math.max(0, Math.min(container.scrollHeight - container.clientHeight, rowTop - (container.clientHeight - desiredBottomSpace - rowHeight)));
-        }
-
-        // If immediate/recent or scanning mode, snap so the row is visible and positioned about 25% from the top
-        if (immediate || recent || scanningModeRef.current) {
-          const snapTop = Math.max(0, Math.min(container.scrollHeight - container.clientHeight, Math.round(rowTop - Math.floor(container.clientHeight * 0.25))));
-          // Use requestAnimationFrame for smoother visual update
-          requestAnimationFrame(() => {
-            container.scrollTop = snapTop;
-          });
-          isAutoScrollingRef.current = false;
-          onComplete?.();
-          return;
-        }
-
-        // Smooth scroll for normal interaction and wait until it completes
-        container.scrollTo({ top: targetTop, behavior: 'smooth' });
-
-        const start = performance.now();
-        const timeoutMs = 700; // allow a bit longer for smooth scroll
-
-        const check = () => {
-          const curTop = container.scrollTop;
-          if (Math.abs(curTop - targetTop) <= 2 || performance.now() - start > timeoutMs) {
-            isAutoScrollingRef.current = false;
-            onComplete?.();
-            return;
-          }
-          scrollAnimationFrameRef.current = requestAnimationFrame(check);
-        };
-
-        scrollAnimationFrameRef.current = requestAnimationFrame(check);
-      } catch (e) {
+    // Use AG Grid's native scrolling - it's smoother and handles virtualization properly
+    try {
+      const api = gridRef.current;
+      if (!api) {
         isAutoScrollingRef.current = false;
         onComplete?.();
+        return;
       }
-    }, 40);
+
+      // Get visible row range to check if row is already visible
+      const firstVisibleRow = api.getFirstDisplayedRowIndex?.() ?? 0;
+      const lastVisibleRow = api.getLastDisplayedRowIndex?.() ?? 0;
+
+      // Calculate comfortable visible range (with some buffer)
+      const topBuffer = 2; // rows from top to consider "visible"
+      const bottomBuffer = rowsBelow; // rows from bottom to consider "visible"
+
+      const isAlreadyVisible = rowIndex >= (firstVisibleRow + topBuffer) &&
+        rowIndex <= (lastVisibleRow - bottomBuffer);
+
+      // If row is already comfortably visible, don't scroll - just invoke callback
+      if (isAlreadyVisible) {
+        isAutoScrollingRef.current = false;
+        onComplete?.();
+        return;
+      }
+
+      // Use AG Grid's smooth scroll approach
+      // For scanning mode or immediate, use 'middle' position for minimal movement
+      // Otherwise position based on where row is relative to viewport
+      const effectivePosition = (scanningModeRef.current || immediate)
+        ? 'middle'
+        : (rowIndex < firstVisibleRow ? 'top' : 'bottom');
+
+      api.ensureIndexVisible(rowIndex, effectivePosition);
+
+      // Small delay to let AG Grid finish scrolling, then invoke callback
+      scrollTimeoutRef.current = window.setTimeout(() => {
+        isAutoScrollingRef.current = false;
+        onComplete?.();
+      }, 50);
+
+    } catch (e) {
+      isAutoScrollingRef.current = false;
+      onComplete?.();
+    }
   }
 
   const addMultiRow = () => {
@@ -5941,6 +5913,33 @@ export default function InboundPage() {
                       handleCellClick(rowIndex, colId, browserEvent?.shiftKey || false);
                     }}
 
+                    // ⚡ SMOOTH SCROLL: Detect user manual scroll to avoid overriding it
+                    onBodyScroll={(event) => {
+                      // If we're NOT auto-scrolling, this is a user-initiated scroll
+                      if (!isAutoScrollingRef.current) {
+                        const currentScrollTop = event.top;
+                        const scrollDelta = Math.abs(currentScrollTop - lastGridScrollTopRef.current);
+
+                        // Only mark as user scroll if there's significant movement (>10px)
+                        // This filters out tiny adjustments from AG Grid's internal operations
+                        if (scrollDelta > 10) {
+                          userScrolledRef.current = true;
+
+                          // Clear user scroll flag after 1.5 seconds of no scanning activity
+                          // This allows auto-scroll to resume for continuous scanning
+                          if (userScrollTimeoutRef.current) {
+                            window.clearTimeout(userScrollTimeoutRef.current);
+                          }
+                          userScrollTimeoutRef.current = window.setTimeout(() => {
+                            userScrolledRef.current = false;
+                            userScrollTimeoutRef.current = null;
+                          }, 1500);
+                        }
+
+                        lastGridScrollTopRef.current = currentScrollTop;
+                      }
+                    }}
+
                     // ✅ Save column widths when resized
                     onColumnResized={(params: any) => {
                       if (params.finished && params.column) {
@@ -6016,19 +6015,9 @@ export default function InboundPage() {
                       newRows[rowIndex] = { ...newRows[rowIndex], [field]: processedValue };
                       setMultiRows(newRows);
 
-                      // ⚡ EXCEL AUTO-SCROLL: When any value entered, ensure next row visible
-                      if (processedValue?.trim()) {
-                        const nextRowIndex = rowIndex + 1;
-                        const totalRows = event.api.getDisplayedRowCount();
-
-                        if (nextRowIndex < totalRows) {
-                          setTimeout(() => {
-                            try {
-                              ensureRowVisible(nextRowIndex, 'bottom', 4, undefined, scanningModeRef.current);
-                            } catch (e) { /* ignore */ }
-                          }, 50);
-                        }
-                      }
+                      // ⚡ SMOOTH SCROLL: Only scroll to next row for WSN field (scanner input)
+                      // and only if NOT user-initiated scroll - this prevents disruptive auto-scrolling
+                      // For non-WSN fields, user is manually editing so no auto-scroll needed
 
                       // If user entered a WSN, start scan activity detection
                       if (field === 'wsn' && newValue?.trim()) {
