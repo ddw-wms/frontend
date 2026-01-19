@@ -112,6 +112,36 @@ export default function PickingPage() {
   const columnApiRef = useRef<any>(null);
   const hasAutoFittedRef = useRef(false); // Track if auto-fit has been done
 
+  // ⚡ EXCEL-LIKE: Refs for smooth scrolling and selection
+  const userScrolledRef = useRef(false);
+  const userScrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastGridScrollTopRef = useRef(0);
+  const isAutoScrollingRef = useRef(false);
+  const multiRowsRef = useRef([] as any[]);
+
+  // ⚡ EXCEL-LIKE: Track selected cell range for multi-cell operations
+  const [selectedRange, setSelectedRange] = useState<{
+    startRow: number;
+    endRow: number;
+    startCol: string;
+    endCol: string;
+  } | null>(null);
+  const rangeStartCellRef = useRef<{ rowIndex: number; colId: string } | null>(null);
+  const selectedRangeRef = useRef<typeof selectedRange>(null);
+
+  // ⚡ PERFORMANCE: Cache computed selection bounds
+  const selectionBoundsRef = useRef<{
+    minRow: number;
+    maxRow: number;
+    minCol: number;
+    maxCol: number;
+    colIndexMap: Map<string, number>;
+  } | null>(null);
+
+  // ⚡ EXCEL-LIKE: Track mouse drag state
+  const isDraggingRef = useRef(false);
+  const dragStartCellRef = useRef<{ rowIndex: number; colId: string } | null>(null);
+
   // Get table row height from appearance settings
   const tableRowHeight = useTableRowHeight();
 
@@ -678,6 +708,253 @@ export default function PickingPage() {
 
     return nextCellPosition;
   }, [visibleColumns]);
+
+  // ⚡ EXCEL-LIKE: Keep multiRowsRef in sync
+  useEffect(() => {
+    multiRowsRef.current = multiRows;
+  }, [multiRows]);
+
+  // ⚡ EXCEL-LIKE: Update selection bounds when selection changes
+  useEffect(() => {
+    selectedRangeRef.current = selectedRange;
+
+    if (selectedRange && gridRef.current) {
+      const api = gridRef.current;
+      const allColumns = api.getAllDisplayedColumns?.() || [];
+      const colIndexMap = new Map<string, number>();
+      allColumns.forEach((c: any, idx: number) => {
+        colIndexMap.set(c.getColId(), idx);
+      });
+
+      const startColIndex = colIndexMap.get(selectedRange.startCol) ?? -1;
+      const endColIndex = colIndexMap.get(selectedRange.endCol) ?? -1;
+
+      if (startColIndex !== -1 && endColIndex !== -1) {
+        selectionBoundsRef.current = {
+          minRow: Math.min(selectedRange.startRow, selectedRange.endRow),
+          maxRow: Math.max(selectedRange.startRow, selectedRange.endRow),
+          minCol: Math.min(startColIndex, endColIndex),
+          maxCol: Math.max(startColIndex, endColIndex),
+          colIndexMap,
+        };
+      } else {
+        selectionBoundsRef.current = null;
+      }
+    } else {
+      selectionBoundsRef.current = null;
+    }
+  }, [selectedRange]);
+
+  // ⚡ EXCEL-LIKE: Refresh grid when selection changes
+  useEffect(() => {
+    const api = gridRef.current;
+    if (api) {
+      requestAnimationFrame(() => {
+        api.refreshCells({ force: true });
+      });
+    }
+  }, [selectedRange]);
+
+  // ⚡ EXCEL-LIKE: Handle cell mouse down - start drag selection
+  const handleCellMouseDown = useCallback((rowIndex: number, colId: string, shiftKey: boolean) => {
+    if (shiftKey && rangeStartCellRef.current) {
+      setSelectedRange({
+        startRow: rangeStartCellRef.current.rowIndex,
+        endRow: rowIndex,
+        startCol: rangeStartCellRef.current.colId,
+        endCol: colId,
+      });
+    } else {
+      isDraggingRef.current = true;
+      dragStartCellRef.current = { rowIndex, colId };
+      rangeStartCellRef.current = { rowIndex, colId };
+      setSelectedRange(null);
+    }
+  }, []);
+
+  // ⚡ EXCEL-LIKE: Handle cell mouse over - extend selection while dragging
+  const handleCellMouseOver = useCallback((rowIndex: number, colId: string) => {
+    if (!isDraggingRef.current || !dragStartCellRef.current) return;
+    setSelectedRange({
+      startRow: dragStartCellRef.current.rowIndex,
+      endRow: rowIndex,
+      startCol: dragStartCellRef.current.colId,
+      endCol: colId,
+    });
+  }, []);
+
+  // ⚡ EXCEL-LIKE: Handle cell click for shift+click selection
+  const handleCellClick = useCallback((rowIndex: number, colId: string, shiftKey: boolean) => {
+    if (shiftKey && rangeStartCellRef.current) {
+      setSelectedRange({
+        startRow: rangeStartCellRef.current.rowIndex,
+        endRow: rowIndex,
+        startCol: rangeStartCellRef.current.colId,
+        endCol: colId,
+      });
+    } else {
+      rangeStartCellRef.current = { rowIndex, colId };
+      setSelectedRange(null);
+    }
+  }, []);
+
+  // ⚡ EXCEL-LIKE: Handle mouse up - end drag selection
+  useEffect(() => {
+    const handleMouseUp = () => {
+      if (isDraggingRef.current) {
+        isDraggingRef.current = false;
+      }
+    };
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => window.removeEventListener('mouseup', handleMouseUp);
+  }, []);
+
+  // ⚡ EXCEL-LIKE: Clear selected cells (Delete/Backspace)
+  const handleClearCells = useCallback(() => {
+    const api = gridRef.current;
+    if (!api) return;
+
+    const range = selectedRangeRef.current;
+    if (!range) {
+      const focusedCell = api.getFocusedCell();
+      if (!focusedCell) return;
+      const { rowIndex, column } = focusedCell;
+      const colId = column.getColId();
+      if (!EDITABLE_COLUMNS.includes(colId)) return;
+
+      const newRows = [...multiRowsRef.current];
+      newRows[rowIndex] = { ...newRows[rowIndex], [colId]: '' };
+      setMultiRows(newRows);
+      api.refreshCells({ force: true });
+      return;
+    }
+
+    const minRow = Math.min(range.startRow, range.endRow);
+    const maxRow = Math.max(range.startRow, range.endRow);
+
+    const allColumns = api.getAllDisplayedColumns?.() || [];
+    const colIds = allColumns.map((c: any) => c.getColId());
+    const startColIndex = colIds.indexOf(range.startCol);
+    const endColIndex = colIds.indexOf(range.endCol);
+    const minCol = Math.min(startColIndex, endColIndex);
+    const maxCol = Math.max(startColIndex, endColIndex);
+
+    const newRows = [...multiRowsRef.current];
+    let cleared = 0;
+
+    for (let r = minRow; r <= maxRow; r++) {
+      for (let c = minCol; c <= maxCol; c++) {
+        const colId = colIds[c];
+        if (EDITABLE_COLUMNS.includes(colId)) {
+          newRows[r] = { ...newRows[r], [colId]: '' };
+          cleared++;
+        }
+      }
+    }
+
+    if (cleared > 0) {
+      setMultiRows(newRows);
+      api.refreshCells({ force: true });
+      toast.success(`Cleared ${cleared} cells`, { duration: 1500 });
+    }
+  }, []);
+
+  // ⚡ EXCEL-LIKE: Select All (Ctrl+A)
+  const handleSelectAll = useCallback(() => {
+    const api = gridRef.current;
+    if (!api) return;
+
+    const totalRows = api.getDisplayedRowCount();
+    if (totalRows === 0) return;
+
+    const allColumns = api.getAllDisplayedColumns() || [];
+    const editableColIds = allColumns.map((c: any) => c.getColId()).filter((id: string) => EDITABLE_COLUMNS.includes(id));
+
+    const firstCol = editableColIds[0] || 'wsn';
+    const lastCol = editableColIds[editableColIds.length - 1] || 'wsn';
+
+    setSelectedRange({
+      startRow: 0,
+      endRow: totalRows - 1,
+      startCol: firstCol,
+      endCol: lastCol,
+    });
+
+    rangeStartCellRef.current = { rowIndex: 0, colId: firstCol };
+    toast('All rows selected', { icon: '✓', duration: 1500 });
+  }, []);
+
+  // ⚡ EXCEL-LIKE: Keyboard shortcuts for Multi Picking tab
+  useEffect(() => {
+    if (currentTabCode !== 'multi') return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const ctrlKey = e.ctrlKey || e.metaKey;
+      const shiftKey = e.shiftKey;
+
+      const activeEl = document.activeElement;
+      const isEditing = activeEl?.tagName === 'INPUT' || activeEl?.tagName === 'TEXTAREA';
+
+      // Ctrl+A - Select All
+      if (ctrlKey && e.key.toLowerCase() === 'a' && !isEditing) {
+        e.preventDefault();
+        handleSelectAll();
+        return;
+      }
+
+      // Delete/Backspace - Clear cells
+      if ((e.key === 'Delete' || e.key === 'Backspace') && !isEditing) {
+        e.preventDefault();
+        handleClearCells();
+        return;
+      }
+
+      // Shift+Arrow keys - Extend selection
+      if (shiftKey && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key) && !isEditing) {
+        const api = gridRef.current;
+        if (!api) return;
+
+        const focusedCell = api.getFocusedCell();
+        if (!focusedCell) return;
+
+        e.preventDefault();
+
+        const { rowIndex, column } = focusedCell;
+        const colId = column.getColId();
+
+        if (!rangeStartCellRef.current) {
+          rangeStartCellRef.current = { rowIndex, colId };
+        }
+
+        const allColumns = api.getAllDisplayedColumns() || [];
+        const colIds = allColumns.map((c: any) => c.getColId());
+        const currentColIndex = colIds.indexOf(colId);
+
+        let newRowIndex = rowIndex;
+        let newColIndex = currentColIndex;
+
+        if (e.key === 'ArrowUp') newRowIndex = Math.max(0, rowIndex - 1);
+        if (e.key === 'ArrowDown') newRowIndex = Math.min(multiRowsRef.current.length - 1, rowIndex + 1);
+        if (e.key === 'ArrowLeft') newColIndex = Math.max(0, currentColIndex - 1);
+        if (e.key === 'ArrowRight') newColIndex = Math.min(colIds.length - 1, currentColIndex + 1);
+
+        const newColId = colIds[newColIndex];
+
+        setSelectedRange({
+          startRow: rangeStartCellRef.current.rowIndex,
+          endRow: newRowIndex,
+          startCol: rangeStartCellRef.current.colId,
+          endCol: newColId,
+        });
+
+        api.setFocusedCell(newRowIndex, newColId);
+        api.ensureIndexVisible(newRowIndex, 'middle');
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [currentTabCode, handleSelectAll, handleClearCells]);
 
   // Add new rows
   const add500Rows = () => {
@@ -2607,15 +2884,33 @@ export default function PickingPage() {
                 '& .ag-row-even': { backgroundColor: isDarkMode ? '#1e293b' : '#ffffff' },
                 '& .ag-row-odd': { backgroundColor: isDarkMode ? '#1a2536' : '#f1f5f9' },
 
-                // Active cell focus
+                // Active cell focus - Enhanced for dark mode
                 '& .ag-cell-focus': {
-                  border: '2px solid #f59e0b !important',
-                  boxShadow: '0 0 0 1px rgba(245, 158, 11, 0.3)',
+                  border: isDarkMode ? '2px solid #fbbf24 !important' : '2px solid #f59e0b !important',
+                  boxShadow: isDarkMode ? '0 0 8px rgba(251, 191, 36, 0.4)' : '0 0 0 1px rgba(245, 158, 11, 0.3)',
                   boxSizing: 'border-box',
                   outline: 'none',
                 },
                 '& .ag-cell-range-selected': { backgroundColor: isDarkMode ? 'rgba(245, 158, 11, 0.25) !important' : '#fef3c7 !important' },
                 '& .ag-cell-range-single-cell': { backgroundColor: isDarkMode ? 'rgba(245, 158, 11, 0.2) !important' : '#fffbeb !important' },
+
+                // ⚡ EXCEL-LIKE: Custom range selection CSS classes
+                '& .custom-range-selected': {
+                  backgroundColor: isDarkMode ? 'rgba(251, 191, 36, 0.4) !important' : 'rgba(245, 158, 11, 0.2) !important',
+                },
+                '& .custom-range-top': {
+                  borderTop: isDarkMode ? '3px solid #fbbf24 !important' : '3px solid #f59e0b !important',
+                },
+                '& .custom-range-bottom': {
+                  borderBottom: isDarkMode ? '3px solid #fbbf24 !important' : '3px solid #f59e0b !important',
+                },
+                '& .custom-range-left': {
+                  borderLeft: isDarkMode ? '3px solid #fbbf24 !important' : '3px solid #f59e0b !important',
+                },
+                '& .custom-range-right': {
+                  borderRight: isDarkMode ? '3px solid #fbbf24 !important' : '3px solid #f59e0b !important',
+                },
+
                 '& .ag-row-hover': { backgroundColor: isDarkMode ? 'rgba(245, 158, 11, 0.12) !important' : '#fefce8 !important' },
               }}
             >
@@ -2624,7 +2919,6 @@ export default function PickingPage() {
                 onGridReady={(params: any) => {
                   gridRef.current = params.api;
                   columnApiRef.current = params.columnApi;
-                  // small delay to allow rendering then autosize
                   setTimeout(() => {
                     try {
                       const colApi = columnApiRef.current;
@@ -2632,7 +2926,6 @@ export default function PickingPage() {
                       const allCols = colApi.getAllColumns ? colApi.getAllColumns().map((c: any) => c.getColId()) : [];
                       if (allCols.length > 0) {
                         colApi.autoSizeColumns(allCols, false);
-                        // if total width less than grid, stretch
                         const api = gridRef.current;
                         let total = 0;
                         for (const id of allCols) {
@@ -2663,14 +2956,111 @@ export default function PickingPage() {
                     if (gridDuplicateWSNs.has(wsn)) return field === 'wsn';
                     return EDITABLE_COLUMNS.includes(field);
                   },
+                  // ⚡ EXCEL-LIKE: Optimized cell style for selection
+                  cellStyle: (params: any) => {
+                    const bounds = selectionBoundsRef.current;
+                    if (!bounds) return undefined;
+
+                    const rowIndex = params.rowIndex;
+                    const colId = params.colDef?.field;
+                    if (rowIndex === null || rowIndex === undefined || !colId) return undefined;
+
+                    const currentColIndex = bounds.colIndexMap.get(colId);
+                    if (currentColIndex === undefined) return undefined;
+
+                    const isInRowRange = rowIndex >= bounds.minRow && rowIndex <= bounds.maxRow;
+                    const isInColRange = currentColIndex >= bounds.minCol && currentColIndex <= bounds.maxCol;
+
+                    if (isInRowRange && isInColRange) {
+                      const borderColor = isDarkMode ? '#fbbf24' : '#f59e0b';
+                      const bgColor = isDarkMode ? 'rgba(251, 191, 36, 0.35)' : 'rgba(245, 158, 11, 0.2)';
+
+                      const style: any = { backgroundColor: bgColor };
+                      if (rowIndex === bounds.minRow) style.borderTop = `3px solid ${borderColor}`;
+                      if (rowIndex === bounds.maxRow) style.borderBottom = `3px solid ${borderColor}`;
+                      if (currentColIndex === bounds.minCol) style.borderLeft = `3px solid ${borderColor}`;
+                      if (currentColIndex === bounds.maxCol) style.borderRight = `3px solid ${borderColor}`;
+                      return style;
+                    }
+                    return undefined;
+                  },
+                  cellClass: (params: any) => {
+                    const bounds = selectionBoundsRef.current;
+                    if (!bounds) return '';
+
+                    const rowIndex = params.rowIndex;
+                    const colId = params.colDef?.field;
+                    if (rowIndex === null || rowIndex === undefined || !colId) return '';
+
+                    const currentColIndex = bounds.colIndexMap.get(colId);
+                    if (currentColIndex === undefined) return '';
+
+                    const isInRowRange = rowIndex >= bounds.minRow && rowIndex <= bounds.maxRow;
+                    const isInColRange = currentColIndex >= bounds.minCol && currentColIndex <= bounds.maxCol;
+
+                    if (isInRowRange && isInColRange) {
+                      const classes = ['custom-range-selected'];
+                      if (rowIndex === bounds.minRow) classes.push('custom-range-top');
+                      if (rowIndex === bounds.maxRow) classes.push('custom-range-bottom');
+                      if (currentColIndex === bounds.minCol) classes.push('custom-range-left');
+                      if (currentColIndex === bounds.maxCol) classes.push('custom-range-right');
+                      return classes.join(' ');
+                    }
+                    return '';
+                  },
                 }}
+
+                // ⚡ EXCEL-LIKE: Mouse events for drag selection
+                onCellMouseDown={(event) => {
+                  const rowIndex = event.rowIndex;
+                  const colId = event.column?.getColId();
+                  if (rowIndex === null || rowIndex === undefined || !colId) return;
+                  const browserEvent = event.event as MouseEvent;
+                  handleCellMouseDown(rowIndex, colId, browserEvent?.shiftKey || false);
+                }}
+                onCellMouseOver={(event) => {
+                  const rowIndex = event.rowIndex;
+                  const colId = event.column?.getColId();
+                  if (rowIndex === null || rowIndex === undefined || !colId) return;
+                  handleCellMouseOver(rowIndex, colId);
+                }}
+                onCellClicked={(event) => {
+                  const rowIndex = event.rowIndex;
+                  const colId = event.column?.getColId();
+                  if (rowIndex === null || rowIndex === undefined || !colId) return;
+                  const browserEvent = event.event as MouseEvent;
+                  handleCellClick(rowIndex, colId, browserEvent?.shiftKey || false);
+                }}
+
+                // ⚡ SMOOTH SCROLL: Detect user manual scroll
+                onBodyScroll={(event) => {
+                  if (!isAutoScrollingRef.current) {
+                    const currentScrollTop = event.top;
+                    const scrollDelta = Math.abs(currentScrollTop - lastGridScrollTopRef.current);
+                    if (scrollDelta > 10) {
+                      userScrolledRef.current = true;
+                      if (userScrollTimeoutRef.current) window.clearTimeout(userScrollTimeoutRef.current);
+                      userScrollTimeoutRef.current = window.setTimeout(() => {
+                        userScrolledRef.current = false;
+                      }, 1500);
+                      lastGridScrollTopRef.current = currentScrollTop;
+                    }
+                  }
+                }}
+
                 stopEditingWhenCellsLoseFocus={true}
                 enterNavigatesVertically={true}
                 enterNavigatesVerticallyAfterEdit={true}
                 navigateToNextCell={navigateToNextCell}
                 ensureDomOrder={true}
                 suppressMovableColumns={true}
-                rowBuffer={5}
+                // ⚡ PERFORMANCE: Optimizations
+                rowBuffer={20}
+                animateRows={false}
+                suppressScrollOnNewData={true}
+                debounceVerticalScrollbar={true}
+                suppressPropertyNamesCheck={true}
+                valueCache={true}
                 //theme="legacy"
                 className="ag-theme-quartz"
                 containerStyle={{ height: '100%', width: '100%' }}

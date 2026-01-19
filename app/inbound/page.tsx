@@ -1690,8 +1690,49 @@ export default function InboundPage() {
 
   // ⚡ Keep a ref in sync with selectedRange for use in cellStyle callback
   const selectedRangeRef = useRef<typeof selectedRange>(null);
+
+  // ⚡ PERFORMANCE: Cache computed selection bounds to avoid recalculating for every cell
+  const selectionBoundsRef = useRef<{
+    minRow: number;
+    maxRow: number;
+    minCol: number;
+    maxCol: number;
+    startCol: string;
+    endCol: string;
+    colIndexMap: Map<string, number>;
+  } | null>(null);
+
   useEffect(() => {
     selectedRangeRef.current = selectedRange;
+
+    // Pre-compute selection bounds when selection changes
+    if (selectedRange && gridRef.current) {
+      const api = gridRef.current;
+      const allColumns = api.getAllDisplayedColumns?.() || [];
+      const colIndexMap = new Map<string, number>();
+      allColumns.forEach((c: any, idx: number) => {
+        colIndexMap.set(c.getColId(), idx);
+      });
+
+      const startColIndex = colIndexMap.get(selectedRange.startCol) ?? -1;
+      const endColIndex = colIndexMap.get(selectedRange.endCol) ?? -1;
+
+      if (startColIndex !== -1 && endColIndex !== -1) {
+        selectionBoundsRef.current = {
+          minRow: Math.min(selectedRange.startRow, selectedRange.endRow),
+          maxRow: Math.max(selectedRange.startRow, selectedRange.endRow),
+          minCol: Math.min(startColIndex, endColIndex),
+          maxCol: Math.max(startColIndex, endColIndex),
+          startCol: selectedRange.startCol,
+          endCol: selectedRange.endCol,
+          colIndexMap,
+        };
+      } else {
+        selectionBoundsRef.current = null;
+      }
+    } else {
+      selectionBoundsRef.current = null;
+    }
   }, [selectedRange]);
 
   // ✅ EXCEL ENHANCEMENT: Fill Down (Ctrl+D) - copy value from FIRST selected cell to all cells below
@@ -1834,32 +1875,45 @@ export default function InboundPage() {
     const { rowIndex, column } = focusedCell;
     const colId = column.getColId();
 
-    if (!EDITABLE_COLUMNS.includes(colId)) {
-      toast('Cannot clear this column', { icon: '⚠️', duration: 1500 });
-      return;
-    }
-
-    // If we have a selected range, clear all cells in range
+    // If we have a selected range, clear all cells in rectangular range
     if (selectedRange) {
       const startRow = Math.min(selectedRange.startRow, selectedRange.endRow);
       const endRow = Math.max(selectedRange.startRow, selectedRange.endRow);
+
+      // Get column range
+      const allColumns = api.getAllDisplayedColumns() || [];
+      const colIds = allColumns.map((c: any) => c.getColId());
+      const startColIndex = colIds.indexOf(selectedRange.startCol);
+      const endColIndex = colIds.indexOf(selectedRange.endCol);
+
+      if (startColIndex === -1 || endColIndex === -1) return;
+
+      const minCol = Math.min(startColIndex, endColIndex);
+      const maxCol = Math.max(startColIndex, endColIndex);
 
       const newRows = [...multiRows];
       let clearedCount = 0;
 
       for (let r = startRow; r <= endRow; r++) {
-        const oldValue = newRows[r]?.[colId];
-        if (oldValue !== '' && oldValue !== null && oldValue !== undefined) {
-          saveCellUndoAction(r, colId, oldValue, '');
-          newRows[r] = { ...newRows[r], [colId]: '' };
+        for (let c = minCol; c <= maxCol; c++) {
+          const currentColId = colIds[c];
 
-          // Clear master data if clearing WSN
-          if (colId === 'wsn') {
-            ALL_MASTER_COLUMNS.forEach((col) => {
-              newRows[r][col] = null;
-            });
+          // Only clear editable columns
+          if (!EDITABLE_COLUMNS.includes(currentColId)) continue;
+
+          const oldValue = newRows[r]?.[currentColId];
+          if (oldValue !== '' && oldValue !== null && oldValue !== undefined) {
+            saveCellUndoAction(r, currentColId, oldValue, '');
+            newRows[r] = { ...newRows[r], [currentColId]: '' };
+
+            // Clear master data if clearing WSN
+            if (currentColId === 'wsn') {
+              ALL_MASTER_COLUMNS.forEach((col) => {
+                newRows[r][col] = null;
+              });
+            }
+            clearedCount++;
           }
-          clearedCount++;
         }
       }
 
@@ -1870,6 +1924,10 @@ export default function InboundPage() {
     }
 
     // Single cell clear
+    if (!EDITABLE_COLUMNS.includes(colId)) {
+      toast('Cannot clear this column', { icon: '⚠️', duration: 1500 });
+      return;
+    }
     const oldValue = multiRows[rowIndex]?.[colId];
     if (oldValue === '' || oldValue === null || oldValue === undefined) return;
 
@@ -1897,16 +1955,25 @@ export default function InboundPage() {
     const totalRows = api.getDisplayedRowCount();
     if (totalRows === 0) return;
 
+    // Get all editable columns for selection
+    const allColumns = api.getAllDisplayedColumns() || [];
+    const editableColIds = allColumns.map((c: any) => c.getColId()).filter((id: string) => EDITABLE_COLUMNS.includes(id));
+
+    const firstCol = editableColIds[0] || 'wsn';
+    const lastCol = editableColIds[editableColIds.length - 1] || 'wsn';
+
     // Select all rows
     api.selectAll();
 
-    // Set range to all cells
+    // Set range to all editable cells
     setSelectedRange({
       startRow: 0,
       endRow: totalRows - 1,
-      startCol: 'wsn',
-      endCol: 'wsn',
+      startCol: firstCol,
+      endCol: lastCol,
     });
+
+    rangeStartCellRef.current = { rowIndex: 0, colId: firstCol };
 
     toast('All rows selected', { icon: '✓', duration: 1500 });
   }, []);
@@ -2063,11 +2130,15 @@ export default function InboundPage() {
   }, [multiRows.length, selectedRange]);
 
   // ⚡ EXCEL-LIKE: Refresh grid when selection changes to update cell highlighting
+  // Use requestAnimationFrame + refreshCells instead of redrawRows for better performance
   useEffect(() => {
     const api = gridRef.current;
     if (api) {
-      // Force redraw of all cells to apply new styles
-      api.redrawRows();
+      // Use refreshCells with force:true to update styles without full redraw
+      // requestAnimationFrame batches the refresh for better performance
+      requestAnimationFrame(() => {
+        api.refreshCells({ force: true });
+      });
     }
   }, [selectedRange]);
 
@@ -5805,11 +5876,59 @@ export default function InboundPage() {
                       '100%': { backgroundColor: isDarkMode ? '#14532d' : '#dcfce7' },
                     },
 
-                    // Active cell focus
+                    // Active cell focus - ENHANCED for dark mode visibility
                     '& .ag-cell-focus': {
-                      border: '2px solid #10b981 !important',
+                      border: isDarkMode ? '2px solid #22d3ee !important' : '2px solid #10b981 !important',
                       outline: 'none',
-                      boxShadow: '0 0 0 1px rgba(16, 185, 129, 0.3)',
+                      boxShadow: isDarkMode ? '0 0 0 2px rgba(34, 211, 238, 0.4), inset 0 0 8px rgba(34, 211, 238, 0.15)' : '0 0 0 1px rgba(16, 185, 129, 0.3)',
+                      backgroundColor: isDarkMode ? 'rgba(34, 211, 238, 0.12) !important' : 'rgba(16, 185, 129, 0.08) !important',
+                    },
+
+                    // Selected cell (clicked but not editing)
+                    '& .ag-cell.ag-cell-focus:not(.ag-cell-inline-editing)': {
+                      border: isDarkMode ? '2px solid #22d3ee !important' : '2px solid #10b981 !important',
+                      backgroundColor: isDarkMode ? 'rgba(34, 211, 238, 0.15) !important' : 'rgba(16, 185, 129, 0.1) !important',
+                    },
+
+                    // Editing cell - even more prominent
+                    '& .ag-cell-inline-editing': {
+                      border: isDarkMode ? '2px solid #fbbf24 !important' : '2px solid #f59e0b !important',
+                      boxShadow: isDarkMode ? '0 0 0 3px rgba(251, 191, 36, 0.3), inset 0 0 12px rgba(251, 191, 36, 0.1)' : '0 0 0 2px rgba(245, 158, 11, 0.25)',
+                      backgroundColor: isDarkMode ? 'rgba(251, 191, 36, 0.1) !important' : 'rgba(245, 158, 11, 0.08) !important',
+                    },
+
+                    // ⚡ ENHANCED: Custom range selection styles via data attributes
+                    '& .ag-cell[style*="border-top: 3px"]': {
+                      borderTop: isDarkMode ? '3px solid #60a5fa !important' : '3px solid #2563eb !important',
+                    },
+                    '& .ag-cell[style*="border-bottom: 3px"]': {
+                      borderBottom: isDarkMode ? '3px solid #60a5fa !important' : '3px solid #2563eb !important',
+                    },
+                    '& .ag-cell[style*="border-left: 3px"]': {
+                      borderLeft: isDarkMode ? '3px solid #60a5fa !important' : '3px solid #2563eb !important',
+                    },
+                    '& .ag-cell[style*="border-right: 3px"]': {
+                      borderRight: isDarkMode ? '3px solid #60a5fa !important' : '3px solid #2563eb !important',
+                    },
+
+                    // ⚡ EXCEL-LIKE: Custom range selection CSS classes - VERY VISIBLE
+                    '& .custom-range-selected': {
+                      backgroundColor: isDarkMode ? 'rgba(96, 165, 250, 0.4) !important' : 'rgba(37, 99, 235, 0.2) !important',
+                      boxShadow: isDarkMode
+                        ? 'inset 0 0 0 1px rgba(96, 165, 250, 0.7)'
+                        : 'inset 0 0 0 1px rgba(37, 99, 235, 0.5)',
+                    },
+                    '& .custom-range-top': {
+                      borderTop: isDarkMode ? '3px solid #60a5fa !important' : '3px solid #2563eb !important',
+                    },
+                    '& .custom-range-bottom': {
+                      borderBottom: isDarkMode ? '3px solid #60a5fa !important' : '3px solid #2563eb !important',
+                    },
+                    '& .custom-range-left': {
+                      borderLeft: isDarkMode ? '3px solid #60a5fa !important' : '3px solid #2563eb !important',
+                    },
+                    '& .custom-range-right': {
+                      borderRight: isDarkMode ? '3px solid #60a5fa !important' : '3px solid #2563eb !important',
                     },
 
                     // Range selection
@@ -5916,40 +6035,72 @@ export default function InboundPage() {
 
                         return EDITABLE_COLUMNS.includes(field);
                       },
-                      // ⚡ EXCEL-LIKE: Cell style for precise column selection highlighting
+                      // ⚡ EXCEL-LIKE: Cell style for precise rectangular selection highlighting (OPTIMIZED)
+                      // Uses pre-computed selectionBoundsRef for O(1) lookups instead of O(n) column search
                       cellStyle: (params: any) => {
-                        // Use ref to avoid closure issues - always get current selection
-                        const range = selectedRangeRef.current;
-                        if (!range) return undefined;
+                        const bounds = selectionBoundsRef.current;
+                        if (!bounds) return undefined;
 
                         const rowIndex = params.rowIndex;
                         const colId = params.colDef?.field;
                         if (rowIndex === null || rowIndex === undefined || !colId) return undefined;
 
-                        const minRow = Math.min(range.startRow, range.endRow);
-                        const maxRow = Math.max(range.startRow, range.endRow);
-                        const selectedCol = range.startCol;
+                        // Fast O(1) lookup from pre-computed map
+                        const currentColIndex = bounds.colIndexMap.get(colId);
+                        if (currentColIndex === undefined) return undefined;
 
-                        // Only highlight cells in the selected column AND within the row range
-                        if (colId === selectedCol && rowIndex >= minRow && rowIndex <= maxRow) {
+                        // Check if cell is within the rectangular selection range
+                        const isInRowRange = rowIndex >= bounds.minRow && rowIndex <= bounds.maxRow;
+                        const isInColRange = currentColIndex >= bounds.minCol && currentColIndex <= bounds.maxCol;
+
+                        if (isInRowRange && isInColRange) {
+                          const borderColor = isDarkMode ? '#60a5fa' : '#2563eb';
+                          const bgColor = isDarkMode ? 'rgba(96, 165, 250, 0.35)' : 'rgba(37, 99, 235, 0.2)';
+
                           const style: any = {
-                            backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.3)' : '#bfdbfe',
-                            borderLeft: '2px solid #2563eb',
-                            borderRight: '2px solid #2563eb',
+                            backgroundColor: bgColor,
+                            boxShadow: isDarkMode
+                              ? 'inset 0 0 0 1px rgba(96, 165, 250, 0.6)'
+                              : 'inset 0 0 0 1px rgba(37, 99, 235, 0.4)',
                           };
 
-                          // Add border for first and last row
-                          if (rowIndex === minRow) {
-                            style.borderTop = '2px solid #2563eb';
-                          }
-                          if (rowIndex === maxRow) {
-                            style.borderBottom = '2px solid #2563eb';
-                          }
+                          // Add THICK borders for edges of selection
+                          if (rowIndex === bounds.minRow) style.borderTop = `3px solid ${borderColor}`;
+                          if (rowIndex === bounds.maxRow) style.borderBottom = `3px solid ${borderColor}`;
+                          if (currentColIndex === bounds.minCol) style.borderLeft = `3px solid ${borderColor}`;
+                          if (currentColIndex === bounds.maxCol) style.borderRight = `3px solid ${borderColor}`;
 
                           return style;
                         }
 
                         return undefined;
+                      },
+                      // ⚡ EXCEL-LIKE: Add CSS class for selected cells (OPTIMIZED)
+                      cellClass: (params: any) => {
+                        const bounds = selectionBoundsRef.current;
+                        if (!bounds) return '';
+
+                        const rowIndex = params.rowIndex;
+                        const colId = params.colDef?.field;
+                        if (rowIndex === null || rowIndex === undefined || !colId) return '';
+
+                        // Fast O(1) lookup from pre-computed map
+                        const currentColIndex = bounds.colIndexMap.get(colId);
+                        if (currentColIndex === undefined) return '';
+
+                        const isInRowRange = rowIndex >= bounds.minRow && rowIndex <= bounds.maxRow;
+                        const isInColRange = currentColIndex >= bounds.minCol && currentColIndex <= bounds.maxCol;
+
+                        if (isInRowRange && isInColRange) {
+                          const classes = ['custom-range-selected'];
+                          if (rowIndex === bounds.minRow) classes.push('custom-range-top');
+                          if (rowIndex === bounds.maxRow) classes.push('custom-range-bottom');
+                          if (currentColIndex === bounds.minCol) classes.push('custom-range-left');
+                          if (currentColIndex === bounds.maxCol) classes.push('custom-range-right');
+                          return classes.join(' ');
+                        }
+
+                        return '';
                       },
                     }}
 
@@ -5996,6 +6147,13 @@ export default function InboundPage() {
                     debounceVerticalScrollbar={true}
                     suppressPropertyNamesCheck={true}
                     suppressRowVirtualisation={false}
+                    // ⚡ PERFORMANCE: Extra optimizations for 500+ rows
+                    suppressColumnVirtualisation={false}
+                    suppressCellFocus={false}
+                    asyncTransactionWaitMillis={50}
+                    suppressChangeDetection={false}
+                    valueCache={true}
+                    valueCacheNeverExpires={false}
 
                     // ⚡ EXCEL-LIKE: Handle cell mouse down for drag selection start
                     onCellMouseDown={(event) => {
