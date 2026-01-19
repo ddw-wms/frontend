@@ -1528,6 +1528,26 @@ export default function MasterDataPage() {
                           }}
                         />
 
+                        {/* Desktop Refresh (visible md+) */}
+                        <Button
+                          variant="outlined"
+                          onClick={() => loadMasterData({ buttonRefresh: true })}
+                          disabled={refreshing}
+                          startIcon={refreshing ? <CircularProgress size={14} /> : refreshSuccess ? <CheckCircle sx={{ color: '#10b981' }} /> : <RefreshIcon sx={{ fontSize: '0.95rem' }} />}
+                          sx={{
+                            display: { xs: 'none', md: 'inline-flex' },
+                            minWidth: 110,
+                            height: 38,
+                            borderWidth: 2,
+                            borderColor: '#3b82f6',
+                            color: '#3b82f6',
+                            fontWeight: 700,
+                            '&:hover': { bgcolor: 'rgba(59,130,246,0.08)' }
+                          }}
+                        >
+                          {refreshing ? '...' : refreshSuccess ? '✓' : 'Refresh'}
+                        </Button>
+
                         {/* Mobile Actions button */}
                         <Button
                           variant="contained"
@@ -1546,6 +1566,8 @@ export default function MasterDataPage() {
                         >
                           Actions
                         </Button>
+
+
 
                         {/* Show Filters Toggle Button - Desktop */}
                         <Button
@@ -1872,10 +1894,6 @@ export default function MasterDataPage() {
                                 </Button>
 
 
-
-
-
-
                                 {/* Refresh Button */}
                                 <Button
                                   fullWidth
@@ -1885,6 +1903,7 @@ export default function MasterDataPage() {
                                   onClick={() => loadMasterData({ buttonRefresh: true })}
                                   disabled={refreshing}
                                   sx={{
+                                    display: { xs: 'block', md: 'none' },
                                     height: 34,
                                     fontSize: '0.72rem',
                                     fontWeight: 700,
