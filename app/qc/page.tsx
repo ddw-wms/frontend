@@ -1649,6 +1649,37 @@ export default function QCPage() {
     setMultiRows([...multiRows, ...generateEmptyRows(500)]);
   };
 
+  // ⚡ MULTI ENTRY: Export entered data to Excel
+  const exportMultiEntryToExcel = async () => {
+    try {
+      const dataToExport = multiRows.filter((row: any) => row.wsn?.trim());
+      if (dataToExport.length === 0) {
+        toast.error('No data to export');
+        return;
+      }
+      const XLSX = await import('xlsx');
+      const exportData = dataToExport.map((row: any, idx: number) => ({
+        'S.No': idx + 1,
+        'WSN': row.wsn || '',
+        'Product Serial': row.product_serial_number || '',
+        'Rack No': row.rack_no || '',
+        'QC Grade': row.qc_grade || '',
+        'QC Remarks': row.qc_remarks || '',
+        'Other Remarks': row.other_remarks || '',
+        'Brand': row.brand || '',
+        'Category': row.cms_vertical || '',
+        'Model': row.product_title || ''
+      }));
+      const ws = XLSX.utils.json_to_sheet(exportData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Multi QC');
+      XLSX.writeFile(wb, `QC_MultiEntry_${new Date().toISOString().split('T')[0]}_${Date.now()}.xlsx`);
+      toast.success(`✓ Exported ${dataToExport.length} rows`);
+    } catch (error) {
+      toast.error('Export failed');
+    }
+  };
+
   // Column widths matching inbound page
   const COLUMN_WIDTHS: Record<string, any> = {
     // Editable columns
@@ -3748,6 +3779,24 @@ export default function QCPage() {
                             }}
                           >
                             +500 Rows
+                          </Button>
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            startIcon={<DownloadIcon sx={{ fontSize: '0.85rem' }} />}
+                            onClick={exportMultiEntryToExcel}
+                            disabled={!multiRows.some((r: any) => r.wsn?.trim())}
+                            sx={{
+                              fontSize: '0.7rem',
+                              fontWeight: 700,
+                              width: 100,
+                              borderColor: '#10b981',
+                              color: '#10b981',
+                              '&:hover': { bgcolor: 'rgba(16, 185, 129, 0.1)', borderColor: '#10b981' },
+                              '&.Mui-disabled': { borderColor: '#94a3b8', color: '#94a3b8' }
+                            }}
+                          >
+                            Export
                           </Button>
                           <Button
                             size="small"

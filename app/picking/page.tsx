@@ -961,6 +961,35 @@ export default function PickingPage() {
     setMultiRows([...multiRows, ...generateEmptyRows(500)]);
   };
 
+  // ⚡ MULTI ENTRY: Export entered data to Excel
+  const exportMultiEntryToExcel = async () => {
+    try {
+      const dataToExport = multiRows.filter((row: any) => row.wsn?.trim());
+      if (dataToExport.length === 0) {
+        toast.error('No data to export');
+        return;
+      }
+      const XLSX = await import('xlsx');
+      const exportData = dataToExport.map((row: any, idx: number) => ({
+        'S.No': idx + 1,
+        'WSN': row.wsn || '',
+        'Product Serial': row.product_serial_number || '',
+        'Rack No': row.rack_no || '',
+        'Picking Remarks': row.picking_remarks || '',
+        'Brand': row.brand || '',
+        'Category': row.cms_vertical || '',
+        'Model': row.product_title || ''
+      }));
+      const ws = XLSX.utils.json_to_sheet(exportData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Multi Picking');
+      XLSX.writeFile(wb, `Picking_MultiEntry_${new Date().toISOString().split('T')[0]}_${Date.now()}.xlsx`);
+      toast.success(`✓ Exported ${dataToExport.length} rows`);
+    } catch (error) {
+      toast.error('Export failed');
+    }
+  };
+
   // Submit multi entry
   const handleMultiSubmit = async () => {
     const validRows = multiRows.filter(r => r.wsn?.trim());
@@ -2814,6 +2843,7 @@ export default function PickingPage() {
                   {/* RIGHT: Actions */}
                   <Box sx={{ gridColumn: { xs: '2 / span 1', md: '3 / span 1' }, display: 'flex', gap: 0.5, justifyContent: { xs: 'flex-end', md: 'flex-end' }, alignItems: 'center', pt: { xs: 0.5, md: 0 } }}>
                     <Button size="small" variant="outlined" onClick={() => setColumnSettingsOpen(true)} sx={{ fontSize: '0.7rem', fontWeight: 700, px: 0.6, height: { xs: 40, md: 'auto' }, textTransform: 'none', minWidth: { xs: 92, md: 'auto' } }}>⚙️ Columns</Button>
+                    <Button size="small" variant="outlined" startIcon={<DownloadIcon sx={{ fontSize: 14 }} />} onClick={exportMultiEntryToExcel} disabled={!multiRows.some((r: any) => r.wsn?.trim())} sx={{ fontSize: '0.7rem', fontWeight: 700, px: 0.6, height: { xs: 40, md: 'auto' }, minWidth: { xs: 92, md: 'auto' }, borderColor: '#10b981', color: '#10b981', '&:hover': { bgcolor: 'rgba(16, 185, 129, 0.1)', borderColor: '#10b981' }, '&.Mui-disabled': { borderColor: '#94a3b8', color: '#94a3b8' } }}>Export</Button>
                     <Button size="small" variant="contained" onClick={add500Rows} sx={{ fontSize: '0.7rem', fontWeight: 700, background: '#ec4899', px: 0.6, height: { xs: 40, md: 'auto' }, minWidth: { xs: 92, md: 'auto' } }}>+500 Add Rows</Button>
                   </Box>
                 </Box>

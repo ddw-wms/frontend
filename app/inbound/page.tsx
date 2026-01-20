@@ -2497,6 +2497,55 @@ export default function InboundPage() {
     //toast.success('✓ Added 500 rows');
   };
 
+  // Export Multi Entry grid data to Excel
+  const exportMultiEntryToExcel = async () => {
+    // Filter only rows with actual data
+    const dataRows = multiRows.filter(row => row.wsn?.trim() || row.customer_name?.trim() || row.box_id?.trim());
+
+    if (dataRows.length === 0) {
+      toast('⚠️ No data to export', { icon: '⚠️' });
+      return;
+    }
+
+    try {
+      // Dynamic import to reduce bundle size
+      const XLSX = (await import('xlsx')).default;
+
+      // Prepare export data
+      const exportData = dataRows.map((row, idx) => ({
+        'Sr No': idx + 1,
+        'WSN': row.wsn || '',
+        'Customer Name': row.customer_name || '',
+        'Box ID': row.box_id || '',
+        'Inbound Date': row.inbound_date || '',
+        'Vehicle No': row.vehicle_no || '',
+        'Status': row.status || '',
+      }));
+
+      // Create workbook and worksheet
+      const ws = XLSX.utils.json_to_sheet(exportData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Multi Entry Data');
+
+      // Auto-fit column widths
+      const colWidths = Object.keys(exportData[0]).map(key => ({
+        wch: Math.max(key.length, ...exportData.map(row => String((row as any)[key] || '').length)) + 2
+      }));
+      ws['!cols'] = colWidths;
+
+      // Generate filename with timestamp
+      const timestamp = new Date().toISOString().slice(0, 19).replace(/[:-]/g, '');
+      const filename = `Inbound_MultiEntry_${timestamp}.xlsx`;
+
+      // Download the file
+      XLSX.writeFile(wb, filename);
+      toast.success(`✅ Exported ${dataRows.length} rows to ${filename}`);
+    } catch (error) {
+      console.error('Export error:', error);
+      toast.error('Failed to export data');
+    }
+  };
+
 
   const checkDuplicates = async (rows: any[]) => {
     const gridDup = new Set<string>();
@@ -5259,14 +5308,15 @@ export default function InboundPage() {
                     flexShrink: 0, // Don't shrink this card
                     mb: { xs: 1, sm: 1.5 }, // Add bottom margin for spacing
                     bgcolor: isDarkMode ? '#1e293b' : 'white',
+                    overflow: 'visible', // Allow content to overflow for scrolling
                   }}
                 >
-                  <CardContent sx={{ p: { xs: 1, sm: 1.5 }, '&:last-child': { pb: { xs: 1, sm: 1.5 } } }}>
+                  <CardContent sx={{ p: { xs: 1, sm: 1.5 }, '&:last-child': { pb: { xs: 1, sm: 1.5 } }, overflow: 'visible' }}>
                     {/* DESKTOP: Side by side layout */}
                     <Box sx={{ display: { xs: 'none', md: 'block' } }}>
                       <Stack
                         direction="row"
-                        spacing={2}
+                        spacing={1.5}
                         sx={{
                           alignItems: 'center',
                           width: '100%'
@@ -5278,7 +5328,7 @@ export default function InboundPage() {
                           spacing={1}
                           sx={{
                             flex: '0 0 auto',
-                            minWidth: 340
+                            minWidth: 280
                           }}
                         >
                           <TextField
@@ -5289,8 +5339,8 @@ export default function InboundPage() {
                             value={commonDate}
                             onChange={(e) => setCommonDate(e.target.value)}
                             sx={{
-                              flex: 1,
-                              '& .MuiInputBase-root': { height: 36 }
+                              width: 140,
+                              '& .MuiInputBase-root': { height: 34 }
                             }}
                           />
                           <TextField
@@ -5299,214 +5349,233 @@ export default function InboundPage() {
                             value={commonVehicle}
                             onChange={(e) => setCommonVehicle(e.target.value)}
                             sx={{
-                              flex: 1,
-                              '& .MuiInputBase-root': { height: 36 }
+                              width: 130,
+                              '& .MuiInputBase-root': { height: 34 }
                             }}
                             placeholder="Auto-fill"
                           />
                         </Stack>
 
-                        {/* RIGHT: Status Chips + Action Buttons */}
-                        <Stack
-                          direction="row"
-                          spacing={1.5}
+                        {/* RIGHT: Action Buttons - Scrollable */}
+                        <Box
                           sx={{
-                            flexWrap: 'wrap',
-                            alignItems: 'center',
-                            justifyContent: 'flex-end',
                             flex: 1,
-                            gap: 0
+                            minWidth: 0,
+                            overflowX: 'auto',
+                            overflowY: 'hidden',
+                            WebkitOverflowScrolling: 'touch',
+                            scrollbarWidth: 'thin',
+                            '&::-webkit-scrollbar': { height: 4 },
+                            '&::-webkit-scrollbar-thumb': { bgcolor: isDarkMode ? '#475569' : '#cbd5e1', borderRadius: 2 },
+                            '&::-webkit-scrollbar-track': { bgcolor: 'transparent' },
                           }}
                         >
-
-                          {/* Action Buttons */}
-                          <Stack direction="row" spacing={0.75} sx={{ flexShrink: 0 }}>
+                          {/* Action Buttons - Consistent Styling */}
+                          <Stack direction="row" spacing={0.75} sx={{ width: 'fit-content', minWidth: 'max-content', alignItems: 'center' }}>
+                            {/* COLUMNS Button */}
                             <Button
                               size="small"
                               variant="outlined"
                               onClick={() => setColumnSettingsOpen(true)}
                               sx={{
                                 fontSize: '0.7rem',
-                                fontWeight: 700,
-                                minWidth: 75,
+                                fontWeight: 600,
                                 height: 32,
+                                minWidth: 'auto',
                                 px: 1.5,
-                                borderColor: '#1e40af',
-                                color: '#1e40af',
-                                '&:hover': {
-                                  borderColor: '#1e40af',
-                                  bgcolor: 'rgba(30, 64, 175, 0.08)'
-                                }
+                                borderRadius: 1,
+                                borderColor: isDarkMode ? '#3b82f6' : '#1e40af',
+                                color: isDarkMode ? '#60a5fa' : '#1e40af',
+                                whiteSpace: 'nowrap',
+                                textTransform: 'none',
+                                '&:hover': { borderColor: '#3b82f6', bgcolor: 'rgba(59, 130, 246, 0.08)' }
                               }}
                             >
-                              COLUMNS
+                              Columns
                             </Button>
+
+                            {/* +500 Add Rows Button */}
                             <Button
                               size="small"
                               variant="contained"
                               onClick={add500Rows}
                               sx={{
                                 fontSize: '0.7rem',
-                                fontWeight: 700,
-                                minWidth: 85,
+                                fontWeight: 600,
                                 height: 32,
+                                minWidth: 'auto',
                                 px: 1.5,
-                                background: '#ec4899',
-                                '&:hover': { background: '#db2777' }
+                                borderRadius: 1,
+                                background: 'linear-gradient(135deg, #3b82f6 0%, #1e40af 100%)',
+                                whiteSpace: 'nowrap',
+                                textTransform: 'none',
+                                boxShadow: 'none',
+                                '&:hover': { background: 'linear-gradient(135deg, #2563eb 0%, #1e3a8a 100%)', boxShadow: 'none' }
                               }}
                             >
-                              +500 Add Rows
+                              +500 Rows
                             </Button>
 
-                            {/* ✅ Multi Entry Grid Settings Button */}
+                            {/* Grid Settings Button */}
                             <Button
-                              type="button"
                               size="small"
                               variant="outlined"
-                              startIcon={<SettingsIcon sx={{ fontSize: '0.85rem' }} />}
+                              startIcon={<SettingsIcon sx={{ fontSize: 14 }} />}
                               onClick={(e) => { e.stopPropagation(); setMultiGridSettingsOpen(true); }}
                               sx={{
                                 fontSize: '0.7rem',
-                                fontWeight: 700,
-                                borderWidth: 2,
+                                fontWeight: 600,
+                                height: 32,
+                                minWidth: 'auto',
+                                px: 1,
+                                borderRadius: 1,
                                 borderColor: '#f59e0b',
                                 color: '#f59e0b',
-                                '&:hover': {
-                                  borderWidth: 2,
-                                  bgcolor: 'rgba(245, 158, 11, 0.1)'
-                                }
+                                whiteSpace: 'nowrap',
+                                textTransform: 'none',
+                                '& .MuiButton-startIcon': { mr: 0.5 },
+                                '&:hover': { borderColor: '#d97706', bgcolor: 'rgba(245, 158, 11, 0.08)' }
                               }}
                             >
                               Grid
                             </Button>
 
+                            {/* Export Button */}
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              onClick={exportMultiEntryToExcel}
+                              sx={{
+                                fontSize: '0.7rem',
+                                fontWeight: 600,
+                                height: 32,
+                                minWidth: 'auto',
+                                px: 1.5,
+                                borderRadius: 1,
+                                borderColor: '#10b981',
+                                color: '#10b981',
+                                whiteSpace: 'nowrap',
+                                textTransform: 'none',
+                                '&:hover': { borderColor: '#059669', bgcolor: 'rgba(16, 185, 129, 0.08)' }
+                              }}
+                            >
+                              Export
+                            </Button>
+
+                            {/* Divider */}
+                            <Box sx={{ width: 1, height: 20, bgcolor: isDarkMode ? '#475569' : '#d1d5db', mx: 0.25 }} />
+
                             {/* Print Toggle */}
                             <Box
+                              onClick={() => setMultiPrintEnabled(!multiPrintEnabled)}
                               sx={{
                                 display: 'flex',
                                 alignItems: 'center',
                                 gap: 0.5,
-                                border: `2px solid ${multiPrintEnabled ? '#16a34a' : '#dc2626'}`,
+                                bgcolor: multiPrintEnabled ? 'rgba(22, 163, 74, 0.1)' : 'rgba(220, 38, 38, 0.1)',
+                                border: `1.5px solid ${multiPrintEnabled ? '#16a34a' : '#dc2626'}`,
                                 borderRadius: 1,
                                 px: 1,
-                                py: 0.25,
-                                height: 32
+                                height: 32,
+                                cursor: 'pointer',
+                                '&:hover': { opacity: 0.85 }
                               }}
                             >
-                              <Typography
-                                variant="caption"
-                                sx={{
-                                  color: multiPrintEnabled ? '#16a34a' : '#dc2626',
-                                  fontWeight: 700,
-                                  fontSize: '0.7rem'
-                                }}
-                              >
-                                🖨️ {multiPrintEnabled ? 'ON' : 'OFF'}
+                              <Typography sx={{ fontSize: '0.85rem', lineHeight: 1 }}>🖨️</Typography>
+                              <Typography sx={{ color: multiPrintEnabled ? '#16a34a' : '#dc2626', fontWeight: 700, fontSize: '0.65rem' }}>
+                                {multiPrintEnabled ? 'ON' : 'OFF'}
                               </Typography>
                               <Switch
                                 size="small"
                                 checked={multiPrintEnabled}
-                                onChange={(e) => setMultiPrintEnabled(e.target.checked)}
+                                onChange={(e) => { e.stopPropagation(); setMultiPrintEnabled(e.target.checked); }}
                                 sx={{
-                                  transform: 'scale(0.8)',
+                                  width: 32, height: 18, p: 0,
+                                  '& .MuiSwitch-switchBase': { p: '2px' },
+                                  '& .MuiSwitch-thumb': { width: 14, height: 14 },
                                   '& .MuiSwitch-switchBase.Mui-checked': { color: '#16a34a' },
-                                  '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { backgroundColor: '#16a34a' },
+                                  '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { bgcolor: '#16a34a' },
                                 }}
                               />
                             </Box>
 
-                            {/* Ctrl+P Reprint Toggle */}
+                            {/* Ctrl+P Toggle */}
                             <Tooltip title="Ctrl+P: Reprint last scanned WSN label" placement="top">
                               <Box
+                                onClick={() => setCtrlPPrintEnabled(!ctrlPPrintEnabled)}
                                 sx={{
                                   display: 'flex',
                                   alignItems: 'center',
                                   gap: 0.5,
-                                  border: `2px solid ${ctrlPPrintEnabled ? '#2563eb' : '#9ca3af'}`,
+                                  bgcolor: ctrlPPrintEnabled ? 'rgba(37, 99, 235, 0.1)' : isDarkMode ? 'rgba(100, 116, 139, 0.2)' : 'rgba(156, 163, 175, 0.1)',
+                                  border: `1.5px solid ${ctrlPPrintEnabled ? '#2563eb' : isDarkMode ? '#64748b' : '#9ca3af'}`,
                                   borderRadius: 1,
                                   px: 1,
-                                  py: 0.25,
                                   height: 32,
                                   cursor: 'pointer',
-                                  '&:hover': {
-                                    bgcolor: ctrlPPrintEnabled ? 'rgba(37, 99, 235, 0.08)' : 'rgba(156, 163, 175, 0.08)'
-                                  }
+                                  '&:hover': { opacity: 0.85 }
                                 }}
-                                onClick={() => setCtrlPPrintEnabled(!ctrlPPrintEnabled)}
                               >
-                                <Typography
-                                  variant="caption"
-                                  sx={{
-                                    color: ctrlPPrintEnabled ? '#2563eb' : '#9ca3af',
-                                    fontWeight: 700,
-                                    fontSize: '0.65rem'
-                                  }}
-                                >
+                                <Typography sx={{ color: ctrlPPrintEnabled ? '#2563eb' : isDarkMode ? '#94a3b8' : '#6b7280', fontWeight: 700, fontSize: '0.65rem', whiteSpace: 'nowrap' }}>
                                   Ctrl+P {ctrlPPrintEnabled ? 'ON' : 'OFF'}
                                 </Typography>
                                 <Switch
                                   size="small"
                                   checked={ctrlPPrintEnabled}
-                                  onChange={(e) => setCtrlPPrintEnabled(e.target.checked)}
+                                  onChange={(e) => { e.stopPropagation(); setCtrlPPrintEnabled(e.target.checked); }}
                                   sx={{
-                                    transform: 'scale(0.7)',
+                                    width: 32, height: 18, p: 0,
+                                    '& .MuiSwitch-switchBase': { p: '2px' },
+                                    '& .MuiSwitch-thumb': { width: 14, height: 14 },
                                     '& .MuiSwitch-switchBase.Mui-checked': { color: '#2563eb' },
-                                    '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { backgroundColor: '#2563eb' },
+                                    '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { bgcolor: '#2563eb' },
                                   }}
                                 />
                               </Box>
                             </Tooltip>
 
-                            {/* Cache Status Indicator */}
+                            {/* Divider */}
+                            <Box sx={{ width: 1, height: 20, bgcolor: isDarkMode ? '#475569' : '#d1d5db', mx: 0.25 }} />
+
+                            {/* Cache Status Chip */}
                             <Chip
                               size="small"
                               onClick={() => setBatchSelectorOpen(true)}
+                              icon={<Box sx={{ fontSize: '0.75rem', ml: 0.25 }}>{batchCacheLoading || cacheLoading ? '🔄' : selectedBatchIds.length > 0 ? '📦' : '✅'}</Box>}
                               label={
                                 batchCacheLoading
-                                  ? `🔄 ${batchCacheProgress?.message || 'Loading...'}`
+                                  ? 'Loading...'
                                   : selectedBatchIds.length > 0
-                                    ? `📦 ${selectedBatchIds.length} batch (${cacheStats?.totalRecords?.toLocaleString() || 0})`
+                                    ? `${selectedBatchIds.length} batch`
                                     : cacheLoading
-                                      ? '🔄 Syncing...'
+                                      ? 'Syncing...'
                                       : cacheStats
-                                        ? `✅ ${cacheStats.totalRecords.toLocaleString()} WSN`
-                                        : '⏳ Loading...'
+                                        ? `${cacheStats.totalRecords.toLocaleString()} WSN`
+                                        : 'Loading...'
                               }
                               sx={{
-                                height: 28,
+                                height: 32,
+                                borderRadius: 1,
                                 fontSize: '0.65rem',
                                 fontWeight: 600,
                                 cursor: 'pointer',
                                 bgcolor: selectedBatchIds.length > 0
-                                  ? 'rgba(139, 92, 246, 0.1)'
+                                  ? 'rgba(139, 92, 246, 0.12)'
                                   : batchCacheLoading || cacheLoading
-                                    ? 'rgba(59, 130, 246, 0.1)'
-                                    : cacheStats && cacheStats.totalRecords > 0
-                                      ? 'rgba(16, 185, 129, 0.1)'
-                                      : 'rgba(156, 163, 175, 0.1)',
+                                    ? 'rgba(59, 130, 246, 0.12)'
+                                    : 'rgba(16, 185, 129, 0.12)',
                                 color: selectedBatchIds.length > 0
                                   ? '#8b5cf6'
                                   : batchCacheLoading || cacheLoading
                                     ? '#3b82f6'
-                                    : cacheStats && cacheStats.totalRecords > 0
-                                      ? '#10b981'
-                                      : '#6b7280',
-                                border: `1px solid ${selectedBatchIds.length > 0
-                                  ? '#8b5cf6'
-                                  : batchCacheLoading || cacheLoading
-                                    ? '#3b82f6'
-                                    : cacheStats && cacheStats.totalRecords > 0
-                                      ? '#10b981'
-                                      : '#9ca3af'}`,
-                                '&:hover': {
-                                  bgcolor: selectedBatchIds.length > 0
-                                    ? 'rgba(139, 92, 246, 0.2)'
-                                    : 'rgba(16, 185, 129, 0.2)',
-                                }
+                                    : '#10b981',
+                                border: `1.5px solid ${selectedBatchIds.length > 0 ? '#8b5cf6' : batchCacheLoading || cacheLoading ? '#3b82f6' : '#10b981'}`,
+                                '& .MuiChip-icon': { color: 'inherit' },
+                                '&:hover': { opacity: 0.85 }
                               }}
                             />
                           </Stack>
-                        </Stack>
+                        </Box>
                       </Stack>
                     </Box>
 
@@ -5552,19 +5621,25 @@ export default function InboundPage() {
                           />
                         </Stack>
 
-                        {/* ROW 2: Status Chips + Action Buttons */}
-                        <Stack
-                          direction="row"
-                          spacing={0.25}
+                        {/* ROW 2: Status Chips + Action Buttons - Horizontally Scrollable */}
+                        <Box
                           sx={{
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            width: '100%'
+                            width: '100%',
+                            maxWidth: '100%',
+                            overflowX: 'scroll',
+                            overflowY: 'hidden',
+                            WebkitOverflowScrolling: 'touch',
+                            scrollbarWidth: 'thin',
+                            '&::-webkit-scrollbar': { height: 6 },
+                            '&::-webkit-scrollbar-thumb': { bgcolor: '#94a3b8', borderRadius: 3 },
+                            '&::-webkit-scrollbar-track': { bgcolor: isDarkMode ? '#334155' : '#e2e8f0', borderRadius: 3 },
+                            pb: 0.5,
+                            mx: -1, // Negative margin to extend scroll area
+                            px: 1,  // Padding to compensate
                           }}
                         >
-
                           {/* Action Buttons */}
-                          <Stack direction="row" spacing={1.50} sx={{ flexShrink: 0 }}>
+                          <Stack direction="row" spacing={1} sx={{ flexShrink: 0, width: 'fit-content', minWidth: 'max-content' }}>
                             <Button
                               size="small"
                               variant="outlined"
@@ -5572,18 +5647,19 @@ export default function InboundPage() {
                               sx={{
                                 fontSize: '0.6rem',
                                 fontWeight: 700,
-                                width: 105,
+                                minWidth: 85,
                                 height: 28,
                                 px: 0.75,
                                 borderColor: '#1e40af',
                                 color: '#1e40af',
+                                whiteSpace: 'nowrap',
                                 '&:hover': {
                                   borderColor: '#1e40af',
                                   bgcolor: 'rgba(30, 64, 175, 0.08)'
                                 }
                               }}
                             >
-                              <SettingsIcon sx={{ fontSize: '0.85rem' }} /> COLUMNS
+                              <SettingsIcon sx={{ fontSize: '0.85rem', mr: 0.25 }} /> COLUMNS
                             </Button>
                             <Button
                               size="small"
@@ -5592,11 +5668,12 @@ export default function InboundPage() {
                               sx={{
                                 fontSize: '0.6rem',
                                 fontWeight: 700,
-                                width: 105,
+                                minWidth: 80,
                                 height: 28,
                                 px: 0.75,
                                 borderColor: '#1e40af',
                                 color: '#1e40af',
+                                whiteSpace: 'nowrap',
                                 '&:hover': {
                                   borderColor: '#1e40af',
                                   bgcolor: 'rgba(30, 64, 175, 0.08)'
@@ -5604,7 +5681,7 @@ export default function InboundPage() {
                               }}
 
                             >
-                              +500 Add Rows
+                              +500 Rows
                             </Button>
                             {/* ✅ Multi Entry Grid Settings Button (Mobile) */}
                             <Button
@@ -5615,18 +5692,19 @@ export default function InboundPage() {
                               sx={{
                                 fontSize: '0.6rem',
                                 fontWeight: 700,
-                                width: 105,
+                                minWidth: 55,
                                 height: 28,
                                 px: 0.75,
-                                borderColor: '#1e40af',
-                                color: '#1e40af',
+                                borderColor: '#f59e0b',
+                                color: '#f59e0b',
+                                whiteSpace: 'nowrap',
                                 '&:hover': {
-                                  borderColor: '#1e40af',
-                                  bgcolor: 'rgba(30, 64, 175, 0.08)'
+                                  borderColor: '#f59e0b',
+                                  bgcolor: 'rgba(245, 158, 11, 0.08)'
                                 }
                               }}
                             >
-                              <SettingsIcon sx={{ fontSize: '0.85rem' }} /> Grid
+                              <SettingsIcon sx={{ fontSize: '0.85rem', mr: 0.25 }} /> Grid
                             </Button>
 
                             {/* Print Toggle (Mobile) */}
@@ -5638,10 +5716,11 @@ export default function InboundPage() {
                                 justifyContent: 'center',
                                 border: `2px solid ${multiPrintEnabled ? '#16a34a' : '#dc2626'}`,
                                 borderRadius: 1,
-                                px: 1,
+                                px: 0.75,
                                 height: 28,
-                                minWidth: 65,
+                                minWidth: 55,
                                 cursor: 'pointer',
+                                flexShrink: 0,
                                 '&:hover': { opacity: 0.8 }
                               }}
                             >
@@ -5650,7 +5729,8 @@ export default function InboundPage() {
                                 sx={{
                                   color: multiPrintEnabled ? '#16a34a' : '#dc2626',
                                   fontWeight: 700,
-                                  fontSize: '0.6rem'
+                                  fontSize: '0.6rem',
+                                  whiteSpace: 'nowrap'
                                 }}
                               >
                                 🖨️ {multiPrintEnabled ? 'ON' : 'OFF'}
@@ -5668,7 +5748,8 @@ export default function InboundPage() {
                                 borderRadius: 1,
                                 px: 0.75,
                                 height: 28,
-                                minWidth: 55,
+                                minWidth: 50,
+                                flexShrink: 0,
                                 cursor: 'pointer',
                                 '&:hover': { opacity: 0.8 }
                               }}
@@ -5703,6 +5784,7 @@ export default function InboundPage() {
                                 fontSize: '0.55rem',
                                 fontWeight: 600,
                                 minWidth: 40,
+                                flexShrink: 0,
                                 cursor: 'pointer',
                                 bgcolor: selectedBatchIds.length > 0
                                   ? 'rgba(139, 92, 246, 0.1)'
@@ -5772,6 +5854,7 @@ export default function InboundPage() {
                                   width: 32,
                                   height: 28,
                                   px: 0,
+                                  flexShrink: 0,
                                   borderColor: '#10b981',
                                   color: '#10b981',
                                   '&:hover': {
@@ -5785,7 +5868,7 @@ export default function InboundPage() {
                             </Tooltip>
 
                           </Stack>
-                        </Stack>
+                        </Box>
                       </Stack>
                     </Box>
                   </CardContent>

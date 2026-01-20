@@ -290,6 +290,35 @@ export default function OutboundPage() {
         setMultiRows(prev => [...prev, ...generateEmptyRows(500)]);
     };
 
+    // ⚡ MULTI ENTRY: Export entered data to Excel
+    const exportMultiEntryToExcel = async () => {
+        try {
+            const dataToExport = multiRows.filter((row: any) => row.wsn?.trim());
+            if (dataToExport.length === 0) {
+                toast.error('No data to export');
+                return;
+            }
+            const XLSX = await import('xlsx');
+            const exportData = dataToExport.map((row: any, idx: number) => ({
+                'S.No': idx + 1,
+                'WSN': row.wsn || '',
+                'Dispatch Remarks': row.dispatch_remarks || '',
+                'Other Remarks': row.other_remarks || '',
+                'Quantity': row.quantity || '',
+                'Brand': row.brand || '',
+                'Category': row.cms_vertical || '',
+                'Model': row.product_title || ''
+            }));
+            const ws = XLSX.utils.json_to_sheet(exportData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Multi Outbound');
+            XLSX.writeFile(wb, `Outbound_MultiEntry_${new Date().toISOString().split('T')[0]}_${Date.now()}.xlsx`);
+            toast.success(`✓ Exported ${dataToExport.length} rows`);
+        } catch (error) {
+            toast.error('Export failed');
+        }
+    };
+
     const [multiRows, setMultiRows] = useState<OutboundItem[]>(generateEmptyRows(500));
     const [multiLoading, setMultiLoading] = useState(false);
     //   const [multiResults, setMultiResults] = useState<any[]>([]);
@@ -3625,6 +3654,17 @@ export default function OutboundPage() {
                                             sx={{ height: 32, fontSize: '0.7rem', fontWeight: 600, background: '#ec4899' }}
                                         >
                                             +500 Add Rows
+                                        </Button>
+
+                                        <Button
+                                            size="small"
+                                            variant="outlined"
+                                            startIcon={<DownloadIcon sx={{ fontSize: 14 }} />}
+                                            onClick={exportMultiEntryToExcel}
+                                            disabled={!multiRows.some((r: any) => r.wsn?.trim())}
+                                            sx={{ height: 32, fontSize: '0.7rem', fontWeight: 600, borderColor: '#10b981', color: '#10b981', '&:hover': { bgcolor: 'rgba(16, 185, 129, 0.1)', borderColor: '#10b981' }, '&.Mui-disabled': { borderColor: '#94a3b8', color: '#94a3b8' } }}
+                                        >
+                                            Export
                                         </Button>
 
                                         <Button
