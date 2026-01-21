@@ -1607,50 +1607,17 @@ export default function OutboundPage() {
                     emptyTimerRef.current = null;
                 }
 
-                // If server returned rows, update immediately and keep them as previousData
+                // If server returned rows, update immediately
                 if (data.length > 0) {
-                    // Use a delta update to avoid re-rendering the entire grid and causing blink
+                    // Always use setRowData for pagination to ensure correct rowIndex
+                    setListData(data);
+                    previousDataRef.current = data;
                     try {
-                        const api = gridRef.current?.api;
-                        const getId = (row: any) => row?.wsn || row?.wid || row?.id || String(row?.__tempIndex || Math.random());
-
-                        if (api && previousDataRef.current && previousDataRef.current.length > 0) {
-                            const prevMap = new Map(previousDataRef.current.map((r: any) => [getId(r), r]));
-                            const newMap = new Map(data.map((r: any) => [getId(r), r]));
-
-                            const toRemove: any[] = [];
-                            const toAdd: any[] = [];
-                            const toUpdate: any[] = [];
-
-                            prevMap.forEach((row: any, id: any) => {
-                                if (!newMap.has(id)) toRemove.push(row);
-                            });
-
-                            newMap.forEach((row: any, id: any) => {
-                                if (!prevMap.has(id)) toAdd.push(row);
-                                else {
-                                    const prevRow = prevMap.get(id);
-                                    // shallow compare - update if changed
-                                    if (JSON.stringify(prevRow) !== JSON.stringify(row)) toUpdate.push(row);
-                                }
-                            });
-
-                            if (toRemove.length || toAdd.length || toUpdate.length) {
-                                try { api.applyTransaction({ remove: toRemove, add: toAdd, update: toUpdate }); } catch (e) { api.setRowData(data); }
-                            }
-                        } else {
-                            // no previous data - set directly
-                            if (api && typeof (api as any).setRowData === 'function') (api as any).setRowData(data);
+                        const api = gridRef.current?.api || gridRef.current;
+                        if (api && typeof api.setRowData === 'function') {
+                            api.setRowData(data);
                         }
-
-                        setListData(data);
-                        previousDataRef.current = data;
-                    } catch (err) {
-                        // fallback
-                        setListData(data);
-                        previousDataRef.current = data;
-                        try { gridRef.current?.api?.setRowData(data); } catch { }
-                    }
+                    } catch (err) { /* ignore */ }
                 } else {
                     // Server returned zero rows - delay clearing previous rows to avoid flicker
                     emptyTimerRef.current = setTimeout(() => {
@@ -1659,8 +1626,9 @@ export default function OutboundPage() {
                             setListData([]);
                             previousDataRef.current = [];
                             try {
-                                if (gridRef.current && typeof (gridRef.current as any).setRowData === 'function') {
-                                    (gridRef.current as any).setRowData([]);
+                                const api = gridRef.current?.api || gridRef.current;
+                                if (api && typeof api.setRowData === 'function') {
+                                    api.setRowData([]);
                                 }
                             } catch (err) { /* ignore */ }
                         }
