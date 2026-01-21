@@ -361,8 +361,9 @@ export default function OutboundPage() {
 
     // ====== OUTBOUND LIST STATE ======
     const [listData, setListData] = useState<OutboundItem[]>([]);
-    const [listLoading, setListLoading] = useState(false);
-    const [isFetching, setIsFetching] = useState(false);
+    const [listLoading, setListLoading] = useState(true); // Start with loading=true to prevent flash
+    const [isFetching, setIsFetching] = useState(true); // Start with fetching=true
+    const [initialLoadDone, setInitialLoadDone] = useState(false); // Track if first load completed
     const [refreshing, setRefreshing] = useState(false);
     const [refreshSuccess, setRefreshSuccess] = useState(false);
     const [page, setPage] = useState(1);
@@ -1545,12 +1546,12 @@ export default function OutboundPage() {
         const loadId = currentLoadIdRef.current;
 
         const { buttonRefresh } = opts;
-        if (buttonRefresh) setRefreshing(true);
-
-        // If we have no data yet, show full loader; otherwise show a delayed overlay to avoid flicker
-        if (!listData || listData.length === 0) {
-            setListLoading(true);
+        if (buttonRefresh) {
+            setRefreshing(true);
         } else {
+            // Always show loading spinner immediately for smooth UX (like inbound page)
+            setListLoading(true);
+            // Start a delayed overlay timer to avoid flicker for fast responses
             if (overlayTimerRef.current) clearTimeout(overlayTimerRef.current);
             overlayShownRef.current = false;
             overlayStartRef.current = null;
@@ -1732,6 +1733,9 @@ export default function OutboundPage() {
                 // Reset retry counter on success
                 listRetryCountRef.current = 0;
 
+                // Mark initial load as complete
+                setInitialLoadDone(true);
+
                 if (buttonRefresh) {
                     setRefreshSuccess(true);
                     toast.success('List refreshed');
@@ -1822,6 +1826,9 @@ export default function OutboundPage() {
                 // Clear both loaders to avoid stuck spinner in empty-list + refresh cases
                 try { setRefreshing(false); } catch { }
                 try { setListLoading(false); } catch { }
+
+                // Mark initial load as done (even if it failed, we've attempted a load)
+                setInitialLoadDone(true);
 
                 // Clear fetching flag for latest request
                 setIsFetching(false);
@@ -2235,7 +2242,6 @@ export default function OutboundPage() {
                     tabs={visibleTabs}
                     color="#1e40af"
                 />
-
 
 
                 {/* TAB: OUTBOUND LIST */}
@@ -2685,8 +2691,8 @@ export default function OutboundPage() {
                                 </Box>
                             )}
 
-                            {/* Empty State Overlay */}
-                            {!listLoading && (!listData || listData.length === 0) && (
+                            {/* Empty State Overlay - Only show when NOT loading AND NOT fetching AND initial load is done */}
+                            {!listLoading && !isFetching && initialLoadDone && (!listData || listData.length === 0) && (
                                 <Box sx={{
                                     position: 'absolute',
                                     top: 60,
@@ -2797,13 +2803,15 @@ export default function OutboundPage() {
                                             rowSelection={{ mode: 'singleRow', checkboxes: false, enableClickSelection: true }}
                                             loading={false}
                                             suppressNoRowsOverlay={true}
+                                            suppressScrollOnNewData={true}
+                                            maintainColumnOrder={true}
                                             enableCellTextSelection={true}
                                             ensureDomOrder={true}
                                             animateRows={false}
                                             gridOptions={{ getRowId: (params: any) => String(params.data?.wsn || params.data?.wid || params.data?.id || params.rowIndex), suppressRowTransform: true }}
                                             onGridReady={(params: any) => {
                                                 gridRef.current = params.api;
-                                                columnApiRef.current = params.columnApi;
+                                                columnApiRef.current = params.api;
                                                 try {
                                                     const savedState = localStorage.getItem('outbound_columnState');
                                                     if (savedState && params.api) {
@@ -2813,11 +2821,18 @@ export default function OutboundPage() {
                                                 } catch { /* ignore */ }
                                             }}
                                             onFirstDataRendered={(params: any) => {
+                                                // Only auto-size columns on first ever load, not on pagination
                                                 if (!hasAutoFittedRef.current && params.api) {
                                                     try {
-                                                        const allColIds = params.api.getColumns()?.map((col: any) => col.getColId()) || [];
-                                                        if (allColIds.length > 0) {
-                                                            params.api.autoSizeColumns(allColIds);
+                                                        // Check if we have saved state - if yes, apply it instead of auto-sizing
+                                                        const savedState = localStorage.getItem('outbound_columnState');
+                                                        if (savedState) {
+                                                            params.api.applyColumnState({ state: JSON.parse(savedState), applyOrder: true });
+                                                        } else {
+                                                            const allColIds = params.api.getColumns()?.map((col: any) => col.getColId()) || [];
+                                                            if (allColIds.length > 0) {
+                                                                params.api.autoSizeColumns(allColIds);
+                                                            }
                                                         }
                                                         hasAutoFittedRef.current = true;
                                                     } catch { /* ignore */ }
@@ -2844,19 +2859,166 @@ export default function OutboundPage() {
                             </Box>
                         </Box>
 
-                        {/* PAGINATION */}
-                        <Paper sx={{ p: 1, mt: 1, borderRadius: 1.5, boxShadow: isDarkMode ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.06)', background: isDarkMode ? 'rgba(30, 41, 59, 0.98)' : 'rgba(255, 255, 255, 0.98)' }}>
-                            <Stack direction="row" justifyContent="space-between" alignItems="center">
-                                <Typography variant="caption" sx={{ fontWeight: 600, color: '#64748b', fontSize: '0.7rem' }}>
-                                    Showing {(page - 1) * limit + 1} - {Math.min(page * limit, total)} of {total}
+                        {/* PAGINATION (Dashboard Style) */}
+                        <Box
+                            sx={{
+                                px: { xs: 1, sm: 2 },
+                                py: { xs: 0.75, sm: 0.5 },
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                                borderTop: isDarkMode ? "1px solid rgba(255,255,255,0.1)" : "1px solid #ddd",
+                                bgcolor: isDarkMode ? '#1e293b' : "white",
+                                flexShrink: 0,
+                                minHeight: { xs: 44, sm: 48 },
+                                gap: { xs: 0.5, sm: 1 },
+                                mt: 1,
+                                borderRadius: 1,
+                            }}
+                        >
+                            {/* Per Page */}
+                            <Stack direction="row" spacing={{ xs: 0.5, sm: 1 }} alignItems="center">
+                                <Typography sx={{ fontSize: { xs: "0.7rem", sm: "0.78rem" }, whiteSpace: "nowrap", color: isDarkMode ? '#94a3b8' : 'inherit' }}>
+                                    Per page:
                                 </Typography>
-                                <Stack direction="row" spacing={1} alignItems="center">
-                                    <Button size="small" variant="outlined" disabled={page === 1} onClick={() => setPage(page - 1)} sx={{ minWidth: 60, height: 32, fontSize: '0.7rem', fontWeight: 600 }}>PREV</Button>
-                                    <Typography variant="body2" sx={{ fontWeight: 600, color: '#475569', fontSize: '0.75rem' }}>Page {page} of {Math.ceil(total / limit) || 1}</Typography>
-                                    <Button size="small" variant="outlined" disabled={page >= Math.ceil(total / limit)} onClick={() => setPage(page + 1)} sx={{ minWidth: 60, height: 32, fontSize: '0.7rem', fontWeight: 600 }}>NEXT</Button>
-                                </Stack>
+                                <Select
+                                    size="small"
+                                    value={limit}
+                                    onChange={(e) => {
+                                        setLimit(Number(e.target.value));
+                                        setPage(1);
+                                    }}
+                                    sx={{
+                                        minWidth: { xs: 58, sm: 70 },
+                                        '& .MuiSelect-select': {
+                                            py: { xs: 0.5, sm: 0.75 },
+                                            fontSize: { xs: '0.75rem', sm: '0.875rem' },
+                                        },
+                                        color: isDarkMode ? '#e2e8f0' : 'inherit',
+                                        backgroundColor: isDarkMode ? '#334155' : 'transparent',
+                                        '& .MuiOutlinedInput-notchedOutline': {
+                                            borderColor: isDarkMode ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.23)'
+                                        },
+                                        '&:hover .MuiOutlinedInput-notchedOutline': {
+                                            borderColor: isDarkMode ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.87)'
+                                        },
+                                        '& .MuiSvgIcon-root': {
+                                            color: isDarkMode ? '#e2e8f0' : 'inherit'
+                                        }
+                                    }}
+                                    MenuProps={{
+                                        disableScrollLock: true,
+                                        PaperProps: {
+                                            sx: {
+                                                bgcolor: isDarkMode ? '#334155' : 'white',
+                                                color: isDarkMode ? '#e2e8f0' : 'inherit',
+                                                '& .MuiMenuItem-root': {
+                                                    '&:hover': {
+                                                        bgcolor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.04)'
+                                                    },
+                                                    '&.Mui-selected': {
+                                                        bgcolor: isDarkMode ? 'rgba(59, 130, 246, 0.3)' : 'rgba(25, 118, 210, 0.08)',
+                                                        '&:hover': {
+                                                            bgcolor: isDarkMode ? 'rgba(59, 130, 246, 0.4)' : 'rgba(25, 118, 210, 0.12)'
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }}
+                                >
+                                    <MenuItem value={50}>50</MenuItem>
+                                    <MenuItem value={100}>100</MenuItem>
+                                    <MenuItem value={500}>500</MenuItem>
+                                    <MenuItem value={1000}>1000</MenuItem>
+                                </Select>
                             </Stack>
-                        </Paper>
+
+                            {/* Count */}
+                            <Typography
+                                sx={{
+                                    fontSize: { xs: "0.7rem", sm: "0.78rem" },
+                                    whiteSpace: "nowrap",
+                                    color: isDarkMode ? '#94a3b8' : 'inherit',
+                                }}
+                            >
+                                {listData.length > 0 ? (page - 1) * limit + 1 : 0} – {Math.min(page * limit, total)} of {total}
+                            </Typography>
+
+                            {/* Pagination Controls */}
+                            {isMobile ? (
+                                <Stack direction="row" spacing={0.5} alignItems="center">
+                                    <Button
+                                        size="small"
+                                        disabled={page === 1}
+                                        onClick={() => setPage(page - 1)}
+                                        sx={{
+                                            minWidth: { xs: 40, sm: 64 },
+                                            px: { xs: 0.5, sm: 2 },
+                                            fontSize: { xs: '0.7rem', sm: '0.875rem' },
+                                        }}
+                                    >
+                                        Prev
+                                    </Button>
+                                    <Typography sx={{ fontSize: { xs: "0.75rem", sm: "0.85rem" }, fontWeight: 600, minWidth: 40, textAlign: 'center' }}>
+                                        {page} / {Math.ceil(total / limit) || 1}
+                                    </Typography>
+                                    <Button
+                                        size="small"
+                                        disabled={page >= Math.ceil(total / limit)}
+                                        onClick={() => setPage(page + 1)}
+                                        sx={{
+                                            minWidth: { xs: 40, sm: 64 },
+                                            px: { xs: 0.5, sm: 2 },
+                                            fontSize: { xs: '0.7rem', sm: '0.875rem' },
+                                        }}
+                                    >
+                                        Next
+                                    </Button>
+                                </Stack>
+                            ) : (
+                                <Stack direction="row" spacing={0.5} alignItems="center">
+                                    <Button
+                                        size="small"
+                                        variant="outlined"
+                                        disabled={page === 1}
+                                        onClick={() => setPage(page - 1)}
+                                        sx={{ minWidth: 64, fontSize: '0.75rem', fontWeight: 600 }}
+                                    >
+                                        ◀ Prev
+                                    </Button>
+                                    <Box sx={{
+                                        px: 1.5,
+                                        py: 0.4,
+                                        border: isDarkMode ? '2px solid #8b5cf6' : '2px solid #6b21a8',
+                                        borderRadius: 1,
+                                        background: isDarkMode
+                                            ? 'linear-gradient(135deg, rgba(139, 92, 246, 0.2) 0%, rgba(107, 33, 168, 0.2) 100%)'
+                                            : 'linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(107, 33, 168, 0.1) 100%)',
+                                        minWidth: 60,
+                                        textAlign: 'center'
+                                    }}>
+                                        <Typography sx={{
+                                            fontWeight: 800,
+                                            color: isDarkMode ? '#a78bfa' : '#6b21a8',
+                                            fontSize: '0.75rem',
+                                            lineHeight: 1.1
+                                        }}>
+                                            {page}/{Math.ceil(total / limit) || 1}
+                                        </Typography>
+                                    </Box>
+                                    <Button
+                                        size="small"
+                                        variant="outlined"
+                                        disabled={page >= Math.ceil(total / limit)}
+                                        onClick={() => setPage(page + 1)}
+                                        sx={{ minWidth: 64, fontSize: '0.75rem', fontWeight: 600 }}
+                                    >
+                                        Next ▶
+                                    </Button>
+                                </Stack>
+                            )}
+                        </Box>
 
                         {/* List Column Settings Dialog */}
                         <Dialog open={listColumnSettingsOpen} onClose={() => setListColumnSettingsOpen(false)} maxWidth="sm" fullWidth>

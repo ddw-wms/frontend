@@ -2689,13 +2689,15 @@ export default function QCPage() {
                         rowSelection={{ mode: 'singleRow', checkboxes: false, enableClickSelection: true }}
                         loading={false}
                         suppressNoRowsOverlay={true}
+                        suppressScrollOnNewData={true}
+                        maintainColumnOrder={true}
                         enableCellTextSelection={true}
                         ensureDomOrder={true}
                         animateRows={false}
                         gridOptions={{ getRowId: (params: any) => String(params.data?.id || params.data?.wsn || params.rowIndex), suppressRowTransform: true }}
                         onGridReady={(params: any) => {
                           gridRef.current = params.api;
-                          columnApiRef.current = params.columnApi;
+                          columnApiRef.current = params.api;
                           try {
                             const savedState = localStorage.getItem('qc_columnState');
                             if (savedState && params.api) {
@@ -2705,11 +2707,18 @@ export default function QCPage() {
                           } catch { /* ignore */ }
                         }}
                         onFirstDataRendered={(params: any) => {
+                          // Only auto-size columns on first ever load, not on pagination
                           if (!hasAutoFittedRef.current && params.api) {
                             try {
-                              const allColIds = params.api.getColumns()?.map((col: any) => col.getColId()) || [];
-                              if (allColIds.length > 0) {
-                                params.api.autoSizeColumns(allColIds);
+                              // Check if we have saved state - if yes, apply it instead of auto-sizing
+                              const savedState = localStorage.getItem('qc_columnState');
+                              if (savedState) {
+                                params.api.applyColumnState({ state: JSON.parse(savedState), applyOrder: true });
+                              } else {
+                                const allColIds = params.api.getColumns()?.map((col: any) => col.getColId()) || [];
+                                if (allColIds.length > 0) {
+                                  params.api.autoSizeColumns(allColIds);
+                                }
                               }
                               hasAutoFittedRef.current = true;
                             } catch { /* ignore */ }
@@ -2736,126 +2745,165 @@ export default function QCPage() {
                 </Box>
               </Box>
 
-              {/* PAGINATION - STICKY AT BOTTOM */}
-              <Box sx={{
-                mt: 1,
-                p: { xs: 0.5, sm: 0.75 },
-                background: isDarkMode ? '#1e293b' : 'white',
-                borderRadius: 1.25,
-                border: isDarkMode ? '2px solid rgba(255,255,255,0.1)' : '2px solid #e2e8f0',
-                boxShadow: isDarkMode ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.06)',
-                display: 'flex',
-                flexDirection: 'row',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                gap: 0.5,
-                flexShrink: 0,
-                position: 'sticky',
-                bottom: 0,
-                zIndex: 10,
-                backdropFilter: 'blur(8px)',
-                backgroundColor: isDarkMode ? 'rgba(30, 41, 59, 0.95)' : 'rgba(255, 255, 255, 0.95)'
-              }}>
-                <Typography
-                  variant="body2"
-                  sx={{
-                    fontWeight: 700,
-                    color: '#475569',
-                    fontSize: { xs: '0.65rem', sm: '0.72rem' },
-                    display: { xs: 'none', sm: 'block' }
-                  }}
-                >
-                  📊 {qcList.length > 0 ? (page - 1) * limit + 1 : 0}-{Math.min(page * limit, total)} of {total}
-                </Typography>
-
-                <Typography
-                  variant="body2"
-                  sx={{
-                    fontWeight: 700,
-                    color: '#475569',
-                    fontSize: '0.65rem',
-                    display: { xs: 'block', sm: 'none' }
-                  }}
-                >
-                  {qcList.length > 0 ? (page - 1) * limit + 1 : 0}-{Math.min(page * limit, total)} / {total}
-                </Typography>
-
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 0.5, sm: 0.75 } }}>
-                  <Button
+              {/* PAGINATION - STICKY AT BOTTOM (Dashboard Style) */}
+              <Box
+                sx={{
+                  px: { xs: 1, sm: 2 },
+                  py: { xs: 0.75, sm: 0.5 },
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  borderTop: isDarkMode ? "1px solid rgba(255,255,255,0.1)" : "1px solid #ddd",
+                  bgcolor: isDarkMode ? '#1e293b' : "white",
+                  flexShrink: 0,
+                  minHeight: { xs: 44, sm: 48 },
+                  gap: { xs: 0.5, sm: 1 },
+                  mt: 1,
+                  borderRadius: 1,
+                }}
+              >
+                {/* Per Page */}
+                <Stack direction="row" spacing={{ xs: 0.5, sm: 1 }} alignItems="center">
+                  <Typography sx={{ fontSize: { xs: "0.7rem", sm: "0.78rem" }, whiteSpace: "nowrap", color: isDarkMode ? '#94a3b8' : 'inherit' }}>
+                    Per page:
+                  </Typography>
+                  <Select
                     size="small"
-                    variant="outlined"
-                    disabled={page === 1}
-                    onClick={() => setPage(page - 1)}
+                    value={limit}
+                    onChange={(e) => {
+                      setLimit(Number(e.target.value));
+                      setPage(1);
+                    }}
                     sx={{
-                      fontSize: { xs: '0.65rem', sm: '0.72rem' },
-                      fontWeight: 700,
-                      minWidth: { xs: 40, sm: 65 },
-                      height: { xs: 26, sm: 30 },
-                      borderWidth: 2,
-                      borderColor: '#1e40af',
-                      color: '#1e40af',
-                      px: { xs: 0.25, sm: 1 },
-                      '&:hover': {
-                        borderWidth: 2,
-                        bgcolor: 'rgba(30, 64, 175, 0.1)'
+                      minWidth: { xs: 58, sm: 70 },
+                      '& .MuiSelect-select': {
+                        py: { xs: 0.5, sm: 0.75 },
+                        fontSize: { xs: '0.75rem', sm: '0.875rem' },
                       },
-                      '&.Mui-disabled': {
-                        borderWidth: 2,
-                        borderColor: '#e2e8f0',
-                        color: '#cbd5e1'
+                      color: isDarkMode ? '#e2e8f0' : 'inherit',
+                      backgroundColor: isDarkMode ? '#334155' : 'transparent',
+                      '& .MuiOutlinedInput-notchedOutline': {
+                        borderColor: isDarkMode ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.23)'
+                      },
+                      '&:hover .MuiOutlinedInput-notchedOutline': {
+                        borderColor: isDarkMode ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.87)'
+                      },
+                      '& .MuiSvgIcon-root': {
+                        color: isDarkMode ? '#e2e8f0' : 'inherit'
+                      }
+                    }}
+                    MenuProps={{
+                      disableScrollLock: true,
+                      PaperProps: {
+                        sx: {
+                          bgcolor: isDarkMode ? '#334155' : 'white',
+                          color: isDarkMode ? '#e2e8f0' : 'inherit',
+                          '& .MuiMenuItem-root': {
+                            '&:hover': {
+                              bgcolor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.04)'
+                            },
+                            '&.Mui-selected': {
+                              bgcolor: isDarkMode ? 'rgba(59, 130, 246, 0.3)' : 'rgba(25, 118, 210, 0.08)',
+                              '&:hover': {
+                                bgcolor: isDarkMode ? 'rgba(59, 130, 246, 0.4)' : 'rgba(25, 118, 210, 0.12)'
+                              }
+                            }
+                          }
+                        }
                       }
                     }}
                   >
-                    {isMobile ? '◀' : '◀ Prev'}
-                  </Button>
+                    <MenuItem value={50}>50</MenuItem>
+                    <MenuItem value={100}>100</MenuItem>
+                    <MenuItem value={500}>500</MenuItem>
+                    <MenuItem value={1000}>1000</MenuItem>
+                  </Select>
+                </Stack>
 
-                  <Box sx={{
-                    px: { xs: 1, sm: 1.5 },
-                    py: { xs: 0.25, sm: 0.4 },
-                    border: '2px solid #1e40af',
-                    borderRadius: 1,
-                    background: 'linear-gradient(135deg, rgba(30, 64, 175, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%)',
-                    minWidth: { xs: 50, sm: 60 },
-                    textAlign: 'center'
-                  }}>
-                    <Typography sx={{
-                      fontWeight: 800,
-                      color: '#1e40af',
-                      fontSize: { xs: '0.68rem', sm: '0.75rem' },
-                      lineHeight: 1.1
-                    }}>
-                      {page}/{Math.ceil(total / limit) || 1}
+                {/* Count */}
+                <Typography
+                  sx={{
+                    fontSize: { xs: "0.7rem", sm: "0.78rem" },
+                    whiteSpace: "nowrap",
+                    color: isDarkMode ? '#94a3b8' : 'inherit',
+                  }}
+                >
+                  {qcList.length > 0 ? (page - 1) * limit + 1 : 0} – {Math.min(page * limit, total)} of {total}
+                </Typography>
+
+                {/* Pagination Controls */}
+                {isMobile ? (
+                  <Stack direction="row" spacing={0.5} alignItems="center">
+                    <Button
+                      size="small"
+                      disabled={page === 1}
+                      onClick={() => setPage(page - 1)}
+                      sx={{
+                        minWidth: { xs: 40, sm: 64 },
+                        px: { xs: 0.5, sm: 2 },
+                        fontSize: { xs: '0.7rem', sm: '0.875rem' },
+                      }}
+                    >
+                      Prev
+                    </Button>
+                    <Typography sx={{ fontSize: { xs: "0.75rem", sm: "0.85rem" }, fontWeight: 600, minWidth: 40, textAlign: 'center' }}>
+                      {page} / {Math.ceil(total / limit) || 1}
                     </Typography>
-                  </Box>
-
-                  <Button
-                    size="small"
-                    variant="outlined"
-                    disabled={page >= Math.ceil(total / limit)}
-                    onClick={() => setPage(page + 1)}
-                    sx={{
-                      fontSize: { xs: '0.65rem', sm: '0.72rem' },
-                      fontWeight: 700,
-                      minWidth: { xs: 40, sm: 65 },
-                      height: { xs: 26, sm: 30 },
-                      borderWidth: 2,
-                      borderColor: '#1e40af',
-                      color: '#1e40af',
-                      px: { xs: 0.25, sm: 1 },
-                      '&:hover': {
-                        borderWidth: 2,
-                        bgcolor: 'rgba(30, 64, 175, 0.1)'
-                      },
-                      '&.Mui-disabled': {
-                        borderWidth: 2,
-                        borderColor: '#e2e8f0',
-                        color: '#cbd5e1'
-                      }
-                    }}
-                  >
-                    {isMobile ? '▶' : 'Next ▶'}
-                  </Button>
-                </Box>
+                    <Button
+                      size="small"
+                      disabled={page >= Math.ceil(total / limit)}
+                      onClick={() => setPage(page + 1)}
+                      sx={{
+                        minWidth: { xs: 40, sm: 64 },
+                        px: { xs: 0.5, sm: 2 },
+                        fontSize: { xs: '0.7rem', sm: '0.875rem' },
+                      }}
+                    >
+                      Next
+                    </Button>
+                  </Stack>
+                ) : (
+                  <Stack direction="row" spacing={0.5} alignItems="center">
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      disabled={page === 1}
+                      onClick={() => setPage(page - 1)}
+                      sx={{ minWidth: 64, fontSize: '0.75rem', fontWeight: 600 }}
+                    >
+                      ◀ Prev
+                    </Button>
+                    <Box sx={{
+                      px: 1.5,
+                      py: 0.4,
+                      border: isDarkMode ? '2px solid #f59e0b' : '2px solid #d97706',
+                      borderRadius: 1,
+                      background: isDarkMode
+                        ? 'linear-gradient(135deg, rgba(245, 158, 11, 0.2) 0%, rgba(217, 119, 6, 0.2) 100%)'
+                        : 'linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(217, 119, 6, 0.1) 100%)',
+                      minWidth: 60,
+                      textAlign: 'center'
+                    }}>
+                      <Typography sx={{
+                        fontWeight: 800,
+                        color: isDarkMode ? '#fbbf24' : '#d97706',
+                        fontSize: '0.75rem',
+                        lineHeight: 1.1
+                      }}>
+                        {page}/{Math.ceil(total / limit) || 1}
+                      </Typography>
+                    </Box>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      disabled={page >= Math.ceil(total / limit)}
+                      onClick={() => setPage(page + 1)}
+                      sx={{ minWidth: 64, fontSize: '0.75rem', fontWeight: 600 }}
+                    >
+                      Next ▶
+                    </Button>
+                  </Stack>
+                )}
               </Box>
             </Box>
           )}
