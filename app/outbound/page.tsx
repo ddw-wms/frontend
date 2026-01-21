@@ -549,7 +549,7 @@ export default function OutboundPage() {
     useEffect(() => {
         if (activeWarehouse) {
             if (currentTabCode === 'list') {
-                loadOutboundList();
+                // Only load filter options here - list loading is handled by the filter useEffect
                 loadBrands();
                 loadCategories();
             } else if (currentTabCode === 'single' || currentTabCode === 'multi') {
@@ -621,11 +621,12 @@ export default function OutboundPage() {
     }, [searchFilter]);
 
     // Trigger outbound list load when debounced search or other filters change
+    // Also triggers when switching TO list tab
     useEffect(() => {
-        if (activeWarehouse) {
+        if (activeWarehouse && currentTabCode === 'list') {
             loadOutboundList();
         }
-    }, [activeWarehouse, page, limit, searchDebounced, sourceFilter, customerFilter, startDateFilter, endDateFilter, batchFilter, brandFilter, categoryFilter]);
+    }, [activeWarehouse, currentTabCode, page, limit, searchDebounced, sourceFilter, customerFilter, startDateFilter, endDateFilter, batchFilter, brandFilter, categoryFilter]);
 
     // ====== LOAD EXISTING OUTBOUND WSNs ======
     const loadExistingWSNs = async () => {
