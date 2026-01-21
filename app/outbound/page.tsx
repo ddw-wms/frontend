@@ -1508,7 +1508,7 @@ export default function OutboundPage() {
     }, [multiRows, draftSavedAt]);
 
     // Template download function (used by BulkUploadCard)
-    const handleConfirmDownload = () => {
+    const handleConfirmDownload = async () => {
         const template = [
             {
                 WSN: 'ABC123',
@@ -1519,11 +1519,18 @@ export default function OutboundPage() {
                 OTHERREMARKS: '',
             },
         ];
-        // Using CSV export for templates to avoid client-side XLSX dependency
-        import('../outbound/csv-export').then(({ exportJsonAsCsv }) => {
-            exportJsonAsCsv('outbound_bulk_template.csv', template);
-        });
-        toast.success('Template downloaded (CSV)');
+        // Generate actual Excel file (.xlsx) for compatibility with backend
+        try {
+            const XLSX = await import('xlsx');
+            const worksheet = XLSX.utils.json_to_sheet(template);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, 'Template');
+            XLSX.writeFile(workbook, 'outbound_bulk_template.xlsx');
+            toast.success('Template downloaded (.xlsx)');
+        } catch (error) {
+            console.error('Failed to generate Excel template:', error);
+            toast.error('Failed to download template');
+        }
     };
 
     // ====== OUTBOUND LIST ======

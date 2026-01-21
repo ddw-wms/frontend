@@ -228,8 +228,16 @@ export function BulkUploadProvider({ children }: { children: React.ReactNode }) 
         // Parse file to check columns using XLSX library
         try {
             const XLSX = await import('xlsx');
-            const buffer = await file.arrayBuffer();
-            const workbook = XLSX.read(buffer, { type: 'array', sheetRows: 5 }); // Only read first 5 rows for validation
+            let workbook;
+
+            // Handle CSV files differently - read as text, not binary
+            if (ext === 'csv') {
+                const text = await file.text();
+                workbook = XLSX.read(text, { type: 'string', sheetRows: 5 });
+            } else {
+                const buffer = await file.arrayBuffer();
+                workbook = XLSX.read(buffer, { type: 'array', sheetRows: 5 }); // Only read first 5 rows for validation
+            }
 
             const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
             if (!firstSheet) {
@@ -304,7 +312,14 @@ export function BulkUploadProvider({ children }: { children: React.ReactNode }) 
             }
 
             // Get full row count (re-read without row limit)
-            const fullWorkbook = XLSX.read(buffer, { type: 'array' });
+            let fullWorkbook;
+            if (ext === 'csv') {
+                const text = await file.text();
+                fullWorkbook = XLSX.read(text, { type: 'string' });
+            } else {
+                const buffer = await file.arrayBuffer();
+                fullWorkbook = XLSX.read(buffer, { type: 'array' });
+            }
             const fullSheet = fullWorkbook.Sheets[fullWorkbook.SheetNames[0]];
             const fullData = XLSX.utils.sheet_to_json(fullSheet) as any[];
 
