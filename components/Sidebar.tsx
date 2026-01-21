@@ -1,7 +1,7 @@
 // File Path = warehouse-frontend\components\Sidebar.tsx
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import {
   Drawer,
@@ -91,8 +91,51 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
   const [sidebarControlOpen, setSidebarControlOpen] = useState(false);
   const [isHovering, setIsHovering] = useState(false);
 
+  // Mobile detection state - declared early as it's used in collapsed computation
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Debounce timer ref for hover state
+  const hoverTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Debounced hover handlers to prevent flickering
+  const handleMouseEnter = useCallback(() => {
+    if (sidebarMode !== 'hover') return;
+    // Clear any pending leave timer
+    if (hoverTimerRef.current) {
+      clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = null;
+    }
+    // Small delay before expanding to prevent accidental triggers
+    hoverTimerRef.current = setTimeout(() => {
+      setIsHovering(true);
+    }, 50);
+  }, [sidebarMode]);
+
+  const handleMouseLeave = useCallback(() => {
+    if (sidebarMode !== 'hover') return;
+    // Clear any pending enter timer
+    if (hoverTimerRef.current) {
+      clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = null;
+    }
+    // Longer delay before collapsing to prevent flicker during cursor movement
+    hoverTimerRef.current = setTimeout(() => {
+      setIsHovering(false);
+    }, 150);
+  }, [sidebarMode]);
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (hoverTimerRef.current) {
+        clearTimeout(hoverTimerRef.current);
+      }
+    };
+  }, []);
+
   // Compute collapsed state from mode
-  const collapsed = sidebarMode === 'collapsed' || (sidebarMode === 'hover' && !isHovering);
+  // IMPORTANT: On mobile, never use hover mode collapsed state - mobile sidebar should always be fully expanded when open
+  const collapsed = !isMobile && (sidebarMode === 'collapsed' || (sidebarMode === 'hover' && !isHovering));
 
   // Legacy setter for compatibility
   const setCollapsed = (value: boolean) => {
@@ -116,8 +159,6 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
   // --------------------------------------
   // MOBILE DETECTION (SCREEN WIDTH)
   // --------------------------------------
-
-  const [isMobile, setIsMobile] = useState(false);
 
   const checkMobile = useCallback(() => {
     if (typeof window !== 'undefined') {
@@ -903,8 +944,8 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
       ) : (
         <Drawer
           variant="permanent"
-          onMouseEnter={() => sidebarMode === 'hover' && setIsHovering(true)}
-          onMouseLeave={() => sidebarMode === 'hover' && setIsHovering(false)}
+          onMouseEnter={handleMouseEnter}
+          onMouseLeave={handleMouseLeave}
           sx={{
             width: drawerWidth,
             flexShrink: 0,
