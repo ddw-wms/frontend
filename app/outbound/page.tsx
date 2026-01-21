@@ -405,9 +405,12 @@ export default function OutboundPage() {
     const overlayShownRef = useRef(false);
     const overlayStartRef = useRef<number | null>(null);
     const emptyTimerRef = useRef<NodeJS.Timeout | null>(null);
+    const lastErrorToastRef = useRef<number>(0); // Rate-limit error toasts
+    const listRetryCountRef = useRef(0); // Track retry attempts
     const SHOW_OVERLAY_DELAY = 150; // ms
     const MIN_LOADING_MS = 350; // ms
     const EMPTY_CONFIRM_DELAY = 400; // ms - delay before clearing rows when server returns empty
+    const ERROR_TOAST_COOLDOWN = 5000; // ms - minimum time between error toasts
     const [topLoading, setTopLoading] = useState(false);
     const previousDataRef = useRef<OutboundItem[] | null>(null);
     const [customers, setCustomers] = useState<string[]>([]);
@@ -1726,6 +1729,9 @@ export default function OutboundPage() {
                     total: data.length,
                 });
 
+                // Reset retry counter on success
+                listRetryCountRef.current = 0;
+
                 if (buttonRefresh) {
                     setRefreshSuccess(true);
                     toast.success('List refreshed');
@@ -1756,8 +1762,25 @@ export default function OutboundPage() {
             }
 
             console.error('Load outbound list error:', err);
-            if (buttonRefresh) toast.error(err.response?.data?.error || 'Failed to refresh outbound list');
-            else toast.error(err.response?.data?.error || 'Failed to load outbound list');
+
+            // Rate-limit error toasts to prevent spamming
+            const now = Date.now();
+            if (now - lastErrorToastRef.current > ERROR_TOAST_COOLDOWN) {
+                lastErrorToastRef.current = now;
+                if (buttonRefresh) {
+                    toast.error(err.response?.data?.error || 'Failed to refresh outbound list');
+                } else {
+                    toast.error(err.response?.data?.error || 'Failed to load outbound list');
+                }
+            }
+
+            // Auto-retry once after 2 seconds (for temporary database issues after bulk upload)
+            if (listRetryCountRef.current < 2 && !buttonRefresh) {
+                listRetryCountRef.current++;
+                setTimeout(() => {
+                    loadOutboundList({ buttonRefresh: false });
+                }, 2000);
+            }
 
             // Do not clear existing list data on error to avoid blinking; keep previous rows visible
         } finally {
