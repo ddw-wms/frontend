@@ -2739,6 +2739,8 @@ export default function QCPage() {
                           }
                         }}
                         pagination={false}
+                        rowHeight={tableRowHeight}
+                        headerHeight={32}
                       />
                     </Box>
                   </div>
@@ -4084,6 +4086,7 @@ export default function QCPage() {
                     rowData={multiRows}
                     columnDefs={columnDefs}
                     rowHeight={tableRowHeight}
+                    headerHeight={32}
                     getRowId={(params: any) => String(params.data?.id || params.node?.rowIndex || Math.random())}
 
                     onGridReady={(params: any) => {

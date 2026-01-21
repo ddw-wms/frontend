@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import {
     Box,
     Button,
@@ -32,7 +32,13 @@ import {
     Tooltip,
     Stack,
     Divider,
-    Collapse
+    Collapse,
+    Checkbox,
+    InputAdornment,
+    Accordion,
+    AccordionSummary,
+    AccordionDetails,
+    Badge
 } from '@mui/material';
 import {
     CloudDownload as DownloadIcon,
@@ -43,7 +49,13 @@ import {
     Info as InfoIcon,
     Warning as WarningIcon,
     MoreVert as MoreVertIcon,
-    Close as CloseIcon
+    Close as CloseIcon,
+    Search as SearchIcon,
+    ExpandMore as ExpandMoreIcon,
+    SelectAll as SelectAllIcon,
+    DeleteSweep as DeleteSweepIcon,
+    CalendarMonth as CalendarIcon,
+    FilterList as FilterIcon
 } from '@mui/icons-material';
 
 import AppLayout from '@/components/AppLayout';
@@ -140,6 +152,16 @@ export default function BackupPage() {
 
     // Selective backup tables
     const [selectedTables, setSelectedTables] = useState<string[]>([]);
+    // Selective tables for schedule
+    const [scheduleSelectedTables, setScheduleSelectedTables] = useState<string[]>([]);
+
+    // NEW: Bulk selection and filtering states
+    const [selectedBackupIds, setSelectedBackupIds] = useState<number[]>([]);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [filterType, setFilterType] = useState<string>('all');
+    const [expandedDays, setExpandedDays] = useState<string[]>([]);
+    const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false);
+    const [viewMode, setViewMode] = useState<'grouped' | 'list'>('grouped');
 
     // Available modules for selective backup
     const backupModules = [
@@ -154,6 +176,112 @@ export default function BackupPage() {
         { id: 'users', name: 'Users', description: 'User accounts & roles', icon: '👤' },
     ];
 
+    // Group backups by date
+    const groupedBackups = useMemo(() => {
+        let filtered = backups;
+
+        // Apply search filter
+        if (searchQuery) {
+            const query = searchQuery.toLowerCase();
+            filtered = filtered.filter(b =>
+                b.file_name.toLowerCase().includes(query) ||
+                b.description?.toLowerCase().includes(query)
+            );
+        }
+
+        // Apply type filter
+        if (filterType !== 'all') {
+            filtered = filtered.filter(b => b.backup_type === filterType);
+        }
+
+        // Group by date
+        const groups: { [key: string]: Backup[] } = {};
+        filtered.forEach(backup => {
+            const date = new Date(backup.created_at).toLocaleDateString('en-IN', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+                weekday: 'long'
+            });
+            if (!groups[date]) {
+                groups[date] = [];
+            }
+            groups[date].push(backup);
+        });
+
+        // Sort days (newest first)
+        const sortedKeys = Object.keys(groups).sort((a, b) => {
+            const dateA = new Date(groups[a][0].created_at);
+            const dateB = new Date(groups[b][0].created_at);
+            return dateB.getTime() - dateA.getTime();
+        });
+
+        return { groups, sortedKeys, totalFiltered: filtered.length };
+    }, [backups, searchQuery, filterType]);
+
+    // Auto-expand today's backups
+    useEffect(() => {
+        if (groupedBackups.sortedKeys.length > 0 && expandedDays.length === 0) {
+            setExpandedDays([groupedBackups.sortedKeys[0]]);
+        }
+    }, [groupedBackups.sortedKeys]);
+
+    // Calculate total size of selected backups
+    const selectedBackupsSize = useMemo(() => {
+        const selected = backups.filter(b => selectedBackupIds.includes(b.id));
+        const totalMB = selected.reduce((sum, b) => sum + parseFloat(b.file_size_mb || '0'), 0);
+        return totalMB.toFixed(2);
+    }, [backups, selectedBackupIds]);
+
+    // Handle bulk delete
+    const handleBulkDelete = async () => {
+        if (selectedBackupIds.length === 0) return;
+
+        const toastId = toast.loading(`Deleting ${selectedBackupIds.length} backups...`);
+        try {
+            const response = await api.post('/backups/bulk-delete', { ids: selectedBackupIds });
+            toast.success(`✅ ${response.data.deletedCount} backup(s) deleted!`, { id: toastId });
+            setSelectedBackupIds([]);
+            setBulkDeleteDialogOpen(false);
+            refreshBackups();
+            loadHealthStats();
+        } catch (error: any) {
+            toast.error(error.response?.data?.error || 'Failed to delete backups', { id: toastId });
+        }
+    };
+
+    // Toggle backup selection
+    const toggleBackupSelection = (id: number) => {
+        setSelectedBackupIds(prev =>
+            prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+        );
+    };
+
+    // Select all backups in a day group
+    const selectAllInDay = (day: string) => {
+        const dayBackupIds = groupedBackups.groups[day].map(b => b.id);
+        const allSelected = dayBackupIds.every(id => selectedBackupIds.includes(id));
+
+        if (allSelected) {
+            setSelectedBackupIds(prev => prev.filter(id => !dayBackupIds.includes(id)));
+        } else {
+            setSelectedBackupIds(prev => Array.from(new Set([...prev, ...dayBackupIds])));
+        }
+    };
+
+    // Select all visible backups
+    const selectAllVisible = () => {
+        const visibleIds = groupedBackups.sortedKeys.flatMap(day =>
+            groupedBackups.groups[day].map(b => b.id)
+        );
+        const allSelected = visibleIds.every(id => selectedBackupIds.includes(id));
+
+        if (allSelected) {
+            setSelectedBackupIds([]);
+        } else {
+            setSelectedBackupIds(visibleIds);
+        }
+    };
 
 
     const loadBackups = async (showLoader = true) => {
@@ -860,6 +988,100 @@ export default function BackupPage() {
                         </Typography>
                     </Alert>
 
+                    {/* ==================== SEARCH, FILTER & BULK ACTIONS ==================== */}
+                    {backups.length > 0 && (
+                        <Paper sx={{
+                            p: { xs: 1.5, md: 2 },
+                            mb: 2,
+                            borderRadius: 2,
+                            bgcolor: isDarkMode ? '#1e293b' : 'background.paper',
+                            border: '1px solid',
+                            borderColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'divider'
+                        }}>
+                            <Stack
+                                direction={{ xs: 'column', md: 'row' }}
+                                spacing={2}
+                                alignItems={{ xs: 'stretch', md: 'center' }}
+                                justifyContent="space-between"
+                            >
+                                {/* Search & Filter */}
+                                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} flex={1}>
+                                    <TextField
+                                        size="small"
+                                        placeholder="Search backups..."
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                        InputProps={{
+                                            startAdornment: (
+                                                <InputAdornment position="start">
+                                                    <SearchIcon fontSize="small" color="action" />
+                                                </InputAdornment>
+                                            )
+                                        }}
+                                        sx={{ minWidth: { xs: '100%', sm: 200 } }}
+                                    />
+
+                                    <FormControl size="small" sx={{ minWidth: 140 }}>
+                                        <InputLabel>Type Filter</InputLabel>
+                                        <Select
+                                            value={filterType}
+                                            label="Type Filter"
+                                            onChange={(e) => setFilterType(e.target.value)}
+                                        >
+                                            <MenuItem value="all">All Types</MenuItem>
+                                            <MenuItem value="json">JSON</MenuItem>
+                                            <MenuItem value="full">Full</MenuItem>
+                                            <MenuItem value="schema">Schema</MenuItem>
+                                            <MenuItem value="data">Data</MenuItem>
+                                        </Select>
+                                    </FormControl>
+
+                                    <Chip
+                                        icon={<FilterIcon />}
+                                        label={`${groupedBackups.totalFiltered} of ${backups.length}`}
+                                        variant="outlined"
+                                        size="small"
+                                        sx={{ alignSelf: 'center' }}
+                                    />
+                                </Stack>
+
+                                {/* Bulk Actions */}
+                                <Stack direction="row" spacing={1} alignItems="center">
+                                    {selectedBackupIds.length > 0 && (
+                                        <>
+                                            <Chip
+                                                label={`${selectedBackupIds.length} selected (${selectedBackupsSize} MB)`}
+                                                color="primary"
+                                                size="small"
+                                                onDelete={() => setSelectedBackupIds([])}
+                                            />
+                                            {canSeeButton('delete') && (
+                                                <Button
+                                                    variant="contained"
+                                                    color="error"
+                                                    size="small"
+                                                    startIcon={<DeleteSweepIcon />}
+                                                    onClick={() => setBulkDeleteDialogOpen(true)}
+                                                >
+                                                    Delete Selected
+                                                </Button>
+                                            )}
+                                        </>
+                                    )}
+                                    <Tooltip title="Select All Visible">
+                                        <IconButton
+                                            size="small"
+                                            onClick={selectAllVisible}
+                                            color={selectedBackupIds.length === groupedBackups.totalFiltered && groupedBackups.totalFiltered > 0 ? 'primary' : 'default'}
+                                        >
+                                            <SelectAllIcon />
+                                        </IconButton>
+                                    </Tooltip>
+                                </Stack>
+                            </Stack>
+                        </Paper>
+                    )}
+
                     {/* Backups List */}
                     {loading ? (
                         <Box display="flex" justifyContent="center" alignItems="center" py={8}>
@@ -891,252 +1113,317 @@ export default function BackupPage() {
                                 </Button>
                             )}
                         </Paper>
+                    ) : groupedBackups.totalFiltered === 0 ? (
+                        <Paper sx={{
+                            p: 4,
+                            textAlign: 'center',
+                            borderRadius: 2,
+                            bgcolor: isDarkMode ? '#1e293b' : 'background.paper'
+                        }}>
+                            <SearchIcon sx={{ fontSize: 48, color: 'text.secondary', mb: 2 }} />
+                            <Typography color="text.secondary">
+                                No backups match your search/filter criteria
+                            </Typography>
+                            <Button
+                                size="small"
+                                onClick={() => { setSearchQuery(''); setFilterType('all'); }}
+                                sx={{ mt: 2 }}
+                            >
+                                Clear Filters
+                            </Button>
+                        </Paper>
                     ) : (
-                        <>
-                            {/* Desktop Table View */}
-                            {!isMobile ? (
-                                <TableContainer component={Paper} sx={{
-                                    borderRadius: 2,
-                                    boxShadow: isDarkMode ? '0 2px 12px rgba(0,0,0,0.3)' : '0 2px 12px rgba(0,0,0,0.08)',
-                                    border: '1px solid',
-                                    borderColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'divider',
-                                    bgcolor: isDarkMode ? '#1e293b' : 'background.paper'
-                                }}>
-                                    <Table>
-                                        <TableHead>
-                                            <TableRow sx={{
-                                                bgcolor: isDarkMode ? '#334155' : 'grey.100',
-                                                '& th': {
-                                                    borderBottom: '2px solid',
-                                                    borderColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'divider',
-                                                    color: isDarkMode ? '#f1f5f9' : 'inherit'
-                                                }
-                                            }}>
-                                                <TableCell sx={{ fontWeight: 700, fontSize: '0.875rem' }}>File Name</TableCell>
-                                                <TableCell sx={{ fontWeight: 700, fontSize: '0.875rem', width: 100 }}>Type</TableCell>
-                                                <TableCell sx={{ fontWeight: 700, fontSize: '0.875rem', width: 100 }}>Size</TableCell>
-                                                <TableCell sx={{ fontWeight: 700, fontSize: '0.875rem', width: 200 }}>Description</TableCell>
-                                                <TableCell sx={{ fontWeight: 700, fontSize: '0.875rem', width: 180 }}>Created</TableCell>
-                                                <TableCell align="center" sx={{ fontWeight: 700, fontSize: '0.875rem', width: 140 }}>Actions</TableCell>
-                                            </TableRow>
-                                        </TableHead>
-                                        <TableBody>
-                                            {backups.map((backup) => (
-                                                <TableRow
-                                                    key={backup.id}
-                                                    hover
-                                                    sx={{
-                                                        '&:last-child td': { border: 0 },
-                                                        '&:hover': { bgcolor: 'action.hover' }
+                        /* ==================== DAY-WISE GROUPED VIEW ==================== */
+                        <Stack spacing={2}>
+                            {groupedBackups.sortedKeys.map((day) => {
+                                const dayBackups = groupedBackups.groups[day];
+                                const isExpanded = expandedDays.includes(day);
+                                const dayBackupIds = dayBackups.map(b => b.id);
+                                const selectedInDay = dayBackupIds.filter(id => selectedBackupIds.includes(id)).length;
+                                const allDaySelected = selectedInDay === dayBackups.length;
+                                const totalSizeMB = dayBackups.reduce((sum, b) => sum + parseFloat(b.file_size_mb || '0'), 0).toFixed(2);
+
+                                return (
+                                    <Accordion
+                                        key={day}
+                                        expanded={isExpanded}
+                                        onChange={() => {
+                                            setExpandedDays(prev =>
+                                                prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day]
+                                            );
+                                        }}
+                                        sx={{
+                                            borderRadius: '12px !important',
+                                            overflow: 'hidden',
+                                            bgcolor: isDarkMode ? '#1e293b' : 'background.paper',
+                                            boxShadow: isDarkMode ? '0 2px 12px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.08)',
+                                            '&:before': { display: 'none' },
+                                            border: '1px solid',
+                                            borderColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'divider'
+                                        }}
+                                    >
+                                        <AccordionSummary
+                                            expandIcon={<ExpandMoreIcon />}
+                                            sx={{
+                                                bgcolor: isDarkMode ? '#334155' : 'grey.50',
+                                                borderBottom: isExpanded ? '1px solid' : 'none',
+                                                borderColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'divider',
+                                                '&:hover': { bgcolor: isDarkMode ? '#3f4f63' : 'grey.100' }
+                                            }}
+                                        >
+                                            <Stack direction="row" spacing={2} alignItems="center" sx={{ width: '100%', pr: 2 }}>
+                                                <Checkbox
+                                                    checked={allDaySelected}
+                                                    indeterminate={selectedInDay > 0 && !allDaySelected}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        selectAllInDay(day);
                                                     }}
-                                                >
-                                                    <TableCell>
-                                                        <Typography variant="body2" fontWeight={500} fontFamily="monospace" fontSize="0.8rem">
-                                                            {backup.file_name}
-                                                        </Typography>
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        <Chip
-                                                            label={backup.backup_type.toUpperCase()}
-                                                            color={getBackupTypeColor(backup.backup_type) as any}
-                                                            size="small"
-                                                            sx={{ fontWeight: 600, fontSize: '0.7rem' }}
-                                                        />
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        <Typography variant="body2" fontWeight={500}>
-                                                            {backup.file_size_mb} MB
-                                                        </Typography>
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        <Typography variant="body2" color="text.secondary" noWrap sx={{ maxWidth: 200 }}>
-                                                            {backup.description || '-'}
-                                                        </Typography>
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        <Typography variant="body2" fontSize="0.85rem">
-                                                            {formatDate(backup.created_at)}
-                                                        </Typography>
-                                                    </TableCell>
-                                                    <TableCell align="center">
-                                                        <Stack direction="row" spacing={0.5} justifyContent="center">
-                                                            <Tooltip title="Download" arrow>
-                                                                <IconButton
-                                                                    size="small"
-                                                                    color="primary"
-                                                                    onClick={() => handleDownloadBackup(backup)}
-                                                                    sx={{
-                                                                        '&:hover': {
-                                                                            bgcolor: 'primary.light',
-                                                                            color: 'white'
-                                                                        }
-                                                                    }}
-                                                                >
-                                                                    <DownloadIcon fontSize="small" />
-                                                                </IconButton>
-                                                            </Tooltip>
-                                                            {canSeeButton('restore') && (
-                                                                <Tooltip title="Restore" arrow>
-                                                                    <IconButton
-                                                                        size="small"
-                                                                        color="success"
-                                                                        onClick={() => {
-                                                                            setSelectedBackup(backup);
-                                                                            setRestoreDialogOpen(true);
-                                                                        }}
-                                                                        sx={{
-                                                                            '&:hover': {
-                                                                                bgcolor: 'success.light',
-                                                                                color: 'white'
-                                                                            }
-                                                                        }}
-                                                                    >
-                                                                        <RestoreIcon fontSize="small" />
-                                                                    </IconButton>
-                                                                </Tooltip>
-                                                            )}
-                                                            {canSeeButton('delete') && (
-                                                                <Tooltip title="Delete" arrow>
-                                                                    <IconButton
-                                                                        size="small"
-                                                                        color="error"
-                                                                        onClick={() => handleDeleteBackup(backup)}
-                                                                        sx={{
-                                                                            '&:hover': {
-                                                                                bgcolor: 'error.light',
-                                                                                color: 'white'
-                                                                            }
-                                                                        }}
-                                                                    >
-                                                                        <DeleteIcon fontSize="small" />
-                                                                    </IconButton>
-                                                                </Tooltip>
-                                                            )}
-                                                        </Stack>
-                                                    </TableCell>
-                                                </TableRow>
-                                            ))}
-                                        </TableBody>
-                                    </Table>
-                                </TableContainer>
-                            ) : (
-                                /* Mobile Card View */
-                                <Stack spacing={2}>
-                                    {backups.map((backup) => (
-                                        <Card key={backup.id} sx={{
-                                            borderRadius: 2,
-                                            boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                                            transition: 'transform 0.2s, box-shadow 0.2s',
-                                            '&:active': {
-                                                transform: 'scale(0.98)',
-                                            }
-                                        }}>
-                                            <CardContent sx={{ p: 2 }}>
-                                                <Stack spacing={1.5}>
-                                                    {/* Header Row */}
-                                                    <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
-                                                        <Box flex={1}>
-                                                            <Typography variant="subtitle2" fontWeight={600} sx={{
-                                                                wordBreak: 'break-word',
-                                                                fontSize: '0.9rem',
-                                                                lineHeight: 1.3
-                                                            }}>
-                                                                {backup.file_name}
-                                                            </Typography>
-                                                        </Box>
-                                                        <Chip
-                                                            label={backup.backup_type.toUpperCase()}
-                                                            color={getBackupTypeColor(backup.backup_type) as any}
-                                                            size="small"
-                                                            sx={{ ml: 1, fontWeight: 600, fontSize: '0.7rem' }}
-                                                        />
-                                                    </Stack>
-
-                                                    <Divider />
-
-                                                    {/* Info Grid */}
-                                                    <Stack spacing={1.5}>
-                                                        <Box sx={{ display: 'flex', gap: 2 }}>
-                                                            <Box sx={{ flex: 1 }}>
-                                                                <Typography variant="caption" color="text.secondary" display="block">
-                                                                    Size
-                                                                </Typography>
-                                                                <Typography variant="body2" fontWeight={500}>
-                                                                    {backup.file_size_mb} MB
-                                                                </Typography>
-                                                            </Box>
-                                                            <Box sx={{ flex: 1 }}>
-                                                                <Typography variant="caption" color="text.secondary" display="block">
-                                                                    Created
-                                                                </Typography>
-                                                                <Typography variant="body2" fontWeight={500} fontSize="0.85rem">
-                                                                    {formatDate(backup.created_at)}
-                                                                </Typography>
-                                                            </Box>
-                                                        </Box>
-                                                        {backup.description && (
-                                                            <Box>
-                                                                <Typography variant="caption" color="text.secondary" display="block">
-                                                                    Description
-                                                                </Typography>
-                                                                <Typography variant="body2" fontSize="0.85rem">
-                                                                    {backup.description}
-                                                                </Typography>
-                                                            </Box>
-                                                        )}
-                                                    </Stack>
-
-                                                    <Divider />
-
-                                                    {/* Action Buttons */}
-                                                    <Stack direction="row" spacing={1}>
-                                                        <Button
-                                                            size="small"
-                                                            variant="outlined"
-                                                            startIcon={<DownloadIcon />}
-                                                            onClick={() => handleDownloadBackup(backup)}
-                                                            fullWidth
-                                                        >
-                                                            Download
-                                                        </Button>
-                                                        {canSeeButton('restore') && (
-                                                            <Button
-                                                                size="small"
-                                                                variant="outlined"
-                                                                color="success"
-                                                                startIcon={<RestoreIcon />}
-                                                                onClick={() => {
-                                                                    setSelectedBackup(backup);
-                                                                    setRestoreDialogOpen(true);
-                                                                }}
-                                                                fullWidth
-                                                            >
-                                                                Restore
-                                                            </Button>
-                                                        )}
-                                                        {canSeeButton('delete') && (
-                                                            <IconButton
-                                                                size="small"
-                                                                color="error"
-                                                                onClick={() => handleDeleteBackup(backup)}
+                                                    size="small"
+                                                />
+                                                <CalendarIcon color="primary" />
+                                                <Box flex={1}>
+                                                    <Typography fontWeight={600}>{day}</Typography>
+                                                    <Typography variant="caption" color="text.secondary">
+                                                        {dayBackups.length} backup{dayBackups.length > 1 ? 's' : ''} • {totalSizeMB} MB total
+                                                    </Typography>
+                                                </Box>
+                                                {selectedInDay > 0 && (
+                                                    <Chip
+                                                        label={`${selectedInDay} selected`}
+                                                        color="primary"
+                                                        size="small"
+                                                        variant="outlined"
+                                                    />
+                                                )}
+                                                <Badge badgeContent={dayBackups.length} color="primary">
+                                                    <StorageIcon color="action" />
+                                                </Badge>
+                                            </Stack>
+                                        </AccordionSummary>
+                                        <AccordionDetails sx={{ p: 0 }}>
+                                            {/* Desktop Table */}
+                                            {!isMobile ? (
+                                                <Table size="small">
+                                                    <TableHead>
+                                                        <TableRow sx={{ bgcolor: isDarkMode ? '#1e293b' : 'grey.50' }}>
+                                                            <TableCell padding="checkbox" sx={{ width: 50 }} />
+                                                            <TableCell sx={{ fontWeight: 600 }}>File Name</TableCell>
+                                                            <TableCell sx={{ fontWeight: 600, width: 90 }}>Type</TableCell>
+                                                            <TableCell sx={{ fontWeight: 600, width: 80 }}>Size</TableCell>
+                                                            <TableCell sx={{ fontWeight: 600, width: 180 }}>Description</TableCell>
+                                                            <TableCell sx={{ fontWeight: 600, width: 100 }}>Time</TableCell>
+                                                            <TableCell align="center" sx={{ fontWeight: 600, width: 130 }}>Actions</TableCell>
+                                                        </TableRow>
+                                                    </TableHead>
+                                                    <TableBody>
+                                                        {dayBackups.map((backup) => (
+                                                            <TableRow
+                                                                key={backup.id}
+                                                                hover
+                                                                selected={selectedBackupIds.includes(backup.id)}
                                                                 sx={{
-                                                                    border: '1px solid',
-                                                                    borderColor: 'error.main',
-                                                                    borderRadius: 1
+                                                                    '&.Mui-selected': {
+                                                                        bgcolor: isDarkMode ? 'rgba(59, 130, 246, 0.15)' : 'rgba(59, 130, 246, 0.08)'
+                                                                    }
                                                                 }}
                                                             >
-                                                                <DeleteIcon fontSize="small" />
-                                                            </IconButton>
-                                                        )}
-                                                    </Stack>
+                                                                <TableCell padding="checkbox">
+                                                                    <Checkbox
+                                                                        checked={selectedBackupIds.includes(backup.id)}
+                                                                        onChange={() => toggleBackupSelection(backup.id)}
+                                                                        size="small"
+                                                                    />
+                                                                </TableCell>
+                                                                <TableCell>
+                                                                    <Typography variant="body2" fontFamily="monospace" fontSize="0.75rem" noWrap>
+                                                                        {backup.file_name}
+                                                                    </Typography>
+                                                                </TableCell>
+                                                                <TableCell>
+                                                                    <Chip
+                                                                        label={backup.backup_type.toUpperCase()}
+                                                                        color={getBackupTypeColor(backup.backup_type) as any}
+                                                                        size="small"
+                                                                        sx={{ fontWeight: 600, fontSize: '0.65rem' }}
+                                                                    />
+                                                                </TableCell>
+                                                                <TableCell>
+                                                                    <Typography variant="body2" fontWeight={500} fontSize="0.8rem">
+                                                                        {backup.file_size_mb} MB
+                                                                    </Typography>
+                                                                </TableCell>
+                                                                <TableCell>
+                                                                    <Typography variant="body2" color="text.secondary" noWrap fontSize="0.8rem" sx={{ maxWidth: 180 }}>
+                                                                        {backup.description || '-'}
+                                                                    </Typography>
+                                                                </TableCell>
+                                                                <TableCell>
+                                                                    <Typography variant="body2" fontSize="0.8rem">
+                                                                        {new Date(backup.created_at).toLocaleTimeString('en-IN', {
+                                                                            hour: '2-digit',
+                                                                            minute: '2-digit'
+                                                                        })}
+                                                                    </Typography>
+                                                                </TableCell>
+                                                                <TableCell align="center">
+                                                                    <Stack direction="row" spacing={0.5} justifyContent="center">
+                                                                        <Tooltip title="Download">
+                                                                            <IconButton size="small" color="primary" onClick={() => handleDownloadBackup(backup)}>
+                                                                                <DownloadIcon fontSize="small" />
+                                                                            </IconButton>
+                                                                        </Tooltip>
+                                                                        {canSeeButton('restore') && (
+                                                                            <Tooltip title="Restore">
+                                                                                <IconButton
+                                                                                    size="small"
+                                                                                    color="success"
+                                                                                    onClick={() => {
+                                                                                        setSelectedBackup(backup);
+                                                                                        setRestoreDialogOpen(true);
+                                                                                    }}
+                                                                                >
+                                                                                    <RestoreIcon fontSize="small" />
+                                                                                </IconButton>
+                                                                            </Tooltip>
+                                                                        )}
+                                                                        {canSeeButton('delete') && (
+                                                                            <Tooltip title="Delete">
+                                                                                <IconButton size="small" color="error" onClick={() => handleDeleteBackup(backup)}>
+                                                                                    <DeleteIcon fontSize="small" />
+                                                                                </IconButton>
+                                                                            </Tooltip>
+                                                                        )}
+                                                                    </Stack>
+                                                                </TableCell>
+                                                            </TableRow>
+                                                        ))}
+                                                    </TableBody>
+                                                </Table>
+                                            ) : (
+                                                /* Mobile Card View */
+                                                <Stack spacing={1} p={1.5}>
+                                                    {dayBackups.map((backup) => (
+                                                        <Card
+                                                            key={backup.id}
+                                                            sx={{
+                                                                borderRadius: 2,
+                                                                boxShadow: 1,
+                                                                border: selectedBackupIds.includes(backup.id) ? '2px solid' : '1px solid',
+                                                                borderColor: selectedBackupIds.includes(backup.id) ? 'primary.main' : 'divider',
+                                                                bgcolor: selectedBackupIds.includes(backup.id)
+                                                                    ? (isDarkMode ? 'rgba(59, 130, 246, 0.15)' : 'rgba(59, 130, 246, 0.05)')
+                                                                    : 'transparent'
+                                                            }}
+                                                        >
+                                                            <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+                                                                <Stack spacing={1}>
+                                                                    <Stack direction="row" alignItems="center" spacing={1}>
+                                                                        <Checkbox
+                                                                            checked={selectedBackupIds.includes(backup.id)}
+                                                                            onChange={() => toggleBackupSelection(backup.id)}
+                                                                            size="small"
+                                                                        />
+                                                                        <Box flex={1}>
+                                                                            <Typography variant="subtitle2" fontWeight={600} fontSize="0.85rem" noWrap>
+                                                                                {backup.file_name}
+                                                                            </Typography>
+                                                                            <Stack direction="row" spacing={1} alignItems="center" mt={0.5}>
+                                                                                <Chip
+                                                                                    label={backup.backup_type.toUpperCase()}
+                                                                                    color={getBackupTypeColor(backup.backup_type) as any}
+                                                                                    size="small"
+                                                                                    sx={{ fontSize: '0.65rem', height: 20 }}
+                                                                                />
+                                                                                <Typography variant="caption" color="text.secondary">
+                                                                                    {backup.file_size_mb} MB •{' '}
+                                                                                    {new Date(backup.created_at).toLocaleTimeString('en-IN', {
+                                                                                        hour: '2-digit',
+                                                                                        minute: '2-digit'
+                                                                                    })}
+                                                                                </Typography>
+                                                                            </Stack>
+                                                                        </Box>
+                                                                    </Stack>
+                                                                    <Stack direction="row" spacing={0.5}>
+                                                                        <Button size="small" variant="outlined" startIcon={<DownloadIcon />} onClick={() => handleDownloadBackup(backup)} sx={{ flex: 1, fontSize: '0.75rem' }}>
+                                                                            Download
+                                                                        </Button>
+                                                                        {canSeeButton('restore') && (
+                                                                            <Button
+                                                                                size="small"
+                                                                                variant="outlined"
+                                                                                color="success"
+                                                                                onClick={() => {
+                                                                                    setSelectedBackup(backup);
+                                                                                    setRestoreDialogOpen(true);
+                                                                                }}
+                                                                                sx={{ fontSize: '0.75rem' }}
+                                                                            >
+                                                                                <RestoreIcon fontSize="small" />
+                                                                            </Button>
+                                                                        )}
+                                                                        {canSeeButton('delete') && (
+                                                                            <IconButton size="small" color="error" onClick={() => handleDeleteBackup(backup)}>
+                                                                                <DeleteIcon fontSize="small" />
+                                                                            </IconButton>
+                                                                        )}
+                                                                    </Stack>
+                                                                </Stack>
+                                                            </CardContent>
+                                                        </Card>
+                                                    ))}
                                                 </Stack>
-                                            </CardContent>
-                                        </Card>
-                                    ))}
-                                </Stack>
-                            )}
-                        </>
+                                            )}
+                                        </AccordionDetails>
+                                    </Accordion>
+                                );
+                            })}
+                        </Stack>
                     )}
+
+                    {/* ==================== BULK DELETE CONFIRMATION DIALOG ==================== */}
+                    <Dialog
+                        open={bulkDeleteDialogOpen}
+                        onClose={() => setBulkDeleteDialogOpen(false)}
+                        maxWidth="sm"
+                        fullWidth
+                    >
+                        <DialogTitle sx={{
+                            background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+                            color: 'white'
+                        }}>
+                            <Stack direction="row" alignItems="center" spacing={1}>
+                                <DeleteSweepIcon />
+                                <span>Confirm Bulk Delete</span>
+                            </Stack>
+                        </DialogTitle>
+                        <DialogContent sx={{ pt: 3 }}>
+                            <Alert severity="warning" sx={{ mb: 2 }}>
+                                <Typography fontWeight={600}>⚠️ Warning!</Typography>
+                                <Typography variant="body2">
+                                    You are about to delete {selectedBackupIds.length} backup file(s) ({selectedBackupsSize} MB).
+                                    This action cannot be undone!
+                                </Typography>
+                            </Alert>
+                            <Typography variant="body2" color="text.secondary">
+                                Selected backups will be permanently removed from the server.
+                            </Typography>
+                        </DialogContent>
+                        <DialogActions sx={{ p: 2 }}>
+                            <Button onClick={() => setBulkDeleteDialogOpen(false)}>
+                                Cancel
+                            </Button>
+                            <Button
+                                variant="contained"
+                                color="error"
+                                onClick={handleBulkDelete}
+                                startIcon={<DeleteSweepIcon />}
+                            >
+                                Delete {selectedBackupIds.length} Backup(s)
+                            </Button>
+                        </DialogActions>
+                    </Dialog>
 
                     {/* Create Backup Dialog - Enhanced */}
                     <Dialog
@@ -1302,10 +1589,8 @@ export default function BackupPage() {
                                                         <Stack direction="row" spacing={1} alignItems="center">
                                                             <Typography fontSize="1.2rem">{module.icon}</Typography>
                                                             <Box>
-                                                                <Typography variant="body2" fontWeight={500} noWrap>
-                                                                    {module.name}
-                                                                </Typography>
-                                                                <Typography variant="caption" color="text.secondary" noWrap>
+                                                                <Typography fontWeight={600} fontSize="0.85rem">{module.name}</Typography>
+                                                                <Typography variant="caption" color="text.secondary" fontSize="0.7rem">
                                                                     {module.description}
                                                                 </Typography>
                                                             </Box>
@@ -1317,6 +1602,7 @@ export default function BackupPage() {
                                     </Box>
                                 )}
 
+                                {/* Description Field */}
                                 <TextField
                                     label="Description (Optional)"
                                     multiline
@@ -1348,29 +1634,25 @@ export default function BackupPage() {
                                     setSelectedTables([]);
                                     setBackupType('full');
                                 }}
-                                size="large"
+                                variant="outlined"
+                                sx={{ borderRadius: 2 }}
                             >
                                 Cancel
                             </Button>
                             <Button
-                                variant="contained"
                                 onClick={handleCreateBackup}
+                                variant="contained"
                                 startIcon={<BackupIcon />}
                                 disabled={backupType === 'selective' && selectedTables.length === 0}
-                                size="large"
                                 sx={{
+                                    borderRadius: 2,
                                     background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
-                                    fontWeight: 600,
-                                    px: 4,
                                     '&:hover': {
                                         background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
                                     }
                                 }}
                             >
-                                {backupType === 'selective'
-                                    ? `Backup ${selectedTables.length} Module${selectedTables.length !== 1 ? 's' : ''}`
-                                    : 'Create Full Backup'
-                                }
+                                Create Backup
                             </Button>
                         </DialogActions>
                     </Dialog>
@@ -1824,12 +2106,15 @@ export default function BackupPage() {
                                                         <Typography variant="body2" color="text.secondary">
                                                             {schedule.description || 'No description'}
                                                         </Typography>
-                                                        <Stack direction="row" spacing={2} mt={1}>
+                                                        <Stack direction="row" spacing={2} mt={1} flexWrap="wrap" rowGap={0.5}>
                                                             <Typography variant="caption">
                                                                 <strong>Frequency:</strong> {schedule.frequency}
                                                             </Typography>
                                                             <Typography variant="caption">
                                                                 <strong>Time:</strong> {schedule.time_of_day}
+                                                            </Typography>
+                                                            <Typography variant="caption">
+                                                                <strong>Type:</strong> {schedule.backup_type === 'selective' ? '📦 Selective' : schedule.backup_type}
                                                             </Typography>
                                                             <Typography variant="caption">
                                                                 <strong>Retention:</strong> {schedule.retention_days} days
@@ -1880,8 +2165,9 @@ export default function BackupPage() {
                         onClose={() => {
                             setScheduleFormOpen(false);
                             setCurrentSchedule(null);
+                            setScheduleSelectedTables([]);
                         }}
-                        maxWidth="sm"
+                        maxWidth="md"
                         fullWidth
                         fullScreen={isMobile}
                     >
@@ -1922,12 +2208,18 @@ export default function BackupPage() {
                                         onChange={(e) => setCurrentSchedule({ ...currentSchedule, frequency: e.target.value as any })}
                                         label="Frequency"
                                     >
-                                        <MenuItem value="hourly">Hourly</MenuItem>
-                                        <MenuItem value="daily">Daily</MenuItem>
-                                        <MenuItem value="weekly">Weekly</MenuItem>
-                                        <MenuItem value="monthly">Monthly</MenuItem>
+                                        <MenuItem value="hourly">Hourly (Every hour)</MenuItem>
+                                        <MenuItem value="daily">Daily (Once per day)</MenuItem>
+                                        <MenuItem value="weekly">Weekly (Once per week)</MenuItem>
+                                        <MenuItem value="monthly">Monthly (Once per month)</MenuItem>
                                     </Select>
                                 </FormControl>
+
+                                {currentSchedule?.frequency === 'hourly' && (
+                                    <Alert severity="warning" sx={{ fontSize: '0.85rem' }}>
+                                        ⚠️ Hourly backup will run every hour! If you only want backup at a specific time, please select <strong>Daily</strong> instead.
+                                    </Alert>
+                                )}
 
                                 <TextField
                                     label="Time (24-hour format)"
@@ -1935,7 +2227,7 @@ export default function BackupPage() {
                                     fullWidth
                                     value={currentSchedule?.time_of_day?.substring(0, 5) || '02:00'}
                                     onChange={(e) => setCurrentSchedule({ ...currentSchedule, time_of_day: e.target.value + ':00' })}
-                                    helperText="When to run the backup"
+                                    helperText={currentSchedule?.frequency === 'hourly' ? 'Backup will run at this minute every hour' : 'Backup will run at this time'}
                                 />
 
                                 <TextField
@@ -1951,14 +2243,104 @@ export default function BackupPage() {
                                     <InputLabel>Backup Type</InputLabel>
                                     <Select
                                         value={currentSchedule?.backup_type || 'full'}
-                                        onChange={(e) => setCurrentSchedule({ ...currentSchedule, backup_type: e.target.value })}
+                                        onChange={(e) => {
+                                            setCurrentSchedule({ ...currentSchedule, backup_type: e.target.value });
+                                            if (e.target.value !== 'selective') {
+                                                setScheduleSelectedTables([]);
+                                            }
+                                        }}
                                         label="Backup Type"
                                     >
-                                        <MenuItem value="full">Full Backup</MenuItem>
+                                        <MenuItem value="full">Full Backup (All data)</MenuItem>
+                                        <MenuItem value="selective">Selective Backup (Specific modules)</MenuItem>
                                         <MenuItem value="schema">Schema Only</MenuItem>
                                         <MenuItem value="data">Data Only</MenuItem>
                                     </Select>
                                 </FormControl>
+
+                                {/* Selective Module Selection for Schedule */}
+                                {currentSchedule?.backup_type === 'selective' && (
+                                    <Box sx={{
+                                        p: 2,
+                                        bgcolor: isDarkMode ? 'rgba(16, 185, 129, 0.1)' : 'rgba(16, 185, 129, 0.05)',
+                                        borderRadius: 2,
+                                        border: '1px solid',
+                                        borderColor: isDarkMode ? 'rgba(16, 185, 129, 0.3)' : 'rgba(16, 185, 129, 0.2)'
+                                    }}>
+                                        <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1.5}>
+                                            <Typography variant="subtitle2" fontWeight={600}>
+                                                📦 Select Modules ({scheduleSelectedTables.length} selected)
+                                            </Typography>
+                                            <Button
+                                                size="small"
+                                                onClick={() => {
+                                                    if (scheduleSelectedTables.length === backupModules.length) {
+                                                        setScheduleSelectedTables([]);
+                                                    } else {
+                                                        setScheduleSelectedTables(backupModules.map(m => m.id));
+                                                    }
+                                                }}
+                                                sx={{ fontSize: '0.75rem' }}
+                                            >
+                                                {scheduleSelectedTables.length === backupModules.length ? 'Deselect All' : 'Select All'}
+                                            </Button>
+                                        </Stack>
+                                        <Box sx={{
+                                            display: 'grid',
+                                            gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)' },
+                                            gap: 1
+                                        }}>
+                                            {backupModules.map((module) => (
+                                                <Card
+                                                    key={module.id}
+                                                    onClick={() => {
+                                                        setScheduleSelectedTables(prev =>
+                                                            prev.includes(module.id)
+                                                                ? prev.filter(t => t !== module.id)
+                                                                : [...prev, module.id]
+                                                        );
+                                                    }}
+                                                    sx={{
+                                                        cursor: 'pointer',
+                                                        border: scheduleSelectedTables.includes(module.id)
+                                                            ? '2px solid #10b981'
+                                                            : '1px solid',
+                                                        borderColor: scheduleSelectedTables.includes(module.id)
+                                                            ? '#10b981'
+                                                            : isDarkMode ? 'rgba(255,255,255,0.1)' : '#e2e8f0',
+                                                        bgcolor: scheduleSelectedTables.includes(module.id)
+                                                            ? isDarkMode ? 'rgba(16, 185, 129, 0.15)' : 'rgba(16, 185, 129, 0.08)'
+                                                            : isDarkMode ? '#1e293b' : 'white',
+                                                        transition: 'all 0.15s',
+                                                        '&:hover': {
+                                                            borderColor: '#10b981',
+                                                            transform: 'scale(1.02)'
+                                                        }
+                                                    }}
+                                                >
+                                                    <CardContent sx={{ p: 1.25, '&:last-child': { pb: 1.25 } }}>
+                                                        <Stack direction="row" spacing={1} alignItems="center">
+                                                            <Typography fontSize="1.1rem">{module.icon}</Typography>
+                                                            <Box>
+                                                                <Typography variant="body2" fontWeight={500} fontSize="0.8rem" noWrap>
+                                                                    {module.name}
+                                                                </Typography>
+                                                                <Typography variant="caption" color="text.secondary" fontSize="0.65rem" noWrap>
+                                                                    {module.description}
+                                                                </Typography>
+                                                            </Box>
+                                                        </Stack>
+                                                    </CardContent>
+                                                </Card>
+                                            ))}
+                                        </Box>
+                                        {scheduleSelectedTables.length === 0 && (
+                                            <Alert severity="warning" sx={{ mt: 1.5, py: 0.5 }}>
+                                                <Typography variant="caption">Please select at least one module</Typography>
+                                            </Alert>
+                                        )}
+                                    </Box>
+                                )}
 
                                 <TextField
                                     label="Description (Optional)"
@@ -1985,6 +2367,7 @@ export default function BackupPage() {
                                 onClick={() => {
                                     setScheduleFormOpen(false);
                                     setCurrentSchedule(null);
+                                    setScheduleSelectedTables([]);
                                 }}
                                 fullWidth={isMobile}
                             >
@@ -1998,12 +2381,24 @@ export default function BackupPage() {
                                         return;
                                     }
 
+                                    // Validate selective backup has modules selected
+                                    if (currentSchedule?.backup_type === 'selective' && scheduleSelectedTables.length === 0) {
+                                        toast.error('Please select at least one module for selective backup');
+                                        return;
+                                    }
+
                                     const toastId = toast.loading('Creating schedule...');
                                     try {
-                                        await api.post('/backups/schedules', currentSchedule);
+                                        const scheduleData = {
+                                            ...currentSchedule,
+                                            // Include selected tables for selective backup
+                                            selected_tables: currentSchedule?.backup_type === 'selective' ? scheduleSelectedTables : null
+                                        };
+                                        await api.post('/backups/schedules', scheduleData);
                                         toast.success('Schedule created successfully!', { id: toastId });
                                         setScheduleFormOpen(false);
                                         setCurrentSchedule(null);
+                                        setScheduleSelectedTables([]);
                                         loadSchedules();
                                         loadHealthStats();
                                     } catch (error: any) {
@@ -2012,6 +2407,7 @@ export default function BackupPage() {
                                     }
                                 }}
                                 fullWidth={isMobile}
+                                disabled={currentSchedule?.backup_type === 'selective' && scheduleSelectedTables.length === 0}
                                 sx={{
                                     background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
                                     '&:hover': {
@@ -2024,8 +2420,8 @@ export default function BackupPage() {
                         </DialogActions>
                     </Dialog>
 
-                </Box>
-            </Box>
+                </Box >
+            </Box >
         </AppLayout >
     );
 }

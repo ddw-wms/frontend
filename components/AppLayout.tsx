@@ -1,11 +1,15 @@
 // File Path = warehouse-frontend\components\AppLayout.tsx
 
 'use client';
-import { ReactNode, useState, useEffect } from 'react';
+import { ReactNode, useState, useEffect, useCallback } from 'react';
 import { Box, CssBaseline, useTheme, useMediaQuery, IconButton, Fab } from '@mui/material';
 import { Menu as MenuIcon } from '@mui/icons-material';
 import Sidebar from './Sidebar';
 import RouteGuard from './RouteGuard';
+import { useHeartbeat } from '@/hooks/useHeartbeat';
+import { useRouter } from 'next/navigation';
+import { logout } from '@/lib/auth';
+import toast from 'react-hot-toast';
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -15,10 +19,25 @@ interface AppLayoutProps {
 
 export default function AppLayout({ children, requiredPermission, skipRouteGuard = false }: AppLayoutProps) {
   const theme = useTheme();
+  const router = useRouter();
   const isMobileQuery = useMediaQuery(theme.breakpoints.down('md'));
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+
+  // Handle session expiration (forced logout by admin)
+  const handleSessionExpired = useCallback(() => {
+    toast.error('Your session has been terminated. Please login again.');
+    logout();
+    router.push('/login');
+  }, [router]);
+
+  // Heartbeat for real-time online status tracking (sends every 30 seconds)
+  useHeartbeat({
+    intervalMs: 30000,
+    enabled: true,
+    onSessionExpired: handleSessionExpired
+  });
 
   // Handle mobile detection with SSR safety
   useEffect(() => {

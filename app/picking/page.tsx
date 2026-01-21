@@ -2183,6 +2183,8 @@ export default function PickingPage() {
                         }
                       }}
                       pagination={false}
+                      rowHeight={tableRowHeight}
+                      headerHeight={32}
                     />
                   </Box>
                 </div>
@@ -3114,6 +3116,7 @@ export default function PickingPage() {
                 rowData={multiRows}
                 columnDefs={columnDefs}
                 rowHeight={tableRowHeight}
+                headerHeight={32}
                 getRowId={(params) => String(params.data.id)}
                 defaultColDef={{
                   sortable: false,

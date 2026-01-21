@@ -63,17 +63,13 @@ export default function ReportsPage() {
         setUser(storedUser);
     }, []);
 
-    useEffect(() => {
-        if (activeWarehouse?.id) {
-            loadAnalyticsData();
-        }
-    }, [activeWarehouse?.id, selectedTab]);
-
+    // Load analytics data when warehouse or tab changes
     const loadAnalyticsData = useCallback(async () => {
         if (!activeWarehouse?.id) return;
 
         setLoading(true);
         try {
+            // Clear previous data when warehouse changes
             if (selectedTab === 0) {
                 // Analytics Dashboard
                 const [trends, qc] = await Promise.all([
@@ -100,6 +96,20 @@ export default function ReportsPage() {
             setLoading(false);
         }
     }, [activeWarehouse?.id, selectedTab]);
+
+    // Re-fetch data when warehouse or tab changes
+    useEffect(() => {
+        if (activeWarehouse?.id) {
+            // Reset data when warehouse changes to avoid showing stale data
+            setTrendData([]);
+            setQcAnalysis([]);
+            setUserPerformance([]);
+            setBrandPerformance([]);
+            setExceptionReports({ stuckInbound: [], qcFailed: [], slowMoving: [] });
+
+            loadAnalyticsData();
+        }
+    }, [activeWarehouse?.id, selectedTab, loadAnalyticsData]);
 
     // Calculate KPIs from trend data
     const kpis = useMemo(() => {

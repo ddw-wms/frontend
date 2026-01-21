@@ -215,7 +215,8 @@ export default function OutboundPage() {
 
     const [tabValue, setTabValue] = useState(0);
     const currentTabCode = visibleTabCodes[tabValue];
-    const gridRef = useRef<any>(null);
+    const gridRef = useRef<any>(null);  // For Multi Entry grid
+    const listGridRef = useRef<any>(null);  // Separate ref for List grid
     const columnApiRef = useRef<any>(null);
     const hasAutoFittedRef = useRef(false); // Track if auto-fit has been done
     const wsnInputRef = useRef<HTMLInputElement>(null);
@@ -627,6 +628,31 @@ export default function OutboundPage() {
             loadOutboundList();
         }
     }, [activeWarehouse, currentTabCode, page, limit, searchDebounced, sourceFilter, customerFilter, startDateFilter, endDateFilter, batchFilter, brandFilter, categoryFilter]);
+
+    // Force refresh SR.NO column when page/limit changes - update context and refresh cells
+    useEffect(() => {
+        if (currentTabCode === 'list' && listGridRef.current) {
+            console.log('🔄 SR.NO Refresh triggered - page:', page, 'limit:', limit);
+            // Small delay to ensure React state is settled
+            const timer = setTimeout(() => {
+                try {
+                    const api = listGridRef.current?.api || listGridRef.current;
+                    if (api) {
+                        // Update the grid's context with current page/limit values
+                        if (typeof api.setGridOption === 'function') {
+                            api.setGridOption('context', { page, limit });
+                        }
+                        // Then refresh the SR.NO column cells to re-run valueGetter
+                        if (typeof api.refreshCells === 'function') {
+                            api.refreshCells({ columns: ['__sr'], force: true });
+                            console.log('🔄 SR.NO refreshCells called with context:', { page, limit });
+                        }
+                    }
+                } catch { /* ignore */ }
+            }, 50);
+            return () => clearTimeout(timer);
+        }
+    }, [page, limit, currentTabCode]);
 
     // ====== LOAD EXISTING OUTBOUND WSNs ======
     const loadExistingWSNs = async () => {
@@ -1563,7 +1589,7 @@ export default function OutboundPage() {
                     overlayStartRef.current = Date.now();
                     // We intentionally avoid AG Grid's built-in loading overlay to prevent "Loading..." text
                     // and rely on our custom spinner overlays for consistency.
-                    try { gridRef.current?.api?.hideOverlay(); } catch { }
+                    try { listGridRef.current?.api?.hideOverlay(); } catch { }
                 } catch (err) { }
                 overlayTimerRef.current = null;
             }, SHOW_OVERLAY_DELAY);
@@ -1602,40 +1628,25 @@ export default function OutboundPage() {
                 const data = res.data.data || [];
                 setTotal(res.data.total || 0);
 
+                // DEBUG: Log data received
+                console.log('📦 Outbound List Data:', { page, limit, dataLength: data.length, total: res.data.total });
+
                 // Clear any pending empty timers (we are about to handle the new response)
                 if (emptyTimerRef.current) {
                     clearTimeout(emptyTimerRef.current);
                     emptyTimerRef.current = null;
                 }
 
-                // If server returned rows, update immediately
-                if (data.length > 0) {
-                    // Always use setRowData for pagination to ensure correct rowIndex
-                    setListData(data);
-                    previousDataRef.current = data;
-                    try {
-                        const api = gridRef.current?.api || gridRef.current;
-                        if (api && typeof api.setRowData === 'function') {
-                            api.setRowData(data);
-                        }
-                    } catch (err) { /* ignore */ }
-                } else {
-                    // Server returned zero rows - delay clearing previous rows to avoid flicker
-                    emptyTimerRef.current = setTimeout(() => {
-                        // Only clear if still the latest request
-                        if (loadId === currentLoadIdRef.current) {
-                            setListData([]);
-                            previousDataRef.current = [];
-                            try {
-                                const api = gridRef.current?.api || gridRef.current;
-                                if (api && typeof api.setRowData === 'function') {
-                                    api.setRowData([]);
-                                }
-                            } catch (err) { /* ignore */ }
-                        }
-                        emptyTimerRef.current = null;
-                    }, EMPTY_CONFIRM_DELAY);
-                }
+                // Always update listData and grid with new data (even if same length)
+                setListData(data);
+                previousDataRef.current = data;
+                try {
+                    const api = listGridRef.current?.api || listGridRef.current;
+                    if (api && typeof api.setRowData === 'function') {
+                        api.setRowData(data);
+                        console.log('📦 AG Grid setRowData called with', data.length, 'items');
+                    }
+                } catch (err) { /* ignore */ }
 
                 let uniqCusts: string[] = [];
                 try {
@@ -1720,7 +1731,7 @@ export default function OutboundPage() {
                     overlayTimerRef.current = null;
                 }
                 if (overlayShownRef.current) {
-                    try { gridRef.current?.api?.hideOverlay(); } catch { }
+                    try { listGridRef.current?.api?.hideOverlay(); } catch { }
                     overlayShownRef.current = false;
                     overlayStartRef.current = null;
                     try { setTopLoading(false); } catch { }
@@ -1764,7 +1775,7 @@ export default function OutboundPage() {
                     if (elapsed < MIN_LOADING_MS) {
                         await new Promise(res => setTimeout(res, MIN_LOADING_MS - elapsed));
                     }
-                    try { gridRef.current?.api?.hideOverlay(); } catch { }
+                    try { listGridRef.current?.api?.hideOverlay(); } catch { }
                     overlayShownRef.current = false;
                     overlayStartRef.current = null;
                     try { setTopLoading(false); } catch { }
@@ -2101,7 +2112,14 @@ export default function OutboundPage() {
         const sr = {
             headerName: 'SR.NO',
             field: '__sr',
-            valueGetter: (params: any) => params.node ? params.node.rowIndex + 1 + (page - 1) * limit : undefined,
+            // Use context for page/limit to ensure values are always current
+            valueGetter: (params: any) => {
+                if (!params.node) return undefined;
+                const ctx = params.context || {};
+                const currentPage = ctx.page || 1;
+                const currentLimit = ctx.limit || 100;
+                return params.node.rowIndex + 1 + (currentPage - 1) * currentLimit;
+            },
             width: 80,
             cellStyle: { fontWeight: 700, textAlign: 'center', color: isDarkMode ? '#94a3b8' : '#64748b' },
             suppressMovable: true,
@@ -2148,7 +2166,7 @@ export default function OutboundPage() {
         });
 
         return [sr, ...cols];
-    }, [listColumns, page, limit, enableColumnFilters, enableSorting, enableColumnResize]);
+    }, [listColumns, enableColumnFilters, enableSorting, enableColumnResize, isDarkMode]);
 
     const listDefaultColDef = useMemo(() => ({
         sortable: !!enableSorting,
@@ -2765,10 +2783,11 @@ export default function OutboundPage() {
                                         },
                                     }}>
                                         <AgGridReact
-                                            ref={gridRef}
+                                            ref={listGridRef}
                                             rowData={listData}
                                             columnDefs={listColumnDefs}
                                             defaultColDef={listDefaultColDef}
+                                            context={{ page, limit }}
                                             rowSelection={{ mode: 'singleRow', checkboxes: false, enableClickSelection: true }}
                                             loading={false}
                                             suppressNoRowsOverlay={true}
@@ -2777,9 +2796,9 @@ export default function OutboundPage() {
                                             enableCellTextSelection={true}
                                             ensureDomOrder={true}
                                             animateRows={false}
-                                            gridOptions={{ getRowId: (params: any) => String(params.data?.wsn || params.data?.wid || params.data?.id || params.rowIndex), suppressRowTransform: true }}
+                                            gridOptions={{ suppressRowTransform: true }}
                                             onGridReady={(params: any) => {
-                                                gridRef.current = params.api;
+                                                listGridRef.current = params.api;
                                                 columnApiRef.current = params.api;
                                                 try {
                                                     const savedState = localStorage.getItem('outbound_columnState');
@@ -2822,6 +2841,8 @@ export default function OutboundPage() {
                                                 }
                                             }}
                                             pagination={false}
+                                            rowHeight={tableRowHeight}
+                                            headerHeight={32}
                                         />
                                     </Box>
                                 </div>
@@ -4057,6 +4078,7 @@ export default function OutboundPage() {
                                 rowData={multiRows}
                                 columnDefs={columnDefs}
                                 rowHeight={tableRowHeight}
+                                headerHeight={32}
                                 defaultColDef={defaultColDef}
                                 onCellValueChanged={onCellValueChanged}
                                 getRowStyle={getRowStyle}

@@ -3,7 +3,6 @@
 import React from 'react';
 import {
     Box,
-    Paper,
     Typography,
     Button,
     Table,
@@ -15,8 +14,6 @@ import {
     CircularProgress,
     Chip,
     Stack,
-    Card,
-    CardContent,
     IconButton,
     Tooltip,
     useTheme,
@@ -88,7 +85,6 @@ export default function BatchManagementTab({
 }: BatchManagementTabProps) {
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-    const isTablet = useMediaQuery(theme.breakpoints.between('sm', 'md'));
     const isDarkMode = theme.palette.mode === 'dark';
 
     // Get date from batch (handles different field names)
@@ -96,424 +92,239 @@ export default function BatchManagementTab({
         return batch.lastupdated_display || formatDate(batch.last_updated || batch.created_at);
     };
 
+    // Calculate total items properly (ensure numeric addition)
+    const totalItems = batches.reduce((sum, b) => sum + (parseInt(String(b.count)) || 0), 0);
+
     return (
-        <Box
-            sx={{
-                display: 'flex',
-                flexDirection: 'column',
-                height: '100%',
-                p: { xs: 0.5, sm: 1, md: 1.5 },
-                overflow: 'auto',
-            }}
-        >
-            <Card
+        <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', p: 1 }}>
+            {/* Compact Header */}
+            <Stack
+                direction="row"
+                justifyContent="space-between"
+                alignItems="center"
                 sx={{
-                    borderRadius: { xs: 1, sm: 1.5, md: 2 },
-                    boxShadow: isDarkMode
-                        ? '0 4px 20px rgba(0,0,0,0.4)'
-                        : '0 4px 20px rgba(0,0,0,0.08)',
-                    background: isDarkMode
-                        ? 'linear-gradient(135deg, #1e293b 0%, #334155 100%)'
-                        : 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
-                    border: isDarkMode
-                        ? '1px solid rgba(255,255,255,0.1)'
-                        : '1px solid #e2e8f0',
-                    flex: 1,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    minHeight: 0,
+                    mb: 1,
+                    pb: 1,
+                    borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.08)' : '1px solid #e5e7eb',
                 }}
             >
-                <CardContent
+                <Stack direction="row" alignItems="center" spacing={1}>
+                    <BatchIcon sx={{ color: isDarkMode ? '#60a5fa' : '#2563eb', fontSize: 20 }} />
+                    <Typography sx={{ fontWeight: 700, color: isDarkMode ? '#f1f5f9' : '#1e293b', fontSize: '0.9rem' }}>
+                        {title}
+                    </Typography>
+                    {batches.length > 0 && (
+                        <Chip
+                            label={batches.length}
+                            size="small"
+                            sx={{
+                                height: 20,
+                                fontSize: '0.7rem',
+                                fontWeight: 600,
+                                bgcolor: isDarkMode ? 'rgba(96, 165, 250, 0.15)' : '#dbeafe',
+                                color: isDarkMode ? '#60a5fa' : '#2563eb',
+                            }}
+                        />
+                    )}
+                </Stack>
+                <Button
+                    size="small"
+                    startIcon={<RefreshIcon sx={{ fontSize: 16 }} />}
+                    onClick={onRefresh}
                     sx={{
-                        p: { xs: 1.5, sm: 2, md: 2.5 },
-                        flex: 1,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        minHeight: 0,
-                        '&:last-child': { pb: { xs: 1.5, sm: 2, md: 2.5 } },
+                        height: 28,
+                        fontSize: '0.7rem',
+                        fontWeight: 600,
+                        textTransform: 'none',
+                        color: isDarkMode ? '#60a5fa' : '#2563eb',
+                        '&:hover': { bgcolor: isDarkMode ? 'rgba(96, 165, 250, 0.1)' : '#eff6ff' },
                     }}
                 >
-                    {/* Header Section */}
-                    <Stack
-                        direction={{ xs: 'column', sm: 'row' }}
-                        justifyContent="space-between"
-                        alignItems={{ xs: 'flex-start', sm: 'center' }}
-                        spacing={{ xs: 1, sm: 0 }}
-                        sx={{ mb: { xs: 1.5, sm: 2, md: 2.5 } }}
-                    >
-                        <Typography
-                            variant="h6"
-                            sx={{
-                                fontWeight: 800,
-                                color: isDarkMode ? '#f1f5f9' : '#1e293b',
-                                fontSize: { xs: '1rem', sm: '1.1rem', md: '1.25rem' },
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 1,
-                            }}
-                        >
-                            <BatchIcon sx={{ color: isDarkMode ? '#60a5fa' : '#1e40af', fontSize: { xs: 20, sm: 22, md: 24 } }} />
-                            {title}
-                            {batches.length > 0 && (
-                                <Chip
-                                    label={batches.length}
-                                    size="small"
-                                    sx={{
-                                        ml: 1,
-                                        bgcolor: isDarkMode ? 'rgba(96, 165, 250, 0.2)' : 'rgba(30, 64, 175, 0.1)',
-                                        color: isDarkMode ? '#60a5fa' : '#1e40af',
-                                        fontWeight: 700,
-                                        fontSize: { xs: '0.7rem', sm: '0.75rem' },
-                                        height: { xs: 20, sm: 22, md: 24 },
-                                    }}
-                                />
-                            )}
-                        </Typography>
+                    Refresh
+                </Button>
+            </Stack>
 
-                        <Button
-                            size={isMobile ? 'small' : 'medium'}
-                            startIcon={<RefreshIcon sx={{ fontSize: { xs: 16, sm: 18 } }} />}
-                            onClick={onRefresh}
-                            variant="outlined"
-                            sx={{
-                                height: { xs: 32, sm: 36, md: 40 },
-                                fontSize: { xs: '0.7rem', sm: '0.75rem', md: '0.8rem' },
-                                fontWeight: 600,
-                                textTransform: 'uppercase',
-                                borderColor: isDarkMode ? 'rgba(96, 165, 250, 0.5)' : '#1e40af',
-                                color: isDarkMode ? '#60a5fa' : '#1e40af',
-                                '&:hover': {
-                                    borderColor: isDarkMode ? '#60a5fa' : '#1e3a8a',
-                                    bgcolor: isDarkMode ? 'rgba(96, 165, 250, 0.1)' : 'rgba(30, 64, 175, 0.05)',
-                                },
-                            }}
-                        >
-                            Refresh
-                        </Button>
-                    </Stack>
-
-                    {/* Table Container */}
-                    <Box
-                        sx={{
-                            flex: 1,
-                            border: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e2e8f0',
-                            borderRadius: { xs: 1, sm: 1.5 },
-                            overflow: 'hidden',
-                            background: isDarkMode ? '#1e293b' : 'white',
-                            boxShadow: isDarkMode ? 'none' : '0 2px 8px rgba(0,0,0,0.04)',
-                            minHeight: 0,
-                        }}
-                    >
-                        <TableContainer sx={{ height: '100%', maxHeight: { xs: 'calc(100vh - 280px)', sm: 'calc(100vh - 260px)', md: 'calc(100vh - 240px)' } }}>
-                            <Table stickyHeader size={isMobile ? 'small' : 'medium'}>
-                                <TableHead>
-                                    <TableRow
+            {/* Compact Table */}
+            <Box
+                sx={{
+                    flex: 1,
+                    overflow: 'hidden',
+                    borderRadius: 1,
+                    border: isDarkMode ? '1px solid rgba(255,255,255,0.08)' : '1px solid #e5e7eb',
+                    bgcolor: isDarkMode ? '#1e293b' : '#fff',
+                }}
+            >
+                <TableContainer sx={{ maxHeight: 'calc(100vh - 280px)' }}>
+                    <Table size="small" stickyHeader>
+                        <TableHead>
+                            <TableRow>
+                                {['Batch ID', 'Count', ...(isMobile ? [] : ['Last Updated']), 'Actions'].map((header, i) => (
+                                    <TableCell
+                                        key={header}
+                                        align={header === 'Count' || header === 'Actions' ? (header === 'Actions' ? 'right' : 'center') : 'left'}
                                         sx={{
-                                            '& th': {
-                                                background: isDarkMode
-                                                    ? 'linear-gradient(135deg, #334155 0%, #475569 100%)'
-                                                    : 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
-                                                color: 'white',
-                                                fontWeight: 800,
-                                                fontSize: { xs: '0.65rem', sm: '0.72rem', md: '0.8rem' },
-                                                textTransform: 'uppercase',
-                                                letterSpacing: '0.5px',
-                                                py: { xs: 1, sm: 1.25, md: 1.5 },
-                                                px: { xs: 1, sm: 1.5, md: 2 },
-                                                borderBottom: 'none',
-                                                whiteSpace: 'nowrap',
-                                                '&:first-of-type': {
-                                                    borderTopLeftRadius: { xs: 4, sm: 6 },
-                                                },
-                                                '&:last-of-type': {
-                                                    borderTopRightRadius: { xs: 4, sm: 6 },
-                                                },
+                                            bgcolor: isDarkMode ? '#334155' : '#f8fafc',
+                                            color: isDarkMode ? '#94a3b8' : '#64748b',
+                                            fontWeight: 600,
+                                            fontSize: '0.7rem',
+                                            textTransform: 'uppercase',
+                                            letterSpacing: '0.5px',
+                                            py: 1,
+                                            borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.08)' : '1px solid #e5e7eb',
+                                        }}
+                                    >
+                                        {header}
+                                    </TableCell>
+                                ))}
+                            </TableRow>
+                        </TableHead>
+                        <TableBody>
+                            {loading ? (
+                                <TableRow>
+                                    <TableCell colSpan={isMobile ? 3 : 4} align="center" sx={{ py: 4 }}>
+                                        <CircularProgress size={24} sx={{ color: isDarkMode ? '#60a5fa' : '#2563eb' }} />
+                                        <Typography sx={{ mt: 1, fontSize: '0.75rem', color: isDarkMode ? '#94a3b8' : '#64748b' }}>
+                                            Loading...
+                                        </Typography>
+                                    </TableCell>
+                                </TableRow>
+                            ) : batches.length === 0 ? (
+                                <TableRow>
+                                    <TableCell colSpan={isMobile ? 3 : 4} align="center" sx={{ py: 4 }}>
+                                        <BatchIcon sx={{ fontSize: 36, color: isDarkMode ? '#475569' : '#cbd5e1', mb: 0.5 }} />
+                                        <Typography sx={{ fontSize: '0.8rem', fontWeight: 600, color: isDarkMode ? '#64748b' : '#94a3b8' }}>
+                                            {emptyMessage}
+                                        </Typography>
+                                        <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#475569' : '#cbd5e1' }}>
+                                            {emptySubMessage}
+                                        </Typography>
+                                    </TableCell>
+                                </TableRow>
+                            ) : (
+                                batches.map((batch, idx) => (
+                                    <TableRow
+                                        key={batch.batch_id}
+                                        sx={{
+                                            bgcolor: isDarkMode
+                                                ? idx % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.02)'
+                                                : idx % 2 === 0 ? 'transparent' : '#fafafa',
+                                            '&:hover': { bgcolor: isDarkMode ? 'rgba(96, 165, 250, 0.08)' : '#f0f9ff' },
+                                            '& td': {
+                                                py: 0.75,
+                                                borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.04)' : '1px solid #f1f5f9',
                                             },
                                         }}
                                     >
-                                        <TableCell>Batch ID</TableCell>
-                                        <TableCell align="center">Count</TableCell>
-                                        {!isMobile && <TableCell>Last Updated</TableCell>}
-                                        <TableCell align="center">Actions</TableCell>
-                                    </TableRow>
-                                </TableHead>
-                                <TableBody>
-                                    {loading ? (
-                                        <TableRow>
-                                            <TableCell colSpan={isMobile ? 3 : 4} align="center" sx={{ py: { xs: 4, sm: 6, md: 8 } }}>
-                                                <CircularProgress
-                                                    size={isMobile ? 32 : 48}
-                                                    sx={{ color: isDarkMode ? '#60a5fa' : '#1e40af' }}
-                                                />
-                                                <Typography
-                                                    sx={{
-                                                        mt: 1.5,
-                                                        fontWeight: 600,
-                                                        color: isDarkMode ? '#94a3b8' : '#64748b',
-                                                        fontSize: { xs: '0.75rem', sm: '0.85rem' },
-                                                    }}
-                                                >
-                                                    Loading batches...
-                                                </Typography>
-                                            </TableCell>
-                                        </TableRow>
-                                    ) : batches.length === 0 ? (
-                                        <TableRow>
-                                            <TableCell colSpan={isMobile ? 3 : 4} align="center" sx={{ py: { xs: 4, sm: 6, md: 8 } }}>
-                                                <BatchIcon
-                                                    sx={{
-                                                        fontSize: { xs: 40, sm: 50, md: 60 },
-                                                        color: isDarkMode ? '#475569' : '#cbd5e1',
-                                                        mb: 1,
-                                                    }}
-                                                />
-                                                <Typography
-                                                    sx={{
-                                                        fontWeight: 700,
-                                                        color: isDarkMode ? '#64748b' : '#94a3b8',
-                                                        fontSize: { xs: '0.85rem', sm: '1rem' },
-                                                    }}
-                                                >
-                                                    📭 {emptyMessage}
-                                                </Typography>
-                                                <Typography
-                                                    variant="caption"
-                                                    sx={{
-                                                        color: isDarkMode ? '#475569' : '#cbd5e1',
-                                                        mt: 0.5,
-                                                        display: 'block',
-                                                        fontSize: { xs: '0.65rem', sm: '0.7rem' },
-                                                    }}
-                                                >
-                                                    {emptySubMessage}
-                                                </Typography>
-                                            </TableCell>
-                                        </TableRow>
-                                    ) : (
-                                        batches.map((batch, idx) => (
-                                            <TableRow
-                                                key={batch.batch_id}
+                                        <TableCell>
+                                            <Typography
                                                 sx={{
-                                                    bgcolor: isDarkMode
-                                                        ? idx % 2 === 0 ? '#1e293b' : '#263545'
-                                                        : idx % 2 === 0 ? '#ffffff' : '#f8fafc',
-                                                    transition: 'all 0.2s ease',
-                                                    '&:hover': {
-                                                        bgcolor: isDarkMode ? 'rgba(96, 165, 250, 0.1)' : '#f1f5f9',
-                                                        transform: 'scale(1.001)',
-                                                    },
-                                                    '& td': {
-                                                        py: { xs: 0.75, sm: 1, md: 1.25 },
-                                                        px: { xs: 1, sm: 1.5, md: 2 },
-                                                        fontSize: { xs: '0.72rem', sm: '0.78rem', md: '0.85rem' },
-                                                        color: isDarkMode ? '#e2e8f0' : '#334155',
-                                                        borderBottom: isDarkMode
-                                                            ? '1px solid rgba(255,255,255,0.05)'
-                                                            : '1px solid #f1f5f9',
-                                                    },
+                                                    fontFamily: 'monospace',
+                                                    fontSize: '0.75rem',
+                                                    fontWeight: 600,
+                                                    color: isDarkMode ? '#60a5fa' : '#2563eb',
+                                                    bgcolor: isDarkMode ? 'rgba(96, 165, 250, 0.1)' : '#eff6ff',
+                                                    px: 1,
+                                                    py: 0.25,
+                                                    borderRadius: 0.5,
+                                                    display: 'inline-block',
+                                                    maxWidth: 200,
+                                                    overflow: 'hidden',
+                                                    textOverflow: 'ellipsis',
+                                                    whiteSpace: 'nowrap',
                                                 }}
                                             >
-                                                {/* Batch ID */}
-                                                <TableCell>
-                                                    <Chip
-                                                        label={batch.batch_id}
-                                                        size="small"
-                                                        sx={{
-                                                            fontWeight: 700,
-                                                            fontFamily: 'monospace',
-                                                            bgcolor: isDarkMode ? 'rgba(96, 165, 250, 0.15)' : '#dbeafe',
-                                                            color: isDarkMode ? '#60a5fa' : '#1e40af',
-                                                            fontSize: { xs: '0.65rem', sm: '0.72rem', md: '0.78rem' },
-                                                            height: { xs: 22, sm: 26, md: 28 },
-                                                            maxWidth: { xs: 100, sm: 140, md: 'none' },
-                                                            '& .MuiChip-label': {
-                                                                overflow: 'hidden',
-                                                                textOverflow: 'ellipsis',
-                                                            },
-                                                        }}
-                                                    />
-                                                </TableCell>
-
-                                                {/* Count */}
-                                                <TableCell align="center">
-                                                    <Chip
-                                                        label={`${formatNumber(batch.count)} items`}
-                                                        size="small"
-                                                        sx={{
-                                                            fontWeight: 700,
-                                                            bgcolor: isDarkMode ? 'rgba(34, 197, 94, 0.15)' : 'rgba(34, 197, 94, 0.1)',
-                                                            color: isDarkMode ? '#4ade80' : '#16a34a',
-                                                            fontSize: { xs: '0.62rem', sm: '0.68rem', md: '0.72rem' },
-                                                            height: { xs: 20, sm: 24, md: 26 },
-                                                        }}
-                                                    />
-                                                </TableCell>
-
-                                                {/* Date - Hidden on mobile */}
-                                                {!isMobile && (
-                                                    <TableCell>
-                                                        <Typography
+                                                {batch.batch_id}
+                                            </Typography>
+                                        </TableCell>
+                                        <TableCell align="center">
+                                            <Chip
+                                                label={formatNumber(batch.count)}
+                                                size="small"
+                                                sx={{
+                                                    height: 22,
+                                                    fontSize: '0.7rem',
+                                                    fontWeight: 600,
+                                                    bgcolor: isDarkMode ? 'rgba(34, 197, 94, 0.12)' : '#f0fdf4',
+                                                    color: isDarkMode ? '#4ade80' : '#16a34a',
+                                                    border: isDarkMode ? '1px solid rgba(34, 197, 94, 0.2)' : '1px solid #bbf7d0',
+                                                }}
+                                            />
+                                        </TableCell>
+                                        {!isMobile && (
+                                            <TableCell>
+                                                <Typography sx={{ fontSize: '0.72rem', color: isDarkMode ? '#94a3b8' : '#64748b' }}>
+                                                    {getBatchDate(batch)}
+                                                </Typography>
+                                            </TableCell>
+                                        )}
+                                        <TableCell align="right">
+                                            <Stack direction="row" spacing={0.5} justifyContent="flex-end">
+                                                {canView && onView && (
+                                                    <Tooltip title="View" arrow placement="top">
+                                                        <IconButton
+                                                            size="small"
+                                                            onClick={() => onView(batch.batch_id)}
                                                             sx={{
-                                                                fontSize: { sm: '0.72rem', md: '0.78rem' },
-                                                                color: isDarkMode ? '#94a3b8' : '#64748b',
-                                                                fontWeight: 500,
+                                                                width: 26,
+                                                                height: 26,
+                                                                bgcolor: isDarkMode ? 'rgba(96, 165, 250, 0.1)' : '#eff6ff',
+                                                                color: isDarkMode ? '#60a5fa' : '#2563eb',
+                                                                '&:hover': { bgcolor: isDarkMode ? 'rgba(96, 165, 250, 0.2)' : '#dbeafe' },
                                                             }}
                                                         >
-                                                            {getBatchDate(batch)}
-                                                        </Typography>
-                                                    </TableCell>
+                                                            <VisibilityIcon sx={{ fontSize: 14 }} />
+                                                        </IconButton>
+                                                    </Tooltip>
                                                 )}
+                                                {canDelete && onDelete && (
+                                                    <Tooltip title="Delete" arrow placement="top">
+                                                        <IconButton
+                                                            size="small"
+                                                            onClick={() => onDelete(batch.batch_id)}
+                                                            sx={{
+                                                                width: 26,
+                                                                height: 26,
+                                                                bgcolor: isDarkMode ? 'rgba(239, 68, 68, 0.1)' : '#fef2f2',
+                                                                color: '#ef4444',
+                                                                '&:hover': { bgcolor: isDarkMode ? 'rgba(239, 68, 68, 0.2)' : '#fee2e2' },
+                                                            }}
+                                                        >
+                                                            <DeleteIcon sx={{ fontSize: 14 }} />
+                                                        </IconButton>
+                                                    </Tooltip>
+                                                )}
+                                            </Stack>
+                                        </TableCell>
+                                    </TableRow>
+                                ))
+                            )}
+                        </TableBody>
+                    </Table>
+                </TableContainer>
+            </Box>
 
-                                                {/* Actions */}
-                                                <TableCell align="center">
-                                                    <Stack
-                                                        direction="row"
-                                                        spacing={{ xs: 0.5, sm: 0.75 }}
-                                                        justifyContent="center"
-                                                        flexWrap="wrap"
-                                                    >
-                                                        {/* View Button */}
-                                                        {canView && onView && (
-                                                            isMobile ? (
-                                                                <Tooltip title="View Batch" arrow>
-                                                                    <IconButton
-                                                                        size="small"
-                                                                        onClick={() => onView(batch.batch_id)}
-                                                                        sx={{
-                                                                            bgcolor: isDarkMode ? 'rgba(96, 165, 250, 0.15)' : '#dbeafe',
-                                                                            color: isDarkMode ? '#60a5fa' : '#1e40af',
-                                                                            '&:hover': {
-                                                                                bgcolor: isDarkMode ? 'rgba(96, 165, 250, 0.25)' : '#bfdbfe',
-                                                                            },
-                                                                            width: { xs: 28, sm: 32 },
-                                                                            height: { xs: 28, sm: 32 },
-                                                                        }}
-                                                                    >
-                                                                        <VisibilityIcon sx={{ fontSize: { xs: 14, sm: 16 } }} />
-                                                                    </IconButton>
-                                                                </Tooltip>
-                                                            ) : (
-                                                                <Button
-                                                                    size="small"
-                                                                    variant="outlined"
-                                                                    startIcon={<VisibilityIcon sx={{ fontSize: 14 }} />}
-                                                                    onClick={() => onView(batch.batch_id)}
-                                                                    sx={{
-                                                                        height: { sm: 28, md: 32 },
-                                                                        fontSize: { sm: '0.65rem', md: '0.7rem' },
-                                                                        fontWeight: 600,
-                                                                        textTransform: 'uppercase',
-                                                                        borderColor: isDarkMode ? 'rgba(96, 165, 250, 0.5)' : '#1e40af',
-                                                                        color: isDarkMode ? '#60a5fa' : '#1e40af',
-                                                                        minWidth: { sm: 60, md: 70 },
-                                                                        '&:hover': {
-                                                                            borderColor: isDarkMode ? '#60a5fa' : '#1e3a8a',
-                                                                            bgcolor: isDarkMode ? 'rgba(96, 165, 250, 0.1)' : 'rgba(30, 64, 175, 0.05)',
-                                                                        },
-                                                                    }}
-                                                                >
-                                                                    View
-                                                                </Button>
-                                                            )
-                                                        )}
-
-                                                        {/* Delete Button */}
-                                                        {canDelete && onDelete && (
-                                                            isMobile ? (
-                                                                <Tooltip title="Delete Batch" arrow>
-                                                                    <IconButton
-                                                                        size="small"
-                                                                        onClick={() => onDelete(batch.batch_id)}
-                                                                        sx={{
-                                                                            bgcolor: isDarkMode ? 'rgba(239, 68, 68, 0.15)' : 'rgba(239, 68, 68, 0.1)',
-                                                                            color: '#ef4444',
-                                                                            '&:hover': {
-                                                                                bgcolor: isDarkMode ? 'rgba(239, 68, 68, 0.25)' : 'rgba(239, 68, 68, 0.2)',
-                                                                            },
-                                                                            width: { xs: 28, sm: 32 },
-                                                                            height: { xs: 28, sm: 32 },
-                                                                        }}
-                                                                    >
-                                                                        <DeleteIcon sx={{ fontSize: { xs: 14, sm: 16 } }} />
-                                                                    </IconButton>
-                                                                </Tooltip>
-                                                            ) : (
-                                                                <Button
-                                                                    size="small"
-                                                                    variant="outlined"
-                                                                    color="error"
-                                                                    startIcon={<DeleteIcon sx={{ fontSize: 14 }} />}
-                                                                    onClick={() => onDelete(batch.batch_id)}
-                                                                    sx={{
-                                                                        height: { sm: 28, md: 32 },
-                                                                        fontSize: { sm: '0.65rem', md: '0.7rem' },
-                                                                        fontWeight: 600,
-                                                                        textTransform: 'uppercase',
-                                                                        borderWidth: 1.5,
-                                                                        minWidth: { sm: 70, md: 80 },
-                                                                        '&:hover': {
-                                                                            borderWidth: 1.5,
-                                                                            bgcolor: 'rgba(239, 68, 68, 0.08)',
-                                                                        },
-                                                                    }}
-                                                                >
-                                                                    Delete
-                                                                </Button>
-                                                            )
-                                                        )}
-                                                    </Stack>
-                                                </TableCell>
-                                            </TableRow>
-                                        ))
-                                    )}
-                                </TableBody>
-                            </Table>
-                        </TableContainer>
-                    </Box>
-
-                    {/* Footer Summary - shown when there are batches */}
-                    {!loading && batches.length > 0 && (
-                        <Box
-                            sx={{
-                                mt: { xs: 1, sm: 1.5, md: 2 },
-                                p: { xs: 1, sm: 1.25, md: 1.5 },
-                                bgcolor: isDarkMode ? 'rgba(96, 165, 250, 0.08)' : 'rgba(30, 64, 175, 0.04)',
-                                borderRadius: { xs: 0.75, sm: 1 },
-                                border: isDarkMode ? '1px solid rgba(96, 165, 250, 0.2)' : '1px solid rgba(30, 64, 175, 0.1)',
-                            }}
-                        >
-                            <Stack
-                                direction={{ xs: 'column', sm: 'row' }}
-                                spacing={{ xs: 0.5, sm: 2 }}
-                                justifyContent="center"
-                                alignItems="center"
-                            >
-                                <Typography
-                                    sx={{
-                                        fontSize: { xs: '0.7rem', sm: '0.75rem', md: '0.8rem' },
-                                        fontWeight: 600,
-                                        color: isDarkMode ? '#94a3b8' : '#64748b',
-                                    }}
-                                >
-                                    📊 Total Batches: <strong style={{ color: isDarkMode ? '#60a5fa' : '#1e40af' }}>{batches.length}</strong>
-                                </Typography>
-                                <Typography
-                                    sx={{
-                                        fontSize: { xs: '0.7rem', sm: '0.75rem', md: '0.8rem' },
-                                        fontWeight: 600,
-                                        color: isDarkMode ? '#94a3b8' : '#64748b',
-                                    }}
-                                >
-                                    📦 Total Items: <strong style={{ color: isDarkMode ? '#4ade80' : '#16a34a' }}>
-                                        {formatNumber(batches.reduce((sum, b) => sum + (b.count || 0), 0))}
-                                    </strong>
-                                </Typography>
-                            </Stack>
-                        </Box>
-                    )}
-                </CardContent>
-            </Card>
+            {/* Compact Footer Stats */}
+            {batches.length > 0 && (
+                <Box
+                    sx={{
+                        mt: 1,
+                        py: 0.75,
+                        px: 1.5,
+                        bgcolor: isDarkMode ? 'rgba(96, 165, 250, 0.05)' : '#f8fafc',
+                        borderRadius: 1,
+                        border: isDarkMode ? '1px solid rgba(96, 165, 250, 0.1)' : '1px solid #e5e7eb',
+                    }}
+                >
+                    <Stack direction="row" spacing={3} justifyContent="center" alignItems="center">
+                        <Typography sx={{ fontSize: '0.72rem', color: isDarkMode ? '#94a3b8' : '#64748b' }}>
+                            📊 Batches: <strong style={{ color: isDarkMode ? '#60a5fa' : '#2563eb' }}>{batches.length}</strong>
+                        </Typography>
+                        <Typography sx={{ fontSize: '0.72rem', color: isDarkMode ? '#94a3b8' : '#64748b' }}>
+                            📦 Total Items: <strong style={{ color: isDarkMode ? '#4ade80' : '#16a34a' }}>{formatNumber(totalItems)}</strong>
+                        </Typography>
+                    </Stack>
+                </Box>
+            )}
         </Box>
     );
 }

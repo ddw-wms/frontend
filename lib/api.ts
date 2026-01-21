@@ -71,12 +71,28 @@ export const usersAPI = {
 
 // ================= Sessions API (Admin only) =======================
 export const sessionsAPI = {
+  // Real-time status
+  heartbeat: () => api.post('sessions/heartbeat'),
   getOnlineUsers: () => api.get('sessions/online-users'),
   getOnlineCount: () => api.get('sessions/online-count'),
   getAllSessions: () => api.get('sessions'),
+
+  // Session management
   logoutUser: (userId: number) => api.post(`sessions/logout-user/${userId}`),
   logoutAll: (excludeSelf: boolean = true) => api.post('sessions/logout-all', { excludeSelf }),
   cleanup: () => api.delete('sessions/cleanup'),
+
+  // User activity & history (Admin only)
+  getUserSession: (userId: number) => api.get(`sessions/user-session/${userId}`),
+  getLoginHistory: (userId: number, page: number = 1, limit: number = 50) =>
+    api.get(`sessions/login-history/${userId}?page=${page}&limit=${limit}`),
+  getUserActivity: (userId: number, page: number = 1, limit: number = 50, module?: string) =>
+    api.get(`sessions/activity/${userId}?page=${page}&limit=${limit}${module ? `&module=${module}` : ''}`),
+  getUserSummary: (userId: number) => api.get(`sessions/user-summary/${userId}`),
+
+  // Log activity
+  logActivity: (data: { activityType: string; module: string; action: string; details?: any; warehouseId?: number }) =>
+    api.post('sessions/log-activity', data),
 };
 
 // ====================Master Data API===================
@@ -366,8 +382,6 @@ export const outboundAPI = {
 
   // Get outbound list with filters (accepts optional axios config, e.g., { signal })
   getList: (page: number, limit: number, params: {
-    page?: number;
-    limit?: number;
     warehouseId?: number;
     search?: string;
     source?: string;
@@ -377,7 +391,7 @@ export const outboundAPI = {
     batchId?: string;
     brand?: string;
     category?: string;
-  }, config?: any) => api.get('outbound/list', { params, ...(config || {}) }),
+  }, config?: any) => api.get('outbound/list', { params: { page, limit, ...params }, ...(config || {}) }),
 
   // Get customers list for dropdown
   getCustomers: (warehouseId: number) =>

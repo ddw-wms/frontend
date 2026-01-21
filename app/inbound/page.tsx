@@ -4123,6 +4123,8 @@ export default function InboundPage() {
                       loading={false}
                       suppressNoRowsOverlay={true}
                       containerStyle={{ height: '100%', width: '100%' }}
+                      rowHeight={tableRowHeight}
+                      headerHeight={32}
                     />
                   </Box>
                 </Box>
@@ -6110,6 +6112,7 @@ export default function InboundPage() {
                     rowData={multiRows}
                     columnDefs={columnDefs}
                     rowHeight={tableRowHeight}
+                    headerHeight={32}
                     suppressNoRowsOverlay={false}
                     overlayNoRowsTemplate='<span style="padding: 20px; font-size: 14px; color: #666;">Click on any cell to start entering data</span>'
 

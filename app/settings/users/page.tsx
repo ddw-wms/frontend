@@ -9,15 +9,26 @@ import {
   FormControl, InputLabel, Select, MenuItem, Switch, FormControlLabel, useMediaQuery, useTheme, CircularProgress,
   Tooltip, Badge
 } from '@mui/material';
-import { Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon, Key as KeyIcon, Logout as LogoutIcon, Circle as CircleIcon } from '@mui/icons-material';
+import { Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon, Key as KeyIcon, Logout as LogoutIcon, Circle as CircleIcon, Visibility as ViewIcon } from '@mui/icons-material';
 import { usersAPI, sessionsAPI } from '@/lib/api';
 import AppLayout from '@/components/AppLayout';
 import ConfirmDialog from '@/components/ConfirmDialog';
+import UserActivityModal from '@/components/UserActivityModal';
 import toast, { Toaster } from 'react-hot-toast';
 import { useWarehouse } from '@/app/context/WarehouseContext';
 import { getStoredUser } from '@/lib/auth';
 import { useUsersPermissions } from '@/hooks/usePagePermissions';
 import { StandardPageHeader } from '@/components';
+import dayjs from 'dayjs';
+import relativeTime from 'dayjs/plugin/relativeTime';
+
+dayjs.extend(relativeTime);
+
+// User status type from server
+interface UserStatus {
+  status: 'online' | 'away' | 'offline';
+  lastActivity: string | null;
+}
 
 export default function UsersPage() {
 
@@ -52,12 +63,18 @@ export default function UsersPage() {
   const [userToDelete, setUserToDelete] = useState<any>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
-  // Online users tracking
+  // Online users tracking - Enhanced with status map
   const [onlineUserIds, setOnlineUserIds] = useState<number[]>([]);
+  const [userStatusMap, setUserStatusMap] = useState<Record<number, UserStatus>>({});
   const [logoutDialogOpen, setLogoutDialogOpen] = useState(false);
   const [userToLogout, setUserToLogout] = useState<any>(null);
   const [logoutLoading, setLogoutLoading] = useState(false);
   const [logoutAllDialogOpen, setLogoutAllDialogOpen] = useState(false);
+
+  // Activity modal state
+  const [activityModalOpen, setActivityModalOpen] = useState(false);
+  const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
+  const [selectedUserName, setSelectedUserName] = useState<string>('');
 
   // Current logged-in user
   const currentUser = user;
@@ -107,17 +124,48 @@ export default function UsersPage() {
     }
   };
 
-  // Fetch online users
+  // Fetch online users with detailed status
   const loadOnlineUsers = useCallback(async () => {
     if (!isCurrentAdmin) return;
     try {
       const res = await sessionsAPI.getOnlineUsers();
       setOnlineUserIds(res.data.userIds || []);
+      setUserStatusMap(res.data.userStatus || {});
     } catch (e) {
       // Silently fail - table might not exist yet
       console.debug('Could not fetch online users');
     }
   }, [isCurrentAdmin]);
+
+  // Open activity modal
+  const openActivityModal = (targetUser: any) => {
+    setSelectedUserId(targetUser.id);
+    setSelectedUserName(targetUser.full_name || targetUser.username);
+    setActivityModalOpen(true);
+  };
+
+  // Get user's online status (online/away/offline)
+  const getUserStatus = (userId: number): 'online' | 'away' | 'offline' => {
+    const status = userStatusMap[userId];
+    return status?.status || 'offline';
+  };
+
+  // Get status color
+  const getStatusColor = (status: 'online' | 'away' | 'offline') => {
+    switch (status) {
+      case 'online': return '#22c55e';
+      case 'away': return '#f59e0b';
+      default: return '#6b7280';
+    }
+  };
+
+  // Get last activity text
+  const getLastActivityText = (userId: number): string => {
+    const status = userStatusMap[userId];
+    if (!status?.lastActivity) return '-';
+    if (status.status === 'online') return 'Now';
+    return dayjs(status.lastActivity).fromNow();
+  };
 
   useEffect(() => {
     loadUsers();
@@ -393,29 +441,43 @@ export default function UsersPage() {
                   <TableCell sx={{ color: isDarkMode ? '#f1f5f9' : '#1f2937', fontWeight: 700, background: isDarkMode ? '#334155' : '#e5e7eb', fontSize: '0.75rem', textTransform: 'uppercase', py: 0.8, whiteSpace: 'nowrap', minWidth: 100 }}>ROLE</TableCell>
                   <TableCell sx={{ color: isDarkMode ? '#f1f5f9' : '#1f2937', fontWeight: 700, background: isDarkMode ? '#334155' : '#e5e7eb', fontSize: '0.75rem', textTransform: 'uppercase', py: 0.8, whiteSpace: 'nowrap', minWidth: 100 }}>STATUS</TableCell>
                   {isCurrentAdmin && (
-                    <TableCell sx={{ color: isDarkMode ? '#f1f5f9' : '#1f2937', fontWeight: 700, background: isDarkMode ? '#334155' : '#e5e7eb', fontSize: '0.75rem', textTransform: 'uppercase', py: 0.8, whiteSpace: 'nowrap', minWidth: 80, textAlign: 'center' }}>ONLINE</TableCell>
+                    <>
+                      <TableCell sx={{ color: isDarkMode ? '#f1f5f9' : '#1f2937', fontWeight: 700, background: isDarkMode ? '#334155' : '#e5e7eb', fontSize: '0.75rem', textTransform: 'uppercase', py: 0.8, whiteSpace: 'nowrap', minWidth: 100, textAlign: 'center' }}>ONLINE</TableCell>
+                      <TableCell sx={{ color: isDarkMode ? '#f1f5f9' : '#1f2937', fontWeight: 700, background: isDarkMode ? '#334155' : '#e5e7eb', fontSize: '0.75rem', textTransform: 'uppercase', py: 0.8, whiteSpace: 'nowrap', minWidth: 90, textAlign: 'center' }}>LAST SEEN</TableCell>
+                    </>
                   )}
-                  <TableCell sx={{ color: isDarkMode ? '#f1f5f9' : '#1f2937', fontWeight: 700, background: isDarkMode ? '#334155' : '#e5e7eb', fontSize: '0.75rem', textTransform: 'uppercase', py: 0.8, whiteSpace: 'nowrap', minWidth: 120, textAlign: 'center' }}>ACTIONS</TableCell>
+                  <TableCell sx={{ color: isDarkMode ? '#f1f5f9' : '#1f2937', fontWeight: 700, background: isDarkMode ? '#334155' : '#e5e7eb', fontSize: '0.75rem', textTransform: 'uppercase', py: 0.8, whiteSpace: 'nowrap', minWidth: 140, textAlign: 'center' }}>ACTIONS</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={8} align="center" sx={{ py: 8 }}>
+                    <TableCell colSpan={isCurrentAdmin ? 10 : 8} align="center" sx={{ py: 8 }}>
                       <CircularProgress size={50} />
                     </TableCell>
                   </TableRow>
                 ) : users.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} align="center" sx={{ py: 8 }}>
+                    <TableCell colSpan={isCurrentAdmin ? 10 : 8} align="center" sx={{ py: 8 }}>
                       <Typography sx={{ fontWeight: 700, color: '#94a3b8' }}>📭 No users found</Typography>
                     </TableCell>
                   </TableRow>
                 ) : (
                   users.map((user, idx) => {
-                    const isOnline = onlineUserIds.includes(user.id);
+                    const userStatus = getUserStatus(user.id);
+                    const isOnline = userStatus === 'online';
+                    const isAway = userStatus === 'away';
+                    const statusColor = getStatusColor(userStatus);
                     return (
-                      <TableRow key={user.id} sx={{ bgcolor: idx % 2 === 0 ? (isDarkMode ? '#1a2536' : '#ffffff') : (isDarkMode ? '#1e293b' : '#f9fafb'), '&:hover': { bgcolor: isDarkMode ? 'rgba(59, 130, 246, 0.15)' : '#f0f0f0' } }}>
+                      <TableRow
+                        key={user.id}
+                        sx={{
+                          bgcolor: idx % 2 === 0 ? (isDarkMode ? '#1a2536' : '#ffffff') : (isDarkMode ? '#1e293b' : '#f9fafb'),
+                          '&:hover': { bgcolor: isDarkMode ? 'rgba(59, 130, 246, 0.15)' : '#f0f0f0' },
+                          cursor: isCurrentAdmin ? 'pointer' : 'default'
+                        }}
+                        onClick={() => isCurrentAdmin && openActivityModal(user)}
+                      >
                         <TableCell sx={{ fontWeight: 700, width: 60, fontSize: '0.75rem' }}>{idx + 1}</TableCell>
                         <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem', whiteSpace: 'nowrap' }}>{user.full_name || '-'}</TableCell>
                         <TableCell sx={{ fontWeight: 500, fontSize: '0.75rem', whiteSpace: 'nowrap' }}>{user.username}</TableCell>
@@ -437,20 +499,49 @@ export default function UsersPage() {
                           )}
                         </TableCell>
                         {isCurrentAdmin && (
-                          <TableCell sx={{ textAlign: 'center' }}>
-                            <Tooltip title={isOnline ? 'Online' : 'Offline'}>
-                              <CircleIcon
-                                sx={{
-                                  fontSize: 12,
-                                  color: isOnline ? '#22c55e' : '#d1d5db',
-                                  filter: isOnline ? 'drop-shadow(0 0 3px #22c55e)' : 'none'
-                                }}
-                              />
-                            </Tooltip>
-                          </TableCell>
+                          <>
+                            <TableCell sx={{ textAlign: 'center' }}>
+                              <Tooltip title={`${userStatus.charAt(0).toUpperCase() + userStatus.slice(1)}${isAway ? ' (Idle)' : ''}`}>
+                                <Stack direction="row" spacing={0.5} alignItems="center" justifyContent="center">
+                                  <CircleIcon
+                                    sx={{
+                                      fontSize: 10,
+                                      color: statusColor,
+                                      filter: isOnline ? 'drop-shadow(0 0 4px #22c55e)' : 'none',
+                                      animation: isOnline ? 'pulse 2s infinite' : 'none',
+                                      '@keyframes pulse': {
+                                        '0%': { opacity: 1 },
+                                        '50%': { opacity: 0.5 },
+                                        '100%': { opacity: 1 }
+                                      }
+                                    }}
+                                  />
+                                  <Typography variant="caption" sx={{ fontSize: '0.65rem', color: statusColor, fontWeight: 600 }}>
+                                    {isOnline ? 'Online' : isAway ? 'Away' : 'Offline'}
+                                  </Typography>
+                                </Stack>
+                              </Tooltip>
+                            </TableCell>
+                            <TableCell sx={{ textAlign: 'center' }}>
+                              <Typography variant="caption" sx={{ fontSize: '0.65rem', color: isDarkMode ? '#94a3b8' : '#6b7280' }}>
+                                {getLastActivityText(user.id)}
+                              </Typography>
+                            </TableCell>
+                          </>
                         )}
-                        <TableCell sx={{ textAlign: 'center' }}>
+                        <TableCell sx={{ textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
                           <Stack direction="row" spacing={0.5} justifyContent="center">
+                            {isCurrentAdmin && (
+                              <Tooltip title="View Activity">
+                                <IconButton
+                                  size="small"
+                                  onClick={() => openActivityModal(user)}
+                                  sx={{ color: '#8b5cf6', p: 0.5, '&:hover': { bgcolor: 'rgba(139, 92, 246, 0.1)' } }}
+                                >
+                                  <ViewIcon sx={{ fontSize: 16 }} />
+                                </IconButton>
+                              </Tooltip>
+                            )}
                             {canSeeButton('edit') && canEditUser(user) && (
                               <IconButton
                                 size="small"
@@ -659,6 +750,18 @@ export default function UsersPage() {
         loading={logoutLoading}
         onConfirm={handleLogoutAll}
         onCancel={() => setLogoutAllDialogOpen(false)}
+      />
+
+      {/* User Activity Modal */}
+      <UserActivityModal
+        open={activityModalOpen}
+        onClose={() => {
+          setActivityModalOpen(false);
+          setSelectedUserId(null);
+          setSelectedUserName('');
+        }}
+        userId={selectedUserId}
+        userName={selectedUserName}
       />
     </AppLayout >
   );
