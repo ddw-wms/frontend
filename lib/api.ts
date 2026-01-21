@@ -357,10 +357,11 @@ export const outboundAPI = {
   multiEntry: (data: { entries: any[]; warehouse_id: number }) =>
     api.post('outbound/multi', data),
 
-  // Bulk upload with Excel file
+  // Bulk upload with Excel file - Extended timeout for large files (30 minutes)
   bulkUpload: (formData: FormData) =>
     api.post('outbound/bulk', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' }
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 30 * 60 * 1000, // 30 minutes for large bulk uploads
     }),
 
   // Get outbound list with filters (accepts optional axios config, e.g., { signal })
