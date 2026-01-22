@@ -1251,10 +1251,10 @@ export default function DashboardPage() {
           >
 
             {[
-              { label: "Master Data", value: metrics.total, color: "#1e40af", icon: <DashboardRounded /> },
-              { label: "Available", value: inventorySummary.available_stock, color: "#059669", icon: <InventoryRounded /> },
-              { label: "Inbounded", value: metrics.inbound, color: "#3b82f6", icon: <LoginRounded /> },
-              { label: "Processed", value: (metrics.qcPassed || 0) + (metrics.qcDone || 0), color: "#10b981", icon: <CheckCircleRounded /> },
+              { label: "Master Data", value: metrics.total, color: "#3b82f6", icon: <DashboardRounded /> },
+              { label: "Available", value: inventorySummary.available_stock, color: "#10b981", icon: <InventoryRounded /> },
+              { label: "Inbounded", value: metrics.inbound, color: "#8b5cf6", icon: <LoginRounded /> },
+              { label: "Processed", value: (metrics.qcPassed || 0) + (metrics.qcDone || 0), color: "#06b6d4", icon: <CheckCircleRounded /> },
               { label: "Picked", value: metrics.pickingCompleted, color: "#f59e0b", icon: <LocalShippingRounded /> },
               { label: "Dispatched", value: metrics.outboundDispatched, color: "#ef4444", icon: <SendRounded /> },
             ].map((m, index) => (
@@ -1263,83 +1263,91 @@ export default function DashboardPage() {
                 key={index}
                 elevation={0}
                 sx={{
-                  p: { xs: 0.75, sm: 1.5, md: 2 },
-                  height: { xs: 62, sm: 80, md: 100 },
+                  px: { xs: 0.75, sm: 1.25, md: 1.5 },
+                  py: { xs: 0.5, sm: 0.75, md: 1 },
+                  height: { xs: 52, sm: 58, md: 64 },
                   width: "100%",
-                  textAlign: "center",
                   display: "flex",
-                  flexDirection: "column",
-                  justifyContent: "center",
+                  flexDirection: "row",
                   alignItems: "center",
-                  borderRadius: { xs: 1.5, md: 3 },
+                  gap: { xs: 0.5, sm: 0.75, md: 1 },
+                  borderRadius: { xs: 1.5, sm: 2, md: 2.5 },
                   background: isDarkMode
-                    ? `linear-gradient(135deg, ${m.color}15, ${m.color}25) !important`
-                    : `linear-gradient(135deg, ${m.color}08, ${m.color}15)`,
-                  border: isDarkMode ? `1px solid ${m.color}40` : `1px solid ${m.color}25`,
-                  boxShadow: isDarkMode ? "0 2px 8px rgba(0,0,0,0.3)" : "0 1px 3px rgba(0,0,0,0.04)",
-                  transition: "all 0.25s ease",
-                  position: "relative",
+                    ? "rgba(255,255,255,0.03)"
+                    : "rgba(255,255,255,0.8)",
+                  backdropFilter: "blur(12px)",
+                  border: isDarkMode
+                    ? "1px solid rgba(255,255,255,0.08)"
+                    : "1px solid rgba(0,0,0,0.06)",
+                  boxShadow: isDarkMode
+                    ? "0 2px 8px rgba(0,0,0,0.2)"
+                    : "0 1px 3px rgba(0,0,0,0.04)",
+                  transition: "all 0.2s ease",
                   overflow: "hidden",
-                  "&::before": {
-                    content: '""',
-                    position: "absolute",
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    height: "3px",
-                    background: m.color,
-                    borderRadius: "3px 3px 0 0",
-                  },
                   "&:hover": {
-                    transform: { xs: "none", md: "translateY(-3px)" },
-                    boxShadow: { xs: isDarkMode ? "0 2px 8px rgba(0,0,0,0.3)" : "0 1px 3px rgba(0,0,0,0.04)", md: `0 8px 20px ${m.color}30` },
-                    border: { xs: isDarkMode ? `1px solid ${m.color}40` : `1px solid ${m.color}25`, md: `1px solid ${m.color}50` },
+                    transform: { xs: "none", md: "translateY(-2px)" },
+                    background: isDarkMode
+                      ? "rgba(255,255,255,0.05)"
+                      : "rgba(255,255,255,0.95)",
+                    boxShadow: {
+                      xs: isDarkMode ? "0 2px 8px rgba(0,0,0,0.2)" : "0 1px 3px rgba(0,0,0,0.04)",
+                      md: isDarkMode ? "0 8px 24px rgba(0,0,0,0.3)" : "0 4px 16px rgba(0,0,0,0.08)"
+                    },
+                    border: isDarkMode
+                      ? "1px solid rgba(255,255,255,0.12)"
+                      : "1px solid rgba(0,0,0,0.08)",
                   },
                 }}
               >
-                {/* ICON */}
+                {/* ICON CONTAINER */}
                 <Box
                   sx={{
+                    width: { xs: 28, sm: 32, md: 36 },
+                    height: { xs: 28, sm: 32, md: 36 },
+                    borderRadius: { xs: 1, sm: 1.25, md: 1.5 },
                     display: "flex",
+                    alignItems: "center",
                     justifyContent: "center",
-                    mb: { xs: 0.25, md: 0.75 },
+                    background: `${m.color}15`,
+                    flexShrink: 0,
                     "& svg": {
-                      fontSize: { xs: "0.9rem", sm: "1.25rem", md: "1.5rem" },
+                      fontSize: { xs: "0.875rem", sm: "1rem", md: "1.125rem" },
                       color: m.color,
-                      opacity: 0.9,
                     },
                   }}
                 >
                   {m.icon}
                 </Box>
 
-                {/* VALUE */}
-                <Typography
-                  sx={{
-                    fontWeight: 700,
-                    fontSize: { xs: "0.85rem", sm: "1.25rem", md: "1.75rem" },
-                    lineHeight: 1,
-                    color: m.color,
-                    letterSpacing: "-0.02em",
-                  }}
-                >
-                  {m.value.toLocaleString()}
-                </Typography>
-
-                {/* LABEL */}
-                <Typography
-                  sx={{
-                    fontSize: { xs: "0.5rem", sm: "0.7rem", md: "0.8rem" },
-                    mt: { xs: 0.15, md: 0.5 },
-                    fontWeight: 600,
-                    color: isDarkMode ? "#94a3b8" : "#64748b",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.02em",
-                    lineHeight: 1.1,
-                  }}
-                >
-                  {m.label}
-                </Typography>
+                {/* TEXT CONTENT */}
+                <Box sx={{ display: "flex", flexDirection: "column", minWidth: 0, flex: 1 }}>
+                  <Typography
+                    sx={{
+                      fontWeight: 700,
+                      fontSize: { xs: "0.875rem", sm: "1rem", md: "1.125rem" },
+                      lineHeight: 1.2,
+                      color: isDarkMode ? "#f1f5f9" : "#1e293b",
+                      letterSpacing: "-0.01em",
+                    }}
+                  >
+                    {m.value.toLocaleString()}
+                  </Typography>
+                  <Typography
+                    sx={{
+                      fontSize: { xs: "0.6rem", sm: "0.65rem", md: "0.7rem" },
+                      fontWeight: 500,
+                      color: isDarkMode ? "#64748b" : "#94a3b8",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.03em",
+                      lineHeight: 1.2,
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                  >
+                    {m.label}
+                  </Typography>
+                </Box>
               </Card>
             ))}
           </Box>
