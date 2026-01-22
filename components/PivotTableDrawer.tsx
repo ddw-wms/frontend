@@ -2,7 +2,7 @@
 // Excel-style Pivot Table with Server-Side Aggregation
 // Handles 5-10 lakh+ products smoothly
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
     Drawer,
     Box,
@@ -33,6 +33,10 @@ import {
     Pagination,
     TextField,
     InputAdornment,
+    Checkbox,
+    FormControlLabel,
+    Stack,
+    Divider,
 } from '@mui/material';
 import {
     Close as CloseIcon,
@@ -41,8 +45,17 @@ import {
     Refresh as RefreshIcon,
     Search as SearchIcon,
     TableChart as TableIcon,
+    Settings as SettingsIcon,
+    Fullscreen as FullscreenIcon,
+    FullscreenExit as FullscreenExitIcon,
 } from '@mui/icons-material';
 import { dashboardAPI } from '@/lib/api';
+import { AgGridReact } from 'ag-grid-react';
+import { ModuleRegistry, AllCommunityModule, ClientSideRowModelModule, ColDef } from 'ag-grid-community';
+import 'ag-grid-community/styles/ag-theme-quartz.css';
+
+// Register AG Grid modules
+ModuleRegistry.registerModules([AllCommunityModule, ClientSideRowModelModule]);
 
 interface PivotTableDrawerProps {
     open: boolean;
@@ -117,6 +130,7 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
 
     // Drill-down state
     const [drilldownOpen, setDrilldownOpen] = useState(false);
+    const [drilldownFullscreen, setDrilldownFullscreen] = useState(false);
     const [drilldownCategory, setDrilldownCategory] = useState<string>('');
     const [drilldownData, setDrilldownData] = useState<any[]>([]);
     const [drilldownLoading, setDrilldownLoading] = useState(false);
@@ -126,6 +140,84 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
     const [drilldownSearch, setDrilldownSearch] = useState('');
     const [exportingExcel, setExportingExcel] = useState(false);
     const [drilldownLimit, setDrilldownLimit] = useState(100);
+
+    // Grid settings state
+    const [gridSettingsOpen, setGridSettingsOpen] = useState(false);
+    const [enableSorting, setEnableSorting] = useState<boolean>(() => {
+        try { return localStorage.getItem('pivot_drilldown_enableSorting') !== 'false'; } catch { return true; }
+    });
+    const [enableColumnFilters, setEnableColumnFilters] = useState<boolean>(() => {
+        try { return localStorage.getItem('pivot_drilldown_enableColumnFilters') !== 'false'; } catch { return true; }
+    });
+    const [enableColumnResize, setEnableColumnResize] = useState<boolean>(() => {
+        try { return localStorage.getItem('pivot_drilldown_enableColumnResize') !== 'false'; } catch { return true; }
+    });
+    const gridRef = useRef<any>(null);
+
+    // Save grid settings to localStorage
+    useEffect(() => {
+        try {
+            localStorage.setItem('pivot_drilldown_enableSorting', String(enableSorting));
+            localStorage.setItem('pivot_drilldown_enableColumnFilters', String(enableColumnFilters));
+            localStorage.setItem('pivot_drilldown_enableColumnResize', String(enableColumnResize));
+        } catch { /* ignore */ }
+    }, [enableSorting, enableColumnFilters, enableColumnResize]);
+
+    // AG Grid default column definition
+    const defaultColDef = useMemo(() => ({
+        sortable: enableSorting,
+        filter: enableColumnFilters,
+        resizable: enableColumnResize,
+        minWidth: 80,
+        flex: 1,
+        cellStyle: { fontSize: '12px', display: 'flex', alignItems: 'center' },
+    }), [enableSorting, enableColumnFilters, enableColumnResize]);
+
+    // AG Grid column definitions for drill-down
+    const drilldownColumnDefs: ColDef[] = useMemo(() => [
+        {
+            field: 'srNo',
+            headerName: 'Sr.No',
+            width: 80,
+            maxWidth: 90,
+            sortable: false,
+            filter: false,
+            valueGetter: (params: any) => {
+                if (!params.node) return '';
+                // Get the actual row index in the original data
+                const rowIndex = params.node.rowIndex;
+                // Get current page info from grid API if available
+                const api = params.api;
+                if (api) {
+                    const pageSize = api.paginationGetPageSize();
+                    const currentPage = api.paginationGetCurrentPage();
+                    return (currentPage * pageSize) + rowIndex + 1;
+                }
+                return rowIndex + 1;
+            }
+        },
+        { field: 'wsn', headerName: 'WSN', width: 110 },
+        { field: 'wid', headerName: 'WID', width: 100 },
+        { field: 'fsn', headerName: 'FSN', width: 100 },
+        { field: 'order_id', headerName: 'Order ID', width: 100 },
+        { field: 'product_title', headerName: 'Product Title', minWidth: 200, flex: 2, tooltipField: 'product_title' },
+        { field: 'brand', headerName: 'Brand', width: 100 },
+        { field: 'cms_vertical', headerName: 'Category', width: 120 },
+        { field: 'hsn_sac', headerName: 'HSN/SAC', width: 90 },
+        { field: 'igst_rate', headerName: 'IGST', width: 70 },
+        { field: 'fsp', headerName: 'FSP', width: 80, valueFormatter: (params: any) => params.value ? `₹${Number(params.value).toLocaleString('en-IN')}` : '' },
+        { field: 'mrp', headerName: 'MRP', width: 80, valueFormatter: (params: any) => params.value ? `₹${Number(params.value).toLocaleString('en-IN')}` : '' },
+        { field: 'vrp', headerName: 'VRP', width: 80, valueFormatter: (params: any) => params.value ? `₹${Number(params.value).toLocaleString('en-IN')}` : '' },
+        { field: 'yield_value', headerName: 'Yield', width: 80 },
+        { field: 'rack_no', headerName: 'Rack', width: 80 },
+        { field: 'wh_location', headerName: 'WH Location', width: 100 },
+        { field: 'p_type', headerName: 'P Type', width: 80 },
+        { field: 'p_size', headerName: 'P Size', width: 80 },
+        { field: 'inbound_date', headerName: 'Inbound Date', width: 110, valueFormatter: (params: any) => formatDate(params.value) },
+        { field: 'qc_grade', headerName: 'QC Grade', width: 90 },
+        { field: 'qc_date', headerName: 'QC Date', width: 100, valueFormatter: (params: any) => formatDate(params.value) },
+        { field: 'current_stage', headerName: 'Stage', width: 100 },
+    ], []);
 
     // Fetch pivot filters (brands, categories) when drawer opens
     useEffect(() => {
@@ -216,7 +308,8 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
         setDrilldownPage(1);
         setDrilldownSearch('');
         setDrilldownOpen(true);
-        fetchDrilldownData(category, 1);
+        // Fetch all data for proper AG Grid client-side pagination
+        fetchDrilldownData(category, 1, 10000);
     };
 
     // Handle drill-down pagination
@@ -669,13 +762,17 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
             <Dialog
                 open={drilldownOpen}
                 onClose={() => setDrilldownOpen(false)}
-                maxWidth="xl"
-                fullWidth
+                maxWidth={drilldownFullscreen ? false : 'xl'}
+                fullWidth={!drilldownFullscreen}
+                fullScreen={drilldownFullscreen}
                 PaperProps={{
                     sx: {
-                        borderRadius: 2,
-                        maxHeight: '90vh',
-                        height: '90vh',
+                        borderRadius: drilldownFullscreen ? 0 : 2,
+                        maxHeight: drilldownFullscreen ? '100vh' : '90vh',
+                        height: drilldownFullscreen ? '100vh' : '90vh',
+                        width: drilldownFullscreen ? '100vw' : undefined,
+                        margin: drilldownFullscreen ? 0 : undefined,
+                        transition: 'all 0.2s ease-in-out',
                     },
                 }}
             >
@@ -695,7 +792,16 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
                             <Typography variant="h6" sx={{ fontSize: '1rem', fontWeight: 700 }}>
                                 {drilldownCategory}
                             </Typography>
-                            <Typography variant="caption" sx={{ opacity: 0.9 }}>
+                            <Typography
+                                variant="caption"
+                                sx={{
+                                    color: 'rgba(255,255,255,0.95)',
+                                    fontSize: { xs: '0.675rem', sm: '0.75rem' },
+                                    lineHeight: 1.1,
+                                    display: 'block',
+                                    mt: 0.25,
+                                }}
+                            >
                                 {formatNumber(drilldownTotal)} items • All Master Data Columns
                             </Typography>
                         </Box>
@@ -714,13 +820,21 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
                         >
                             {exportingExcel ? 'Exporting...' : 'Export to Excel'}
                         </Button>
+                        <Tooltip title={drilldownFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}>
+                            <IconButton
+                                onClick={() => setDrilldownFullscreen(!drilldownFullscreen)}
+                                sx={{ color: 'white' }}
+                            >
+                                {drilldownFullscreen ? <FullscreenExitIcon /> : <FullscreenIcon />}
+                            </IconButton>
+                        </Tooltip>
                         <IconButton onClick={() => setDrilldownOpen(false)} sx={{ color: 'white' }}>
                             <CloseIcon />
                         </IconButton>
                     </Box>
                 </DialogTitle>
 
-                <Box sx={{ p: 2, borderBottom: '1px solid rgba(0,0,0,0.1)' }}>
+                <Box sx={{ p: 2, borderBottom: '1px solid rgba(0,0,0,0.1)', display: 'flex', alignItems: 'center', gap: 2 }}>
                     <TextField
                         size="small"
                         placeholder="Search WSN, Product, Brand..."
@@ -735,6 +849,18 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
                         }}
                         sx={{ width: 300 }}
                     />
+                    <Box sx={{ flex: 1 }} />
+                    <Tooltip title="Grid Settings">
+                        <IconButton
+                            onClick={() => setGridSettingsOpen(true)}
+                            sx={{
+                                bgcolor: 'rgba(13, 148, 136, 0.1)',
+                                '&:hover': { bgcolor: 'rgba(13, 148, 136, 0.2)' },
+                            }}
+                        >
+                            <SettingsIcon sx={{ color: '#0d9488' }} />
+                        </IconButton>
+                    </Tooltip>
                 </Box>
 
                 <DialogContent sx={{ p: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
@@ -743,127 +869,207 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
                             <CircularProgress />
                         </Box>
                     ) : (
-                        <TableContainer sx={{ flex: 1, overflow: 'auto' }}>
-                            {/* Excel-style table */}
-                            <Table size="small" stickyHeader sx={{ borderCollapse: 'collapse' }}>
-                                <TableHead>
-                                    <TableRow>
-                                        {[
-                                            'Sr.No', 'WSN', 'WID', 'FSN', 'Order ID', 'Product Title', 'Brand', 'Category',
-                                            'HSN/SAC', 'IGST', 'FSP', 'MRP', 'VRP', 'Yield',
-                                            'Rack', 'WH Location', 'P Type', 'P Size',
-                                            'Inbound Date', 'QC Grade', 'QC Date', 'Stage'
-                                        ].map((header) => (
-                                            <TableCell
-                                                key={header}
-                                                sx={{
-                                                    fontWeight: 600,
-                                                    fontSize: '11px',
-                                                    bgcolor: '#0f766e', // Consistent teal header
-                                                    color: 'white',
-                                                    whiteSpace: 'nowrap',
-                                                    py: 1,
-                                                    px: 1.5,
-                                                    borderRight: '1px solid rgba(255,255,255,0.3)',
-                                                    minWidth: header === 'Product Title' ? 200 : header === 'Sr.No' ? 50 : header === 'WSN' ? 100 : 70,
-                                                }}
-                                            >
-                                                {header}
-                                            </TableCell>
-                                        ))}
-                                    </TableRow>
-                                </TableHead>
-                                <TableBody>
-                                    {filteredDrilldownData.map((row, idx) => (
-                                        <TableRow
-                                            key={row.wsn || idx}
-                                            sx={{
-                                                bgcolor: idx % 2 === 0 ? '#ffffff' : '#f0f7f4', // Excel alternating rows
-                                                '&:hover': { bgcolor: '#e8f4fd' },
-                                                height: 24, // Fixed row height like Excel
-                                            }}
-                                        >
-                                            <TableCell sx={{ fontSize: '11px', py: 0.5, px: 1, borderRight: '1px solid #d0d0d0', borderBottom: '1px solid #d0d0d0', fontFamily: 'Calibri, Arial, sans-serif', whiteSpace: 'nowrap', textAlign: 'center', bgcolor: '#f5f5f5' }}>
-                                                {(drilldownPage - 1) * drilldownLimit + idx + 1}
-                                            </TableCell>
-                                            <TableCell sx={{ fontSize: '11px', py: 0.5, px: 1, borderRight: '1px solid #d0d0d0', borderBottom: '1px solid #d0d0d0', fontFamily: 'Calibri, Arial, sans-serif', whiteSpace: 'nowrap' }}>
-                                                {row.wsn}
-                                            </TableCell>
-                                            <TableCell sx={{ fontSize: '11px', py: 0.5, px: 1, borderRight: '1px solid #d0d0d0', borderBottom: '1px solid #d0d0d0', fontFamily: 'Calibri, Arial, sans-serif', whiteSpace: 'nowrap' }}>{row.wid}</TableCell>
-                                            <TableCell sx={{ fontSize: '11px', py: 0.5, px: 1, borderRight: '1px solid #d0d0d0', borderBottom: '1px solid #d0d0d0', fontFamily: 'Calibri, Arial, sans-serif', whiteSpace: 'nowrap' }}>{row.fsn}</TableCell>
-                                            <TableCell sx={{ fontSize: '11px', py: 0.5, px: 1, borderRight: '1px solid #d0d0d0', borderBottom: '1px solid #d0d0d0', fontFamily: 'Calibri, Arial, sans-serif', whiteSpace: 'nowrap' }}>{row.order_id}</TableCell>
-                                            <TableCell
-                                                sx={{
-                                                    fontSize: '11px',
-                                                    py: 0.5,
-                                                    px: 1,
-                                                    borderRight: '1px solid #d0d0d0',
-                                                    borderBottom: '1px solid #d0d0d0',
-                                                    fontFamily: 'Calibri, Arial, sans-serif',
-                                                    whiteSpace: 'nowrap',
-                                                    maxWidth: 280,
-                                                    overflow: 'hidden',
-                                                    textOverflow: 'ellipsis',
-                                                }}
-                                                title={row.product_title}
-                                            >
-                                                {row.product_title}
-                                            </TableCell>
-                                            <TableCell sx={{ fontSize: '11px', py: 0.5, px: 1, borderRight: '1px solid #d0d0d0', borderBottom: '1px solid #d0d0d0', fontFamily: 'Calibri, Arial, sans-serif', whiteSpace: 'nowrap' }}>{row.brand}</TableCell>
-                                            <TableCell sx={{ fontSize: '11px', py: 0.5, px: 1, borderRight: '1px solid #d0d0d0', borderBottom: '1px solid #d0d0d0', fontFamily: 'Calibri, Arial, sans-serif', whiteSpace: 'nowrap' }}>{row.cms_vertical}</TableCell>
-                                            <TableCell sx={{ fontSize: '11px', py: 0.5, px: 1, borderRight: '1px solid #d0d0d0', borderBottom: '1px solid #d0d0d0', fontFamily: 'Calibri, Arial, sans-serif', whiteSpace: 'nowrap' }}>{row.hsn_sac}</TableCell>
-                                            <TableCell sx={{ fontSize: '11px', py: 0.5, px: 1, borderRight: '1px solid #d0d0d0', borderBottom: '1px solid #d0d0d0', fontFamily: 'Calibri, Arial, sans-serif', whiteSpace: 'nowrap' }}>{row.igst_rate}</TableCell>
-                                            <TableCell sx={{ fontSize: '11px', py: 0.5, px: 1, borderRight: '1px solid #d0d0d0', borderBottom: '1px solid #d0d0d0', fontFamily: 'Calibri, Arial, sans-serif', whiteSpace: 'nowrap' }}>{row.fsp}</TableCell>
-                                            <TableCell sx={{ fontSize: '11px', py: 0.5, px: 1, borderRight: '1px solid #d0d0d0', borderBottom: '1px solid #d0d0d0', fontFamily: 'Calibri, Arial, sans-serif', whiteSpace: 'nowrap' }}>{row.mrp}</TableCell>
-                                            <TableCell sx={{ fontSize: '11px', py: 0.5, px: 1, borderRight: '1px solid #d0d0d0', borderBottom: '1px solid #d0d0d0', fontFamily: 'Calibri, Arial, sans-serif', whiteSpace: 'nowrap' }}>{row.vrp}</TableCell>
-                                            <TableCell sx={{ fontSize: '11px', py: 0.5, px: 1, borderRight: '1px solid #d0d0d0', borderBottom: '1px solid #d0d0d0', fontFamily: 'Calibri, Arial, sans-serif', whiteSpace: 'nowrap' }}>{row.yield_value}</TableCell>
-                                            <TableCell sx={{ fontSize: '11px', py: 0.5, px: 1, borderRight: '1px solid #d0d0d0', borderBottom: '1px solid #d0d0d0', fontFamily: 'Calibri, Arial, sans-serif', whiteSpace: 'nowrap' }}>{row.rack_no}</TableCell>
-                                            <TableCell sx={{ fontSize: '11px', py: 0.5, px: 1, borderRight: '1px solid #d0d0d0', borderBottom: '1px solid #d0d0d0', fontFamily: 'Calibri, Arial, sans-serif', whiteSpace: 'nowrap' }}>{row.wh_location}</TableCell>
-                                            <TableCell sx={{ fontSize: '11px', py: 0.5, px: 1, borderRight: '1px solid #d0d0d0', borderBottom: '1px solid #d0d0d0', fontFamily: 'Calibri, Arial, sans-serif', whiteSpace: 'nowrap' }}>{row.p_type}</TableCell>
-                                            <TableCell sx={{ fontSize: '11px', py: 0.5, px: 1, borderRight: '1px solid #d0d0d0', borderBottom: '1px solid #d0d0d0', fontFamily: 'Calibri, Arial, sans-serif', whiteSpace: 'nowrap' }}>{row.p_size}</TableCell>
-                                            <TableCell sx={{ fontSize: '11px', py: 0.5, px: 1, borderRight: '1px solid #d0d0d0', borderBottom: '1px solid #d0d0d0', fontFamily: 'Calibri, Arial, sans-serif', whiteSpace: 'nowrap' }}>{formatDate(row.inbound_date)}</TableCell>
-                                            <TableCell sx={{ fontSize: '11px', py: 0.5, px: 1, borderRight: '1px solid #d0d0d0', borderBottom: '1px solid #d0d0d0', fontFamily: 'Calibri, Arial, sans-serif', whiteSpace: 'nowrap' }}>{row.qc_grade || ''}</TableCell>
-                                            <TableCell sx={{ fontSize: '11px', py: 0.5, px: 1, borderRight: '1px solid #d0d0d0', borderBottom: '1px solid #d0d0d0', fontFamily: 'Calibri, Arial, sans-serif', whiteSpace: 'nowrap' }}>{formatDate(row.qc_date)}</TableCell>
-                                            <TableCell sx={{ fontSize: '11px', py: 0.5, px: 1, borderBottom: '1px solid #d0d0d0', fontFamily: 'Calibri, Arial, sans-serif', whiteSpace: 'nowrap' }}>{row.current_stage}</TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        </TableContainer>
+                        <Box
+                            className="ag-theme-quartz"
+                            sx={{
+                                flex: 1,
+                                width: '100%',
+                                '--ag-header-height': '44px',
+                                '--ag-row-height': '40px',
+                                '--ag-header-foreground-color': '#ffffff',
+                                '--ag-header-background-color': '#0f766e',
+                                '--ag-border-color': 'rgba(0,0,0,0.08)',
+                                '--ag-odd-row-background-color': 'rgba(240, 247, 244, 0.5)',
+                                '--ag-row-hover-color': 'rgba(13, 148, 136, 0.08)',
+                                '--ag-selected-row-background-color': 'rgba(13, 148, 136, 0.12)',
+                                '--ag-font-size': '12px',
+                                '--ag-font-family': 'Inter, -apple-system, sans-serif',
+                                '& .ag-root-wrapper': {
+                                    border: 'none',
+                                },
+                                '& .ag-header': {
+                                    borderBottom: '2px solid #0d9488',
+                                    fontWeight: 600,
+                                },
+                                '& .ag-header-cell': {
+                                    fontWeight: 600,
+                                    fontSize: '12px',
+                                },
+                                '& .ag-row': {
+                                    transition: 'background-color 0.15s ease',
+                                },
+                                '& .ag-cell': {
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    lineHeight: 1.4,
+                                },
+                                '& .ag-paging-panel': {
+                                    height: '48px',
+                                    borderTop: '1px solid rgba(0,0,0,0.08)',
+                                    background: '#f8fafc',
+                                },
+                            }}
+                        >
+                            <AgGridReact
+                                ref={gridRef}
+                                rowData={filteredDrilldownData}
+                                columnDefs={drilldownColumnDefs}
+                                defaultColDef={defaultColDef}
+                                pagination={true}
+                                paginationPageSize={100}
+                                paginationPageSizeSelector={[50, 100, 200, 500]}
+                                animateRows={true}
+                                enableCellTextSelection={true}
+                                suppressMovableColumns={false}
+                                headerHeight={44}
+                                rowHeight={40}
+                                tooltipShowDelay={500}
+                            />
+                        </Box>
                     )}
                 </DialogContent>
 
                 <DialogActions sx={{ px: 2, py: 1.5, borderTop: '1px solid rgba(0,0,0,0.1)' }}>
-                    <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', gap: 2 }}>
-                        {drilldownTotalPages > 1 && (
-                            <Pagination
-                                count={drilldownTotalPages}
-                                page={drilldownPage}
-                                onChange={handleDrilldownPageChange}
-                                size="small"
-                                color="primary"
-                            />
-                        )}
-                        <FormControl size="small" sx={{ minWidth: 120 }}>
-                            <InputLabel>Per Page</InputLabel>
-                            <Select
-                                value={drilldownLimit}
-                                label="Per Page"
-                                onChange={(e) => {
-                                    const newLimit = Number(e.target.value);
-                                    setDrilldownLimit(newLimit);
-                                    setDrilldownPage(1);
-                                    fetchDrilldownData(drilldownCategory, 1, newLimit);
-                                }}
-                            >
-                                <MenuItem value={100}>100</MenuItem>
-                                <MenuItem value={500}>500</MenuItem>
-                                <MenuItem value={1000}>1000</MenuItem>
-                            </Select>
-                        </FormControl>
-                    </Box>
-                    <Button onClick={() => setDrilldownOpen(false)} variant="contained">
+                    <Typography variant="caption" sx={{ color: 'text.secondary', mr: 2 }}>
+                        {formatNumber(drilldownTotal)} total items
+                    </Typography>
+                    <Box sx={{ flex: 1 }} />
+                    <Button onClick={() => setDrilldownOpen(false)} variant="contained" sx={{ bgcolor: '#0d9488', '&:hover': { bgcolor: '#0f766e' } }}>
                         Close
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* Grid Settings Dialog */}
+            <Dialog
+                open={gridSettingsOpen}
+                onClose={() => setGridSettingsOpen(false)}
+                maxWidth="xs"
+                fullWidth
+                PaperProps={{ sx: { borderRadius: 2, boxShadow: '0 8px 32px rgba(0,0,0,0.12)' } }}
+            >
+                <DialogTitle sx={{
+                    background: 'linear-gradient(135deg, #0d9488 0%, #0f766e 100%)',
+                    color: 'white',
+                    fontWeight: 800,
+                    fontSize: '1.1rem',
+                    py: 1.5
+                }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <SettingsIcon />
+                        Grid Settings
+                    </Box>
+                </DialogTitle>
+
+                <DialogContent sx={{ mt: 2, pb: 1 }}>
+                    <Stack spacing={2.5}>
+                        <Alert severity="info" sx={{ fontSize: '0.8rem', py: 0.5 }}>
+                            Settings auto-save and persist after reload 💾
+                        </Alert>
+
+                        {/* SORTABLE */}
+                        <Box>
+                            <FormControlLabel
+                                control={
+                                    <Checkbox
+                                        checked={enableSorting}
+                                        onChange={(e) => setEnableSorting(e.target.checked)}
+                                        sx={{ '&.Mui-checked': { color: '#0d9488' } }}
+                                    />
+                                }
+                                label={
+                                    <Box>
+                                        <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#1e293b' }}>
+                                            ⬆️ Enable Sorting
+                                        </Typography>
+                                        <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem' }}>
+                                            Click column headers to sort ascending/descending
+                                        </Typography>
+                                    </Box>
+                                }
+                            />
+                        </Box>
+
+                        <Divider sx={{ my: 0.5 }} />
+
+                        {/* FILTER */}
+                        <Box>
+                            <FormControlLabel
+                                control={
+                                    <Checkbox
+                                        checked={enableColumnFilters}
+                                        onChange={(e) => setEnableColumnFilters(e.target.checked)}
+                                        sx={{ '&.Mui-checked': { color: '#0d9488' } }}
+                                    />
+                                }
+                                label={
+                                    <Box>
+                                        <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#1e293b' }}>
+                                            🔍 Enable Column Filters
+                                        </Typography>
+                                        <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem' }}>
+                                            Filter menu icon in column headers
+                                        </Typography>
+                                    </Box>
+                                }
+                            />
+                        </Box>
+
+                        <Divider sx={{ my: 0.5 }} />
+
+                        {/* RESIZABLE */}
+                        <Box>
+                            <FormControlLabel
+                                control={
+                                    <Checkbox
+                                        checked={enableColumnResize}
+                                        onChange={(e) => setEnableColumnResize(e.target.checked)}
+                                        sx={{ '&.Mui-checked': { color: '#0d9488' } }}
+                                    />
+                                }
+                                label={
+                                    <Box>
+                                        <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#1e293b' }}>
+                                            ↔️ Enable Column Resize
+                                        </Typography>
+                                        <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem' }}>
+                                            Drag column borders to adjust width
+                                        </Typography>
+                                    </Box>
+                                }
+                            />
+                        </Box>
+
+                    </Stack>
+                </DialogContent>
+
+                <DialogActions sx={{ p: 2, background: 'rgba(13, 148, 136, 0.08)', gap: 1 }}>
+                    <Button
+                        onClick={() => {
+                            setEnableSorting(true);
+                            setEnableColumnFilters(true);
+                            setEnableColumnResize(true);
+                        }}
+                        sx={{
+                            fontWeight: 700,
+                            color: '#64748b',
+                            '&:hover': { bgcolor: 'rgba(100, 116, 139, 0.1)' }
+                        }}
+                    >
+                        🔄 Reset All
+                    </Button>
+                    <Box sx={{ flex: 1 }} />
+                    <Button
+                        variant="contained"
+                        onClick={() => setGridSettingsOpen(false)}
+                        sx={{
+                            background: 'linear-gradient(135deg, #0d9488 0%, #0f766e 100%)',
+                            fontWeight: 700,
+                            boxShadow: '0 4px 12px rgba(13, 148, 136, 0.3)',
+                            '&:hover': { background: 'linear-gradient(135deg, #0f766e 0%, #0d5e56 100%)' }
+                        }}
+                    >
+                        Done
                     </Button>
                 </DialogActions>
             </Dialog>

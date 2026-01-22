@@ -65,6 +65,8 @@ import toast, { Toaster } from 'react-hot-toast';
 import { useWarehouse } from '@/app/context/WarehouseContext';
 import { getStoredUser } from '@/lib/auth';
 import { useBackupsPermissions } from '@/hooks/usePagePermissions';
+import { alpha } from '@mui/material/styles';
+import { CheckCircleOutline as CheckIcon } from '@mui/icons-material';
 
 interface Backup {
     id: number;
@@ -1471,22 +1473,57 @@ export default function BackupPage() {
                                         Select Backup Type
                                     </Typography>
                                     <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+
+                                        {/* Full Backup */}
                                         <Card
                                             onClick={() => setBackupType('full')}
-                                            sx={{
+                                            role="button"
+                                            tabIndex={0}
+                                            aria-pressed={backupType === 'full'}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter' || e.key === ' ') {
+                                                    e.preventDefault();
+                                                    setBackupType('full');
+                                                }
+                                            }}
+                                            sx={(theme) => ({
+                                                position: 'relative',
                                                 flex: 1,
                                                 cursor: 'pointer',
-                                                border: backupType === 'full' ? '2px solid #3b82f6' : '1px solid #e2e8f0',
-                                                bgcolor: backupType === 'full' ? 'rgba(59, 130, 246, 0.05)' : 'white',
-                                                transition: 'all 0.2s',
-                                                '&:hover': { borderColor: '#3b82f6' }
-                                            }}
+                                                border: backupType === 'full' ? `2px solid ${theme.palette.primary.main}` : `1px solid ${theme.palette.divider}`,
+                                                bgcolor: backupType === 'full'
+                                                    ? alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.22 : 0.06)
+                                                    : 'background.paper',
+                                                transition: 'all 0.18s',
+                                                '&:hover': { borderColor: theme.palette.primary.main },
+                                                boxShadow: backupType === 'full' ? `0 6px 20px ${alpha(theme.palette.primary.main, 0.12)}` : undefined,
+                                                '&:focus-visible': { outline: `3px solid ${alpha(theme.palette.primary.main, 0.18)}`, outlineOffset: 2 }
+                                            })}
                                         >
+                                            {backupType === 'full' && (
+                                                <Box sx={(theme) => ({
+                                                    position: 'absolute',
+                                                    top: 8,
+                                                    right: 8,
+                                                    width: 26,
+                                                    height: 26,
+                                                    borderRadius: '50%',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    bgcolor: theme.palette.mode === 'dark' ? theme.palette.primary.main : 'white',
+                                                    color: theme.palette.mode === 'dark' ? 'white' : theme.palette.primary.main,
+                                                    boxShadow: `0 2px 6px ${alpha(theme.palette.primary.main, 0.18)}`
+                                                })}>
+                                                    <CheckIcon fontSize="small" />
+                                                </Box>
+                                            )}
+
                                             <CardContent sx={{ p: 2 }}>
                                                 <Stack direction="row" spacing={2} alignItems="center">
                                                     <Box sx={{
                                                         width: 48, height: 48, borderRadius: 2,
-                                                        bgcolor: 'rgba(59, 130, 246, 0.1)',
+                                                        bgcolor: alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.12 : 0.08),
                                                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                                                         fontSize: '1.5rem'
                                                     }}>
@@ -1504,23 +1541,60 @@ export default function BackupPage() {
 
                                         <Card
                                             onClick={() => setBackupType('selective')}
-                                            sx={{
+                                            role="button"
+                                            tabIndex={0}
+                                            aria-pressed={backupType === 'selective'}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter' || e.key === ' ') {
+                                                    e.preventDefault();
+                                                    setBackupType('selective');
+                                                }
+                                            }}
+                                            sx={(theme) => ({
+                                                position: 'relative',
                                                 flex: 1,
                                                 cursor: 'pointer',
-                                                border: backupType === 'selective' ? '2px solid #10b981' : '1px solid #e2e8f0',
-                                                bgcolor: backupType === 'selective' ? 'rgba(16, 185, 129, 0.05)' : 'white',
-                                                transition: 'all 0.2s',
-                                                '&:hover': { borderColor: '#10b981' }
-                                            }}
+                                                border: backupType === 'selective'
+                                                    ? `2px solid ${theme.palette.success.main}`
+                                                    : `1px solid ${theme.palette.divider}`,
+                                                bgcolor: backupType === 'selective'
+                                                    ? alpha(theme.palette.success.main, theme.palette.mode === 'dark' ? 0.14 : 0.05)
+                                                    : 'background.paper',
+                                                transition: 'all 0.18s',
+                                                '&:hover': { borderColor: theme.palette.success.main },
+                                                boxShadow: backupType === 'selective' ? `0 6px 18px ${alpha(theme.palette.success.main, 0.08)}` : undefined,
+                                                '&:focus-visible': { outline: `3px solid ${alpha(theme.palette.success.main, 0.18)}`, outlineOffset: 2 }
+                                            })}
                                         >
+                                            {backupType === 'selective' && (
+                                                <Box sx={(theme) => ({
+                                                    position: 'absolute',
+                                                    top: 8,
+                                                    right: 8,
+                                                    width: 26,
+                                                    height: 26,
+                                                    borderRadius: '50%',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    bgcolor: theme.palette.mode === 'dark' ? theme.palette.success.main : 'white',
+                                                    color: theme.palette.mode === 'dark' ? 'white' : theme.palette.success.main,
+                                                    boxShadow: `0 2px 6px ${alpha(theme.palette.success.main, 0.18)}`
+                                                })}>
+                                                    <CheckIcon fontSize="small" />
+                                                </Box>
+                                            )}
+
                                             <CardContent sx={{ p: 2 }}>
                                                 <Stack direction="row" spacing={2} alignItems="center">
-                                                    <Box sx={{
+                                                    <Box sx={(theme) => ({
                                                         width: 48, height: 48, borderRadius: 2,
-                                                        bgcolor: 'rgba(16, 185, 129, 0.1)',
+                                                        bgcolor: backupType === 'selective'
+                                                            ? alpha(theme.palette.success.main, theme.palette.mode === 'dark' ? 0.12 : 0.08)
+                                                            : alpha(theme.palette.success.main, 0.08),
                                                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                                                         fontSize: '1.5rem'
-                                                    }}>
+                                                    })}>
                                                         ✂️
                                                     </Box>
                                                     <Box>
@@ -1563,36 +1637,60 @@ export default function BackupPage() {
                                             {backupModules.map((module) => (
                                                 <Card
                                                     key={module.id}
+                                                    role="button"
+                                                    tabIndex={0}
+                                                    aria-pressed={selectedTables.includes(module.id)}
                                                     onClick={() => {
                                                         setSelectedTables(prev =>
-                                                            prev.includes(module.id)
-                                                                ? prev.filter(t => t !== module.id)
-                                                                : [...prev, module.id]
+                                                            prev.includes(module.id) ? prev.filter(t => t !== module.id) : [...prev, module.id]
                                                         );
                                                     }}
-                                                    sx={{
-                                                        cursor: 'pointer',
-                                                        border: selectedTables.includes(module.id)
-                                                            ? '2px solid #10b981'
-                                                            : '1px solid #e2e8f0',
-                                                        bgcolor: selectedTables.includes(module.id)
-                                                            ? 'rgba(16, 185, 129, 0.08)'
-                                                            : 'white',
-                                                        transition: 'all 0.15s',
-                                                        '&:hover': {
-                                                            borderColor: '#10b981',
-                                                            transform: 'scale(1.02)'
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter' || e.key === ' ') {
+                                                            e.preventDefault();
+                                                            setSelectedTables(prev =>
+                                                                prev.includes(module.id) ? prev.filter(t => t !== module.id) : [...prev, module.id]
+                                                            );
                                                         }
                                                     }}
+                                                    sx={(theme) => {
+                                                        const sel = selectedTables.includes(module.id);
+                                                        return {
+                                                            position: 'relative',
+                                                            cursor: 'pointer',
+                                                            border: sel ? `2px solid ${theme.palette.success.main}` : `1px solid ${theme.palette.divider}`,
+                                                            bgcolor: sel ? alpha(theme.palette.success.main, theme.palette.mode === 'dark' ? 0.14 : 0.08) : (theme.palette.mode === 'dark' ? '#0f172a' : 'white'),
+                                                            transition: 'all 0.15s',
+                                                            '&:hover': { borderColor: theme.palette.success.main, transform: 'scale(1.02)' },
+                                                            '&:focus-visible': { outline: `3px solid ${alpha(theme.palette.success.main, 0.18)}`, outlineOffset: 2 }
+                                                        };
+                                                    }}
                                                 >
+                                                    {selectedTables.includes(module.id) && (
+                                                        <Box sx={(theme) => ({
+                                                            position: 'absolute',
+                                                            top: 8,
+                                                            right: 8,
+                                                            width: 18,
+                                                            height: 18,
+                                                            borderRadius: '50%',
+                                                            bgcolor: theme.palette.mode === 'dark' ? theme.palette.success.main : 'white',
+                                                            color: theme.palette.mode === 'dark' ? 'white' : theme.palette.success.main,
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'center',
+                                                            boxShadow: `0 1px 4px ${alpha(theme.palette.success.main, 0.12)}`
+                                                        })}>
+                                                            <CheckIcon fontSize="small" />
+                                                        </Box>
+                                                    )}
+
                                                     <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
                                                         <Stack direction="row" spacing={1} alignItems="center">
                                                             <Typography fontSize="1.2rem">{module.icon}</Typography>
                                                             <Box>
                                                                 <Typography fontWeight={600} fontSize="0.85rem">{module.name}</Typography>
-                                                                <Typography variant="caption" color="text.secondary" fontSize="0.7rem">
-                                                                    {module.description}
-                                                                </Typography>
+                                                                <Typography variant="caption" color="text.secondary">{module.description}</Typography>
                                                             </Box>
                                                         </Stack>
                                                     </CardContent>
@@ -2293,41 +2391,59 @@ export default function BackupPage() {
                                             {backupModules.map((module) => (
                                                 <Card
                                                     key={module.id}
+                                                    role="button"
+                                                    tabIndex={0}
+                                                    aria-pressed={scheduleSelectedTables.includes(module.id)}
                                                     onClick={() => {
                                                         setScheduleSelectedTables(prev =>
-                                                            prev.includes(module.id)
-                                                                ? prev.filter(t => t !== module.id)
-                                                                : [...prev, module.id]
+                                                            prev.includes(module.id) ? prev.filter(t => t !== module.id) : [...prev, module.id]
                                                         );
                                                     }}
-                                                    sx={{
-                                                        cursor: 'pointer',
-                                                        border: scheduleSelectedTables.includes(module.id)
-                                                            ? '2px solid #10b981'
-                                                            : '1px solid',
-                                                        borderColor: scheduleSelectedTables.includes(module.id)
-                                                            ? '#10b981'
-                                                            : isDarkMode ? 'rgba(255,255,255,0.1)' : '#e2e8f0',
-                                                        bgcolor: scheduleSelectedTables.includes(module.id)
-                                                            ? isDarkMode ? 'rgba(16, 185, 129, 0.15)' : 'rgba(16, 185, 129, 0.08)'
-                                                            : isDarkMode ? '#1e293b' : 'white',
-                                                        transition: 'all 0.15s',
-                                                        '&:hover': {
-                                                            borderColor: '#10b981',
-                                                            transform: 'scale(1.02)'
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter' || e.key === ' ') {
+                                                            e.preventDefault();
+                                                            setScheduleSelectedTables(prev =>
+                                                                prev.includes(module.id) ? prev.filter(t => t !== module.id) : [...prev, module.id]
+                                                            );
                                                         }
                                                     }}
+                                                    sx={(theme) => {
+                                                        const sel = scheduleSelectedTables.includes(module.id);
+                                                        return {
+                                                            position: 'relative',
+                                                            cursor: 'pointer',
+                                                            border: sel ? `2px solid ${theme.palette.success.main}` : `1px solid ${theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.08)' : theme.palette.divider}`,
+                                                            bgcolor: sel ? alpha(theme.palette.success.main, theme.palette.mode === 'dark' ? 0.15 : 0.08) : (theme.palette.mode === 'dark' ? '#1e293b' : 'white'),
+                                                            transition: 'all 0.15s',
+                                                            '&:hover': { borderColor: theme.palette.success.main, transform: 'scale(1.02)' },
+                                                            '&:focus-visible': { outline: `3px solid ${alpha(theme.palette.success.main, 0.18)}`, outlineOffset: 2 }
+                                                        };
+                                                    }}
                                                 >
+                                                    {scheduleSelectedTables.includes(module.id) && (
+                                                        <Box sx={(theme) => ({
+                                                            position: 'absolute',
+                                                            top: 8,
+                                                            right: 8,
+                                                            width: 18,
+                                                            height: 18,
+                                                            borderRadius: '50%',
+                                                            bgcolor: theme.palette.mode === 'dark' ? theme.palette.success.main : 'white',
+                                                            color: theme.palette.mode === 'dark' ? 'white' : theme.palette.success.main,
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'center',
+                                                            boxShadow: `0 1px 4px ${alpha(theme.palette.success.main, 0.12)}`
+                                                        })}>
+                                                            <CheckIcon fontSize="small" />
+                                                        </Box>
+                                                    )}
                                                     <CardContent sx={{ p: 1.25, '&:last-child': { pb: 1.25 } }}>
                                                         <Stack direction="row" spacing={1} alignItems="center">
                                                             <Typography fontSize="1.1rem">{module.icon}</Typography>
                                                             <Box>
-                                                                <Typography variant="body2" fontWeight={500} fontSize="0.8rem" noWrap>
-                                                                    {module.name}
-                                                                </Typography>
-                                                                <Typography variant="caption" color="text.secondary" fontSize="0.65rem" noWrap>
-                                                                    {module.description}
-                                                                </Typography>
+                                                                <Typography fontWeight={600} fontSize="0.85rem">{module.name}</Typography>
+                                                                <Typography variant="caption" color="text.secondary">{module.description}</Typography>
                                                             </Box>
                                                         </Stack>
                                                     </CardContent>
