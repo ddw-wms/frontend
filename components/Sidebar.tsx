@@ -322,18 +322,35 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
         </IconButton>
 
         {!collapsed && (
-          <Typography
-            fontWeight="bold"
-            sx={{
-              fontSize: { xs: '1rem', sm: '1.1rem' },
-              background: 'linear-gradient(90deg, #fff 0%, rgba(255,255,255,0.9) 100%)',
-              backgroundClip: 'text',
-              WebkitBackgroundClip: 'text',
-              letterSpacing: '0.5px',
-            }}
-          >
-            Divine WMS
-          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', ml: 0.5 }}>
+            <Typography
+              title="Divine WMS"
+              aria-label="Divine WMS"
+              variant="h4"
+              onCopy={(e) => e.preventDefault()}
+              onMouseDown={(e) => e.preventDefault()}
+              draggable={false}
+              sx={{
+                fontWeight: 900,
+                fontSize: { xs: '20px', sm: '28px', md: '36px' }, // explicit px sizes
+                background: 'linear-gradient(90deg,#ffffff 0%,#c7d2fe 60%)',
+                WebkitBackgroundClip: 'text',
+                backgroundClip: 'text',
+                color: 'transparent',
+                letterSpacing: '0.6px',
+                lineHeight: 1,
+                textShadow: 'none',
+                transition: 'none',
+                userSelect: 'none',
+                cursor: 'default',
+                display: 'inline-block',
+                pointerEvents: 'none',
+
+              }}
+            >
+              Divine WMS
+            </Typography>
+          </Box>
         )}
 
         {isMobile && (
