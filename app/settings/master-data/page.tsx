@@ -189,34 +189,52 @@ const ActionsCellRenderer = memo((props: any) => {
   const { data, context } = props;
   if (!data) return null;
 
+  const { canSeeButton, canAccessButton, isAdmin } = context || {};
+
+  // Check visibility for edit button
+  const showEditButton = isAdmin || canSeeButton?.('edit');
+  const canEdit = isAdmin || canAccessButton?.('edit');
+
+  // Check visibility for delete button
+  const showDeleteButton = isAdmin || canSeeButton?.('delete');
+  const canDelete = isAdmin || canAccessButton?.('delete');
+
   return (
     <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'center', alignItems: 'center', height: '100%' }}>
-      <IconButton
-        size="small"
-        onClick={() => context?.onEdit?.(data)}
-        sx={{
-          bgcolor: '#e3f2fd',
-          borderRadius: 1,
-          p: 0.5,
-          '&:hover': { bgcolor: '#bbdefb' }
-        }}
-        title="Edit"
-      >
-        <EditIcon sx={{ fontSize: 16, color: '#1e40af' }} />
-      </IconButton>
-      <IconButton
-        size="small"
-        onClick={() => context?.onDelete?.(data)}
-        sx={{
-          bgcolor: '#ffebee',
-          borderRadius: 1,
-          p: 0.5,
-          '&:hover': { bgcolor: '#ffcdd2' }
-        }}
-        title="Delete"
-      >
-        <DeleteIcon sx={{ fontSize: 16, color: '#d32f2f' }} />
-      </IconButton>
+      {showEditButton && (
+        <IconButton
+          size="small"
+          onClick={() => context?.onEdit?.(data)}
+          disabled={!canEdit}
+          sx={{
+            bgcolor: canEdit ? '#e3f2fd' : '#f5f5f5',
+            borderRadius: 1,
+            p: 0.5,
+            opacity: canEdit ? 1 : 0.5,
+            '&:hover': { bgcolor: canEdit ? '#bbdefb' : '#f5f5f5' }
+          }}
+          title="Edit"
+        >
+          <EditIcon sx={{ fontSize: 16, color: canEdit ? '#1e40af' : '#9e9e9e' }} />
+        </IconButton>
+      )}
+      {showDeleteButton && (
+        <IconButton
+          size="small"
+          onClick={() => context?.onDelete?.(data)}
+          disabled={!canDelete}
+          sx={{
+            bgcolor: canDelete ? '#ffebee' : '#f5f5f5',
+            borderRadius: 1,
+            p: 0.5,
+            opacity: canDelete ? 1 : 0.5,
+            '&:hover': { bgcolor: canDelete ? '#ffcdd2' : '#f5f5f5' }
+          }}
+          title="Delete"
+        >
+          <DeleteIcon sx={{ fontSize: 16, color: canDelete ? '#d32f2f' : '#9e9e9e' }} />
+        </IconButton>
+      )}
     </Box>
   );
 });
@@ -2117,7 +2135,10 @@ export default function MasterDataPage() {
                             suppressNoRowsOverlay={true}
                             context={{
                               onEdit: handleOpenEditDialog,
-                              onDelete: handleOpenDeleteConfirm
+                              onDelete: handleOpenDeleteConfirm,
+                              canSeeButton,
+                              canAccessButton,
+                              isAdmin
                             }}
                             getRowId={(params: any) => String(params.data?.id || params.data?.wsn || params.rowIndex)}
                             onGridReady={(params: any) => {
