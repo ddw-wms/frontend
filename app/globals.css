@@ -101,13 +101,13 @@ html[data-theme="dark"] .recharts-responsive-container *:not(text):not(tspan):no
    ============================================ */
 :root {
   /* App Appearance Settings (dynamically set by AppearanceContext) */
-  --app-font-size: 14px;
+  --app-font-size: 12px;
   --app-font-family: 'Inter';
   --app-primary-color: #1e40af;
   --app-primary-color-light: #3b82f6;
   --app-primary-color-dark: #1e3a8a;
   --app-primary-color-rgb: 30, 64, 175;
-  --app-table-row-height: 44px;
+  --app-table-row-height: 34px;
   --app-transition-duration: 0.2s;
   --app-animation-enabled: 1;
 
@@ -173,6 +173,152 @@ body {
   height: 100%;
   /* Enable smooth scrolling with reduced motion support */
   scroll-behavior: smooth;
+}
+
+/* ============================================
+   SMALL LAPTOP / LOW RESOLUTION SCREEN OPTIMIZATION
+   Auto-scales UI for screens <= 1440px height or <= 1366px width
+   ============================================ */
+/* Scale down headings globally for compact UI */
+.MuiTypography-h4 {
+  font-size: 1.1rem !important;
+}
+
+.MuiTypography-h5 {
+  font-size: 0.95rem !important;
+}
+
+.MuiTypography-h6 {
+  font-size: 0.85rem !important;
+}
+
+/* Compact padding for cards and containers globally */
+.MuiCardContent-root {
+  padding: 10px !important;
+}
+
+.MuiCardContent-root:last-child {
+  padding-bottom: 10px !important;
+}
+
+/* Compact buttons globally */
+.MuiButton-root {
+  padding: 4px 10px !important;
+  min-height: 30px !important;
+  font-size: 0.8rem !important;
+}
+
+.MuiButton-sizeLarge {
+  padding: 6px 14px !important;
+  min-height: 36px !important;
+}
+
+/* AG Grid compact mode globally */
+.ag-row {
+  height: 30px !important;
+}
+
+.ag-header-row {
+  height: 32px !important;
+}
+
+.ag-cell {
+  font-size: 11px !important;
+  padding: 0 6px !important;
+  line-height: 28px !important;
+}
+
+.ag-header-cell {
+  font-size: 11px !important;
+  padding: 0 6px !important;
+}
+
+.ag-header-cell-text {
+  font-size: 11px !important;
+}
+
+/* Compact inputs */
+.MuiInputBase-root {
+  font-size: 0.8rem !important;
+}
+
+.MuiInputBase-input {
+  padding: 8px 10px !important;
+}
+
+.MuiOutlinedInput-input {
+  padding: 8px 10px !important;
+}
+
+.MuiSelect-select {
+  padding: 8px 10px !important;
+}
+
+/* Compact chips */
+.MuiChip-root {
+  height: 24px !important;
+  font-size: 0.7rem !important;
+}
+
+.MuiChip-label {
+  padding: 0 8px !important;
+}
+
+/* Compact tabs */
+.MuiTab-root {
+  min-height: 36px !important;
+  padding: 6px 12px !important;
+  font-size: 0.8rem !important;
+}
+
+/* Compact list items */
+.MuiListItem-root {
+  padding-top: 4px !important;
+  padding-bottom: 4px !important;
+}
+
+.MuiListItemButton-root {
+  padding: 4px 12px !important;
+  min-height: 36px !important;
+}
+
+@media (max-width: 1440px) and (max-height: 900px) {
+  :root {
+    --app-font-size: 11px;
+    --app-table-row-height: 30px;
+  }
+}
+
+@media (max-width: 1366px) {
+  :root {
+    --app-font-size: 11px;
+    --app-table-row-height: 28px;
+  }
+
+  .MuiTypography-h4 {
+    font-size: 1rem !important;
+  }
+
+  .MuiTypography-h5 {
+    font-size: 0.9rem !important;
+  }
+
+  .MuiTypography-h6 {
+    font-size: 0.8rem !important;
+  }
+
+  .ag-row {
+    height: 26px !important;
+  }
+
+  .ag-header-row {
+    height: 28px !important;
+  }
+
+  .ag-cell {
+    font-size: 10px !important;
+    line-height: 24px !important;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -187,12 +187,12 @@ export default function OnboardingWizard({ open, onComplete }: OnboardingWizardP
             case 0:
                 // Step 1: Select Warehouse
                 return (
-                    <Box sx={{ textAlign: 'center', py: { xs: 1.5, md: 4 }, px: { xs: 1, md: 0 } }}>
-                        <WarehouseIcon sx={{ fontSize: { xs: 36, md: 80 }, color: 'primary.main', mb: 1, mx: 'auto' }} />
-                        <Typography variant="h4" gutterBottom sx={{ fontSize: { xs: '1.4rem', md: '2rem' }, mb: 0.75 }}>
+                    <Box sx={{ textAlign: 'center', py: { xs: 1, md: 2 }, px: { xs: 1, md: 0 } }}>
+                        <WarehouseIcon sx={{ fontSize: { xs: 32, md: 48 }, color: 'primary.main', mb: 0.5, mx: 'auto' }} />
+                        <Typography variant="h4" gutterBottom sx={{ fontSize: { xs: '1.1rem', md: '1.4rem' }, mb: 0.5 }}>
                             Welcome to Divine WMS! 🎉
                         </Typography>
-                        <Typography variant="body1" color="text.secondary" sx={{ mb: { xs: 1.5, md: 4 }, fontSize: { xs: '0.85rem', md: '1rem' } }}>
+                        <Typography variant="body1" color="text.secondary" sx={{ mb: { xs: 1, md: 2 }, fontSize: { xs: '0.75rem', md: '0.85rem' } }}>
                             Let's get you set up in just a few steps
                         </Typography>
 
@@ -227,12 +227,12 @@ export default function OnboardingWizard({ open, onComplete }: OnboardingWizardP
             case 1:
                 // Step 2: Configure Printer
                 return (
-                    <Box sx={{ textAlign: 'center', py: { xs: 0.5, md: 4 }, px: { xs: 1, md: 0 }, pb: { xs: 2, md: 0 } }}>
-                        <PrintIcon sx={{ fontSize: { xs: 28, md: 80 }, color: 'primary.main', mb: { xs: 0.5, md: 1 }, mx: 'auto' }} />
-                        <Typography variant="h4" gutterBottom sx={{ fontSize: { xs: '1rem', md: '2rem' }, mb: { xs: 0.5, md: 1 } }}>
+                    <Box sx={{ textAlign: 'center', py: { xs: 0.5, md: 1.5 }, px: { xs: 1, md: 0 }, pb: { xs: 1, md: 0 } }}>
+                        <PrintIcon sx={{ fontSize: { xs: 24, md: 44 }, color: 'primary.main', mb: { xs: 0.25, md: 0.5 }, mx: 'auto' }} />
+                        <Typography variant="h4" gutterBottom sx={{ fontSize: { xs: '0.95rem', md: '1.3rem' }, mb: { xs: 0.25, md: 0.5 } }}>
                             Set Up Print Agent
                         </Typography>
-                        <Typography variant="body1" color="text.secondary" sx={{ mb: { xs: 1.5, md: 4 }, fontSize: { xs: '0.75rem', md: '1rem' } }}>
+                        <Typography variant="body1" color="text.secondary" sx={{ mb: { xs: 1, md: 2 }, fontSize: { xs: '0.7rem', md: '0.85rem' } }}>
                             Print Agent enables automatic label printing for your warehouse operations
                         </Typography>
 
@@ -297,12 +297,12 @@ export default function OnboardingWizard({ open, onComplete }: OnboardingWizardP
             case 2:
                 // Step 3: Ready to Start
                 return (
-                    <Box sx={{ textAlign: 'center', py: { xs: 0.5, md: 4 }, px: { xs: 1, md: 0 }, pb: { xs: 2, md: 0 } }}>
-                        <RocketLaunchIcon sx={{ fontSize: { xs: 28, md: 80 }, color: 'primary.main', mb: { xs: 0.5, md: 1 }, mx: 'auto' }} />
-                        <Typography variant="h4" gutterBottom sx={{ fontSize: { xs: '1rem', md: '2rem' }, mb: { xs: 0.5, md: 1 } }}>
+                    <Box sx={{ textAlign: 'center', py: { xs: 0.5, md: 1.5 }, px: { xs: 1, md: 0 }, pb: { xs: 1, md: 0 } }}>
+                        <RocketLaunchIcon sx={{ fontSize: { xs: 24, md: 44 }, color: 'primary.main', mb: { xs: 0.25, md: 0.5 }, mx: 'auto' }} />
+                        <Typography variant="h4" gutterBottom sx={{ fontSize: { xs: '0.95rem', md: '1.3rem' }, mb: { xs: 0.25, md: 0.5 } }}>
                             You're All Set! 🚀
                         </Typography>
-                        <Typography variant="body1" color="text.secondary" sx={{ mb: { xs: 1.5, md: 4 }, fontSize: { xs: '0.75rem', md: '1rem' } }}>
+                        <Typography variant="body1" color="text.secondary" sx={{ mb: { xs: 1, md: 2 }, fontSize: { xs: '0.7rem', md: '0.85rem' } }}>
                             Your workspace is configured and ready to use
                         </Typography>
 
@@ -391,14 +391,14 @@ export default function OnboardingWizard({ open, onComplete }: OnboardingWizardP
                 {/* Header */}
                 <Box sx={{
                     background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
-                    px: { xs: 2, md: 3 },
-                    py: { xs: 1.5, md: 2 },
+                    px: { xs: 1.5, md: 2 },
+                    py: { xs: 1, md: 1.25 },
                     color: 'white',
                     flexShrink: 0
                 }}>
                     <Typography variant="h4" sx={{
                         fontWeight: 800,
-                        fontSize: { xs: '1.15rem', md: '1.5rem' },
+                        fontSize: { xs: '1rem', md: '1.2rem' },
                         textAlign: 'center',
                         textShadow: '0 2px 4px rgba(0,0,0,0.2)'
                     }}>
@@ -415,9 +415,9 @@ export default function OnboardingWizard({ open, onComplete }: OnboardingWizardP
                 </Box>
 
                 <DialogContent sx={{
-                    px: { xs: 1.5, md: 3 },
-                    py: { xs: 1.5, md: 2.5 },
-                    pb: { xs: 0, md: 2.5 },
+                    px: { xs: 1, md: 2 },
+                    py: { xs: 1, md: 1.5 },
+                    pb: { xs: 0, md: 1.5 },
                     overflow: 'auto',
                     flex: 1,
                     display: 'flex',
@@ -441,21 +441,21 @@ export default function OnboardingWizard({ open, onComplete }: OnboardingWizardP
                     <Box sx={{
                         display: 'flex',
                         justifyContent: 'center',
-                        mb: { xs: 2, md: 2.5 }
+                        mb: { xs: 1, md: 1.5 }
                     }}>
                         <Stepper
                             activeStep={activeStep}
                             alternativeLabel
                             sx={{
                                 width: '100%',
-                                maxWidth: 600,
+                                maxWidth: 500,
                                 '& .MuiStepLabel-label': {
-                                    fontSize: { xs: '0.65rem', md: '0.8rem' },
+                                    fontSize: { xs: '0.6rem', md: '0.7rem' },
                                     fontWeight: 600,
-                                    mt: 0.5
+                                    mt: 0.25
                                 },
                                 '& .MuiStepIcon-root': {
-                                    fontSize: { xs: '1.15rem', md: '1.5rem' },
+                                    fontSize: { xs: '1rem', md: '1.25rem' },
                                     '&.Mui-active': {
                                         color: '#1e40af',
                                     },
@@ -482,10 +482,10 @@ export default function OnboardingWizard({ open, onComplete }: OnboardingWizardP
                     <Box sx={{
                         display: 'flex',
                         justifyContent: 'center',
-                        gap: { xs: 1.5, md: 1.5 },
+                        gap: { xs: 1, md: 1 },
                         mt: 'auto',
-                        pt: { xs: 2, md: 2.5 },
-                        pb: { xs: 2.5, md: 0 },
+                        pt: { xs: 1.5, md: 1.5 },
+                        pb: { xs: 2, md: 0 },
                         px: { xs: 1, md: 0 },
                         borderTop: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e5e7eb',
                         flexWrap: 'nowrap',
@@ -500,13 +500,13 @@ export default function OnboardingWizard({ open, onComplete }: OnboardingWizardP
                             onClick={handleBack}
                             startIcon={!isMobile && <ArrowBackIcon />}
                             variant="outlined"
-                            size={isMobile ? 'medium' : 'medium'}
+                            size="small"
                             sx={{
-                                minWidth: { xs: 80, md: 110 },
-                                height: { xs: 44, md: 44 },
-                                borderRadius: 2.5,
+                                minWidth: { xs: 70, md: 90 },
+                                height: { xs: 34, md: 36 },
+                                borderRadius: 2,
                                 fontWeight: 600,
-                                fontSize: { xs: '0.875rem', md: '0.9rem' },
+                                fontSize: { xs: '0.75rem', md: '0.8rem' },
                                 borderWidth: 2,
                                 flex: { xs: 1, md: 'none' },
                                 '&:hover': {
@@ -521,13 +521,13 @@ export default function OnboardingWizard({ open, onComplete }: OnboardingWizardP
                             <Button
                                 onClick={handleSkip}
                                 variant="outlined"
-                                size={isMobile ? 'medium' : 'medium'}
+                                size="small"
                                 sx={{
-                                    minWidth: { xs: 70, md: 110 },
-                                    height: { xs: 44, md: 44 },
-                                    borderRadius: 2.5,
+                                    minWidth: { xs: 60, md: 80 },
+                                    height: { xs: 34, md: 36 },
+                                    borderRadius: 2,
                                     fontWeight: 600,
-                                    fontSize: { xs: '0.875rem', md: '0.9rem' },
+                                    fontSize: { xs: '0.75rem', md: '0.8rem' },
                                     borderWidth: 2,
                                     color: '#6b7280',
                                     borderColor: '#e5e7eb',
@@ -548,13 +548,13 @@ export default function OnboardingWizard({ open, onComplete }: OnboardingWizardP
                             onClick={handleNext}
                             endIcon={activeStep === steps.length - 1 ? <CheckCircleIcon /> : (!isMobile && <ArrowForwardIcon />)}
                             disabled={activeStep === 0 && !selectedWarehouse}
-                            size="medium"
+                            size="small"
                             sx={{
-                                minWidth: { xs: 100, md: 130 },
-                                height: { xs: 44, md: 44 },
-                                borderRadius: 2.5,
+                                minWidth: { xs: 85, md: 100 },
+                                height: { xs: 34, md: 36 },
+                                borderRadius: 2,
                                 fontWeight: 700,
-                                fontSize: { xs: '0.875rem', md: '0.9rem' },
+                                fontSize: { xs: '0.75rem', md: '0.8rem' },
                                 background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
                                 boxShadow: '0 4px 14px rgba(30, 64, 175, 0.4)',
                                 flex: { xs: 1.2, md: 'none' },

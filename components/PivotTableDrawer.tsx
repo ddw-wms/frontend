@@ -169,8 +169,13 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
         filter: enableColumnFilters,
         resizable: enableColumnResize,
         minWidth: 80,
-        flex: 1,
-        cellStyle: { fontSize: '12px', display: 'flex', alignItems: 'center' },
+        suppressSizeToFit: false,
+        cellStyle: {
+            fontSize: '12px',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+        },
     }), [enableSorting, enableColumnFilters, enableColumnResize]);
 
     // AG Grid column definitions for drill-down
@@ -178,15 +183,15 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
         {
             field: 'srNo',
             headerName: 'Sr.No',
-            width: 80,
-            maxWidth: 90,
+            width: 75,
+            minWidth: 75,
+            maxWidth: 75,
             sortable: false,
             filter: false,
+            pinned: 'left',
             valueGetter: (params: any) => {
                 if (!params.node) return '';
-                // Get the actual row index in the original data
                 const rowIndex = params.node.rowIndex;
-                // Get current page info from grid API if available
                 const api = params.api;
                 if (api) {
                     const pageSize = api.paginationGetPageSize();
@@ -196,27 +201,27 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
                 return rowIndex + 1;
             }
         },
-        { field: 'wsn', headerName: 'WSN', width: 110 },
-        { field: 'wid', headerName: 'WID', width: 100 },
-        { field: 'fsn', headerName: 'FSN', width: 100 },
-        { field: 'order_id', headerName: 'Order ID', width: 100 },
-        { field: 'product_title', headerName: 'Product Title', minWidth: 200, flex: 2, tooltipField: 'product_title' },
-        { field: 'brand', headerName: 'Brand', width: 100 },
-        { field: 'cms_vertical', headerName: 'Category', width: 120 },
-        { field: 'hsn_sac', headerName: 'HSN/SAC', width: 90 },
-        { field: 'igst_rate', headerName: 'IGST', width: 70 },
-        { field: 'fsp', headerName: 'FSP', width: 80, valueFormatter: (params: any) => params.value ? `₹${Number(params.value).toLocaleString('en-IN')}` : '' },
-        { field: 'mrp', headerName: 'MRP', width: 80, valueFormatter: (params: any) => params.value ? `₹${Number(params.value).toLocaleString('en-IN')}` : '' },
-        { field: 'vrp', headerName: 'VRP', width: 80, valueFormatter: (params: any) => params.value ? `₹${Number(params.value).toLocaleString('en-IN')}` : '' },
-        { field: 'yield_value', headerName: 'Yield', width: 80 },
-        { field: 'rack_no', headerName: 'Rack', width: 80 },
-        { field: 'wh_location', headerName: 'WH Location', width: 100 },
-        { field: 'p_type', headerName: 'P Type', width: 80 },
-        { field: 'p_size', headerName: 'P Size', width: 80 },
-        { field: 'inbound_date', headerName: 'Inbound Date', width: 110, valueFormatter: (params: any) => formatDate(params.value) },
-        { field: 'qc_grade', headerName: 'QC Grade', width: 90 },
-        { field: 'qc_date', headerName: 'QC Date', width: 100, valueFormatter: (params: any) => formatDate(params.value) },
-        { field: 'current_stage', headerName: 'Stage', width: 100 },
+        { field: 'wsn', headerName: 'WSN', width: 120, minWidth: 100 },
+        { field: 'wid', headerName: 'WID', width: 110, minWidth: 90 },
+        { field: 'fsn', headerName: 'FSN', width: 130, minWidth: 100 },
+        { field: 'order_id', headerName: 'Order ID', width: 120, minWidth: 100 },
+        { field: 'product_title', headerName: 'Product Title', width: 300, minWidth: 200, tooltipField: 'product_title' },
+        { field: 'brand', headerName: 'Brand', width: 120, minWidth: 90 },
+        { field: 'cms_vertical', headerName: 'Category', width: 130, minWidth: 100 },
+        { field: 'hsn_sac', headerName: 'HSN/SAC', width: 100, minWidth: 80 },
+        { field: 'igst_rate', headerName: 'IGST', width: 70, minWidth: 60 },
+        { field: 'fsp', headerName: 'FSP', width: 100, minWidth: 80, valueFormatter: (params: any) => params.value ? `₹${Number(params.value).toLocaleString('en-IN')}` : '' },
+        { field: 'mrp', headerName: 'MRP', width: 100, minWidth: 80, valueFormatter: (params: any) => params.value ? `₹${Number(params.value).toLocaleString('en-IN')}` : '' },
+        { field: 'vrp', headerName: 'VRP', width: 100, minWidth: 80, valueFormatter: (params: any) => params.value ? `₹${Number(params.value).toLocaleString('en-IN')}` : '' },
+        { field: 'yield_value', headerName: 'Yield', width: 90, minWidth: 70 },
+        { field: 'rack_no', headerName: 'Rack', width: 80, minWidth: 60 },
+        { field: 'wh_location', headerName: 'WH Location', width: 110, minWidth: 90 },
+        { field: 'p_type', headerName: 'P Type', width: 80, minWidth: 70 },
+        { field: 'p_size', headerName: 'P Size', width: 80, minWidth: 70 },
+        { field: 'inbound_date', headerName: 'Inbound Date', width: 115, minWidth: 100, valueFormatter: (params: any) => formatDate(params.value) },
+        { field: 'qc_grade', headerName: 'QC Grade', width: 95, minWidth: 80 },
+        { field: 'qc_date', headerName: 'QC Date', width: 105, minWidth: 90, valueFormatter: (params: any) => formatDate(params.value) },
+        { field: 'current_stage', headerName: 'Stage', width: 100, minWidth: 80 },
     ], []);
 
     // Fetch pivot filters (brands, categories) when drawer opens
@@ -874,16 +879,17 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
                             sx={{
                                 flex: 1,
                                 width: '100%',
-                                '--ag-header-height': '44px',
-                                '--ag-row-height': '40px',
+                                '--ag-header-height': '42px',
+                                '--ag-row-height': '38px',
                                 '--ag-header-foreground-color': '#ffffff',
                                 '--ag-header-background-color': '#0f766e',
-                                '--ag-border-color': 'rgba(0,0,0,0.08)',
+                                '--ag-border-color': 'rgba(0,0,0,0.12)',
                                 '--ag-odd-row-background-color': 'rgba(240, 247, 244, 0.5)',
                                 '--ag-row-hover-color': 'rgba(13, 148, 136, 0.08)',
                                 '--ag-selected-row-background-color': 'rgba(13, 148, 136, 0.12)',
                                 '--ag-font-size': '12px',
                                 '--ag-font-family': 'Inter, -apple-system, sans-serif',
+                                '--ag-cell-horizontal-padding': '8px',
                                 '& .ag-root-wrapper': {
                                     border: 'none',
                                 },
@@ -893,20 +899,103 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
                                 },
                                 '& .ag-header-cell': {
                                     fontWeight: 600,
-                                    fontSize: '12px',
+                                    fontSize: '11px',
+                                    padding: '0 8px',
+                                },
+                                '& .ag-header-cell-text': {
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    whiteSpace: 'nowrap',
                                 },
                                 '& .ag-row': {
                                     transition: 'background-color 0.15s ease',
+                                    borderBottom: '1px solid rgba(0,0,0,0.06)',
                                 },
                                 '& .ag-cell': {
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    lineHeight: 1.4,
+                                    lineHeight: '36px',
+                                    padding: '0 8px',
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    whiteSpace: 'nowrap',
+                                    borderRight: '1px solid rgba(0,0,0,0.06)',
                                 },
+                                '& .ag-cell-value': {
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    whiteSpace: 'nowrap',
+                                },
+                                // Pagination Panel Styles
                                 '& .ag-paging-panel': {
-                                    height: '48px',
-                                    borderTop: '1px solid rgba(0,0,0,0.08)',
-                                    background: '#f8fafc',
+                                    height: '52px',
+                                    borderTop: '2px solid #0d9488',
+                                    background: '#f0fdfa !important',
+                                    color: '#1e293b !important',
+                                    fontWeight: 500,
+                                    padding: '0 16px',
+                                },
+                                '& .ag-paging-panel *': {
+                                    color: '#1e293b !important',
+                                },
+                                '& .ag-paging-button': {
+                                    cursor: 'pointer',
+                                    backgroundColor: '#ffffff !important',
+                                    border: '1px solid #0d9488 !important',
+                                    borderRadius: '4px !important',
+                                    margin: '0 3px !important',
+                                    minWidth: '32px !important',
+                                    height: '32px !important',
+                                    display: 'flex !important',
+                                    alignItems: 'center !important',
+                                    justifyContent: 'center !important',
+                                },
+                                '& .ag-paging-button:hover': {
+                                    backgroundColor: '#ccfbf1 !important',
+                                },
+                                '& .ag-paging-button.ag-disabled': {
+                                    opacity: '0.4 !important',
+                                    cursor: 'not-allowed !important',
+                                    backgroundColor: '#e2e8f0 !important',
+                                },
+                                '& .ag-paging-button .ag-icon': {
+                                    color: '#0f766e !important',
+                                    fontSize: '18px !important',
+                                    display: 'block !important',
+                                },
+                                '& .ag-icon-first, & .ag-icon-previous, & .ag-icon-next, & .ag-icon-last': {
+                                    color: '#0f766e !important',
+                                    display: 'block !important',
+                                },
+                                '& .ag-paging-row-summary-panel': {
+                                    color: '#475569 !important',
+                                    fontWeight: '500 !important',
+                                    fontSize: '13px !important',
+                                },
+                                '& .ag-paging-row-summary-panel-number': {
+                                    fontWeight: '700 !important',
+                                    color: '#0f766e !important',
+                                },
+                                '& .ag-paging-page-summary-panel': {
+                                    color: '#1e293b !important',
+                                    fontWeight: '600 !important',
+                                    fontSize: '13px !important',
+                                },
+                                '& .ag-paging-number': {
+                                    fontWeight: '700 !important',
+                                    color: '#0f766e !important',
+                                },
+                                '& .ag-picker-field-wrapper, & .ag-paging-page-size .ag-picker-field-wrapper': {
+                                    backgroundColor: '#ffffff !important',
+                                    border: '1px solid #0d9488 !important',
+                                    borderRadius: '4px !important',
+                                    minHeight: '32px !important',
+                                },
+                                '& .ag-picker-field-display': {
+                                    color: '#1e293b !important',
+                                    fontWeight: '600 !important',
+                                },
+                                '& .ag-label': {
+                                    color: '#475569 !important',
+                                    fontWeight: '500 !important',
                                 },
                             }}
                         >
@@ -928,16 +1017,6 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
                         </Box>
                     )}
                 </DialogContent>
-
-                <DialogActions sx={{ px: 2, py: 1.5, borderTop: '1px solid rgba(0,0,0,0.1)' }}>
-                    <Typography variant="caption" sx={{ color: 'text.secondary', mr: 2 }}>
-                        {formatNumber(drilldownTotal)} total items
-                    </Typography>
-                    <Box sx={{ flex: 1 }} />
-                    <Button onClick={() => setDrilldownOpen(false)} variant="contained" sx={{ bgcolor: '#0d9488', '&:hover': { bgcolor: '#0f766e' } }}>
-                        Close
-                    </Button>
-                </DialogActions>
             </Dialog>
 
             {/* Grid Settings Dialog */}
@@ -1072,7 +1151,7 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
                         Done
                     </Button>
                 </DialogActions>
-            </Dialog>
+            </Dialog >
         </>
     );
 };

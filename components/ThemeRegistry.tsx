@@ -231,6 +231,27 @@ const createAppTheme = (mode: PaletteMode) => createTheme({
             styleOverrides: {
                 body: {
                     scrollbarWidth: 'thin',
+                    transition: 'background-color 0.3s ease-in-out, color 0.3s ease-in-out',
+                },
+            },
+        },
+        MuiPaper: {
+            styleOverrides: {
+                root: {
+                    backgroundImage: 'none',
+                    transition: 'background-color 0.3s ease-in-out, box-shadow 0.3s ease-in-out',
+                },
+                elevation1: {
+                    boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1)',
+                },
+                elevation2: {
+                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1)',
+                },
+                elevation3: {
+                    boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1)',
+                },
+                rounded: {
+                    borderRadius: 12,
                 },
             },
         },
@@ -242,7 +263,7 @@ const createAppTheme = (mode: PaletteMode) => createTheme({
                     borderRadius: 10,
                     padding: '8px 18px',
                     boxShadow: 'none',
-                    transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                    transition: 'background-color 0.3s ease-in-out, color 0.3s ease-in-out, border-color 0.3s ease-in-out, box-shadow 0.2s ease, transform 0.2s ease',
                     minHeight: 40,
                     '&:hover': {
                         boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
@@ -302,6 +323,7 @@ const createAppTheme = (mode: PaletteMode) => createTheme({
                 paper: {
                     borderRadius: 16,
                     boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+                    transition: 'background-color 0.3s ease-in-out',
                     '@media (max-width:640px)': {
                         margin: 16,
                         width: 'calc(100% - 32px)',
@@ -315,6 +337,7 @@ const createAppTheme = (mode: PaletteMode) => createTheme({
             styleOverrides: {
                 root: {
                     fontSize: '1.25rem',
+                    transition: 'color 0.3s ease-in-out',
                     fontWeight: 700,
                     padding: '20px 24px',
                     '@media (max-width:640px)': {
@@ -353,31 +376,12 @@ const createAppTheme = (mode: PaletteMode) => createTheme({
                 },
             },
         },
-        MuiPaper: {
-            styleOverrides: {
-                root: {
-                    backgroundImage: 'none',
-                },
-                elevation1: {
-                    boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1)',
-                },
-                elevation2: {
-                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1)',
-                },
-                elevation3: {
-                    boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1)',
-                },
-                rounded: {
-                    borderRadius: 12,
-                },
-            },
-        },
         MuiTextField: {
             styleOverrides: {
                 root: {
                     '& .MuiOutlinedInput-root': {
                         borderRadius: 10,
-                        transition: 'all 0.2s ease',
+                        transition: 'background-color 0.3s ease-in-out, border-color 0.2s ease',
                         '&:hover .MuiOutlinedInput-notchedOutline': {
                             borderColor: '#3b82f6',
                         },
@@ -386,6 +390,7 @@ const createAppTheme = (mode: PaletteMode) => createTheme({
                         },
                     },
                     '& .MuiInputBase-input': {
+                        transition: 'background-color 0.3s ease-in-out, color 0.3s ease-in-out',
                         '@media (max-width:640px)': {
                             fontSize: '16px',
                         },
@@ -397,9 +402,13 @@ const createAppTheme = (mode: PaletteMode) => createTheme({
             styleOverrides: {
                 root: {
                     borderRadius: 10,
+                    transition: 'background-color 0.3s ease-in-out',
                     '&:hover .MuiOutlinedInput-notchedOutline': {
                         borderColor: '#3b82f6',
                     },
+                },
+                notchedOutline: {
+                    transition: 'border-color 0.3s ease-in-out',
                 },
                 input: {
                     padding: '12px 14px',
@@ -423,6 +432,7 @@ const createAppTheme = (mode: PaletteMode) => createTheme({
                 root: {
                     fontWeight: 500,
                     borderRadius: 8,
+                    transition: 'background-color 0.3s ease-in-out, color 0.3s ease-in-out',
                 },
                 sizeSmall: {
                     height: 24,
@@ -489,6 +499,7 @@ const createAppTheme = (mode: PaletteMode) => createTheme({
                 root: {
                     borderRadius: 10,
                     alignItems: 'center',
+                    transition: 'background-color 0.3s ease-in-out, color 0.3s ease-in-out',
                 },
                 standardSuccess: {
                     backgroundColor: '#ecfdf5',
@@ -647,7 +658,7 @@ export default function ThemeRegistry({ children }: { children: React.ReactNode 
         }
     }, []);
 
-    // Listen for theme changes from AppearanceContext
+    // Listen for theme changes from AppearanceContext - instant switch
     React.useEffect(() => {
         const handleThemeChange = (e: CustomEvent) => {
             const theme = e.detail?.theme;

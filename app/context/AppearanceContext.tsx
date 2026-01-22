@@ -6,10 +6,10 @@ import { createContext, useContext, useState, useEffect, ReactNode, useCallback 
 // Default appearance settings
 export const DEFAULT_APPEARANCE_SETTINGS = {
     theme: 'light' as 'light' | 'dark',
-    fontSize: 14,
+    fontSize: 12,
     fontFamily: 'Inter',
     sidebarCompact: false,
-    tableRowDensity: 'comfortable' as 'extra-compact' | 'compact' | 'comfortable',
+    tableRowDensity: 'extra-compact' as 'extra-compact' | 'compact' | 'comfortable',
     primaryColor: '#1e40af',
     showAnimations: true,
     highContrastMode: false,
@@ -44,7 +44,6 @@ const applySettingsToDOM = (settings: AppearanceSettings) => {
 
     // Font size
     root.style.setProperty('--app-font-size', `${settings.fontSize}px`);
-    // Also set on body directly for immediate effect
     document.body.style.fontSize = `${settings.fontSize}px`;
 
     // Font family
@@ -77,16 +76,18 @@ const applySettingsToDOM = (settings: AppearanceSettings) => {
         root.classList.remove('high-contrast');
     }
 
-    // Theme - apply directly (no auto mode)
+    // Theme - apply directly
     root.setAttribute('data-theme', settings.theme);
+
+    // Dispatch theme change event
     window.dispatchEvent(new CustomEvent('themeChanged', { detail: { theme: settings.theme } }));
 
-    // Sidebar compact preference (for initial load)
+    // Sidebar compact preference
     if (settings.sidebarCompact) {
         localStorage.setItem('sidebar-collapsed', 'true');
     }
 
-    // Force AG Grid to refresh row heights by triggering a resize event
+    // Force AG Grid to refresh row heights
     setTimeout(() => {
         window.dispatchEvent(new Event('resize'));
     }, 100);
