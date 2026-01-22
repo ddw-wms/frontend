@@ -181,7 +181,7 @@ const PAGE_ORDER = [
 ];
 
 export default function PermissionsPage() {
-    const { isAdmin, refreshPermissions } = usePermissions();
+    const { isAdmin, refreshPermissions, canAccessMenu } = usePermissions();
     const theme = useTheme();
     const isDarkMode = theme.palette.mode === 'dark';
     const isMobile = useMediaQuery(theme.breakpoints.down('md'));
@@ -1213,10 +1213,10 @@ export default function PermissionsPage() {
         );
     }
 
-    // Allow super_admin and admin roles to access permissions page
-    // For admin, their permissions are checked via RouteGuard
-    const currentUserRole = user?.role;
-    const canAccessPermissionsPage = isAdmin || currentUserRole === 'admin' || currentUserRole === 'super_admin';
+    // Allow access if user has menu:settings:permissions permission enabled
+    // super_admin always has access (isAdmin = true only for super_admin)
+    // Other roles need the permission explicitly enabled
+    const canAccessPermissionsPage = isAdmin || canAccessMenu('settings:permissions');
 
     if (!canAccessPermissionsPage) {
         return (
