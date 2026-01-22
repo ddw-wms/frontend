@@ -429,6 +429,10 @@ export const outboundAPI = {
   // Get available sources for outbound filter (distinct values from outbound table)
   getSources: (warehouseId?: number) =>
     api.get('outbound/sources', { params: { warehouse_id: warehouseId } }),
+
+  // Get all available inventory for outbound caching (PICKING + QC + INBOUND not yet dispatched)
+  getAvailableForOutbound: (warehouseId: number) =>
+    api.get('outbound/available-inventory', { params: { warehouseId } }),
 };
 
 // ==========================PICKING API ==============================

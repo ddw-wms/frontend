@@ -42,6 +42,7 @@ import {
     AppBar,
     Toolbar,
     IconButton,
+    Switch,
 } from '@mui/material';
 import {
     Download as DownloadIcon,
@@ -75,6 +76,16 @@ import 'ag-grid-community/styles/ag-theme-quartz.css';
 ModuleRegistry.registerModules([AllCommunityModule, ClientSideRowModelModule]);
 import { useOutboundPermissions } from '@/hooks/usePagePermissions';
 import BulkUploadCard from '@/components/BulkUploadCard';
+
+// ⚡ OUTBOUND INVENTORY CACHE - for instant WSN lookups
+import {
+    getAvailableInventoryByWSN,
+    loadAvailableInventory,
+    getOutboundCacheStats,
+    clearOutboundCache,
+    removeFromCache,
+    needsCacheRefresh
+} from '@/lib/outboundInventoryCache';
 
 // Tab definitions with permission codes
 const ALL_TABS = ['Outbound List', 'Single Entry', 'Bulk Upload', 'Multi Entry', 'Batch Management'];
@@ -221,6 +232,7 @@ export default function OutboundPage() {
     const hasAutoFittedRef = useRef(false); // Track if auto-fit has been done
     const wsnInputRef = useRef<HTMLInputElement>(null);
     const wsnFetchTimerRef = useRef<NodeJS.Timeout | null>(null);
+    const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
     // ⚡ EXCEL-LIKE: Refs for smooth scrolling and selection
     const userScrolledRef = useRef(false);
@@ -228,6 +240,44 @@ export default function OutboundPage() {
     const lastGridScrollTopRef = useRef(0);
     const isAutoScrollingRef = useRef(false);
     const multiRowsRef = useRef([] as any[]);
+    const scrollAnimationFrameRef = useRef<number | null>(null);
+    const scrollTimeoutRef = useRef<number | null>(null);
+
+    // ⚡ SCANNER MODE: Detect rapid barcode scanner inputs
+    const scanCountRef = useRef<number>(0);
+    const lastScanTsRef = useRef<number | null>(null);
+    const scanModeTimeoutRef = useRef<number | null>(null);
+    const scanningModeRef = useRef<boolean>(false);
+    const desiredRowIndexRef = useRef<number | null>(null);
+
+    // ⚡ PERFORMANCE: Track unique row ID counter for efficient AG Grid updates
+    const rowIdCounterRef = useRef(0);
+
+    // ⚡ UNDO/REDO: Excel-like undo/redo for cell changes
+    interface UndoAction {
+        type: 'cell' | 'paste' | 'fillDown';
+        rowIndex: number;
+        field: string;
+        oldValue: any;
+        newValue: any;
+        oldRowData?: any;
+        newRowData?: any;
+    }
+    const undoStackRef = useRef<UndoAction[]>([]);
+    const redoStackRef = useRef<UndoAction[]>([]);
+    const MAX_UNDO_HISTORY = 100;
+
+    // ⚡ ROW HIGHLIGHTING: For newly scanned/added rows
+    const [highlightedRows, setHighlightedRows] = useState<Set<number>>(new Set());
+    const highlightTimeoutRefs = useRef<Map<number, NodeJS.Timeout>>(new Map());
+
+    // ⚡ CACHE STATE: Available inventory cache (manual toggle - Issue #6)
+    const [cacheEnabled, setCacheEnabled] = useState<boolean>(() => {
+        try { return localStorage.getItem('outbound_cacheEnabled') === 'true'; } catch { return false; }
+    });
+    const [cacheStats, setCacheStats] = useState<{ totalRecords: number; isReady: boolean } | null>(null);
+    const [cacheLoading, setCacheLoading] = useState(false);
+    const [cacheProgress, setCacheProgress] = useState<{ loaded: number; total: number; message: string } | null>(null);
 
     // ⚡ EXCEL-LIKE: Track selected cell range for multi-cell operations
     const [selectedRange, setSelectedRange] = useState<{
@@ -270,20 +320,23 @@ export default function OutboundPage() {
 
     // ====== MULTI ENTRY STATE (AG GRID) ======
     const generateEmptyRows = (count: number) => {
-        return Array.from({ length: count }, (_, i) => ({
-            id: Date.now() + i,
-            wsn: '',
-            dispatch_date: new Date().toISOString().split('T')[0],
-            customer_name: '',
-            vehicle_no: '',
-            dispatch_remarks: '',
-            other_remarks: '',
-            source: '',
-            product_title: '',
-            brand: '',
-            mrp: '',
-            fsp: '',
-        }));
+        return Array.from({ length: count }, () => {
+            rowIdCounterRef.current += 1;
+            return {
+                _rowId: `row_${rowIdCounterRef.current}_${Date.now()}`, // ⚡ Unique row ID for AG Grid
+                wsn: '',
+                dispatch_date: new Date().toISOString().split('T')[0],
+                customer_name: '',
+                vehicle_no: '',
+                dispatch_remarks: '',
+                other_remarks: '',
+                source: '',
+                product_title: '',
+                brand: '',
+                mrp: '',
+                fsp: '',
+            };
+        });
     };
 
     // Fast add 500 rows (used by Add +500 button) — use functional update for performance
@@ -531,21 +584,32 @@ export default function OutboundPage() {
         localStorage.setItem('outboundListColumns', JSON.stringify(cols));
     };
 
-    // Auto-size columns whenever Multi Entry tab opens, visibleColumns changes, or rows change
+    // Apply saved column widths when Multi Entry tab opens or visibleColumns change
+    // Only auto-size columns that DON'T have saved widths
     useEffect(() => {
         if (currentTabCode !== 'multi') return;
-        const colApi = columnApiRef.current;
-        if (!colApi) return;
+        const api = gridRef.current?.api;
+        if (!api) return;
 
+        // Only apply saved widths, don't auto-size (preserves user's column widths)
         setTimeout(() => {
-            try {
-                const allCols = colApi.getAllColumns().map((c: any) => c.getId());
-                colApi.autoSizeColumns(allCols, false);
-            } catch (err) {
-                gridRef.current?.api.sizeColumnsToFit();
+            const savedWidths = localStorage.getItem('outboundMultiEntryColumnWidths');
+            if (savedWidths) {
+                try {
+                    const widths = JSON.parse(savedWidths);
+                    const columnState = Object.entries(widths).map(([colId, width]) => ({
+                        colId,
+                        width: width as number
+                    }));
+                    if (columnState.length > 0) {
+                        api.applyColumnState({ state: columnState });
+                    }
+                } catch (err) {
+                    console.log('Failed to apply saved column widths');
+                }
             }
-        }, 80);
-    }, [currentTabCode, visibleColumns, multiRows.length]);
+        }, 100);
+    }, [currentTabCode, visibleColumns]); // Removed multiRows.length to prevent reset on data change
     // ====== LOAD DATA ON TAB CHANGE ======
     useEffect(() => {
         if (activeWarehouse) {
@@ -852,6 +916,449 @@ export default function OutboundPage() {
         setTimeout(() => wsnInputRef.current?.focus(), 100);
     };
 
+    // ⚡ CACHE: Load available inventory cache ONLY when cacheEnabled is true (Issue #6)
+    useEffect(() => {
+        if (!activeWarehouse?.id || !cacheEnabled) {
+            // Clear cache stats if disabled
+            if (!cacheEnabled) {
+                setCacheStats(null);
+            }
+            return;
+        }
+
+        const initCache = async () => {
+            try {
+                setCacheLoading(true);
+                const needsRefresh = await needsCacheRefresh(activeWarehouse.id);
+
+                if (needsRefresh) {
+                    setCacheProgress({ loaded: 0, total: 1, message: 'Loading available inventory...' });
+                    const result = await loadAvailableInventory(activeWarehouse.id, (loaded, total, message) => {
+                        setCacheProgress({ loaded, total, message });
+                    });
+
+                    if (result.success) {
+                        toast.success(`✅ Cached ${result.count.toLocaleString()} available items`);
+                    }
+                }
+
+                const stats = await getOutboundCacheStats(activeWarehouse.id);
+                setCacheStats({ totalRecords: stats.totalRecords, isReady: stats.isReady });
+            } catch (error) {
+                console.error('Cache init error:', error);
+                // Still try to get existing cache stats on error
+                try {
+                    const stats = await getOutboundCacheStats(activeWarehouse.id);
+                    if (stats.totalRecords > 0) {
+                        setCacheStats({ totalRecords: stats.totalRecords, isReady: stats.isReady });
+                    }
+                } catch { /* ignore */ }
+            } finally {
+                setCacheLoading(false);
+                setCacheProgress(null);
+            }
+        };
+
+        initCache();
+
+        // Refresh cache stats periodically when cache is enabled
+        const interval = setInterval(async () => {
+            if (!cacheEnabled) return;
+            try {
+                const stats = await getOutboundCacheStats(activeWarehouse.id);
+                setCacheStats({ totalRecords: stats.totalRecords, isReady: stats.isReady });
+            } catch (e) { /* ignore */ }
+        }, 60000); // Every 60 seconds
+
+        return () => clearInterval(interval);
+    }, [activeWarehouse?.id, cacheEnabled]);
+
+    // ⚡ CACHE: Persist cacheEnabled setting
+    useEffect(() => {
+        try {
+            localStorage.setItem('outbound_cacheEnabled', String(cacheEnabled));
+        } catch { /* ignore */ }
+    }, [cacheEnabled]);
+
+    // ⚡ CACHE: Toggle cache on/off
+    const toggleCache = async () => {
+        if (cacheEnabled) {
+            // Turning OFF - clear cache
+            setCacheEnabled(false);
+            setCacheStats(null);
+            if (activeWarehouse?.id) {
+                await clearOutboundCache(activeWarehouse.id);
+            }
+            toast.success('Cache disabled');
+        } else {
+            // Turning ON - will trigger useEffect to load cache
+            setCacheEnabled(true);
+            toast.success('Cache enabled - loading data...');
+        }
+    };
+
+    // ⚡ CACHE: Refresh cache function
+    const refreshCache = async () => {
+        if (!activeWarehouse?.id) return;
+        if (!cacheEnabled) {
+            toast.error('Please enable cache first');
+            return;
+        }
+
+        setCacheLoading(true);
+        setCacheProgress({ loaded: 0, total: 1, message: 'Refreshing cache...' });
+
+        try {
+            await clearOutboundCache(activeWarehouse.id);
+            const result = await loadAvailableInventory(activeWarehouse.id, (loaded, total, message) => {
+                setCacheProgress({ loaded, total, message });
+            });
+
+            if (result.success) {
+                toast.success(`✅ Cache refreshed: ${result.count.toLocaleString()} items`);
+                const stats = await getOutboundCacheStats(activeWarehouse.id);
+                setCacheStats({ totalRecords: stats.totalRecords, isReady: stats.isReady });
+            }
+        } catch (error) {
+            toast.error('Failed to refresh cache');
+        } finally {
+            setCacheLoading(false);
+            setCacheProgress(null);
+        }
+    };
+
+    // ⚡ ROW HIGHLIGHTING: Highlight newly added row for visual confirmation
+    const highlightRow = useCallback((rowIndex: number, duration = 1500) => {
+        // Clear any existing timeout for this row
+        const existingTimeout = highlightTimeoutRefs.current.get(rowIndex);
+        if (existingTimeout) {
+            clearTimeout(existingTimeout);
+        }
+
+        // Add row to highlighted set
+        setHighlightedRows(prev => {
+            const newSet = new Set(Array.from(prev));
+            newSet.add(rowIndex);
+            return newSet;
+        });
+
+        // Remove highlight after duration
+        const timeout = setTimeout(() => {
+            setHighlightedRows(prev => {
+                const newSet = new Set(prev);
+                newSet.delete(rowIndex);
+                return newSet;
+            });
+            highlightTimeoutRefs.current.delete(rowIndex);
+        }, duration);
+
+        highlightTimeoutRefs.current.set(rowIndex, timeout);
+    }, []);
+
+    // ⚡ SCANNER MODE: Record scanning activity
+    const recordScanActivity = useCallback(() => {
+        try {
+            const now = Date.now();
+            if (lastScanTsRef.current && now - lastScanTsRef.current < 600) {
+                scanCountRef.current = (scanCountRef.current || 0) + 1;
+            } else {
+                scanCountRef.current = 1;
+            }
+            lastScanTsRef.current = now;
+
+            if (scanModeTimeoutRef.current) {
+                window.clearTimeout(scanModeTimeoutRef.current);
+                scanModeTimeoutRef.current = null;
+            }
+
+            scanningModeRef.current = true;
+            userScrolledRef.current = false;
+
+            if (userScrollTimeoutRef.current) {
+                window.clearTimeout(userScrollTimeoutRef.current);
+                userScrollTimeoutRef.current = null;
+            }
+
+            // Exit scanning mode after 3s of inactivity
+            scanModeTimeoutRef.current = window.setTimeout(() => {
+                scanCountRef.current = 0;
+                scanningModeRef.current = false;
+                lastScanTsRef.current = null;
+                scanModeTimeoutRef.current = null;
+            }, 3000);
+        } catch (e) { /* ignore */ }
+    }, []);
+
+    // ⚡ UNDO: Save cell change for undo (cell-level)
+    const saveCellUndoAction = useCallback((
+        rowIndex: number,
+        field: string,
+        oldValue: any,
+        newValue: any,
+        oldRowData?: any,
+        newRowData?: any
+    ) => {
+        const action: UndoAction = {
+            type: 'cell',
+            rowIndex,
+            field,
+            oldValue,
+            newValue,
+            oldRowData: oldRowData ? JSON.parse(JSON.stringify(oldRowData)) : undefined,
+            newRowData: newRowData ? JSON.parse(JSON.stringify(newRowData)) : undefined,
+        };
+        undoStackRef.current.push(action);
+        if (undoStackRef.current.length > MAX_UNDO_HISTORY) {
+            undoStackRef.current.shift();
+        }
+        // Clear redo stack when new action is performed
+        redoStackRef.current = [];
+    }, []);
+
+    // ⚡ UNDO: Handle undo (Ctrl+Z)
+    const handleUndo = useCallback(() => {
+        if (undoStackRef.current.length === 0) {
+            toast('Nothing to undo', { icon: 'ℹ️', duration: 500 });
+            return;
+        }
+
+        const action = undoStackRef.current.pop()!;
+
+        setMultiRows(currentRows => {
+            const newRows = [...currentRows];
+            const currentRowData = JSON.parse(JSON.stringify(newRows[action.rowIndex]));
+
+            if (action.type === 'cell') {
+                if (action.oldRowData) {
+                    newRows[action.rowIndex] = { ...action.oldRowData };
+                } else {
+                    newRows[action.rowIndex] = {
+                        ...newRows[action.rowIndex],
+                        [action.field]: action.oldValue
+                    };
+                }
+            }
+
+            // Save to redo stack
+            redoStackRef.current.push({
+                ...action,
+                oldValue: action.newValue,
+                newValue: action.oldValue,
+                oldRowData: currentRowData,
+                newRowData: action.oldRowData,
+            });
+
+            return newRows;
+        });
+
+        // Focus the undone cell and refresh grid
+        setTimeout(() => {
+            const api = gridRef.current?.api;
+            if (api) {
+                api.ensureIndexVisible(action.rowIndex, 'middle');
+                api.setFocusedCell(action.rowIndex, action.field);
+                api.refreshCells({ force: true });
+            }
+        }, 50);
+
+        toast.success('Undo successful', { duration: 1500 });
+    }, []);
+
+    // ⚡ REDO: Handle redo (Ctrl+Y or Ctrl+Shift+Z)
+    const handleRedo = useCallback(() => {
+        if (redoStackRef.current.length === 0) {
+            toast('Nothing to redo', { icon: 'ℹ️', duration: 1500 });
+            return;
+        }
+
+        const action = redoStackRef.current.pop()!;
+
+        setMultiRows(currentRows => {
+            const newRows = [...currentRows];
+            const currentRowData = JSON.parse(JSON.stringify(newRows[action.rowIndex]));
+
+            if (action.type === 'cell') {
+                if (action.oldRowData) {
+                    newRows[action.rowIndex] = { ...action.oldRowData };
+                } else {
+                    newRows[action.rowIndex] = {
+                        ...newRows[action.rowIndex],
+                        [action.field]: action.oldValue
+                    };
+                }
+            }
+
+            undoStackRef.current.push({
+                ...action,
+                oldValue: action.newValue,
+                newValue: action.oldValue,
+                oldRowData: currentRowData,
+                newRowData: action.oldRowData,
+            });
+
+            return newRows;
+        });
+
+        setTimeout(() => {
+            const api = gridRef.current?.api;
+            if (api) {
+                api.ensureIndexVisible(action.rowIndex, 'middle');
+                api.setFocusedCell(action.rowIndex, action.field);
+                api.refreshCells({ force: true });
+            }
+        }, 50);
+
+        toast.success('Redo successful', { duration: 1500 });
+    }, []);
+
+    // ⚡ FILL DOWN: Copy value from first selected cell to all cells below (Ctrl+D)
+    const handleFillDown = useCallback(() => {
+        const api = gridRef.current?.api;
+        if (!api) return;
+
+        const focusedCell = api.getFocusedCell();
+        if (!focusedCell) {
+            toast('Select a cell first', { icon: 'ℹ️', duration: 1500 });
+            return;
+        }
+
+        const { rowIndex, column } = focusedCell;
+        const colId = selectedRange?.startCol || column.getColId();
+
+        if (!EDITABLE_COLUMNS.includes(colId)) {
+            toast('Cannot fill down in this column', { icon: '⚠️', duration: 1500 });
+            return;
+        }
+
+        // If we have a selected range, fill down from first cell
+        if (selectedRange) {
+            const startRow = Math.min(selectedRange.startRow, selectedRange.endRow);
+            const endRow = Math.max(selectedRange.startRow, selectedRange.endRow);
+            const sourceValue = multiRowsRef.current[startRow]?.[colId];
+
+            if (sourceValue === undefined || sourceValue === null || sourceValue === '') {
+                toast('First selected cell is empty', { icon: 'ℹ️', duration: 1500 });
+                return;
+            }
+
+            const newRows = [...multiRowsRef.current];
+            let filledCount = 0;
+
+            for (let r = startRow + 1; r <= endRow; r++) {
+                const oldValue = newRows[r]?.[colId];
+                if (oldValue !== sourceValue) {
+                    saveCellUndoAction(r, colId, oldValue, sourceValue);
+                    newRows[r] = { ...newRows[r], [colId]: sourceValue };
+                    filledCount++;
+                }
+            }
+
+            if (filledCount === 0) {
+                toast('All cells already have the same value', { icon: 'ℹ️', duration: 1500 });
+                return;
+            }
+
+            setMultiRows(newRows);
+            api.refreshCells({ force: true });
+            toast.success(`Filled ${filledCount} cells`, { duration: 1500 });
+            return;
+        }
+
+        // Single cell: copy from cell above
+        if (rowIndex === 0) {
+            toast('No cell above to copy from', { icon: 'ℹ️', duration: 1500 });
+            return;
+        }
+
+        const valueAbove = multiRowsRef.current[rowIndex - 1]?.[colId];
+        if (valueAbove === undefined || valueAbove === null || valueAbove === '') {
+            toast('No value above to copy', { icon: 'ℹ️', duration: 1500 });
+            return;
+        }
+
+        const oldValue = multiRowsRef.current[rowIndex]?.[colId];
+        saveCellUndoAction(rowIndex, colId, oldValue, valueAbove);
+
+        const newRows = [...multiRowsRef.current];
+        newRows[rowIndex] = { ...newRows[rowIndex], [colId]: valueAbove };
+        setMultiRows(newRows);
+        api.refreshCells({ force: true });
+        toast.success(`Filled: ${valueAbove}`, { duration: 1500 });
+    }, [selectedRange, saveCellUndoAction]);
+
+    // ⚡ FILL RIGHT: Copy value from cell to the left (Ctrl+R)
+    const handleFillRight = useCallback(() => {
+        const api = gridRef.current?.api;
+        if (!api) return;
+
+        const focusedCell = api.getFocusedCell();
+        if (!focusedCell) {
+            toast('Select a cell first', { icon: 'ℹ️', duration: 1500 });
+            return;
+        }
+
+        const { rowIndex, column } = focusedCell;
+        const colId = column.getColId();
+        const allColumns = api.getColumns();
+        if (!allColumns) return;
+
+        const colIndex = allColumns.findIndex((c: any) => c.getColId() === colId);
+        if (colIndex <= 0) {
+            toast('No cell to the left to copy from', { icon: 'ℹ️', duration: 1500 });
+            return;
+        }
+
+        const leftColId = allColumns[colIndex - 1].getColId();
+
+        if (!EDITABLE_COLUMNS.includes(colId)) {
+            toast('Cannot fill in this column', { icon: '⚠️', duration: 1500 });
+            return;
+        }
+
+        const valueLeft = multiRowsRef.current[rowIndex]?.[leftColId];
+        if (valueLeft === undefined || valueLeft === null || valueLeft === '') {
+            toast('No value to the left to copy', { icon: 'ℹ️', duration: 1500 });
+            return;
+        }
+
+        const oldValue = multiRowsRef.current[rowIndex]?.[colId];
+        saveCellUndoAction(rowIndex, colId, oldValue, valueLeft);
+
+        const newRows = [...multiRowsRef.current];
+        newRows[rowIndex] = { ...newRows[rowIndex], [colId]: valueLeft };
+        setMultiRows(newRows);
+        api.refreshCells({ force: true });
+        toast.success(`Filled: ${valueLeft}`, { duration: 1500 });
+    }, [saveCellUndoAction]);
+
+    // ⚡ GO TO FIRST: Navigate to first cell (Ctrl+Home)
+    const handleGoToFirst = useCallback(() => {
+        const api = gridRef.current?.api;
+        if (!api) return;
+
+        api.ensureIndexVisible(0, 'top');
+        api.setFocusedCell(0, 'wsn');
+        setSelectedRange(null);
+    }, []);
+
+    // ⚡ GO TO LAST: Navigate to last cell with data (Ctrl+End)
+    const handleGoToLast = useCallback(() => {
+        const api = gridRef.current?.api;
+        if (!api) return;
+
+        let lastRowWithData = 0;
+        for (let i = multiRowsRef.current.length - 1; i >= 0; i--) {
+            if (multiRowsRef.current[i]?.wsn?.trim()) {
+                lastRowWithData = i;
+                break;
+            }
+        }
+
+        api.ensureIndexVisible(lastRowWithData, 'bottom');
+        api.setFocusedCell(lastRowWithData, 'wsn');
+        setSelectedRange(null);
+    }, []);
+
     // ✅ CHECK DUPLICATES IN GRID
     const checkDuplicates = useCallback(
         async (rows: any[]) => {
@@ -920,8 +1427,8 @@ export default function OutboundPage() {
     useEffect(() => {
         selectedRangeRef.current = selectedRange;
 
-        if (selectedRange && gridRef.current) {
-            const api = gridRef.current;
+        if (selectedRange && gridRef.current?.api) {
+            const api = gridRef.current.api;
             const allColumns = api.getAllDisplayedColumns?.() || [];
             const colIndexMap = new Map<string, number>();
             allColumns.forEach((c: any, idx: number) => {
@@ -949,7 +1456,7 @@ export default function OutboundPage() {
 
     // ⚡ EXCEL-LIKE: Refresh grid when selection changes
     useEffect(() => {
-        const api = gridRef.current;
+        const api = gridRef.current?.api;
         if (api) {
             requestAnimationFrame(() => {
                 api.refreshCells({ force: true });
@@ -1011,9 +1518,9 @@ export default function OutboundPage() {
         return () => window.removeEventListener('mouseup', handleMouseUp);
     }, []);
 
-    // ⚡ EXCEL-LIKE: Clear selected cells (Delete/Backspace)
+    // ⚡ EXCEL-LIKE: Clear selected cells (Delete/Backspace) with undo support
     const handleClearCells = useCallback(() => {
-        const api = gridRef.current;
+        const api = gridRef.current?.api;
         if (!api) return;
 
         const range = selectedRangeRef.current;
@@ -1023,6 +1530,11 @@ export default function OutboundPage() {
             const { rowIndex, column } = focusedCell;
             const colId = column.getColId();
             if (!EDITABLE_COLUMNS.includes(colId)) return;
+
+            const oldValue = multiRowsRef.current[rowIndex]?.[colId];
+            if (oldValue !== '' && oldValue !== null && oldValue !== undefined) {
+                saveCellUndoAction(rowIndex, colId, oldValue, '');
+            }
 
             const newRows = [...multiRowsRef.current];
             newRows[rowIndex] = { ...newRows[rowIndex], [colId]: '' };
@@ -1048,6 +1560,10 @@ export default function OutboundPage() {
             for (let c = minCol; c <= maxCol; c++) {
                 const colId = colIds[c];
                 if (EDITABLE_COLUMNS.includes(colId)) {
+                    const oldValue = newRows[r]?.[colId];
+                    if (oldValue !== '' && oldValue !== null && oldValue !== undefined) {
+                        saveCellUndoAction(r, colId, oldValue, '');
+                    }
                     newRows[r] = { ...newRows[r], [colId]: '' };
                     cleared++;
                 }
@@ -1059,11 +1575,11 @@ export default function OutboundPage() {
             api.refreshCells({ force: true });
             toast.success(`Cleared ${cleared} cells`, { duration: 1500 });
         }
-    }, []);
+    }, [saveCellUndoAction]);
 
     // ⚡ EXCEL-LIKE: Select All (Ctrl+A)
     const handleSelectAll = useCallback(() => {
-        const api = gridRef.current;
+        const api = gridRef.current?.api;
         if (!api) return;
 
         const totalRows = api.getDisplayedRowCount();
@@ -1086,7 +1602,7 @@ export default function OutboundPage() {
         toast('All rows selected', { icon: '✓', duration: 1500 });
     }, []);
 
-    // ⚡ EXCEL-LIKE: Keyboard shortcuts for Multi Entry tab
+    // ⚡ EXCEL-LIKE: Keyboard shortcuts for Multi Entry tab (extended)
     useEffect(() => {
         if (currentTabCode !== 'multi') return;
 
@@ -1096,6 +1612,62 @@ export default function OutboundPage() {
 
             const activeEl = document.activeElement;
             const isEditing = activeEl?.tagName === 'INPUT' || activeEl?.tagName === 'TEXTAREA';
+
+            // Ctrl+Z → Undo (global, works even outside grid)
+            if (ctrlKey && e.key.toLowerCase() === 'z' && !shiftKey) {
+                if (isEditing) return;
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+                handleUndo();
+                return;
+            }
+
+            // Ctrl+Y or Ctrl+Shift+Z → Redo
+            if (ctrlKey && (e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && shiftKey))) {
+                if (isEditing) return;
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+                handleRedo();
+                return;
+            }
+
+            // Ctrl+D → Fill Down
+            if (ctrlKey && e.key.toLowerCase() === 'd') {
+                const api = gridRef.current?.api;
+                if (!api) return;
+                const focusedCell = api.getFocusedCell();
+                if (!focusedCell) return;
+                e.preventDefault();
+                handleFillDown();
+                return;
+            }
+
+            // Ctrl+R → Fill Right
+            if (ctrlKey && e.key.toLowerCase() === 'r') {
+                const api = gridRef.current?.api;
+                if (!api) return;
+                const focusedCell = api.getFocusedCell();
+                if (!focusedCell) return;
+                e.preventDefault();
+                handleFillRight();
+                return;
+            }
+
+            // Ctrl+Home → Go to first cell
+            if (ctrlKey && e.key === 'Home') {
+                e.preventDefault();
+                handleGoToFirst();
+                return;
+            }
+
+            // Ctrl+End → Go to last cell with data
+            if (ctrlKey && e.key === 'End') {
+                e.preventDefault();
+                handleGoToLast();
+                return;
+            }
 
             // Ctrl+A - Select All
             if (ctrlKey && e.key.toLowerCase() === 'a' && !isEditing) {
@@ -1111,9 +1683,40 @@ export default function OutboundPage() {
                 return;
             }
 
+            // Escape → Clear selection
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                e.stopPropagation();
+                setSelectedRange(null);
+                rangeStartCellRef.current = null;
+                const api = gridRef.current?.api;
+                if (api) {
+                    api.deselectAll();
+                    api.stopEditing(true);
+                    api.refreshCells({ force: true });
+                }
+                toast('Selection cleared', { icon: '✓', duration: 1000 });
+                return;
+            }
+
+            // F2 → Edit current cell
+            if (e.key === 'F2' && !isEditing) {
+                const api = gridRef.current?.api;
+                if (!api) return;
+                const focusedCell = api.getFocusedCell();
+                if (focusedCell) {
+                    e.preventDefault();
+                    api.startEditingCell({
+                        rowIndex: focusedCell.rowIndex,
+                        colKey: focusedCell.column.getColId(),
+                    });
+                }
+                return;
+            }
+
             // Shift+Arrow keys - Extend selection
-            if (shiftKey && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key) && !isEditing) {
-                const api = gridRef.current;
+            if (shiftKey && !ctrlKey && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key) && !isEditing) {
+                const api = gridRef.current?.api;
                 if (!api) return;
 
                 const focusedCell = api.getFocusedCell();
@@ -1156,14 +1759,36 @@ export default function OutboundPage() {
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [currentTabCode, handleSelectAll, handleClearCells]);
+    }, [currentTabCode, handleSelectAll, handleClearCells, handleUndo, handleRedo, handleFillDown, handleFillRight, handleGoToFirst, handleGoToLast]);
 
     // ✅ AUTO-FETCH SOURCE DATA ON WSN CELL EDIT (MULTI ENTRY)
     const onCellValueChanged = useCallback(
         async (params: any) => {
             const field = params.column.getColId();
             const rowNode = params.node;
+            const rowIndex = params.rowIndex;
             const rowData = rowNode.data;
+            const oldValue = params.oldValue;
+            const newValue = params.newValue;
+
+            // ⚡ EXCEL-LIKE: Save cell-level undo action ONLY for user-editable columns
+            // This prevents auto-populated master data fields from creating undo entries
+            if (oldValue !== newValue && rowIndex !== null && rowIndex !== undefined && EDITABLE_COLUMNS.includes(field)) {
+                // For WSN field, save the entire row data for proper undo
+                if (field === 'wsn') {
+                    const currentRowData = { ...rowData };
+                    const oldRowData = { ...currentRowData, [field]: oldValue };
+                    // Clear master data columns in old row data since they weren't loaded for old WSN
+                    ['source', 'product_title', 'brand', 'cms_vertical', 'wid', 'fsn', 'order_id',
+                        'fkqc_remark', 'fk_grade', 'hsn_sac', 'igst_rate', 'fsp', 'mrp', 'vrp',
+                        'yield_value', 'invoice_date', 'fkt_link', 'wh_location', 'p_type', 'p_size', 'quantity'
+                    ].forEach(col => { oldRowData[col] = ''; });
+                    saveCellUndoAction(rowIndex, field, oldValue, newValue, oldRowData, undefined);
+                } else {
+                    // For other editable columns (dispatch_remarks, other_remarks, quantity)
+                    saveCellUndoAction(rowIndex, field, oldValue, newValue);
+                }
+            }
 
             if (field === 'wsn') {
                 const wsn = rowData.wsn?.trim()?.toUpperCase();
@@ -1307,11 +1932,49 @@ export default function OutboundPage() {
                 }
 
                 // If we reach here, proceed to fetch source/master data
+                // ⚡ CACHE + OFFLINE: Try local cache first, fall back to API, support offline mode (Issue #7)
                 try {
-                    const res = await outboundAPI.getSourceByWSN(wsn, activeWarehouse.id);
-                    const data = res.data;
+                    let data = null;
+                    let fromCache = false;
 
-                    // Set all product columns from API response
+                    // Try local cache first (works offline)
+                    if (cacheEnabled && cacheStats?.isReady) {
+                        try {
+                            const cached = await getAvailableInventoryByWSN(wsn, activeWarehouse.id);
+                            if (cached) {
+                                data = cached;
+                                fromCache = true;
+                                console.log(`⚡ Cache HIT for ${wsn}`);
+                            }
+                        } catch (cacheErr) {
+                            console.log(`📡 Cache miss for ${wsn}`);
+                        }
+                    }
+
+                    // Fall back to API if not in cache (only if online)
+                    if (!data) {
+                        try {
+                            const res = await outboundAPI.getSourceByWSN(wsn, activeWarehouse.id);
+                            data = res.data;
+                        } catch (apiErr: any) {
+                            // If API fails and we have cache enabled, show offline message
+                            if (cacheEnabled) {
+                                toast.error(`${wsn}: Not found in cache. Enable cache refresh when online.`);
+                            } else {
+                                // If cache is disabled and API fails, show error
+                                if (apiErr.response?.status === 409) {
+                                    toast.error(`${wsn} already dispatched`);
+                                } else if (apiErr.code === 'ERR_NETWORK' || apiErr.message?.includes('Network')) {
+                                    toast.error(`Offline - Enable cache for offline mode`);
+                                } else {
+                                    toast.error(`${wsn}: Not found`);
+                                }
+                            }
+                            throw apiErr;
+                        }
+                    }
+
+                    // Set all product columns from response
                     rowNode.setDataValue('source', data.source || '');
                     rowNode.setDataValue('product_title', data.product_title || '');
                     rowNode.setDataValue('brand', data.brand || '');
@@ -1334,37 +1997,51 @@ export default function OutboundPage() {
                     rowNode.setDataValue('p_size', data.p_size || '');
                     rowNode.setDataValue('quantity', data.quantity || '');
 
-                    toast.success(`✓ Data loaded for ${wsn}`);
+                    // ⚡ HIGHLIGHT: Visual feedback for scanned row
+                    highlightRow(params.rowIndex, 1500);
+
+                    // ⚡ SCANNER MODE: Record scan activity
+                    recordScanActivity();
+
+                    toast.success(`✓ ${fromCache ? '(Cache)' : ''} Data loaded for ${wsn}`);
                 } catch (err: any) {
-                    if (err.response?.status === 409) {
-                        toast.error(`${wsn} already dispatched`);
-                    } else {
-                        toast.error(`${wsn}: Not found`);
-                    }
+                    // Already handled above
                 }
             }
 
+            // ⚡ CRITICAL: Sync grid data to React state for auto-save to work
             const updatedRows: any[] = [];
             gridRef.current?.api.forEachNode((node: any) => {
                 if (node.data) {
                     updatedRows.push(node.data);
                 }
             });
+            setMultiRows(updatedRows); // This triggers the auto-save useEffect
             checkDuplicates(updatedRows);
         },
-        [activeWarehouse, checkDuplicates, existingOutboundWSNs]
+        [activeWarehouse, checkDuplicates, existingOutboundWSNs, cacheEnabled, cacheStats, saveCellUndoAction]
     );
 
-    // ✅ ROW STYLING (DUPLICATES)
+    // ✅ ROW STYLING (DUPLICATES + HIGHLIGHTED)
     const getRowStyle = useCallback(
         (params: any) => {
+            // Check if row is highlighted (recently scanned)
+            const rowIndex = params.node?.rowIndex;
+            if (rowIndex !== undefined && highlightedRows.has(rowIndex)) {
+                return {
+                    background: 'linear-gradient(90deg, #e8f5e9 0%, #c8e6c9 50%, #e8f5e9 100%)',
+                    transition: 'background 0.3s ease-out'
+                };
+            }
+
+            // Check for duplicates
             const wsn = params.data.wsn?.trim()?.toUpperCase();
             if (gridDuplicateWSNs.has(wsn) || crossWarehouseWSNs.has(wsn)) {
                 return { background: '#ffebee' };
             }
             return undefined;
         },
-        [gridDuplicateWSNs, crossWarehouseWSNs]
+        [gridDuplicateWSNs, crossWarehouseWSNs, highlightedRows]
     );
 
     // ✅ MULTI ENTRY SUBMIT
@@ -1491,12 +2168,16 @@ export default function OutboundPage() {
             try {
                 const draft: any = await localforage.getItem(key);
                 if (draft && draft.rows && draft.rows.length > 0 && mounted) {
-                    const restored = draft.rows.map((r: any) => ({
+                    // Generate unique row IDs for restored rows
+                    let startId = rowIdCounterRef.current;
+                    const restored = draft.rows.map((r: any, idx: number) => ({
                         dispatch_date: r.dispatch_date || commonDate,
                         customer_name: r.customer_name || selectedCustomer,
                         vehicle_no: r.vehicle_no || commonVehicle,
                         ...r,
+                        _rowId: r._rowId || `row_${startId + idx}`, // Ensure row ID exists
                     }));
+                    rowIdCounterRef.current = startId + restored.length;
                     setMultiRows(restored);
                     setDraftSavedAt(draft.savedAt || Date.now());
                     setDraftExists(true);
@@ -1929,7 +2610,7 @@ export default function OutboundPage() {
 
     // Ensure AG Grid shows the correct overlay while fetching or when empty
     useEffect(() => {
-        const api = gridRef.current;
+        const api = listGridRef.current?.api;
         if (!api) return;
 
         // While fetching, ensure AG Grid overlays are hidden — we use custom spinners instead
@@ -1947,7 +2628,7 @@ export default function OutboundPage() {
 
     // Apply AG Grid quick filter when search input changes for instant UI filtering (mirrors Dashboard behaviour)
     useEffect(() => {
-        const api = gridRef.current;
+        const api = listGridRef.current?.api;
         if (!api || typeof api.setQuickFilter !== 'function') return;
 
         // If a server request is in-flight keep previous rows visible (avoid local filtering that can blank the grid)
@@ -1980,12 +2661,14 @@ export default function OutboundPage() {
 
     // ✅ AG GRID COLUMN DEFINITIONS
     const columnDefs = useMemo(() => {
-        // Serial column (Sr. No.) - pinned to left
+        // Serial column (Sr. No.) - pinned to left, use saved width if available
+        const srSavedWidth = multiColumnWidths['__sr'];
         const srCol = {
             headerName: 'SR.NO',
             field: '__sr',
             valueGetter: (params: any) => params.node ? params.node.rowIndex + 1 : undefined,
-            width: 70,
+            width: srSavedWidth || 70,
+            suppressSizeToFit: true,
             cellStyle: {
                 fontWeight: 700,
                 textAlign: 'center',
@@ -2007,6 +2690,7 @@ export default function OutboundPage() {
                 headerName: col.replace(/_/g, ' ').toUpperCase(),
                 editable: isEditable,
                 width: savedWidth || defaultWidth,
+                suppressSizeToFit: true,
                 cellStyle: (params: any) => {
                     const wsn = params.data?.wsn?.trim()?.toUpperCase();
                     const styles: any = {};
@@ -3790,75 +4474,189 @@ export default function OutboundPage() {
                                         </Box>
                                     </Box>
                                 ) : (
-                                    <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems="center">
-                                        <TextField
-                                            label="Dispatch Date *"
-                                            type="date"
-                                            value={commonDate}
-                                            onChange={(e) => setCommonDate(e.target.value)}
-                                            InputLabelProps={{ shrink: true }}
-                                            size="small"
-                                            required
-                                            sx={{ minWidth: 150, '& .MuiOutlinedInput-root': { height: 36 } }}
-                                        />
-                                        <Autocomplete
-                                            freeSolo
-                                            options={customers}
-                                            value={selectedCustomer}
-                                            onChange={(event, newValue) => setSelectedCustomer(newValue || '')}
-                                            onInputChange={(event, newInputValue) => setSelectedCustomer(newInputValue)}
-                                            renderInput={(params) => (
-                                                <TextField
-                                                    {...params}
-                                                    label="Customer Name *"
-                                                    placeholder="Type or select..."
+                                    /* Desktop: Two sections - Left (inputs) | Right (buttons) - like Inbound */
+                                    <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', width: '100%' }}>
+                                        {/* LEFT: Input Fields */}
+                                        <Stack direction="row" spacing={1} sx={{ flex: '0 0 auto' }}>
+                                            <TextField
+                                                label="Dispatch Date *"
+                                                type="date"
+                                                value={commonDate}
+                                                onChange={(e) => setCommonDate(e.target.value)}
+                                                InputLabelProps={{ shrink: true }}
+                                                size="small"
+                                                required
+                                                sx={{ width: 145, '& .MuiOutlinedInput-root': { height: 34 } }}
+                                            />
+                                            <Autocomplete
+                                                freeSolo
+                                                options={customers}
+                                                value={selectedCustomer}
+                                                onChange={(event, newValue) => setSelectedCustomer(newValue || '')}
+                                                onInputChange={(event, newInputValue) => setSelectedCustomer(newInputValue)}
+                                                renderInput={(params) => (
+                                                    <TextField
+                                                        {...params}
+                                                        label="Customer Name *"
+                                                        placeholder="Type or select..."
+                                                        size="small"
+                                                        sx={{ '& .MuiOutlinedInput-root': { height: 34 } }}
+                                                    />
+                                                )}
+                                                noOptionsText={customers.length === 0 ? "No customers available" : "No match"}
+                                                sx={{ width: 180 }}
+                                            />
+                                            <TextField
+                                                label="Vehicle No"
+                                                value={commonVehicle}
+                                                onChange={(e) => setCommonVehicle(e.target.value.toUpperCase())}
+                                                size="small"
+                                                placeholder="Optional"
+                                                sx={{ width: 110, '& .MuiOutlinedInput-root': { height: 34 } }}
+                                            />
+                                        </Stack>
+
+                                        {/* RIGHT: Action Buttons - Scrollable */}
+                                        <Box
+                                            sx={{
+                                                flex: 1,
+                                                minWidth: 0,
+                                                overflowX: 'auto',
+                                                overflowY: 'hidden',
+                                                WebkitOverflowScrolling: 'touch',
+                                                scrollbarWidth: 'thin',
+                                                '&::-webkit-scrollbar': { height: 4 },
+                                                '&::-webkit-scrollbar-thumb': { bgcolor: isDarkMode ? '#475569' : '#cbd5e1', borderRadius: 2 },
+                                                '&::-webkit-scrollbar-track': { bgcolor: 'transparent' },
+                                            }}
+                                        >
+                                            <Stack direction="row" spacing={0.75} sx={{ width: 'fit-content', minWidth: 'max-content', alignItems: 'center' }}>
+                                                <Button
                                                     size="small"
-                                                    sx={{ minWidth: 200, '& .MuiOutlinedInput-root': { height: 36 } }}
-                                                />
-                                            )}
-                                            noOptionsText={customers.length === 0 ? "No customers available. Please add customers first." : "No matching customers"}
-                                            sx={{ minWidth: 200 }}
-                                        />
-                                        <TextField
-                                            label="Vehicle Number"
-                                            value={commonVehicle}
-                                            onChange={(e) => setCommonVehicle(e.target.value.toUpperCase())}
-                                            size="small"
-                                            placeholder="Optional"
-                                            sx={{ minWidth: 150, '& .MuiOutlinedInput-root': { height: 36 } }}
-                                        />
+                                                    variant="outlined"
+                                                    onClick={() => setColumnSettingsOpen(true)}
+                                                    sx={{
+                                                        fontSize: '0.7rem',
+                                                        fontWeight: 600,
+                                                        height: 32,
+                                                        minWidth: 'auto',
+                                                        px: 1.5,
+                                                        borderRadius: 1,
+                                                        borderColor: isDarkMode ? '#3b82f6' : '#1e40af',
+                                                        color: isDarkMode ? '#60a5fa' : '#1e40af',
+                                                        whiteSpace: 'nowrap',
+                                                        textTransform: 'none',
+                                                        '&:hover': { borderColor: '#3b82f6', bgcolor: 'rgba(59, 130, 246, 0.08)' }
+                                                    }}
+                                                >
+                                                    Columns
+                                                </Button>
 
+                                                {/* +500 Rows Button */}
+                                                <Button
+                                                    size="small"
+                                                    variant="contained"
+                                                    onClick={add500Rows}
+                                                    sx={{
+                                                        fontSize: '0.7rem',
+                                                        fontWeight: 600,
+                                                        height: 32,
+                                                        minWidth: 'auto',
+                                                        px: 1.5,
+                                                        borderRadius: 1,
+                                                        background: 'linear-gradient(135deg, #3b82f6 0%, #1e40af 100%)',
+                                                        whiteSpace: 'nowrap',
+                                                        textTransform: 'none',
+                                                        boxShadow: 'none',
+                                                        '&:hover': { background: 'linear-gradient(135deg, #2563eb 0%, #1e3a8a 100%)', boxShadow: 'none' }
+                                                    }}
+                                                >
+                                                    +500 Rows
+                                                </Button>
 
-                                        <Button
-                                            size="small"
-                                            variant="contained"
-                                            onClick={add500Rows}
-                                            sx={{ height: 32, fontSize: '0.7rem', fontWeight: 600, background: '#ec4899' }}
-                                        >
-                                            +500 Add Rows
-                                        </Button>
+                                                {/* Export Button */}
+                                                <Button
+                                                    size="small"
+                                                    variant="outlined"
+                                                    onClick={exportMultiEntryToExcel}
+                                                    disabled={!multiRows.some((r: any) => r.wsn?.trim())}
+                                                    sx={{
+                                                        fontSize: '0.7rem',
+                                                        fontWeight: 600,
+                                                        height: 32,
+                                                        minWidth: 'auto',
+                                                        px: 1.5,
+                                                        borderRadius: 1,
+                                                        borderColor: '#10b981',
+                                                        color: '#10b981',
+                                                        whiteSpace: 'nowrap',
+                                                        textTransform: 'none',
+                                                        '&:hover': { borderColor: '#059669', bgcolor: 'rgba(16, 185, 129, 0.08)' },
+                                                        '&.Mui-disabled': { borderColor: '#94a3b8', color: '#94a3b8' }
+                                                    }}
+                                                >
+                                                    Export
+                                                </Button>
 
-                                        <Button
-                                            size="small"
-                                            variant="outlined"
-                                            startIcon={<DownloadIcon sx={{ fontSize: 14 }} />}
-                                            onClick={exportMultiEntryToExcel}
-                                            disabled={!multiRows.some((r: any) => r.wsn?.trim())}
-                                            sx={{ height: 32, fontSize: '0.7rem', fontWeight: 600, borderColor: '#10b981', color: '#10b981', '&:hover': { bgcolor: 'rgba(16, 185, 129, 0.1)', borderColor: '#10b981' }, '&.Mui-disabled': { borderColor: '#94a3b8', color: '#94a3b8' } }}
-                                        >
-                                            Export
-                                        </Button>
+                                                {/* Divider */}
+                                                <Box sx={{ width: 1, height: 20, bgcolor: isDarkMode ? '#475569' : '#d1d5db' }} />
 
-                                        <Button
-                                            size="small"
-                                            onClick={() => setColumnSettingsOpen(true)}
-                                            startIcon={<SettingsIcon sx={{ fontSize: 16 }} />}
-                                            variant="outlined"
-                                            sx={{ height: 32, fontSize: '0.7rem', fontWeight: 600, px: 1.5 }}
-                                        >
-                                            COLUMNS
-                                        </Button>
+                                                {/* Cache Toggle */}
+                                                <Tooltip title={cacheEnabled ? 'Offline mode ON - Click to disable' : 'Enable offline mode for faster lookups'}>
+                                                    <Box
+                                                        onClick={toggleCache}
+                                                        sx={{
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            gap: 0.5,
+                                                            bgcolor: cacheEnabled ? 'rgba(16, 185, 129, 0.1)' : 'rgba(148, 163, 184, 0.1)',
+                                                            border: `1.5px solid ${cacheEnabled ? '#10b981' : isDarkMode ? '#64748b' : '#9ca3af'}`,
+                                                            borderRadius: 1,
+                                                            px: 1,
+                                                            height: 32,
+                                                            cursor: 'pointer',
+                                                            '&:hover': { opacity: 0.85 }
+                                                        }}
+                                                    >
+                                                        <Typography sx={{ fontSize: '0.75rem', lineHeight: 1 }}>💾</Typography>
+                                                        <Typography sx={{ color: cacheEnabled ? '#10b981' : isDarkMode ? '#94a3b8' : '#6b7280', fontWeight: 700, fontSize: '0.65rem', whiteSpace: 'nowrap' }}>
+                                                            {cacheLoading ? 'Loading...' : cacheEnabled ? (cacheStats ? `${cacheStats.totalRecords.toLocaleString()}` : 'ON') : 'OFF'}
+                                                        </Typography>
+                                                        <Switch
+                                                            size="small"
+                                                            checked={cacheEnabled}
+                                                            onChange={(e) => { e.stopPropagation(); toggleCache(); }}
+                                                            sx={{
+                                                                width: 32, height: 18, p: 0,
+                                                                '& .MuiSwitch-switchBase': { p: '2px' },
+                                                                '& .MuiSwitch-thumb': { width: 14, height: 14 },
+                                                                '& .MuiSwitch-switchBase.Mui-checked': { color: '#10b981' },
+                                                                '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { bgcolor: '#10b981' },
+                                                            }}
+                                                        />
+                                                    </Box>
+                                                </Tooltip>
 
+                                                {/* Refresh Cache Button (only when cache enabled) */}
+                                                {cacheEnabled && (
+                                                    <Tooltip title="Refresh cache">
+                                                        <IconButton
+                                                            size="small"
+                                                            onClick={refreshCache}
+                                                            disabled={cacheLoading}
+                                                            sx={{
+                                                                width: 32,
+                                                                height: 32,
+                                                                color: '#10b981',
+                                                                '&:hover': { bgcolor: 'rgba(16, 185, 129, 0.1)' }
+                                                            }}
+                                                        >
+                                                            <RefreshIcon sx={{ fontSize: 18, animation: cacheLoading ? 'spin 1s linear infinite' : 'none' }} />
+                                                        </IconButton>
+                                                    </Tooltip>
+                                                )}
+                                            </Stack>
+                                        </Box>
                                     </Stack>
                                 )}
                             </CardContent>
@@ -4043,11 +4841,19 @@ export default function OutboundPage() {
                             '& .ag-row-even': { backgroundColor: isDarkMode ? '#1e293b' : '#ffffff' },
                             '& .ag-row-odd': { backgroundColor: isDarkMode ? '#1a2536' : '#f1f5f9' },
 
-                            // Active cell focus - Enhanced for dark mode
-                            '& .ag-cell-focus': {
+                            // Active cell focus - Enhanced for dark mode with strong visibility
+                            '& .ag-cell-focus, & .ag-cell.ag-cell-focus': {
                                 border: isDarkMode ? '2px solid #22d3ee !important' : '2px solid #2563eb !important',
-                                outline: 'none',
-                                boxShadow: isDarkMode ? '0 0 8px rgba(34, 211, 238, 0.4)' : '0 0 0 1px rgba(37, 99, 235, 0.3)',
+                                outline: 'none !important',
+                                boxShadow: isDarkMode ? '0 0 12px rgba(34, 211, 238, 0.6), inset 0 0 8px rgba(34, 211, 238, 0.15)' : '0 0 0 2px rgba(37, 99, 235, 0.3)',
+                                backgroundColor: isDarkMode ? 'rgba(34, 211, 238, 0.15) !important' : 'rgba(37, 99, 235, 0.08) !important',
+                                zIndex: 1,
+                            },
+                            // Cell being edited
+                            '& .ag-cell-inline-editing': {
+                                border: isDarkMode ? '2px solid #22d3ee !important' : '2px solid #2563eb !important',
+                                backgroundColor: isDarkMode ? '#1e293b !important' : '#ffffff !important',
+                                boxShadow: isDarkMode ? '0 0 16px rgba(34, 211, 238, 0.5)' : '0 0 8px rgba(37, 99, 235, 0.3)',
                             },
                             '& .ag-cell-range-selected': { backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.25) !important' : '#dbeafe !important' },
                             '& .ag-cell-range-single-cell': { backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.2) !important' : '#eff6ff !important' },
@@ -4082,6 +4888,7 @@ export default function OutboundPage() {
                                 defaultColDef={defaultColDef}
                                 onCellValueChanged={onCellValueChanged}
                                 getRowStyle={getRowStyle}
+                                getRowId={(params: any) => params.data._rowId}
                                 navigateToNextCell={navigateToNextCell}
                                 singleClickEdit={true}
                                 stopEditingWhenCellsLoseFocus={true}
@@ -4136,13 +4943,11 @@ export default function OutboundPage() {
                                 suppressPropertyNamesCheck={true}
                                 valueCache={true}
 
-                                // ✅ Save column widths when resized
+                                // ✅ Save column widths when resized (including SR.NO)
                                 onColumnResized={(params: any) => {
                                     if (params.finished && params.column) {
                                         const colId = params.column.getColId();
                                         const newWidth = params.column.getActualWidth();
-                                        // Don't save special columns
-                                        if (colId === '__sr') return;
 
                                         setMultiColumnWidths(prev => {
                                             const updated = { ...prev, [colId]: newWidth };
@@ -4153,38 +4958,27 @@ export default function OutboundPage() {
                                 }}
                                 onGridReady={(params: any) => {
                                     columnApiRef.current = params.columnApi;
-                                    // Small delay to make sure columns registered
+                                    // Apply saved column widths if they exist
                                     setTimeout(() => {
-                                        const colApi = columnApiRef.current;
-                                        if (!colApi) return;
-                                        try {
-                                            const allCols = colApi.getAllColumns().map((c: any) => c.getId());
-                                            colApi.autoSizeColumns(allCols, false);
-                                        } catch (err) {
-                                            params.api.sizeColumnsToFit();
+                                        const savedWidths = localStorage.getItem('outboundMultiEntryColumnWidths');
+                                        if (savedWidths) {
+                                            try {
+                                                const widths = JSON.parse(savedWidths);
+                                                const columnState = Object.entries(widths).map(([colId, width]) => ({
+                                                    colId,
+                                                    width: width as number
+                                                }));
+                                                if (columnState.length > 0) {
+                                                    params.api.applyColumnState({ state: columnState });
+                                                    console.log('✅ Applied saved column widths on grid ready');
+                                                }
+                                            } catch (err) {
+                                                console.log('Failed to apply saved column widths');
+                                            }
                                         }
-                                    }, 50);
+                                    }, 100);
                                 }}
-                                onFirstDataRendered={() => {
-                                    const colApi = columnApiRef.current;
-                                    if (!colApi) return;
-                                    try {
-                                        const allCols = colApi.getAllColumns().map((c: any) => c.getId());
-                                        colApi.autoSizeColumns(allCols, false);
-                                    } catch (err) {
-                                        gridRef.current?.api.sizeColumnsToFit();
-                                    }
-                                }}
-                                onGridSizeChanged={() => {
-                                    const colApi = columnApiRef.current;
-                                    if (!colApi) return;
-                                    try {
-                                        const allCols = colApi.getAllColumns().map((c: any) => c.getId());
-                                        colApi.autoSizeColumns(allCols, false);
-                                    } catch (err) {
-                                        gridRef.current?.api.sizeColumnsToFit();
-                                    }
-                                }}
+                            // Removed onFirstDataRendered and onGridSizeChanged auto-sizing to preserve user column widths
                             />
                         </Box>
 
