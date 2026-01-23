@@ -130,6 +130,12 @@ export async function getMasterDataByWSN(wsn: string): Promise<MasterDataRecord 
 
         return null;
     } catch (error: any) {
+        // Handle 404 - WSN not found in master data (this is normal, not an error)
+        if (error?.response?.status === 404) {
+            console.log(`ℹ️ WSN not found in master data: ${normalizedWSN}`);
+            return null;
+        }
+
         // If API fails but we have cached data (even if stale), return it
         try {
             const database = getDB();
@@ -143,7 +149,7 @@ export async function getMasterDataByWSN(wsn: string): Promise<MasterDataRecord 
         }
 
         console.error(`❌ Failed to get master data for WSN: ${normalizedWSN}`, error);
-        throw error;
+        return null; // Return null instead of throwing to prevent UI error popups
     }
 }
 

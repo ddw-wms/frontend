@@ -596,16 +596,28 @@ export default function InboundPage() {
 
   // ====== VEHICLE PERSISTENCE ======
   useEffect(() => {
+    // Load multi entry vehicle number (persists until submit)
+    const savedMultiVehicle = localStorage.getItem('inbound_multiVehicleNumber');
+    if (savedMultiVehicle) {
+      setCommonVehicle(savedMultiVehicle);
+    }
+    // Load single entry vehicle number
     const savedVehicle = localStorage.getItem('lastVehicleNumber');
     if (savedVehicle) {
       setSingleForm(prev => ({ ...prev, vehicle_no: savedVehicle }));
-      setCommonVehicle(savedVehicle);
     }
   }, []);
 
   const saveVehicleNumber = (vehicle: string) => {
     if (vehicle.trim()) {
       localStorage.setItem('lastVehicleNumber', vehicle);
+    }
+  };
+
+  // ====== SAVE MULTI VEHICLE NUMBER ON BLUR (not on every keystroke) ======
+  const saveMultiVehicleNumber = () => {
+    if (commonVehicle.trim()) {
+      localStorage.setItem('inbound_multiVehicleNumber', commonVehicle);
     }
   };
 
@@ -668,6 +680,9 @@ export default function InboundPage() {
       await localforage.removeItem(key);
       setDraftSavedAt(null);
       setDraftExists(false);
+      // Also clear vehicle number
+      setCommonVehicle('');
+      localStorage.removeItem('inbound_multiVehicleNumber');
       toast.success('Draft cleared');
     } catch (err) {
       console.error('Failed to clear draft', err);
@@ -1003,7 +1018,7 @@ export default function InboundPage() {
         const allCols = colApi.getAllColumns().map((c: any) => c.getId());
         colApi.autoSizeColumns(allCols, false);
       } catch (err) {
-        gridRef.current?.api.sizeColumnsToFit();
+        gridRef.current?.api?.sizeColumnsToFit();
       }
     }, 80);
   }, [tabValue, listColumns, listData.length]);
@@ -2668,8 +2683,8 @@ export default function InboundPage() {
 
   // Export Multi Entry grid data to Excel
   const exportMultiEntryToExcel = async () => {
-    // Filter only rows with actual data
-    const dataRows = multiRows.filter(row => row.wsn?.trim() || row.customer_name?.trim() || row.box_id?.trim());
+    // Filter only rows with actual data (WSN entered)
+    const dataRows = multiRows.filter(row => row.wsn?.trim());
 
     if (dataRows.length === 0) {
       toast('⚠️ No data to export', { icon: '⚠️' });
@@ -2678,17 +2693,36 @@ export default function InboundPage() {
 
     try {
       // Dynamic import to reduce bundle size
-      const XLSX = (await import('xlsx')).default;
+      const XLSX = await import('xlsx');
 
-      // Prepare export data
+      // Prepare export data with all columns (user input + master data)
       const exportData = dataRows.map((row, idx) => ({
         'Sr No': idx + 1,
+        // User Input Columns
         'WSN': row.wsn || '',
-        'Customer Name': row.customer_name || '',
-        'Box ID': row.box_id || '',
-        'Inbound Date': row.inbound_date || '',
-        'Vehicle No': row.vehicle_no || '',
-        'Status': row.status || '',
+        'Product Serial Number': row.product_serial_number || '',
+        'Rack No': row.rack_no || '',
+        'Unload Remarks': row.unload_remarks || '',
+        'Inbound Date': row.inbound_date || commonDate || '',
+        'Vehicle No': row.vehicle_no || commonVehicle || '',
+        // Master Data Columns
+        'WID': row.wid || '',
+        'FSN': row.fsn || '',
+        'Order ID': row.order_id || '',
+        'Product Title': row.product_title || '',
+        'Brand': row.brand || '',
+        'MRP': row.mrp || '',
+        'FSP': row.fsp || '',
+        'HSN/SAC': row.hsn_sac || '',
+        'IGST Rate': row.igst_rate || '',
+        'CMS Vertical': row.cms_vertical || '',
+        'FKT Link': row.fkt_link || '',
+        'Product Type': row.p_type || '',
+        'Product Size': row.p_size || '',
+        'VRP': row.vrp || '',
+        'Yield Value': row.yield_value || '',
+        'FK Grade': row.fk_grade || '',
+        'FKQC Remark': row.fkqc_remark || '',
       }));
 
       // Create workbook and worksheet
@@ -2990,6 +3024,10 @@ export default function InboundPage() {
 
       // Reset grid to 500 rows
       setMultiRows(generateEmptyRows(500));
+
+      // Clear vehicle number after successful submit (both state and localStorage)
+      setCommonVehicle('');
+      localStorage.removeItem('inbound_multiVehicleNumber');
 
       // Clear saved draft after successful submit
       await clearDraft();
@@ -5582,6 +5620,7 @@ export default function InboundPage() {
                             label="Vehicle"
                             value={commonVehicle}
                             onChange={(e) => setCommonVehicle(e.target.value)}
+                            onBlur={saveMultiVehicleNumber}
                             sx={{
                               width: 130,
                               '& .MuiInputBase-root': { height: 34 }
@@ -5607,131 +5646,141 @@ export default function InboundPage() {
                           {/* Action Buttons - Consistent Styling */}
                           <Stack direction="row" spacing={0.75} sx={{ width: 'fit-content', minWidth: 'max-content', alignItems: 'center' }}>
                             {/* COLUMNS Button */}
-                            <Button
-                              size="small"
-                              variant="outlined"
-                              onClick={() => setColumnSettingsOpen(true)}
-                              sx={{
-                                fontSize: '0.7rem',
-                                fontWeight: 600,
-                                height: 32,
-                                minWidth: 'auto',
-                                px: 1.5,
-                                borderRadius: 1,
-                                borderColor: isDarkMode ? '#3b82f6' : '#1e40af',
-                                color: isDarkMode ? '#60a5fa' : '#1e40af',
-                                whiteSpace: 'nowrap',
-                                textTransform: 'none',
-                                '&:hover': { borderColor: '#3b82f6', bgcolor: 'rgba(59, 130, 246, 0.08)' }
-                              }}
-                            >
-                              Columns
-                            </Button>
+                            <Tooltip title="Select which columns to show in the grid" placement="top">
+                              <Button
+                                size="small"
+                                variant="outlined"
+                                onClick={() => setColumnSettingsOpen(true)}
+                                sx={{
+                                  fontSize: '0.7rem',
+                                  fontWeight: 600,
+                                  height: 32,
+                                  minWidth: 'auto',
+                                  px: 1.5,
+                                  borderRadius: 1,
+                                  borderColor: isDarkMode ? '#3b82f6' : '#1e40af',
+                                  color: isDarkMode ? '#60a5fa' : '#1e40af',
+                                  whiteSpace: 'nowrap',
+                                  textTransform: 'none',
+                                  '&:hover': { borderColor: '#3b82f6', bgcolor: 'rgba(59, 130, 246, 0.08)' }
+                                }}
+                              >
+                                Columns
+                              </Button>
+                            </Tooltip>
 
                             {/* +500 Add Rows Button */}
-                            <Button
-                              size="small"
-                              variant="contained"
-                              onClick={add500Rows}
-                              sx={{
-                                fontSize: '0.7rem',
-                                fontWeight: 600,
-                                height: 32,
-                                minWidth: 'auto',
-                                px: 1.5,
-                                borderRadius: 1,
-                                background: 'linear-gradient(135deg, #3b82f6 0%, #1e40af 100%)',
-                                whiteSpace: 'nowrap',
-                                textTransform: 'none',
-                                boxShadow: 'none',
-                                '&:hover': { background: 'linear-gradient(135deg, #2563eb 0%, #1e3a8a 100%)', boxShadow: 'none' }
-                              }}
-                            >
-                              +500 Rows
-                            </Button>
+                            <Tooltip title="Add 500 more empty rows to the grid" placement="top">
+                              <Button
+                                size="small"
+                                variant="contained"
+                                onClick={add500Rows}
+                                sx={{
+                                  fontSize: '0.7rem',
+                                  fontWeight: 600,
+                                  height: 32,
+                                  minWidth: 'auto',
+                                  px: 1.5,
+                                  borderRadius: 1,
+                                  background: 'linear-gradient(135deg, #3b82f6 0%, #1e40af 100%)',
+                                  whiteSpace: 'nowrap',
+                                  textTransform: 'none',
+                                  boxShadow: 'none',
+                                  '&:hover': { background: 'linear-gradient(135deg, #2563eb 0%, #1e3a8a 100%)', boxShadow: 'none' }
+                                }}
+                              >
+                                +500 Rows
+                              </Button>
+                            </Tooltip>
 
                             {/* Grid Settings Button */}
-                            <Button
-                              size="small"
-                              variant="outlined"
-                              startIcon={<SettingsIcon sx={{ fontSize: 14 }} />}
-                              onClick={(e) => { e.stopPropagation(); setMultiGridSettingsOpen(true); }}
-                              sx={{
-                                fontSize: '0.7rem',
-                                fontWeight: 600,
-                                height: 32,
-                                minWidth: 'auto',
-                                px: 1,
-                                borderRadius: 1,
-                                borderColor: '#f59e0b',
-                                color: '#f59e0b',
-                                whiteSpace: 'nowrap',
-                                textTransform: 'none',
-                                '& .MuiButton-startIcon': { mr: 0.5 },
-                                '&:hover': { borderColor: '#d97706', bgcolor: 'rgba(245, 158, 11, 0.08)' }
-                              }}
-                            >
-                              Grid
-                            </Button>
+                            <Tooltip title="Configure grid display settings (row height, font size)" placement="top">
+                              <Button
+                                size="small"
+                                variant="outlined"
+                                startIcon={<SettingsIcon sx={{ fontSize: 14 }} />}
+                                onClick={(e) => { e.stopPropagation(); setMultiGridSettingsOpen(true); }}
+                                sx={{
+                                  fontSize: '0.7rem',
+                                  fontWeight: 600,
+                                  height: 32,
+                                  minWidth: 'auto',
+                                  px: 1,
+                                  borderRadius: 1,
+                                  borderColor: '#f59e0b',
+                                  color: '#f59e0b',
+                                  whiteSpace: 'nowrap',
+                                  textTransform: 'none',
+                                  '& .MuiButton-startIcon': { mr: 0.5 },
+                                  '&:hover': { borderColor: '#d97706', bgcolor: 'rgba(245, 158, 11, 0.08)' }
+                                }}
+                              >
+                                Grid
+                              </Button>
+                            </Tooltip>
 
                             {/* Export Button */}
-                            <Button
-                              size="small"
-                              variant="outlined"
-                              onClick={exportMultiEntryToExcel}
-                              sx={{
-                                fontSize: '0.7rem',
-                                fontWeight: 600,
-                                height: 32,
-                                minWidth: 'auto',
-                                px: 1.5,
-                                borderRadius: 1,
-                                borderColor: '#10b981',
-                                color: '#10b981',
-                                whiteSpace: 'nowrap',
-                                textTransform: 'none',
-                                '&:hover': { borderColor: '#059669', bgcolor: 'rgba(16, 185, 129, 0.08)' }
-                              }}
-                            >
-                              Export
-                            </Button>
+                            <Tooltip title="Export grid data to Excel with all columns" placement="top">
+                              <Button
+                                size="small"
+                                variant="outlined"
+                                onClick={exportMultiEntryToExcel}
+                                sx={{
+                                  fontSize: '0.7rem',
+                                  fontWeight: 600,
+                                  height: 32,
+                                  minWidth: 'auto',
+                                  px: 1.5,
+                                  borderRadius: 1,
+                                  borderColor: '#10b981',
+                                  color: '#10b981',
+                                  whiteSpace: 'nowrap',
+                                  textTransform: 'none',
+                                  '&:hover': { borderColor: '#059669', bgcolor: 'rgba(16, 185, 129, 0.08)' }
+                                }}
+                              >
+                                Export
+                              </Button>
+                            </Tooltip>
 
                             {/* Divider */}
                             <Box sx={{ width: 1, height: 20, bgcolor: isDarkMode ? '#475569' : '#d1d5db', mx: 0.25 }} />
 
                             {/* Print Toggle */}
-                            <Box
-                              onClick={() => setMultiPrintEnabled(!multiPrintEnabled)}
-                              sx={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 0.5,
-                                bgcolor: multiPrintEnabled ? 'rgba(22, 163, 74, 0.1)' : 'rgba(220, 38, 38, 0.1)',
-                                border: `1.5px solid ${multiPrintEnabled ? '#16a34a' : '#dc2626'}`,
-                                borderRadius: 1,
-                                px: 1,
-                                height: 32,
-                                cursor: 'pointer',
-                                '&:hover': { opacity: 0.85 }
-                              }}
-                            >
-                              <Typography sx={{ fontSize: '0.85rem', lineHeight: 1 }}>🖨️</Typography>
-                              <Typography sx={{ color: multiPrintEnabled ? '#16a34a' : '#dc2626', fontWeight: 700, fontSize: '0.65rem' }}>
-                                {multiPrintEnabled ? 'ON' : 'OFF'}
-                              </Typography>
-                              <Switch
-                                size="small"
-                                checked={multiPrintEnabled}
-                                onChange={(e) => { e.stopPropagation(); setMultiPrintEnabled(e.target.checked); }}
+                            <Tooltip title="Auto-print label when WSN is scanned" placement="top">
+                              <Box
+                                onClick={() => setMultiPrintEnabled(!multiPrintEnabled)}
                                 sx={{
-                                  width: 32, height: 18, p: 0,
-                                  '& .MuiSwitch-switchBase': { p: '2px' },
-                                  '& .MuiSwitch-thumb': { width: 14, height: 14 },
-                                  '& .MuiSwitch-switchBase.Mui-checked': { color: '#16a34a' },
-                                  '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { bgcolor: '#16a34a' },
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 0.5,
+                                  bgcolor: multiPrintEnabled ? 'rgba(22, 163, 74, 0.1)' : 'rgba(220, 38, 38, 0.1)',
+                                  border: `1.5px solid ${multiPrintEnabled ? '#16a34a' : '#dc2626'}`,
+                                  borderRadius: 1,
+                                  px: 1,
+                                  height: 32,
+                                  cursor: 'pointer',
+                                  '&:hover': { opacity: 0.85 }
                                 }}
-                              />
-                            </Box>
+                              >
+                                <Typography sx={{ fontSize: '0.85rem', lineHeight: 1 }}>🖨️</Typography>
+                                <Typography sx={{ color: multiPrintEnabled ? '#16a34a' : '#dc2626', fontWeight: 700, fontSize: '0.65rem' }}>
+                                  {multiPrintEnabled ? 'ON' : 'OFF'}
+                                </Typography>
+                                <Switch
+                                  size="small"
+                                  checked={multiPrintEnabled}
+                                  onChange={(e) => { e.stopPropagation(); setMultiPrintEnabled(e.target.checked); }}
+                                  sx={{
+                                    width: 32, height: 18, p: 0,
+                                    '& .MuiSwitch-switchBase': { p: '2px' },
+                                    '& .MuiSwitch-thumb': { width: 14, height: 14 },
+                                    '& .MuiSwitch-switchBase.Mui-checked': { color: '#16a34a' },
+                                    '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { bgcolor: '#16a34a' },
+                                  }}
+                                />
+                              </Box>
+                            </Tooltip>
 
                             {/* Ctrl+P Toggle */}
                             <Tooltip title="Ctrl+P: Reprint last scanned WSN label" placement="top">
@@ -5807,42 +5856,44 @@ export default function InboundPage() {
                             <Box sx={{ width: 1, height: 20, bgcolor: isDarkMode ? '#475569' : '#d1d5db', mx: 0.25 }} />
 
                             {/* Cache Status Chip */}
-                            <Chip
-                              size="small"
-                              onClick={() => setBatchSelectorOpen(true)}
-                              icon={<Box sx={{ fontSize: '0.75rem', ml: 0.25 }}>{batchCacheLoading || cacheLoading ? '🔄' : selectedBatchIds.length > 0 ? '📦' : '✅'}</Box>}
-                              label={
-                                batchCacheLoading
-                                  ? 'Loading...'
-                                  : selectedBatchIds.length > 0
-                                    ? `${selectedBatchIds.length} batch`
-                                    : cacheLoading
-                                      ? 'Syncing...'
-                                      : cacheStats
-                                        ? `${cacheStats.totalRecords.toLocaleString()} WSN`
-                                        : 'Loading...'
-                              }
-                              sx={{
-                                height: 32,
-                                borderRadius: 1,
-                                fontSize: '0.65rem',
-                                fontWeight: 600,
-                                cursor: 'pointer',
-                                bgcolor: selectedBatchIds.length > 0
-                                  ? 'rgba(139, 92, 246, 0.12)'
-                                  : batchCacheLoading || cacheLoading
-                                    ? 'rgba(59, 130, 246, 0.12)'
-                                    : 'rgba(16, 185, 129, 0.12)',
-                                color: selectedBatchIds.length > 0
-                                  ? '#8b5cf6'
-                                  : batchCacheLoading || cacheLoading
-                                    ? '#3b82f6'
-                                    : '#10b981',
-                                border: `1.5px solid ${selectedBatchIds.length > 0 ? '#8b5cf6' : batchCacheLoading || cacheLoading ? '#3b82f6' : '#10b981'}`,
-                                '& .MuiChip-icon': { color: 'inherit' },
-                                '&:hover': { opacity: 0.85 }
-                              }}
-                            />
+                            <Tooltip title="Click to select batch for WSN validation" placement="top">
+                              <Chip
+                                size="small"
+                                onClick={() => setBatchSelectorOpen(true)}
+                                icon={<Box sx={{ fontSize: '0.75rem', ml: 0.25 }}>{batchCacheLoading || cacheLoading ? '🔄' : selectedBatchIds.length > 0 ? '📦' : '✅'}</Box>}
+                                label={
+                                  batchCacheLoading
+                                    ? 'Loading...'
+                                    : selectedBatchIds.length > 0
+                                      ? `${selectedBatchIds.length} batch`
+                                      : cacheLoading
+                                        ? 'Syncing...'
+                                        : cacheStats
+                                          ? `${cacheStats.totalRecords.toLocaleString()} WSN`
+                                          : 'Loading...'
+                                }
+                                sx={{
+                                  height: 32,
+                                  borderRadius: 1,
+                                  fontSize: '0.65rem',
+                                  fontWeight: 600,
+                                  cursor: 'pointer',
+                                  bgcolor: selectedBatchIds.length > 0
+                                    ? 'rgba(139, 92, 246, 0.12)'
+                                    : batchCacheLoading || cacheLoading
+                                      ? 'rgba(59, 130, 246, 0.12)'
+                                      : 'rgba(16, 185, 129, 0.12)',
+                                  color: selectedBatchIds.length > 0
+                                    ? '#8b5cf6'
+                                    : batchCacheLoading || cacheLoading
+                                      ? '#3b82f6'
+                                      : '#10b981',
+                                  border: `1.5px solid ${selectedBatchIds.length > 0 ? '#8b5cf6' : batchCacheLoading || cacheLoading ? '#3b82f6' : '#10b981'}`,
+                                  '& .MuiChip-icon': { color: 'inherit' },
+                                  '&:hover': { opacity: 0.85 }
+                                }}
+                              />
+                            </Tooltip>
                           </Stack>
                         </Box>
                       </Stack>
@@ -5882,6 +5933,7 @@ export default function InboundPage() {
                             label="Vehicle"
                             value={commonVehicle}
                             onChange={(e) => setCommonVehicle(e.target.value)}
+                            onBlur={saveMultiVehicleNumber}
                             sx={{
                               flex: 1,
                               '& .MuiInputBase-root': { height: 36 }
@@ -6966,19 +7018,8 @@ export default function InboundPage() {
                       // ⚡ EXCEL-LIKE KEYBOARD SHORTCUTS
                       const ctrlKey = nativeEvent?.ctrlKey || nativeEvent?.metaKey;
 
-                      // Ctrl+Z → Undo
-                      if (ctrlKey && key?.toLowerCase() === 'z' && !nativeEvent?.shiftKey) {
-                        nativeEvent?.preventDefault();
-                        handleUndo();
-                        return;
-                      }
-
-                      // Ctrl+Y or Ctrl+Shift+Z → Redo
-                      if (ctrlKey && (key?.toLowerCase() === 'y' || (key?.toLowerCase() === 'z' && nativeEvent?.shiftKey))) {
-                        nativeEvent?.preventDefault();
-                        handleRedo();
-                        return;
-                      }
+                      // Note: Ctrl+Z and Ctrl+Y are handled by the global keyboard handler
+                      // to avoid double-triggering. Only grid-specific shortcuts here.
 
                       // Ctrl+D → Fill Down (copy value from cell above)
                       if (ctrlKey && key?.toLowerCase() === 'd') {
