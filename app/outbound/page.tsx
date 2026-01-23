@@ -319,10 +319,11 @@ export default function OutboundPage() {
 
 
     // ====== MULTI ENTRY STATE (AG GRID) ======
-    const generateEmptyRows = (count: number) => {
+    const generateEmptyRows = (count: number): OutboundItem[] => {
         return Array.from({ length: count }, () => {
             rowIdCounterRef.current += 1;
             return {
+                id: 0, // Placeholder ID for empty rows
                 _rowId: `row_${rowIdCounterRef.current}_${Date.now()}`, // ⚡ Unique row ID for AG Grid
                 wsn: '',
                 dispatch_date: new Date().toISOString().split('T')[0],
@@ -341,7 +342,7 @@ export default function OutboundPage() {
 
     // Fast add 500 rows (used by Add +500 button) — use functional update for performance
     const add500Rows = () => {
-        setMultiRows(prev => [...prev, ...generateEmptyRows(500)]);
+        setMultiRows(prev => [...prev, ...generateEmptyRows(500)] as OutboundItem[]);
     };
 
     // ⚡ MULTI ENTRY: Export entered data to Excel
@@ -2024,7 +2025,7 @@ export default function OutboundPage() {
 
     // ✅ ROW STYLING (DUPLICATES + HIGHLIGHTED)
     const getRowStyle = useCallback(
-        (params: any) => {
+        (params: any): { [key: string]: string } | undefined => {
             // Check if row is highlighted (recently scanned)
             const rowIndex = params.node?.rowIndex;
             if (rowIndex !== undefined && highlightedRows.has(rowIndex)) {
@@ -2035,8 +2036,8 @@ export default function OutboundPage() {
             }
 
             // Check for duplicates
-            const wsn = params.data.wsn?.trim()?.toUpperCase();
-            if (gridDuplicateWSNs.has(wsn) || crossWarehouseWSNs.has(wsn)) {
+            const wsn = params.data?.wsn?.trim()?.toUpperCase();
+            if (wsn && (gridDuplicateWSNs.has(wsn) || crossWarehouseWSNs.has(wsn))) {
                 return { background: '#ffebee' };
             }
             return undefined;
@@ -2102,7 +2103,7 @@ export default function OutboundPage() {
             toast.success(`✓ ${res.data.successCount}/${res.data.totalCount} entries created (Batch: ${res.data.batchId})`);
 
             // Reset grid and common fields
-            setMultiRows(generateEmptyRows(500));
+            setMultiRows(generateEmptyRows(500) as OutboundItem[]);
             setDuplicateWSNs(new Set());
             setGridDuplicateWSNs(new Set());
             setCrossWarehouseWSNs(new Set());
