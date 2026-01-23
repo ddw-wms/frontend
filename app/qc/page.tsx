@@ -41,6 +41,10 @@ import {
   IconButton,
   Toolbar,
   AppBar,
+  Tooltip,
+  Pagination,
+  InputBase,
+  Fade,
 } from '@mui/material';
 import {
   Download as DownloadIcon,
@@ -56,6 +60,11 @@ import {
   Description as DescriptionIcon,
   Close as CloseIcon,
   Tune as TuneIcon,
+  KeyboardArrowLeft,
+  KeyboardArrowRight,
+  FirstPage,
+  LastPage,
+  AccessTime,
 } from '@mui/icons-material';
 import { qcAPI } from '@/lib/api';
 import { useWarehouse } from '@/app/context/WarehouseContext';
@@ -71,7 +80,6 @@ import { AgGridReact } from 'ag-grid-react';
 import { ModuleRegistry, AllCommunityModule, ClientSideRowModelModule } from 'ag-grid-community';
 import 'ag-grid-community/styles/ag-theme-quartz.css';
 import { debounce } from 'lodash';
-import { Tooltip } from '@mui/material';
 import localforage from 'localforage';
 
 // Register AG Grid modules ONCE (include ClientSideRowModel for client-side features)
@@ -321,6 +329,20 @@ export default function QCPage() {
   const EMPTY_CONFIRM_DELAY = 400; // ms - delay before clearing rows when server returns empty
   const [topLoading, setTopLoading] = useState(false);
   const previousDataRef = useRef<QCItem[] | null>(null);
+
+  // ⚡ PAGE CACHE: Store fetched pages for instant back navigation
+  const pageCacheRef = useRef<Map<string, { data: QCItem[], total: number, timestamp: number }>>(new Map());
+  const PAGE_CACHE_TTL = 60000; // 1 minute cache validity
+
+  // ⚡ LAST REFRESH TIME: Track when data was last fetched
+  const [lastRefreshTime, setLastRefreshTime] = useState<Date | null>(null);
+
+  // ⚡ AUTO-RETRY: Track retry attempts
+  const retryCountRef = useRef(0);
+  const MAX_RETRIES = 2;
+
+  // ⚡ LAZY LOADING: Defer filter options loading
+  const [filtersLoaded, setFiltersLoaded] = useState(false);
 
   // Whether any filter is active (shows green dot on Filters button)
   const filtersActive = Boolean(
@@ -1282,12 +1304,85 @@ export default function QCPage() {
   }), [enableSorting, enableColumnFilters, enableColumnResize]);
 
   // LOAD FUNCTIONS
+  // ⚡ HELPER: Generate cache key for current filters
+  const getCacheKey = useCallback(() => {
+    return JSON.stringify({
+      warehouseId: activeWarehouse?.id,
+      page,
+      limit,
+      search: searchDebounced,
+      status: statusFilter,
+      grade: gradeFilter,
+      brand: brandFilter,
+      category: categoryFilter,
+      dateFrom: dateFromFilter,
+      dateTo: dateToFilter,
+    });
+  }, [activeWarehouse?.id, page, limit, searchDebounced, statusFilter, gradeFilter, brandFilter, categoryFilter, dateFromFilter, dateToFilter]);
+
+  // ⚡ PREFETCH: Prefetch next page in background
+  const prefetchNextPage = useCallback(async () => {
+    const totalPages = Math.ceil(total / limit);
+    if (page >= totalPages) return;
+
+    const nextPageCacheKey = JSON.stringify({
+      warehouseId: activeWarehouse?.id,
+      page: page + 1,
+      limit,
+      search: searchDebounced,
+      status: statusFilter,
+      grade: gradeFilter,
+      brand: brandFilter,
+      category: categoryFilter,
+      dateFrom: dateFromFilter,
+      dateTo: dateToFilter,
+    });
+
+    const cached = pageCacheRef.current.get(nextPageCacheKey);
+    if (cached && Date.now() - cached.timestamp < PAGE_CACHE_TTL) return;
+
+    try {
+      const response = await qcAPI.getList(page + 1, limit, {
+        warehouseId: activeWarehouse?.id,
+        search: searchDebounced,
+        qcStatus: statusFilter,
+        qc_grade: gradeFilter,
+        brand: brandFilter,
+        category: categoryFilter,
+        dateFrom: dateFromFilter,
+        dateTo: dateToFilter,
+      });
+      const rows = response.data?.data || [];
+      pageCacheRef.current.set(nextPageCacheKey, {
+        data: rows,
+        total: response.data?.total || 0,
+        timestamp: Date.now(),
+      });
+    } catch { /* Silently fail - prefetch is optional */ }
+  }, [activeWarehouse?.id, page, limit, total, searchDebounced, statusFilter, gradeFilter, brandFilter, categoryFilter, dateFromFilter, dateToFilter]);
+
   const loadQCList = async ({ buttonRefresh = false } = {}) => {
     if (!activeWarehouse) return;
 
     // Use request id to ignore stale responses
     currentLoadIdRef.current += 1;
     const loadId = currentLoadIdRef.current;
+
+    const cacheKey = getCacheKey();
+
+    // ⚡ PAGE CACHE: Check cache first (unless force refresh)
+    if (!buttonRefresh) {
+      const cached = pageCacheRef.current.get(cacheKey);
+      if (cached && Date.now() - cached.timestamp < PAGE_CACHE_TTL) {
+        previousDataRef.current = cached.data;
+        setQcList(cached.data);
+        setTotal(cached.total);
+        setLastRefreshTime(new Date(cached.timestamp));
+        setListLoading(false);
+        setTimeout(() => prefetchNextPage(), 100);
+        return;
+      }
+    }
 
     if (buttonRefresh) {
       setRefreshing(true);
@@ -1394,6 +1489,18 @@ export default function QCPage() {
           }
         }
 
+        // ⚡ PAGE CACHE: Store in cache
+        pageCacheRef.current.set(cacheKey, {
+          data,
+          total: response.data?.total || 0,
+          timestamp: Date.now(),
+        });
+        setLastRefreshTime(new Date());
+        retryCountRef.current = 0; // Reset retry count on success
+
+        // ⚡ PREFETCH: Prefetch next page after successful load
+        setTimeout(() => prefetchNextPage(), 500);
+
         if (buttonRefresh) {
           toast.success('✓ List refreshed');
           setRefreshSuccess(true);
@@ -1432,8 +1539,20 @@ export default function QCPage() {
 
         if (error.name !== 'CanceledError' && error.name !== 'AbortError') {
           console.error('Load QC list error:', error);
+
+          // ⚡ AUTO-RETRY: Retry on failure
+          if (retryCountRef.current < MAX_RETRIES) {
+            retryCountRef.current++;
+            toast.error(`Loading failed, retrying... (${retryCountRef.current}/${MAX_RETRIES})`);
+            setTimeout(() => {
+              loadQCList({ buttonRefresh: true });
+            }, 1000 * retryCountRef.current);
+            return;
+          }
+
           if (buttonRefresh) toast.error('Failed to refresh QC list');
           else toast.error('Failed to load QC list');
+          retryCountRef.current = 0;
         }
       }
     } finally {
@@ -2505,8 +2624,44 @@ export default function QCPage() {
                 position: 'relative'
               }}>
 
-                {/* Loading Overlay with Spinner */}
-                {listLoading && (
+                {/* Loading Spinner Overlay - semi-transparent so data stays visible */}
+                {listLoading && qcList && qcList.length > 0 && (
+                  <Box sx={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    backgroundColor: isDarkMode ? 'rgba(15, 23, 42, 0.5)' : 'rgba(255, 255, 255, 0.5)',
+                    zIndex: 10,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}>
+                    <Box sx={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: 1.5,
+                      p: 3,
+                      bgcolor: isDarkMode ? 'rgba(30, 41, 59, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+                      borderRadius: 2,
+                      boxShadow: '0 4px 20px rgba(0,0,0,0.15)'
+                    }}>
+                      <CircularProgress
+                        size={40}
+                        thickness={4}
+                        sx={{ color: '#1e40af' }}
+                      />
+                      <Typography sx={{ fontSize: '0.85rem', fontWeight: 500, color: isDarkMode ? '#94a3b8' : '#64748b' }}>
+                        Loading...
+                      </Typography>
+                    </Box>
+                  </Box>
+                )}
+
+                {/* Full Loading Overlay - ONLY for initial load when no data exists */}
+                {listLoading && (!qcList || qcList.length === 0) && (
                   <Box sx={{
                     position: 'absolute',
                     top: 48,
@@ -2747,166 +2902,194 @@ export default function QCPage() {
                 </Box>
               </Box>
 
-              {/* PAGINATION - STICKY AT BOTTOM (Dashboard Style) */}
-              <Box
-                sx={{
-                  px: { xs: 1, sm: 2 },
-                  py: { xs: 0.75, sm: 0.5 },
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  borderTop: isDarkMode ? "1px solid rgba(255,255,255,0.1)" : "1px solid #ddd",
-                  bgcolor: isDarkMode ? '#1e293b' : "white",
-                  flexShrink: 0,
-                  minHeight: { xs: 44, sm: 48 },
-                  gap: { xs: 0.5, sm: 1 },
-                  mt: 1,
-                  borderRadius: 1,
-                }}
-              >
-                {/* Per Page */}
-                <Stack direction="row" spacing={{ xs: 0.5, sm: 1 }} alignItems="center">
-                  <Typography sx={{ fontSize: { xs: "0.7rem", sm: "0.78rem" }, whiteSpace: "nowrap", color: isDarkMode ? '#94a3b8' : 'inherit' }}>
-                    Per page:
-                  </Typography>
-                  <Select
-                    size="small"
-                    value={limit}
-                    onChange={(e) => {
-                      setLimit(Number(e.target.value));
-                      setPage(1);
-                    }}
-                    sx={{
-                      minWidth: { xs: 58, sm: 70 },
-                      '& .MuiSelect-select': {
-                        py: { xs: 0.5, sm: 0.75 },
-                        fontSize: { xs: '0.75rem', sm: '0.875rem' },
-                      },
-                      color: isDarkMode ? '#e2e8f0' : 'inherit',
-                      backgroundColor: isDarkMode ? '#334155' : 'transparent',
-                      '& .MuiOutlinedInput-notchedOutline': {
-                        borderColor: isDarkMode ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.23)'
-                      },
-                      '&:hover .MuiOutlinedInput-notchedOutline': {
-                        borderColor: isDarkMode ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.87)'
-                      },
-                      '& .MuiSvgIcon-root': {
-                        color: isDarkMode ? '#e2e8f0' : 'inherit'
-                      }
-                    }}
-                    MenuProps={{
-                      disableScrollLock: true,
-                      PaperProps: {
-                        sx: {
-                          bgcolor: isDarkMode ? '#334155' : 'white',
-                          color: isDarkMode ? '#e2e8f0' : 'inherit',
-                          '& .MuiMenuItem-root': {
-                            '&:hover': {
-                              bgcolor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.04)'
-                            },
-                            '&.Mui-selected': {
-                              bgcolor: isDarkMode ? 'rgba(59, 130, 246, 0.3)' : 'rgba(25, 118, 210, 0.08)',
-                              '&:hover': {
-                                bgcolor: isDarkMode ? 'rgba(59, 130, 246, 0.4)' : 'rgba(25, 118, 210, 0.12)'
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }}
-                  >
-                    <MenuItem value={50}>50</MenuItem>
-                    <MenuItem value={100}>100</MenuItem>
-                    <MenuItem value={500}>500</MenuItem>
-                    <MenuItem value={1000}>1000</MenuItem>
-                  </Select>
-                </Stack>
-
-                {/* Count */}
-                <Typography
+              {/* ================= PAGINATION (DASHBOARD STYLE - FULLY RESPONSIVE) ================= */}
+              <Fade in={true} timeout={300}>
+                <Box
                   sx={{
-                    fontSize: { xs: "0.7rem", sm: "0.78rem" },
-                    whiteSpace: "nowrap",
-                    color: isDarkMode ? '#94a3b8' : 'inherit',
+                    px: { xs: 1, sm: 2 },
+                    py: { xs: 0.75, sm: 0.5 },
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    borderTop: isDarkMode ? "1px solid rgba(255,255,255,0.1)" : "1px solid #ddd",
+                    bgcolor: isDarkMode ? '#1e293b' : "white",
+                    flexShrink: 0,
+                    minHeight: { xs: 44, sm: 52 },
+                    gap: { xs: 0.5, sm: 1 },
+                    flexWrap: 'wrap',
                   }}
                 >
-                  {qcList.length > 0 ? (page - 1) * limit + 1 : 0} – {Math.min(page * limit, total)} of {total}
-                </Typography>
-
-                {/* Pagination Controls */}
-                {isMobile ? (
-                  <Stack direction="row" spacing={0.5} alignItems="center">
-                    <Button
-                      size="small"
-                      disabled={page === 1}
-                      onClick={() => setPage(page - 1)}
-                      sx={{
-                        minWidth: { xs: 40, sm: 64 },
-                        px: { xs: 0.5, sm: 2 },
-                        fontSize: { xs: '0.7rem', sm: '0.875rem' },
-                      }}
-                    >
-                      Prev
-                    </Button>
-                    <Typography sx={{ fontSize: { xs: "0.75rem", sm: "0.85rem" }, fontWeight: 600, minWidth: 40, textAlign: 'center' }}>
-                      {page} / {Math.ceil(total / limit) || 1}
+                  {/* Left Section: Per Page + Last Refresh */}
+                  <Stack direction="row" spacing={{ xs: 0.5, sm: 1.5 }} alignItems="center">
+                    <Typography sx={{ fontSize: { xs: "0.7rem", sm: "0.78rem" }, whiteSpace: "nowrap", color: isDarkMode ? '#94a3b8' : 'inherit' }}>
+                      Per page:
                     </Typography>
-                    <Button
+
+                    <Select
                       size="small"
-                      disabled={page >= Math.ceil(total / limit)}
-                      onClick={() => setPage(page + 1)}
+                      value={limit}
+                      onChange={(e) => {
+                        setLimit(Number(e.target.value));
+                        setPage(1);
+                      }}
                       sx={{
-                        minWidth: { xs: 40, sm: 64 },
-                        px: { xs: 0.5, sm: 2 },
-                        fontSize: { xs: '0.7rem', sm: '0.875rem' },
+                        minWidth: { xs: 58, sm: 70 },
+                        '& .MuiSelect-select': {
+                          py: { xs: 0.5, sm: 0.75 },
+                          fontSize: { xs: '0.75rem', sm: '0.875rem' },
+                        }
                       }}
                     >
-                      Next
-                    </Button>
+                      <MenuItem value={50}>50</MenuItem>
+                      <MenuItem value={100}>100</MenuItem>
+                      <MenuItem value={500}>500</MenuItem>
+                      <MenuItem value={1000}>1000</MenuItem>
+                    </Select>
+
+                    {/* Last Refresh Time Indicator */}
+                    {lastRefreshTime && !isMobile && (
+                      <Tooltip title={`Last updated: ${lastRefreshTime.toLocaleTimeString()}`}>
+                        <Stack direction="row" spacing={0.5} alignItems="center" sx={{ ml: 1 }}>
+                          <AccessTime sx={{ fontSize: 14, color: isDarkMode ? '#64748b' : '#94a3b8' }} />
+                          <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>
+                            {(() => {
+                              const seconds = Math.floor((new Date().getTime() - lastRefreshTime.getTime()) / 1000);
+                              if (seconds < 10) return 'just now';
+                              if (seconds < 60) return `${seconds}s ago`;
+                              const minutes = Math.floor(seconds / 60);
+                              if (minutes < 60) return `${minutes}m ago`;
+                              return `${Math.floor(minutes / 60)}h ago`;
+                            })()}
+                          </Typography>
+                        </Stack>
+                      </Tooltip>
+                    )}
                   </Stack>
-                ) : (
-                  <Stack direction="row" spacing={0.5} alignItems="center">
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      disabled={page === 1}
-                      onClick={() => setPage(page - 1)}
-                      sx={{ minWidth: 64, fontSize: '0.75rem', fontWeight: 600 }}
-                    >
-                      ◀ Prev
-                    </Button>
-                    <Box sx={{
-                      px: 1.5,
-                      py: 0.4,
-                      border: isDarkMode ? '2px solid #f59e0b' : '2px solid #d97706',
-                      borderRadius: 1,
-                      background: isDarkMode
-                        ? 'linear-gradient(135deg, rgba(245, 158, 11, 0.2) 0%, rgba(217, 119, 6, 0.2) 100%)'
-                        : 'linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(217, 119, 6, 0.1) 100%)',
-                      minWidth: 60,
-                      textAlign: 'center'
-                    }}>
-                      <Typography sx={{
-                        fontWeight: 800,
-                        color: isDarkMode ? '#fbbf24' : '#d97706',
-                        fontSize: '0.75rem',
-                        lineHeight: 1.1
-                      }}>
-                        {page}/{Math.ceil(total / limit) || 1}
+
+                  {/* Center Section: Count */}
+                  <Typography
+                    sx={{
+                      fontSize: { xs: "0.7rem", sm: "0.78rem" },
+                      whiteSpace: "nowrap",
+                      color: isDarkMode ? '#94a3b8' : 'inherit',
+                    }}
+                  >
+                    {qcList.length > 0 ? (page - 1) * limit + 1 : 0} – {Math.min(page * limit, total)} of {total}
+                  </Typography>
+
+                  {/* Right Section: Pagination Controls */}
+                  {isMobile ? (
+                    // MOBILE COMPACT PAGINATION
+                    <Stack direction="row" spacing={0.5} alignItems="center">
+                      <IconButton
+                        size="small"
+                        disabled={page === 1}
+                        onClick={() => setPage(1)}
+                        sx={{ p: 0.5 }}
+                      >
+                        <FirstPage fontSize="small" />
+                      </IconButton>
+                      <IconButton
+                        size="small"
+                        disabled={page === 1}
+                        onClick={() => setPage(page - 1)}
+                        sx={{ p: 0.5 }}
+                      >
+                        <KeyboardArrowLeft fontSize="small" />
+                      </IconButton>
+
+                      <Typography sx={{ fontSize: "0.75rem", fontWeight: 600, minWidth: 50, textAlign: 'center' }}>
+                        {page} / {Math.ceil(total / limit) || 1}
                       </Typography>
-                    </Box>
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      disabled={page >= Math.ceil(total / limit)}
-                      onClick={() => setPage(page + 1)}
-                      sx={{ minWidth: 64, fontSize: '0.75rem', fontWeight: 600 }}
-                    >
-                      Next ▶
-                    </Button>
-                  </Stack>
-                )}
-              </Box>
+
+                      <IconButton
+                        size="small"
+                        disabled={page >= Math.ceil(total / limit)}
+                        onClick={() => setPage(page + 1)}
+                        sx={{ p: 0.5 }}
+                      >
+                        <KeyboardArrowRight fontSize="small" />
+                      </IconButton>
+                      <IconButton
+                        size="small"
+                        disabled={page >= Math.ceil(total / limit)}
+                        onClick={() => setPage(Math.ceil(total / limit))}
+                        sx={{ p: 0.5 }}
+                      >
+                        <LastPage fontSize="small" />
+                      </IconButton>
+                    </Stack>
+                  ) : (
+                    // DESKTOP: Enhanced pagination with MUI Pagination component
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      <Tooltip title="First page">
+                        <span>
+                          <IconButton
+                            size="small"
+                            disabled={page === 1}
+                            onClick={() => setPage(1)}
+                          >
+                            <FirstPage fontSize="small" />
+                          </IconButton>
+                        </span>
+                      </Tooltip>
+
+                      <Tooltip title="Previous page">
+                        <span>
+                          <IconButton
+                            size="small"
+                            disabled={page === 1}
+                            onClick={() => setPage(page - 1)}
+                          >
+                            <KeyboardArrowLeft />
+                          </IconButton>
+                        </span>
+                      </Tooltip>
+
+                      <Pagination
+                        page={page}
+                        count={Math.ceil(total / limit) || 1}
+                        size="small"
+                        onChange={(_, v) => setPage(v)}
+                        siblingCount={1}
+                        boundaryCount={1}
+                        sx={{
+                          '& .MuiPaginationItem-root': {
+                            color: isDarkMode ? '#94a3b8' : 'inherit',
+                          },
+                          '& .Mui-selected': {
+                            bgcolor: isDarkMode ? 'rgba(59, 130, 246, 0.3) !important' : 'rgba(25, 118, 210, 0.12) !important',
+                          }
+                        }}
+                      />
+
+                      <Tooltip title="Next page">
+                        <span>
+                          <IconButton
+                            size="small"
+                            disabled={page >= Math.ceil(total / limit)}
+                            onClick={() => setPage(page + 1)}
+                          >
+                            <KeyboardArrowRight />
+                          </IconButton>
+                        </span>
+                      </Tooltip>
+
+                      <Tooltip title="Last page">
+                        <span>
+                          <IconButton
+                            size="small"
+                            disabled={page >= Math.ceil(total / limit)}
+                            onClick={() => setPage(Math.ceil(total / limit))}
+                          >
+                            <LastPage fontSize="small" />
+                          </IconButton>
+                        </span>
+                      </Tooltip>
+                    </Stack>
+                  )}
+                </Box>
+              </Fade>
             </Box>
           )}
 

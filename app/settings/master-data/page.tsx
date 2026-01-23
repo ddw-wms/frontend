@@ -5,11 +5,11 @@ import { useState, useEffect, useRef, useMemo, memo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Box, Paper, Typography, Button, AppBar, Toolbar, Stack, Table,
-  TableBody, TableCell, TableContainer, TableHead, TableRow, TablePagination,
+  TableBody, TableCell, TableContainer, TableHead, TableRow, Pagination,
   Dialog, DialogTitle, DialogContent, DialogActions, Chip, CircularProgress,
   LinearProgress, IconButton, Tabs, Tab, Menu, MenuItem, Checkbox, ListItemText,
   TextField, FormControl, InputLabel, Select, InputAdornment, Badge, useTheme, useMediaQuery,
-  Collapse, Tooltip, FormControlLabel, Divider, Grid, Card, CardContent
+  Collapse, Tooltip, FormControlLabel, Divider, Grid, Card, CardContent, InputBase, Fade
 } from '@mui/material';
 import {
   Upload as UploadIcon, Refresh as RefreshIcon, Logout as LogoutIcon,
@@ -17,7 +17,7 @@ import {
   DeleteSweep as DeleteSweepIcon, Download as DownloadIcon, Search as SearchIcon,
   Speed as SpeedIcon, Clear as ClearIcon, CheckCircle, Settings as SettingsIcon,
   Tune as TuneIcon, Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon,
-  ExpandMore as ExpandMoreIcon, Close as CloseIcon
+  ExpandMore as ExpandMoreIcon, Close as CloseIcon, KeyboardArrowLeft, KeyboardArrowRight, FirstPage, LastPage, AccessTime
 } from '@mui/icons-material';
 import toast, { Toaster } from 'react-hot-toast';
 import { getStoredUser, logout } from '@/lib/auth';
@@ -407,6 +407,17 @@ export default function MasterDataPage() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deletingProduct, setDeletingProduct] = useState<any>(null);
 
+  // ⚡ PAGE CACHE: Store fetched pages to avoid redundant API calls
+  const pageCacheRef = useRef<Map<string, { data: any[], total: number, timestamp: number }>>(new Map());
+  const PAGE_CACHE_TTL = 60000; // Cache TTL: 60 seconds
+
+  // ⚡ AUTO-RETRY: For network failures
+  const retryCountRef = useRef(0);
+  const MAX_RETRIES = 2;
+
+  // ⚡ LAZY FILTER LOADING: Load filters after initial data
+  const [filtersLoaded, setFiltersLoaded] = useState(false);
+
   // AG Grid refs and state
   const gridRef = useRef<any>(null);
   const columnApiRef = useRef<any>(null);
@@ -718,7 +729,83 @@ export default function MasterDataPage() {
     }
   }, []);
 
-  const loadMasterData = async ({ buttonRefresh = false } = {}) => {
+  // ⚡ HELPER: Generate cache key for current filters
+  const getCacheKey = useCallback(() => {
+    return JSON.stringify({
+      page,
+      rowsPerPage,
+      search: debouncedSearch,
+      batchId: filterBatchId,
+      status: filterStatus,
+      brand: filterBrand,
+      category: filterCategory,
+    });
+  }, [page, rowsPerPage, debouncedSearch, filterBatchId, filterStatus, filterBrand, filterCategory]);
+
+  // ⚡ PREFETCH: Prefetch next page in background
+  const prefetchNextPage = useCallback(async () => {
+    const totalPages = Math.ceil(totalRecords / rowsPerPage);
+    if (page >= totalPages - 1) return;
+
+    const nextPageCacheKey = JSON.stringify({
+      page: page + 1,
+      rowsPerPage,
+      search: debouncedSearch,
+      batchId: filterBatchId,
+      status: filterStatus,
+      brand: filterBrand,
+      category: filterCategory,
+    });
+
+    const cached = pageCacheRef.current.get(nextPageCacheKey);
+    if (cached && Date.now() - cached.timestamp < PAGE_CACHE_TTL) return;
+
+    try {
+      const params = new URLSearchParams();
+      params.append('page', (page + 2).toString()); // page is 0-indexed, API is 1-indexed
+      params.append('limit', rowsPerPage.toString());
+      if (debouncedSearch) params.append('search', debouncedSearch);
+      if (filterBatchId) params.append('batch_id', filterBatchId);
+      if (filterStatus && filterStatus !== 'All') params.append('status', filterStatus);
+      if (filterBrand) params.append('brand', filterBrand);
+      if (filterCategory) params.append('category', filterCategory);
+
+      const token = localStorage.getItem('token');
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/master-data?${params.toString()}`,
+        { headers: { 'Authorization': `Bearer ${token}` } }
+      );
+      if (!response.ok) return;
+      const data = await response.json();
+      const formattedData = (data.data || []).map((item: any) => ({
+        ...item,
+        invoice_date_display: formatDateToIST(item.invoice_date, 'date'),
+        created_at_display: formatDateToIST(item.created_at, 'datetime')
+      }));
+      pageCacheRef.current.set(nextPageCacheKey, {
+        data: formattedData,
+        total: data.total || 0,
+        timestamp: Date.now(),
+      });
+    } catch { /* Silently fail - prefetch is optional */ }
+  }, [page, rowsPerPage, totalRecords, debouncedSearch, filterBatchId, filterStatus, filterBrand, filterCategory]);
+
+  const loadMasterData = useCallback(async ({ buttonRefresh = false } = {}) => {
+    const cacheKey = getCacheKey();
+
+    // ⚡ PAGE CACHE: Check cache first (unless force refresh)
+    if (!buttonRefresh) {
+      const cached = pageCacheRef.current.get(cacheKey);
+      if (cached && Date.now() - cached.timestamp < PAGE_CACHE_TTL) {
+        setMasterData(cached.data);
+        setTotalRecords(cached.total);
+        setLastRefreshTime(new Date(cached.timestamp));
+        setLoading(false);
+        setTimeout(() => prefetchNextPage(), 100);
+        return;
+      }
+    }
+
     if (buttonRefresh) {
       setRefreshing(true);
       setRefreshSuccess(false);
@@ -787,6 +874,17 @@ export default function MasterDataPage() {
       const now = new Date();
       setLastRefreshTime(now);
 
+      // ⚡ CACHE: Store in cache
+      pageCacheRef.current.set(cacheKey, {
+        data: formattedData,
+        total: data.total || 0,
+        timestamp: Date.now(),
+      });
+      retryCountRef.current = 0; // Reset retry count on success
+
+      // ⚡ PREFETCH: Trigger prefetch of next page
+      setTimeout(() => prefetchNextPage(), 100);
+
       // Update grid if available
       if (gridRef.current && typeof gridRef.current.setRowData === 'function') {
         try {
@@ -801,6 +899,13 @@ export default function MasterDataPage() {
       }
     } catch (error) {
       console.error('Load error:', error);
+      // ⚡ AUTO-RETRY: Retry on network errors (max 2 times)
+      if (retryCountRef.current < MAX_RETRIES && !buttonRefresh) {
+        retryCountRef.current += 1;
+        const delay = Math.pow(2, retryCountRef.current) * 500;
+        setTimeout(() => loadMasterData({ buttonRefresh: false }), delay);
+        return;
+      }
       toast.error('Failed to load data');
     } finally {
       if (buttonRefresh) {
@@ -828,7 +933,7 @@ export default function MasterDataPage() {
         if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
       }
     }
-  };
+  }, [page, rowsPerPage, debouncedSearch, filterBatchId, filterStatus, filterBrand, filterCategory, getCacheKey, prefetchNextPage, masterData.length]);
 
   const loadBatches = async () => {
     try {
@@ -1979,8 +2084,44 @@ export default function MasterDataPage() {
                       bgcolor: isDarkMode ? '#1e293b' : '#ffffff',
                     }}>
 
-                      {/* Loading Overlay with Spinner */}
-                      {loading && (
+                      {/* Loading Spinner Overlay - semi-transparent so data stays visible */}
+                      {loading && masterData && masterData.length > 0 && (
+                        <Box sx={{
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          backgroundColor: isDarkMode ? 'rgba(15, 23, 42, 0.5)' : 'rgba(255, 255, 255, 0.5)',
+                          zIndex: 10,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}>
+                          <Box sx={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            gap: 1.5,
+                            p: 3,
+                            bgcolor: isDarkMode ? 'rgba(30, 41, 59, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+                            borderRadius: 2,
+                            boxShadow: '0 4px 20px rgba(0,0,0,0.15)'
+                          }}>
+                            <CircularProgress
+                              size={40}
+                              thickness={4}
+                              sx={{ color: '#1e40af' }}
+                            />
+                            <Typography sx={{ fontSize: '0.85rem', fontWeight: 500, color: isDarkMode ? '#94a3b8' : '#64748b' }}>
+                              Loading...
+                            </Typography>
+                          </Box>
+                        </Box>
+                      )}
+
+                      {/* Full Loading Overlay - ONLY for initial load when no data exists */}
+                      {loading && (!masterData || masterData.length === 0) && (
                         <Box sx={{
                           position: 'absolute',
                           top: 0,
@@ -1990,27 +2131,63 @@ export default function MasterDataPage() {
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          backgroundColor: isDarkMode ? 'rgba(15, 23, 42, 0.85)' : 'rgba(255, 255, 255, 0.7)',
-                          backdropFilter: 'blur(2px)',
+                          backgroundColor: isDarkMode ? 'rgba(15, 23, 42, 0.9)' : 'rgba(255, 255, 255, 0.9)',
+                          backdropFilter: 'blur(3px)',
                           zIndex: 10,
-                          '@keyframes spin': {
-                            '0%': { transform: 'rotate(0deg)' },
-                            '100%': { transform: 'rotate(360deg)' }
-                          },
-                          '@keyframes pulse': {
-                            '0%, 100%': { opacity: 1 },
-                            '50%': { opacity: 0.5 }
-                          }
                         }}>
-                          <Box sx={{ textAlign: 'center' }}>
-                            <CircularProgress
-                              size={48}
-                              thickness={3.5}
+                          <Box sx={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            gap: 3,
+                            p: 4,
+                            bgcolor: isDarkMode ? '#1e293b' : 'white',
+                            borderRadius: 3,
+                            boxShadow: isDarkMode ? '0 8px 24px rgba(0,0,0,0.4)' : '0 8px 24px rgba(0,0,0,0.12)'
+                          }}>
+                            <Box sx={{ position: 'relative' }}>
+                              <CircularProgress
+                                size={56}
+                                thickness={3.5}
+                                sx={{
+                                  color: '#1e40af',
+                                  filter: 'drop-shadow(0 2px 8px rgba(25, 118, 210, 0.2))'
+                                }}
+                              />
+                              <Box sx={{
+                                position: 'absolute',
+                                top: '50%',
+                                left: '50%',
+                                transform: 'translate(-50%, -50%)',
+                                width: 44,
+                                height: 44,
+                                borderRadius: '50%',
+                                background: 'linear-gradient(135deg, #1e40af 0%, #60a5fa 100%)',
+                                opacity: 0.15,
+                                animation: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                                '@keyframes pulse': {
+                                  '0%, 100%': {
+                                    transform: 'translate(-50%, -50%) scale(1)',
+                                    opacity: 0.15
+                                  },
+                                  '50%': {
+                                    transform: 'translate(-50%, -50%) scale(1.15)',
+                                    opacity: 0.05
+                                  }
+                                }
+                              }} />
+                            </Box>
+                            <Typography
                               sx={{
-                                color: '#1e40af',
-                                animation: 'pulse 1.5s ease-in-out infinite'
+                                fontSize: '0.95rem',
+                                fontWeight: 500,
+                                color: isDarkMode ? '#94a3b8' : '#546e7a',
+                                letterSpacing: 0.3,
+                                textAlign: 'center'
                               }}
-                            />
+                            >
+                              Loading data...
+                            </Typography>
                           </Box>
                         </Box>
                       )}
@@ -2217,62 +2394,194 @@ export default function MasterDataPage() {
                         </div>
                       </Box>
 
-                      <Box sx={{ borderTop: isDarkMode ? '2px solid #3b82f6' : '2px solid #1565c0', bgcolor: isDarkMode ? '#1e293b' : '#f5f5f5', py: 0.25 }}>
-                        <TablePagination
-                          component="div"
-                          count={totalRecords}
-                          page={page}
-                          onPageChange={(e, newPage) => setPage(newPage)}
-                          rowsPerPage={rowsPerPage}
-                          onRowsPerPageChange={(e) => { const value = parseInt(e.target.value, 10); setRowsPerPage(Math.min(value, 1000)); setPage(0); }}
-                          rowsPerPageOptions={[100, 500, 1000]}
-                          labelRowsPerPage="Rows:"
+                      {/* ================= PAGINATION (DASHBOARD STYLE - FULLY RESPONSIVE) ================= */}
+                      <Fade in={true} timeout={300}>
+                        <Box
                           sx={{
-                            color: isDarkMode ? '#f1f5f9' : 'inherit',
-                            '& .MuiTablePagination-toolbar': {
-                              minHeight: 40,
-                              px: { xs: 1, sm: 2 },
-                              py: 0.25,
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 0.5
-                            },
-                            '& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows': {
-                              fontSize: '0.85rem',
-                              fontWeight: 500,
-                              margin: 0,
-                              color: isDarkMode ? '#e2e8f0' : 'inherit'
-                            },
-                            '& .MuiTablePagination-select': {
-                              borderRadius: 1,
-                              color: isDarkMode ? '#f1f5f9' : 'inherit',
-                              backgroundColor: isDarkMode ? '#334155' : 'transparent',
-                              '&:focus': {
-                                backgroundColor: isDarkMode ? '#475569' : 'transparent'
-                              }
-                            },
-                            '& .MuiTablePagination-selectIcon': {
-                              color: isDarkMode ? '#e2e8f0' : 'inherit'
-                            },
-                            '& .MuiTablePagination-actions': {
-                              color: isDarkMode ? '#f1f5f9' : 'inherit',
-                              '& .MuiIconButton-root': {
-                                color: isDarkMode ? '#e2e8f0' : 'inherit',
-                                '&:hover': {
-                                  backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.04)'
-                                },
-                                '&.Mui-disabled': {
-                                  color: isDarkMode ? '#64748b' : 'rgba(0,0,0,0.26)'
-                                }
-                              }
-                            },
-                            '& .MuiIconButton-root': {
-                              color: isDarkMode ? '#e2e8f0' : 'inherit'
-                            }
+                            px: { xs: 1, sm: 2 },
+                            py: { xs: 0.75, sm: 0.5 },
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            borderTop: isDarkMode ? "1px solid rgba(255,255,255,0.1)" : "1px solid #ddd",
+                            bgcolor: isDarkMode ? '#1e293b' : "white",
+                            flexShrink: 0,
+                            minHeight: { xs: 44, sm: 52 },
+                            gap: { xs: 0.5, sm: 1 },
+                            flexWrap: 'wrap',
                           }}
-                          labelDisplayedRows={({ from, to, count }) => `${formatNumber(from)}–${formatNumber(to)} of ${formatNumber(count)}`}
-                        />
-                      </Box>
+                        >
+                          {/* Left Section: Per Page + Last Refresh */}
+                          <Stack direction="row" spacing={{ xs: 0.5, sm: 1.5 }} alignItems="center">
+                            <Typography sx={{ fontSize: { xs: "0.7rem", sm: "0.78rem" }, whiteSpace: "nowrap", color: isDarkMode ? '#94a3b8' : 'inherit' }}>
+                              Per page:
+                            </Typography>
+
+                            <Select
+                              size="small"
+                              value={rowsPerPage}
+                              onChange={(e) => {
+                                const value = Math.min(Number(e.target.value), 1000);
+                                setRowsPerPage(value);
+                                setPage(0);
+                              }}
+                              sx={{
+                                minWidth: { xs: 58, sm: 70 },
+                                '& .MuiSelect-select': {
+                                  py: { xs: 0.5, sm: 0.75 },
+                                  fontSize: { xs: '0.75rem', sm: '0.875rem' },
+                                }
+                              }}
+                            >
+                              <MenuItem value={100}>100</MenuItem>
+                              <MenuItem value={500}>500</MenuItem>
+                              <MenuItem value={1000}>1000</MenuItem>
+                            </Select>
+
+                            {/* Last Refresh Time Indicator */}
+                            {lastRefreshTime && !isMobile && (
+                              <Tooltip title={`Last updated: ${lastRefreshTime.toLocaleTimeString()}`}>
+                                <Stack direction="row" spacing={0.5} alignItems="center" sx={{ ml: 1 }}>
+                                  <AccessTime sx={{ fontSize: 14, color: isDarkMode ? '#64748b' : '#94a3b8' }} />
+                                  <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>
+                                    {(() => {
+                                      const seconds = Math.floor((new Date().getTime() - lastRefreshTime.getTime()) / 1000);
+                                      if (seconds < 10) return 'just now';
+                                      if (seconds < 60) return `${seconds}s ago`;
+                                      const minutes = Math.floor(seconds / 60);
+                                      if (minutes < 60) return `${minutes}m ago`;
+                                      return `${Math.floor(minutes / 60)}h ago`;
+                                    })()}
+                                  </Typography>
+                                </Stack>
+                              </Tooltip>
+                            )}
+                          </Stack>
+
+                          {/* Center Section: Count */}
+                          <Typography
+                            sx={{
+                              fontSize: { xs: "0.7rem", sm: "0.78rem" },
+                              whiteSpace: "nowrap",
+                              color: isDarkMode ? '#94a3b8' : 'inherit',
+                            }}
+                          >
+                            {formatNumber(page * rowsPerPage + 1)}–{formatNumber(Math.min((page + 1) * rowsPerPage, totalRecords))} of {formatNumber(totalRecords)}
+                          </Typography>
+
+                          {/* Right Section: Pagination Controls */}
+                          {isMobile ? (
+                            // MOBILE COMPACT PAGINATION
+                            <Stack direction="row" spacing={0.5} alignItems="center">
+                              <IconButton
+                                size="small"
+                                disabled={page === 0}
+                                onClick={() => setPage(0)}
+                                sx={{ p: 0.5 }}
+                              >
+                                <FirstPage fontSize="small" />
+                              </IconButton>
+                              <IconButton
+                                size="small"
+                                disabled={page === 0}
+                                onClick={() => setPage(page - 1)}
+                                sx={{ p: 0.5 }}
+                              >
+                                <KeyboardArrowLeft fontSize="small" />
+                              </IconButton>
+
+                              <Typography sx={{ fontSize: "0.75rem", fontWeight: 600, minWidth: 50, textAlign: 'center' }}>
+                                {page + 1} / {Math.ceil(totalRecords / rowsPerPage) || 1}
+                              </Typography>
+
+                              <IconButton
+                                size="small"
+                                disabled={page >= Math.ceil(totalRecords / rowsPerPage) - 1}
+                                onClick={() => setPage(page + 1)}
+                                sx={{ p: 0.5 }}
+                              >
+                                <KeyboardArrowRight fontSize="small" />
+                              </IconButton>
+                              <IconButton
+                                size="small"
+                                disabled={page >= Math.ceil(totalRecords / rowsPerPage) - 1}
+                                onClick={() => setPage(Math.ceil(totalRecords / rowsPerPage) - 1)}
+                                sx={{ p: 0.5 }}
+                              >
+                                <LastPage fontSize="small" />
+                              </IconButton>
+                            </Stack>
+                          ) : (
+                            // DESKTOP: Enhanced pagination with MUI Pagination component
+                            <Stack direction="row" spacing={1} alignItems="center">
+                              <Tooltip title="First page">
+                                <span>
+                                  <IconButton
+                                    size="small"
+                                    disabled={page === 0}
+                                    onClick={() => setPage(0)}
+                                  >
+                                    <FirstPage fontSize="small" />
+                                  </IconButton>
+                                </span>
+                              </Tooltip>
+
+                              <Tooltip title="Previous page">
+                                <span>
+                                  <IconButton
+                                    size="small"
+                                    disabled={page === 0}
+                                    onClick={() => setPage(page - 1)}
+                                  >
+                                    <KeyboardArrowLeft />
+                                  </IconButton>
+                                </span>
+                              </Tooltip>
+
+                              <Pagination
+                                page={page + 1}
+                                count={Math.ceil(totalRecords / rowsPerPage) || 1}
+                                size="small"
+                                onChange={(_, v) => setPage(v - 1)}
+                                siblingCount={1}
+                                boundaryCount={1}
+                                sx={{
+                                  '& .MuiPaginationItem-root': {
+                                    color: isDarkMode ? '#94a3b8' : 'inherit',
+                                  },
+                                  '& .Mui-selected': {
+                                    bgcolor: isDarkMode ? 'rgba(59, 130, 246, 0.3) !important' : 'rgba(25, 118, 210, 0.12) !important',
+                                  }
+                                }}
+                              />
+
+                              <Tooltip title="Next page">
+                                <span>
+                                  <IconButton
+                                    size="small"
+                                    disabled={page >= Math.ceil(totalRecords / rowsPerPage) - 1}
+                                    onClick={() => setPage(page + 1)}
+                                  >
+                                    <KeyboardArrowRight />
+                                  </IconButton>
+                                </span>
+                              </Tooltip>
+
+                              <Tooltip title="Last page">
+                                <span>
+                                  <IconButton
+                                    size="small"
+                                    disabled={page >= Math.ceil(totalRecords / rowsPerPage) - 1}
+                                    onClick={() => setPage(Math.ceil(totalRecords / rowsPerPage) - 1)}
+                                  >
+                                    <LastPage fontSize="small" />
+                                  </IconButton>
+                                </span>
+                              </Tooltip>
+                            </Stack>
+                          )}
+                        </Box>
+                      </Fade>
                     </Box>
                   </Box >
                 )}

@@ -43,6 +43,9 @@ import {
     Toolbar,
     IconButton,
     Switch,
+    Pagination,
+    InputBase,
+    Fade,
 } from '@mui/material';
 import {
     Download as DownloadIcon,
@@ -56,6 +59,11 @@ import {
     FilterList as FilterListIcon,
     Tune as TuneIcon,
     Close as CloseIcon,
+    KeyboardArrowLeft,
+    KeyboardArrowRight,
+    FirstPage,
+    LastPage,
+    AccessTime,
 } from '@mui/icons-material';
 import { outboundAPI, customerAPI } from '@/lib/api';
 import { useWarehouse } from '@/app/context/WarehouseContext';
@@ -469,6 +477,21 @@ export default function OutboundPage() {
     const ERROR_TOAST_COOLDOWN = 5000; // ms - minimum time between error toasts
     const [topLoading, setTopLoading] = useState(false);
     const previousDataRef = useRef<OutboundItem[] | null>(null);
+
+    // ⚡ PAGE CACHE: Store fetched pages for instant back navigation
+    const pageCacheRef = useRef<Map<string, { data: OutboundItem[], total: number, timestamp: number }>>(new Map());
+    const PAGE_CACHE_TTL = 60000; // 1 minute cache validity
+
+    // ⚡ LAST REFRESH TIME: Track when data was last fetched
+    const [lastRefreshTime, setLastRefreshTime] = useState<Date | null>(null);
+
+    // ⚡ AUTO-RETRY: Track retry attempts
+    const retryCountRef = useRef(0);
+    const MAX_RETRIES = 2;
+
+    // ⚡ LAZY LOADING: Defer filter options loading
+    const [filtersLoaded, setFiltersLoaded] = useState(false);
+
     const [customers, setCustomers] = useState<string[]>([]);
     const [brands, setBrands] = useState<string[]>([]);
     const [categories, setCategories] = useState<string[]>([]);
@@ -1715,7 +1738,7 @@ export default function OutboundPage() {
                 return;
             }
 
-            // Shift+Arrow keys - Extend selection
+            // Shift+Arrow keys - Extend selection (Excel-like behavior)
             if (shiftKey && !ctrlKey && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key) && !isEditing) {
                 const api = gridRef.current?.api;
                 if (!api) return;
@@ -1724,42 +1747,58 @@ export default function OutboundPage() {
                 if (!focusedCell) return;
 
                 e.preventDefault();
+                e.stopImmediatePropagation(); // Stop AG Grid from handling this
 
                 const { rowIndex, column } = focusedCell;
                 const colId = column.getColId();
 
+                const allColumns = api.getAllDisplayedColumns() || [];
+                const colIds = allColumns.map((c: any) => c.getColId());
+
+                // If no anchor set, use current focused cell as anchor (starting point)
                 if (!rangeStartCellRef.current) {
                     rangeStartCellRef.current = { rowIndex, colId };
                 }
 
-                const allColumns = api.getAllDisplayedColumns() || [];
-                const colIds = allColumns.map((c: any) => c.getColId());
-                const currentColIndex = colIds.indexOf(colId);
+                // Get current end position from existing selection, or use anchor as starting point
+                const currentRange = selectedRangeRef.current;
+                let currentEndRow = currentRange ? currentRange.endRow : rangeStartCellRef.current.rowIndex;
+                let currentEndCol = currentRange ? currentRange.endCol : rangeStartCellRef.current.colId;
+                const currentEndColIndex = colIds.indexOf(currentEndCol);
 
-                let newRowIndex = rowIndex;
-                let newColIndex = currentColIndex;
+                let newEndRow = currentEndRow;
+                let newEndCol = currentEndCol;
 
-                if (e.key === 'ArrowUp') newRowIndex = Math.max(0, rowIndex - 1);
-                if (e.key === 'ArrowDown') newRowIndex = Math.min(multiRowsRef.current.length - 1, rowIndex + 1);
-                if (e.key === 'ArrowLeft') newColIndex = Math.max(0, currentColIndex - 1);
-                if (e.key === 'ArrowRight') newColIndex = Math.min(colIds.length - 1, currentColIndex + 1);
+                // Extend selection from current end point
+                if (e.key === 'ArrowUp') newEndRow = Math.max(0, currentEndRow - 1);
+                if (e.key === 'ArrowDown') newEndRow = Math.min(multiRowsRef.current.length - 1, currentEndRow + 1);
+                if (e.key === 'ArrowLeft') {
+                    const newColIndex = Math.max(0, currentEndColIndex - 1);
+                    newEndCol = colIds[newColIndex];
+                }
+                if (e.key === 'ArrowRight') {
+                    const newColIndex = Math.min(colIds.length - 1, currentEndColIndex + 1);
+                    newEndCol = colIds[newColIndex];
+                }
 
-                const newColId = colIds[newColIndex];
-
+                // Update range - use rangeStartCellRef as anchor
                 setSelectedRange({
                     startRow: rangeStartCellRef.current.rowIndex,
-                    endRow: newRowIndex,
+                    endRow: newEndRow,
                     startCol: rangeStartCellRef.current.colId,
-                    endCol: newColId,
+                    endCol: newEndCol,
                 });
 
-                api.setFocusedCell(newRowIndex, newColId);
-                api.ensureIndexVisible(newRowIndex, 'middle');
+                // Move focus to follow selection end
+                api.setFocusedCell(newEndRow, newEndCol);
+                api.ensureIndexVisible(newEndRow, 'middle');
+                return; // Exit early
             }
         };
 
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
+        // Use capture phase to intercept before AG Grid handles it
+        window.addEventListener('keydown', handleKeyDown, true);
+        return () => window.removeEventListener('keydown', handleKeyDown, true);
     }, [currentTabCode, handleSelectAll, handleClearCells, handleUndo, handleRedo, handleFillDown, handleFillRight, handleGoToFirst, handleGoToLast]);
 
     // ✅ AUTO-FETCH SOURCE DATA ON WSN CELL EDIT (MULTI ENTRY)
@@ -2247,6 +2286,66 @@ export default function OutboundPage() {
     };
 
     // ====== OUTBOUND LIST ======
+    // ⚡ HELPER: Generate cache key for current filters
+    const getCacheKey = useCallback(() => {
+        return JSON.stringify({
+            warehouseId: activeWarehouse?.id,
+            page,
+            limit,
+            search: searchDebounced,
+            source: sourceFilter,
+            customer: customerFilter,
+            startDate: startDateFilter,
+            endDate: endDateFilter,
+            batchId: batchFilter,
+            brand: brandFilter,
+            category: categoryFilter,
+        });
+    }, [activeWarehouse?.id, page, limit, searchDebounced, sourceFilter, customerFilter, startDateFilter, endDateFilter, batchFilter, brandFilter, categoryFilter]);
+
+    // ⚡ PREFETCH: Prefetch next page in background
+    const prefetchNextPage = useCallback(async () => {
+        const totalPages = Math.ceil(total / limit);
+        if (page >= totalPages) return;
+
+        const nextPageCacheKey = JSON.stringify({
+            warehouseId: activeWarehouse?.id,
+            page: page + 1,
+            limit,
+            search: searchDebounced,
+            source: sourceFilter,
+            customer: customerFilter,
+            startDate: startDateFilter,
+            endDate: endDateFilter,
+            batchId: batchFilter,
+            brand: brandFilter,
+            category: categoryFilter,
+        });
+
+        const cached = pageCacheRef.current.get(nextPageCacheKey);
+        if (cached && Date.now() - cached.timestamp < PAGE_CACHE_TTL) return;
+
+        try {
+            const res = await outboundAPI.getList(page + 1, limit, {
+                warehouseId: activeWarehouse?.id,
+                search: searchDebounced,
+                source: sourceFilter,
+                customer: customerFilter,
+                startDate: startDateFilter,
+                endDate: endDateFilter,
+                batchId: batchFilter,
+                brand: brandFilter,
+                category: categoryFilter,
+            });
+            const rows = res.data?.data || [];
+            pageCacheRef.current.set(nextPageCacheKey, {
+                data: rows,
+                total: res.data?.total || 0,
+                timestamp: Date.now(),
+            });
+        } catch { /* Silently fail - prefetch is optional */ }
+    }, [activeWarehouse?.id, page, limit, total, searchDebounced, sourceFilter, customerFilter, startDateFilter, endDateFilter, batchFilter, brandFilter, categoryFilter]);
+
     const loadOutboundList = async (opts: { buttonRefresh?: boolean } = { buttonRefresh: false }) => {
         if (!activeWarehouse) return;
 
@@ -2254,7 +2353,25 @@ export default function OutboundPage() {
         currentLoadIdRef.current += 1;
         const loadId = currentLoadIdRef.current;
 
+        const cacheKey = getCacheKey();
+
+        // ⚡ PAGE CACHE: Check cache first (unless force refresh)
         const { buttonRefresh } = opts;
+        if (!buttonRefresh) {
+            const cached = pageCacheRef.current.get(cacheKey);
+            if (cached && Date.now() - cached.timestamp < PAGE_CACHE_TTL) {
+                previousDataRef.current = cached.data;
+                setListData(cached.data);
+                setTotal(cached.total);
+                setLastRefreshTime(new Date(cached.timestamp));
+                setListLoading(false);
+                setIsFetching(false);
+                setInitialLoadDone(true);
+                setTimeout(() => prefetchNextPage(), 100);
+                return;
+            }
+        }
+
         if (buttonRefresh) {
             setRefreshing(true);
         } else {
@@ -2394,6 +2511,18 @@ export default function OutboundPage() {
 
                 // Reset retry counter on success
                 listRetryCountRef.current = 0;
+                retryCountRef.current = 0;
+
+                // ⚡ PAGE CACHE: Store in cache
+                pageCacheRef.current.set(cacheKey, {
+                    data,
+                    total: res.data?.total || 0,
+                    timestamp: Date.now(),
+                });
+                setLastRefreshTime(new Date());
+
+                // ⚡ PREFETCH: Prefetch next page after successful load
+                setTimeout(() => prefetchNextPage(), 500);
 
                 // Mark initial load as complete
                 setInitialLoadDone(true);
@@ -2429,6 +2558,16 @@ export default function OutboundPage() {
 
             console.error('Load outbound list error:', err);
 
+            // ⚡ AUTO-RETRY: Retry on failure with exponential backoff
+            if (retryCountRef.current < MAX_RETRIES && !buttonRefresh) {
+                retryCountRef.current++;
+                toast.error(`Loading failed, retrying... (${retryCountRef.current}/${MAX_RETRIES})`);
+                setTimeout(() => {
+                    loadOutboundList({ buttonRefresh: true });
+                }, 1000 * retryCountRef.current);
+                return;
+            }
+
             // Rate-limit error toasts to prevent spamming
             const now = Date.now();
             if (now - lastErrorToastRef.current > ERROR_TOAST_COOLDOWN) {
@@ -2439,14 +2578,7 @@ export default function OutboundPage() {
                     toast.error(err.response?.data?.error || 'Failed to load outbound list');
                 }
             }
-
-            // Auto-retry once after 2 seconds (for temporary database issues after bulk upload)
-            if (listRetryCountRef.current < 2 && !buttonRefresh) {
-                listRetryCountRef.current++;
-                setTimeout(() => {
-                    loadOutboundList({ buttonRefresh: false });
-                }, 2000);
-            }
+            retryCountRef.current = 0;
 
             // Do not clear existing list data on error to avoid blinking; keep previous rows visible
         } finally {
@@ -3291,8 +3423,44 @@ export default function OutboundPage() {
                             position: 'relative'
                         }}>
 
-                            {/* Loading Overlay with Spinner */}
-                            {listLoading && (
+                            {/* Loading Spinner Overlay - semi-transparent so data stays visible */}
+                            {listLoading && listData && listData.length > 0 && (
+                                <Box sx={{
+                                    position: 'absolute',
+                                    top: 0,
+                                    left: 0,
+                                    right: 0,
+                                    bottom: 0,
+                                    backgroundColor: isDarkMode ? 'rgba(15, 23, 42, 0.5)' : 'rgba(255, 255, 255, 0.5)',
+                                    zIndex: 10,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                }}>
+                                    <Box sx={{
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        alignItems: 'center',
+                                        gap: 1.5,
+                                        p: 3,
+                                        bgcolor: isDarkMode ? 'rgba(30, 41, 59, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+                                        borderRadius: 2,
+                                        boxShadow: '0 4px 20px rgba(0,0,0,0.15)'
+                                    }}>
+                                        <CircularProgress
+                                            size={40}
+                                            thickness={4}
+                                            sx={{ color: '#1e40af' }}
+                                        />
+                                        <Typography sx={{ fontSize: '0.85rem', fontWeight: 500, color: isDarkMode ? '#94a3b8' : '#64748b' }}>
+                                            Loading...
+                                        </Typography>
+                                    </Box>
+                                </Box>
+                            )}
+
+                            {/* Full Loading Overlay - ONLY for initial load when no data exists */}
+                            {listLoading && (!listData || listData.length === 0) && (
                                 <Box sx={{
                                     position: 'absolute',
                                     top: 48,
@@ -3534,166 +3702,194 @@ export default function OutboundPage() {
                             </Box>
                         </Box>
 
-                        {/* PAGINATION (Dashboard Style) */}
-                        <Box
-                            sx={{
-                                px: { xs: 1, sm: 2 },
-                                py: { xs: 0.75, sm: 0.5 },
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "space-between",
-                                borderTop: isDarkMode ? "1px solid rgba(255,255,255,0.1)" : "1px solid #ddd",
-                                bgcolor: isDarkMode ? '#1e293b' : "white",
-                                flexShrink: 0,
-                                minHeight: { xs: 44, sm: 48 },
-                                gap: { xs: 0.5, sm: 1 },
-                                mt: 1,
-                                borderRadius: 1,
-                            }}
-                        >
-                            {/* Per Page */}
-                            <Stack direction="row" spacing={{ xs: 0.5, sm: 1 }} alignItems="center">
-                                <Typography sx={{ fontSize: { xs: "0.7rem", sm: "0.78rem" }, whiteSpace: "nowrap", color: isDarkMode ? '#94a3b8' : 'inherit' }}>
-                                    Per page:
-                                </Typography>
-                                <Select
-                                    size="small"
-                                    value={limit}
-                                    onChange={(e) => {
-                                        setLimit(Number(e.target.value));
-                                        setPage(1);
-                                    }}
-                                    sx={{
-                                        minWidth: { xs: 58, sm: 70 },
-                                        '& .MuiSelect-select': {
-                                            py: { xs: 0.5, sm: 0.75 },
-                                            fontSize: { xs: '0.75rem', sm: '0.875rem' },
-                                        },
-                                        color: isDarkMode ? '#e2e8f0' : 'inherit',
-                                        backgroundColor: isDarkMode ? '#334155' : 'transparent',
-                                        '& .MuiOutlinedInput-notchedOutline': {
-                                            borderColor: isDarkMode ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.23)'
-                                        },
-                                        '&:hover .MuiOutlinedInput-notchedOutline': {
-                                            borderColor: isDarkMode ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.87)'
-                                        },
-                                        '& .MuiSvgIcon-root': {
-                                            color: isDarkMode ? '#e2e8f0' : 'inherit'
-                                        }
-                                    }}
-                                    MenuProps={{
-                                        disableScrollLock: true,
-                                        PaperProps: {
-                                            sx: {
-                                                bgcolor: isDarkMode ? '#334155' : 'white',
-                                                color: isDarkMode ? '#e2e8f0' : 'inherit',
-                                                '& .MuiMenuItem-root': {
-                                                    '&:hover': {
-                                                        bgcolor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.04)'
-                                                    },
-                                                    '&.Mui-selected': {
-                                                        bgcolor: isDarkMode ? 'rgba(59, 130, 246, 0.3)' : 'rgba(25, 118, 210, 0.08)',
-                                                        '&:hover': {
-                                                            bgcolor: isDarkMode ? 'rgba(59, 130, 246, 0.4)' : 'rgba(25, 118, 210, 0.12)'
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }}
-                                >
-                                    <MenuItem value={50}>50</MenuItem>
-                                    <MenuItem value={100}>100</MenuItem>
-                                    <MenuItem value={500}>500</MenuItem>
-                                    <MenuItem value={1000}>1000</MenuItem>
-                                </Select>
-                            </Stack>
-
-                            {/* Count */}
-                            <Typography
+                        {/* ================= PAGINATION (DASHBOARD STYLE - FULLY RESPONSIVE) ================= */}
+                        <Fade in={true} timeout={300}>
+                            <Box
                                 sx={{
-                                    fontSize: { xs: "0.7rem", sm: "0.78rem" },
-                                    whiteSpace: "nowrap",
-                                    color: isDarkMode ? '#94a3b8' : 'inherit',
+                                    px: { xs: 1, sm: 2 },
+                                    py: { xs: 0.75, sm: 0.5 },
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "space-between",
+                                    borderTop: isDarkMode ? "1px solid rgba(255,255,255,0.1)" : "1px solid #ddd",
+                                    bgcolor: isDarkMode ? '#1e293b' : "white",
+                                    flexShrink: 0,
+                                    minHeight: { xs: 44, sm: 52 },
+                                    gap: { xs: 0.5, sm: 1 },
+                                    flexWrap: 'wrap',
                                 }}
                             >
-                                {listData.length > 0 ? (page - 1) * limit + 1 : 0} – {Math.min(page * limit, total)} of {total}
-                            </Typography>
-
-                            {/* Pagination Controls */}
-                            {isMobile ? (
-                                <Stack direction="row" spacing={0.5} alignItems="center">
-                                    <Button
-                                        size="small"
-                                        disabled={page === 1}
-                                        onClick={() => setPage(page - 1)}
-                                        sx={{
-                                            minWidth: { xs: 40, sm: 64 },
-                                            px: { xs: 0.5, sm: 2 },
-                                            fontSize: { xs: '0.7rem', sm: '0.875rem' },
-                                        }}
-                                    >
-                                        Prev
-                                    </Button>
-                                    <Typography sx={{ fontSize: { xs: "0.75rem", sm: "0.85rem" }, fontWeight: 600, minWidth: 40, textAlign: 'center' }}>
-                                        {page} / {Math.ceil(total / limit) || 1}
+                                {/* Left Section: Per Page + Last Refresh */}
+                                <Stack direction="row" spacing={{ xs: 0.5, sm: 1.5 }} alignItems="center">
+                                    <Typography sx={{ fontSize: { xs: "0.7rem", sm: "0.78rem" }, whiteSpace: "nowrap", color: isDarkMode ? '#94a3b8' : 'inherit' }}>
+                                        Per page:
                                     </Typography>
-                                    <Button
+
+                                    <Select
                                         size="small"
-                                        disabled={page >= Math.ceil(total / limit)}
-                                        onClick={() => setPage(page + 1)}
+                                        value={limit}
+                                        onChange={(e) => {
+                                            setLimit(Number(e.target.value));
+                                            setPage(1);
+                                        }}
                                         sx={{
-                                            minWidth: { xs: 40, sm: 64 },
-                                            px: { xs: 0.5, sm: 2 },
-                                            fontSize: { xs: '0.7rem', sm: '0.875rem' },
+                                            minWidth: { xs: 58, sm: 70 },
+                                            '& .MuiSelect-select': {
+                                                py: { xs: 0.5, sm: 0.75 },
+                                                fontSize: { xs: '0.75rem', sm: '0.875rem' },
+                                            }
                                         }}
                                     >
-                                        Next
-                                    </Button>
+                                        <MenuItem value={50}>50</MenuItem>
+                                        <MenuItem value={100}>100</MenuItem>
+                                        <MenuItem value={500}>500</MenuItem>
+                                        <MenuItem value={1000}>1000</MenuItem>
+                                    </Select>
+
+                                    {/* Last Refresh Time Indicator */}
+                                    {lastRefreshTime && !isMobile && (
+                                        <Tooltip title={`Last updated: ${lastRefreshTime.toLocaleTimeString()}`}>
+                                            <Stack direction="row" spacing={0.5} alignItems="center" sx={{ ml: 1 }}>
+                                                <AccessTime sx={{ fontSize: 14, color: isDarkMode ? '#64748b' : '#94a3b8' }} />
+                                                <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>
+                                                    {(() => {
+                                                        const seconds = Math.floor((new Date().getTime() - lastRefreshTime.getTime()) / 1000);
+                                                        if (seconds < 10) return 'just now';
+                                                        if (seconds < 60) return `${seconds}s ago`;
+                                                        const minutes = Math.floor(seconds / 60);
+                                                        if (minutes < 60) return `${minutes}m ago`;
+                                                        return `${Math.floor(minutes / 60)}h ago`;
+                                                    })()}
+                                                </Typography>
+                                            </Stack>
+                                        </Tooltip>
+                                    )}
                                 </Stack>
-                            ) : (
-                                <Stack direction="row" spacing={0.5} alignItems="center">
-                                    <Button
-                                        size="small"
-                                        variant="outlined"
-                                        disabled={page === 1}
-                                        onClick={() => setPage(page - 1)}
-                                        sx={{ minWidth: 64, fontSize: '0.75rem', fontWeight: 600 }}
-                                    >
-                                        ◀ Prev
-                                    </Button>
-                                    <Box sx={{
-                                        px: 1.5,
-                                        py: 0.4,
-                                        border: isDarkMode ? '2px solid #8b5cf6' : '2px solid #6b21a8',
-                                        borderRadius: 1,
-                                        background: isDarkMode
-                                            ? 'linear-gradient(135deg, rgba(139, 92, 246, 0.2) 0%, rgba(107, 33, 168, 0.2) 100%)'
-                                            : 'linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(107, 33, 168, 0.1) 100%)',
-                                        minWidth: 60,
-                                        textAlign: 'center'
-                                    }}>
-                                        <Typography sx={{
-                                            fontWeight: 800,
-                                            color: isDarkMode ? '#a78bfa' : '#6b21a8',
-                                            fontSize: '0.75rem',
-                                            lineHeight: 1.1
-                                        }}>
-                                            {page}/{Math.ceil(total / limit) || 1}
+
+                                {/* Center Section: Count */}
+                                <Typography
+                                    sx={{
+                                        fontSize: { xs: "0.7rem", sm: "0.78rem" },
+                                        whiteSpace: "nowrap",
+                                        color: isDarkMode ? '#94a3b8' : 'inherit',
+                                    }}
+                                >
+                                    {listData.length > 0 ? (page - 1) * limit + 1 : 0} – {Math.min(page * limit, total)} of {total}
+                                </Typography>
+
+                                {/* Right Section: Pagination Controls */}
+                                {isMobile ? (
+                                    // MOBILE COMPACT PAGINATION
+                                    <Stack direction="row" spacing={0.5} alignItems="center">
+                                        <IconButton
+                                            size="small"
+                                            disabled={page === 1}
+                                            onClick={() => setPage(1)}
+                                            sx={{ p: 0.5 }}
+                                        >
+                                            <FirstPage fontSize="small" />
+                                        </IconButton>
+                                        <IconButton
+                                            size="small"
+                                            disabled={page === 1}
+                                            onClick={() => setPage(page - 1)}
+                                            sx={{ p: 0.5 }}
+                                        >
+                                            <KeyboardArrowLeft fontSize="small" />
+                                        </IconButton>
+
+                                        <Typography sx={{ fontSize: "0.75rem", fontWeight: 600, minWidth: 50, textAlign: 'center' }}>
+                                            {page} / {Math.ceil(total / limit) || 1}
                                         </Typography>
-                                    </Box>
-                                    <Button
-                                        size="small"
-                                        variant="outlined"
-                                        disabled={page >= Math.ceil(total / limit)}
-                                        onClick={() => setPage(page + 1)}
-                                        sx={{ minWidth: 64, fontSize: '0.75rem', fontWeight: 600 }}
-                                    >
-                                        Next ▶
-                                    </Button>
-                                </Stack>
-                            )}
-                        </Box>
+
+                                        <IconButton
+                                            size="small"
+                                            disabled={page >= Math.ceil(total / limit)}
+                                            onClick={() => setPage(page + 1)}
+                                            sx={{ p: 0.5 }}
+                                        >
+                                            <KeyboardArrowRight fontSize="small" />
+                                        </IconButton>
+                                        <IconButton
+                                            size="small"
+                                            disabled={page >= Math.ceil(total / limit)}
+                                            onClick={() => setPage(Math.ceil(total / limit))}
+                                            sx={{ p: 0.5 }}
+                                        >
+                                            <LastPage fontSize="small" />
+                                        </IconButton>
+                                    </Stack>
+                                ) : (
+                                    // DESKTOP: Enhanced pagination with MUI Pagination component
+                                    <Stack direction="row" spacing={1} alignItems="center">
+                                        <Tooltip title="First page">
+                                            <span>
+                                                <IconButton
+                                                    size="small"
+                                                    disabled={page === 1}
+                                                    onClick={() => setPage(1)}
+                                                >
+                                                    <FirstPage fontSize="small" />
+                                                </IconButton>
+                                            </span>
+                                        </Tooltip>
+
+                                        <Tooltip title="Previous page">
+                                            <span>
+                                                <IconButton
+                                                    size="small"
+                                                    disabled={page === 1}
+                                                    onClick={() => setPage(page - 1)}
+                                                >
+                                                    <KeyboardArrowLeft />
+                                                </IconButton>
+                                            </span>
+                                        </Tooltip>
+
+                                        <Pagination
+                                            page={page}
+                                            count={Math.ceil(total / limit) || 1}
+                                            size="small"
+                                            onChange={(_, v) => setPage(v)}
+                                            siblingCount={1}
+                                            boundaryCount={1}
+                                            sx={{
+                                                '& .MuiPaginationItem-root': {
+                                                    color: isDarkMode ? '#94a3b8' : 'inherit',
+                                                },
+                                                '& .Mui-selected': {
+                                                    bgcolor: isDarkMode ? 'rgba(59, 130, 246, 0.3) !important' : 'rgba(25, 118, 210, 0.12) !important',
+                                                }
+                                            }}
+                                        />
+
+                                        <Tooltip title="Next page">
+                                            <span>
+                                                <IconButton
+                                                    size="small"
+                                                    disabled={page >= Math.ceil(total / limit)}
+                                                    onClick={() => setPage(page + 1)}
+                                                >
+                                                    <KeyboardArrowRight />
+                                                </IconButton>
+                                            </span>
+                                        </Tooltip>
+
+                                        <Tooltip title="Last page">
+                                            <span>
+                                                <IconButton
+                                                    size="small"
+                                                    disabled={page >= Math.ceil(total / limit)}
+                                                    onClick={() => setPage(Math.ceil(total / limit))}
+                                                >
+                                                    <LastPage fontSize="small" />
+                                                </IconButton>
+                                            </span>
+                                        </Tooltip>
+                                    </Stack>
+                                )}
+                            </Box>
+                        </Fade>
 
                         {/* List Column Settings Dialog */}
                         <Dialog open={listColumnSettingsOpen} onClose={() => setListColumnSettingsOpen(false)} maxWidth="sm" fullWidth>

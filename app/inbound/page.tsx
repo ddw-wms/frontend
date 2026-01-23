@@ -9,7 +9,7 @@ import {
   DialogContent, DialogActions, TextField, MenuItem, Chip, Stack, Tab, Tabs,
   CircularProgress, Alert, Card, CardContent, LinearProgress, Divider,
   Select, FormControl, InputLabel, InputAdornment, Checkbox, FormControlLabel,
-  Collapse, IconButton, AppBar, Toolbar, useMediaQuery, useTheme, Switch
+  Collapse, IconButton, AppBar, Toolbar, useMediaQuery, useTheme, Switch, Pagination, InputBase, Fade
 } from '@mui/material';
 
 import {
@@ -20,7 +20,7 @@ import {
   ExpandMore as ExpandMoreIcon,
   FilterList as FilterListIcon,
   Close as CloseIcon,
-  Tune as TuneIcon,
+  Tune as TuneIcon, KeyboardArrowLeft, KeyboardArrowRight, FirstPage, LastPage, AccessTime
 } from '@mui/icons-material';
 
 import { inboundAPI } from '@/lib/api';
@@ -187,6 +187,16 @@ export default function InboundPage() {
     }
     return true;
   });
+
+  // ====== CTRL+O PRODUCT LINK SHORTCUT STATE ======
+  const [ctrlOProductLinkEnabled, setCtrlOProductLinkEnabled] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('inbound_ctrlOProductLinkEnabled');
+      return saved !== 'false'; // Default to true
+    }
+    return true;
+  });
+
   // Track last scanned row data for Ctrl+P reprint
   const lastScannedRowRef = useRef<any>(null);
 
@@ -315,6 +325,21 @@ export default function InboundPage() {
   const MIN_LOADING_MS = 350;
   // Search debounce delay for smooth performance
   const SEARCH_DEBOUNCE_MS = 300;
+
+  // ⚡ PAGE CACHE: Store fetched pages for instant back navigation
+  const pageCacheRef = useRef<Map<string, { data: any[], total: number, timestamp: number }>>(new Map());
+  const PAGE_CACHE_TTL = 60000; // 1 minute cache validity
+
+  // ⚡ LAST REFRESH TIME: Track when data was last fetched
+  const [lastRefreshTime, setLastRefreshTime] = useState<Date | null>(null);
+
+  // ⚡ AUTO-RETRY: Track retry attempts
+  const retryCountRef = useRef(0);
+  const MAX_RETRIES = 2;
+
+  // ⚡ LAZY LOADING: Defer filter options loading
+  const [filtersLoaded, setFiltersLoaded] = useState(false);
+
   const [brandFilter, setBrandFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [dateFromFilter, setDateFromFilter] = useState('');
@@ -857,6 +882,12 @@ export default function InboundPage() {
     }
   }, [ctrlPPrintEnabled]);
 
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('inbound_ctrlOProductLinkEnabled', String(ctrlOProductLinkEnabled));
+    }
+  }, [ctrlOProductLinkEnabled]);
+
   // ====== KEEP multiRowsRef IN SYNC WITH multiRows STATE ======
   useEffect(() => {
     multiRowsRef.current = multiRows;
@@ -978,12 +1009,78 @@ export default function InboundPage() {
   }, [tabValue, listColumns, listData.length]);
 
   // ====== INBOUND LIST & helper loaders ======
+  // ⚡ HELPER: Generate cache key for current filters
+  const getCacheKey = useCallback(() => {
+    return JSON.stringify({
+      warehouseId: activeWarehouse?.id,
+      page,
+      limit,
+      search: searchFilter,
+      brand: brandFilter,
+      category: categoryFilter,
+      dateFrom: dateFromFilter,
+      dateTo: dateToFilter,
+    });
+  }, [activeWarehouse?.id, page, limit, searchFilter, brandFilter, categoryFilter, dateFromFilter, dateToFilter]);
+
+  // ⚡ PREFETCH: Prefetch next page in background
+  const prefetchNextPage = useCallback(async () => {
+    const totalPages = Math.ceil(total / limit);
+    if (page >= totalPages) return;
+
+    const nextPageCacheKey = JSON.stringify({
+      warehouseId: activeWarehouse?.id,
+      page: page + 1,
+      limit,
+      search: searchFilter,
+      brand: brandFilter,
+      category: categoryFilter,
+      dateFrom: dateFromFilter,
+      dateTo: dateToFilter,
+    });
+
+    const cached = pageCacheRef.current.get(nextPageCacheKey);
+    if (cached && Date.now() - cached.timestamp < PAGE_CACHE_TTL) return;
+
+    try {
+      const response = await inboundAPI.getAll(page + 1, limit, {
+        warehouseId: activeWarehouse?.id,
+        search: searchFilter,
+        brand: brandFilter,
+        category: categoryFilter,
+        dateFrom: dateFromFilter,
+        dateTo: dateToFilter,
+      });
+      const rows = response.data?.data || [];
+      pageCacheRef.current.set(nextPageCacheKey, {
+        data: rows,
+        total: response.data?.total || 0,
+        timestamp: Date.now(),
+      });
+    } catch { /* Silently fail - prefetch is optional */ }
+  }, [activeWarehouse?.id, page, limit, total, searchFilter, brandFilter, categoryFilter, dateFromFilter, dateToFilter]);
+
   const loadInboundList = useCallback(async ({ buttonRefresh = false } = {}) => {
     const t0 = Date.now();
 
     // Mark this request id so we can ignore stale responses
     currentLoadIdRef.current += 1;
     const loadId = currentLoadIdRef.current;
+
+    const cacheKey = getCacheKey();
+
+    // ⚡ PAGE CACHE: Check cache first (unless force refresh)
+    if (!buttonRefresh) {
+      const cached = pageCacheRef.current.get(cacheKey);
+      if (cached && Date.now() - cached.timestamp < PAGE_CACHE_TTL) {
+        setListData(cached.data);
+        setTotal(cached.total);
+        setLastRefreshTime(new Date(cached.timestamp));
+        setListLoading(false);
+        setTimeout(() => prefetchNextPage(), 100);
+        return;
+      }
+    }
 
     if (buttonRefresh) {
       setRefreshing(true);
@@ -1028,8 +1125,22 @@ export default function InboundPage() {
 
       // Only apply if this is the latest load
       if (loadId === currentLoadIdRef.current) {
-        setListData(response.data.data);
-        setTotal(response.data.total);
+        const rows = response.data.data;
+        const totalCount = response.data.total;
+        setListData(rows);
+        setTotal(totalCount);
+
+        // ⚡ CACHE: Store in cache
+        pageCacheRef.current.set(cacheKey, {
+          data: rows,
+          total: totalCount,
+          timestamp: Date.now(),
+        });
+        setLastRefreshTime(new Date());
+        retryCountRef.current = 0; // Reset retry count on success
+
+        // ⚡ PREFETCH: Trigger prefetch of next page
+        setTimeout(() => prefetchNextPage(), 100);
 
         if (buttonRefresh) {
           toast.success('✓ List refreshed');
@@ -1059,6 +1170,13 @@ export default function InboundPage() {
           }
           router.push('/login');
         } else {
+          // ⚡ AUTO-RETRY: Retry on network errors (max 2 times)
+          if (retryCountRef.current < MAX_RETRIES && !buttonRefresh) {
+            retryCountRef.current += 1;
+            const delay = Math.pow(2, retryCountRef.current) * 500;
+            setTimeout(() => loadInboundList({ buttonRefresh: false }), delay);
+            return;
+          }
           if (buttonRefresh) toast.error(msg);
           else toast.error(msg);
         }
@@ -1091,7 +1209,7 @@ export default function InboundPage() {
         listAbortControllerRef.current = null;
       }
     }
-  }, [activeWarehouse?.id, page, limit, searchFilter, brandFilter, categoryFilter, dateFromFilter, dateToFilter, router]);
+  }, [activeWarehouse?.id, page, limit, searchFilter, brandFilter, categoryFilter, dateFromFilter, dateToFilter, router, getCacheKey, prefetchNextPage]);
 
   const loadBrands = useCallback(async () => {
     try {
@@ -2200,6 +2318,37 @@ export default function InboundPage() {
         // Print the last scanned WSN
         const rowData = lastScannedRowRef.current;
         printRowWSN(rowData);
+        return;
+      }
+
+      // Ctrl+O → Open product link for last scanned WSN (custom shortcut)
+      if (ctrlKey && e.key.toLowerCase() === 'o') {
+        e.preventDefault();
+        e.stopPropagation();
+
+        if (!ctrlOProductLinkEnabled) {
+          toast('Ctrl+O shortcut is disabled', { icon: '⚠️', duration: 1500 });
+          return;
+        }
+
+        if (!lastScannedRowRef.current?.wsn?.trim()) {
+          toast.error('No scanned WSN available', { duration: 2000 });
+          return;
+        }
+
+        const fktLink = lastScannedRowRef.current?.fkt_link;
+        if (!fktLink) {
+          toast.error('No product link available for this WSN', { duration: 2000 });
+          return;
+        }
+
+        // Open product link in new tab
+        try {
+          window.open(fktLink, '_blank');
+          toast.success(`Product link opened: ${lastScannedRowRef.current.wsn}`, { duration: 2000 });
+        } catch (err) {
+          toast.error('Failed to open product link', { duration: 2000 });
+        }
         return;
       }
 
@@ -3890,8 +4039,44 @@ export default function InboundPage() {
                   boxShadow: isDarkMode ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.06)',
                 }}>
 
-                  {/* Loading Overlay with Spinner */}
-                  {listLoading && (
+                  {/* Loading Spinner Overlay - semi-transparent so data stays visible */}
+                  {listLoading && listData && listData.length > 0 && (
+                    <Box sx={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      backgroundColor: isDarkMode ? 'rgba(15, 23, 42, 0.5)' : 'rgba(255, 255, 255, 0.5)',
+                      zIndex: 10,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}>
+                      <Box sx={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: 1.5,
+                        p: 3,
+                        bgcolor: isDarkMode ? 'rgba(30, 41, 59, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+                        borderRadius: 2,
+                        boxShadow: '0 4px 20px rgba(0,0,0,0.15)'
+                      }}>
+                        <CircularProgress
+                          size={40}
+                          thickness={4}
+                          sx={{ color: '#1e40af' }}
+                        />
+                        <Typography sx={{ fontSize: '0.85rem', fontWeight: 500, color: isDarkMode ? '#94a3b8' : '#64748b' }}>
+                          Loading...
+                        </Typography>
+                      </Box>
+                    </Box>
+                  )}
+
+                  {/* Full Loading Overlay - ONLY for initial load when no data exists */}
+                  {listLoading && (!listData || listData.length === 0) && (
                     <Box sx={{
                       position: 'absolute',
                       top: 48,
@@ -4130,166 +4315,194 @@ export default function InboundPage() {
                 </Box>
 
 
-                {/* PAGINATION - STICKY AT BOTTOM (Dashboard Style) */}
-                <Box
-                  sx={{
-                    px: { xs: 1, sm: 2 },
-                    py: { xs: 0.75, sm: 0.5 },
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    borderTop: isDarkMode ? "1px solid rgba(255,255,255,0.1)" : "1px solid #ddd",
-                    bgcolor: isDarkMode ? '#1e293b' : "white",
-                    flexShrink: 0,
-                    minHeight: { xs: 44, sm: 48 },
-                    gap: { xs: 0.5, sm: 1 },
-                    mt: 1,
-                    borderRadius: 1,
-                  }}
-                >
-                  {/* Per Page */}
-                  <Stack direction="row" spacing={{ xs: 0.5, sm: 1 }} alignItems="center">
-                    <Typography sx={{ fontSize: { xs: "0.7rem", sm: "0.78rem" }, whiteSpace: "nowrap", color: isDarkMode ? '#94a3b8' : 'inherit' }}>
-                      Per page:
-                    </Typography>
-                    <Select
-                      size="small"
-                      value={limit}
-                      onChange={(e) => {
-                        setLimit(Number(e.target.value));
-                        setPage(1);
-                      }}
-                      sx={{
-                        minWidth: { xs: 58, sm: 70 },
-                        '& .MuiSelect-select': {
-                          py: { xs: 0.5, sm: 0.75 },
-                          fontSize: { xs: '0.75rem', sm: '0.875rem' },
-                        },
-                        color: isDarkMode ? '#e2e8f0' : 'inherit',
-                        backgroundColor: isDarkMode ? '#334155' : 'transparent',
-                        '& .MuiOutlinedInput-notchedOutline': {
-                          borderColor: isDarkMode ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.23)'
-                        },
-                        '&:hover .MuiOutlinedInput-notchedOutline': {
-                          borderColor: isDarkMode ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.87)'
-                        },
-                        '& .MuiSvgIcon-root': {
-                          color: isDarkMode ? '#e2e8f0' : 'inherit'
-                        }
-                      }}
-                      MenuProps={{
-                        disableScrollLock: true,
-                        PaperProps: {
-                          sx: {
-                            bgcolor: isDarkMode ? '#334155' : 'white',
-                            color: isDarkMode ? '#e2e8f0' : 'inherit',
-                            '& .MuiMenuItem-root': {
-                              '&:hover': {
-                                bgcolor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.04)'
-                              },
-                              '&.Mui-selected': {
-                                bgcolor: isDarkMode ? 'rgba(59, 130, 246, 0.3)' : 'rgba(25, 118, 210, 0.08)',
-                                '&:hover': {
-                                  bgcolor: isDarkMode ? 'rgba(59, 130, 246, 0.4)' : 'rgba(25, 118, 210, 0.12)'
-                                }
-                              }
-                            }
-                          }
-                        }
-                      }}
-                    >
-                      <MenuItem value={50}>50</MenuItem>
-                      <MenuItem value={100}>100</MenuItem>
-                      <MenuItem value={500}>500</MenuItem>
-                      <MenuItem value={1000}>1000</MenuItem>
-                    </Select>
-                  </Stack>
-
-                  {/* Count */}
-                  <Typography
+                {/* ================= PAGINATION (DASHBOARD STYLE - FULLY RESPONSIVE) ================= */}
+                <Fade in={true} timeout={300}>
+                  <Box
                     sx={{
-                      fontSize: { xs: "0.7rem", sm: "0.78rem" },
-                      whiteSpace: "nowrap",
-                      color: isDarkMode ? '#94a3b8' : 'inherit',
+                      px: { xs: 1, sm: 2 },
+                      py: { xs: 0.75, sm: 0.5 },
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      borderTop: isDarkMode ? "1px solid rgba(255,255,255,0.1)" : "1px solid #ddd",
+                      bgcolor: isDarkMode ? '#1e293b' : "white",
+                      flexShrink: 0,
+                      minHeight: { xs: 44, sm: 52 },
+                      gap: { xs: 0.5, sm: 1 },
+                      flexWrap: 'wrap',
                     }}
                   >
-                    {listData.length > 0 ? (page - 1) * limit + 1 : 0} – {Math.min(page * limit, total)} of {total}
-                  </Typography>
-
-                  {/* Pagination Controls */}
-                  {isMobile ? (
-                    <Stack direction="row" spacing={0.5} alignItems="center">
-                      <Button
-                        size="small"
-                        disabled={page === 1}
-                        onClick={() => setPage(page - 1)}
-                        sx={{
-                          minWidth: { xs: 40, sm: 64 },
-                          px: { xs: 0.5, sm: 2 },
-                          fontSize: { xs: '0.7rem', sm: '0.875rem' },
-                        }}
-                      >
-                        Prev
-                      </Button>
-                      <Typography sx={{ fontSize: { xs: "0.75rem", sm: "0.85rem" }, fontWeight: 600, minWidth: 40, textAlign: 'center' }}>
-                        {page} / {Math.ceil(total / limit) || 1}
+                    {/* Left Section: Per Page + Last Refresh */}
+                    <Stack direction="row" spacing={{ xs: 0.5, sm: 1.5 }} alignItems="center">
+                      <Typography sx={{ fontSize: { xs: "0.7rem", sm: "0.78rem" }, whiteSpace: "nowrap", color: isDarkMode ? '#94a3b8' : 'inherit' }}>
+                        Per page:
                       </Typography>
-                      <Button
+
+                      <Select
                         size="small"
-                        disabled={page >= Math.ceil(total / limit)}
-                        onClick={() => setPage(page + 1)}
+                        value={limit}
+                        onChange={(e) => {
+                          setLimit(Number(e.target.value));
+                          setPage(1);
+                        }}
                         sx={{
-                          minWidth: { xs: 40, sm: 64 },
-                          px: { xs: 0.5, sm: 2 },
-                          fontSize: { xs: '0.7rem', sm: '0.875rem' },
+                          minWidth: { xs: 58, sm: 70 },
+                          '& .MuiSelect-select': {
+                            py: { xs: 0.5, sm: 0.75 },
+                            fontSize: { xs: '0.75rem', sm: '0.875rem' },
+                          }
                         }}
                       >
-                        Next
-                      </Button>
+                        <MenuItem value={50}>50</MenuItem>
+                        <MenuItem value={100}>100</MenuItem>
+                        <MenuItem value={500}>500</MenuItem>
+                        <MenuItem value={1000}>1000</MenuItem>
+                      </Select>
+
+                      {/* Last Refresh Time Indicator */}
+                      {lastRefreshTime && !isMobile && (
+                        <Tooltip title={`Last updated: ${lastRefreshTime.toLocaleTimeString()}`}>
+                          <Stack direction="row" spacing={0.5} alignItems="center" sx={{ ml: 1 }}>
+                            <AccessTime sx={{ fontSize: 14, color: isDarkMode ? '#64748b' : '#94a3b8' }} />
+                            <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>
+                              {(() => {
+                                const seconds = Math.floor((new Date().getTime() - lastRefreshTime.getTime()) / 1000);
+                                if (seconds < 10) return 'just now';
+                                if (seconds < 60) return `${seconds}s ago`;
+                                const minutes = Math.floor(seconds / 60);
+                                if (minutes < 60) return `${minutes}m ago`;
+                                return `${Math.floor(minutes / 60)}h ago`;
+                              })()}
+                            </Typography>
+                          </Stack>
+                        </Tooltip>
+                      )}
                     </Stack>
-                  ) : (
-                    <Stack direction="row" spacing={0.5} alignItems="center">
-                      <Button
-                        size="small"
-                        variant="outlined"
-                        disabled={page === 1}
-                        onClick={() => setPage(page - 1)}
-                        sx={{ minWidth: 64, fontSize: '0.75rem', fontWeight: 600 }}
-                      >
-                        ◀ Prev
-                      </Button>
-                      <Box sx={{
-                        px: 1.5,
-                        py: 0.4,
-                        border: isDarkMode ? '2px solid #3b82f6' : '2px solid #1e40af',
-                        borderRadius: 1,
-                        background: isDarkMode
-                          ? 'linear-gradient(135deg, rgba(59, 130, 246, 0.2) 0%, rgba(139, 92, 246, 0.2) 100%)'
-                          : 'linear-gradient(135deg, rgba(30, 64, 175, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%)',
-                        minWidth: 60,
-                        textAlign: 'center'
-                      }}>
-                        <Typography sx={{
-                          fontWeight: 800,
-                          color: isDarkMode ? '#93c5fd' : '#1e40af',
-                          fontSize: '0.75rem',
-                          lineHeight: 1.1
-                        }}>
-                          {page}/{Math.ceil(total / limit) || 1}
+
+                    {/* Center Section: Count */}
+                    <Typography
+                      sx={{
+                        fontSize: { xs: "0.7rem", sm: "0.78rem" },
+                        whiteSpace: "nowrap",
+                        color: isDarkMode ? '#94a3b8' : 'inherit',
+                      }}
+                    >
+                      {listData.length > 0 ? (page - 1) * limit + 1 : 0} – {Math.min(page * limit, total)} of {total}
+                    </Typography>
+
+                    {/* Right Section: Pagination Controls */}
+                    {isMobile ? (
+                      // MOBILE COMPACT PAGINATION
+                      <Stack direction="row" spacing={0.5} alignItems="center">
+                        <IconButton
+                          size="small"
+                          disabled={page === 1}
+                          onClick={() => setPage(1)}
+                          sx={{ p: 0.5 }}
+                        >
+                          <FirstPage fontSize="small" />
+                        </IconButton>
+                        <IconButton
+                          size="small"
+                          disabled={page === 1}
+                          onClick={() => setPage(page - 1)}
+                          sx={{ p: 0.5 }}
+                        >
+                          <KeyboardArrowLeft fontSize="small" />
+                        </IconButton>
+
+                        <Typography sx={{ fontSize: "0.75rem", fontWeight: 600, minWidth: 50, textAlign: 'center' }}>
+                          {page} / {Math.ceil(total / limit) || 1}
                         </Typography>
-                      </Box>
-                      <Button
-                        size="small"
-                        variant="outlined"
-                        disabled={page >= Math.ceil(total / limit)}
-                        onClick={() => setPage(page + 1)}
-                        sx={{ minWidth: 64, fontSize: '0.75rem', fontWeight: 600 }}
-                      >
-                        Next ▶
-                      </Button>
-                    </Stack>
-                  )}
-                </Box>
+
+                        <IconButton
+                          size="small"
+                          disabled={page >= Math.ceil(total / limit)}
+                          onClick={() => setPage(page + 1)}
+                          sx={{ p: 0.5 }}
+                        >
+                          <KeyboardArrowRight fontSize="small" />
+                        </IconButton>
+                        <IconButton
+                          size="small"
+                          disabled={page >= Math.ceil(total / limit)}
+                          onClick={() => setPage(Math.ceil(total / limit))}
+                          sx={{ p: 0.5 }}
+                        >
+                          <LastPage fontSize="small" />
+                        </IconButton>
+                      </Stack>
+                    ) : (
+                      // DESKTOP: Enhanced pagination with MUI Pagination component
+                      <Stack direction="row" spacing={1} alignItems="center">
+                        <Tooltip title="First page">
+                          <span>
+                            <IconButton
+                              size="small"
+                              disabled={page === 1}
+                              onClick={() => setPage(1)}
+                            >
+                              <FirstPage fontSize="small" />
+                            </IconButton>
+                          </span>
+                        </Tooltip>
+
+                        <Tooltip title="Previous page">
+                          <span>
+                            <IconButton
+                              size="small"
+                              disabled={page === 1}
+                              onClick={() => setPage(page - 1)}
+                            >
+                              <KeyboardArrowLeft />
+                            </IconButton>
+                          </span>
+                        </Tooltip>
+
+                        <Pagination
+                          page={page}
+                          count={Math.ceil(total / limit) || 1}
+                          size="small"
+                          onChange={(_, v) => setPage(v)}
+                          siblingCount={1}
+                          boundaryCount={1}
+                          sx={{
+                            '& .MuiPaginationItem-root': {
+                              color: isDarkMode ? '#94a3b8' : 'inherit',
+                            },
+                            '& .Mui-selected': {
+                              bgcolor: isDarkMode ? 'rgba(59, 130, 246, 0.3) !important' : 'rgba(25, 118, 210, 0.12) !important',
+                            }
+                          }}
+                        />
+
+                        <Tooltip title="Next page">
+                          <span>
+                            <IconButton
+                              size="small"
+                              disabled={page >= Math.ceil(total / limit)}
+                              onClick={() => setPage(page + 1)}
+                            >
+                              <KeyboardArrowRight />
+                            </IconButton>
+                          </span>
+                        </Tooltip>
+
+                        <Tooltip title="Last page">
+                          <span>
+                            <IconButton
+                              size="small"
+                              disabled={page >= Math.ceil(total / limit)}
+                              onClick={() => setPage(Math.ceil(total / limit))}
+                            >
+                              <LastPage fontSize="small" />
+                            </IconButton>
+                          </span>
+                        </Tooltip>
+                      </Stack>
+                    )}
+                  </Box>
+                </Fade>
 
                 {/* EXPORT DIALOG */}
                 <Dialog
@@ -5555,6 +5768,41 @@ export default function InboundPage() {
                               </Box>
                             </Tooltip>
 
+                            {/* Ctrl+O Product Link Toggle */}
+                            <Tooltip title="Ctrl+O: Open product link for last scanned WSN" placement="top">
+                              <Box
+                                onClick={() => setCtrlOProductLinkEnabled(!ctrlOProductLinkEnabled)}
+                                sx={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 0.5,
+                                  bgcolor: ctrlOProductLinkEnabled ? 'rgba(168, 85, 247, 0.1)' : isDarkMode ? 'rgba(100, 116, 139, 0.2)' : 'rgba(156, 163, 175, 0.1)',
+                                  border: `1.5px solid ${ctrlOProductLinkEnabled ? '#a855f7' : isDarkMode ? '#64748b' : '#9ca3af'}`,
+                                  borderRadius: 1,
+                                  px: 1,
+                                  height: 32,
+                                  cursor: 'pointer',
+                                  '&:hover': { opacity: 0.85 }
+                                }}
+                              >
+                                <Typography sx={{ color: ctrlOProductLinkEnabled ? '#a855f7' : isDarkMode ? '#94a3b8' : '#6b7280', fontWeight: 700, fontSize: '0.65rem', whiteSpace: 'nowrap' }}>
+                                  Ctrl+O {ctrlOProductLinkEnabled ? 'ON' : 'OFF'}
+                                </Typography>
+                                <Switch
+                                  size="small"
+                                  checked={ctrlOProductLinkEnabled}
+                                  onChange={(e) => { e.stopPropagation(); setCtrlOProductLinkEnabled(e.target.checked); }}
+                                  sx={{
+                                    width: 32, height: 18, p: 0,
+                                    '& .MuiSwitch-switchBase': { p: '2px' },
+                                    '& .MuiSwitch-thumb': { width: 14, height: 14 },
+                                    '& .MuiSwitch-switchBase.Mui-checked': { color: '#a855f7' },
+                                    '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { bgcolor: '#a855f7' },
+                                  }}
+                                />
+                              </Box>
+                            </Tooltip>
+
                             {/* Divider */}
                             <Box sx={{ width: 1, height: 20, bgcolor: isDarkMode ? '#475569' : '#d1d5db', mx: 0.25 }} />
 
@@ -5784,6 +6032,35 @@ export default function InboundPage() {
                                 }}
                               >
                                 Ctrl+P {ctrlPPrintEnabled ? 'ON' : 'OFF'}
+                              </Typography>
+                            </Box>
+
+                            {/* Ctrl+O Product Link Toggle (Mobile) */}
+                            <Box
+                              onClick={() => setCtrlOProductLinkEnabled(!ctrlOProductLinkEnabled)}
+                              sx={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                border: `2px solid ${ctrlOProductLinkEnabled ? '#a855f7' : '#9ca3af'}`,
+                                borderRadius: 1,
+                                px: 0.75,
+                                height: 28,
+                                minWidth: 50,
+                                flexShrink: 0,
+                                cursor: 'pointer',
+                                '&:hover': { opacity: 0.8 }
+                              }}
+                            >
+                              <Typography
+                                variant="caption"
+                                sx={{
+                                  color: ctrlOProductLinkEnabled ? '#a855f7' : '#9ca3af',
+                                  fontWeight: 700,
+                                  fontSize: '0.55rem'
+                                }}
+                              >
+                                Ctrl+O {ctrlOProductLinkEnabled ? 'ON' : 'OFF'}
                               </Typography>
                             </Box>
 

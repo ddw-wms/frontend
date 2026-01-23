@@ -34,6 +34,9 @@ import {
   useTheme,
   useMediaQuery,
   LinearProgress,
+  Skeleton,
+  InputBase,
+  Fade,
 } from "@mui/material";
 import {
   Logout as LogoutIcon,
@@ -47,6 +50,11 @@ import {
   Close as CloseIcon,
   InventoryRounded,
   PivotTableChart as PivotIcon,
+  KeyboardArrowLeft,
+  KeyboardArrowRight,
+  FirstPage,
+  LastPage,
+  AccessTime,
 } from "@mui/icons-material";
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { dashboardAPI, inventoryAPI, inboundAPI, pickingAPI, outboundAPI } from "@/lib/api";
@@ -246,7 +254,7 @@ export default function DashboardPage() {
 
   const [inventoryData, setInventoryData] = useState<InventoryItem[]>([]);
   const [filteredData, setFilteredData] = useState<InventoryItem[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true); // Start true for initial load spinner
   const [visibleColumns, setVisibleColumns] = useState<string[]>([]);
   const gridRef = useRef<any>(null);
   const columnApiRef = useRef<any>(null);
@@ -271,6 +279,28 @@ export default function DashboardPage() {
   const [topLoading, setTopLoading] = useState(false);
   const inventoryLoadDebounceRef = useRef<NodeJS.Timeout | null>(null);
   const [initialLoad, setInitialLoad] = useState<boolean>(true);
+  // ⚡ PROFESSIONAL PAGINATION: Keep previous data visible during page transitions
+  const previousDataRef = useRef<InventoryItem[] | null>(null);
+  const [isFetching, setIsFetching] = useState(false);
+
+  // ⚡ PAGE CACHE: Store fetched pages for instant back navigation
+  const pageCacheRef = useRef<Map<string, { data: InventoryItem[], total: number, timestamp: number }>>(new Map());
+  const PAGE_CACHE_TTL = 60000; // 1 minute cache validity
+
+  // ⚡ LAST REFRESH TIME: Track when data was last fetched
+  const [lastRefreshTime, setLastRefreshTime] = useState<Date | null>(null);
+
+  // ⚡ AUTO-RETRY: Track retry attempts
+  const retryCountRef = useRef(0);
+  const MAX_RETRIES = 2;
+
+  // ⚡ LAZY LOADING: Defer non-critical loads for faster initial render
+  const initialDataLoadedRef = useRef(false);
+  const [filtersLoaded, setFiltersLoaded] = useState(false);
+
+  // ⚡ QUICK PAGE JUMP: State for page input
+  const [pageInputValue, setPageInputValue] = useState('');
+  const [showPageInput, setShowPageInput] = useState(false);
 
   const [enableSorting, setEnableSorting] = useState<boolean>(() => {
     try { return localStorage.getItem('dashboard_enableSorting') !== 'false'; } catch { return true; }
@@ -519,6 +549,10 @@ export default function DashboardPage() {
   const toggleFilters = () => {
     setFiltersOpen((prev) => {
       const next = !prev;
+      // ⚡ LAZY LOAD: Load filter options when filters panel opens for first time
+      if (next && !filtersLoaded) {
+        loadFilterOptions();
+      }
       try {
         localStorage.setItem('dashboardFiltersOpen', next ? 'true' : 'false');
       } catch { }
@@ -647,12 +681,98 @@ export default function DashboardPage() {
     } catch { /* ignore */ }
   }, [isMobile]);
 
-  const loadInventoryData = useCallback(async () => {
+  // ⚡ HELPER: Generate cache key for current filters
+  const getCacheKey = useCallback(() => {
+    return JSON.stringify({
+      warehouseId: activeWarehouse?.id,
+      page,
+      limit,
+      search: searchDebounced,
+      stage: stageFilter,
+      availableOnly,
+      brand: brandFilter,
+      category: categoryFilter,
+      dateFrom,
+      dateTo,
+    });
+  }, [activeWarehouse?.id, page, limit, searchDebounced, stageFilter, availableOnly, brandFilter, categoryFilter, dateFrom, dateTo]);
+
+  // ⚡ PREFETCH: Prefetch next page in background
+  const prefetchNextPage = useCallback(async () => {
+    const totalPages = Math.ceil(total / limit);
+    if (page >= totalPages) return; // No next page
+
+    const nextPageCacheKey = JSON.stringify({
+      warehouseId: activeWarehouse?.id,
+      page: page + 1,
+      limit,
+      search: searchDebounced,
+      stage: stageFilter,
+      availableOnly,
+      brand: brandFilter,
+      category: categoryFilter,
+      dateFrom,
+      dateTo,
+    });
+
+    // Check if already cached
+    const cached = pageCacheRef.current.get(nextPageCacheKey);
+    if (cached && Date.now() - cached.timestamp < PAGE_CACHE_TTL) return;
+
+    try {
+      const params: any = {
+        warehouseId: activeWarehouse?.id,
+        page: page + 1,
+        limit,
+      };
+      if (searchDebounced) params.search = searchDebounced;
+      if (stageFilter && stageFilter !== "all") params.stage = stageFilter;
+      if (availableOnly) params.availableOnly = true;
+      if (brandFilter) params.brand = brandFilter;
+      if (categoryFilter) params.category = categoryFilter;
+      if (dateFrom) params.dateFrom = dateFrom;
+      if (dateTo) params.dateTo = dateTo;
+
+      const response = await dashboardAPI.getInventoryPipeline(params);
+      const rows = (response.data?.data || []) as InventoryItem[];
+
+      // Store in cache
+      pageCacheRef.current.set(nextPageCacheKey, {
+        data: rows,
+        total: response.data?.pagination?.total || 0,
+        timestamp: Date.now(),
+      });
+    } catch {
+      // Silently fail - prefetch is optional
+    }
+  }, [activeWarehouse?.id, page, limit, total, searchDebounced, stageFilter, availableOnly, brandFilter, categoryFilter, dateFrom, dateTo]);
+
+  const loadInventoryData = useCallback(async (forceRefresh = false) => {
     // Use request id to ignore stale responses
     currentLoadIdRef.current += 1;
     const loadId = currentLoadIdRef.current;
 
-    // Always show the professional loading spinner for consistent UX
+    const cacheKey = getCacheKey();
+
+    // ⚡ PAGE CACHE: Check cache first (unless force refresh)
+    if (!forceRefresh) {
+      const cached = pageCacheRef.current.get(cacheKey);
+      if (cached && Date.now() - cached.timestamp < PAGE_CACHE_TTL) {
+        // Use cached data - instant!
+        previousDataRef.current = cached.data;
+        setInventoryData(cached.data);
+        setFilteredData(cached.data);
+        setTotal(cached.total);
+        setLastRefreshTime(new Date(cached.timestamp));
+        setLoading(false);
+
+        // Prefetch next page in background
+        setTimeout(() => prefetchNextPage(), 100);
+        return;
+      }
+    }
+
+    // ⚡ Show loading spinner
     setLoading(true);
 
     // Cancel any previous in-flight request
@@ -685,9 +805,23 @@ export default function DashboardPage() {
 
       // Only apply if this is latest request
       if (loadId === currentLoadIdRef.current) {
+        // ⚡ Store current data for next transition
+        previousDataRef.current = rows;
+
         setInventoryData(rows);
         setFilteredData(rows); // server already applied filters so show directly
         setTotal(response.data?.pagination?.total || 0);
+        setLastRefreshTime(new Date());
+
+        // ⚡ PAGE CACHE: Store in cache
+        pageCacheRef.current.set(cacheKey, {
+          data: rows,
+          total: response.data?.pagination?.total || 0,
+          timestamp: Date.now(),
+        });
+
+        // Reset retry count on success
+        retryCountRef.current = 0;
 
         // Update grid rows immediately if grid API supports it
         if (gridRef.current && typeof (gridRef.current as any).setRowData === 'function') {
@@ -695,27 +829,81 @@ export default function DashboardPage() {
             (gridRef.current as any).setRowData(rows);
           } catch { /* ignore */ }
         }
+
+        // ⚡ PREFETCH: Prefetch next page after successful load
+        setTimeout(() => prefetchNextPage(), 500);
       }
 
     } catch (error: any) {
       // ignore aborts
       if (error?.name === 'CanceledError' || error?.code === 'ERR_CANCELED' || error?.name === 'AbortError') {
-        // aborted or canceled - nothing to show
+        // aborted or canceled - clear loading and return
+        setLoading(false);
         return;
       }
       console.error("Load inventory error:", error);
+
+      // ⚡ AUTO-RETRY: Retry on failure
+      if (retryCountRef.current < MAX_RETRIES) {
+        retryCountRef.current++;
+        toast.error(`Loading failed, retrying... (${retryCountRef.current}/${MAX_RETRIES})`);
+        setTimeout(() => {
+          loadInventoryData(true);
+        }, 1000 * retryCountRef.current); // Exponential backoff
+        return;
+      }
+
       toast.error("Failed to load inventory data");
+      retryCountRef.current = 0;
     } finally {
       // Only clear loading when this is the latest request
       if (loadId === currentLoadIdRef.current) {
-        // Always clear loading state
         setLoading(false);
         inventoryAbortControllerRef.current = null;
       }
     }
-  }, [activeWarehouse?.id, page, limit, searchDebounced, stageFilter, availableOnly, brandFilter, categoryFilter, dateFrom, dateTo]);
+  }, [activeWarehouse?.id, page, limit, searchDebounced, stageFilter, availableOnly, brandFilter, categoryFilter, dateFrom, dateTo, getCacheKey, prefetchNextPage]);
+
+  // ⚡ QUICK PAGE JUMP: Handle page input submit
+  const handlePageJump = useCallback(() => {
+    const targetPage = parseInt(pageInputValue, 10);
+    const totalPages = Math.ceil(total / limit);
+
+    if (!isNaN(targetPage) && targetPage >= 1 && targetPage <= totalPages) {
+      setPage(targetPage);
+      setShowPageInput(false);
+      setPageInputValue('');
+    } else {
+      toast.error(`Please enter a valid page (1-${totalPages})`);
+    }
+  }, [pageInputValue, total, limit]);
+
+  // ⚡ TIME AGO: Format last refresh time
+  const getTimeAgo = useCallback((date: Date | null) => {
+    if (!date) return '';
+    const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
+
+    if (seconds < 10) return 'just now';
+    if (seconds < 60) return `${seconds}s ago`;
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    return `${hours}h ago`;
+  }, []);
+
+  // ⚡ UPDATE TIME AGO: Update every 10 seconds
+  const [, setTimeUpdate] = useState(0);
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTimeUpdate(prev => prev + 1);
+    }, 10000);
+    return () => clearInterval(interval);
+  }, []);
 
   const loadFilterOptions = useCallback(async () => {
+    // ⚡ SKIP if already loaded
+    if (filtersLoaded) return;
+
     try {
       const [bResp, cResp] = await Promise.all([
         inboundAPI.getBrands(activeWarehouse?.id),
@@ -727,40 +915,51 @@ export default function DashboardPage() {
 
       setBrands(brandsData);
       setCategories(categoriesData);
+      setFiltersLoaded(true);
     } catch (err) {
       console.warn("Could not load full filter options:", err);
       // On error, just leave empty - no fallback to page data
       setBrands([]);
       setCategories([]);
     }
-  }, [activeWarehouse?.id]);
+  }, [activeWarehouse?.id, filtersLoaded]);
+
+  // ⚡ LAZY LOAD: If filters are already open on mount, load filter options
+  useEffect(() => {
+    if (filtersOpen && !filtersLoaded && activeWarehouse?.id) {
+      loadFilterOptions();
+    }
+  }, [filtersOpen, filtersLoaded, activeWarehouse?.id, loadFilterOptions]);
 
   // 🔥 GET FILTERED CATEGORIES - only for selected brand
+  // ⚡ OPTIMIZED: Use local inventory data instead of API call
   const getFilteredCategories = useCallback(async () => {
     if (!brandFilter) {
       // No brand selected, show all categories
       return categories;
     }
-    try {
-      // Get inbound data filtered by selected brand
-      const response = await dashboardAPI.getInventoryPipeline({
-        warehouseId: activeWarehouse?.id,
-        brand: brandFilter,
-        page: 1,
-        limit: 10000, // Get all records for this brand
-      });
 
-      const items = response.data?.data || [];
+    // ⚡ FAST PATH: Get categories from already loaded inventory data
+    // This avoids a heavy API call that was fetching 10000 records!
+    if (inventoryData.length > 0) {
       const uniqueCategories = Array.from(
-        new Set(items.map((item: any) => item.cms_vertical).filter(Boolean))
+        new Set(
+          inventoryData
+            .filter((item: any) => item.brand === brandFilter)
+            .map((item: any) => item.cms_vertical)
+            .filter(Boolean)
+        )
       ) as string[];
 
-      return uniqueCategories;
-    } catch {
-      console.error("Error getting filtered categories:");
-      return categories; // Fallback to all categories
+      // If we found categories, use them
+      if (uniqueCategories.length > 0) {
+        return uniqueCategories.sort();
+      }
     }
-  }, [activeWarehouse?.id, brandFilter, categories]);
+
+    // Fallback to all categories if no match found
+    return categories;
+  }, [brandFilter, categories, inventoryData]);
 
   const loadMetrics = useCallback(async () => {
     try {
@@ -816,19 +1015,25 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (activeWarehouse) {
-      // Initial loads
-      loadFilterOptions();
-      loadMetrics();
-      loadInventorySummary();
-      // Load existing WSN lists for picking & outbound so status can reflect DONE
-      loadExistingStageWSNs();
-
+      // ⚡ PRIORITY 1: Load main inventory data FIRST (critical path)
       // Debounce inventory loads to avoid flicker on rapid filter changes
       if (inventoryLoadDebounceRef.current) clearTimeout(inventoryLoadDebounceRef.current);
       inventoryLoadDebounceRef.current = setTimeout(() => {
         loadInventoryData();
         inventoryLoadDebounceRef.current = null;
-      }, 100);
+
+        // ⚡ PRIORITY 2: Load secondary data AFTER main data (deferred)
+        if (!initialDataLoadedRef.current) {
+          initialDataLoadedRef.current = true;
+          // Defer non-critical loads by 500ms after main data
+          setTimeout(() => {
+            loadMetrics();
+            loadInventorySummary();
+            // Load existing WSN lists (even more deferred)
+            setTimeout(() => loadExistingStageWSNs(), 300);
+          }, 200);
+        }
+      }, 50); // Reduced from 100ms
 
       // ⚡ EGRESS OPTIMIZATION: Reduced polling from 5s to 60s (saves ~1.3GB/day)
       // Manual refresh still available via Refresh button
@@ -846,7 +1051,7 @@ export default function DashboardPage() {
         }
       };
     }
-  }, [activeWarehouse, page, limit, searchDebounced, stageFilter, availableOnly, brandFilter, categoryFilter, dateFrom, dateTo, loadFilterOptions, loadMetrics, loadInventorySummary, loadExistingStageWSNs, loadInventoryData]);
+  }, [activeWarehouse, page, limit, searchDebounced, stageFilter, availableOnly, brandFilter, categoryFilter, dateFrom, dateTo, loadMetrics, loadInventorySummary, loadExistingStageWSNs, loadInventoryData]);
 
   useEffect(() => {
     setFilteredData(inventoryData);
@@ -1944,8 +2149,44 @@ export default function DashboardPage() {
                 position: 'relative',
                 bgcolor: isDarkMode ? '#1e293b' : 'transparent',
               }}>
-                {/* Loading Overlay - shows during any loading state */}
-                {loading && (
+                {/* Loading Spinner Overlay - semi-transparent so data stays visible */}
+                {loading && filteredData && filteredData.length > 0 && (
+                  <Box sx={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    backgroundColor: isDarkMode ? 'rgba(15, 23, 42, 0.5)' : 'rgba(255, 255, 255, 0.5)',
+                    zIndex: 10,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}>
+                    <Box sx={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: 1.5,
+                      p: 3,
+                      bgcolor: isDarkMode ? 'rgba(30, 41, 59, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+                      borderRadius: 2,
+                      boxShadow: '0 4px 20px rgba(0,0,0,0.15)'
+                    }}>
+                      <CircularProgress
+                        size={40}
+                        thickness={4}
+                        sx={{ color: '#1e40af' }}
+                      />
+                      <Typography sx={{ fontSize: '0.85rem', fontWeight: 500, color: isDarkMode ? '#94a3b8' : '#64748b' }}>
+                        Loading...
+                      </Typography>
+                    </Box>
+                  </Box>
+                )}
+
+                {/* Full Loading Overlay - ONLY for initial load when no data exists */}
+                {loading && (!filteredData || filteredData.length === 0) && (
                   <Box sx={{
                     position: 'absolute',
                     top: 48,
@@ -2132,7 +2373,7 @@ export default function DashboardPage() {
                   },
                   '& .ag-body-viewport': {
                     opacity: loading ? 0.3 : 1,
-                    transition: 'opacity 0.2s ease-in-out'
+                    transition: 'opacity 0.2s ease-in-out',
                   },
                   '& .ag-row': {
                     height: { xs: 44, md: 44 },
@@ -2226,105 +2467,234 @@ export default function DashboardPage() {
                   </div>
                 </Box>
               </Box>
-              {/* ================= PAGINATION (ALWAYS ONE ROW + MOBILE COMPACT) ================= */}
-              <Box
-                sx={{
-                  px: { xs: 1, sm: 2 },
-                  py: { xs: 0.75, sm: 0.5 },
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  borderTop: isDarkMode ? "1px solid rgba(255,255,255,0.1)" : "1px solid #ddd",
-                  bgcolor: isDarkMode ? '#1e293b' : "white",
-                  flexShrink: 0,
-                  minHeight: { xs: 44, sm: 48 },
-                  gap: { xs: 0.5, sm: 1 },
-                }}
-              >
-                {/* Per Page */}
-                <Stack direction="row" spacing={{ xs: 0.5, sm: 1 }} alignItems="center">
-                  <Typography sx={{ fontSize: { xs: "0.7rem", sm: "0.78rem" }, whiteSpace: "nowrap", color: isDarkMode ? '#94a3b8' : 'inherit' }}>
-                    Per page:
-                  </Typography>
-
-                  <Select
-                    size="small"
-                    value={limit}
-                    onChange={(e) => {
-                      setLimit(Number(e.target.value));
-                      setPage(1);
-                    }}
-                    sx={{
-                      minWidth: { xs: 58, sm: 70 },
-                      '& .MuiSelect-select': {
-                        py: { xs: 0.5, sm: 0.75 },
-                        fontSize: { xs: '0.75rem', sm: '0.875rem' },
-                      }
-                    }}
-                  >
-                    <MenuItem value={50}>50</MenuItem>
-                    <MenuItem value={100}>100</MenuItem>
-                    <MenuItem value={500}>500</MenuItem>
-                    <MenuItem value={1000}>1000</MenuItem>
-                  </Select>
-                </Stack>
-
-                {/* Count */}
-                <Typography
+              {/* ================= PAGINATION (ENHANCED WITH ALL IMPROVEMENTS) ================= */}
+              <Fade in={true} timeout={300}>
+                <Box
                   sx={{
-                    fontSize: { xs: "0.7rem", sm: "0.78rem" },
-                    whiteSpace: "nowrap",
-                    color: isDarkMode ? '#94a3b8' : 'inherit',
+                    px: { xs: 1, sm: 2 },
+                    py: { xs: 0.75, sm: 0.5 },
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    borderTop: isDarkMode ? "1px solid rgba(255,255,255,0.1)" : "1px solid #ddd",
+                    bgcolor: isDarkMode ? '#1e293b' : "white",
+                    flexShrink: 0,
+                    minHeight: { xs: 44, sm: 52 },
+                    gap: { xs: 0.5, sm: 1 },
+                    flexWrap: 'wrap',
                   }}
                 >
-                  {(page - 1) * limit + 1} – {Math.min(page * limit, total)} of{" "}
-                  {total}
-                </Typography>
-
-                {/* Pagination (Responsive) */}
-                {(isMobile ? (
-                  // MOBILE COMPACT PAGINATION
-                  <Stack direction="row" spacing={0.5} alignItems="center">
-                    <Button
-                      size="small"
-                      disabled={page === 1}
-                      onClick={() => setPage(page - 1)}
-                      sx={{
-                        minWidth: { xs: 40, sm: 64 },
-                        px: { xs: 0.5, sm: 2 },
-                        fontSize: { xs: '0.7rem', sm: '0.875rem' },
-                      }}
-                    >
-                      Prev
-                    </Button>
-
-                    <Typography sx={{ fontSize: { xs: "0.75rem", sm: "0.85rem" }, fontWeight: 600, minWidth: 40, textAlign: 'center' }}>
-                      {page} / {Math.ceil(total / limit)}
+                  {/* Left Section: Per Page + Last Refresh */}
+                  <Stack direction="row" spacing={{ xs: 0.5, sm: 1.5 }} alignItems="center">
+                    <Typography sx={{ fontSize: { xs: "0.7rem", sm: "0.78rem" }, whiteSpace: "nowrap", color: isDarkMode ? '#94a3b8' : 'inherit' }}>
+                      Per page:
                     </Typography>
 
-                    <Button
+                    <Select
                       size="small"
-                      disabled={page === Math.ceil(total / limit)}
-                      onClick={() => setPage(page + 1)}
+                      value={limit}
+                      onChange={(e) => {
+                        setLimit(Number(e.target.value));
+                        setPage(1);
+                      }}
                       sx={{
-                        minWidth: { xs: 40, sm: 64 },
-                        px: { xs: 0.5, sm: 2 },
-                        fontSize: { xs: '0.7rem', sm: '0.875rem' },
+                        minWidth: { xs: 58, sm: 70 },
+                        '& .MuiSelect-select': {
+                          py: { xs: 0.5, sm: 0.75 },
+                          fontSize: { xs: '0.75rem', sm: '0.875rem' },
+                        }
                       }}
                     >
-                      Next
-                    </Button>
+                      <MenuItem value={50}>50</MenuItem>
+                      <MenuItem value={100}>100</MenuItem>
+                      <MenuItem value={500}>500</MenuItem>
+                      <MenuItem value={1000}>1000</MenuItem>
+                    </Select>
+
+                    {/* ⚡ Last Refresh Time Indicator */}
+                    {lastRefreshTime && !isMobile && (
+                      <Tooltip title={`Last updated: ${lastRefreshTime.toLocaleTimeString()}`}>
+                        <Stack direction="row" spacing={0.5} alignItems="center" sx={{ ml: 1 }}>
+                          <AccessTime sx={{ fontSize: 14, color: isDarkMode ? '#64748b' : '#94a3b8' }} />
+                          <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>
+                            {getTimeAgo(lastRefreshTime)}
+                          </Typography>
+                        </Stack>
+                      </Tooltip>
+                    )}
                   </Stack>
-                ) : (
-                  // DESKTOP FULL PAGINATION
-                  <Pagination
-                    page={page}
-                    count={Math.ceil(total / limit)}
-                    size="small"
-                    onChange={(_, v) => setPage(v)}
-                  />
-                ))}
-              </Box>
+
+                  {/* Center Section: Count + Quick Page Jump */}
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <Typography
+                      sx={{
+                        fontSize: { xs: "0.7rem", sm: "0.78rem" },
+                        whiteSpace: "nowrap",
+                        color: isDarkMode ? '#94a3b8' : 'inherit',
+                      }}
+                    >
+                      {(page - 1) * limit + 1} – {Math.min(page * limit, total)} of {total}
+                    </Typography>
+
+                    {/* ⚡ Quick Page Jump Input */}
+                    {showPageInput && !isMobile && (
+                      <Fade in={showPageInput}>
+                        <Stack direction="row" spacing={0.5} alignItems="center">
+                          <InputBase
+                            autoFocus
+                            placeholder="Page #"
+                            value={pageInputValue}
+                            onChange={(e) => setPageInputValue(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') handlePageJump();
+                              if (e.key === 'Escape') {
+                                setShowPageInput(false);
+                                setPageInputValue('');
+                              }
+                            }}
+                            sx={{
+                              width: 60,
+                              px: 1,
+                              py: 0.25,
+                              fontSize: '0.75rem',
+                              border: isDarkMode ? '1px solid #475569' : '1px solid #cbd5e1',
+                              borderRadius: 1,
+                              bgcolor: isDarkMode ? '#0f172a' : '#f8fafc',
+                              color: isDarkMode ? '#f1f5f9' : 'inherit',
+                            }}
+                          />
+                          <Button size="small" onClick={handlePageJump} sx={{ minWidth: 40, fontSize: '0.7rem' }}>
+                            Go
+                          </Button>
+                        </Stack>
+                      </Fade>
+                    )}
+
+                    {/* ⚡ Show page jump button on desktop */}
+                    {!showPageInput && !isMobile && Math.ceil(total / limit) > 5 && (
+                      <Tooltip title="Press 'G' to jump to page">
+                        <Button
+                          size="small"
+                          onClick={() => setShowPageInput(true)}
+                          sx={{
+                            minWidth: 'auto',
+                            px: 1,
+                            py: 0.25,
+                            fontSize: '0.65rem',
+                            color: isDarkMode ? '#64748b' : '#94a3b8',
+                          }}
+                        >
+                          Go to...
+                        </Button>
+                      </Tooltip>
+                    )}
+                  </Stack>
+
+                  {/* Right Section: Pagination Controls */}
+                  {(isMobile ? (
+                    // MOBILE COMPACT PAGINATION
+                    <Stack direction="row" spacing={0.5} alignItems="center">
+                      <IconButton
+                        size="small"
+                        disabled={page === 1}
+                        onClick={() => setPage(1)}
+                        sx={{ p: 0.5 }}
+                      >
+                        <FirstPage fontSize="small" />
+                      </IconButton>
+                      <IconButton
+                        size="small"
+                        disabled={page === 1}
+                        onClick={() => setPage(page - 1)}
+                        sx={{ p: 0.5 }}
+                      >
+                        <KeyboardArrowLeft fontSize="small" />
+                      </IconButton>
+
+                      <Typography sx={{ fontSize: "0.75rem", fontWeight: 600, minWidth: 50, textAlign: 'center' }}>
+                        {page} / {Math.ceil(total / limit)}
+                      </Typography>
+
+                      <IconButton
+                        size="small"
+                        disabled={page === Math.ceil(total / limit)}
+                        onClick={() => setPage(page + 1)}
+                        sx={{ p: 0.5 }}
+                      >
+                        <KeyboardArrowRight fontSize="small" />
+                      </IconButton>
+                      <IconButton
+                        size="small"
+                        disabled={page === Math.ceil(total / limit)}
+                        onClick={() => setPage(Math.ceil(total / limit))}
+                        sx={{ p: 0.5 }}
+                      >
+                        <LastPage fontSize="small" />
+                      </IconButton>
+                    </Stack>
+                  ) : (
+                    // DESKTOP: Enhanced pagination
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      <Tooltip title="First page">
+                        <span>
+                          <IconButton
+                            size="small"
+                            disabled={page === 1}
+                            onClick={() => setPage(1)}
+                          >
+                            <FirstPage fontSize="small" />
+                          </IconButton>
+                        </span>
+                      </Tooltip>
+
+                      <Tooltip title="Previous page">
+                        <span>
+                          <IconButton
+                            size="small"
+                            disabled={page === 1}
+                            onClick={() => setPage(page - 1)}
+                          >
+                            <KeyboardArrowLeft />
+                          </IconButton>
+                        </span>
+                      </Tooltip>
+
+                      <Pagination
+                        page={page}
+                        count={Math.ceil(total / limit)}
+                        size="small"
+                        onChange={(_, v) => setPage(v)}
+                        siblingCount={1}
+                        boundaryCount={1}
+                      />
+
+                      <Tooltip title="Next page">
+                        <span>
+                          <IconButton
+                            size="small"
+                            disabled={page === Math.ceil(total / limit)}
+                            onClick={() => setPage(page + 1)}
+                          >
+                            <KeyboardArrowRight />
+                          </IconButton>
+                        </span>
+                      </Tooltip>
+
+                      <Tooltip title="Last page">
+                        <span>
+                          <IconButton
+                            size="small"
+                            disabled={page === Math.ceil(total / limit)}
+                            onClick={() => setPage(Math.ceil(total / limit))}
+                          >
+                            <LastPage fontSize="small" />
+                          </IconButton>
+                        </span>
+                      </Tooltip>
+                    </Stack>
+                  ))}
+                </Box>
+              </Fade>
             </Paper>
           </Box>
         </Box>{/* END SCROLLABLE CONTENT AREA */}
