@@ -112,12 +112,6 @@ const api: AxiosInstance = axios.create({
   timeout: 60000, // 60 second timeout - allows for database recovery after bulk uploads
 });
 
-// =====================Auth API====================
-export const authAPI = {
-  login: (username: string, password: string) => api.post('auth/login', { username, password }),
-  register: (data: any) => api.post('auth/register', data),
-};
-
 // Request interceptor - add token and track requests
 api.interceptors.request.use((config) => {
   if (typeof window !== 'undefined') {
@@ -177,6 +171,12 @@ api.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
+// =====================Auth API====================
+export const authAPI = {
+  login: (username: string, password: string) => api.post('auth/login', { username, password }),
+  register: (data: any) => api.post('auth/register', data),
+};
 
 // ========================Warehouses API========================
 export const warehousesAPI = {
