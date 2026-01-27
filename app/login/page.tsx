@@ -92,7 +92,26 @@ export default function LoginPage() {
       clearTimeout(wakeUpTimer);
       toast.dismiss('wake-msg');
 
-      const errorMsg = error.response?.data?.error || 'Login failed';
+      // Better error messages based on error type
+      const status = error.response?.status;
+      const serverMessage = error.response?.data?.error || error.response?.data?.message;
+
+      let errorMsg: string;
+
+      if (status === 503) {
+        errorMsg = 'Server is starting up. Please wait a moment and try again.';
+      } else if (status === 504) {
+        errorMsg = 'Request timed out. Please try again.';
+      } else if (error.code === 'ERR_NETWORK' || error.message === 'Network Error') {
+        errorMsg = 'Cannot connect to server. Please check your internet connection.';
+      } else if (error.code === 'ECONNABORTED') {
+        errorMsg = 'Connection timed out. Please try again.';
+      } else if (status === 401) {
+        errorMsg = serverMessage || 'Invalid username or password';
+      } else {
+        errorMsg = serverMessage || 'Login failed. Please try again.';
+      }
+
       toast.error('✗ ' + errorMsg);
 
     } finally {

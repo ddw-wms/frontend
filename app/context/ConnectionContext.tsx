@@ -12,9 +12,10 @@ interface ConnectionState {
     lastChecked: Date | null;
     lastError: string | null;
     retryCount: number;
-    isOnline: boolean; // Browser online status
+    isOnline: boolean;
     serverReady: boolean;
     databaseReady: boolean;
+    initialCheckDone: boolean;
 }
 
 interface ConnectionContextType extends ConnectionState {
@@ -39,6 +40,7 @@ export function ConnectionProvider({ children }: { children: React.ReactNode }) 
         isOnline: typeof navigator !== 'undefined' ? navigator.onLine : true,
         serverReady: false,
         databaseReady: false,
+        initialCheckDone: false,
     });
 
     const healthCheckInterval = useRef<NodeJS.Timeout | null>(null);
@@ -64,6 +66,7 @@ export function ConnectionProvider({ children }: { children: React.ReactNode }) 
                 retryCount: 0,
                 serverReady: isHealthy,
                 databaseReady: dbReady && dbHealthy,
+                initialCheckDone: true,
             }));
 
             return isHealthy;
@@ -79,6 +82,7 @@ export function ConnectionProvider({ children }: { children: React.ReactNode }) 
                 lastError: error.message,
                 serverReady: false,
                 databaseReady: false,
+                initialCheckDone: true,
             }));
 
             return false;
@@ -100,7 +104,6 @@ export function ConnectionProvider({ children }: { children: React.ReactNode }) 
             const wakeSuccess = await wakeUpServer();
 
             if (wakeSuccess) {
-                // Verify with health check
                 return await checkConnection();
             }
 
@@ -124,7 +127,6 @@ export function ConnectionProvider({ children }: { children: React.ReactNode }) 
     useEffect(() => {
         const handleOnline = () => {
             setState(prev => ({ ...prev, isOnline: true }));
-            // Immediately check connection when coming back online
             checkConnection();
         };
 
@@ -150,19 +152,16 @@ export function ConnectionProvider({ children }: { children: React.ReactNode }) 
     useEffect(() => {
         isMounted.current = true;
 
-        // Initial check
         const initialCheck = async () => {
             const isHealthy = await checkConnection();
 
             if (!isHealthy && isMounted.current) {
-                // Try to wake up the server
                 await retryConnection();
             }
         };
 
         initialCheck();
 
-        // Set up periodic health check
         healthCheckInterval.current = setInterval(() => {
             if (state.status === 'connected' && state.isOnline) {
                 checkConnection();
@@ -178,6 +177,7 @@ export function ConnectionProvider({ children }: { children: React.ReactNode }) 
                 clearTimeout(reconnectTimeout.current);
             }
         };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     // Auto-retry when disconnected
@@ -237,9 +237,11 @@ export function useConnection() {
 
 // Hook for showing connection status banner
 export function useConnectionStatus() {
-    const { status, isOnline, retryCount, lastError, checkConnection, retryConnection, isHealthy } = useConnection();
+    const { status, isOnline, retryCount, retryConnection, isHealthy, initialCheckDone } = useConnection();
 
-    const shouldShowBanner = !isHealthy && status !== 'connecting';
+    // Only show banner after initial check is done AND there's a problem
+    // Don't show during initial 'connecting' phase
+    const shouldShowBanner = initialCheckDone && !isHealthy && status !== 'connecting';
 
     const message = (() => {
         if (!isOnline) {
