@@ -263,6 +263,28 @@ export default function DashboardPage() {
   const [pickingWSNs, setPickingWSNs] = useState<Set<string>>(new Set());
   const [outboundWSNs, setOutboundWSNs] = useState<Set<string>>(new Set());
 
+  // ====== DASHBOARD COLUMN WIDTHS PERSISTENCE ======
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const savedState = localStorage.getItem('dashboard_columnState');
+        if (savedState) {
+          const state = JSON.parse(savedState);
+          const widths: Record<string, number> = {};
+          state.forEach((col: any) => {
+            if (col.colId && col.width) {
+              widths[col.colId] = col.width;
+            }
+          });
+          return widths;
+        }
+      } catch (e) {
+        console.log('Dashboard column widths load error');
+      }
+    }
+    return {};
+  });
+
   // Pagination state - declared early for use in column defs
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(50);
@@ -365,6 +387,12 @@ export default function DashboardPage() {
   };
 
   const getColumnSizing = useCallback((col: string) => {
+    // Use saved width if available
+    const savedWidth = columnWidths[col];
+    if (savedWidth) {
+      return { width: savedWidth, suppressSizeToFit: true };
+    }
+
     const sizing = COLUMN_WIDTHS[col];
     if (!sizing) return {};
     // if explicit mobile override present, use it when on mobile
@@ -387,7 +415,7 @@ export default function DashboardPage() {
     const r: any = { ...sizing };
     if (sizing.width && !sizing.flex) r.suppressSizeToFit = true;
     return r;
-  }, [isMobile]);
+  }, [isMobile, columnWidths]);
 
   useEffect(() => {
     // SR.NO column - always first
@@ -513,9 +541,24 @@ export default function DashboardPage() {
     });
 
     setColumnDefs(defs);
-  }, [visibleColumns, enableSorting, enableColumnFilters, enableColumnResize, isMobile, page, limit]);
+  }, [visibleColumns, enableSorting, enableColumnFilters, enableColumnResize, isMobile, page, limit, columnWidths, getColumnSizing]);
 
-
+  // Re-apply column widths when columnDefs change to ensure widths persist after column toggle
+  useEffect(() => {
+    if (gridRef.current && Object.keys(columnWidths).length > 0) {
+      try {
+        const savedState = localStorage.getItem('dashboard_columnState');
+        if (savedState) {
+          const state = JSON.parse(savedState);
+          // Only apply width from saved state, preserve current visibility
+          const currentState = gridRef.current.getColumnState();
+          const visibleColIds = currentState.map((c: any) => c.colId);
+          const filteredState = state.filter((s: any) => visibleColIds.includes(s.colId));
+          gridRef.current.applyColumnState({ state: filteredState, applyOrder: false });
+        }
+      } catch { /* ignore */ }
+    }
+  }, [columnDefs, columnWidths]);
 
   const [searchWSN, setSearchWSN] = useState("");
 
@@ -2448,14 +2491,32 @@ export default function DashboardPage() {
                       onColumnResized={(params: any) => {
                         if (params.finished && params.api) {
                           try {
-                            localStorage.setItem('dashboard_columnState', JSON.stringify(params.api.getColumnState()));
+                            const columnState = params.api.getColumnState();
+                            localStorage.setItem('dashboard_columnState', JSON.stringify(columnState));
+                            // Update column widths state to persist widths in column definitions
+                            const widths: Record<string, number> = {};
+                            columnState.forEach((col: any) => {
+                              if (col.colId && col.width) {
+                                widths[col.colId] = col.width;
+                              }
+                            });
+                            setColumnWidths(widths);
                           } catch { /* ignore */ }
                         }
                       }}
                       onColumnMoved={(params: any) => {
                         if (params.finished && params.api) {
                           try {
-                            localStorage.setItem('dashboard_columnState', JSON.stringify(params.api.getColumnState()));
+                            const columnState = params.api.getColumnState();
+                            localStorage.setItem('dashboard_columnState', JSON.stringify(columnState));
+                            // Update column widths state to persist widths in column definitions
+                            const widths: Record<string, number> = {};
+                            columnState.forEach((col: any) => {
+                              if (col.colId && col.width) {
+                                widths[col.colId] = col.width;
+                              }
+                            });
+                            setColumnWidths(widths);
                           } catch { /* ignore */ }
                         }
                       }}

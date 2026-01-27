@@ -256,6 +256,7 @@ export default function QCPage() {
 
   // AG Grid refs
   const gridRef = useRef<any>(null);
+  const listGridRef = useRef<any>(null);  // Separate ref for List grid
   const columnApiRef = useRef<any>(null);
   const hasAutoFittedRef = useRef(false); // Track if auto-fit has been done
 
@@ -488,6 +489,28 @@ export default function QCPage() {
 
   // ====== MULTI QC COLUMN WIDTHS PERSISTENCE ======
   const [multiColumnWidths, setMultiColumnWidths] = useState<Record<string, number>>({});
+
+  // ====== QC LIST COLUMN WIDTHS PERSISTENCE ======
+  const [listColumnWidths, setListColumnWidths] = useState<Record<string, number>>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const savedState = localStorage.getItem('qc_columnState');
+        if (savedState) {
+          const state = JSON.parse(savedState);
+          const widths: Record<string, number> = {};
+          state.forEach((col: any) => {
+            if (col.colId && col.width) {
+              widths[col.colId] = col.width;
+            }
+          });
+          return widths;
+        }
+      } catch (e) {
+        console.log('QC List column widths load error');
+      }
+    }
+    return {};
+  });
 
   // Load Multi QC column widths from localStorage on mount
   useEffect(() => {
@@ -1197,9 +1220,37 @@ export default function QCPage() {
 
   // Save to localStorage when columns change
   const handleListColumnToggle = (key: string) => {
-    const updated = listColumns.map(col =>
-      col.key === key ? { ...col, visible: !col.visible } : col
-    );
+    // Check if column exists in listColumns
+    const existingCol = listColumns.find(col => col.key === key);
+
+    let updated: ColumnConfig[];
+    if (existingCol) {
+      // Toggle visibility of existing column
+      updated = listColumns.map(col =>
+        col.key === key ? { ...col, visible: !col.visible } : col
+      );
+    } else {
+      // Column doesn't exist in array - add it at correct position based on ALL_LIST_COLUMNS order
+      const newCol = { key, visible: true };
+      const allKeys = ALL_LIST_COLUMNS;
+      const targetIndex = allKeys.indexOf(key);
+
+      // Find the right insertion point to maintain order
+      let insertIndex = listColumns.length;
+      for (let i = 0; i < listColumns.length; i++) {
+        const currentColIndex = allKeys.indexOf(listColumns[i].key);
+        if (currentColIndex > targetIndex) {
+          insertIndex = i;
+          break;
+        }
+      }
+
+      updated = [
+        ...listColumns.slice(0, insertIndex),
+        newCol,
+        ...listColumns.slice(insertIndex)
+      ];
+    }
 
     setListColumns(updated);
     localStorage.setItem('qc_list_columns', JSON.stringify(updated));
@@ -1221,6 +1272,8 @@ export default function QCPage() {
     const visibleKeys = listColumns.filter(c => c.visible).map(c => c.key);
 
     const cols = visibleKeys.map((col: string) => {
+      const savedWidth = listColumnWidths[col];
+
       // Dates
       if (col.includes('date')) {
         return {
@@ -1229,7 +1282,7 @@ export default function QCPage() {
           filter: enableColumnFilters ? 'agDateColumnFilter' : undefined,
           valueFormatter: (p: any) => formatDate(p.value),
           tooltipField: col,
-          width: 140,
+          width: savedWidth || 140,
         };
       }
 
@@ -1255,7 +1308,7 @@ export default function QCPage() {
               textAlign: 'center' as any,
             };
           },
-          width: 120,
+          width: savedWidth || 120,
         };
       }
 
@@ -1276,7 +1329,7 @@ export default function QCPage() {
               textAlign: 'center' as any,
             };
           },
-          width: 120,
+          width: savedWidth || 120,
         };
       }
 
@@ -1286,12 +1339,28 @@ export default function QCPage() {
         headerName: col.replace(/_/g, ' ').toUpperCase(),
         filter: enableColumnFilters ? 'agTextColumnFilter' : undefined,
         tooltipField: col,
-        width: col === 'wsn' ? 180 : col === 'product_title' ? 250 : 150,
+        width: savedWidth || (col === 'wsn' ? 180 : col === 'product_title' ? 250 : 150),
       };
     });
 
     return [sr, ...cols];
-  }, [listColumns, page, limit, enableColumnFilters, enableSorting, enableColumnResize]);
+  }, [listColumns, page, limit, enableColumnFilters, enableSorting, enableColumnResize, listColumnWidths, isDarkMode]);
+
+  // Re-apply column widths when listColumnDefs change to ensure widths persist after column toggle
+  useEffect(() => {
+    if (listGridRef.current && Object.keys(listColumnWidths).length > 0) {
+      try {
+        const savedState = localStorage.getItem('qc_columnState');
+        if (savedState) {
+          const state = JSON.parse(savedState);
+          const currentState = listGridRef.current.getColumnState();
+          const visibleColIds = currentState.map((c: any) => c.colId);
+          const filteredState = state.filter((s: any) => visibleColIds.includes(s.colId));
+          listGridRef.current.applyColumnState({ state: filteredState, applyOrder: false });
+        }
+      } catch { /* ignore */ }
+    }
+  }, [listColumnDefs, listColumnWidths]);
 
   const listDefaultColDef = useMemo(() => ({
     sortable: !!enableSorting,
@@ -2851,6 +2920,7 @@ export default function QCPage() {
                         animateRows={false}
                         gridOptions={{ getRowId: (params: any) => String(params.data?.id || params.data?.wsn || params.rowIndex), suppressRowTransform: true }}
                         onGridReady={(params: any) => {
+                          listGridRef.current = params.api;  // Use listGridRef for list grid
                           gridRef.current = params.api;
                           columnApiRef.current = params.api;
                           try {
@@ -2882,14 +2952,32 @@ export default function QCPage() {
                         onColumnResized={(params: any) => {
                           if (params.finished && params.api) {
                             try {
-                              localStorage.setItem('qc_columnState', JSON.stringify(params.api.getColumnState()));
+                              const columnState = params.api.getColumnState();
+                              localStorage.setItem('qc_columnState', JSON.stringify(columnState));
+                              // Update column widths state to persist widths in column definitions
+                              const widths: Record<string, number> = {};
+                              columnState.forEach((col: any) => {
+                                if (col.colId && col.width) {
+                                  widths[col.colId] = col.width;
+                                }
+                              });
+                              setListColumnWidths(widths);
                             } catch { /* ignore */ }
                           }
                         }}
                         onColumnMoved={(params: any) => {
                           if (params.finished && params.api) {
                             try {
-                              localStorage.setItem('qc_columnState', JSON.stringify(params.api.getColumnState()));
+                              const columnState = params.api.getColumnState();
+                              localStorage.setItem('qc_columnState', JSON.stringify(columnState));
+                              // Update column widths state to persist widths in column definitions
+                              const widths: Record<string, number> = {};
+                              columnState.forEach((col: any) => {
+                                if (col.colId && col.width) {
+                                  widths[col.colId] = col.width;
+                                }
+                              });
+                              setListColumnWidths(widths);
                             } catch { /* ignore */ }
                           }
                         }}

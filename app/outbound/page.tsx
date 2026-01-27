@@ -391,6 +391,28 @@ export default function OutboundPage() {
     // ====== MULTI ENTRY COLUMN WIDTHS PERSISTENCE ======
     const [multiColumnWidths, setMultiColumnWidths] = useState<Record<string, number>>({});
 
+    // ====== OUTBOUND LIST COLUMN WIDTHS PERSISTENCE ======
+    const [listColumnWidths, setListColumnWidths] = useState<Record<string, number>>(() => {
+        if (typeof window !== 'undefined') {
+            try {
+                const savedState = localStorage.getItem('outbound_columnState');
+                if (savedState) {
+                    const state = JSON.parse(savedState);
+                    const widths: Record<string, number> = {};
+                    state.forEach((col: any) => {
+                        if (col.colId && col.width) {
+                            widths[col.colId] = col.width;
+                        }
+                    });
+                    return widths;
+                }
+            } catch (e) {
+                console.log('Outbound List column widths load error');
+            }
+        }
+        return {};
+    });
+
     // Load Multi Entry column widths from localStorage on mount
     useEffect(() => {
         const savedWidths = localStorage.getItem('outboundMultiEntryColumnWidths');
@@ -2945,6 +2967,8 @@ export default function OutboundPage() {
         };
 
         const cols = listColumns.map((col: string) => {
+            const savedWidth = listColumnWidths[col];
+
             // Dates
             if (col.includes('date')) {
                 return {
@@ -2953,7 +2977,7 @@ export default function OutboundPage() {
                     filter: enableColumnFilters ? 'agDateColumnFilter' : undefined,
                     valueFormatter: (p: any) => formatDate(p.value),
                     tooltipField: col,
-                    width: col === 'dispatch_date' ? 140 : 150,
+                    width: savedWidth || (col === 'dispatch_date' ? 140 : 150),
                 };
             }
 
@@ -2968,7 +2992,7 @@ export default function OutboundPage() {
                             <Chip label={p.value} size="small" color={p.value === 'PICKING' ? 'primary' : p.value === 'QC' ? 'success' : 'warning'} sx={{ height: 20, fontSize: '0.7rem', fontWeight: 600 }} />
                         );
                     },
-                    width: 120,
+                    width: savedWidth || 120,
                 };
             }
 
@@ -2978,12 +3002,29 @@ export default function OutboundPage() {
                 headerName: col.replace(/_/g, ' ').toUpperCase(),
                 filter: enableColumnFilters ? 'agTextColumnFilter' : undefined,
                 tooltipField: col,
-                width: col === 'wsn' ? 180 : 150,
+                width: savedWidth || (col === 'wsn' ? 180 : 150),
             };
         });
 
         return [sr, ...cols];
-    }, [listColumns, enableColumnFilters, enableSorting, enableColumnResize, isDarkMode]);
+    }, [listColumns, enableColumnFilters, enableSorting, enableColumnResize, isDarkMode, listColumnWidths]);
+
+    // Re-apply column widths when listColumnDefs change to ensure widths persist after column toggle
+    useEffect(() => {
+        const api = listGridRef.current?.api || listGridRef.current;
+        if (api && Object.keys(listColumnWidths).length > 0) {
+            try {
+                const savedState = localStorage.getItem('outbound_columnState');
+                if (savedState) {
+                    const state = JSON.parse(savedState);
+                    const currentState = api.getColumnState();
+                    const visibleColIds = currentState.map((c: any) => c.colId);
+                    const filteredState = state.filter((s: any) => visibleColIds.includes(s.colId));
+                    api.applyColumnState({ state: filteredState, applyOrder: false });
+                }
+            } catch { /* ignore */ }
+        }
+    }, [listColumnDefs, listColumnWidths]);
 
     const listDefaultColDef = useMemo(() => ({
         sortable: !!enableSorting,
@@ -3682,14 +3723,32 @@ export default function OutboundPage() {
                                             onColumnResized={(params: any) => {
                                                 if (params.finished && params.api) {
                                                     try {
-                                                        localStorage.setItem('outbound_columnState', JSON.stringify(params.api.getColumnState()));
+                                                        const columnState = params.api.getColumnState();
+                                                        localStorage.setItem('outbound_columnState', JSON.stringify(columnState));
+                                                        // Update column widths state to persist widths in column definitions
+                                                        const widths: Record<string, number> = {};
+                                                        columnState.forEach((col: any) => {
+                                                            if (col.colId && col.width) {
+                                                                widths[col.colId] = col.width;
+                                                            }
+                                                        });
+                                                        setListColumnWidths(widths);
                                                     } catch { /* ignore */ }
                                                 }
                                             }}
                                             onColumnMoved={(params: any) => {
                                                 if (params.finished && params.api) {
                                                     try {
-                                                        localStorage.setItem('outbound_columnState', JSON.stringify(params.api.getColumnState()));
+                                                        const columnState = params.api.getColumnState();
+                                                        localStorage.setItem('outbound_columnState', JSON.stringify(columnState));
+                                                        // Update column widths state to persist widths in column definitions
+                                                        const widths: Record<string, number> = {};
+                                                        columnState.forEach((col: any) => {
+                                                            if (col.colId && col.width) {
+                                                                widths[col.colId] = col.width;
+                                                            }
+                                                        });
+                                                        setListColumnWidths(widths);
                                                     } catch { /* ignore */ }
                                                 }
                                             }}
@@ -3904,11 +3963,15 @@ export default function OutboundPage() {
                                                 <Checkbox
                                                     checked={listColumns.includes(col)}
                                                     onChange={() => {
+                                                        let next: string[];
                                                         if (listColumns.includes(col)) {
-                                                            saveListColumnSettings(listColumns.filter((c: string) => c !== col));
+                                                            next = listColumns.filter((c: string) => c !== col);
                                                         } else {
-                                                            saveListColumnSettings([...listColumns, col]);
+                                                            next = [...listColumns, col];
                                                         }
+                                                        // Maintain order using ALL_LIST_COLUMNS
+                                                        const ordered = ALL_LIST_COLUMNS.filter((c) => next.includes(c));
+                                                        saveListColumnSettings(ordered);
                                                     }}
                                                 />
                                             }
@@ -3926,11 +3989,15 @@ export default function OutboundPage() {
                                                 <Checkbox
                                                     checked={listColumns.includes(col)}
                                                     onChange={() => {
+                                                        let next: string[];
                                                         if (listColumns.includes(col)) {
-                                                            saveListColumnSettings(listColumns.filter((c: string) => c !== col));
+                                                            next = listColumns.filter((c: string) => c !== col);
                                                         } else {
-                                                            saveListColumnSettings([...listColumns, col]);
+                                                            next = [...listColumns, col];
                                                         }
+                                                        // Maintain order using ALL_LIST_COLUMNS
+                                                        const ordered = ALL_LIST_COLUMNS.filter((c) => next.includes(c));
+                                                        saveListColumnSettings(ordered);
                                                     }}
                                                 />
                                             }

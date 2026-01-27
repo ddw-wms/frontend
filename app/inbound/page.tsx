@@ -142,8 +142,10 @@ export default function InboundPage() {
   const [tabValue, setTabValue] = useState(0);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<any>(null);
+  const listGridRef = useRef<any>(null);  // Separate ref for List grid
   const columnApiRef = useRef<any>(null);
   const hasAutoFittedRef = useRef(false); // Track if auto-fit has been done
+  const shouldReapplyWidthsRef = useRef(false); // Track if we should reapply saved widths
   const lastKeyDownRef = useRef<any>(null);
   const isAutoScrollingRef = useRef<boolean>(false);
   const scrollAnimationFrameRef = useRef<number | null>(null);
@@ -383,9 +385,32 @@ export default function InboundPage() {
 
   const [listColumnSettingsOpen, setListColumnSettingsOpen] = useState(false);
 
+  // ====== INBOUND LIST COLUMN WIDTHS PERSISTENCE ======
+  const [listColumnWidths, setListColumnWidths] = useState<Record<string, number>>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const savedState = localStorage.getItem('inbound_columnState');
+        if (savedState) {
+          const state = JSON.parse(savedState);
+          const widths: Record<string, number> = {};
+          state.forEach((col: any) => {
+            if (col.colId && col.width) {
+              widths[col.colId] = col.width;
+            }
+          });
+          return widths;
+        }
+      } catch (e) {
+        console.log('Column widths load error');
+      }
+    }
+    return {};
+  });
+
   // ====== BATCH MANAGEMENT STATE ======
   const [batches, setBatches] = useState<any[]>([]);
   const [batchLoading, setBatchLoading] = useState(false);
+
 
   // ====== EXPORT STATE ======
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
@@ -962,7 +987,14 @@ export default function InboundPage() {
     const srCol = {
       headerName: 'SR.NO',
       field: '__sr',
-      valueGetter: (params: any) => (params.node ? (page - 1) * limit + params.node.rowIndex + 1 : undefined),
+      // Use context for page/limit to avoid recreating column defs on pagination
+      valueGetter: (params: any) => {
+        if (!params.node) return undefined;
+        const ctx = params.context || {};
+        const currentPage = ctx.page || 1;
+        const currentLimit = ctx.limit || 100;
+        return params.node.rowIndex + 1 + (currentPage - 1) * currentLimit;
+      },
       width: 80,
       cellStyle: { fontWeight: 700, textAlign: 'center', color: isDarkMode ? '#94a3b8' : '#64748b' },
       suppressMovable: true,
@@ -973,18 +1005,27 @@ export default function InboundPage() {
     const cols = listColumns.map((col: string) => {
       const isDate = col.includes('date');
       const headerName = col.replace(/_/g, ' ').toUpperCase();
+      const savedWidth = listColumnWidths[col];
+
       const base: any = {
         field: col,
         headerName,
         minWidth: col === 'product_title' ? 240 : col === 'brand' ? 140 : 120,
-        flex: col === 'product_title' ? 1.5 : 1,
       };
+
+      // Use saved width if available, otherwise use flex for auto-sizing
+      if (savedWidth) {
+        base.width = savedWidth;
+      } else {
+        base.flex = col === 'product_title' ? 1.5 : 1;
+      }
+
       if (isDate) base.valueFormatter = (params: any) => formatInboundDate(params.value);
       return base;
     });
 
     return [srCol, ...cols];
-  }, [listColumns, formatInboundDate, page, limit]);
+  }, [listColumns, formatInboundDate, isDarkMode, listColumnWidths]);
 
   const inboundDefaultColDef = useMemo(() => ({
     sortable: gridSettings.sortable,
@@ -1008,20 +1049,33 @@ export default function InboundPage() {
     }
   }, [listLoading, listData]);
 
+  // Reapply saved column state when grid settings or column visibility changes
   useEffect(() => {
-    if (currentTabCode !== 'list') return;
-    const colApi = columnApiRef.current;
-    if (!colApi) return;
+    if (visibleTabCodes[tabValue] !== 'list') return;
 
+    // Set flag to reapply widths on next grid update
+    shouldReapplyWidthsRef.current = true;
+
+    const api = listGridRef.current;
+    if (!api) return;
+
+    // Reapply saved column state to preserve user's column widths
     setTimeout(() => {
       try {
-        const allCols = colApi.getAllColumns().map((c: any) => c.getId());
-        colApi.autoSizeColumns(allCols, false);
+        const savedState = localStorage.getItem('inbound_columnState');
+        if (savedState) {
+          const state = JSON.parse(savedState);
+          const currentState = api.getColumnState();
+          const visibleColIds = currentState.map((c: any) => c.colId);
+          const filteredState = state.filter((s: any) => visibleColIds.includes(s.colId));
+          api.applyColumnState({ state: filteredState, applyOrder: false });
+          console.log('✅ Reapplied saved column widths after settings change');
+        }
       } catch (err) {
-        gridRef.current?.api?.sizeColumnsToFit();
+        console.log('Failed to reapply column state:', err);
       }
-    }, 80);
-  }, [tabValue, listColumns, listData.length]);
+    }, 100);
+  }, [visibleTabCodes, tabValue, listColumns, gridSettings, listColumnWidths, inboundColumnDefs]);
 
   // ====== INBOUND LIST & helper loaders ======
   // ⚡ HELPER: Generate cache key for current filters
@@ -3171,7 +3225,7 @@ export default function InboundPage() {
     yield_value: { width: 60 },
     fk_grade: { width: 80 },
     inbound_date: { width: 110 },
-    fkt_link: { Width: 50 },
+    fkt_link: { width: 50 },
     fkqc_remark: { flex: 1, minWidth: 40 },
   }), []);
 
@@ -4293,6 +4347,7 @@ export default function InboundPage() {
                       rowData={listData}
                       columnDefs={inboundColumnDefs}
                       defaultColDef={inboundDefaultColDef}
+                      context={{ page, limit }}
 
                       suppressScrollOnNewData={true}
                       maintainColumnOrder={true}
@@ -4300,6 +4355,7 @@ export default function InboundPage() {
                       enableCellTextSelection={true}
                       suppressRowTransform={true}
                       onGridReady={(params: any) => {
+                        listGridRef.current = params.api;  // Set listGridRef for list grid
                         columnApiRef.current = params.api;
                         try {
                           const savedState = localStorage.getItem('inbound_columnState');
@@ -4312,15 +4368,49 @@ export default function InboundPage() {
                       onColumnResized={(params: any) => {
                         if (params.finished && params.api) {
                           try {
-                            localStorage.setItem('inbound_columnState', JSON.stringify(params.api.getColumnState()));
+                            const columnState = params.api.getColumnState();
+                            localStorage.setItem('inbound_columnState', JSON.stringify(columnState));
+                            // Update column widths state to persist widths in column definitions
+                            const widths: Record<string, number> = {};
+                            columnState.forEach((col: any) => {
+                              if (col.colId && col.width) {
+                                widths[col.colId] = col.width;
+                              }
+                            });
+                            setListColumnWidths(widths);
                           } catch { /* ignore */ }
                         }
                       }}
                       onColumnMoved={(params: any) => {
                         if (params.finished && params.api) {
                           try {
-                            localStorage.setItem('inbound_columnState', JSON.stringify(params.api.getColumnState()));
+                            const columnState = params.api.getColumnState();
+                            localStorage.setItem('inbound_columnState', JSON.stringify(columnState));
+                            // Update column widths state to persist widths in column definitions
+                            const widths: Record<string, number> = {};
+                            columnState.forEach((col: any) => {
+                              if (col.colId && col.width) {
+                                widths[col.colId] = col.width;
+                              }
+                            });
+                            setListColumnWidths(widths);
                           } catch { /* ignore */ }
+                        }
+                      }}
+                      onDisplayedColumnsChanged={(params: any) => {
+                        // Reapply saved column widths when columns change (column settings or grid settings)
+                        if (shouldReapplyWidthsRef.current && params.api) {
+                          shouldReapplyWidthsRef.current = false;
+                          setTimeout(() => {
+                            try {
+                              const savedState = localStorage.getItem('inbound_columnState');
+                              if (savedState) {
+                                const state = JSON.parse(savedState);
+                                params.api.applyColumnState({ state, applyOrder: false });
+                                console.log('✅ Reapplied saved column widths via onDisplayedColumnsChanged');
+                              }
+                            } catch { /* ignore */ }
+                          }, 50);
                         }
                       }}
                       onFirstDataRendered={(params: any) => {

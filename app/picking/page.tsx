@@ -109,6 +109,7 @@ export default function PickingPage() {
   const { activeWarehouse } = useWarehouse();
   const [user, setUser] = useState<any>(null);
   const gridRef = useRef<any>(null);
+  const listGridRef = useRef<any>(null);  // Separate ref for List grid
   const columnApiRef = useRef<any>(null);
   const hasAutoFittedRef = useRef(false); // Track if auto-fit has been done
 
@@ -231,6 +232,28 @@ export default function PickingPage() {
 
   // ====== MULTI PICKING COLUMN WIDTHS PERSISTENCE ======
   const [multiColumnWidths, setMultiColumnWidths] = useState<Record<string, number>>({});
+
+  // ====== PICKING LIST COLUMN WIDTHS PERSISTENCE ======
+  const [listColumnWidths, setListColumnWidths] = useState<Record<string, number>>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const savedState = localStorage.getItem('picking_columnState');
+        if (savedState) {
+          const state = JSON.parse(savedState);
+          const widths: Record<string, number> = {};
+          state.forEach((col: any) => {
+            if (col.colId && col.width) {
+              widths[col.colId] = col.width;
+            }
+          });
+          return widths;
+        }
+      } catch (e) {
+        console.log('Picking List column widths load error');
+      }
+    }
+    return {};
+  });
 
   // Load Multi Picking column widths from localStorage on mount
   useEffect(() => {
@@ -1586,6 +1609,8 @@ export default function PickingPage() {
     };
 
     const cols = listColumns.map((col: string) => {
+      const savedWidth = listColumnWidths[col];
+
       // Dates
       if (col.includes('date')) {
         return {
@@ -1594,7 +1619,7 @@ export default function PickingPage() {
           filter: enableColumnFilters ? 'agDateColumnFilter' : undefined,
           valueFormatter: (p: any) => formatDate(p.value),
           tooltipField: col,
-          width: col === 'picking_date' ? 140 : 150,
+          width: savedWidth || (col === 'picking_date' ? 140 : 150),
         };
       }
 
@@ -1610,7 +1635,7 @@ export default function PickingPage() {
               <Chip label={p.value} size="small" color={colorMap[p.value] || 'default'} sx={{ height: 20, fontSize: '0.7rem', fontWeight: 600 }} />
             );
           },
-          width: 120,
+          width: savedWidth || 120,
         };
       }
 
@@ -1620,12 +1645,28 @@ export default function PickingPage() {
         headerName: col.replace(/_/g, ' ').toUpperCase(),
         filter: enableColumnFilters ? 'agTextColumnFilter' : undefined,
         tooltipField: col,
-        width: col === 'wsn' ? 180 : 150,
+        width: savedWidth || (col === 'wsn' ? 180 : 150),
       };
     });
 
     return [sr, ...cols];
-  }, [listColumns, page, limit, enableColumnFilters]);
+  }, [listColumns, page, limit, enableColumnFilters, listColumnWidths, isDarkMode]);
+
+  // Re-apply column widths when listColumnDefs change to ensure widths persist after column toggle
+  useEffect(() => {
+    if (listGridRef.current && Object.keys(listColumnWidths).length > 0) {
+      try {
+        const savedState = localStorage.getItem('picking_columnState');
+        if (savedState) {
+          const state = JSON.parse(savedState);
+          const currentState = listGridRef.current.getColumnState();
+          const visibleColIds = currentState.map((c: any) => c.colId);
+          const filteredState = state.filter((s: any) => visibleColIds.includes(s.colId));
+          listGridRef.current.applyColumnState({ state: filteredState, applyOrder: false });
+        }
+      } catch { /* ignore */ }
+    }
+  }, [listColumnDefs, listColumnWidths]);
 
   const listDefaultColDef = useMemo(() => ({
     sortable: !!enableSorting,
@@ -2280,6 +2321,7 @@ export default function PickingPage() {
                       animateRows={false}
                       gridOptions={{ getRowId: (params: any) => String(params.data?.wsn || params.data?.id || params.rowIndex), suppressRowTransform: true }}
                       onGridReady={(params: any) => {
+                        listGridRef.current = params.api;  // Use listGridRef for list grid
                         gridRef.current = params.api;
                         columnApiRef.current = params.api;
                         try {
@@ -2311,14 +2353,32 @@ export default function PickingPage() {
                       onColumnResized={(params: any) => {
                         if (params.finished && params.api) {
                           try {
-                            localStorage.setItem('picking_columnState', JSON.stringify(params.api.getColumnState()));
+                            const columnState = params.api.getColumnState();
+                            localStorage.setItem('picking_columnState', JSON.stringify(columnState));
+                            // Update column widths state to persist widths in column definitions
+                            const widths: Record<string, number> = {};
+                            columnState.forEach((col: any) => {
+                              if (col.colId && col.width) {
+                                widths[col.colId] = col.width;
+                              }
+                            });
+                            setListColumnWidths(widths);
                           } catch { /* ignore */ }
                         }
                       }}
                       onColumnMoved={(params: any) => {
                         if (params.finished && params.api) {
                           try {
-                            localStorage.setItem('picking_columnState', JSON.stringify(params.api.getColumnState()));
+                            const columnState = params.api.getColumnState();
+                            localStorage.setItem('picking_columnState', JSON.stringify(columnState));
+                            // Update column widths state to persist widths in column definitions
+                            const widths: Record<string, number> = {};
+                            columnState.forEach((col: any) => {
+                              if (col.colId && col.width) {
+                                widths[col.colId] = col.width;
+                              }
+                            });
+                            setListColumnWidths(widths);
                           } catch { /* ignore */ }
                         }
                       }}
@@ -2532,11 +2592,15 @@ export default function PickingPage() {
                         <Checkbox
                           checked={listColumns.includes(col)}
                           onChange={() => {
+                            let next: string[];
                             if (listColumns.includes(col)) {
-                              saveListColumnSettings(listColumns.filter((c: string) => c !== col));
+                              next = listColumns.filter((c: string) => c !== col);
                             } else {
-                              saveListColumnSettings([...listColumns, col]);
+                              next = [...listColumns, col];
                             }
+                            // Maintain order using ALL_LIST_COLUMNS
+                            const ordered = ALL_LIST_COLUMNS.filter((c) => next.includes(c));
+                            saveListColumnSettings(ordered);
                           }}
                         />
                       }

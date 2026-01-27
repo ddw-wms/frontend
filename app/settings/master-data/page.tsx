@@ -431,6 +431,28 @@ export default function MasterDataPage() {
   const SHOW_OVERLAY_DELAY = 150;
   const MIN_LOADING_MS = 350;
 
+  // ====== MASTER DATA COLUMN WIDTHS PERSISTENCE ======
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const savedState = localStorage.getItem('masterdata_columnState_v2');
+        if (savedState) {
+          const state = JSON.parse(savedState);
+          const widths: Record<string, number> = {};
+          state.forEach((col: any) => {
+            if (col.colId && col.width) {
+              widths[col.colId] = col.width;
+            }
+          });
+          return widths;
+        }
+      } catch (e) {
+        console.log('Master Data column widths load error');
+      }
+    }
+    return {};
+  });
+
   // Grid settings
   const [enableSorting, setEnableSorting] = useState<boolean>(() => {
     try { return localStorage.getItem('masterdata_enableSorting') !== 'false'; } catch { return true; }
@@ -484,6 +506,12 @@ export default function MasterDataPage() {
 
   // AG Grid column sizing helper
   const getColumnSizing = useCallback((col: string) => {
+    // Use saved width if available
+    const savedWidth = columnWidths[col];
+    if (savedWidth) {
+      return { width: savedWidth, minWidth: 80 };
+    }
+
     const colConfig = columns.find(c => c.id === col) as any;
     if (!colConfig) return { minWidth: 80 };
 
@@ -500,7 +528,7 @@ export default function MasterDataPage() {
     }
 
     return sizing;
-  }, [isMobile]);
+  }, [isMobile, columnWidths]);
 
   // Build column definitions for AG Grid
   useEffect(() => {
@@ -606,7 +634,23 @@ export default function MasterDataPage() {
     });
 
     setColumnDefs(defs);
-  }, [columnVisibility, enableSorting, enableColumnFilters, enableColumnResize, isMobile, page, rowsPerPage]);
+  }, [columnVisibility, enableSorting, enableColumnFilters, enableColumnResize, isMobile, page, rowsPerPage, columnWidths, getColumnSizing]);
+
+  // Re-apply column widths when columnDefs change to ensure widths persist after column toggle
+  useEffect(() => {
+    if (gridRef.current && Object.keys(columnWidths).length > 0) {
+      try {
+        const savedState = localStorage.getItem('masterdata_columnState_v2');
+        if (savedState) {
+          const state = JSON.parse(savedState);
+          const currentState = gridRef.current.getColumnState();
+          const visibleColIds = currentState.map((c: any) => c.colId);
+          const filteredState = state.filter((s: any) => visibleColIds.includes(s.colId));
+          gridRef.current.applyColumnState({ state: filteredState, applyOrder: false });
+        }
+      } catch { /* ignore */ }
+    }
+  }, [columnDefs, columnWidths]);
 
   // Save grid settings to localStorage
   useEffect(() => {
@@ -2367,6 +2411,14 @@ export default function MasterDataPage() {
                                 try {
                                   const columnState = params.api.getColumnState();
                                   localStorage.setItem('masterdata_columnState_v2', JSON.stringify(columnState));
+                                  // Update column widths state to persist widths in column definitions
+                                  const widths: Record<string, number> = {};
+                                  columnState.forEach((col: any) => {
+                                    if (col.colId && col.width) {
+                                      widths[col.colId] = col.width;
+                                    }
+                                  });
+                                  setColumnWidths(widths);
                                 } catch (err) {
                                   console.error('Failed to save column state:', err);
                                 }
@@ -2378,6 +2430,14 @@ export default function MasterDataPage() {
                                 try {
                                   const columnState = params.api.getColumnState();
                                   localStorage.setItem('masterdata_columnState_v2', JSON.stringify(columnState));
+                                  // Update column widths state to persist widths in column definitions
+                                  const widths: Record<string, number> = {};
+                                  columnState.forEach((col: any) => {
+                                    if (col.colId && col.width) {
+                                      widths[col.colId] = col.width;
+                                    }
+                                  });
+                                  setColumnWidths(widths);
                                 } catch (err) {
                                   console.error('Failed to save column state:', err);
                                 }
