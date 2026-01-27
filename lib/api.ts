@@ -1,8 +1,159 @@
 // File Path = warehouse-frontend\lib\api.ts
-import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
+import axios, { AxiosInstance, AxiosRequestConfig, AxiosError } from 'axios';
 
 //const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 const API_URL = `${process.env.NEXT_PUBLIC_API_URL}/api`;
+
+// =========================== ERROR TYPES ===========================
+export interface ApiErrorDetails {
+  message: string;
+  userMessage: string;
+  isRetryable: boolean;
+  isNetworkError: boolean;
+  isServerError: boolean;
+  isTimeout: boolean;
+  statusCode?: number;
+}
+
+// Parse API errors into user-friendly format
+export const parseApiError = (error: any): ApiErrorDetails => {
+  // Network error (no response from server)
+  if (error.code === 'ERR_NETWORK' || error.message === 'Network Error') {
+    return {
+      message: error.message,
+      userMessage: 'Unable to connect to the server. Please check your internet connection or try again later.',
+      isRetryable: true,
+      isNetworkError: true,
+      isServerError: false,
+      isTimeout: false,
+    };
+  }
+
+  // Timeout error
+  if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+    return {
+      message: error.message,
+      userMessage: 'The request took too long. The server might be busy. Please try again.',
+      isRetryable: true,
+      isNetworkError: false,
+      isServerError: false,
+      isTimeout: true,
+    };
+  }
+
+  // Server responded with error
+  if (error.response) {
+    const status = error.response.status;
+    const data = error.response.data;
+
+    // Server starting up (503)
+    if (status === 503) {
+      return {
+        message: data?.error || 'Service unavailable',
+        userMessage: data?.message || 'The server is starting up. Please wait a moment and try again.',
+        isRetryable: data?.isRetryable ?? true,
+        isNetworkError: false,
+        isServerError: true,
+        isTimeout: false,
+        statusCode: status,
+      };
+    }
+
+    // Gateway timeout (504)
+    if (status === 504) {
+      return {
+        message: data?.error || 'Gateway timeout',
+        userMessage: 'The request is taking too long. Please try again or use filters to reduce data.',
+        isRetryable: true,
+        isNetworkError: false,
+        isServerError: true,
+        isTimeout: true,
+        statusCode: status,
+      };
+    }
+
+    // Other server errors (500, 502)
+    if (status >= 500) {
+      return {
+        message: data?.error || 'Server error',
+        userMessage: data?.message || 'Something went wrong on our end. Please try again later.',
+        isRetryable: data?.isRetryable ?? true,
+        isNetworkError: false,
+        isServerError: true,
+        isTimeout: false,
+        statusCode: status,
+      };
+    }
+
+    // Client errors (4xx) - generally not retryable
+    return {
+      message: data?.error || error.message,
+      userMessage: data?.message || data?.error || 'An error occurred. Please try again.',
+      isRetryable: false,
+      isNetworkError: false,
+      isServerError: false,
+      isTimeout: false,
+      statusCode: status,
+    };
+  }
+
+  // Unknown error
+  return {
+    message: error.message || 'Unknown error',
+    userMessage: 'An unexpected error occurred. Please try again.',
+    isRetryable: true,
+    isNetworkError: false,
+    isServerError: false,
+    isTimeout: false,
+  };
+};
+
+// =========================== RETRY LOGIC ===========================
+interface RetryConfig {
+  maxRetries?: number;
+  retryDelay?: number;
+  retryCondition?: (error: any) => boolean;
+}
+
+const defaultRetryConfig: RetryConfig = {
+  maxRetries: 3,
+  retryDelay: 1000,
+  retryCondition: (error: any) => {
+    const parsedError = parseApiError(error);
+    return parsedError.isRetryable && (parsedError.isNetworkError || parsedError.isServerError || parsedError.isTimeout);
+  },
+};
+
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+// Retry wrapper with exponential backoff
+export const withRetry = async <T>(
+  fn: () => Promise<T>,
+  config: RetryConfig = {}
+): Promise<T> => {
+  const { maxRetries = 3, retryDelay = 1000, retryCondition = defaultRetryConfig.retryCondition } = config;
+
+  let lastError: any;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error: any) {
+      lastError = error;
+
+      if (attempt < maxRetries && retryCondition?.(error)) {
+        const delay = retryDelay * Math.pow(2, attempt); // Exponential backoff
+        console.warn(`API request failed (attempt ${attempt + 1}/${maxRetries + 1}), retrying in ${delay}ms...`);
+        await sleep(delay);
+        continue;
+      }
+
+      throw error;
+    }
+  }
+
+  throw lastError;
+};
 
 
 const api: AxiosInstance = axios.create({
@@ -12,6 +163,60 @@ const api: AxiosInstance = axios.create({
   },
   timeout: 60000, // 60 second timeout - allows for database recovery after bulk uploads
 });
+
+// =========================== SERVER WAKE-UP ===========================
+let isWakingUp = false;
+let wakeUpPromise: Promise<boolean> | null = null;
+
+// Wake up the server (call this on app load or before critical operations)
+export const wakeUpServer = async (): Promise<boolean> => {
+  // If already waking up, return the existing promise
+  if (isWakingUp && wakeUpPromise) {
+    return wakeUpPromise;
+  }
+
+  isWakingUp = true;
+
+  wakeUpPromise = (async () => {
+    try {
+      // First try health check
+      const healthResponse = await axios.get(`${API_URL}/health`, { timeout: 10000 });
+
+      if (healthResponse.data?.status === 'OK') {
+        return true;
+      }
+
+      // If not ready, call wake endpoint
+      const wakeResponse = await axios.post(`${API_URL}/wake`, {}, { timeout: 60000 });
+      return wakeResponse.data?.success ?? false;
+    } catch (error: any) {
+      console.warn('Server wake-up failed:', error.message);
+      return false;
+    } finally {
+      isWakingUp = false;
+      wakeUpPromise = null;
+    }
+  })();
+
+  return wakeUpPromise;
+};
+
+// Check server health
+export const checkServerHealth = async (): Promise<{
+  status: 'OK' | 'DEGRADED' | 'CONNECTING' | 'ERROR' | 'OFFLINE';
+  database?: { ready: boolean; healthy: boolean; latencyMs?: number };
+  uptime?: number;
+}> => {
+  try {
+    const response = await axios.get(`${API_URL}/health`, { timeout: 10000 });
+    return response.data;
+  } catch (error: any) {
+    if (error.code === 'ERR_NETWORK' || error.code === 'ECONNABORTED') {
+      return { status: 'OFFLINE' };
+    }
+    return { status: 'ERROR' };
+  }
+};
 
 // =====================Auth API====================
 export const authAPI = {
@@ -30,12 +235,15 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Response interceptor - handle 401
+// Response interceptor - handle errors with user-friendly messages
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error: AxiosError) => {
+    const parsedError = parseApiError(error);
+
+    // Handle 401 - authentication errors
     if (error.response?.status === 401) {
-      const msg = (error.response?.data?.error || "").toLowerCase();
+      const msg = ((error.response?.data as any)?.error || "").toLowerCase();
       // Logout ONLY when token expired or invalid
       if (
         msg.includes("token") ||
@@ -47,6 +255,10 @@ api.interceptors.response.use(
         window.location.href = "/login";
       }
     }
+
+    // Attach parsed error details for easy access
+    (error as any).parsedError = parsedError;
+
     return Promise.reject(error);
   }
 );
