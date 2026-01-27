@@ -1,108 +1,9 @@
 // File Path = warehouse-frontend\lib\api.ts
-import axios, { AxiosInstance, AxiosRequestConfig, AxiosError } from 'axios';
+import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
 
 //const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 const API_URL = `${process.env.NEXT_PUBLIC_API_URL}/api`;
 
-// =================== Connection Status Manager ===================
-export type ConnectionStatus = 'connected' | 'connecting' | 'disconnected' | 'reconnecting';
-
-interface ConnectionState {
-  status: ConnectionStatus;
-  lastError: string | null;
-  retryCount: number;
-  lastSuccessTime: Date | null;
-}
-
-// Global connection state
-let connectionState: ConnectionState = {
-  status: 'connected',
-  lastError: null,
-  retryCount: 0,
-  lastSuccessTime: null,
-};
-
-// Listeners for connection status changes
-type ConnectionListener = (state: ConnectionState) => void;
-const connectionListeners: Set<ConnectionListener> = new Set();
-
-export const connectionManager = {
-  getState: () => ({ ...connectionState }),
-
-  subscribe: (listener: ConnectionListener) => {
-    connectionListeners.add(listener);
-    // Immediately notify with current state
-    listener(connectionState);
-    return () => connectionListeners.delete(listener);
-  },
-
-  updateStatus: (status: ConnectionStatus, error?: string) => {
-    connectionState = {
-      ...connectionState,
-      status,
-      lastError: error || null,
-      retryCount: status === 'reconnecting' ? connectionState.retryCount + 1 :
-        status === 'connected' ? 0 : connectionState.retryCount,
-      lastSuccessTime: status === 'connected' ? new Date() : connectionState.lastSuccessTime,
-    };
-    connectionListeners.forEach(listener => listener(connectionState));
-  },
-};
-
-// =================== Error Message Helper ===================
-export const getErrorMessage = (error: AxiosError | Error): string => {
-  if (axios.isAxiosError(error)) {
-    // Network errors (no response from server)
-    if (!error.response) {
-      if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
-        return 'Server response timeout. Please wait, reconnecting...';
-      }
-      if (error.code === 'ERR_NETWORK' || error.message.includes('Network Error')) {
-        return 'Unable to connect to server. Please check your internet connection.';
-      }
-      return 'Connection error. Server may be starting up...';
-    }
-
-    // Server responded with error
-    const status = error.response.status;
-    const serverMessage = error.response.data?.error || error.response.data?.message;
-
-    switch (status) {
-      case 401:
-        return serverMessage || 'Session expired. Please login again.';
-      case 403:
-        return serverMessage || 'You do not have permission for this action.';
-      case 404:
-        return serverMessage || 'Requested resource not found.';
-      case 500:
-        return 'Server error. Our team has been notified.';
-      case 502:
-      case 503:
-      case 504:
-        return 'Server is temporarily unavailable. Reconnecting...';
-      default:
-        return serverMessage || `Request failed (Error ${status})`;
-    }
-  }
-  return error.message || 'An unexpected error occurred';
-};
-
-// =================== Retry Configuration ===================
-const RETRY_CONFIG = {
-  maxRetries: 3,
-  baseDelay: 1000, // 1 second
-  maxDelay: 10000, // 10 seconds
-  retryableStatuses: [408, 429, 500, 502, 503, 504],
-};
-
-const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-
-const getRetryDelay = (attempt: number): number => {
-  // Exponential backoff with jitter
-  const delay = Math.min(RETRY_CONFIG.baseDelay * Math.pow(2, attempt), RETRY_CONFIG.maxDelay);
-  const jitter = delay * 0.2 * Math.random();
-  return delay + jitter;
-};
 
 const api: AxiosInstance = axios.create({
   baseURL: API_URL,
@@ -112,7 +13,13 @@ const api: AxiosInstance = axios.create({
   timeout: 60000, // 60 second timeout - allows for database recovery after bulk uploads
 });
 
-// Request interceptor - add token and track requests
+// =====================Auth API====================
+export const authAPI = {
+  login: (username: string, password: string) => api.post('auth/login', { username, password }),
+  register: (data: any) => api.post('auth/register', data),
+};
+
+// Request interceptor - add token
 api.interceptors.request.use((config) => {
   if (typeof window !== 'undefined') {
     const token = localStorage.getItem('token');
@@ -120,63 +27,29 @@ api.interceptors.request.use((config) => {
       config.headers.Authorization = `Bearer ${token}`;
     }
   }
-  // Track retry count in config
-  config.headers['x-retry-count'] = config.headers['x-retry-count'] || '0';
   return config;
 });
 
-// Response interceptor - handle errors with retry logic
+// Response interceptor - handle 401
 api.interceptors.response.use(
-  (response) => {
-    // Success - update connection status
-    connectionManager.updateStatus('connected');
-    return response;
-  },
-  async (error: AxiosError) => {
-    const config = error.config;
-
-    // Handle 401 - Authentication errors
+  (response) => response,
+  (error) => {
     if (error.response?.status === 401) {
-      const msg = ((error.response?.data as any)?.error || "").toLowerCase();
-      if (msg.includes("token") || msg.includes("invalid") || msg.includes("expired")) {
+      const msg = (error.response?.data?.error || "").toLowerCase();
+      // Logout ONLY when token expired or invalid
+      if (
+        msg.includes("token") ||
+        msg.includes("invalid") ||
+        msg.includes("expired")
+      ) {
         localStorage.removeItem("token");
         localStorage.removeItem("user");
         window.location.href = "/login";
       }
-      return Promise.reject(error);
     }
-
-    // Check if we should retry
-    const retryCount = parseInt(config?.headers?.['x-retry-count'] as string || '0');
-    const isRetryable = !error.response ||
-      RETRY_CONFIG.retryableStatuses.includes(error.response.status);
-    const shouldRetry = config && retryCount < RETRY_CONFIG.maxRetries && isRetryable;
-
-    if (shouldRetry) {
-      // Update connection status
-      connectionManager.updateStatus('reconnecting', getErrorMessage(error));
-
-      // Wait before retry
-      const delay = getRetryDelay(retryCount);
-      console.log(`🔄 Retrying request (${retryCount + 1}/${RETRY_CONFIG.maxRetries}) in ${Math.round(delay)}ms...`);
-      await sleep(delay);
-
-      // Update retry count and retry
-      config.headers['x-retry-count'] = String(retryCount + 1);
-      return api.request(config);
-    }
-
-    // Max retries exceeded or non-retryable error
-    connectionManager.updateStatus('disconnected', getErrorMessage(error));
     return Promise.reject(error);
   }
 );
-
-// =====================Auth API====================
-export const authAPI = {
-  login: (username: string, password: string) => api.post('auth/login', { username, password }),
-  register: (data: any) => api.post('auth/register', data),
-};
 
 // ========================Warehouses API========================
 export const warehousesAPI = {
