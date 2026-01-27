@@ -18,6 +18,12 @@ export { default as StandardTabs } from './StandardTabs';
 // Error Boundary for catching runtime errors
 export { default as ErrorBoundary } from './ErrorBoundary';
 
+// API Error State - user-friendly error display
+export { default as ApiErrorState } from './ApiErrorState';
+
+// Connection Status Banner - shows connection issues
+export { default as ConnectionStatusBanner } from './ConnectionStatusBanner';
+
 // Confirmation Dialog (replacement for window.confirm)
 export { default as ConfirmDialog } from './ConfirmDialog';
 

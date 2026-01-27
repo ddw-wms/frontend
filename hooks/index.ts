@@ -26,6 +26,9 @@ export {
 // UI & State Management
 export { useSnackbar } from './useSnackbar';
 
+// API & Data Fetching
+export { useApiQuery, useApiMutation } from './useApiQuery';
+
 // ⚡ Performance-Optimized Hooks
 export { useDashboardFilters, type DashboardFilters, type DashboardPagination } from './useDashboardFilters';
 export { useGridSettings, type GridSettings } from './useGridSettings';
