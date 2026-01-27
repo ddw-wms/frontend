@@ -112,12 +112,14 @@ export const parseApiError = (error: any): ApiErrorDetails => {
 interface RetryConfig {
   maxRetries?: number;
   retryDelay?: number;
+  useExponentialBackoff?: boolean; // Default true, set false for fixed delays
   retryCondition?: (error: any) => boolean;
 }
 
 const defaultRetryConfig: RetryConfig = {
   maxRetries: 3,
   retryDelay: 1000,
+  useExponentialBackoff: true,
   retryCondition: (error: any) => {
     const parsedError = parseApiError(error);
     return parsedError.isRetryable && (parsedError.isNetworkError || parsedError.isServerError || parsedError.isTimeout);
@@ -126,12 +128,17 @@ const defaultRetryConfig: RetryConfig = {
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-// Retry wrapper with exponential backoff
+// Retry wrapper with optional exponential backoff
 export const withRetry = async <T>(
   fn: () => Promise<T>,
   config: RetryConfig = {}
 ): Promise<T> => {
-  const { maxRetries = 3, retryDelay = 1000, retryCondition = defaultRetryConfig.retryCondition } = config;
+  const { 
+    maxRetries = 3, 
+    retryDelay = 1000, 
+    useExponentialBackoff = true,
+    retryCondition = defaultRetryConfig.retryCondition 
+  } = config;
 
   let lastError: any;
 
@@ -142,7 +149,10 @@ export const withRetry = async <T>(
       lastError = error;
 
       if (attempt < maxRetries && retryCondition?.(error)) {
-        const delay = retryDelay * Math.pow(2, attempt); // Exponential backoff
+        // Use fixed delay or exponential backoff based on config
+        const delay = useExponentialBackoff 
+          ? retryDelay * Math.pow(2, attempt) 
+          : retryDelay;
         console.warn(`API request failed (attempt ${attempt + 1}/${maxRetries + 1}), retrying in ${delay}ms...`);
         await sleep(delay);
         continue;
@@ -169,6 +179,7 @@ let isWakingUp = false;
 let wakeUpPromise: Promise<boolean> | null = null;
 
 // Wake up the server (call this on app load or before critical operations)
+// Render free instances can take 30-60 seconds to cold start
 export const wakeUpServer = async (): Promise<boolean> => {
   // If already waking up, return the existing promise
   if (isWakingUp && wakeUpPromise) {
@@ -178,27 +189,53 @@ export const wakeUpServer = async (): Promise<boolean> => {
   isWakingUp = true;
 
   wakeUpPromise = (async () => {
-    try {
-      // First try health check
-      const healthResponse = await axios.get(`${API_URL}/health`, { timeout: 10000 });
+    const maxAttempts = 12; // Try for up to 60 seconds (12 attempts * 5 seconds)
+    
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      try {
+        // Try health check with longer timeout
+        const healthResponse = await axios.get(`${API_URL}/health`, { timeout: 15000 });
 
-      if (healthResponse.data?.status === 'OK') {
-        return true;
+        if (healthResponse.data?.status === 'OK' || healthResponse.data?.status === 'DEGRADED') {
+          console.log('Server is awake and ready');
+          return true;
+        }
+        
+        // Server responded but not ready yet (CONNECTING state)
+        console.log(`Server is waking up... (attempt ${attempt + 1}/${maxAttempts})`);
+        await new Promise(resolve => setTimeout(resolve, 5000));
+        
+      } catch (error: any) {
+        // 503 means server is starting - keep waiting
+        if (error.response?.status === 503) {
+          console.log(`Server is starting up... (attempt ${attempt + 1}/${maxAttempts})`);
+          await new Promise(resolve => setTimeout(resolve, 5000));
+          continue;
+        }
+        
+        // Network error or timeout - server might be cold starting
+        if (error.code === 'ERR_NETWORK' || error.code === 'ECONNABORTED') {
+          console.log(`Waiting for server to start... (attempt ${attempt + 1}/${maxAttempts})`);
+          await new Promise(resolve => setTimeout(resolve, 5000));
+          continue;
+        }
+        
+        // Other errors - might still work, continue trying
+        console.warn('Server wake-up check failed:', error.message);
+        await new Promise(resolve => setTimeout(resolve, 3000));
       }
-
-      // If not ready, call wake endpoint
-      const wakeResponse = await axios.post(`${API_URL}/wake`, {}, { timeout: 60000 });
-      return wakeResponse.data?.success ?? false;
-    } catch (error: any) {
-      console.warn('Server wake-up failed:', error.message);
-      return false;
-    } finally {
-      isWakingUp = false;
-      wakeUpPromise = null;
     }
+    
+    console.warn('Server wake-up timed out');
+    return false;
   })();
 
-  return wakeUpPromise;
+  try {
+    return await wakeUpPromise;
+  } finally {
+    isWakingUp = false;
+    wakeUpPromise = null;
+  }
 };
 
 // Check server health

@@ -59,12 +59,13 @@ export default function LoginPage() {
 
     setLoading(true);
 
-    // Timer: If login takes longer than 4 seconds → show wake-up message
+    // Timer: If login takes longer than 3 seconds → show wake-up message
     const wakeUpTimer = setTimeout(() => {
-      toast.loading('⏳ Waking up the server... it may take 20–40 seconds', {
+      toast.loading('⏳ Server is waking up... please wait (30-60 seconds)', {
         id: 'wake-msg',
+        duration: 120000, // Keep showing for 2 minutes
       });
-    }, 4000); // 4 seconds
+    }, 3000); // 3 seconds
 
     try {
       await login(username, password);
@@ -99,11 +100,11 @@ export default function LoginPage() {
       let errorMsg: string;
 
       if (status === 503) {
-        errorMsg = 'Server is starting up. Please wait a moment and try again.';
+        errorMsg = 'Server is still starting up. Please wait a minute and try again.';
       } else if (status === 504) {
         errorMsg = 'Request timed out. Please try again.';
       } else if (error.code === 'ERR_NETWORK' || error.message === 'Network Error') {
-        errorMsg = 'Cannot connect to server. Please check your internet connection.';
+        errorMsg = 'Cannot connect to server. Please check your internet connection or try again in a minute.';
       } else if (error.code === 'ECONNABORTED') {
         errorMsg = 'Connection timed out. Please try again.';
       } else if (status === 401) {

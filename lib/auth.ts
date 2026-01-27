@@ -32,20 +32,26 @@ export interface AuthToken {
 
 // Login with automatic retry for server cold start (503 errors)
 export const login = async (username: string, password: string): Promise<AuthToken> => {
+  // First, try to wake up the server (this handles Render cold start)
+  // This is a fire-and-forget - we don't wait for it to complete
+  wakeUpServer().catch(() => { }); // Ignore errors, just try to wake it
+
   // Try to login with retry for 503 errors (server starting up)
   const response = await withRetry(
     () => authAPI.login(username, password),
     {
-      maxRetries: 5, // More retries for login since server cold start can take 30-60s
-      retryDelay: 3000, // Start with 3 second delay
+      maxRetries: 8, // More retries for login since server cold start can take 30-60s
+      retryDelay: 5000, // Fixed 5 second delay
+      useExponentialBackoff: false, // Use fixed delays for login
       retryCondition: (error) => {
         // Only retry on 503 (Service Unavailable) or network errors
         const status = error.response?.status;
         const isNetworkError = error.code === 'ERR_NETWORK' || error.message === 'Network Error';
         const isServerStarting = status === 503;
         const isTimeout = error.code === 'ECONNABORTED';
+        const isGatewayError = status === 502 || status === 504;
 
-        if (isServerStarting || isNetworkError || isTimeout) {
+        if (isServerStarting || isNetworkError || isTimeout || isGatewayError) {
           console.log('Server starting up or network issue, retrying login...');
           return true;
         }
