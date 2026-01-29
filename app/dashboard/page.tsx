@@ -377,14 +377,13 @@ export default function DashboardPage() {
     if (isMobile && sizing.mobile) return { ...sizing.mobile, ...(sizing.mobile.width ? { suppressSizeToFit: true } : {}) };
 
     if (isMobile) {
-      // scale fixed widths down for mobile; keep flex/minWidth when present
+      // scale fixed widths down for mobile
       const r: any = {};
       if (sizing.flex) r.flex = sizing.flex;
       if (sizing.width) {
         r.width = Math.max(70, Math.round(sizing.width * 0.7));
         r.suppressSizeToFit = true;
       }
-      if (sizing.minWidth) r.minWidth = Math.max(70, Math.round(sizing.minWidth * 0.7));
       if (sizing.maxWidth) r.maxWidth = Math.round(sizing.maxWidth * 0.8);
       return r;
     }
@@ -402,7 +401,6 @@ export default function DashboardPage() {
       field: '__sr',
       valueGetter: (params: any) => params.node ? (page - 1) * limit + params.node.rowIndex + 1 : undefined,
       width: 80,
-      minWidth: 80,
       maxWidth: 100,
       suppressMovable: true,
       sortable: false,
@@ -492,7 +490,6 @@ export default function DashboardPage() {
         filter: enableColumnFilters ? 'agTextColumnFilter' : undefined,
         tooltipField: col,
         ...sizing,
-        minWidth: sizing?.minWidth || 150,
       };
     })];
 
