@@ -1619,7 +1619,6 @@ export default function PickingPage() {
           valueFormatter: (p: any) => formatDate(p.value),
           tooltipField: col,
           flex: 1,
-          minWidth: col === 'picking_date' ? 140 : 150,
           hide: false, // ag-Grid state controls visibility
         };
       }
@@ -1637,7 +1636,6 @@ export default function PickingPage() {
             );
           },
           flex: 1,
-          minWidth: 120,
           hide: false,
         };
       }
@@ -1649,7 +1647,6 @@ export default function PickingPage() {
         filter: enableColumnFilters ? 'agTextColumnFilter' : undefined,
         tooltipField: col,
         flex: 1,
-        minWidth: col === 'wsn' ? 180 : 150,
         hide: false,
       };
     });
@@ -1667,7 +1664,6 @@ export default function PickingPage() {
     filter: !!enableColumnFilters,
     editable: false,
     suppressHeaderMenuButton: false,
-    minWidth: 100,
     cellStyle: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   }), [enableSorting, enableColumnFilters, enableColumnResize]);
 

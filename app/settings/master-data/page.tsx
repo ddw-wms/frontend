@@ -451,7 +451,6 @@ export default function MasterDataPage() {
     resizable: !!enableColumnResize,
     filter: !!enableColumnFilters,
     editable: !!enableCellEditing,
-    minWidth: 80,
     tooltipComponentParams: { color: '#ececec' },
     wrapHeaderText: true,
     autoHeaderHeight: true,
@@ -486,16 +485,13 @@ export default function MasterDataPage() {
   // AG Grid column sizing helper
   const getColumnSizing = useCallback((col: string) => {
     const colConfig = columns.find(c => c.id === col) as any;
-    if (!colConfig) return { minWidth: 80 };
+    if (!colConfig) return {};
 
-    const sizing: any = {
-      minWidth: 80,
-    };
+    const sizing: any = {};
 
     // Add flex for columns that should expand (like product_title)
     if (colConfig.flex) {
       sizing.flex = colConfig.flex;
-      sizing.minWidth = colConfig.width || 200;
     } else {
       sizing.width = isMobile ? Math.max(70, Math.round(colConfig.width * 0.7)) : colConfig.width;
     }
@@ -512,7 +508,6 @@ export default function MasterDataPage() {
       field: '__sr',
       valueGetter: (params: any) => params.node ? page * rowsPerPage + params.node.rowIndex + 1 : undefined,
       width: 80,
-      minWidth: 80,
       maxWidth: 100,
       suppressMovable: true,
       sortable: false,
@@ -602,7 +597,6 @@ export default function MasterDataPage() {
       filter: false,
       resizable: true,
       width: 100,
-      minWidth: 100,
       maxWidth: 120,
       cellRenderer: ActionsCellRenderer
     });

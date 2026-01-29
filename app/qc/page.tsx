@@ -1256,7 +1256,6 @@ export default function QCPage() {
           valueFormatter: (p: any) => formatDate(p.value),
           tooltipField: col,
           flex: 1,
-          minWidth: 140,
           hide: false, // ag-Grid state controls visibility
         };
       }
@@ -1284,7 +1283,6 @@ export default function QCPage() {
             };
           },
           flex: 1,
-          minWidth: 120,
           hide: false,
         };
       }
@@ -1307,7 +1305,6 @@ export default function QCPage() {
             };
           },
           flex: 1,
-          minWidth: 120,
           hide: false,
         };
       }
@@ -1319,7 +1316,6 @@ export default function QCPage() {
         filter: enableColumnFilters ? 'agTextColumnFilter' : undefined,
         tooltipField: col,
         flex: 1,
-        minWidth: col === 'wsn' ? 180 : col === 'product_title' ? 250 : 150,
         hide: false,
       };
     });
@@ -1337,7 +1333,6 @@ export default function QCPage() {
     filter: !!enableColumnFilters,
     editable: false,
     suppressHeaderMenuButton: false,
-    minWidth: 100,
     cellStyle: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   }), [enableSorting, enableColumnFilters, enableColumnResize]);
 

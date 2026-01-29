@@ -2999,7 +2999,6 @@ export default function OutboundPage() {
         filter: !!enableColumnFilters,
         editable: false,
         suppressHeaderMenuButton: false,
-        minWidth: 100,
         cellStyle: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
     }), [enableSorting, enableColumnFilters, enableColumnResize]);
 
