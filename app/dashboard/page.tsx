@@ -61,11 +61,6 @@ import { dashboardAPI, inventoryAPI, inboundAPI, pickingAPI, outboundAPI } from 
 import { useWarehouse } from "@/app/context/WarehouseContext";
 import { getStoredUser, logout } from "@/lib/auth";
 import { useDashboardPermissions } from '@/hooks/usePagePermissions';
-import {
-  debouncedSaveGridState,
-  loadGridState,
-  extractColumnWidths,
-} from '@/lib/gridStateManager';
 
 import AppLayout from "@/components/AppLayout";
 import { StandardPageHeader } from '@/components';
@@ -269,26 +264,10 @@ export default function DashboardPage() {
   const [outboundWSNs, setOutboundWSNs] = useState<Set<string>>(new Set());
 
   // ====== DASHBOARD COLUMN WIDTHS PERSISTENCE ======
-  const [columnWidths, setColumnWidths] = useState<Record<string, number>>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const savedState = localStorage.getItem('dashboard_columnState');
-        if (savedState) {
-          const state = JSON.parse(savedState);
-          const widths: Record<string, number> = {};
-          state.forEach((col: any) => {
-            if (col.colId && col.width) {
-              widths[col.colId] = col.width;
-            }
-          });
-          return widths;
-        }
-      } catch (e) {
-        console.log('Dashboard column widths load error');
-      }
-    }
-    return {};
-  });
+  // Note: Column widths are managed by ag-Grid's native column state API
+  // Saved/restored via localStorage in grid event handlers
+  // This state is only used for legacy compatibility with getColumnSizing
+  const [columnWidths] = useState<Record<string, number>>({});
 
   // Pagination state - declared early for use in column defs
   const [page, setPage] = useState(1);
@@ -391,13 +370,8 @@ export default function DashboardPage() {
     return `${dd}-${mm}-${yyyy}`;
   };
 
+  // Get column sizing from predefined widths (widths are applied via ag-Grid column state, not here)
   const getColumnSizing = useCallback((col: string) => {
-    // Use saved width if available
-    const savedWidth = columnWidths[col];
-    if (savedWidth) {
-      return { width: savedWidth, suppressSizeToFit: true };
-    }
-
     const sizing = COLUMN_WIDTHS[col];
     if (!sizing) return {};
     // if explicit mobile override present, use it when on mobile
@@ -420,7 +394,7 @@ export default function DashboardPage() {
     const r: any = { ...sizing };
     if (sizing.width && !sizing.flex) r.suppressSizeToFit = true;
     return r;
-  }, [isMobile, columnWidths]);
+  }, [isMobile]);
 
   useEffect(() => {
     // SR.NO column - always first
@@ -546,24 +520,22 @@ export default function DashboardPage() {
     });
 
     setColumnDefs(defs);
-  }, [visibleColumns, enableSorting, enableColumnFilters, enableColumnResize, isMobile, page, limit, columnWidths, getColumnSizing]);
+  }, [visibleColumns, enableSorting, enableColumnFilters, enableColumnResize, isMobile, page, limit, getColumnSizing]);
 
-  // Re-apply column widths when columnDefs change to ensure widths persist after column toggle
+  // Re-apply column state when columnDefs change (e.g., column visibility toggle)
   useEffect(() => {
-    if (gridRef.current && Object.keys(columnWidths).length > 0) {
+    if (gridRef.current) {
       try {
-        const savedState = localStorage.getItem('dashboard_columnState');
+        const savedState = localStorage.getItem('dashboard_grid_state');
         if (savedState) {
           const state = JSON.parse(savedState);
-          // Only apply width from saved state, preserve current visibility
-          const currentState = gridRef.current.getColumnState();
-          const visibleColIds = currentState.map((c: any) => c.colId);
-          const filteredState = state.filter((s: any) => visibleColIds.includes(s.colId));
-          gridRef.current.applyColumnState({ state: filteredState, applyOrder: false });
+          // Apply widths without changing order (applyOrder: false)
+          // This preserves user's widths when toggling column visibility
+          gridRef.current.applyColumnState({ state, applyOrder: false });
         }
       } catch { /* ignore */ }
     }
-  }, [columnDefs, columnWidths]);
+  }, [columnDefs]);
 
   const [searchWSN, setSearchWSN] = useState("");
 
@@ -2468,74 +2440,61 @@ export default function DashboardPage() {
                       enableCellTextSelection={true}
                       ensureDomOrder={true}
                       getRowId={(params: any) => String(params.data?.wsn || params.data?.wid || params.rowIndex)}
-                      onGridReady={async (params: any) => {
+                      onGridReady={(params: any) => {
                         gridRef.current = params.api;
                         columnApiRef.current = params.columnApi;
+                        // Restore saved column state from localStorage
                         try {
-                          const savedState = await loadGridState('dashboard', 'main');
-                          if (savedState && params.api) {
-                            params.api.applyColumnState({ state: savedState, applyOrder: true });
-                            hasAutoFittedRef.current = true; // Mark as fitted (using saved state)
+                          const saved = localStorage.getItem('dashboard_grid_state');
+                          if (saved) {
+                            const state = JSON.parse(saved);
+                            params.api.applyColumnState({ state, applyOrder: true });
+                            hasAutoFittedRef.current = true;
                           }
                         } catch { /* ignore */ }
                       }}
-                      onFirstDataRendered={async (params: any) => {
-                        // Auto-fit columns on first data load ONLY if no saved state
+                      onFirstDataRendered={(params: any) => {
+                        // Auto-size columns on first load if no saved state
                         if (!hasAutoFittedRef.current && params.api) {
                           try {
-                            const savedState = await loadGridState('dashboard', 'main');
-                            if (!savedState) {
-                              const allColIds = params.api.getColumns()
-                                ?.filter((col: any) => col.getColId() !== '__action')
-                                .map((col: any) => col.getColId()) || [];
-                              if (allColIds.length > 0) {
-                                params.api.autoSizeColumns(allColIds);
-                                // Save auto-sized state
-                                const columnState = params.api.getColumnState();
-                                debouncedSaveGridState('dashboard', columnState, 'main', 300);
-                              }
+                            const allColIds = params.api.getColumns()
+                              ?.filter((col: any) => col.getColId() !== '__action')
+                              .map((col: any) => col.getColId()) || [];
+                            if (allColIds.length > 0) {
+                              params.api.autoSizeColumns(allColIds);
                             }
                             hasAutoFittedRef.current = true;
                           } catch { /* ignore */ }
                         }
                       }}
                       onColumnResized={(params: any) => {
+                        // Save state when user finishes resizing
                         if (params.finished && params.api) {
                           try {
-                            const columnState = params.api.getColumnState();
-                            debouncedSaveGridState('dashboard', columnState, 'main', 300);
-                            // Update column widths state to persist widths in column definitions
-                            const widths = extractColumnWidths(columnState);
-                            setColumnWidths(widths);
+                            const state = params.api.getColumnState();
+                            localStorage.setItem('dashboard_grid_state', JSON.stringify(state));
                           } catch { /* ignore */ }
                         }
                       }}
                       onColumnMoved={(params: any) => {
+                        // Save state when user finishes moving columns
                         if (params.finished && params.api) {
                           try {
-                            const columnState = params.api.getColumnState();
-                            debouncedSaveGridState('dashboard', columnState, 'main', 300);
-                            // Update column widths state to persist widths in column definitions
-                            const widths = extractColumnWidths(columnState);
-                            setColumnWidths(widths);
+                            const state = params.api.getColumnState();
+                            localStorage.setItem('dashboard_grid_state', JSON.stringify(state));
                           } catch { /* ignore */ }
                         }
                       }}
                       onColumnVisible={(params: any) => {
+                        // Save state when column visibility changes
                         if (params.api) {
                           try {
-                            const columnState = params.api.getColumnState();
-                            // Save visibility changes without reordering
-                            debouncedSaveGridState('dashboard', columnState, 'main', 300);
+                            const state = params.api.getColumnState();
+                            localStorage.setItem('dashboard_grid_state', JSON.stringify(state));
                           } catch { /* ignore */ }
                         }
                       }}
                       animateRows={false}
-                      rowBuffer={20}
-                      valueCache={true}
-                      debounceVerticalScrollbar={true}
-                      suppressScrollOnNewData={true}
-                      maintainColumnOrder={true}
                       rowHeight={tableRowHeight}
                       headerHeight={32}
                     />

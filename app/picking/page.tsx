@@ -31,11 +31,7 @@ import { ModuleRegistry, AllCommunityModule, ClientSideRowModelModule } from 'ag
 import 'ag-grid-community/styles/ag-theme-quartz.css';
 
 import localforage from 'localforage';
-import {
-  debouncedSaveGridState,
-  loadGridState,
-  extractColumnWidths,
-} from '@/lib/gridStateManager';
+// Simple localStorage-based grid state (native ag-Grid pattern)
 
 // Register AG Grid modules ONCE (include ClientSideRowModel for client-side features)
 ModuleRegistry.registerModules([AllCommunityModule, ClientSideRowModelModule]);
@@ -238,27 +234,7 @@ export default function PickingPage() {
   // ====== MULTI PICKING COLUMN WIDTHS PERSISTENCE ======
   const [multiColumnWidths, setMultiColumnWidths] = useState<Record<string, number>>({});
 
-  // ====== PICKING LIST COLUMN WIDTHS PERSISTENCE ======
-  const [listColumnWidths, setListColumnWidths] = useState<Record<string, number>>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const savedState = localStorage.getItem('picking_columnState');
-        if (savedState) {
-          const state = JSON.parse(savedState);
-          const widths: Record<string, number> = {};
-          state.forEach((col: any) => {
-            if (col.colId && col.width) {
-              widths[col.colId] = col.width;
-            }
-          });
-          return widths;
-        }
-      } catch (e) {
-        console.log('Picking List column widths load error');
-      }
-    }
-    return {};
-  });
+  // Column widths are now managed directly by AG Grid via localStorage
 
   // Load Multi Picking column widths from localStorage on mount
   useEffect(() => {
@@ -1614,8 +1590,6 @@ export default function PickingPage() {
     };
 
     const cols = listColumns.map((col: string) => {
-      const savedWidth = listColumnWidths[col];
-
       // Dates
       if (col.includes('date')) {
         return {
@@ -1624,7 +1598,8 @@ export default function PickingPage() {
           filter: enableColumnFilters ? 'agDateColumnFilter' : undefined,
           valueFormatter: (p: any) => formatDate(p.value),
           tooltipField: col,
-          width: savedWidth || (col === 'picking_date' ? 140 : 150),
+          flex: 1,
+          minWidth: col === 'picking_date' ? 140 : 150,
         };
       }
 
@@ -1640,7 +1615,8 @@ export default function PickingPage() {
               <Chip label={p.value} size="small" color={colorMap[p.value] || 'default'} sx={{ height: 20, fontSize: '0.7rem', fontWeight: 600 }} />
             );
           },
-          width: savedWidth || 120,
+          flex: 1,
+          minWidth: 120,
         };
       }
 
@@ -1650,18 +1626,19 @@ export default function PickingPage() {
         headerName: col.replace(/_/g, ' ').toUpperCase(),
         filter: enableColumnFilters ? 'agTextColumnFilter' : undefined,
         tooltipField: col,
-        width: savedWidth || (col === 'wsn' ? 180 : 150),
+        flex: 1,
+        minWidth: col === 'wsn' ? 180 : 150,
       };
     });
 
     return [sr, ...cols];
-  }, [listColumns, page, limit, enableColumnFilters, listColumnWidths, isDarkMode]);
+  }, [listColumns, page, limit, enableColumnFilters, isDarkMode]);
 
-  // Re-apply column widths when listColumnDefs change to ensure widths persist after column toggle
+  // Re-apply column state when listColumnDefs change to ensure state persists after column toggle
   useEffect(() => {
-    if (listGridRef.current && Object.keys(listColumnWidths).length > 0) {
+    if (listGridRef.current) {
       try {
-        const savedState = localStorage.getItem('picking_columnState');
+        const savedState = localStorage.getItem('picking_grid_state');
         if (savedState) {
           const state = JSON.parse(savedState);
           const currentState = listGridRef.current.getColumnState();
@@ -1671,7 +1648,7 @@ export default function PickingPage() {
         }
       } catch { /* ignore */ }
     }
-  }, [listColumnDefs, listColumnWidths]);
+  }, [listColumnDefs]);
 
   const listDefaultColDef = useMemo(() => ({
     sortable: !!enableSorting,
@@ -2328,36 +2305,33 @@ export default function PickingPage() {
                       valueCache={true}
                       debounceVerticalScrollbar={true}
                       gridOptions={{ getRowId: (params: any) => String(params.data?.wsn || params.data?.id || params.rowIndex), suppressRowTransform: true }}
-                      onGridReady={async (params: any) => {
+                      onGridReady={(params: any) => {
                         listGridRef.current = params.api;  // Use listGridRef for list grid
                         gridRef.current = params.api;
                         columnApiRef.current = params.api;
                         try {
-                          const savedState = await loadGridState('picking', 'list');
+                          const savedState = localStorage.getItem('picking_grid_state');
                           if (savedState && params.api) {
-                            params.api.applyColumnState({ state: savedState, applyOrder: true });
-                            setListColumnWidths(extractColumnWidths(savedState));
+                            params.api.applyColumnState({ state: JSON.parse(savedState), applyOrder: true });
                             hasAutoFittedRef.current = true;
                           }
                         } catch { /* ignore */ }
                       }}
-                      onFirstDataRendered={async (params: any) => {
+                      onFirstDataRendered={(params: any) => {
                         // Only auto-size columns on first ever load, not on pagination
                         if (!hasAutoFittedRef.current && params.api) {
                           try {
                             // Check if we have saved state - if yes, apply it instead of auto-sizing
-                            const savedState = await loadGridState('picking', 'list');
+                            const savedState = localStorage.getItem('picking_grid_state');
                             if (savedState) {
-                              params.api.applyColumnState({ state: savedState, applyOrder: true });
-                              setListColumnWidths(extractColumnWidths(savedState));
+                              params.api.applyColumnState({ state: JSON.parse(savedState), applyOrder: true });
                             } else {
                               const allColIds = params.api.getColumns()?.map((col: any) => col.getColId()) || [];
                               if (allColIds.length > 0) {
                                 params.api.autoSizeColumns(allColIds);
                                 // Save the auto-sized state
                                 const columnState = params.api.getColumnState();
-                                debouncedSaveGridState('picking', columnState, 'list', 300);
-                                setListColumnWidths(extractColumnWidths(columnState));
+                                localStorage.setItem('picking_grid_state', JSON.stringify(columnState));
                               }
                             }
                             hasAutoFittedRef.current = true;
@@ -2367,28 +2341,21 @@ export default function PickingPage() {
                       onColumnResized={(params: any) => {
                         if (params.finished && params.api) {
                           try {
-                            const columnState = params.api.getColumnState();
-                            debouncedSaveGridState('picking', columnState, 'list', 300);
-                            setListColumnWidths(extractColumnWidths(columnState));
+                            localStorage.setItem('picking_grid_state', JSON.stringify(params.api.getColumnState()));
                           } catch { /* ignore */ }
                         }
                       }}
                       onColumnMoved={(params: any) => {
                         if (params.finished && params.api) {
                           try {
-                            const columnState = params.api.getColumnState();
-                            debouncedSaveGridState('picking', columnState, 'list', 300);
-                            setListColumnWidths(extractColumnWidths(columnState));
+                            localStorage.setItem('picking_grid_state', JSON.stringify(params.api.getColumnState()));
                           } catch { /* ignore */ }
                         }
                       }}
                       onColumnVisible={(params: any) => {
                         if (params.api) {
                           try {
-                            const columnState = params.api.getColumnState();
-                            // Save visibility changes without reordering columns
-                            debouncedSaveGridState('picking', columnState, 'list', 300);
-                            setListColumnWidths(extractColumnWidths(columnState));
+                            localStorage.setItem('picking_grid_state', JSON.stringify(params.api.getColumnState()));
                           } catch { /* ignore */ }
                         }
                       }}

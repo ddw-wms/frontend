@@ -81,11 +81,7 @@ import { ModuleRegistry, AllCommunityModule, ClientSideRowModelModule } from 'ag
 import 'ag-grid-community/styles/ag-theme-quartz.css';
 import { debounce } from 'lodash';
 import localforage from 'localforage';
-import {
-  debouncedSaveGridState,
-  loadGridState,
-  extractColumnWidths,
-} from '@/lib/gridStateManager';
+// Simple localStorage-based grid state (native ag-Grid pattern)
 
 // Register AG Grid modules ONCE (include ClientSideRowModel for client-side features)
 ModuleRegistry.registerModules([AllCommunityModule, ClientSideRowModelModule]);
@@ -491,45 +487,6 @@ export default function QCPage() {
     resizable: true,
     editable: true,
   });
-
-  // ====== MULTI QC COLUMN WIDTHS PERSISTENCE ======
-  const [multiColumnWidths, setMultiColumnWidths] = useState<Record<string, number>>({});
-
-  // ====== QC LIST COLUMN WIDTHS PERSISTENCE ======
-  const [listColumnWidths, setListColumnWidths] = useState<Record<string, number>>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const savedState = localStorage.getItem('qc_columnState');
-        if (savedState) {
-          const state = JSON.parse(savedState);
-          const widths: Record<string, number> = {};
-          state.forEach((col: any) => {
-            if (col.colId && col.width) {
-              widths[col.colId] = col.width;
-            }
-          });
-          return widths;
-        }
-      } catch (e) {
-        console.log('QC List column widths load error');
-      }
-    }
-    return {};
-  });
-
-  // Load Multi QC column widths from localStorage on mount
-  useEffect(() => {
-    const savedWidths = localStorage.getItem('qcMultiEntryColumnWidths');
-    if (savedWidths) {
-      try {
-        const widths = JSON.parse(savedWidths);
-        setMultiColumnWidths(widths);
-        console.log('✅ QC Multi column widths loaded:', widths);
-      } catch (e) {
-        console.log('Failed to parse QC Multi column widths');
-      }
-    }
-  }, []);
 
   // ✅ LOAD Grid Settings from localStorage on mount
   useEffect(() => {
@@ -1277,8 +1234,6 @@ export default function QCPage() {
     const visibleKeys = listColumns.filter(c => c.visible).map(c => c.key);
 
     const cols = visibleKeys.map((col: string) => {
-      const savedWidth = listColumnWidths[col];
-
       // Dates
       if (col.includes('date')) {
         return {
@@ -1287,7 +1242,8 @@ export default function QCPage() {
           filter: enableColumnFilters ? 'agDateColumnFilter' : undefined,
           valueFormatter: (p: any) => formatDate(p.value),
           tooltipField: col,
-          width: savedWidth || 140,
+          flex: 1,
+          minWidth: 140,
         };
       }
 
@@ -1313,7 +1269,8 @@ export default function QCPage() {
               textAlign: 'center' as any,
             };
           },
-          width: savedWidth || 120,
+          flex: 1,
+          minWidth: 120,
         };
       }
 
@@ -1334,7 +1291,8 @@ export default function QCPage() {
               textAlign: 'center' as any,
             };
           },
-          width: savedWidth || 120,
+          flex: 1,
+          minWidth: 120,
         };
       }
 
@@ -1344,18 +1302,19 @@ export default function QCPage() {
         headerName: col.replace(/_/g, ' ').toUpperCase(),
         filter: enableColumnFilters ? 'agTextColumnFilter' : undefined,
         tooltipField: col,
-        width: savedWidth || (col === 'wsn' ? 180 : col === 'product_title' ? 250 : 150),
+        flex: 1,
+        minWidth: col === 'wsn' ? 180 : col === 'product_title' ? 250 : 150,
       };
     });
 
     return [sr, ...cols];
-  }, [listColumns, page, limit, enableColumnFilters, enableSorting, enableColumnResize, listColumnWidths, isDarkMode]);
+  }, [listColumns, page, limit, enableColumnFilters, enableSorting, enableColumnResize, isDarkMode]);
 
-  // Re-apply column widths when listColumnDefs change to ensure widths persist after column toggle
+  // Re-apply column state when listColumnDefs change to ensure state persists after column toggle
   useEffect(() => {
-    if (listGridRef.current && Object.keys(listColumnWidths).length > 0) {
+    if (listGridRef.current) {
       try {
-        const savedState = localStorage.getItem('qc_columnState');
+        const savedState = localStorage.getItem('qc_list_grid_state');
         if (savedState) {
           const state = JSON.parse(savedState);
           const currentState = listGridRef.current.getColumnState();
@@ -1365,7 +1324,7 @@ export default function QCPage() {
         }
       } catch { /* ignore */ }
     }
-  }, [listColumnDefs, listColumnWidths]);
+  }, [listColumnDefs]);
 
   const listDefaultColDef = useMemo(() => ({
     sortable: !!enableSorting,
@@ -2927,33 +2886,33 @@ export default function QCPage() {
                         valueCache={true}
                         debounceVerticalScrollbar={true}
                         gridOptions={{ getRowId: (params: any) => String(params.data?.id || params.data?.wsn || params.rowIndex), suppressRowTransform: true }}
-                        onGridReady={async (params: any) => {
+                        onGridReady={(params: any) => {
                           listGridRef.current = params.api;  // Use listGridRef for list grid
                           gridRef.current = params.api;
                           columnApiRef.current = params.api;
                           try {
-                            const savedState = await loadGridState('qc', 'list');
+                            const savedState = localStorage.getItem('qc_list_grid_state');
                             if (savedState && params.api) {
-                              params.api.applyColumnState({ state: savedState, applyOrder: true });
+                              params.api.applyColumnState({ state: JSON.parse(savedState), applyOrder: true });
                               hasAutoFittedRef.current = true;
                             }
                           } catch { /* ignore */ }
                         }}
-                        onFirstDataRendered={async (params: any) => {
+                        onFirstDataRendered={(params: any) => {
                           // Only auto-size columns on first ever load, not on pagination
                           if (!hasAutoFittedRef.current && params.api) {
                             try {
                               // Check if we have saved state - if yes, apply it instead of auto-sizing
-                              const savedState = await loadGridState('qc', 'list');
+                              const savedState = localStorage.getItem('qc_list_grid_state');
                               if (savedState) {
-                                params.api.applyColumnState({ state: savedState, applyOrder: true });
+                                params.api.applyColumnState({ state: JSON.parse(savedState), applyOrder: true });
                               } else {
                                 const allColIds = params.api.getColumns()?.map((col: any) => col.getColId()) || [];
                                 if (allColIds.length > 0) {
                                   params.api.autoSizeColumns(allColIds);
                                   // Save the auto-sized state
                                   const columnState = params.api.getColumnState();
-                                  debouncedSaveGridState('qc', columnState, 'list', 300);
+                                  localStorage.setItem('qc_list_grid_state', JSON.stringify(columnState));
                                 }
                               }
                               hasAutoFittedRef.current = true;
@@ -2964,10 +2923,7 @@ export default function QCPage() {
                           if (params.finished && params.api) {
                             try {
                               const columnState = params.api.getColumnState();
-                              debouncedSaveGridState('qc', columnState, 'list', 300);
-                              // Update column widths state to persist widths in column definitions
-                              const widths = extractColumnWidths(columnState);
-                              setListColumnWidths(widths);
+                              localStorage.setItem('qc_list_grid_state', JSON.stringify(columnState));
                             } catch { /* ignore */ }
                           }
                         }}
@@ -2975,10 +2931,7 @@ export default function QCPage() {
                           if (params.finished && params.api) {
                             try {
                               const columnState = params.api.getColumnState();
-                              debouncedSaveGridState('qc', columnState, 'list', 300);
-                              // Update column widths state to persist widths in column definitions
-                              const widths = extractColumnWidths(columnState);
-                              setListColumnWidths(widths);
+                              localStorage.setItem('qc_list_grid_state', JSON.stringify(columnState));
                             } catch { /* ignore */ }
                           }
                         }}
@@ -2986,8 +2939,7 @@ export default function QCPage() {
                           if (params.api) {
                             try {
                               const columnState = params.api.getColumnState();
-                              // Save state without reordering - visibility changes only
-                              debouncedSaveGridState('qc', columnState, 'list', 300);
+                              localStorage.setItem('qc_list_grid_state', JSON.stringify(columnState));
                             } catch { /* ignore */ }
                           }
                         }}
@@ -3970,9 +3922,8 @@ export default function QCPage() {
               const key = String(field).replace(/_/g, '').toLowerCase();
               const isEditable = EDITABLE_COLUMNS.includes(field);
 
-              // ✅ Use saved width if available, otherwise use default
-              const savedWidth = multiColumnWidths[field];
-              const widthConfig = savedWidth ? { width: savedWidth } : (COLUMN_WIDTHS[key] || {});
+              // Use default column widths from COLUMN_WIDTHS config
+              const widthConfig = COLUMN_WIDTHS[key] || {};
 
               const baseColDef: any = {
                 field,
@@ -4373,6 +4324,13 @@ export default function QCPage() {
                     onGridReady={(params: any) => {
                       gridRef.current = params.api;
                       columnApiRef.current = params.columnApi;
+                      // Restore column state from localStorage
+                      try {
+                        const savedState = localStorage.getItem('qc_multi_grid_state');
+                        if (savedState && params.api) {
+                          params.api.applyColumnState({ state: JSON.parse(savedState), applyOrder: true });
+                        }
+                      } catch { /* ignore */ }
                     }}
 
                     defaultColDef={{
@@ -4491,19 +4449,13 @@ export default function QCPage() {
                     valueCache={true}
                     className="ag-theme-quartz"
                     containerStyle={{ height: '100%', width: '100%' }}
-                    // ✅ Save column widths when resized
+                    // ✅ Save column state when resized
                     onColumnResized={(params: any) => {
-                      if (params.finished && params.column) {
-                        const colId = params.column.getColId();
-                        const newWidth = params.column.getActualWidth();
-                        // Don't save special columns
-                        if (colId === 'sno') return;
-
-                        setMultiColumnWidths(prev => {
-                          const updated = { ...prev, [colId]: newWidth };
-                          localStorage.setItem('qcMultiEntryColumnWidths', JSON.stringify(updated));
-                          return updated;
-                        });
+                      if (params.finished && params.api) {
+                        try {
+                          const columnState = params.api.getColumnState();
+                          localStorage.setItem('qc_multi_grid_state', JSON.stringify(columnState));
+                        } catch { /* ignore */ }
                       }
                     }}
                     onCellValueChanged={(event: any) => {
