@@ -1311,16 +1311,15 @@ export default function QCPage() {
   }, [listColumns, page, limit, enableColumnFilters, enableSorting, enableColumnResize, isDarkMode]);
 
   // Re-apply column state when columnDefs change (e.g., column visibility toggle)
-  // Matches Dashboard pattern exactly
+  // Use applyOrder: true to preserve user's column positions
   useEffect(() => {
     if (listGridRef.current) {
       try {
         const saved = localStorage.getItem('qc_list_grid_state');
         if (saved) {
           const state = JSON.parse(saved);
-          // Apply widths without changing order (applyOrder: false)
-          // This preserves user's widths when toggling column visibility
-          listGridRef.current.applyColumnState({ state, applyOrder: false });
+          // Apply with order to preserve user's column positions after visibility changes
+          listGridRef.current.applyColumnState({ state, applyOrder: true });
         }
       } catch { /* ignore */ }
     }

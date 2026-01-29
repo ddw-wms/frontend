@@ -610,16 +610,15 @@ export default function MasterDataPage() {
   }, [columnVisibility, enableSorting, enableColumnFilters, enableColumnResize, isMobile, page, rowsPerPage, getColumnSizing]);
 
   // Re-apply column state when columnDefs change (e.g., column visibility toggle)
-  // Matches Dashboard pattern exactly
+  // Use applyOrder: true to preserve user's column positions
   useEffect(() => {
     if (gridRef.current) {
       try {
         const saved = localStorage.getItem('masterdata_grid_state');
         if (saved) {
           const state = JSON.parse(saved);
-          // Apply widths without changing order (applyOrder: false)
-          // This preserves user's widths when toggling column visibility
-          gridRef.current.applyColumnState({ state, applyOrder: false });
+          // Apply with order to preserve user's column positions after visibility changes
+          gridRef.current.applyColumnState({ state, applyOrder: true });
         }
       } catch { /* ignore */ }
     }
