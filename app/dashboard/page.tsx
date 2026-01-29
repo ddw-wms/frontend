@@ -523,15 +523,15 @@ export default function DashboardPage() {
   }, [visibleColumns, enableSorting, enableColumnFilters, enableColumnResize, isMobile, page, limit, getColumnSizing]);
 
   // Re-apply column state when columnDefs change (e.g., column visibility toggle)
-  // Use applyOrder: true to preserve user's column positions
+  // applyOrder: false - updates widths/visibility WITHOUT changing order
+  // Order is set ONLY ONCE in onGridReady
   useEffect(() => {
     if (gridRef.current) {
       try {
         const saved = localStorage.getItem('dashboard_grid_state');
         if (saved) {
           const state = JSON.parse(saved);
-          // Apply with order to preserve user's column positions after visibility changes
-          gridRef.current.applyColumnState({ state, applyOrder: true });
+          gridRef.current.applyColumnState({ state, applyOrder: false });
         }
       } catch { /* ignore */ }
     }
