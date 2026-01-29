@@ -609,23 +609,20 @@ export default function MasterDataPage() {
     setColumnDefs(defs);
   }, [columnVisibility, enableSorting, enableColumnFilters, enableColumnResize, isMobile, page, rowsPerPage, getColumnSizing]);
 
-  // Re-apply column widths when columnDefs change to ensure widths persist after column toggle
+  // Re-apply column state when columnDefs change (e.g., column visibility toggle)
+  // Matches Dashboard pattern exactly
   useEffect(() => {
-    const reapplyColumnWidths = () => {
-      if (gridRef.current) {
-        try {
-          const savedState = localStorage.getItem('masterdata_grid_state');
-          if (savedState) {
-            const parsedState = JSON.parse(savedState);
-            const currentState = gridRef.current.getColumnState();
-            const visibleColIds = currentState.map((c: any) => c.colId);
-            const filteredState = parsedState.filter((s: any) => visibleColIds.includes(s.colId));
-            gridRef.current.applyColumnState({ state: filteredState, applyOrder: false });
-          }
-        } catch { /* ignore */ }
-      }
-    };
-    reapplyColumnWidths();
+    if (gridRef.current) {
+      try {
+        const saved = localStorage.getItem('masterdata_grid_state');
+        if (saved) {
+          const state = JSON.parse(saved);
+          // Apply widths without changing order (applyOrder: false)
+          // This preserves user's widths when toggling column visibility
+          gridRef.current.applyColumnState({ state, applyOrder: false });
+        }
+      } catch { /* ignore */ }
+    }
   }, [columnDefs]);
 
   // Save grid settings to localStorage
@@ -2359,32 +2356,17 @@ export default function MasterDataPage() {
                               }
                             }}
                             onFirstDataRendered={(params: any) => {
-                              // Auto-fit columns on first data load ONLY if no saved state
+                              // Auto-size columns on first load if no saved state
                               if (!hasAutoFittedRef.current && params.api) {
                                 try {
-                                  // Check if there's saved state first
-                                  const savedState = localStorage.getItem('masterdata_grid_state');
-                                  if (savedState) {
-                                    hasAutoFittedRef.current = true;
-                                    return; // Already restored in onGridReady
-                                  }
-
-                                  // Auto-size all columns to fit content (skip pinned actions column)
                                   const allColIds = params.api.getColumns()
                                     ?.filter((col: any) => col.getColId() !== 'actions')
                                     .map((col: any) => col.getColId()) || [];
-
                                   if (allColIds.length > 0) {
                                     params.api.autoSizeColumns(allColIds);
-                                    // Save auto-sized state to localStorage
-                                    const columnState = params.api.getColumnState();
-                                    localStorage.setItem('masterdata_grid_state', JSON.stringify(columnState));
                                   }
                                   hasAutoFittedRef.current = true;
-                                  console.log('Columns auto-fitted to content');
-                                } catch (err) {
-                                  console.error('Failed to auto-fit columns:', err);
-                                }
+                                } catch { /* ignore */ }
                               }
                             }}
                             onColumnResized={(params: any) => {

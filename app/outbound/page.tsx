@@ -2966,20 +2966,20 @@ export default function OutboundPage() {
         return [sr, ...cols];
     }, [listColumns, enableColumnFilters, enableSorting, enableColumnResize, isDarkMode]);
 
-    // Re-apply column widths when listColumnDefs change
+    // Re-apply column state when columnDefs change (e.g., column visibility toggle)
+    // Matches Dashboard pattern exactly
     useEffect(() => {
-        const api = listGridRef.current?.api || listGridRef.current;
-        if (!api) return;
-        try {
-            const saved = localStorage.getItem('outbound_list_grid_state');
-            if (saved) {
-                const state = JSON.parse(saved);
-                const currentState = api.getColumnState();
-                const visibleColIds = currentState.map((c: any) => c.colId);
-                const filteredState = state.filter((s: any) => visibleColIds.includes(s.colId));
-                api.applyColumnState({ state: filteredState, applyOrder: false });
-            }
-        } catch { /* ignore */ }
+        if (listGridRef.current) {
+            try {
+                const saved = localStorage.getItem('outbound_list_grid_state');
+                if (saved) {
+                    const state = JSON.parse(saved);
+                    // Apply widths without changing order (applyOrder: false)
+                    // This preserves user's widths when toggling column visibility
+                    listGridRef.current.applyColumnState({ state, applyOrder: false });
+                }
+            } catch { /* ignore */ }
+        }
     }, [listColumnDefs]);
 
     const listDefaultColDef = useMemo(() => ({
@@ -3662,22 +3662,14 @@ export default function OutboundPage() {
                                                 } catch { /* ignore */ }
                                             }}
                                             onFirstDataRendered={(params: any) => {
+                                                // Auto-size columns on first load if no saved state
                                                 if (!hasAutoFittedRef.current && params.api) {
                                                     try {
-                                                        const saved = localStorage.getItem('outbound_list_grid_state');
-                                                        if (saved) {
-                                                            params.api.applyColumnState({ state: JSON.parse(saved), applyOrder: true });
-                                                        } else {
-                                                            const allColIds = params.api.getColumns()?.map((col: any) => col.getColId()) || [];
-                                                            if (allColIds.length > 0) {
-                                                                params.api.autoSizeColumns(allColIds);
-                                                                setTimeout(() => {
-                                                                    try {
-                                                                        const state = params.api.getColumnState();
-                                                                        localStorage.setItem('outbound_list_grid_state', JSON.stringify(state));
-                                                                    } catch { /* ignore */ }
-                                                                }, 100);
-                                                            }
+                                                        const allColIds = params.api.getColumns()
+                                                            ?.filter((col: any) => col.getColId() !== '__action' && col.getColId() !== '__sr')
+                                                            .map((col: any) => col.getColId()) || [];
+                                                        if (allColIds.length > 0) {
+                                                            params.api.autoSizeColumns(allColIds);
                                                         }
                                                         hasAutoFittedRef.current = true;
                                                     } catch { /* ignore */ }

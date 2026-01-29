@@ -1310,17 +1310,17 @@ export default function QCPage() {
     return [sr, ...cols];
   }, [listColumns, page, limit, enableColumnFilters, enableSorting, enableColumnResize, isDarkMode]);
 
-  // Re-apply column state when listColumnDefs change to ensure state persists after column toggle
+  // Re-apply column state when columnDefs change (e.g., column visibility toggle)
+  // Matches Dashboard pattern exactly
   useEffect(() => {
     if (listGridRef.current) {
       try {
-        const savedState = localStorage.getItem('qc_list_grid_state');
-        if (savedState) {
-          const state = JSON.parse(savedState);
-          const currentState = listGridRef.current.getColumnState();
-          const visibleColIds = currentState.map((c: any) => c.colId);
-          const filteredState = state.filter((s: any) => visibleColIds.includes(s.colId));
-          listGridRef.current.applyColumnState({ state: filteredState, applyOrder: false });
+        const saved = localStorage.getItem('qc_list_grid_state');
+        if (saved) {
+          const state = JSON.parse(saved);
+          // Apply widths without changing order (applyOrder: false)
+          // This preserves user's widths when toggling column visibility
+          listGridRef.current.applyColumnState({ state, applyOrder: false });
         }
       } catch { /* ignore */ }
     }
@@ -2899,21 +2899,14 @@ export default function QCPage() {
                           } catch { /* ignore */ }
                         }}
                         onFirstDataRendered={(params: any) => {
-                          // Only auto-size columns on first ever load, not on pagination
+                          // Auto-size columns on first load if no saved state
                           if (!hasAutoFittedRef.current && params.api) {
                             try {
-                              // Check if we have saved state - if yes, apply it instead of auto-sizing
-                              const savedState = localStorage.getItem('qc_list_grid_state');
-                              if (savedState) {
-                                params.api.applyColumnState({ state: JSON.parse(savedState), applyOrder: true });
-                              } else {
-                                const allColIds = params.api.getColumns()?.map((col: any) => col.getColId()) || [];
-                                if (allColIds.length > 0) {
-                                  params.api.autoSizeColumns(allColIds);
-                                  // Save the auto-sized state
-                                  const columnState = params.api.getColumnState();
-                                  localStorage.setItem('qc_list_grid_state', JSON.stringify(columnState));
-                                }
+                              const allColIds = params.api.getColumns()
+                                ?.filter((col: any) => col.getColId() !== '__action' && col.getColId() !== '__sr')
+                                .map((col: any) => col.getColId()) || [];
+                              if (allColIds.length > 0) {
+                                params.api.autoSizeColumns(allColIds);
                               }
                               hasAutoFittedRef.current = true;
                             } catch { /* ignore */ }

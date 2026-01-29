@@ -1021,36 +1021,21 @@ export default function InboundPage() {
     }
   }, [listLoading, listData]);
 
-  // Reapply saved column state when grid settings or column visibility changes
+  // Re-apply column state when columnDefs change (e.g., column visibility toggle)
+  // Matches Dashboard pattern exactly
   useEffect(() => {
-    if (visibleTabCodes[tabValue] !== 'list') return;
-
-    // Set flag to reapply widths on next grid update
-    shouldReapplyWidthsRef.current = true;
-
-    const api = listGridRef.current;
-    if (!api) return;
-
-    // Simple localStorage - reapply saved column state
-    const reapplyState = () => {
+    if (listGridRef.current) {
       try {
         const saved = localStorage.getItem('inbound_list_grid_state');
         if (saved) {
-          const savedState = JSON.parse(saved);
-          const currentState = api.getColumnState();
-          const visibleColIds = currentState.map((c: any) => c.colId);
-          // Only apply widths/visibility for columns that are currently visible
-          const filteredState = savedState.filter((s: any) => visibleColIds.includes(s.colId));
-          // Apply without changing order (applyOrder: false) to preserve column positions
-          api.applyColumnState({ state: filteredState, applyOrder: false });
+          const state = JSON.parse(saved);
+          // Apply widths without changing order (applyOrder: false)
+          // This preserves user's widths when toggling column visibility
+          listGridRef.current.applyColumnState({ state, applyOrder: false });
         }
-      } catch (err) {
-        console.log('Failed to reapply column state:', err);
-      }
-    };
-
-    setTimeout(() => reapplyState(), 100);
-  }, [visibleTabCodes, tabValue, listColumns, gridSettings, inboundColumnDefs]);
+      } catch { /* ignore */ }
+    }
+  }, [inboundColumnDefs]);
 
   // ====== INBOUND LIST & helper loaders ======
   // ⚡ HELPER: Generate cache key for current filters
@@ -4362,6 +4347,7 @@ export default function InboundPage() {
                         }
                       }}
                       onColumnVisible={(params: any) => {
+                        // Save state when column visibility changes
                         if (params.api) {
                           try {
                             const state = params.api.getColumnState();
@@ -4369,41 +4355,15 @@ export default function InboundPage() {
                           } catch { /* ignore */ }
                         }
                       }}
-                      onDisplayedColumnsChanged={(params: any) => {
-                        // Reapply saved column widths when columns change
-                        if (shouldReapplyWidthsRef.current && params.api) {
-                          shouldReapplyWidthsRef.current = false;
-                          setTimeout(() => {
-                            try {
-                              const saved = localStorage.getItem('inbound_list_grid_state');
-                              if (saved) {
-                                params.api.applyColumnState({ state: JSON.parse(saved), applyOrder: false });
-                              }
-                            } catch { /* ignore */ }
-                          }, 50);
-                        }
-                      }}
                       onFirstDataRendered={(params: any) => {
-                        // Only auto-size columns on first ever load
+                        // Auto-size columns on first load if no saved state
                         if (!hasAutoFittedRef.current && params.api) {
                           try {
-                            const saved = localStorage.getItem('inbound_list_grid_state');
-                            if (saved) {
-                              params.api.applyColumnState({ state: JSON.parse(saved), applyOrder: true });
-                            } else {
-                              const allColIds = params.api.getColumns()?.map((col: any) => col.getColId()) || [];
-                              const colsToAutoSize = allColIds.filter((id: string) =>
-                                !['actions', 'checkbox', 'selection', 'sno', 'sr'].includes(id)
-                              );
-                              if (colsToAutoSize.length > 0) {
-                                params.api.autoSizeColumns(colsToAutoSize);
-                                setTimeout(() => {
-                                  try {
-                                    const state = params.api.getColumnState();
-                                    localStorage.setItem('inbound_list_grid_state', JSON.stringify(state));
-                                  } catch { /* ignore */ }
-                                }, 100);
-                              }
+                            const allColIds = params.api.getColumns()
+                              ?.filter((col: any) => col.getColId() !== '__action' && col.getColId() !== '__sr')
+                              .map((col: any) => col.getColId()) || [];
+                            if (allColIds.length > 0) {
+                              params.api.autoSizeColumns(allColIds);
                             }
                             hasAutoFittedRef.current = true;
                           } catch { /* ignore */ }
