@@ -32,3 +32,6 @@ export { useApiQuery, useApiMutation } from './useApiQuery';
 // ⚡ Performance-Optimized Hooks
 export { useDashboardFilters, type DashboardFilters, type DashboardPagination } from './useDashboardFilters';
 export { useGridSettings, type GridSettings } from './useGridSettings';
+
+// 🗃️ AG Grid State Management
+export { useAgGridState, type UseAgGridStateOptions, type UseAgGridStateReturn } from './useAgGridState';

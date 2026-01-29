@@ -103,6 +103,11 @@ import localforage from 'localforage';
 import { useInboundPermissions } from '@/hooks/usePagePermissions';
 import BulkUploadCard from '@/components/BulkUploadCard';
 import {
+  debouncedSaveGridState,
+  loadGridState,
+  extractColumnWidths,
+} from '@/lib/gridStateManager';
+import {
   getMasterDataByWSN as getLocalMasterData,
   prewarmCache,
   getCacheStats,
@@ -386,10 +391,17 @@ export default function InboundPage() {
   const [listColumnSettingsOpen, setListColumnSettingsOpen] = useState(false);
 
   // ====== INBOUND LIST COLUMN WIDTHS PERSISTENCE ======
+  // 🗃️ Using centralized grid state manager - initial state from localStorage for sync load
+  // Full state restoration happens in onGridReady using IndexedDB
   const [listColumnWidths, setListColumnWidths] = useState<Record<string, number>>(() => {
     if (typeof window !== 'undefined') {
       try {
-        const savedState = localStorage.getItem('inbound_columnState');
+        // Try v3 format first (new centralized format)
+        let savedState = localStorage.getItem('inbound_columnState_v3');
+        if (!savedState) {
+          // Fallback to legacy format
+          savedState = localStorage.getItem('inbound_columnState');
+        }
         if (savedState) {
           const state = JSON.parse(savedState);
           const widths: Record<string, number> = {};
@@ -1059,22 +1071,25 @@ export default function InboundPage() {
     const api = listGridRef.current;
     if (!api) return;
 
-    // Reapply saved column state to preserve user's column widths
-    setTimeout(() => {
+    // 🗃️ Reapply saved column state to preserve user's column widths
+    const reapplyState = async () => {
       try {
-        const savedState = localStorage.getItem('inbound_columnState');
+        const savedState = await loadGridState('inbound', 'list');
         if (savedState) {
-          const state = JSON.parse(savedState);
           const currentState = api.getColumnState();
           const visibleColIds = currentState.map((c: any) => c.colId);
-          const filteredState = state.filter((s: any) => visibleColIds.includes(s.colId));
+          // Only apply widths/visibility for columns that are currently visible
+          const filteredState = savedState.filter((s: any) => visibleColIds.includes(s.colId));
+          // Apply without changing order (applyOrder: false) to preserve column positions
           api.applyColumnState({ state: filteredState, applyOrder: false });
           console.log('✅ Reapplied saved column widths after settings change');
         }
       } catch (err) {
         console.log('Failed to reapply column state:', err);
       }
-    }, 100);
+    };
+
+    setTimeout(() => reapplyState(), 100);
   }, [visibleTabCodes, tabValue, listColumns, gridSettings, listColumnWidths, inboundColumnDefs]);
 
   // ====== INBOUND LIST & helper loaders ======
@@ -4354,14 +4369,21 @@ export default function InboundPage() {
                       ensureDomOrder={true}
                       enableCellTextSelection={true}
                       suppressRowTransform={true}
-                      onGridReady={(params: any) => {
+                      // ⚡ Performance optimizations for large datasets
+                      rowBuffer={20}
+                      valueCache={true}
+                      debounceVerticalScrollbar={true}
+                      onGridReady={async (params: any) => {
                         listGridRef.current = params.api;  // Set listGridRef for list grid
                         columnApiRef.current = params.api;
                         try {
-                          const savedState = localStorage.getItem('inbound_columnState');
+                          // 🗃️ Load from IndexedDB first, fallback to localStorage
+                          const savedState = await loadGridState('inbound', 'list');
                           if (savedState && params.api) {
-                            params.api.applyColumnState({ state: JSON.parse(savedState), applyOrder: true });
+                            params.api.applyColumnState({ state: savedState, applyOrder: true });
                             hasAutoFittedRef.current = true;
+                            const widths = extractColumnWidths(savedState);
+                            setListColumnWidths(widths);
                           }
                         } catch { /* ignore */ }
                       }}
@@ -4369,14 +4391,10 @@ export default function InboundPage() {
                         if (params.finished && params.api) {
                           try {
                             const columnState = params.api.getColumnState();
-                            localStorage.setItem('inbound_columnState', JSON.stringify(columnState));
+                            // 🗃️ Use centralized debounced save (IndexedDB + localStorage backup)
+                            debouncedSaveGridState('inbound', columnState, 'list', 300);
                             // Update column widths state to persist widths in column definitions
-                            const widths: Record<string, number> = {};
-                            columnState.forEach((col: any) => {
-                              if (col.colId && col.width) {
-                                widths[col.colId] = col.width;
-                              }
-                            });
+                            const widths = extractColumnWidths(columnState);
                             setListColumnWidths(widths);
                           } catch { /* ignore */ }
                         }
@@ -4385,15 +4403,20 @@ export default function InboundPage() {
                         if (params.finished && params.api) {
                           try {
                             const columnState = params.api.getColumnState();
-                            localStorage.setItem('inbound_columnState', JSON.stringify(columnState));
+                            // 🗃️ Use centralized debounced save (IndexedDB + localStorage backup)
+                            debouncedSaveGridState('inbound', columnState, 'list', 300);
                             // Update column widths state to persist widths in column definitions
-                            const widths: Record<string, number> = {};
-                            columnState.forEach((col: any) => {
-                              if (col.colId && col.width) {
-                                widths[col.colId] = col.width;
-                              }
-                            });
+                            const widths = extractColumnWidths(columnState);
                             setListColumnWidths(widths);
+                          } catch { /* ignore */ }
+                        }
+                      }}
+                      onColumnVisible={(params: any) => {
+                        // 🗃️ Save visibility changes without reordering
+                        if (params.api) {
+                          try {
+                            const columnState = params.api.getColumnState();
+                            debouncedSaveGridState('inbound', columnState, 'list', 300);
                           } catch { /* ignore */ }
                         }
                       }}
@@ -4401,30 +4424,40 @@ export default function InboundPage() {
                         // Reapply saved column widths when columns change (column settings or grid settings)
                         if (shouldReapplyWidthsRef.current && params.api) {
                           shouldReapplyWidthsRef.current = false;
-                          setTimeout(() => {
+                          setTimeout(async () => {
                             try {
-                              const savedState = localStorage.getItem('inbound_columnState');
+                              const savedState = await loadGridState('inbound', 'list');
                               if (savedState) {
-                                const state = JSON.parse(savedState);
-                                params.api.applyColumnState({ state, applyOrder: false });
+                                params.api.applyColumnState({ state: savedState, applyOrder: false });
                                 console.log('✅ Reapplied saved column widths via onDisplayedColumnsChanged');
                               }
                             } catch { /* ignore */ }
                           }, 50);
                         }
                       }}
-                      onFirstDataRendered={(params: any) => {
+                      onFirstDataRendered={async (params: any) => {
                         // Only auto-size columns on first ever load, not on pagination
                         if (!hasAutoFittedRef.current && params.api) {
                           try {
                             // Check if we have saved state - if yes, apply it instead of auto-sizing
-                            const savedState = localStorage.getItem('inbound_columnState');
+                            const savedState = await loadGridState('inbound', 'list');
                             if (savedState) {
-                              params.api.applyColumnState({ state: JSON.parse(savedState), applyOrder: true });
+                              params.api.applyColumnState({ state: savedState, applyOrder: true });
                             } else {
                               const allColIds = params.api.getColumns()?.map((col: any) => col.getColId()) || [];
-                              if (allColIds.length > 0) {
-                                params.api.autoSizeColumns(allColIds);
+                              // Exclude special columns from auto-sizing
+                              const colsToAutoSize = allColIds.filter((id: string) =>
+                                !['actions', 'checkbox', 'selection', 'sno', 'sr'].includes(id)
+                              );
+                              if (colsToAutoSize.length > 0) {
+                                params.api.autoSizeColumns(colsToAutoSize);
+                                // Save auto-sized state
+                                setTimeout(() => {
+                                  try {
+                                    const columnState = params.api.getColumnState();
+                                    debouncedSaveGridState('inbound', columnState, 'list', 300);
+                                  } catch { /* ignore */ }
+                                }, 100);
                               }
                             }
                             hasAutoFittedRef.current = true;

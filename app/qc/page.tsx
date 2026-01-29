@@ -81,6 +81,11 @@ import { ModuleRegistry, AllCommunityModule, ClientSideRowModelModule } from 'ag
 import 'ag-grid-community/styles/ag-theme-quartz.css';
 import { debounce } from 'lodash';
 import localforage from 'localforage';
+import {
+  debouncedSaveGridState,
+  loadGridState,
+  extractColumnWidths,
+} from '@/lib/gridStateManager';
 
 // Register AG Grid modules ONCE (include ClientSideRowModel for client-side features)
 ModuleRegistry.registerModules([AllCommunityModule, ClientSideRowModelModule]);
@@ -2918,31 +2923,37 @@ export default function QCPage() {
                         enableCellTextSelection={true}
                         ensureDomOrder={true}
                         animateRows={false}
+                        rowBuffer={20}
+                        valueCache={true}
+                        debounceVerticalScrollbar={true}
                         gridOptions={{ getRowId: (params: any) => String(params.data?.id || params.data?.wsn || params.rowIndex), suppressRowTransform: true }}
-                        onGridReady={(params: any) => {
+                        onGridReady={async (params: any) => {
                           listGridRef.current = params.api;  // Use listGridRef for list grid
                           gridRef.current = params.api;
                           columnApiRef.current = params.api;
                           try {
-                            const savedState = localStorage.getItem('qc_columnState');
+                            const savedState = await loadGridState('qc', 'list');
                             if (savedState && params.api) {
-                              params.api.applyColumnState({ state: JSON.parse(savedState), applyOrder: true });
+                              params.api.applyColumnState({ state: savedState, applyOrder: true });
                               hasAutoFittedRef.current = true;
                             }
                           } catch { /* ignore */ }
                         }}
-                        onFirstDataRendered={(params: any) => {
+                        onFirstDataRendered={async (params: any) => {
                           // Only auto-size columns on first ever load, not on pagination
                           if (!hasAutoFittedRef.current && params.api) {
                             try {
                               // Check if we have saved state - if yes, apply it instead of auto-sizing
-                              const savedState = localStorage.getItem('qc_columnState');
+                              const savedState = await loadGridState('qc', 'list');
                               if (savedState) {
-                                params.api.applyColumnState({ state: JSON.parse(savedState), applyOrder: true });
+                                params.api.applyColumnState({ state: savedState, applyOrder: true });
                               } else {
                                 const allColIds = params.api.getColumns()?.map((col: any) => col.getColId()) || [];
                                 if (allColIds.length > 0) {
                                   params.api.autoSizeColumns(allColIds);
+                                  // Save the auto-sized state
+                                  const columnState = params.api.getColumnState();
+                                  debouncedSaveGridState('qc', columnState, 'list', 300);
                                 }
                               }
                               hasAutoFittedRef.current = true;
@@ -2953,14 +2964,9 @@ export default function QCPage() {
                           if (params.finished && params.api) {
                             try {
                               const columnState = params.api.getColumnState();
-                              localStorage.setItem('qc_columnState', JSON.stringify(columnState));
+                              debouncedSaveGridState('qc', columnState, 'list', 300);
                               // Update column widths state to persist widths in column definitions
-                              const widths: Record<string, number> = {};
-                              columnState.forEach((col: any) => {
-                                if (col.colId && col.width) {
-                                  widths[col.colId] = col.width;
-                                }
-                              });
+                              const widths = extractColumnWidths(columnState);
                               setListColumnWidths(widths);
                             } catch { /* ignore */ }
                           }
@@ -2969,15 +2975,19 @@ export default function QCPage() {
                           if (params.finished && params.api) {
                             try {
                               const columnState = params.api.getColumnState();
-                              localStorage.setItem('qc_columnState', JSON.stringify(columnState));
+                              debouncedSaveGridState('qc', columnState, 'list', 300);
                               // Update column widths state to persist widths in column definitions
-                              const widths: Record<string, number> = {};
-                              columnState.forEach((col: any) => {
-                                if (col.colId && col.width) {
-                                  widths[col.colId] = col.width;
-                                }
-                              });
+                              const widths = extractColumnWidths(columnState);
                               setListColumnWidths(widths);
+                            } catch { /* ignore */ }
+                          }
+                        }}
+                        onColumnVisible={(params: any) => {
+                          if (params.api) {
+                            try {
+                              const columnState = params.api.getColumnState();
+                              // Save state without reordering - visibility changes only
+                              debouncedSaveGridState('qc', columnState, 'list', 300);
                             } catch { /* ignore */ }
                           }
                         }}

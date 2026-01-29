@@ -79,6 +79,11 @@ import toast, { Toaster } from 'react-hot-toast';
 import { AgGridReact } from 'ag-grid-react';
 import { ModuleRegistry, AllCommunityModule, ClientSideRowModelModule } from 'ag-grid-community';
 import 'ag-grid-community/styles/ag-theme-quartz.css';
+import {
+    debouncedSaveGridState,
+    loadGridState,
+    extractColumnWidths,
+} from '@/lib/gridStateManager';
 
 // Register AG Grid modules ONCE (include ClientSideRowModel for client-side features)
 ModuleRegistry.registerModules([AllCommunityModule, ClientSideRowModelModule]);
@@ -3690,30 +3695,36 @@ export default function OutboundPage() {
                                             enableCellTextSelection={true}
                                             ensureDomOrder={true}
                                             animateRows={false}
+                                            rowBuffer={20}
+                                            valueCache={true}
+                                            debounceVerticalScrollbar={true}
                                             gridOptions={{ suppressRowTransform: true }}
-                                            onGridReady={(params: any) => {
+                                            onGridReady={async (params: any) => {
                                                 listGridRef.current = params.api;
                                                 columnApiRef.current = params.api;
                                                 try {
-                                                    const savedState = localStorage.getItem('outbound_columnState');
+                                                    const savedState = await loadGridState('outbound', 'list');
                                                     if (savedState && params.api) {
-                                                        params.api.applyColumnState({ state: JSON.parse(savedState), applyOrder: true });
+                                                        params.api.applyColumnState({ state: savedState, applyOrder: true });
                                                         hasAutoFittedRef.current = true;
                                                     }
                                                 } catch { /* ignore */ }
                                             }}
-                                            onFirstDataRendered={(params: any) => {
+                                            onFirstDataRendered={async (params: any) => {
                                                 // Only auto-size columns on first ever load, not on pagination
                                                 if (!hasAutoFittedRef.current && params.api) {
                                                     try {
                                                         // Check if we have saved state - if yes, apply it instead of auto-sizing
-                                                        const savedState = localStorage.getItem('outbound_columnState');
+                                                        const savedState = await loadGridState('outbound', 'list');
                                                         if (savedState) {
-                                                            params.api.applyColumnState({ state: JSON.parse(savedState), applyOrder: true });
+                                                            params.api.applyColumnState({ state: savedState, applyOrder: true });
                                                         } else {
                                                             const allColIds = params.api.getColumns()?.map((col: any) => col.getColId()) || [];
                                                             if (allColIds.length > 0) {
                                                                 params.api.autoSizeColumns(allColIds);
+                                                                // Save auto-sized state
+                                                                const columnState = params.api.getColumnState();
+                                                                debouncedSaveGridState('outbound', columnState, 'list', 300);
                                                             }
                                                         }
                                                         hasAutoFittedRef.current = true;
@@ -3724,15 +3735,9 @@ export default function OutboundPage() {
                                                 if (params.finished && params.api) {
                                                     try {
                                                         const columnState = params.api.getColumnState();
-                                                        localStorage.setItem('outbound_columnState', JSON.stringify(columnState));
+                                                        debouncedSaveGridState('outbound', columnState, 'list', 300);
                                                         // Update column widths state to persist widths in column definitions
-                                                        const widths: Record<string, number> = {};
-                                                        columnState.forEach((col: any) => {
-                                                            if (col.colId && col.width) {
-                                                                widths[col.colId] = col.width;
-                                                            }
-                                                        });
-                                                        setListColumnWidths(widths);
+                                                        setListColumnWidths(extractColumnWidths(columnState));
                                                     } catch { /* ignore */ }
                                                 }
                                             }}
@@ -3740,15 +3745,18 @@ export default function OutboundPage() {
                                                 if (params.finished && params.api) {
                                                     try {
                                                         const columnState = params.api.getColumnState();
-                                                        localStorage.setItem('outbound_columnState', JSON.stringify(columnState));
+                                                        debouncedSaveGridState('outbound', columnState, 'list', 300);
                                                         // Update column widths state to persist widths in column definitions
-                                                        const widths: Record<string, number> = {};
-                                                        columnState.forEach((col: any) => {
-                                                            if (col.colId && col.width) {
-                                                                widths[col.colId] = col.width;
-                                                            }
-                                                        });
-                                                        setListColumnWidths(widths);
+                                                        setListColumnWidths(extractColumnWidths(columnState));
+                                                    } catch { /* ignore */ }
+                                                }
+                                            }}
+                                            onColumnVisible={(params: any) => {
+                                                if (params.api) {
+                                                    try {
+                                                        const columnState = params.api.getColumnState();
+                                                        // Save visibility change without reordering
+                                                        debouncedSaveGridState('outbound', columnState, 'list', 300);
                                                     } catch { /* ignore */ }
                                                 }
                                             }}

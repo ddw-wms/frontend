@@ -28,6 +28,12 @@ import { useWarehouse } from '@/app/context/WarehouseContext';
 // ⚡ OPTIMIZED: XLSX loaded dynamically on export to reduce bundle size
 // import * as XLSX from 'xlsx'; // Removed - loaded dynamically
 import { useMasterDataPermissions } from '@/hooks/usePagePermissions';
+import {
+  debouncedSaveGridState,
+  loadGridState,
+  extractColumnWidths,
+  clearGridState,
+} from '@/lib/gridStateManager';
 
 import FilterListIcon from '@mui/icons-material/FilterList';
 
@@ -432,26 +438,23 @@ export default function MasterDataPage() {
   const MIN_LOADING_MS = 350;
 
   // ====== MASTER DATA COLUMN WIDTHS PERSISTENCE ======
-  const [columnWidths, setColumnWidths] = useState<Record<string, number>>(() => {
-    if (typeof window !== 'undefined') {
+  // Column widths loaded asynchronously from grid state manager
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
+
+  // Load column widths from grid state manager on mount
+  useEffect(() => {
+    const loadColumnWidths = async () => {
       try {
-        const savedState = localStorage.getItem('masterdata_columnState_v2');
+        const savedState = await loadGridState('masterdata', 'main');
         if (savedState) {
-          const state = JSON.parse(savedState);
-          const widths: Record<string, number> = {};
-          state.forEach((col: any) => {
-            if (col.colId && col.width) {
-              widths[col.colId] = col.width;
-            }
-          });
-          return widths;
+          setColumnWidths(extractColumnWidths(savedState));
         }
       } catch (e) {
         console.log('Master Data column widths load error');
       }
-    }
-    return {};
-  });
+    };
+    loadColumnWidths();
+  }, []);
 
   // Grid settings
   const [enableSorting, setEnableSorting] = useState<boolean>(() => {
@@ -638,18 +641,20 @@ export default function MasterDataPage() {
 
   // Re-apply column widths when columnDefs change to ensure widths persist after column toggle
   useEffect(() => {
-    if (gridRef.current && Object.keys(columnWidths).length > 0) {
-      try {
-        const savedState = localStorage.getItem('masterdata_columnState_v2');
-        if (savedState) {
-          const state = JSON.parse(savedState);
-          const currentState = gridRef.current.getColumnState();
-          const visibleColIds = currentState.map((c: any) => c.colId);
-          const filteredState = state.filter((s: any) => visibleColIds.includes(s.colId));
-          gridRef.current.applyColumnState({ state: filteredState, applyOrder: false });
-        }
-      } catch { /* ignore */ }
-    }
+    const reapplyColumnWidths = async () => {
+      if (gridRef.current && Object.keys(columnWidths).length > 0) {
+        try {
+          const savedState = await loadGridState('masterdata', 'main');
+          if (savedState) {
+            const currentState = gridRef.current.getColumnState();
+            const visibleColIds = currentState.map((c: any) => c.colId);
+            const filteredState = savedState.filter((s: any) => visibleColIds.includes(s.colId));
+            gridRef.current.applyColumnState({ state: filteredState, applyOrder: false });
+          }
+        } catch { /* ignore */ }
+      }
+    };
+    reapplyColumnWidths();
   }, [columnDefs, columnWidths]);
 
   // Save grid settings to localStorage
@@ -2362,34 +2367,39 @@ export default function MasterDataPage() {
                               isAdmin
                             }}
                             getRowId={(params: any) => String(params.data?.id || params.data?.wsn || params.rowIndex)}
-                            onGridReady={(params: any) => {
+                            onGridReady={async (params: any) => {
                               gridRef.current = params.api;
                               columnApiRef.current = params.columnApi;
 
-                              // Check if user has saved column state (v2 = new improved widths)
+                              // Load saved column state from centralized grid state manager
                               try {
-                                const savedState = localStorage.getItem('masterdata_columnState_v2');
+                                const savedState = await loadGridState('masterdata', 'main');
                                 if (savedState && params.api) {
-                                  const state = JSON.parse(savedState);
                                   // Apply saved column state (user's custom widths)
                                   params.api.applyColumnState({
-                                    state: state,
+                                    state: savedState,
                                     applyOrder: true,
                                   });
                                   hasAutoFittedRef.current = true; // Mark as fitted
-                                  console.log('Column state restored from localStorage');
-                                } else {
-                                  // Clear old v1 state if exists
-                                  localStorage.removeItem('masterdata_columnState');
+                                  // Update column widths state
+                                  setColumnWidths(extractColumnWidths(savedState));
+                                  console.log('Column state restored from grid state manager');
                                 }
                               } catch (err) {
                                 console.error('Failed to restore column state:', err);
                               }
                             }}
-                            onFirstDataRendered={(params: any) => {
+                            onFirstDataRendered={async (params: any) => {
                               // Auto-fit columns on first data load ONLY if no saved state
                               if (!hasAutoFittedRef.current && params.api) {
                                 try {
+                                  // Check if there's saved state first
+                                  const savedState = await loadGridState('masterdata', 'main');
+                                  if (savedState) {
+                                    hasAutoFittedRef.current = true;
+                                    return; // Already restored in onGridReady
+                                  }
+
                                   // Auto-size all columns to fit content (skip pinned actions column)
                                   const allColIds = params.api.getColumns()
                                     ?.filter((col: any) => col.getColId() !== 'actions')
@@ -2397,6 +2407,10 @@ export default function MasterDataPage() {
 
                                   if (allColIds.length > 0) {
                                     params.api.autoSizeColumns(allColIds);
+                                    // Save auto-sized state
+                                    const columnState = params.api.getColumnState();
+                                    debouncedSaveGridState('masterdata', columnState, 'main', 300);
+                                    setColumnWidths(extractColumnWidths(columnState));
                                   }
                                   hasAutoFittedRef.current = true;
                                   console.log('Columns auto-fitted to content');
@@ -2406,45 +2420,49 @@ export default function MasterDataPage() {
                               }
                             }}
                             onColumnResized={(params: any) => {
-                              // Save column state when resized (use v2 key)
+                              // Save column state when resized using centralized grid state manager
                               if (params.finished && params.api) {
                                 try {
                                   const columnState = params.api.getColumnState();
-                                  localStorage.setItem('masterdata_columnState_v2', JSON.stringify(columnState));
+                                  debouncedSaveGridState('masterdata', columnState, 'main', 300);
                                   // Update column widths state to persist widths in column definitions
-                                  const widths: Record<string, number> = {};
-                                  columnState.forEach((col: any) => {
-                                    if (col.colId && col.width) {
-                                      widths[col.colId] = col.width;
-                                    }
-                                  });
-                                  setColumnWidths(widths);
+                                  setColumnWidths(extractColumnWidths(columnState));
                                 } catch (err) {
                                   console.error('Failed to save column state:', err);
                                 }
                               }
                             }}
                             onColumnMoved={(params: any) => {
-                              // Save column state when moved (use v2 key)
+                              // Save column state when moved using centralized grid state manager
                               if (params.finished && params.api) {
                                 try {
                                   const columnState = params.api.getColumnState();
-                                  localStorage.setItem('masterdata_columnState_v2', JSON.stringify(columnState));
+                                  debouncedSaveGridState('masterdata', columnState, 'main', 300);
                                   // Update column widths state to persist widths in column definitions
-                                  const widths: Record<string, number> = {};
-                                  columnState.forEach((col: any) => {
-                                    if (col.colId && col.width) {
-                                      widths[col.colId] = col.width;
-                                    }
-                                  });
-                                  setColumnWidths(widths);
+                                  setColumnWidths(extractColumnWidths(columnState));
                                 } catch (err) {
                                   console.error('Failed to save column state:', err);
                                 }
                               }
                             }}
+                            onColumnVisible={(params: any) => {
+                              // Save column state when visibility changes (without reordering)
+                              if (params.api) {
+                                try {
+                                  const columnState = params.api.getColumnState();
+                                  debouncedSaveGridState('masterdata', columnState, 'main', 300);
+                                  setColumnWidths(extractColumnWidths(columnState));
+                                } catch (err) {
+                                  console.error('Failed to save column visibility state:', err);
+                                }
+                              }
+                            }}
                             animateRows={false}
-                            rowBuffer={10}
+                            rowBuffer={20}
+                            valueCache={true}
+                            debounceVerticalScrollbar={true}
+                            suppressScrollOnNewData={true}
+                            maintainColumnOrder={true}
                             rowHeight={36}
                             headerHeight={isMobile ? 40 : 48}
                             pagination={false}
@@ -2802,12 +2820,12 @@ export default function MasterDataPage() {
                 <Button
                   variant="outlined"
                   size="small"
-                  onClick={() => {
-                    // Clear saved column state and auto-fit
+                  onClick={async () => {
+                    // Clear saved column state and auto-fit using centralized grid state manager
                     try {
-                      localStorage.removeItem('masterdata_columnState_v2');
-                      localStorage.removeItem('masterdata_columnState');
+                      await clearGridState('masterdata', 'main');
                       hasAutoFittedRef.current = false;
+                      setColumnWidths({});
                       if (gridRef.current) {
                         // Auto-size all columns except actions
                         const allColIds = gridRef.current.getColumns()

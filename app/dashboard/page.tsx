@@ -61,6 +61,11 @@ import { dashboardAPI, inventoryAPI, inboundAPI, pickingAPI, outboundAPI } from 
 import { useWarehouse } from "@/app/context/WarehouseContext";
 import { getStoredUser, logout } from "@/lib/auth";
 import { useDashboardPermissions } from '@/hooks/usePagePermissions';
+import {
+  debouncedSaveGridState,
+  loadGridState,
+  extractColumnWidths,
+} from '@/lib/gridStateManager';
 
 import AppLayout from "@/components/AppLayout";
 import { StandardPageHeader } from '@/components';
@@ -2463,26 +2468,32 @@ export default function DashboardPage() {
                       enableCellTextSelection={true}
                       ensureDomOrder={true}
                       getRowId={(params: any) => String(params.data?.wsn || params.data?.wid || params.rowIndex)}
-                      onGridReady={(params: any) => {
+                      onGridReady={async (params: any) => {
                         gridRef.current = params.api;
                         columnApiRef.current = params.columnApi;
                         try {
-                          const savedState = localStorage.getItem('dashboard_columnState');
+                          const savedState = await loadGridState('dashboard', 'main');
                           if (savedState && params.api) {
-                            params.api.applyColumnState({ state: JSON.parse(savedState), applyOrder: true });
+                            params.api.applyColumnState({ state: savedState, applyOrder: true });
                             hasAutoFittedRef.current = true; // Mark as fitted (using saved state)
                           }
                         } catch { /* ignore */ }
                       }}
-                      onFirstDataRendered={(params: any) => {
+                      onFirstDataRendered={async (params: any) => {
                         // Auto-fit columns on first data load ONLY if no saved state
                         if (!hasAutoFittedRef.current && params.api) {
                           try {
-                            const allColIds = params.api.getColumns()
-                              ?.filter((col: any) => col.getColId() !== '__action')
-                              .map((col: any) => col.getColId()) || [];
-                            if (allColIds.length > 0) {
-                              params.api.autoSizeColumns(allColIds);
+                            const savedState = await loadGridState('dashboard', 'main');
+                            if (!savedState) {
+                              const allColIds = params.api.getColumns()
+                                ?.filter((col: any) => col.getColId() !== '__action')
+                                .map((col: any) => col.getColId()) || [];
+                              if (allColIds.length > 0) {
+                                params.api.autoSizeColumns(allColIds);
+                                // Save auto-sized state
+                                const columnState = params.api.getColumnState();
+                                debouncedSaveGridState('dashboard', columnState, 'main', 300);
+                              }
                             }
                             hasAutoFittedRef.current = true;
                           } catch { /* ignore */ }
@@ -2492,14 +2503,9 @@ export default function DashboardPage() {
                         if (params.finished && params.api) {
                           try {
                             const columnState = params.api.getColumnState();
-                            localStorage.setItem('dashboard_columnState', JSON.stringify(columnState));
+                            debouncedSaveGridState('dashboard', columnState, 'main', 300);
                             // Update column widths state to persist widths in column definitions
-                            const widths: Record<string, number> = {};
-                            columnState.forEach((col: any) => {
-                              if (col.colId && col.width) {
-                                widths[col.colId] = col.width;
-                              }
-                            });
+                            const widths = extractColumnWidths(columnState);
                             setColumnWidths(widths);
                           } catch { /* ignore */ }
                         }
@@ -2508,20 +2514,28 @@ export default function DashboardPage() {
                         if (params.finished && params.api) {
                           try {
                             const columnState = params.api.getColumnState();
-                            localStorage.setItem('dashboard_columnState', JSON.stringify(columnState));
+                            debouncedSaveGridState('dashboard', columnState, 'main', 300);
                             // Update column widths state to persist widths in column definitions
-                            const widths: Record<string, number> = {};
-                            columnState.forEach((col: any) => {
-                              if (col.colId && col.width) {
-                                widths[col.colId] = col.width;
-                              }
-                            });
+                            const widths = extractColumnWidths(columnState);
                             setColumnWidths(widths);
                           } catch { /* ignore */ }
                         }
                       }}
+                      onColumnVisible={(params: any) => {
+                        if (params.api) {
+                          try {
+                            const columnState = params.api.getColumnState();
+                            // Save visibility changes without reordering
+                            debouncedSaveGridState('dashboard', columnState, 'main', 300);
+                          } catch { /* ignore */ }
+                        }
+                      }}
                       animateRows={false}
-                      rowBuffer={10}
+                      rowBuffer={20}
+                      valueCache={true}
+                      debounceVerticalScrollbar={true}
+                      suppressScrollOnNewData={true}
+                      maintainColumnOrder={true}
                       rowHeight={tableRowHeight}
                       headerHeight={32}
                     />

@@ -1,11 +1,18 @@
 // File: components/StandardAGGrid.tsx
 // Standardized AG Grid wrapper for consistency across all pages
 // ⚡ OPTIMIZED: Added useMemo to prevent unnecessary re-renders
+// 🗃️ ENHANCED: Integrated with centralized grid state persistence
 
-import React, { useRef, useCallback, useMemo } from 'react';
+import React, { useRef, useCallback, useMemo, useEffect, useState } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import { Box, useTheme, useMediaQuery, Paper } from '@mui/material';
 import 'ag-grid-community/styles/ag-theme-quartz.css';
+import {
+    loadGridState,
+    debouncedSaveGridState,
+    extractColumnWidths,
+    ColumnState,
+} from '@/lib/gridStateManager';
 
 export const _isModule = true;
 
@@ -17,6 +24,9 @@ interface StandardAGGridProps {
     onFirstDataRendered?: (params: any) => void;
     onCellClicked?: (params: any) => void;
     onRowClicked?: (params: any) => void;
+    onColumnResized?: (params: any) => void;
+    onColumnMoved?: (params: any) => void;
+    onColumnVisible?: (params: any) => void;
     pagination?: boolean;
     paginationPageSize?: number;
     paginationPageSizeSelector?: number[];
@@ -27,6 +37,16 @@ interface StandardAGGridProps {
     enableCellTextSelection?: boolean;
     animateRows?: boolean;
     loading?: boolean;
+    /** Unique page identifier for state persistence (e.g., 'inbound', 'outbound') */
+    pageId?: string;
+    /** Grid identifier for pages with multiple grids (e.g., 'list', 'multiEntry') */
+    gridId?: string;
+    /** Whether to persist column state (default: true if pageId is provided) */
+    persistState?: boolean;
+    /** Whether to apply saved column order on restore (default: true) */
+    applyColumnOrder?: boolean;
+    /** Callback when column widths change */
+    onColumnWidthsChange?: (widths: Record<string, number>) => void;
     [key: string]: any;
 }
 
@@ -38,6 +58,9 @@ export const StandardAGGrid: React.FC<StandardAGGridProps> = ({
     onFirstDataRendered,
     onCellClicked,
     onRowClicked,
+    onColumnResized,
+    onColumnMoved,
+    onColumnVisible,
     pagination = true,
     paginationPageSize,
     paginationPageSizeSelector,
@@ -46,14 +69,25 @@ export const StandardAGGrid: React.FC<StandardAGGridProps> = ({
     minHeight = '400px',
     suppressMovableColumns,
     enableCellTextSelection = true,
-    animateRows = true,
+    animateRows = false, // ⚡ Default to false for better performance
     loading = false,
+    pageId,
+    gridId = 'main',
+    persistState,
+    applyColumnOrder = true,
+    onColumnWidthsChange,
     ...otherProps
 }) => {
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
     const isTablet = useMediaQuery(theme.breakpoints.down('md'));
     const gridRef = useRef<any>(null);
+    const gridApiRef = useRef<any>(null);
+    const hasRestoredStateRef = useRef(false);
+    const hasAutoSizedRef = useRef(false);
+
+    // Determine if we should persist state
+    const shouldPersistState = persistState ?? !!pageId;
 
     // ⚡ OPTIMIZED: Memoize responsive values to prevent recalculation
     const responsivePageSize = useMemo(() =>
@@ -67,12 +101,13 @@ export const StandardAGGrid: React.FC<StandardAGGridProps> = ({
     );
 
     // ⚡ OPTIMIZED: Memoize defaultColDef to prevent AG Grid re-renders
+    // 🗃️ FIXED: Removed flex:1 to prevent width reset issues
     const standardDefaultColDef = useMemo(() => ({
         sortable: true,
         filter: true,
         resizable: true,
-        flex: 1,
         minWidth: isMobile ? 100 : 120,
+        suppressSizeToFit: true, // Preserve user widths
         cellStyle: {
             fontSize: isMobile ? '12px' : '13px',
             padding: isMobile ? '4px 8px' : '8px 12px',
@@ -82,10 +117,101 @@ export const StandardAGGrid: React.FC<StandardAGGridProps> = ({
         ...defaultColDef,
     }), [isMobile, defaultColDef]);
 
-    const handleGridReady = useCallback((params: any) => {
-        gridRef.current = params.api;
+    // 🗃️ Save column state helper
+    const saveColumnState = useCallback(() => {
+        if (!shouldPersistState || !pageId || !gridApiRef.current) return;
+
+        try {
+            const columnState = gridApiRef.current.getColumnState();
+            if (columnState && columnState.length > 0) {
+                debouncedSaveGridState(pageId, columnState, gridId, 300);
+
+                // Update column widths callback
+                if (onColumnWidthsChange) {
+                    const widths = extractColumnWidths(columnState);
+                    onColumnWidthsChange(widths);
+                }
+            }
+        } catch {
+            // Ignore save errors
+        }
+    }, [shouldPersistState, pageId, gridId, onColumnWidthsChange]);
+
+    // 🗃️ Grid ready handler with state restoration
+    const handleGridReady = useCallback(async (params: any) => {
+        gridRef.current = params;
+        gridApiRef.current = params.api;
+
+        // Restore saved state if persistence is enabled
+        if (shouldPersistState && pageId && !hasRestoredStateRef.current) {
+            try {
+                const savedState = await loadGridState(pageId, gridId);
+                if (savedState && savedState.length > 0) {
+                    params.api.applyColumnState({
+                        state: savedState,
+                        applyOrder: applyColumnOrder,
+                    });
+                    hasRestoredStateRef.current = true;
+                    hasAutoSizedRef.current = true;
+
+                    if (onColumnWidthsChange) {
+                        const widths = extractColumnWidths(savedState);
+                        onColumnWidthsChange(widths);
+                    }
+                }
+            } catch {
+                // Ignore restore errors
+            }
+        }
+
         onGridReady?.(params);
-    }, [onGridReady]);
+    }, [shouldPersistState, pageId, gridId, applyColumnOrder, onColumnWidthsChange, onGridReady]);
+
+    // 🗃️ Column resized handler
+    const handleColumnResized = useCallback((params: any) => {
+        if (params.finished) {
+            saveColumnState();
+        }
+        onColumnResized?.(params);
+    }, [saveColumnState, onColumnResized]);
+
+    // 🗃️ Column moved handler
+    const handleColumnMoved = useCallback((params: any) => {
+        if (params.finished) {
+            saveColumnState();
+        }
+        onColumnMoved?.(params);
+    }, [saveColumnState, onColumnMoved]);
+
+    // 🗃️ Column visibility handler
+    const handleColumnVisible = useCallback((params: any) => {
+        saveColumnState();
+        onColumnVisible?.(params);
+    }, [saveColumnState, onColumnVisible]);
+
+    // 🗃️ First data rendered - auto-size if no saved state
+    const handleFirstDataRendered = useCallback((params: any) => {
+        if (!hasAutoSizedRef.current && !hasRestoredStateRef.current && params.api) {
+            try {
+                const allColIds = params.api.getColumns()?.map((col: any) => col.getColId()) || [];
+                const colsToAutoSize = allColIds.filter((id: string) =>
+                    !['actions', 'checkbox', 'selection', 'sno'].includes(id)
+                );
+
+                if (colsToAutoSize.length > 0) {
+                    params.api.autoSizeColumns(colsToAutoSize);
+                    hasAutoSizedRef.current = true;
+
+                    // Save auto-sized state
+                    setTimeout(() => saveColumnState(), 100);
+                }
+            } catch {
+                // Ignore auto-size errors
+            }
+        }
+        hasAutoSizedRef.current = true;
+        onFirstDataRendered?.(params);
+    }, [saveColumnState, onFirstDataRendered]);
 
     return (
         <Paper
@@ -188,9 +314,12 @@ export const StandardAGGrid: React.FC<StandardAGGridProps> = ({
                     columnDefs={columnDefs}
                     defaultColDef={standardDefaultColDef}
                     onGridReady={handleGridReady}
-                    onFirstDataRendered={onFirstDataRendered}
+                    onFirstDataRendered={handleFirstDataRendered}
                     onCellClicked={onCellClicked}
                     onRowClicked={onRowClicked}
+                    onColumnResized={handleColumnResized}
+                    onColumnMoved={handleColumnMoved}
+                    onColumnVisible={handleColumnVisible}
                     pagination={pagination}
                     paginationPageSize={responsivePageSize}
                     paginationPageSizeSelector={responsivePageSizeSelector}
@@ -201,6 +330,14 @@ export const StandardAGGrid: React.FC<StandardAGGridProps> = ({
                     suppressMovableColumns={suppressMovableColumns !== undefined ? suppressMovableColumns : isMobile}
                     domLayout={domLayout}
                     loading={loading}
+                    // ⚡ Performance optimizations for large datasets
+                    rowBuffer={isMobile ? 10 : 20}
+                    suppressScrollOnNewData={true}
+                    maintainColumnOrder={true}
+                    ensureDomOrder={true}
+                    suppressRowTransform={true}
+                    valueCache={true}
+                    debounceVerticalScrollbar={true}
                     {...otherProps}
                 />
             </Box>
