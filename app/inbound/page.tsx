@@ -146,7 +146,6 @@ export default function InboundPage() {
   const listGridRef = useRef<any>(null);  // Separate ref for List grid
   const columnApiRef = useRef<any>(null);
   const hasAutoFittedRef = useRef(false); // Track if auto-fit has been done
-  const isRestoringStateRef = useRef(false); // Prevent saving state during restore
   const lastKeyDownRef = useRef<any>(null);
   const isAutoScrollingRef = useRef<boolean>(false);
   const scrollAnimationFrameRef = useRef<number | null>(null);
@@ -945,7 +944,24 @@ export default function InboundPage() {
   const saveListColumnSettings = (cols: string[]) => {
     setListColumns(cols);
     localStorage.setItem('inboundListColumns', JSON.stringify(cols));
-    //toast.success('✓ List columns saved');
+
+    // Use ag-Grid API to toggle column visibility WITHOUT rebuilding columnDefs
+    // This preserves column order
+    const api = listGridRef.current;
+    if (api) {
+      // Get all columns and set visibility based on `cols` array
+      const allColIds = api.getColumns()?.map((c: any) => c.getColId()) || [];
+      allColIds.forEach((colId: string) => {
+        if (colId === '__sr') return; // SR column always visible
+        const shouldShow = cols.includes(colId);
+        api.setColumnsVisible([colId], shouldShow);
+      });
+      // Save the updated state
+      try {
+        const state = api.getColumnState();
+        localStorage.setItem('inbound_list_grid_state', JSON.stringify(state));
+      } catch { /* ignore */ }
+    }
   };
 
   // Date formatter (stable) — moved before column defs to avoid "used before declaration" errors
@@ -962,6 +978,12 @@ export default function InboundPage() {
   }, []);
 
   // -------- AG Grid helpers for Inbound List (keeps behavior same as table) --------
+  // ALL possible columns for the list grid - define once, never rebuild
+  const ALL_LIST_COLUMNS = useMemo(() => [
+    ...INBOUND_LIST_COLUMNS,
+    ...ALL_MASTER_COLUMNS.filter(c => !INBOUND_LIST_COLUMNS.includes(c))
+  ], []);
+
   const inboundColumnDefs = useMemo(() => {
     const srCol = {
       headerName: 'SR.NO',
@@ -981,7 +1003,8 @@ export default function InboundPage() {
       filter: false,
     };
 
-    const cols = listColumns.map((col: string) => {
+    // Include ALL columns with hide property - columnDefs structure never changes
+    const cols = ALL_LIST_COLUMNS.map((col: string) => {
       const isDate = col.includes('date');
       const headerName = col.replace(/_/g, ' ').toUpperCase();
 
@@ -989,7 +1012,8 @@ export default function InboundPage() {
         field: col,
         headerName,
         minWidth: col === 'product_title' ? 240 : col === 'brand' ? 140 : 120,
-        flex: col === 'product_title' ? 1.5 : 1, // Let ag-Grid manage widths via applyColumnState
+        flex: col === 'product_title' ? 1.5 : 1,
+        hide: false, // Start visible, ag-Grid state will control visibility
       };
 
       if (isDate) base.valueFormatter = (params: any) => formatInboundDate(params.value);
@@ -997,7 +1021,7 @@ export default function InboundPage() {
     });
 
     return [srCol, ...cols];
-  }, [listColumns, formatInboundDate, isDarkMode]);
+  }, [ALL_LIST_COLUMNS, formatInboundDate, isDarkMode]);
 
   const inboundDefaultColDef = useMemo(() => ({
     sortable: gridSettings.sortable,
@@ -1021,26 +1045,9 @@ export default function InboundPage() {
     }
   }, [listLoading, listData]);
 
-  // Re-apply column state when columnDefs change (e.g., column visibility toggle)
-  // applyOrder: false - updates widths/visibility WITHOUT changing order
-  // Order is set ONLY ONCE in onGridReady
-  useEffect(() => {
-    if (listGridRef.current) {
-      try {
-        const saved = localStorage.getItem('inbound_list_grid_state');
-        if (saved) {
-          const state = JSON.parse(saved);
-          // Set flag to prevent onColumnVisible from saving state during restore
-          isRestoringStateRef.current = true;
-          listGridRef.current.applyColumnState({ state, applyOrder: false });
-          // Clear flag after a short delay to allow events to settle
-          setTimeout(() => {
-            isRestoringStateRef.current = false;
-          }, 100);
-        }
-      } catch { /* ignore */ }
-    }
-  }, [inboundColumnDefs]);
+  // NOTE: No longer need to re-apply column state on columnDefs change
+  // because columnDefs structure is now STABLE (includes ALL columns with hide property)
+  // Column visibility is controlled via setColumnsVisible() API which preserves order
 
   // ====== INBOUND LIST & helper loaders ======
   // ⚡ HELPER: Generate cache key for current filters
@@ -4332,6 +4339,14 @@ export default function InboundPage() {
                           if (saved && params.api) {
                             params.api.applyColumnState({ state: JSON.parse(saved), applyOrder: true });
                             hasAutoFittedRef.current = true;
+                          } else {
+                            // No saved state - hide columns not in listColumns
+                            const allColIds = params.api.getColumns()?.map((c: any) => c.getColId()) || [];
+                            allColIds.forEach((colId: string) => {
+                              if (colId === '__sr') return;
+                              const shouldShow = listColumns.includes(colId);
+                              params.api.setColumnsVisible([colId], shouldShow);
+                            });
                           }
                         } catch { /* ignore */ }
                       }}
@@ -4353,8 +4368,7 @@ export default function InboundPage() {
                       }}
                       onColumnVisible={(params: any) => {
                         // Save state when column visibility changes
-                        // BUT skip if we're in the middle of restoring state (columnDefs change)
-                        if (params.api && !isRestoringStateRef.current) {
+                        if (params.api) {
                           try {
                             const state = params.api.getColumnState();
                             localStorage.setItem('inbound_list_grid_state', JSON.stringify(state));
