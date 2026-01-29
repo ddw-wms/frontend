@@ -590,6 +590,24 @@ export default function OutboundPage() {
     const saveListColumnSettings = (cols: string[]) => {
         setListColumns(cols);
         localStorage.setItem('outboundListColumns', JSON.stringify(cols));
+
+        // Use ag-Grid API to toggle column visibility WITHOUT rebuilding columnDefs
+        // This preserves column order
+        const api = listGridRef.current;
+        if (api) {
+            // Get all columns and set visibility based on `cols` array
+            const allColIds = api.getColumns()?.map((c: any) => c.getColId()) || [];
+            allColIds.forEach((colId: string) => {
+                if (colId === '__sr') return; // SR column always visible
+                const shouldShow = cols.includes(colId);
+                api.setColumnsVisible([colId], shouldShow);
+            });
+            // Save the updated state
+            try {
+                const state = api.getColumnState();
+                localStorage.setItem('outbound_list_grid_state', JSON.stringify(state));
+            } catch { /* ignore */ }
+        }
     };
 
     // Apply saved column widths when Multi Entry tab opens or visibleColumns change
@@ -2906,6 +2924,7 @@ export default function OutboundPage() {
     );
 
     // ✅ LIST GRID COLUMN DEFINITIONS (AG GRID)
+    // Include ALL columns with hide property - columnDefs structure never changes
     const listColumnDefs = useMemo(() => {
         const sr = {
             headerName: 'SR.NO',
@@ -2925,7 +2944,8 @@ export default function OutboundPage() {
             filter: false,
         };
 
-        const cols = listColumns.map((col: string) => {
+        // Include ALL columns - visibility controlled by ag-Grid state
+        const cols = ALL_LIST_COLUMNS.map((col: string) => {
             // Dates
             if (col.includes('date')) {
                 return {
@@ -2934,7 +2954,8 @@ export default function OutboundPage() {
                     filter: enableColumnFilters ? 'agDateColumnFilter' : undefined,
                     valueFormatter: (p: any) => formatDate(p.value),
                     tooltipField: col,
-                    flex: 1, // Let ag-Grid manage widths via applyColumnState
+                    flex: 1,
+                    hide: false, // ag-Grid state controls visibility
                 };
             }
 
@@ -2950,6 +2971,7 @@ export default function OutboundPage() {
                         );
                     },
                     flex: 1,
+                    hide: false,
                 };
             }
 
@@ -2960,26 +2982,16 @@ export default function OutboundPage() {
                 filter: enableColumnFilters ? 'agTextColumnFilter' : undefined,
                 tooltipField: col,
                 flex: col === 'wsn' ? 1.2 : 1,
+                hide: false,
             };
         });
 
         return [sr, ...cols];
-    }, [listColumns, enableColumnFilters, enableSorting, enableColumnResize, isDarkMode]);
+    }, [enableColumnFilters, enableSorting, enableColumnResize, isDarkMode]);
 
-    // Re-apply column state when columnDefs change (e.g., column visibility toggle)
-    // applyOrder: false - updates widths/visibility WITHOUT changing order
-    // Order is set ONLY ONCE in onGridReady
-    useEffect(() => {
-        if (listGridRef.current) {
-            try {
-                const saved = localStorage.getItem('outbound_list_grid_state');
-                if (saved) {
-                    const state = JSON.parse(saved);
-                    listGridRef.current.applyColumnState({ state, applyOrder: false });
-                }
-            } catch { /* ignore */ }
-        }
-    }, [listColumnDefs]);
+    // NOTE: No longer need to re-apply column state on columnDefs change
+    // because columnDefs structure is now STABLE (includes ALL columns with hide property)
+    // Column visibility is controlled via setColumnsVisible() API which preserves order
 
     const listDefaultColDef = useMemo(() => ({
         sortable: !!enableSorting,
@@ -3657,6 +3669,14 @@ export default function OutboundPage() {
                                                     if (saved && params.api) {
                                                         params.api.applyColumnState({ state: JSON.parse(saved), applyOrder: true });
                                                         hasAutoFittedRef.current = true;
+                                                    } else {
+                                                        // No saved state - hide columns not in listColumns
+                                                        const allColIds = params.api.getColumns()?.map((c: any) => c.getColId()) || [];
+                                                        allColIds.forEach((colId: string) => {
+                                                            if (colId === '__sr') return;
+                                                            const shouldShow = listColumns.includes(colId);
+                                                            params.api.setColumnsVisible([colId], shouldShow);
+                                                        });
                                                     }
                                                 } catch { /* ignore */ }
                                             }}

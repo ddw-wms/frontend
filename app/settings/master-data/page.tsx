@@ -504,9 +504,8 @@ export default function MasterDataPage() {
   }, [isMobile]);
 
   // Build column definitions for AG Grid
+  // Include ALL columns - visibility controlled by ag-Grid state
   useEffect(() => {
-    const visibleCols = columns.filter(col => columnVisibility[col.id as keyof typeof columnVisibility]);
-
     // SR.NO column - always first, pinned to left
     const srCol = {
       headerName: 'SR.NO',
@@ -523,7 +522,8 @@ export default function MasterDataPage() {
       cellStyle: { fontWeight: 700, textAlign: 'center', backgroundColor: isDarkMode ? '#1e293b' : '#fafafa' },
     };
 
-    const defs: any = [srCol, ...visibleCols.map((col) => {
+    // Include ALL columns with hide property - columnDefs structure never changes
+    const defs: any = [srCol, ...columns.map((col) => {
       const base: any = {
         field: col.id,
         headerName: col.label,
@@ -531,6 +531,7 @@ export default function MasterDataPage() {
         resizable: enableColumnResize,
         filter: enableColumnFilters ? 'agTextColumnFilter' : undefined,
         tooltipField: col.id,
+        hide: false, // ag-Grid state controls visibility
         ...getColumnSizing(col.id),
       };
 
@@ -607,22 +608,11 @@ export default function MasterDataPage() {
     });
 
     setColumnDefs(defs);
-  }, [columnVisibility, enableSorting, enableColumnFilters, enableColumnResize, isMobile, page, rowsPerPage, getColumnSizing]);
+  }, [enableSorting, enableColumnFilters, enableColumnResize, isMobile, page, rowsPerPage, getColumnSizing]);
 
-  // Re-apply column state when columnDefs change (e.g., column visibility toggle)
-  // applyOrder: false - updates widths/visibility WITHOUT changing order
-  // Order is set ONLY ONCE in onGridReady
-  useEffect(() => {
-    if (gridRef.current) {
-      try {
-        const saved = localStorage.getItem('masterdata_grid_state');
-        if (saved) {
-          const state = JSON.parse(saved);
-          gridRef.current.applyColumnState({ state, applyOrder: false });
-        }
-      } catch { /* ignore */ }
-    }
-  }, [columnDefs]);
+  // NOTE: No longer need to re-apply column state on columnDefs change
+  // because columnDefs structure is now STABLE (includes ALL columns with hide property)
+  // Column visibility is controlled via setColumnsVisible() API which preserves order
 
   // Save grid settings to localStorage
   useEffect(() => {
@@ -1525,6 +1515,19 @@ export default function MasterDataPage() {
     const updated = { ...columnVisibility, [col]: !columnVisibility[col as keyof typeof columnVisibility] };
     setColumnVisibility(updated);
     localStorage.setItem('masterDataColumns', JSON.stringify(updated));
+
+    // Use ag-Grid API to toggle column visibility WITHOUT rebuilding columnDefs
+    // This preserves column order
+    const api = gridRef.current;
+    if (api) {
+      const shouldShow = !columnVisibility[col as keyof typeof columnVisibility];
+      api.setColumnsVisible([col], shouldShow);
+      // Save the updated state
+      try {
+        const state = api.getColumnState();
+        localStorage.setItem('masterdata_grid_state', JSON.stringify(state));
+      } catch { /* ignore */ }
+    }
   };
 
   const handleLogout = () => {
@@ -2349,6 +2352,14 @@ export default function MasterDataPage() {
                                   });
                                   hasAutoFittedRef.current = true; // Mark as fitted
                                   console.log('Column state restored from localStorage');
+                                } else {
+                                  // No saved state - hide columns based on columnVisibility
+                                  const allColIds = params.api.getColumns()?.map((c: any) => c.getColId()) || [];
+                                  allColIds.forEach((colId: string) => {
+                                    if (colId === '__sr' || colId === 'actions') return;
+                                    const shouldShow = columnVisibility[colId as keyof typeof columnVisibility] ?? false;
+                                    params.api.setColumnsVisible([colId], shouldShow);
+                                  });
                                 }
                               } catch (err) {
                                 console.error('Failed to restore column state:', err);

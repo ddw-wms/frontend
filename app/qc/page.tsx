@@ -1216,9 +1216,23 @@ export default function QCPage() {
 
     setListColumns(updated);
     localStorage.setItem('qc_list_columns', JSON.stringify(updated));
+
+    // Use ag-Grid API to toggle column visibility WITHOUT rebuilding columnDefs
+    // This preserves column order
+    const api = listGridRef.current;
+    if (api) {
+      const shouldShow = existingCol ? !existingCol.visible : true;
+      api.setColumnsVisible([key], shouldShow);
+      // Save the updated state
+      try {
+        const state = api.getColumnState();
+        localStorage.setItem('qc_list_grid_state', JSON.stringify(state));
+      } catch { /* ignore */ }
+    }
   };
 
   // ✅ LIST GRID COLUMN DEFINITIONS (AG GRID)
+  // Include ALL columns with hide property - columnDefs structure never changes
   const listColumnDefs = useMemo(() => {
     const sr = {
       headerName: 'SR.NO',
@@ -1231,9 +1245,8 @@ export default function QCPage() {
       filter: false,
     };
 
-    const visibleKeys = listColumns.filter(c => c.visible).map(c => c.key);
-
-    const cols = visibleKeys.map((col: string) => {
+    // Include ALL columns - visibility controlled by ag-Grid state
+    const cols = ALL_LIST_COLUMNS.map((col: string) => {
       // Dates
       if (col.includes('date')) {
         return {
@@ -1244,6 +1257,7 @@ export default function QCPage() {
           tooltipField: col,
           flex: 1,
           minWidth: 140,
+          hide: false, // ag-Grid state controls visibility
         };
       }
 
@@ -1271,6 +1285,7 @@ export default function QCPage() {
           },
           flex: 1,
           minWidth: 120,
+          hide: false,
         };
       }
 
@@ -1293,6 +1308,7 @@ export default function QCPage() {
           },
           flex: 1,
           minWidth: 120,
+          hide: false,
         };
       }
 
@@ -1304,26 +1320,16 @@ export default function QCPage() {
         tooltipField: col,
         flex: 1,
         minWidth: col === 'wsn' ? 180 : col === 'product_title' ? 250 : 150,
+        hide: false,
       };
     });
 
     return [sr, ...cols];
-  }, [listColumns, page, limit, enableColumnFilters, enableSorting, enableColumnResize, isDarkMode]);
+  }, [page, limit, enableColumnFilters, enableSorting, enableColumnResize, isDarkMode]);
 
-  // Re-apply column state when columnDefs change (e.g., column visibility toggle)
-  // applyOrder: false - updates widths/visibility WITHOUT changing order
-  // Order is set ONLY ONCE in onGridReady
-  useEffect(() => {
-    if (listGridRef.current) {
-      try {
-        const saved = localStorage.getItem('qc_list_grid_state');
-        if (saved) {
-          const state = JSON.parse(saved);
-          listGridRef.current.applyColumnState({ state, applyOrder: false });
-        }
-      } catch { /* ignore */ }
-    }
-  }, [listColumnDefs]);
+  // NOTE: No longer need to re-apply column state on columnDefs change
+  // because columnDefs structure is now STABLE (includes ALL columns with hide property)
+  // Column visibility is controlled via setColumnsVisible() API which preserves order
 
   const listDefaultColDef = useMemo(() => ({
     sortable: !!enableSorting,
@@ -2894,6 +2900,15 @@ export default function QCPage() {
                             if (savedState && params.api) {
                               params.api.applyColumnState({ state: JSON.parse(savedState), applyOrder: true });
                               hasAutoFittedRef.current = true;
+                            } else {
+                              // No saved state - hide columns not in listColumns visible set
+                              const visibleKeys = listColumns.filter(c => c.visible).map(c => c.key);
+                              const allColIds = params.api.getColumns()?.map((c: any) => c.getColId()) || [];
+                              allColIds.forEach((colId: string) => {
+                                if (colId === '__sr') return;
+                                const shouldShow = visibleKeys.includes(colId);
+                                params.api.setColumnsVisible([colId], shouldShow);
+                              });
                             }
                           } catch { /* ignore */ }
                         }}
