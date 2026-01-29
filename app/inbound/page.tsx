@@ -146,7 +146,7 @@ export default function InboundPage() {
   const listGridRef = useRef<any>(null);  // Separate ref for List grid
   const columnApiRef = useRef<any>(null);
   const hasAutoFittedRef = useRef(false); // Track if auto-fit has been done
-  const shouldReapplyWidthsRef = useRef(false); // Track if we should reapply saved widths
+  const isRestoringStateRef = useRef(false); // Prevent saving state during restore
   const lastKeyDownRef = useRef<any>(null);
   const isAutoScrollingRef = useRef<boolean>(false);
   const scrollAnimationFrameRef = useRef<number | null>(null);
@@ -1030,7 +1030,13 @@ export default function InboundPage() {
         const saved = localStorage.getItem('inbound_list_grid_state');
         if (saved) {
           const state = JSON.parse(saved);
+          // Set flag to prevent onColumnVisible from saving state during restore
+          isRestoringStateRef.current = true;
           listGridRef.current.applyColumnState({ state, applyOrder: false });
+          // Clear flag after a short delay to allow events to settle
+          setTimeout(() => {
+            isRestoringStateRef.current = false;
+          }, 100);
         }
       } catch { /* ignore */ }
     }
@@ -4347,7 +4353,8 @@ export default function InboundPage() {
                       }}
                       onColumnVisible={(params: any) => {
                         // Save state when column visibility changes
-                        if (params.api) {
+                        // BUT skip if we're in the middle of restoring state (columnDefs change)
+                        if (params.api && !isRestoringStateRef.current) {
                           try {
                             const state = params.api.getColumnState();
                             localStorage.setItem('inbound_list_grid_state', JSON.stringify(state));
