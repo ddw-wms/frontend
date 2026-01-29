@@ -2783,12 +2783,11 @@ export default function MasterDataPage() {
                 <Button
                   variant="outlined"
                   size="small"
-                  onClick={async () => {
-                    // Clear saved column state and auto-fit using centralized grid state manager
+                  onClick={() => {
+                    // Clear saved column state and auto-fit
                     try {
-                      await clearGridState('masterdata', 'main');
+                      localStorage.removeItem('masterdata_grid_state');
                       hasAutoFittedRef.current = false;
-                      setColumnWidths({});
                       if (gridRef.current) {
                         // Auto-size all columns except actions
                         const allColIds = gridRef.current.getColumns()
