@@ -354,7 +354,7 @@ export default function OutboundPage() {
         setMultiRows(prev => [...prev, ...generateEmptyRows(500)] as OutboundItem[]);
     };
 
-    // ⚡ MULTI ENTRY: Export entered data to Excel
+    // ⚡ MULTI ENTRY: Export entered data to Excel (with all columns - user input + master data)
     const exportMultiEntryToExcel = async () => {
         try {
             const dataToExport = multiRows.filter((row: any) => row.wsn?.trim());
@@ -363,22 +363,61 @@ export default function OutboundPage() {
                 return;
             }
             const XLSX = await import('xlsx');
+
+            // Prepare export data with all columns (user input + master data)
             const exportData = dataToExport.map((row: any, idx: number) => ({
-                'S.No': idx + 1,
+                'Sr No': idx + 1,
+                // User Input Columns
                 'WSN': row.wsn || '',
+                'Dispatch Date': row.dispatch_date || commonDate || '',
+                'Customer Name': row.customer_name || commonCustomer || '',
+                'Vehicle No': row.vehicle_no || commonVehicle || '',
                 'Dispatch Remarks': row.dispatch_remarks || '',
                 'Other Remarks': row.other_remarks || '',
                 'Quantity': row.quantity || '',
+                // Master Data Columns
+                'Source': row.source || '',
+                'Product Title': row.product_title || '',
                 'Brand': row.brand || '',
-                'Category': row.cms_vertical || '',
-                'Model': row.product_title || ''
+                'CMS Vertical': row.cms_vertical || '',
+                'WID': row.wid || '',
+                'FSN': row.fsn || '',
+                'Order ID': row.order_id || '',
+                'FKQC Remark': row.fkqc_remark || '',
+                'FK Grade': row.fk_grade || '',
+                'HSN/SAC': row.hsn_sac || '',
+                'IGST Rate': row.igst_rate || '',
+                'FSP': row.fsp || '',
+                'MRP': row.mrp || '',
+                'VRP': row.vrp || '',
+                'Yield Value': row.yield_value || '',
+                'Invoice Date': row.invoice_date || '',
+                'FKT Link': row.fkt_link || '',
+                'WH Location': row.wh_location || '',
+                'Product Type': row.p_type || '',
+                'Product Size': row.p_size || '',
             }));
+
+            // Create workbook and worksheet
             const ws = XLSX.utils.json_to_sheet(exportData);
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, 'Multi Outbound');
-            XLSX.writeFile(wb, `Outbound_MultiEntry_${new Date().toISOString().split('T')[0]}_${Date.now()}.xlsx`);
-            toast.success(`✓ Exported ${dataToExport.length} rows`);
+
+            // Auto-fit column widths
+            const colWidths = Object.keys(exportData[0]).map(key => ({
+                wch: Math.max(key.length, ...exportData.map(row => String((row as any)[key] || '').length)) + 2
+            }));
+            ws['!cols'] = colWidths;
+
+            // Generate filename with timestamp
+            const timestamp = new Date().toISOString().slice(0, 19).replace(/[:-]/g, '');
+            const filename = `Outbound_MultiEntry_${timestamp}.xlsx`;
+
+            // Download the file
+            XLSX.writeFile(wb, filename);
+            toast.success(`✅ Exported ${dataToExport.length} rows to ${filename}`);
         } catch (error) {
+            console.error('Export error:', error);
             toast.error('Export failed');
         }
     };
@@ -403,6 +442,19 @@ export default function OutboundPage() {
 
     // ====== MULTI ENTRY COLUMN WIDTHS PERSISTENCE ======
     const [multiColumnWidths, setMultiColumnWidths] = useState<Record<string, number>>({});
+
+    // ====== CTRL+O PRODUCT LINK SHORTCUT STATE ======
+    const [ctrlOProductLinkEnabled, setCtrlOProductLinkEnabled] = useState(() => {
+        if (typeof window !== 'undefined') {
+            const saved = localStorage.getItem('outbound_ctrlOProductLinkEnabled');
+            return saved !== 'false'; // Default to true
+        }
+        return true;
+    });
+
+    // Track last scanned row data for Ctrl+O to open product link
+    const lastScannedRowRef = useRef<any>(null);
+
     const [commonDate, setCommonDate] = useState(new Date().toISOString().split('T')[0]);
     const [commonCustomer, setCommonCustomer] = useState('');
     const [commonVehicle, setCommonVehicle] = useState('');
@@ -595,6 +647,11 @@ export default function OutboundPage() {
             }
         }
     }, []);
+
+    // Save Ctrl+O preference to localStorage when changed
+    useEffect(() => {
+        localStorage.setItem('outbound_ctrlOProductLinkEnabled', String(ctrlOProductLinkEnabled));
+    }, [ctrlOProductLinkEnabled]);
 
     // ✅ SAVE COLUMN SETTINGS - Maintain order
     const saveColumnSettings = (cols: string[]) => {
@@ -1632,6 +1689,37 @@ export default function OutboundPage() {
             const activeEl = document.activeElement;
             const isEditing = activeEl?.tagName === 'INPUT' || activeEl?.tagName === 'TEXTAREA';
 
+            // Ctrl+O → Open product link for last scanned WSN (custom shortcut)
+            if (ctrlKey && e.key.toLowerCase() === 'o') {
+                e.preventDefault();
+                e.stopPropagation();
+
+                if (!ctrlOProductLinkEnabled) {
+                    toast('Ctrl+O shortcut is disabled', { icon: '⚠️', duration: 1500 });
+                    return;
+                }
+
+                if (!lastScannedRowRef.current?.wsn?.trim()) {
+                    toast.error('No scanned WSN available', { duration: 2000 });
+                    return;
+                }
+
+                const fktLink = lastScannedRowRef.current?.fkt_link;
+                if (!fktLink) {
+                    toast.error('No product link available for this WSN', { duration: 2000 });
+                    return;
+                }
+
+                // Open product link in new tab
+                try {
+                    window.open(fktLink, '_blank');
+                    toast.success(`Product link opened: ${lastScannedRowRef.current.wsn}`, { duration: 2000 });
+                } catch (err) {
+                    toast.error('Failed to open product link', { duration: 2000 });
+                }
+                return;
+            }
+
             // Ctrl+Z → Undo (global, works even outside grid)
             if (ctrlKey && e.key.toLowerCase() === 'z' && !shiftKey) {
                 if (isEditing) return;
@@ -1794,7 +1882,7 @@ export default function OutboundPage() {
         // Use capture phase to intercept before AG Grid handles it
         window.addEventListener('keydown', handleKeyDown, true);
         return () => window.removeEventListener('keydown', handleKeyDown, true);
-    }, [currentTabCode, handleSelectAll, handleClearCells, handleUndo, handleRedo, handleFillDown, handleFillRight, handleGoToFirst, handleGoToLast]);
+    }, [currentTabCode, handleSelectAll, handleClearCells, handleUndo, handleRedo, handleFillDown, handleFillRight, handleGoToFirst, handleGoToLast, ctrlOProductLinkEnabled]);
 
     // ✅ AUTO-FETCH SOURCE DATA ON WSN CELL EDIT (MULTI ENTRY)
     const onCellValueChanged = useCallback(
@@ -1826,7 +1914,13 @@ export default function OutboundPage() {
             }
 
             if (field === 'wsn') {
-                const wsn = rowData.wsn?.trim()?.toUpperCase();
+                // ⚡ Convert WSN to uppercase immediately
+                const wsn = newValue?.trim()?.toUpperCase();
+
+                // If WSN changed to uppercase, update the cell
+                if (wsn && wsn !== newValue) {
+                    rowNode.setDataValue('wsn', wsn);
+                }
 
                 // WSN cleared -> clear all master data columns
                 if (!wsn) {
@@ -2031,6 +2125,9 @@ export default function OutboundPage() {
                     rowNode.setDataValue('p_type', data.p_type || '');
                     rowNode.setDataValue('p_size', data.p_size || '');
                     rowNode.setDataValue('quantity', data.quantity || '');
+
+                    // ⚡ CTRL+O: Update last scanned row ref for product link shortcut
+                    lastScannedRowRef.current = { wsn, ...data };
 
                     // ⚡ HIGHLIGHT: Visual feedback for scanned row
                     highlightRow(params.rowIndex, 1500);
@@ -2879,8 +2976,9 @@ export default function OutboundPage() {
                 const isInColRange = currentColIndex >= bounds.minCol && currentColIndex <= bounds.maxCol;
 
                 if (isInRowRange && isInColRange) {
-                    const borderColor = isDarkMode ? '#60a5fa' : '#2563eb';
-                    const bgColor = isDarkMode ? 'rgba(96, 165, 250, 0.35)' : 'rgba(37, 99, 235, 0.2)';
+                    // Enhanced visibility for dark mode - use cyan for better contrast
+                    const borderColor = isDarkMode ? '#22d3ee' : '#2563eb';
+                    const bgColor = isDarkMode ? 'rgba(34, 211, 238, 0.25)' : 'rgba(37, 99, 235, 0.15)';
 
                     const style: any = { backgroundColor: bgColor };
                     if (rowIndex === bounds.minRow) style.borderTop = `3px solid ${borderColor}`;
@@ -4826,6 +4924,44 @@ export default function OutboundPage() {
                                                 {/* Divider */}
                                                 <Box sx={{ width: 1, height: 20, bgcolor: isDarkMode ? '#475569' : '#d1d5db' }} />
 
+                                                {/* Ctrl+O Product Link Toggle */}
+                                                <Tooltip title="Ctrl+O: Open product link for last scanned WSN" placement="top">
+                                                    <Box
+                                                        onClick={() => setCtrlOProductLinkEnabled(!ctrlOProductLinkEnabled)}
+                                                        sx={{
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            gap: 0.5,
+                                                            bgcolor: ctrlOProductLinkEnabled ? 'rgba(168, 85, 247, 0.1)' : isDarkMode ? 'rgba(100, 116, 139, 0.2)' : 'rgba(156, 163, 175, 0.1)',
+                                                            border: `1.5px solid ${ctrlOProductLinkEnabled ? '#a855f7' : isDarkMode ? '#64748b' : '#9ca3af'}`,
+                                                            borderRadius: 1,
+                                                            px: 1,
+                                                            height: 32,
+                                                            cursor: 'pointer',
+                                                            '&:hover': { opacity: 0.85 }
+                                                        }}
+                                                    >
+                                                        <Typography sx={{ color: ctrlOProductLinkEnabled ? '#a855f7' : isDarkMode ? '#94a3b8' : '#6b7280', fontWeight: 700, fontSize: '0.65rem', whiteSpace: 'nowrap' }}>
+                                                            Ctrl+O {ctrlOProductLinkEnabled ? 'ON' : 'OFF'}
+                                                        </Typography>
+                                                        <Switch
+                                                            size="small"
+                                                            checked={ctrlOProductLinkEnabled}
+                                                            onChange={(e) => { e.stopPropagation(); setCtrlOProductLinkEnabled(e.target.checked); }}
+                                                            sx={{
+                                                                width: 32, height: 18, p: 0,
+                                                                '& .MuiSwitch-switchBase': { p: '2px' },
+                                                                '& .MuiSwitch-thumb': { width: 14, height: 14 },
+                                                                '& .MuiSwitch-switchBase.Mui-checked': { color: '#a855f7' },
+                                                                '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { bgcolor: '#a855f7' },
+                                                            }}
+                                                        />
+                                                    </Box>
+                                                </Tooltip>
+
+                                                {/* Divider */}
+                                                <Box sx={{ width: 1, height: 20, bgcolor: isDarkMode ? '#475569' : '#d1d5db' }} />
+
                                                 {/* Cache Toggle */}
                                                 <Tooltip title={cacheEnabled ? 'Offline mode ON - Click to disable' : 'Enable offline mode for faster lookups'}>
                                                     <Box
@@ -5083,21 +5219,21 @@ export default function OutboundPage() {
                             '& .ag-cell-range-selected': { backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.25) !important' : '#dbeafe !important' },
                             '& .ag-cell-range-single-cell': { backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.2) !important' : '#eff6ff !important' },
 
-                            // ⚡ EXCEL-LIKE: Custom range selection CSS classes
+                            // ⚡ EXCEL-LIKE: Custom range selection CSS classes - Enhanced visibility for dark mode
                             '& .custom-range-selected': {
-                                backgroundColor: isDarkMode ? 'rgba(96, 165, 250, 0.4) !important' : 'rgba(37, 99, 235, 0.2) !important',
+                                backgroundColor: isDarkMode ? 'rgba(34, 211, 238, 0.25) !important' : 'rgba(37, 99, 235, 0.15) !important',
                             },
                             '& .custom-range-top': {
-                                borderTop: isDarkMode ? '3px solid #60a5fa !important' : '3px solid #2563eb !important',
+                                borderTop: isDarkMode ? '3px solid #22d3ee !important' : '3px solid #2563eb !important',
                             },
                             '& .custom-range-bottom': {
-                                borderBottom: isDarkMode ? '3px solid #60a5fa !important' : '3px solid #2563eb !important',
+                                borderBottom: isDarkMode ? '3px solid #22d3ee !important' : '3px solid #2563eb !important',
                             },
                             '& .custom-range-left': {
-                                borderLeft: isDarkMode ? '3px solid #60a5fa !important' : '3px solid #2563eb !important',
+                                borderLeft: isDarkMode ? '3px solid #22d3ee !important' : '3px solid #2563eb !important',
                             },
                             '& .custom-range-right': {
-                                borderRight: isDarkMode ? '3px solid #60a5fa !important' : '3px solid #2563eb !important',
+                                borderRight: isDarkMode ? '3px solid #22d3ee !important' : '3px solid #2563eb !important',
                             },
 
                             '& .ag-row-hover': { backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.12) !important' : '#e0f2fe !important' },
