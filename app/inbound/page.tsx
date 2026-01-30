@@ -146,6 +146,7 @@ export default function InboundPage() {
   const listGridRef = useRef<any>(null);  // Separate ref for List grid
   const columnApiRef = useRef<any>(null);
   const hasAutoFittedRef = useRef(false); // Track if auto-fit has been done
+  const isRestoringStateRef = useRef(false); // Prevent saving state during restore
   const lastKeyDownRef = useRef<any>(null);
   const isAutoScrollingRef = useRef<boolean>(false);
   const scrollAnimationFrameRef = useRef<number | null>(null);
@@ -1011,6 +1012,7 @@ export default function InboundPage() {
       const base: any = {
         field: col,
         headerName,
+        minWidth: col === 'product_title' ? 240 : col === 'brand' ? 140 : 120,
         flex: col === 'product_title' ? 1.5 : 1,
         hide: false, // Start visible, ag-Grid state will control visibility
       };
@@ -4367,7 +4369,8 @@ export default function InboundPage() {
                       }}
                       onColumnVisible={(params: any) => {
                         // Save state when column visibility changes
-                        if (params.api) {
+                        // BUT skip if we're in the middle of restoring state (columnDefs change)
+                        if (params.api && !isRestoringStateRef.current) {
                           try {
                             const state = params.api.getColumnState();
                             localStorage.setItem('inbound_list_grid_state', JSON.stringify(state));

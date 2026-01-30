@@ -452,8 +452,10 @@ export default function MasterDataPage() {
     filter: !!enableColumnFilters,
     editable: !!enableCellEditing,
     tooltipComponentParams: { color: '#ececec' },
-    wrapHeaderText: true,
-    autoHeaderHeight: true,
+
+    // Disable wrapping of header text
+    wrapHeaderText: false,
+    autoHeaderHeight: false,
   }), [enableSorting, enableColumnFilters, enableColumnResize, enableCellEditing]);
 
   const columns = [

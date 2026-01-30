@@ -400,6 +400,9 @@ export default function OutboundPage() {
     const [crossWarehouseWSNs, setCrossWarehouseWSNs] = useState<Set<string>>(new Set());
     const [visibleColumns, setVisibleColumns] = useState<string[]>(DEFAULT_MULTI_COLUMNS);
     const [columnSettingsOpen, setColumnSettingsOpen] = useState(false);
+
+    // ====== MULTI ENTRY COLUMN WIDTHS PERSISTENCE ======
+    const [multiColumnWidths, setMultiColumnWidths] = useState<Record<string, number>>({});
     const [commonDate, setCommonDate] = useState(new Date().toISOString().split('T')[0]);
     const [commonCustomer, setCommonCustomer] = useState('');
     const [commonVehicle, setCommonVehicle] = useState('');
@@ -562,6 +565,7 @@ export default function OutboundPage() {
 
     // ✅ LOAD COLUMN SETTINGS FROM LOCALSTORAGE
     useEffect(() => {
+        // Load visible columns
         const saved = localStorage.getItem('outboundMultiEntryColumns');
         if (saved) {
             try {
@@ -570,13 +574,26 @@ export default function OutboundPage() {
                 const valid = cols.filter((col: string) => ALL_MULTI_COLUMNS.includes(col));
                 if (valid.length > 0) {
                     setVisibleColumns(valid);
-                    return;
                 }
             } catch (e) {
                 console.log('Column settings load error');
+                setVisibleColumns(DEFAULT_MULTI_COLUMNS);
+            }
+        } else {
+            setVisibleColumns(DEFAULT_MULTI_COLUMNS);
+        }
+
+        // Load saved column widths (always load regardless of column settings)
+        const savedWidths = localStorage.getItem('outboundMultiEntryColumnWidths');
+        if (savedWidths) {
+            try {
+                const widths = JSON.parse(savedWidths);
+                setMultiColumnWidths(widths);
+                console.log('✅ Outbound Multi Entry column widths loaded:', widths);
+            } catch (e) {
+                console.log('Column widths load error');
             }
         }
-        setVisibleColumns(DEFAULT_MULTI_COLUMNS);
     }, []);
 
     // ✅ SAVE COLUMN SETTINGS - Maintain order
@@ -610,33 +627,9 @@ export default function OutboundPage() {
         }
     };
 
-    // Apply saved column widths when Multi Entry tab opens or visibleColumns change
-    // Only auto-size columns that DON'T have saved widths
-    useEffect(() => {
-        if (currentTabCode !== 'multi') return;
-        const api = gridRef.current?.api;
-        if (!api) return;
-
-        // Only apply saved widths, don't auto-size (preserves user's column widths)
-        setTimeout(() => {
-            const savedWidths = localStorage.getItem('outboundMultiEntryColumnWidths');
-            if (savedWidths) {
-                try {
-                    const widths = JSON.parse(savedWidths);
-                    const columnState = Object.entries(widths).map(([colId, width]) => ({
-                        colId,
-                        width: width as number
-                    }));
-                    if (columnState.length > 0) {
-                        api.applyColumnState({ state: columnState });
-                    }
-                } catch (err) {
-                    console.log('Failed to apply saved column widths');
-                }
-            }
-        }, 100);
-    }, [currentTabCode, visibleColumns]); // Removed multiRows.length to prevent reset on data change
     // ====== LOAD DATA ON TAB CHANGE ======
+    // NOTE: Column widths are now baked into columnDefs via multiColumnWidths state
+    // No need for a separate useEffect to apply widths - they're preserved automatically
     useEffect(() => {
         if (activeWarehouse) {
             if (currentTabCode === 'list') {
@@ -2817,11 +2810,14 @@ export default function OutboundPage() {
             const isEditable = EDITABLE_COLUMNS.includes(col);
             const defaultWidth = col === 'wsn' ? 140 : col === 'dispatch_date' ? 140 : 130;
 
+            // Use saved width if available, otherwise use default
+            const savedWidth = multiColumnWidths[col];
+
             return {
                 field: col,
                 headerName: col.replace(/_/g, ' ').toUpperCase(),
                 editable: isEditable,
-                width: defaultWidth, // Let ag-Grid manage widths via applyColumnState
+                width: savedWidth || defaultWidth, // Use saved width or fall back to default
                 suppressSizeToFit: true,
                 cellStyle: (params: any) => {
                     const wsn = params.data?.wsn?.trim()?.toUpperCase();
@@ -2844,7 +2840,7 @@ export default function OutboundPage() {
         });
 
         return [srCol, ...cols];
-    }, [visibleColumns, isDarkMode, crossWarehouseWSNs, gridDuplicateWSNs]);
+    }, [visibleColumns, isDarkMode, crossWarehouseWSNs, gridDuplicateWSNs, multiColumnWidths]);
 
     const defaultColDef = useMemo(
         () => ({
@@ -5172,24 +5168,25 @@ export default function OutboundPage() {
                                 suppressPropertyNamesCheck={true}
                                 valueCache={true}
 
-                                // Simple localStorage - save column state when resized
+                                // ✅ Save column widths when resized (matching inbound pattern)
                                 onColumnResized={(params: any) => {
-                                    if (params.finished && params.api) {
-                                        try {
-                                            const state = params.api.getColumnState();
-                                            localStorage.setItem('outbound_multi_grid_state', JSON.stringify(state));
-                                        } catch { /* ignore */ }
+                                    if (params.finished && params.column) {
+                                        const colId = params.column.getColId();
+                                        const newWidth = params.column.getActualWidth();
+                                        // Don't save special columns
+                                        if (colId === '__sr') return;
+
+                                        setMultiColumnWidths(prev => {
+                                            const updated = { ...prev, [colId]: newWidth };
+                                            localStorage.setItem('outboundMultiEntryColumnWidths', JSON.stringify(updated));
+                                            return updated;
+                                        });
                                     }
                                 }}
                                 onGridReady={(params: any) => {
                                     columnApiRef.current = params.columnApi;
-                                    // Restore saved column state
-                                    try {
-                                        const saved = localStorage.getItem('outbound_multi_grid_state');
-                                        if (saved) {
-                                            params.api.applyColumnState({ state: JSON.parse(saved), applyOrder: true });
-                                        }
-                                    } catch { /* ignore */ }
+                                    // Column widths are now baked into columnDefs via multiColumnWidths state
+                                    // No need to apply column state here - widths are already set
                                 }}
                             // Removed onFirstDataRendered and onGridSizeChanged auto-sizing to preserve user column widths
                             />
