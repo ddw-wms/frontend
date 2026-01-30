@@ -139,6 +139,7 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
     const [drilldownTotalPages, setDrilldownTotalPages] = useState(0);
     const [drilldownSearch, setDrilldownSearch] = useState('');
     const [exportingExcel, setExportingExcel] = useState(false);
+    const [exportingAllData, setExportingAllData] = useState(false);
     const [drilldownLimit, setDrilldownLimit] = useState(100);
 
     // Grid settings state
@@ -432,6 +433,88 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
         }
     };
 
+    // Export ALL inventory data to Excel
+    const handleExportAllData = async () => {
+        if (!warehouseId) return;
+
+        setExportingAllData(true);
+
+        try {
+            // Fetch ALL available inventory data
+            const response = await dashboardAPI.getPivotExportAll({
+                warehouseId,
+                brand: brandFilter || undefined,
+                category: categoryFilter || undefined,
+            });
+
+            if (response.data?.success && response.data.data) {
+                const XLSX = await import('xlsx');
+
+                // Prepare data with clean column headers
+                const exportData = response.data.data.map((row: any, index: number) => ({
+                    'Sr.No': index + 1,
+                    'WSN': row.wsn,
+                    'WID': row.wid,
+                    'FSN': row.fsn,
+                    'Order ID': row.order_id,
+                    'Product Title': row.product_title,
+                    'Brand': row.brand,
+                    'Category': row.cms_vertical,
+                    'HSN/SAC': row.hsn_sac,
+                    'IGST Rate': row.igst_rate,
+                    'FSP': row.fsp,
+                    'MRP': row.mrp,
+                    'VRP': row.vrp,
+                    'Yield Value': row.yield_value,
+                    'Invoice Date': formatDate(row.invoice_date),
+                    'FKT Link': row.fkt_link,
+                    'WH Location': row.wh_location,
+                    'P Type': row.p_type,
+                    'P Size': row.p_size,
+                    'FK QC Remark': row.fkqc_remark,
+                    'FK Grade': row.fk_grade,
+                    'Rack No': row.rack_no,
+                    'Warehouse': row.warehouse_name,
+                    'Inbound Date': formatDate(row.inbound_date),
+                    'Inbound Vehicle': row.inbound_vehicle,
+                    'Inbound Qty': row.inbound_qty,
+                    'QC Date': formatDate(row.qc_date),
+                    'QC Grade': row.qc_grade,
+                    'QC Status': row.qc_status,
+                    'QC Remarks': row.qc_remarks,
+                    'QC By': row.qc_by,
+                    'Picking Date': formatDate(row.picking_date),
+                    'Customer Name': row.customer_name,
+                    'Current Stage': row.current_stage,
+                    'Created At': formatDate(row.inbound_created_at),
+                    'Created By': row.inbound_created_by,
+                }));
+
+                const ws = XLSX.utils.json_to_sheet(exportData);
+
+                // Auto-size columns
+                const colWidths = Object.keys(exportData[0] || {}).map(key => ({
+                    wch: Math.max(key.length, 15)
+                }));
+                ws['!cols'] = colWidths;
+
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, 'All Inventory Data');
+
+                const filterSuffix = brandFilter || categoryFilter
+                    ? `_${brandFilter || ''}_${categoryFilter || ''}`.replace(/[^a-zA-Z0-9_]/g, '')
+                    : '';
+                const filename = `All_Inventory_Data${filterSuffix}_${new Date().toISOString().split('T')[0]}.xlsx`;
+                XLSX.writeFile(wb, filename);
+            }
+        } catch (err: any) {
+            console.error('Export all error:', err);
+            alert('Failed to export data. Please try again.');
+        } finally {
+            setExportingAllData(false);
+        }
+    };
+
     // Filtered drilldown data based on search
     const filteredDrilldownData = drilldownSearch
         ? drilldownData.filter(row =>
@@ -586,6 +669,18 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
                         disabled={loading || pivotData.length === 0}
                     >
                         Export Summary
+                    </Button>
+
+                    <Button
+                        size="small"
+                        variant="contained"
+                        color="primary"
+                        startIcon={exportingAllData ? <CircularProgress size={16} color="inherit" /> : <DownloadIcon />}
+                        onClick={handleExportAllData}
+                        disabled={loading || pivotData.length === 0 || exportingAllData}
+                        sx={{ ml: 1 }}
+                    >
+                        {exportingAllData ? 'Exporting...' : 'Export All Data'}
                     </Button>
                 </Box>
 

@@ -311,6 +311,14 @@ export default function OutboundPage() {
     const isDraggingRef = useRef(false);
     const dragStartCellRef = useRef<{ rowIndex: number; colId: string } | null>(null);
 
+    // ⚡ EXCEL-LIKE: Selection statistics (sum, count, average for numeric cells)
+    const [selectionStats, setSelectionStats] = useState<{
+        sum: number;
+        count: number;
+        average: number;
+        numericCount: number;
+    } | null>(null);
+
     // ====== SINGLE ENTRY STATE ======
     const [singleWSN, setSingleWSN] = useState('');
     const [sourceData, setSourceData] = useState<any>(null);
@@ -370,17 +378,22 @@ export default function OutboundPage() {
             }
             const XLSX = await import('xlsx');
 
+            // Get customer name from form (selectedCustomer is the active field)
+            const customerForExport = selectedCustomer || commonCustomer || '';
+            const vehicleForExport = commonVehicle || '';
+            const dateForExport = commonDate || new Date().toISOString().split('T')[0];
+
             // Prepare export data with all columns (user input + master data)
             const exportData = dataToExport.map((row: any, idx: number) => ({
                 'Sr No': idx + 1,
                 // User Input Columns
                 'WSN': row.wsn || '',
-                'Dispatch Date': row.dispatch_date || commonDate || '',
-                'Customer Name': row.customer_name || commonCustomer || '',
-                'Vehicle No': row.vehicle_no || commonVehicle || '',
+                'Dispatch Date': row.dispatch_date || dateForExport,
+                'Customer Name': row.customer_name || customerForExport,
+                'Vehicle No': row.vehicle_no || vehicleForExport,
                 'Dispatch Remarks': row.dispatch_remarks || '',
                 'Other Remarks': row.other_remarks || '',
-                'Quantity': row.quantity || '',
+                'Quantity': row.quantity || 1,
                 // Master Data Columns
                 'Source': row.source || '',
                 'Product Title': row.product_title || '',
@@ -1528,11 +1541,57 @@ export default function OutboundPage() {
                     maxCol: Math.max(startColIndex, endColIndex),
                     colIndexMap,
                 };
+
+                // ⚡ EXCEL-LIKE: Calculate selection statistics for numeric cells (FSP, MRP, Quantity, etc.)
+                const minRow = Math.min(selectedRange.startRow, selectedRange.endRow);
+                const maxRow = Math.max(selectedRange.startRow, selectedRange.endRow);
+                const minCol = Math.min(startColIndex, endColIndex);
+                const maxCol = Math.max(startColIndex, endColIndex);
+
+                const numericColumns = ['fsp', 'mrp', 'vrp', 'quantity', 'igst_rate', 'yield_value'];
+                let sum = 0;
+                let count = 0;
+                let numericCount = 0;
+
+                for (let r = minRow; r <= maxRow; r++) {
+                    const rowNode = api.getDisplayedRowAtIndex(r);
+                    if (!rowNode?.data) continue;
+
+                    for (let c = minCol; c <= maxCol; c++) {
+                        const colId = allColumns[c]?.getColId();
+                        if (!colId) continue;
+
+                        count++;
+                        const cellValue = rowNode.data[colId];
+
+                        // Check if it's a numeric column or if the value is numeric
+                        if (numericColumns.includes(colId) || !isNaN(parseFloat(cellValue))) {
+                            const numVal = parseFloat(cellValue);
+                            if (!isNaN(numVal) && numVal !== 0) {
+                                sum += numVal;
+                                numericCount++;
+                            }
+                        }
+                    }
+                }
+
+                if (numericCount > 0) {
+                    setSelectionStats({
+                        sum: Math.round(sum * 100) / 100, // Round to 2 decimal places
+                        count,
+                        average: Math.round((sum / numericCount) * 100) / 100,
+                        numericCount,
+                    });
+                } else {
+                    setSelectionStats(null);
+                }
             } else {
                 selectionBoundsRef.current = null;
+                setSelectionStats(null);
             }
         } else {
             selectionBoundsRef.current = null;
+            setSelectionStats(null);
         }
     }, [selectedRange]);
 
@@ -2130,7 +2189,8 @@ export default function OutboundPage() {
                     rowNode.setDataValue('wh_location', data.wh_location || '');
                     rowNode.setDataValue('p_type', data.p_type || '');
                     rowNode.setDataValue('p_size', data.p_size || '');
-                    rowNode.setDataValue('quantity', data.quantity || '');
+                    // ⚡ AUTO-SET: Quantity defaults to 1 since WSN is unique per product
+                    rowNode.setDataValue('quantity', data.quantity || 1);
 
                     // ⚡ CTRL+O: Update last scanned row ref for product link shortcut
                     lastScannedRowRef.current = { wsn, ...data };
@@ -5343,6 +5403,34 @@ export default function OutboundPage() {
                             flexWrap: 'wrap',
                             flexShrink: 0
                         }}>
+                            {/* ⚡ EXCEL-LIKE: Selection Statistics (Sum, Count, Average) */}
+                            {selectionStats && selectionStats.numericCount > 0 && (
+                                <Chip
+                                    size="small"
+                                    sx={{
+                                        height: 28,
+                                        bgcolor: isDarkMode ? 'rgba(34, 211, 238, 0.15)' : 'rgba(37, 99, 235, 0.1)',
+                                        border: `1px solid ${isDarkMode ? '#22d3ee' : '#3b82f6'}`,
+                                        '& .MuiChip-label': { fontWeight: 600, fontSize: '0.7rem' }
+                                    }}
+                                    label={
+                                        <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center' }}>
+                                            <span style={{ color: isDarkMode ? '#22d3ee' : '#2563eb' }}>
+                                                Sum: ₹{selectionStats.sum.toLocaleString()}
+                                            </span>
+                                            <span style={{ color: isDarkMode ? '#94a3b8' : '#64748b' }}>|</span>
+                                            <span style={{ color: isDarkMode ? '#a78bfa' : '#7c3aed' }}>
+                                                Avg: ₹{selectionStats.average.toLocaleString()}
+                                            </span>
+                                            <span style={{ color: isDarkMode ? '#94a3b8' : '#64748b' }}>|</span>
+                                            <span style={{ color: isDarkMode ? '#4ade80' : '#16a34a' }}>
+                                                Count: {selectionStats.numericCount}
+                                            </span>
+                                        </Box>
+                                    }
+                                />
+                            )}
+
                             <Chip
                                 label={draftSavedAt ? `Draft saved ${new Date(draftSavedAt).toLocaleTimeString()}` : 'No draft'}
                                 color={draftExists ? 'success' : 'default'}

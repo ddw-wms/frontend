@@ -133,11 +133,11 @@ export const withRetry = async <T>(
   fn: () => Promise<T>,
   config: RetryConfig = {}
 ): Promise<T> => {
-  const { 
-    maxRetries = 3, 
-    retryDelay = 1000, 
+  const {
+    maxRetries = 3,
+    retryDelay = 1000,
     useExponentialBackoff = true,
-    retryCondition = defaultRetryConfig.retryCondition 
+    retryCondition = defaultRetryConfig.retryCondition
   } = config;
 
   let lastError: any;
@@ -150,8 +150,8 @@ export const withRetry = async <T>(
 
       if (attempt < maxRetries && retryCondition?.(error)) {
         // Use fixed delay or exponential backoff based on config
-        const delay = useExponentialBackoff 
-          ? retryDelay * Math.pow(2, attempt) 
+        const delay = useExponentialBackoff
+          ? retryDelay * Math.pow(2, attempt)
           : retryDelay;
         console.warn(`API request failed (attempt ${attempt + 1}/${maxRetries + 1}), retrying in ${delay}ms...`);
         await sleep(delay);
@@ -190,7 +190,7 @@ export const wakeUpServer = async (): Promise<boolean> => {
 
   wakeUpPromise = (async () => {
     const maxAttempts = 12; // Try for up to 60 seconds (12 attempts * 5 seconds)
-    
+
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       try {
         // Try health check with longer timeout
@@ -200,11 +200,11 @@ export const wakeUpServer = async (): Promise<boolean> => {
           console.log('Server is awake and ready');
           return true;
         }
-        
+
         // Server responded but not ready yet (CONNECTING state)
         console.log(`Server is waking up... (attempt ${attempt + 1}/${maxAttempts})`);
         await new Promise(resolve => setTimeout(resolve, 5000));
-        
+
       } catch (error: any) {
         // 503 means server is starting - keep waiting
         if (error.response?.status === 503) {
@@ -212,20 +212,20 @@ export const wakeUpServer = async (): Promise<boolean> => {
           await new Promise(resolve => setTimeout(resolve, 5000));
           continue;
         }
-        
+
         // Network error or timeout - server might be cold starting
         if (error.code === 'ERR_NETWORK' || error.code === 'ECONNABORTED') {
           console.log(`Waiting for server to start... (attempt ${attempt + 1}/${maxAttempts})`);
           await new Promise(resolve => setTimeout(resolve, 5000));
           continue;
         }
-        
+
         // Other errors - might still work, continue trying
         console.warn('Server wake-up check failed:', error.message);
         await new Promise(resolve => setTimeout(resolve, 3000));
       }
     }
-    
+
     console.warn('Server wake-up timed out');
     return false;
   })();
@@ -780,6 +780,10 @@ export const dashboardAPI = {
     exportAll?: boolean;
   }) =>
     api.get('/dashboard/pivot-drilldown', { params }),
+
+  // Export all available inventory data (pivot export all)
+  getPivotExportAll: (params: { warehouseId: number; brand?: string; category?: string }) =>
+    api.get('/dashboard/pivot-export-all', { params }),
 };
 
 
