@@ -357,7 +357,13 @@ export default function OutboundPage() {
     // ⚡ MULTI ENTRY: Export entered data to Excel (with all columns - user input + master data)
     const exportMultiEntryToExcel = async () => {
         try {
-            const dataToExport = multiRows.filter((row: any) => row.wsn?.trim());
+            // Get fresh data directly from AG Grid to ensure we have all the latest values
+            const allGridRows: any[] = [];
+            gridRef.current?.api?.forEachNode((node: any) => {
+                if (node.data) allGridRows.push(node.data);
+            });
+
+            const dataToExport = allGridRows.filter((row: any) => row.wsn?.trim());
             if (dataToExport.length === 0) {
                 toast.error('No data to export');
                 return;
