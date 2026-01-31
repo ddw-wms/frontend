@@ -5232,25 +5232,17 @@ export default function OutboundPage() {
                                         onChange={(e) => setSingleForm({ ...singleForm, dispatch_date: e.target.value })}
                                     />
 
-                                    <FormControl fullWidth size="small">
-                                        <InputLabel>Customer Name *</InputLabel>
-                                        <Select
-                                            value={singleForm.customer_name}
-                                            onChange={(e) => setSingleForm({ ...singleForm, customer_name: e.target.value })}
-                                            label="Customer Name *"
-                                        >
-                                            <MenuItem value="">Select Customer</MenuItem>
-                                            {customers.length === 0 ? (
-                                                <MenuItem disabled value="">
-                                                    No customers available. Please add customers first.
-                                                </MenuItem>
-                                            ) : (
-                                                customers.map((c) => (
-                                                    <MenuItem key={c} value={c}>{c}</MenuItem>
-                                                ))
-                                            )}
-                                        </Select>
-                                    </FormControl>
+                                    <CustomerAutocomplete
+                                        value={singleForm.customer_name}
+                                        onChange={(newValue) => setSingleForm({ ...singleForm, customer_name: newValue })}
+                                        customers={customers}
+                                        warehouseId={activeWarehouse?.id}
+                                        onCustomerAdded={loadCustomers}
+                                        size="small"
+                                        label="Customer Name *"
+                                        placeholder="Type or select..."
+                                        fullWidth
+                                    />
 
                                     <TextField
                                         fullWidth
