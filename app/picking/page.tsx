@@ -21,7 +21,7 @@ import { pickingAPI, rackAPI, inboundAPI } from '@/lib/api';
 import { useWarehouse } from '@/app/context/WarehouseContext';
 import { getStoredUser } from '@/lib/auth';
 import AppLayout from '@/components/AppLayout';
-import { StandardPageHeader, StandardTabs, BatchManagementTab } from '@/components';
+import { StandardPageHeader, StandardTabs, BatchManagementTab, CustomerAutocomplete } from '@/components';
 import { useTableRowHeight } from '@/app/context/AppearanceContext';
 import toast, { Toaster } from 'react-hot-toast';
 // ⚡ OPTIMIZED: XLSX loaded dynamically on export to reduce bundle size
@@ -3859,27 +3859,22 @@ export default function PickingPage() {
                   </Box>
 
                   {/* CUSTOMER */}
-                  <Autocomplete
-                    freeSolo
-                    options={exportCustomerOptions}
+                  <CustomerAutocomplete
                     value={exportCustomer}
-                    onChange={(event, newValue) => setExportCustomer(newValue || '')}
-                    onInputChange={(event, newInputValue) => setExportCustomer(newInputValue)}
-                    renderInput={(params) => (
-                      <TextField
-                        {...params}
-                        label="Customer Name"
-                        placeholder="Select or type customer name..."
-                        sx={{
-                          '& .MuiOutlinedInput-root': {
-                            borderRadius: 2,
-                            '&:hover fieldset': { borderColor: '#10b981' },
-                            '&.Mui-focused fieldset': { borderColor: '#10b981' }
-                          }
-                        }}
-                      />
-                    )}
-                    noOptionsText="No customers found"
+                    onChange={(newValue) => setExportCustomer(newValue)}
+                    customers={exportCustomerOptions}
+                    warehouseId={activeWarehouse?.id}
+                    onCustomerAdded={loadCustomers}
+                    size="medium"
+                    label="Customer Name"
+                    placeholder="Select or type customer name..."
+                    sx={{
+                      '& .MuiOutlinedInput-root': {
+                        borderRadius: 2,
+                        '&:hover fieldset': { borderColor: '#10b981' },
+                        '&.Mui-focused fieldset': { borderColor: '#10b981' }
+                      }
+                    }}
                   />
 
                   {/* BATCH SELECTION */}
@@ -4027,22 +4022,15 @@ export default function PickingPage() {
 
                   {/* MIDDLE: Customer (on mobile occupies left column second row) */}
                   <Box sx={{ gridColumn: { xs: '1 / span 1', md: '2 / span 1' }, width: '100%', mt: { xs: 1, md: 0 } }}>
-                    <Autocomplete
-                      freeSolo
-                      options={customers}
+                    <CustomerAutocomplete
                       value={selectedCustomer}
-                      onChange={(event, newValue) => setSelectedCustomer(newValue || '')}
-                      onInputChange={(event, newInputValue) => setSelectedCustomer(newInputValue)}
-                      renderInput={(params) => (
-                        <TextField
-                          {...params}
-                          label="Customer Name"
-                          placeholder="Type to search or select..."
-                          size="small"
-                          sx={{ width: '100%' }}
-                        />
-                      )}
-                      noOptionsText="No customers found"
+                      onChange={(newValue) => setSelectedCustomer(newValue)}
+                      customers={customers}
+                      warehouseId={activeWarehouse?.id}
+                      onCustomerAdded={loadCustomers}
+                      size="small"
+                      label="Customer Name"
+                      placeholder="Type to search or select..."
                       sx={{ width: '100%' }}
                     />
                   </Box>

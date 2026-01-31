@@ -71,7 +71,7 @@ import { getStoredUser } from '@/lib/auth';
 
 import AppLayout from '@/components/AppLayout';
 import localforage from 'localforage';
-import { StandardPageHeader, StandardTabs, BatchManagementTab } from '@/components';
+import { StandardPageHeader, StandardTabs, BatchManagementTab, CustomerAutocomplete } from '@/components';
 import { useTableRowHeight } from '@/app/context/AppearanceContext';
 import toast, { Toaster } from 'react-hot-toast';
 // ⚡ OPTIMIZED: XLSX not needed here - exports handled server-side
@@ -5452,22 +5452,16 @@ export default function OutboundPage() {
                                                 sx={{ '& .MuiOutlinedInput-root': { height: 36 } }}
                                             />
 
-                                            <Autocomplete
-                                                freeSolo
-                                                options={customers}
+                                            <CustomerAutocomplete
                                                 value={selectedCustomer}
-                                                onChange={(event, newValue) => setSelectedCustomer(newValue || '')}
-                                                onInputChange={(event, newInputValue) => setSelectedCustomer(newInputValue)}
-                                                renderInput={(params) => (
-                                                    <TextField
-                                                        {...params}
-                                                        label="Customer Name *"
-                                                        placeholder="Type or select..."
-                                                        size="small"
-                                                        sx={{ '& .MuiOutlinedInput-root': { height: 36 } }}
-                                                    />
-                                                )}
-                                                noOptionsText={customers.length === 0 ? "No customers available. Please add customers first." : "No matching customers"}
+                                                onChange={(newValue) => setSelectedCustomer(newValue)}
+                                                customers={customers}
+                                                warehouseId={activeWarehouse?.id}
+                                                onCustomerAdded={loadCustomers}
+                                                size="small"
+                                                label="Customer Name *"
+                                                placeholder="Type or select..."
+                                                sx={{ '& .MuiOutlinedInput-root': { height: 36 } }}
                                             />
                                         </Box>
 
@@ -5517,23 +5511,16 @@ export default function OutboundPage() {
                                                 required
                                                 sx={{ width: 145, '& .MuiOutlinedInput-root': { height: 34 } }}
                                             />
-                                            <Autocomplete
-                                                freeSolo
-                                                options={customers}
+                                            <CustomerAutocomplete
                                                 value={selectedCustomer}
-                                                onChange={(event, newValue) => setSelectedCustomer(newValue || '')}
-                                                onInputChange={(event, newInputValue) => setSelectedCustomer(newInputValue)}
-                                                renderInput={(params) => (
-                                                    <TextField
-                                                        {...params}
-                                                        label="Customer Name *"
-                                                        placeholder="Type or select..."
-                                                        size="small"
-                                                        sx={{ '& .MuiOutlinedInput-root': { height: 34 } }}
-                                                    />
-                                                )}
-                                                noOptionsText={customers.length === 0 ? "No customers available" : "No match"}
-                                                sx={{ width: 180 }}
+                                                onChange={(newValue) => setSelectedCustomer(newValue)}
+                                                customers={customers}
+                                                warehouseId={activeWarehouse?.id}
+                                                onCustomerAdded={loadCustomers}
+                                                size="small"
+                                                label="Customer Name *"
+                                                placeholder="Type or select..."
+                                                sx={{ width: 180, '& .MuiOutlinedInput-root': { height: 34 } }}
                                             />
                                             <TextField
                                                 label="Vehicle No"

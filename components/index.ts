@@ -51,4 +51,7 @@ export {
     ExportExcelIconButton
 } from './PermissionButton';
 
+// Customer Autocomplete with quick-add feature
+export { default as CustomerAutocomplete } from './CustomerAutocomplete';
+
 // export type { FilterField } from './StandardPageLayout';

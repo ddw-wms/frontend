@@ -599,7 +599,13 @@ export const customerAPI = {
     api.put(`/customers/${id}`, data),
   // Delete customer
   delete: (id: number) =>
-    api.delete(`/customers/${id}`)
+    api.delete(`/customers/${id}`),
+  // Lookup pincode for city/state auto-fill
+  lookupPincode: (pincode: string) =>
+    api.get(`/customers/pincode/${pincode}`),
+  // Lookup GST number for company details auto-fill
+  lookupGST: (gstin: string) =>
+    api.get(`/customers/gst/${gstin}`)
 };
 
 // ======================= OUTBOUND API ===========================
