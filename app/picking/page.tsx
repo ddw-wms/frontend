@@ -144,6 +144,38 @@ export default function PickingPage() {
   const isDraggingRef = useRef(false);
   const dragStartCellRef = useRef<{ rowIndex: number; colId: string } | null>(null);
 
+  // ⚡ EXCEL-LIKE: Undo/Redo support with batch operations
+  interface UndoAction {
+    type: 'cell' | 'paste' | 'fillDown' | 'batch';
+    rowIndex: number;
+    field: string;
+    oldValue: any;
+    newValue: any;
+    oldRowData?: any;
+    newRowData?: any;
+    batchChanges?: Array<{
+      rowIndex: number;
+      field: string;
+      oldValue: any;
+      newValue: any;
+    }>;
+  }
+  const MAX_UNDO_HISTORY = 100;
+  const undoStackRef = useRef<UndoAction[]>([]);
+  const redoStackRef = useRef<UndoAction[]>([]);
+
+  // ⚡ EXCEL-LIKE: Selection statistics
+  const [selectionStats, setSelectionStats] = useState<{
+    sum: number;
+    count: number;
+    average: number;
+    numericCount: number;
+  } | null>(null);
+  const selectionStatsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // ⚡ EXCEL-LIKE: Previous selection bounds for smart refresh
+  const prevSelectionBoundsRef = useRef<{ minRow: number; maxRow: number } | null>(null);
+
   // Get table row height from appearance settings
   const tableRowHeight = useTableRowHeight();
 
@@ -755,22 +787,103 @@ export default function PickingPage() {
           maxCol: Math.max(startColIndex, endColIndex),
           colIndexMap,
         };
+
+        // ⚡ PERFORMANCE: Debounce selection statistics calculation (50ms)
+        if (selectionStatsTimeoutRef.current) {
+          clearTimeout(selectionStatsTimeoutRef.current);
+        }
+        selectionStatsTimeoutRef.current = setTimeout(() => {
+          const minRow = Math.min(selectedRange.startRow, selectedRange.endRow);
+          const maxRow = Math.max(selectedRange.startRow, selectedRange.endRow);
+          const minCol = Math.min(startColIndex, endColIndex);
+          const maxCol = Math.max(startColIndex, endColIndex);
+
+          const numericColumns = ['fsp', 'mrp', 'vrp', 'igst_rate', 'yield_value'];
+          let sum = 0;
+          let count = 0;
+          let numericCount = 0;
+
+          for (let r = minRow; r <= maxRow; r++) {
+            const rowNode = api.getDisplayedRowAtIndex(r);
+            if (!rowNode?.data) continue;
+
+            for (let c = minCol; c <= maxCol; c++) {
+              const colId = allColumns[c]?.getColId();
+              if (!colId) continue;
+
+              count++;
+              const cellValue = rowNode.data[colId];
+
+              if (numericColumns.includes(colId) || !isNaN(parseFloat(cellValue))) {
+                const numVal = parseFloat(cellValue);
+                if (!isNaN(numVal) && numVal !== 0) {
+                  sum += numVal;
+                  numericCount++;
+                }
+              }
+            }
+          }
+
+          if (numericCount > 0) {
+            setSelectionStats({
+              sum: Math.round(sum * 100) / 100,
+              count,
+              average: Math.round((sum / numericCount) * 100) / 100,
+              numericCount,
+            });
+          } else {
+            setSelectionStats(null);
+          }
+        }, 50);
       } else {
         selectionBoundsRef.current = null;
+        setSelectionStats(null);
       }
     } else {
       selectionBoundsRef.current = null;
+      if (selectionStatsTimeoutRef.current) {
+        clearTimeout(selectionStatsTimeoutRef.current);
+      }
+      setSelectionStats(null);
     }
   }, [selectedRange]);
 
-  // ⚡ EXCEL-LIKE: Refresh grid when selection changes
+  // ⚡ EXCEL-LIKE: Optimized refresh - only refresh affected rows instead of entire grid
   useEffect(() => {
     const api = gridRef.current;
-    if (api) {
-      requestAnimationFrame(() => {
-        api.refreshCells({ force: true });
-      });
-    }
+    if (!api) return;
+
+    requestAnimationFrame(() => {
+      const bounds = selectionBoundsRef.current;
+      const prevBounds = prevSelectionBoundsRef.current;
+
+      const rowsToRefresh = new Set<number>();
+
+      if (bounds) {
+        for (let r = bounds.minRow; r <= bounds.maxRow; r++) {
+          rowsToRefresh.add(r);
+        }
+      }
+
+      if (prevBounds) {
+        for (let r = prevBounds.minRow; r <= prevBounds.maxRow; r++) {
+          rowsToRefresh.add(r);
+        }
+      }
+
+      prevSelectionBoundsRef.current = bounds ? { minRow: bounds.minRow, maxRow: bounds.maxRow } : null;
+
+      if (rowsToRefresh.size > 0) {
+        const rowNodes: any[] = [];
+        rowsToRefresh.forEach((rowIndex) => {
+          const node = api.getDisplayedRowAtIndex(rowIndex);
+          if (node) rowNodes.push(node);
+        });
+        if (rowNodes.length > 0) {
+          api.refreshCells({ rowNodes, force: true });
+        }
+      }
+    });
   }, [selectedRange]);
 
   // ⚡ EXCEL-LIKE: Handle cell mouse down - start drag selection
@@ -902,6 +1015,550 @@ export default function PickingPage() {
     toast('All rows selected', { icon: '✓', duration: 1500 });
   }, []);
 
+  // ⚡ EXCEL-LIKE: Save cell-level undo action
+  const saveCellUndoAction = useCallback((
+    rowIndex: number,
+    field: string,
+    oldValue: any,
+    newValue: any,
+    oldRowData?: any,
+    newRowData?: any
+  ) => {
+    const action: UndoAction = {
+      type: 'cell',
+      rowIndex,
+      field,
+      oldValue,
+      newValue,
+      oldRowData,
+      newRowData,
+    };
+    undoStackRef.current.push(action);
+    if (undoStackRef.current.length > MAX_UNDO_HISTORY) {
+      undoStackRef.current.shift();
+    }
+    redoStackRef.current = [];
+  }, []);
+
+  // Master data columns that get auto-populated when WSN is entered
+  const MASTER_DATA_COLUMNS = [
+    'source', 'product_title', 'brand', 'cms_vertical', 'wid', 'fsn',
+    'order_id', 'fkqc_remark', 'fk_grade', 'hsn_sac', 'igst_rate',
+    'fsp', 'mrp', 'vrp', 'yield_value', 'invoice_date', 'fkt_link',
+    'wh_location', 'p_type', 'p_size', 'rack_no', 'product_serial_number'
+  ];
+
+  // ⚡ UNDO: Handle undo (Ctrl+Z) - supports batch operations
+  const handleUndo = useCallback(() => {
+    if (undoStackRef.current.length === 0) {
+      toast('Nothing to undo', { icon: 'ℹ️', duration: 500 });
+      return;
+    }
+
+    const action = undoStackRef.current.pop()!;
+
+    setMultiRows(currentRows => {
+      const newRows = [...currentRows];
+
+      // Handle batch undo (paste operations)
+      if (action.type === 'batch' && action.batchChanges) {
+        const redoBatchChanges: typeof action.batchChanges = [];
+
+        for (const change of action.batchChanges) {
+          const currentValue = newRows[change.rowIndex]?.[change.field];
+          redoBatchChanges.push({
+            rowIndex: change.rowIndex,
+            field: change.field,
+            oldValue: currentValue,
+            newValue: change.oldValue,
+          });
+
+          // If undoing a WSN field, also clear all auto-populated master data
+          if (change.field === 'wsn') {
+            const clearedRow: any = {
+              ...newRows[change.rowIndex],
+              [change.field]: change.oldValue
+            };
+            for (const col of MASTER_DATA_COLUMNS) {
+              clearedRow[col] = '';
+            }
+            newRows[change.rowIndex] = clearedRow;
+          } else {
+            newRows[change.rowIndex] = {
+              ...newRows[change.rowIndex],
+              [change.field]: change.oldValue
+            };
+          }
+        }
+
+        redoStackRef.current.push({
+          ...action,
+          batchChanges: redoBatchChanges,
+        });
+
+        return newRows;
+      }
+
+      // Handle single cell undo
+      const currentRowData = JSON.parse(JSON.stringify(newRows[action.rowIndex]));
+
+      if (action.type === 'cell') {
+        if (action.oldRowData) {
+          newRows[action.rowIndex] = { ...action.oldRowData };
+        } else {
+          newRows[action.rowIndex] = {
+            ...newRows[action.rowIndex],
+            [action.field]: action.oldValue
+          };
+        }
+      }
+
+      redoStackRef.current.push({
+        ...action,
+        oldValue: action.newValue,
+        newValue: action.oldValue,
+        oldRowData: currentRowData,
+        newRowData: action.oldRowData,
+      });
+
+      return newRows;
+    });
+
+    setTimeout(() => {
+      const api = gridRef.current;
+      if (api) {
+        if (action.type === 'batch' && action.batchChanges?.length) {
+          api.ensureIndexVisible(action.batchChanges[0].rowIndex, 'middle');
+          api.setFocusedCell(action.batchChanges[0].rowIndex, action.batchChanges[0].field);
+        } else {
+          api.ensureIndexVisible(action.rowIndex, 'middle');
+          api.setFocusedCell(action.rowIndex, action.field);
+        }
+        api.refreshCells({ force: true });
+      }
+    }, 50);
+
+    const count = action.type === 'batch' ? action.batchChanges?.length || 1 : 1;
+    toast.success(`Undo: ${count} cell${count > 1 ? 's' : ''}`, { duration: 1000 });
+  }, []);
+
+  // ⚡ REDO: Handle redo (Ctrl+Y or Ctrl+Shift+Z) - supports batch operations
+  const handleRedo = useCallback(() => {
+    if (redoStackRef.current.length === 0) {
+      toast('Nothing to redo', { icon: 'ℹ️', duration: 1500 });
+      return;
+    }
+
+    const action = redoStackRef.current.pop()!;
+
+    setMultiRows(currentRows => {
+      const newRows = [...currentRows];
+
+      if (action.type === 'batch' && action.batchChanges) {
+        const undoBatchChanges: typeof action.batchChanges = [];
+
+        for (const change of action.batchChanges) {
+          const currentValue = newRows[change.rowIndex]?.[change.field];
+          undoBatchChanges.push({
+            rowIndex: change.rowIndex,
+            field: change.field,
+            oldValue: currentValue,
+            newValue: change.oldValue,
+          });
+          newRows[change.rowIndex] = {
+            ...newRows[change.rowIndex],
+            [change.field]: change.oldValue
+          };
+        }
+
+        undoStackRef.current.push({
+          ...action,
+          batchChanges: undoBatchChanges,
+        });
+
+        return newRows;
+      }
+
+      const currentRowData = JSON.parse(JSON.stringify(newRows[action.rowIndex]));
+
+      if (action.type === 'cell') {
+        if (action.newRowData) {
+          newRows[action.rowIndex] = { ...action.newRowData };
+        } else {
+          newRows[action.rowIndex] = {
+            ...newRows[action.rowIndex],
+            [action.field]: action.newValue
+          };
+        }
+      }
+
+      undoStackRef.current.push({
+        ...action,
+        oldValue: action.newValue,
+        newValue: action.oldValue,
+        oldRowData: currentRowData,
+        newRowData: action.oldRowData,
+      });
+
+      return newRows;
+    });
+
+    setTimeout(() => {
+      const api = gridRef.current;
+      if (api) {
+        if (action.type === 'batch' && action.batchChanges?.length) {
+          api.ensureIndexVisible(action.batchChanges[0].rowIndex, 'middle');
+          api.setFocusedCell(action.batchChanges[0].rowIndex, action.batchChanges[0].field);
+        } else {
+          api.ensureIndexVisible(action.rowIndex, 'middle');
+          api.setFocusedCell(action.rowIndex, action.field);
+        }
+        api.refreshCells({ force: true });
+      }
+    }, 50);
+
+    const count = action.type === 'batch' ? action.batchChanges?.length || 1 : 1;
+    toast.success(`Redo: ${count} cell${count > 1 ? 's' : ''}`, { duration: 1000 });
+  }, []);
+
+  // ⚡ EXCEL-LIKE: Copy selected cells (Ctrl+C)
+  const handleCopy = useCallback(async () => {
+    const api = gridRef.current;
+    if (!api) return;
+
+    const range = selectedRangeRef.current;
+    let textToCopy = '';
+
+    if (!range) {
+      const focusedCell = api.getFocusedCell();
+      if (!focusedCell) return;
+      const { rowIndex, column } = focusedCell;
+      const colId = column.getColId();
+      const rowNode = api.getDisplayedRowAtIndex(rowIndex);
+      textToCopy = rowNode?.data?.[colId]?.toString() || '';
+    } else {
+      const minRow = Math.min(range.startRow, range.endRow);
+      const maxRow = Math.max(range.startRow, range.endRow);
+      const allColumns = api.getAllDisplayedColumns?.() || [];
+      const colIds = allColumns.map((c: any) => c.getColId());
+      const startColIndex = colIds.indexOf(range.startCol);
+      const endColIndex = colIds.indexOf(range.endCol);
+      const minCol = Math.min(startColIndex, endColIndex);
+      const maxCol = Math.max(startColIndex, endColIndex);
+
+      const lines: string[] = [];
+      for (let r = minRow; r <= maxRow; r++) {
+        const rowNode = api.getDisplayedRowAtIndex(r);
+        const cells: string[] = [];
+        for (let c = minCol; c <= maxCol; c++) {
+          const colId = colIds[c];
+          cells.push(rowNode?.data?.[colId]?.toString() || '');
+        }
+        lines.push(cells.join('\t'));
+      }
+      textToCopy = lines.join('\n');
+    }
+
+    try {
+      await navigator.clipboard.writeText(textToCopy);
+      const cellCount = range ? (Math.abs(range.endRow - range.startRow) + 1) * (Math.abs(api.getAllDisplayedColumns().findIndex((c: any) => c.getColId() === range.endCol) - api.getAllDisplayedColumns().findIndex((c: any) => c.getColId() === range.startCol)) + 1) : 1;
+      toast.success(`Copied ${cellCount} cell${cellCount > 1 ? 's' : ''}`, { duration: 1000 });
+    } catch (err) {
+      toast.error('Failed to copy to clipboard');
+    }
+  }, []);
+
+  // ⚡ EXCEL-LIKE: Paste with ultra-fast parallel WSN lookups (Ctrl+V)
+  const handlePaste = useCallback(async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (!text.trim()) return;
+
+      const api = gridRef.current;
+      if (!api) return;
+
+      const focusedCell = api.getFocusedCell();
+      if (!focusedCell) {
+        toast.error('Click a cell first to paste');
+        return;
+      }
+
+      const startRowIndex = focusedCell.rowIndex;
+      const startColId = focusedCell.column.getColId();
+
+      const allColumns = api.getAllDisplayedColumns() || [];
+      const colIds = allColumns.map((c: any) => c.getColId());
+      const startColIndex = colIds.indexOf(startColId);
+
+      if (startColIndex === -1) return;
+
+      const lines = text.split('\n').filter(line => line.trim() !== '');
+      const newRows = [...multiRowsRef.current];
+      let pastedCount = 0;
+      const pastedWSNRows: Array<{ rowIndex: number; wsn: string }> = [];
+      const batchChanges: Array<{ rowIndex: number; field: string; oldValue: any; newValue: any }> = [];
+
+      for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+        const cells = lines[lineIndex].split('\t');
+        const targetRowIndex = startRowIndex + lineIndex;
+
+        if (targetRowIndex >= newRows.length) {
+          const additionalRows = generateEmptyRows(targetRowIndex - newRows.length + 100);
+          newRows.push(...additionalRows);
+        }
+
+        for (let cellIndex = 0; cellIndex < cells.length; cellIndex++) {
+          const targetColIndex = startColIndex + cellIndex;
+          if (targetColIndex >= colIds.length) continue;
+
+          const colId = colIds[targetColIndex];
+          if (!EDITABLE_COLUMNS.includes(colId)) continue;
+
+          let pastedValue = cells[cellIndex]?.trim() || '';
+          if (colId === 'wsn') {
+            pastedValue = pastedValue.toUpperCase();
+          }
+
+          const oldValue = newRows[targetRowIndex]?.[colId] || '';
+          batchChanges.push({
+            rowIndex: targetRowIndex,
+            field: colId,
+            oldValue,
+            newValue: pastedValue,
+          });
+
+          newRows[targetRowIndex] = {
+            ...newRows[targetRowIndex],
+            [colId]: pastedValue,
+          };
+          pastedCount++;
+
+          if (colId === 'wsn' && pastedValue) {
+            pastedWSNRows.push({ rowIndex: targetRowIndex, wsn: pastedValue });
+          }
+        }
+      }
+
+      if (pastedCount > 0) {
+        if (batchChanges.length > 0) {
+          const batchAction: UndoAction = {
+            type: 'batch',
+            rowIndex: batchChanges[0].rowIndex,
+            field: batchChanges[0].field,
+            oldValue: null,
+            newValue: null,
+            batchChanges: batchChanges,
+          };
+          undoStackRef.current.push(batchAction);
+          if (undoStackRef.current.length > MAX_UNDO_HISTORY) {
+            undoStackRef.current.shift();
+          }
+          redoStackRef.current = [];
+        }
+
+        setMultiRows(newRows);
+        api.refreshCells({ force: true });
+        toast.success(`Pasted ${pastedCount} cells`, { duration: 1500 });
+
+        // ⚡ ULTRA-FAST PARALLEL WSN LOOKUPS
+        if (pastedWSNRows.length > 0 && activeWarehouse?.id) {
+          const toastId = toast.loading(`Loading ${pastedWSNRows.length} WSNs...`);
+
+          const BATCH_SIZE = 100;
+          const CONCURRENT_BATCHES = 10;
+          let successCount = 0;
+          let failCount = 0;
+          let processedCount = 0;
+
+          const lookupWSN = async (rowIndex: number, wsn: string): Promise<{ rowIndex: number; data: any | null }> => {
+            try {
+              const res = await pickingAPI.getSourceByWSN(wsn, activeWarehouse.id);
+              return { rowIndex, data: res.data };
+            } catch {
+              try {
+                const inboundResp = await inboundAPI.getMasterDataByWSN(wsn);
+                return { rowIndex, data: inboundResp.data };
+              } catch {
+                return { rowIndex, data: null };
+              }
+            }
+          };
+
+          const batches: Array<typeof pastedWSNRows> = [];
+          for (let i = 0; i < pastedWSNRows.length; i += BATCH_SIZE) {
+            batches.push(pastedWSNRows.slice(i, i + BATCH_SIZE));
+          }
+
+          const allResults: Array<{ rowIndex: number; data: any }> = [];
+
+          for (let i = 0; i < batches.length; i += CONCURRENT_BATCHES) {
+            const concurrentBatches = batches.slice(i, i + CONCURRENT_BATCHES);
+            const batchPromises = concurrentBatches.map(batch =>
+              Promise.all(batch.map(({ rowIndex, wsn }) => lookupWSN(rowIndex, wsn)))
+            );
+            const batchResults = await Promise.all(batchPromises);
+            for (const results of batchResults) {
+              allResults.push(...results);
+            }
+            processedCount += concurrentBatches.reduce((sum, b) => sum + b.length, 0);
+            toast.loading(`Loading ${processedCount}/${pastedWSNRows.length} WSNs...`, { id: toastId });
+          }
+
+          const updatedRowsMap = new Map<number, any>();
+          for (const { rowIndex, data } of allResults) {
+            if (data) {
+              const rowNode = api.getDisplayedRowAtIndex(rowIndex);
+              if (rowNode) {
+                updatedRowsMap.set(rowIndex, {
+                  ...rowNode.data,
+                  source: data.source || '',
+                  product_title: data.product_title || '',
+                  brand: data.brand || '',
+                  cms_vertical: data.cms_vertical || '',
+                  wid: data.wid || '',
+                  fsn: data.fsn || '',
+                  order_id: data.order_id || '',
+                  fkqc_remark: data.fkqc_remark || '',
+                  fk_grade: data.fk_grade || '',
+                  hsn_sac: data.hsn_sac || '',
+                  igst_rate: data.igst_rate || '',
+                  fsp: data.fsp || '',
+                  mrp: data.mrp || '',
+                  vrp: data.vrp || '',
+                  yield_value: data.yield_value || '',
+                  invoice_date: data.invoice_date || '',
+                  fkt_link: data.fkt_link || '',
+                  wh_location: data.wh_location || '',
+                  p_type: data.p_type || '',
+                  p_size: data.p_size || '',
+                  rack_no: data.rack_no || '',
+                });
+                successCount++;
+              }
+            } else {
+              failCount++;
+            }
+          }
+
+          updatedRowsMap.forEach((data, rowIndex) => {
+            const rowNode = api.getDisplayedRowAtIndex(rowIndex);
+            if (rowNode) {
+              rowNode.setData(data);
+            }
+          });
+
+          const updatedRows: any[] = [];
+          api.forEachNode((node: any) => { if (node.data) updatedRows.push(node.data); });
+          setMultiRows(updatedRows);
+
+          toast.dismiss(toastId);
+          if (successCount > 0) {
+            toast.success(`✓ Loaded ${successCount}/${pastedWSNRows.length} WSNs`, { duration: 2000 });
+          }
+          if (failCount > 0) {
+            toast.error(`${failCount} WSNs not found`, { duration: 2000 });
+          }
+        }
+      }
+    } catch (err: any) {
+      if (err.name === 'NotAllowedError') {
+        toast.error('Clipboard access denied');
+      } else {
+        toast.error('Failed to paste');
+      }
+    }
+  }, [activeWarehouse]);
+
+  // ⚡ EXCEL-LIKE: Fill Down (Ctrl+D)
+  const handleFillDown = useCallback(() => {
+    const api = gridRef.current;
+    if (!api) return;
+
+    const range = selectedRangeRef.current;
+    if (!range) {
+      toast('Select a range first', { icon: 'ℹ️', duration: 1500 });
+      return;
+    }
+
+    const minRow = Math.min(range.startRow, range.endRow);
+    const maxRow = Math.max(range.startRow, range.endRow);
+
+    if (minRow === maxRow) {
+      toast('Need at least 2 rows for Fill Down', { icon: 'ℹ️', duration: 1500 });
+      return;
+    }
+
+    const allColumns = api.getAllDisplayedColumns?.() || [];
+    const colIds = allColumns.map((c: any) => c.getColId());
+    const startColIndex = colIds.indexOf(range.startCol);
+    const endColIndex = colIds.indexOf(range.endCol);
+    const minCol = Math.min(startColIndex, endColIndex);
+    const maxCol = Math.max(startColIndex, endColIndex);
+
+    const newRows = [...multiRowsRef.current];
+    let filledCount = 0;
+
+    for (let c = minCol; c <= maxCol; c++) {
+      const colId = colIds[c];
+      if (!EDITABLE_COLUMNS.includes(colId)) continue;
+
+      const sourceValue = newRows[minRow]?.[colId] || '';
+      for (let r = minRow + 1; r <= maxRow; r++) {
+        if (newRows[r]?.[colId] !== sourceValue) {
+          newRows[r] = { ...newRows[r], [colId]: sourceValue };
+          filledCount++;
+        }
+      }
+    }
+
+    if (filledCount > 0) {
+      setMultiRows(newRows);
+      api.refreshCells({ force: true });
+      toast.success(`Filled ${filledCount} cells`, { duration: 1500 });
+    }
+  }, []);
+
+  // ⚡ EXCEL-LIKE: Go to first cell (Ctrl+Home)
+  const handleGoToFirst = useCallback(() => {
+    const api = gridRef.current;
+    if (!api) return;
+
+    setSelectedRange(null);
+    rangeStartCellRef.current = null;
+
+    const allColumns = api.getAllDisplayedColumns() || [];
+    const firstEditableCol = allColumns.find((c: any) => EDITABLE_COLUMNS.includes(c.getColId()));
+    const colId = firstEditableCol?.getColId() || 'wsn';
+
+    api.ensureIndexVisible(0, 'top');
+    api.setFocusedCell(0, colId);
+  }, []);
+
+  // ⚡ EXCEL-LIKE: Go to last cell with data (Ctrl+End)
+  const handleGoToLast = useCallback(() => {
+    const api = gridRef.current;
+    if (!api) return;
+
+    setSelectedRange(null);
+    rangeStartCellRef.current = null;
+
+    let lastRowWithData = 0;
+    for (let i = multiRowsRef.current.length - 1; i >= 0; i--) {
+      const row = multiRowsRef.current[i];
+      if (row?.wsn?.trim()) {
+        lastRowWithData = i;
+        break;
+      }
+    }
+
+    const allColumns = api.getAllDisplayedColumns() || [];
+    const editableColIds = allColumns.map((c: any) => c.getColId()).filter((id: string) => EDITABLE_COLUMNS.includes(id));
+    const lastCol = editableColIds[editableColIds.length - 1] || 'wsn';
+
+    api.ensureIndexVisible(lastRowWithData, 'bottom');
+    api.setFocusedCell(lastRowWithData, lastCol);
+  }, []);
+
   // ⚡ EXCEL-LIKE: Keyboard shortcuts for Multi Picking tab
   useEffect(() => {
     if (currentTabCode !== 'multi') return;
@@ -911,7 +1568,57 @@ export default function PickingPage() {
       const shiftKey = e.shiftKey;
 
       const activeEl = document.activeElement;
-      const isEditing = activeEl?.tagName === 'INPUT' || activeEl?.tagName === 'TEXTAREA';
+      const isEditing = activeEl?.tagName === 'INPUT' || activeEl?.tagName === 'TEXTAREA' ||
+        (activeEl?.classList?.contains('ag-input-field-input'));
+
+      // Ctrl+Z - Undo
+      if (ctrlKey && !shiftKey && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        handleUndo();
+        return;
+      }
+
+      // Ctrl+Y or Ctrl+Shift+Z - Redo
+      if ((ctrlKey && e.key.toLowerCase() === 'y') || (ctrlKey && shiftKey && e.key.toLowerCase() === 'z')) {
+        e.preventDefault();
+        handleRedo();
+        return;
+      }
+
+      // Ctrl+C - Copy
+      if (ctrlKey && e.key.toLowerCase() === 'c' && !isEditing) {
+        e.preventDefault();
+        handleCopy();
+        return;
+      }
+
+      // Ctrl+V - Paste
+      if (ctrlKey && e.key.toLowerCase() === 'v' && !isEditing) {
+        e.preventDefault();
+        handlePaste();
+        return;
+      }
+
+      // Ctrl+D - Fill Down
+      if (ctrlKey && e.key.toLowerCase() === 'd' && !isEditing) {
+        e.preventDefault();
+        handleFillDown();
+        return;
+      }
+
+      // Ctrl+Home - Go to first cell
+      if (ctrlKey && e.key === 'Home' && !isEditing) {
+        e.preventDefault();
+        handleGoToFirst();
+        return;
+      }
+
+      // Ctrl+End - Go to last cell with data
+      if (ctrlKey && e.key === 'End' && !isEditing) {
+        e.preventDefault();
+        handleGoToLast();
+        return;
+      }
 
       // Ctrl+A - Select All
       if (ctrlKey && e.key.toLowerCase() === 'a' && !isEditing) {
@@ -927,8 +1634,146 @@ export default function PickingPage() {
         return;
       }
 
+      // Escape - Clear selection or cancel editing
+      if (e.key === 'Escape') {
+        if (selectedRangeRef.current) {
+          setSelectedRange(null);
+          rangeStartCellRef.current = null;
+          gridRef.current?.refreshCells({ force: true });
+        }
+        return;
+      }
+
+      // F2 - Enter edit mode
+      if (e.key === 'F2' && !isEditing) {
+        const api = gridRef.current;
+        if (!api) return;
+        const focusedCell = api.getFocusedCell();
+        if (focusedCell) {
+          e.preventDefault();
+          api.startEditingCell({
+            rowIndex: focusedCell.rowIndex,
+            colKey: focusedCell.column.getColId(),
+          });
+        }
+        return;
+      }
+
+      // ⚡ EXCEL-LIKE: Ctrl+Arrow - Jump to last cell with data in direction
+      if (ctrlKey && !shiftKey && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key) && !isEditing) {
+        const api = gridRef.current;
+        if (!api) return;
+        const focusedCell = api.getFocusedCell();
+        if (!focusedCell) return;
+
+        e.preventDefault();
+        e.stopImmediatePropagation();
+
+        const { rowIndex, column } = focusedCell;
+        const colId = column.getColId();
+        const allColumns = api.getAllDisplayedColumns() || [];
+        const colIds = allColumns.map((c: any) => c.getColId());
+        const currentColIndex = colIds.indexOf(colId);
+
+        let targetRow = rowIndex;
+        let targetColIndex = currentColIndex;
+
+        if (e.key === 'ArrowDown') {
+          for (let r = multiRowsRef.current.length - 1; r > rowIndex; r--) {
+            if (multiRowsRef.current[r]?.[colId]?.toString().trim()) {
+              targetRow = r;
+              break;
+            }
+          }
+          if (targetRow === rowIndex) targetRow = multiRowsRef.current.length - 1;
+        } else if (e.key === 'ArrowUp') {
+          for (let r = 0; r < rowIndex; r++) {
+            if (multiRowsRef.current[r]?.[colId]?.toString().trim()) {
+              targetRow = r;
+              break;
+            }
+          }
+          if (targetRow === rowIndex) targetRow = 0;
+        } else if (e.key === 'ArrowRight') {
+          targetColIndex = colIds.length - 1;
+        } else if (e.key === 'ArrowLeft') {
+          targetColIndex = 1;
+        }
+
+        setSelectedRange(null);
+        rangeStartCellRef.current = null;
+        api.setFocusedCell(targetRow, colIds[targetColIndex]);
+        api.ensureIndexVisible(targetRow, 'middle');
+        api.refreshCells({ force: true });
+        return;
+      }
+
+      // ⚡ EXCEL-LIKE: Ctrl+Shift+Arrow - Select to last cell with data in direction
+      if (ctrlKey && shiftKey && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key) && !isEditing) {
+        const api = gridRef.current;
+        if (!api) return;
+        const focusedCell = api.getFocusedCell();
+        if (!focusedCell) return;
+
+        e.preventDefault();
+        e.stopImmediatePropagation();
+
+        const { rowIndex, column } = focusedCell;
+        const colId = column.getColId();
+        const allColumns = api.getAllDisplayedColumns() || [];
+        const colIds = allColumns.map((c: any) => c.getColId());
+        const currentColIndex = colIds.indexOf(colId);
+
+        if (!rangeStartCellRef.current) {
+          rangeStartCellRef.current = { rowIndex, colId };
+        }
+
+        const currentRange = selectedRangeRef.current;
+        let endRow = currentRange ? currentRange.endRow : rowIndex;
+        let endCol = currentRange ? currentRange.endCol : colId;
+        let endColIndex = colIds.indexOf(endCol);
+
+        if (e.key === 'ArrowDown') {
+          for (let r = multiRowsRef.current.length - 1; r > endRow; r--) {
+            if (multiRowsRef.current[r]?.[colId]?.toString().trim()) {
+              endRow = r;
+              break;
+            }
+          }
+          if (endRow === (currentRange?.endRow ?? rowIndex)) endRow = multiRowsRef.current.length - 1;
+        } else if (e.key === 'ArrowUp') {
+          endRow = 0;
+        } else if (e.key === 'ArrowRight') {
+          endColIndex = colIds.length - 1;
+          endCol = colIds[endColIndex];
+        } else if (e.key === 'ArrowLeft') {
+          endColIndex = 1;
+          endCol = colIds[endColIndex];
+        }
+
+        setSelectedRange({
+          startRow: rangeStartCellRef.current.rowIndex,
+          endRow,
+          startCol: rangeStartCellRef.current.colId,
+          endCol,
+        });
+
+        api.setFocusedCell(endRow, endCol);
+        api.ensureIndexVisible(endRow, 'middle');
+        return;
+      }
+
+      // Arrow keys without Shift - Clear selection and move
+      if (!shiftKey && !ctrlKey && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key) && !isEditing) {
+        if (selectedRangeRef.current) {
+          setSelectedRange(null);
+          rangeStartCellRef.current = null;
+        }
+        return;
+      }
+
       // Shift+Arrow keys - Extend selection
-      if (shiftKey && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key) && !isEditing) {
+      if (shiftKey && !ctrlKey && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key) && !isEditing) {
         const api = gridRef.current;
         if (!api) return;
 
@@ -972,7 +1817,7 @@ export default function PickingPage() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [currentTabCode, handleSelectAll, handleClearCells]);
+  }, [currentTabCode, handleSelectAll, handleClearCells, handleUndo, handleRedo, handleCopy, handlePaste, handleFillDown, handleGoToFirst, handleGoToLast]);
 
   // Add new rows
   const add500Rows = () => {
@@ -3447,13 +4292,19 @@ export default function PickingPage() {
                 navigateToNextCell={navigateToNextCell}
                 ensureDomOrder={true}
                 suppressMovableColumns={true}
-                // ⚡ PERFORMANCE: Optimizations
-                rowBuffer={20}
+                singleClickEdit={true}
+                // ⚡ PERFORMANCE: Optimizations for smooth grid experience
+                rowBuffer={30}
                 animateRows={false}
                 suppressScrollOnNewData={true}
                 debounceVerticalScrollbar={true}
                 suppressPropertyNamesCheck={true}
                 valueCache={true}
+                suppressCellFocus={false}
+                suppressRowHoverHighlight={false}
+                suppressColumnVirtualisation={false}
+                suppressRowVirtualisation={false}
+                suppressAnimationFrame={false}
                 //theme="legacy"
                 className="ag-theme-quartz"
                 containerStyle={{ height: '100%', width: '100%' }}
@@ -3851,7 +4702,7 @@ export default function PickingPage() {
               />
             </Box>
 
-            {/* DRAFT STATUS + ACTIONS + SUBMIT - Single Row */}
+            {/* DRAFT STATUS + SELECTION STATS + ACTIONS + SUBMIT - Single Row */}
             <Box sx={{
               display: 'flex',
               alignItems: 'center',
@@ -3860,6 +4711,29 @@ export default function PickingPage() {
               py: 0.5,
               flexShrink: 0
             }}>
+              {/* ⚡ EXCEL-LIKE: Selection Statistics */}
+              {selectionStats && (
+                <Box sx={{
+                  display: 'flex',
+                  gap: 1.5,
+                  alignItems: 'center',
+                  px: 1.5,
+                  py: 0.5,
+                  borderRadius: 1,
+                  bgcolor: isDarkMode ? 'rgba(245, 158, 11, 0.15)' : 'rgba(245, 158, 11, 0.1)',
+                  border: isDarkMode ? '1px solid rgba(245, 158, 11, 0.3)' : '1px solid rgba(245, 158, 11, 0.3)',
+                }}>
+                  <Typography sx={{ fontSize: '0.75rem', color: isDarkMode ? '#fbbf24' : '#d97706', fontWeight: 600 }}>
+                    Count: {selectionStats.count}
+                  </Typography>
+                  <Typography sx={{ fontSize: '0.75rem', color: isDarkMode ? '#fbbf24' : '#d97706', fontWeight: 600 }}>
+                    Sum: {selectionStats.sum.toLocaleString()}
+                  </Typography>
+                  <Typography sx={{ fontSize: '0.75rem', color: isDarkMode ? '#fbbf24' : '#d97706', fontWeight: 600 }}>
+                    Avg: {selectionStats.average.toLocaleString()}
+                  </Typography>
+                </Box>
+              )}
               <Chip
                 label={draftSavedAt ? `Draft saved ${new Date(draftSavedAt).toLocaleTimeString()}` : 'No draft'}
                 color={draftExists ? 'success' : 'default'}
