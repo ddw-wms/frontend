@@ -264,13 +264,20 @@ export default function OutboundPage() {
 
     // ⚡ UNDO/REDO: Excel-like undo/redo for cell changes
     interface UndoAction {
-        type: 'cell' | 'paste' | 'fillDown';
+        type: 'cell' | 'paste' | 'fillDown' | 'batch';
         rowIndex: number;
         field: string;
         oldValue: any;
         newValue: any;
         oldRowData?: any;
         newRowData?: any;
+        // For batch operations (paste multiple cells)
+        batchChanges?: Array<{
+            rowIndex: number;
+            field: string;
+            oldValue: any;
+            newValue: any;
+        }>;
     }
     const undoStackRef = useRef<UndoAction[]>([]);
     const redoStackRef = useRef<UndoAction[]>([]);
@@ -318,6 +325,9 @@ export default function OutboundPage() {
         average: number;
         numericCount: number;
     } | null>(null);
+
+    // ⚡ PERFORMANCE: Debounce ref for selection stats calculation
+    const selectionStatsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     // ====== SINGLE ENTRY STATE ======
     const [singleWSN, setSingleWSN] = useState('');
@@ -458,6 +468,9 @@ export default function OutboundPage() {
     const [crossWarehouseWSNs, setCrossWarehouseWSNs] = useState<Set<string>>(new Set());
     const [visibleColumns, setVisibleColumns] = useState<string[]>(DEFAULT_MULTI_COLUMNS);
     const [columnSettingsOpen, setColumnSettingsOpen] = useState(false);
+
+    // ====== EXPORT CONFIRMATION DIALOG ======
+    const [exportConfirmOpen, setExportConfirmOpen] = useState(false);
 
     // ====== MULTI ENTRY COLUMN WIDTHS PERSISTENCE ======
     const [multiColumnWidths, setMultiColumnWidths] = useState<Record<string, number>>({});
@@ -1210,7 +1223,7 @@ export default function OutboundPage() {
         redoStackRef.current = [];
     }, []);
 
-    // ⚡ UNDO: Handle undo (Ctrl+Z)
+    // ⚡ UNDO: Handle undo (Ctrl+Z) - supports batch operations
     const handleUndo = useCallback(() => {
         if (undoStackRef.current.length === 0) {
             toast('Nothing to undo', { icon: 'ℹ️', duration: 500 });
@@ -1219,8 +1232,59 @@ export default function OutboundPage() {
 
         const action = undoStackRef.current.pop()!;
 
+        // Master data columns that get auto-populated when WSN is entered
+        const MASTER_DATA_COLUMNS = [
+            'source', 'product_title', 'brand', 'cms_vertical', 'wid', 'fsn',
+            'order_id', 'fkqc_remark', 'fk_grade', 'hsn_sac', 'igst_rate',
+            'fsp', 'mrp', 'vrp', 'yield_value', 'invoice_date', 'fkt_link',
+            'wh_location', 'p_type', 'p_size', 'quantity'
+        ];
+
         setMultiRows(currentRows => {
             const newRows = [...currentRows];
+
+            // Handle batch undo (paste operations)
+            if (action.type === 'batch' && action.batchChanges) {
+                const redoBatchChanges: typeof action.batchChanges = [];
+
+                for (const change of action.batchChanges) {
+                    const currentValue = newRows[change.rowIndex]?.[change.field];
+                    redoBatchChanges.push({
+                        rowIndex: change.rowIndex,
+                        field: change.field,
+                        oldValue: currentValue,
+                        newValue: change.oldValue,
+                    });
+
+                    // If undoing a WSN field, also clear all auto-populated master data
+                    if (change.field === 'wsn') {
+                        const clearedRow: any = {
+                            ...newRows[change.rowIndex],
+                            [change.field]: change.oldValue
+                        };
+                        // Clear all master data columns
+                        for (const col of MASTER_DATA_COLUMNS) {
+                            clearedRow[col] = '';
+                        }
+                        newRows[change.rowIndex] = clearedRow;
+                    } else {
+                        newRows[change.rowIndex] = {
+                            ...newRows[change.rowIndex],
+                            [change.field]: change.oldValue
+                        };
+                    }
+                }
+
+                // Save to redo stack
+                redoStackRef.current.push({
+                    ...action,
+                    batchChanges: redoBatchChanges,
+                });
+
+                return newRows;
+            }
+
+            // Handle single cell undo
             const currentRowData = JSON.parse(JSON.stringify(newRows[action.rowIndex]));
 
             if (action.type === 'cell') {
@@ -1250,16 +1314,22 @@ export default function OutboundPage() {
         setTimeout(() => {
             const api = gridRef.current?.api;
             if (api) {
-                api.ensureIndexVisible(action.rowIndex, 'middle');
-                api.setFocusedCell(action.rowIndex, action.field);
+                if (action.type === 'batch' && action.batchChanges?.length) {
+                    api.ensureIndexVisible(action.batchChanges[0].rowIndex, 'middle');
+                    api.setFocusedCell(action.batchChanges[0].rowIndex, action.batchChanges[0].field);
+                } else {
+                    api.ensureIndexVisible(action.rowIndex, 'middle');
+                    api.setFocusedCell(action.rowIndex, action.field);
+                }
                 api.refreshCells({ force: true });
             }
         }, 50);
 
-        toast.success('Undo successful', { duration: 1500 });
+        const count = action.type === 'batch' ? action.batchChanges?.length || 1 : 1;
+        toast.success(`Undo: ${count} cell${count > 1 ? 's' : ''}`, { duration: 1000 });
     }, []);
 
-    // ⚡ REDO: Handle redo (Ctrl+Y or Ctrl+Shift+Z)
+    // ⚡ REDO: Handle redo (Ctrl+Y or Ctrl+Shift+Z) - supports batch operations
     const handleRedo = useCallback(() => {
         if (redoStackRef.current.length === 0) {
             toast('Nothing to redo', { icon: 'ℹ️', duration: 1500 });
@@ -1270,6 +1340,33 @@ export default function OutboundPage() {
 
         setMultiRows(currentRows => {
             const newRows = [...currentRows];
+
+            // Handle batch redo (paste operations)
+            if (action.type === 'batch' && action.batchChanges) {
+                const undoBatchChanges: typeof action.batchChanges = [];
+
+                for (const change of action.batchChanges) {
+                    const currentValue = newRows[change.rowIndex]?.[change.field];
+                    undoBatchChanges.push({
+                        rowIndex: change.rowIndex,
+                        field: change.field,
+                        oldValue: currentValue,
+                        newValue: change.oldValue,
+                    });
+                    newRows[change.rowIndex] = {
+                        ...newRows[change.rowIndex],
+                        [change.field]: change.oldValue
+                    };
+                }
+
+                undoStackRef.current.push({
+                    ...action,
+                    batchChanges: undoBatchChanges,
+                });
+
+                return newRows;
+            }
+
             const currentRowData = JSON.parse(JSON.stringify(newRows[action.rowIndex]));
 
             if (action.type === 'cell') {
@@ -1297,13 +1394,19 @@ export default function OutboundPage() {
         setTimeout(() => {
             const api = gridRef.current?.api;
             if (api) {
-                api.ensureIndexVisible(action.rowIndex, 'middle');
-                api.setFocusedCell(action.rowIndex, action.field);
+                if (action.type === 'batch' && action.batchChanges?.length) {
+                    api.ensureIndexVisible(action.batchChanges[0].rowIndex, 'middle');
+                    api.setFocusedCell(action.batchChanges[0].rowIndex, action.batchChanges[0].field);
+                } else {
+                    api.ensureIndexVisible(action.rowIndex, 'middle');
+                    api.setFocusedCell(action.rowIndex, action.field);
+                }
                 api.refreshCells({ force: true });
             }
         }, 50);
 
-        toast.success('Redo successful', { duration: 1500 });
+        const count = action.type === 'batch' ? action.batchChanges?.length || 1 : 1;
+        toast.success(`Redo: ${count} cell${count > 1 ? 's' : ''}`, { duration: 1000 });
     }, []);
 
     // ⚡ FILL DOWN: Copy value from first selected cell to all cells below (Ctrl+D)
@@ -1482,18 +1585,47 @@ export default function OutboundPage() {
         [existingOutboundWSNs]
     );
 
-    // ✅ NAVIGATE TO NEXT CELL (AG GRID) - handles Enter and Arrow keys
+    // ✅ NAVIGATE TO NEXT CELL (AG GRID) - handles Enter, Tab, and Arrow keys
     const navigateToNextCell = useCallback(
         (params: any) => {
             const { key, previousCellPosition, nextCellPosition, event } = params;
+            const api = params.api;
 
-            // Tab / arrow keys default behaviour
+            // Tab key: move to next/prev cell horizontally (Excel-like)
+            if (key === 'Tab') {
+                const column = previousCellPosition.column;
+                const rowIndex = previousCellPosition.rowIndex;
+                const allColumns = api.getAllDisplayedColumns() || [];
+                const currentColIndex = allColumns.findIndex((c: any) => c.getColId() === column.getColId());
+
+                const goingBack = event && event.shiftKey;
+
+                if (goingBack) {
+                    // Shift+Tab: move left, wrap to previous row if at start
+                    if (currentColIndex > 0) {
+                        return { rowIndex, column: allColumns[currentColIndex - 1], rowPinned: null };
+                    } else if (rowIndex > 0) {
+                        // Wrap to end of previous row
+                        return { rowIndex: rowIndex - 1, column: allColumns[allColumns.length - 1], rowPinned: null };
+                    }
+                } else {
+                    // Tab: move right, wrap to next row if at end
+                    if (currentColIndex < allColumns.length - 1) {
+                        return { rowIndex, column: allColumns[currentColIndex + 1], rowPinned: null };
+                    } else if (rowIndex < api.getDisplayedRowCount() - 1) {
+                        // Wrap to start of next row
+                        return { rowIndex: rowIndex + 1, column: allColumns[0], rowPinned: null };
+                    }
+                }
+                return previousCellPosition;
+            }
+
+            // Arrow keys: default behaviour
             if (key !== 'Enter') {
                 return nextCellPosition;
             }
 
             // Enter: same column, next/prev row
-            const api = params.api;
             const column = previousCellPosition.column;
             const rowIndex = previousCellPosition.rowIndex;
 
@@ -1542,67 +1674,112 @@ export default function OutboundPage() {
                     colIndexMap,
                 };
 
-                // ⚡ EXCEL-LIKE: Calculate selection statistics for numeric cells (FSP, MRP, Quantity, etc.)
-                const minRow = Math.min(selectedRange.startRow, selectedRange.endRow);
-                const maxRow = Math.max(selectedRange.startRow, selectedRange.endRow);
-                const minCol = Math.min(startColIndex, endColIndex);
-                const maxCol = Math.max(startColIndex, endColIndex);
+                // ⚡ PERFORMANCE: Debounce selection statistics calculation (50ms)
+                if (selectionStatsTimeoutRef.current) {
+                    clearTimeout(selectionStatsTimeoutRef.current);
+                }
+                selectionStatsTimeoutRef.current = setTimeout(() => {
+                    // ⚡ EXCEL-LIKE: Calculate selection statistics for numeric cells (FSP, MRP, Quantity, etc.)
+                    const minRow = Math.min(selectedRange.startRow, selectedRange.endRow);
+                    const maxRow = Math.max(selectedRange.startRow, selectedRange.endRow);
+                    const minCol = Math.min(startColIndex, endColIndex);
+                    const maxCol = Math.max(startColIndex, endColIndex);
 
-                const numericColumns = ['fsp', 'mrp', 'vrp', 'quantity', 'igst_rate', 'yield_value'];
-                let sum = 0;
-                let count = 0;
-                let numericCount = 0;
+                    const numericColumns = ['fsp', 'mrp', 'vrp', 'quantity', 'igst_rate', 'yield_value'];
+                    let sum = 0;
+                    let count = 0;
+                    let numericCount = 0;
 
-                for (let r = minRow; r <= maxRow; r++) {
-                    const rowNode = api.getDisplayedRowAtIndex(r);
-                    if (!rowNode?.data) continue;
+                    for (let r = minRow; r <= maxRow; r++) {
+                        const rowNode = api.getDisplayedRowAtIndex(r);
+                        if (!rowNode?.data) continue;
 
-                    for (let c = minCol; c <= maxCol; c++) {
-                        const colId = allColumns[c]?.getColId();
-                        if (!colId) continue;
+                        for (let c = minCol; c <= maxCol; c++) {
+                            const colId = allColumns[c]?.getColId();
+                            if (!colId) continue;
 
-                        count++;
-                        const cellValue = rowNode.data[colId];
+                            count++;
+                            const cellValue = rowNode.data[colId];
 
-                        // Check if it's a numeric column or if the value is numeric
-                        if (numericColumns.includes(colId) || !isNaN(parseFloat(cellValue))) {
-                            const numVal = parseFloat(cellValue);
-                            if (!isNaN(numVal) && numVal !== 0) {
-                                sum += numVal;
-                                numericCount++;
+                            // Check if it's a numeric column or if the value is numeric
+                            if (numericColumns.includes(colId) || !isNaN(parseFloat(cellValue))) {
+                                const numVal = parseFloat(cellValue);
+                                if (!isNaN(numVal) && numVal !== 0) {
+                                    sum += numVal;
+                                    numericCount++;
+                                }
                             }
                         }
                     }
-                }
 
-                if (numericCount > 0) {
-                    setSelectionStats({
-                        sum: Math.round(sum * 100) / 100, // Round to 2 decimal places
-                        count,
-                        average: Math.round((sum / numericCount) * 100) / 100,
-                        numericCount,
-                    });
-                } else {
-                    setSelectionStats(null);
-                }
+                    if (numericCount > 0) {
+                        setSelectionStats({
+                            sum: Math.round(sum * 100) / 100, // Round to 2 decimal places
+                            count,
+                            average: Math.round((sum / numericCount) * 100) / 100,
+                            numericCount,
+                        });
+                    } else {
+                        setSelectionStats(null);
+                    }
+                }, 50); // 50ms debounce for smooth drag selection
             } else {
                 selectionBoundsRef.current = null;
                 setSelectionStats(null);
             }
         } else {
             selectionBoundsRef.current = null;
+            if (selectionStatsTimeoutRef.current) {
+                clearTimeout(selectionStatsTimeoutRef.current);
+            }
             setSelectionStats(null);
         }
     }, [selectedRange]);
 
-    // ⚡ EXCEL-LIKE: Refresh grid when selection changes
+    // Store previous selection for smart refresh
+    const prevSelectionBoundsRef = useRef<{ minRow: number; maxRow: number } | null>(null);
+
+    // ⚡ EXCEL-LIKE: Optimized refresh - only refresh affected rows instead of entire grid
     useEffect(() => {
         const api = gridRef.current?.api;
-        if (api) {
-            requestAnimationFrame(() => {
-                api.refreshCells({ force: true });
-            });
-        }
+        if (!api) return;
+
+        requestAnimationFrame(() => {
+            const bounds = selectionBoundsRef.current;
+            const prevBounds = prevSelectionBoundsRef.current;
+
+            // Collect row indices that need refresh
+            const rowsToRefresh = new Set<number>();
+
+            // Add current selection rows
+            if (bounds) {
+                for (let r = bounds.minRow; r <= bounds.maxRow; r++) {
+                    rowsToRefresh.add(r);
+                }
+            }
+
+            // Add previous selection rows (to clear old selection styling)
+            if (prevBounds) {
+                for (let r = prevBounds.minRow; r <= prevBounds.maxRow; r++) {
+                    rowsToRefresh.add(r);
+                }
+            }
+
+            // Update prev bounds for next time
+            prevSelectionBoundsRef.current = bounds ? { minRow: bounds.minRow, maxRow: bounds.maxRow } : null;
+
+            // Only refresh if there are rows to update
+            if (rowsToRefresh.size > 0) {
+                const rowNodes: any[] = [];
+                rowsToRefresh.forEach((rowIndex) => {
+                    const node = api.getDisplayedRowAtIndex(rowIndex);
+                    if (node) rowNodes.push(node);
+                });
+                if (rowNodes.length > 0) {
+                    api.refreshCells({ rowNodes, force: true });
+                }
+            }
+        });
     }, [selectedRange]);
 
     // ⚡ EXCEL-LIKE: Handle cell mouse down - start drag selection
@@ -1718,6 +1895,297 @@ export default function OutboundPage() {
         }
     }, [saveCellUndoAction]);
 
+    // ⚡ EXCEL-LIKE: Copy selected cells to clipboard (Ctrl+C)
+    const handleCopy = useCallback(() => {
+        const api = gridRef.current?.api;
+        if (!api) return;
+
+        const range = selectedRangeRef.current;
+
+        // If no range selected, copy single focused cell
+        if (!range) {
+            const focusedCell = api.getFocusedCell();
+            if (!focusedCell) {
+                toast('No cells selected to copy', { icon: 'ℹ️', duration: 1500 });
+                return;
+            }
+            const { rowIndex, column } = focusedCell;
+            const colId = column.getColId();
+            const cellValue = multiRowsRef.current[rowIndex]?.[colId] ?? '';
+
+            navigator.clipboard.writeText(String(cellValue)).then(() => {
+                toast.success('Copied to clipboard', { duration: 1000 });
+            }).catch(() => {
+                toast.error('Failed to copy', { duration: 1500 });
+            });
+            return;
+        }
+
+        const minRow = Math.min(range.startRow, range.endRow);
+        const maxRow = Math.max(range.startRow, range.endRow);
+
+        const allColumns = api.getAllDisplayedColumns?.() || [];
+        const colIds = allColumns.map((c: any) => c.getColId());
+        const startColIndex = colIds.indexOf(range.startCol);
+        const endColIndex = colIds.indexOf(range.endCol);
+        const minCol = Math.min(startColIndex, endColIndex);
+        const maxCol = Math.max(startColIndex, endColIndex);
+
+        // Build TSV (Tab-Separated Values) string for clipboard
+        const lines: string[] = [];
+        for (let r = minRow; r <= maxRow; r++) {
+            const rowValues: string[] = [];
+            for (let c = minCol; c <= maxCol; c++) {
+                const colId = colIds[c];
+                const cellValue = multiRowsRef.current[r]?.[colId] ?? '';
+                rowValues.push(String(cellValue));
+            }
+            lines.push(rowValues.join('\t'));
+        }
+        const tsvData = lines.join('\n');
+
+        navigator.clipboard.writeText(tsvData).then(() => {
+            const cellCount = (maxRow - minRow + 1) * (maxCol - minCol + 1);
+            toast.success(`Copied ${cellCount} cells`, { duration: 1000 });
+        }).catch(() => {
+            toast.error('Failed to copy to clipboard', { duration: 1500 });
+        });
+    }, []);
+
+    // ⚡ EXCEL-LIKE: Paste from clipboard (Ctrl+V)
+    const handlePaste = useCallback(async () => {
+        const api = gridRef.current?.api;
+        if (!api) return;
+
+        let startRow: number;
+        let startColId: string;
+
+        // Determine paste starting position
+        const range = selectedRangeRef.current;
+        if (range) {
+            startRow = Math.min(range.startRow, range.endRow);
+            const allColumns = api.getAllDisplayedColumns?.() || [];
+            const colIds = allColumns.map((c: any) => c.getColId());
+            const startColIndex = colIds.indexOf(range.startCol);
+            const endColIndex = colIds.indexOf(range.endCol);
+            startColId = colIds[Math.min(startColIndex, endColIndex)];
+        } else {
+            const focusedCell = api.getFocusedCell();
+            if (!focusedCell) {
+                toast('Select a cell to paste into', { icon: 'ℹ️', duration: 1500 });
+                return;
+            }
+            startRow = focusedCell.rowIndex;
+            startColId = focusedCell.column.getColId();
+        }
+
+        try {
+            const clipboardText = await navigator.clipboard.readText();
+            if (!clipboardText.trim()) {
+                toast('Clipboard is empty', { icon: 'ℹ️', duration: 1500 });
+                return;
+            }
+
+            // Parse clipboard data (TSV format - Tab and Newline separated)
+            const lines = clipboardText.split(/\r?\n/).filter(line => line.length > 0);
+            const pasteData = lines.map(line => line.split('\t'));
+
+            const allColumns = api.getAllDisplayedColumns?.() || [];
+            const colIds = allColumns.map((c: any) => c.getColId());
+            const startColIndex = colIds.indexOf(startColId);
+
+            if (startColIndex === -1) return;
+
+            const newRows = [...multiRowsRef.current];
+            let pastedCount = 0;
+            const pastedWSNRows: { rowIndex: number; wsn: string }[] = []; // Track pasted WSNs for lookup
+            const batchChanges: Array<{ rowIndex: number; field: string; oldValue: any; newValue: any }> = []; // For batch undo
+
+            for (let rowOffset = 0; rowOffset < pasteData.length; rowOffset++) {
+                const targetRowIndex = startRow + rowOffset;
+                if (targetRowIndex >= newRows.length) break; // Don't paste beyond grid
+
+                const rowData = pasteData[rowOffset];
+
+                for (let colOffset = 0; colOffset < rowData.length; colOffset++) {
+                    const targetColIndex = startColIndex + colOffset;
+                    if (targetColIndex >= colIds.length) break;
+
+                    const colId = colIds[targetColIndex];
+
+                    // Only paste to editable columns
+                    if (!EDITABLE_COLUMNS.includes(colId)) continue;
+
+                    const newValue = rowData[colOffset];
+                    const oldValue = newRows[targetRowIndex]?.[colId];
+
+                    // Track change for batch undo (instead of individual saveCellUndoAction)
+                    if (oldValue !== newValue) {
+                        batchChanges.push({ rowIndex: targetRowIndex, field: colId, oldValue, newValue });
+                    }
+
+                    // Apply WSN uppercase conversion if it's the WSN column
+                    const finalValue = colId === 'wsn' ? newValue.trim().toUpperCase() : newValue;
+                    newRows[targetRowIndex] = { ...newRows[targetRowIndex], [colId]: finalValue };
+                    pastedCount++;
+
+                    // Track WSN pastes for product lookup
+                    if (colId === 'wsn' && finalValue) {
+                        pastedWSNRows.push({ rowIndex: targetRowIndex, wsn: finalValue });
+                    }
+                }
+            }
+
+            if (pastedCount > 0) {
+                // ⚡ BATCH UNDO: Save all paste changes as a single undo action
+                if (batchChanges.length > 0) {
+                    const batchAction: UndoAction = {
+                        type: 'batch',
+                        rowIndex: batchChanges[0].rowIndex,
+                        field: batchChanges[0].field,
+                        oldValue: null,
+                        newValue: null,
+                        batchChanges: batchChanges,
+                    };
+                    undoStackRef.current.push(batchAction);
+                    if (undoStackRef.current.length > MAX_UNDO_HISTORY) {
+                        undoStackRef.current.shift();
+                    }
+                    redoStackRef.current = [];
+                }
+
+                setMultiRows(newRows);
+                api.refreshCells({ force: true });
+                toast.success(`Pasted ${pastedCount} cells`, { duration: 1500 });
+
+                // ⚡ ULTRA-FAST PARALLEL WSN LOOKUPS: Process multiple batches concurrently
+                if (pastedWSNRows.length > 0 && activeWarehouse?.id) {
+                    const toastId = toast.loading(`Loading ${pastedWSNRows.length} WSNs...`);
+
+                    const BATCH_SIZE = 100; // Items per batch
+                    const CONCURRENT_BATCHES = 10; // Run 10 batches simultaneously
+                    let successCount = 0;
+                    let failCount = 0;
+                    let processedCount = 0;
+
+                    // Helper function to lookup a single WSN
+                    const lookupWSN = async (rowIndex: number, wsn: string): Promise<{ rowIndex: number; data: any | null }> => {
+                        try {
+                            // Try cache first
+                            if (cacheEnabled && cacheStats?.isReady) {
+                                try {
+                                    const cached = await getAvailableInventoryByWSN(wsn, activeWarehouse.id);
+                                    if (cached) return { rowIndex, data: cached };
+                                } catch { /* cache miss */ }
+                            }
+                            // Fall back to API
+                            const res = await outboundAPI.getSourceByWSN(wsn, activeWarehouse.id);
+                            return { rowIndex, data: res.data };
+                        } catch {
+                            return { rowIndex, data: null };
+                        }
+                    };
+
+                    // Split into batches
+                    const batches: Array<typeof pastedWSNRows> = [];
+                    for (let i = 0; i < pastedWSNRows.length; i += BATCH_SIZE) {
+                        batches.push(pastedWSNRows.slice(i, i + BATCH_SIZE));
+                    }
+
+                    // Process batches in parallel groups
+                    const allResults: Array<{ rowIndex: number; data: any }> = [];
+
+                    for (let i = 0; i < batches.length; i += CONCURRENT_BATCHES) {
+                        const concurrentBatches = batches.slice(i, i + CONCURRENT_BATCHES);
+
+                        // Run multiple batches in parallel
+                        const batchPromises = concurrentBatches.map(batch =>
+                            Promise.all(batch.map(({ rowIndex, wsn }) => lookupWSN(rowIndex, wsn)))
+                        );
+
+                        const batchResults = await Promise.all(batchPromises);
+
+                        // Flatten and collect results
+                        for (const results of batchResults) {
+                            allResults.push(...results);
+                        }
+
+                        processedCount += concurrentBatches.reduce((sum, b) => sum + b.length, 0);
+                        toast.loading(`Loading ${processedCount}/${pastedWSNRows.length} WSNs...`, { id: toastId });
+                    }
+
+                    // Apply all results to grid at once (batch update for performance)
+                    const updatedRowsMap = new Map<number, any>();
+
+                    for (const { rowIndex, data } of allResults) {
+                        if (data) {
+                            const rowNode = api.getDisplayedRowAtIndex(rowIndex);
+                            if (rowNode) {
+                                updatedRowsMap.set(rowIndex, {
+                                    ...rowNode.data,
+                                    source: data.source || '',
+                                    product_title: data.product_title || '',
+                                    brand: data.brand || '',
+                                    cms_vertical: data.cms_vertical || '',
+                                    wid: data.wid || '',
+                                    fsn: data.fsn || '',
+                                    order_id: data.order_id || '',
+                                    fkqc_remark: data.fkqc_remark || '',
+                                    fk_grade: data.fk_grade || '',
+                                    hsn_sac: data.hsn_sac || '',
+                                    igst_rate: data.igst_rate || '',
+                                    fsp: data.fsp || '',
+                                    mrp: data.mrp || '',
+                                    vrp: data.vrp || '',
+                                    yield_value: data.yield_value || '',
+                                    invoice_date: data.invoice_date || '',
+                                    fkt_link: data.fkt_link || '',
+                                    wh_location: data.wh_location || '',
+                                    p_type: data.p_type || '',
+                                    p_size: data.p_size || '',
+                                    quantity: data.quantity || 1,
+                                });
+                                successCount++;
+                            }
+                        } else {
+                            failCount++;
+                        }
+                    }
+
+                    // Apply all updates at once using transaction for maximum speed
+                    const rowNodesToUpdate: any[] = [];
+                    updatedRowsMap.forEach((data, rowIndex) => {
+                        const rowNode = api.getDisplayedRowAtIndex(rowIndex);
+                        if (rowNode) {
+                            rowNode.setData(data);
+                            rowNodesToUpdate.push(rowNode);
+                        }
+                    });
+
+                    // Sync to React state after all lookups
+                    const updatedRows: any[] = [];
+                    api.forEachNode((node: any) => { if (node.data) updatedRows.push(node.data); });
+                    setMultiRows(updatedRows);
+
+                    toast.dismiss(toastId);
+                    if (successCount > 0) {
+                        toast.success(`✓ Loaded ${successCount}/${pastedWSNRows.length} WSNs`, { duration: 2000 });
+                    }
+                    if (failCount > 0) {
+                        toast.error(`${failCount} WSNs not found`, { duration: 2000 });
+                    }
+                }
+            }
+        } catch (err: any) {
+            // Clipboard access denied or other error
+            if (err.name === 'NotAllowedError') {
+                toast.error('Clipboard access denied. Please allow clipboard access.', { duration: 2500 });
+            } else {
+                toast.error('Failed to paste from clipboard', { duration: 1500 });
+            }
+        }
+    }, [saveCellUndoAction, activeWarehouse, cacheEnabled, cacheStats]);
+
     // ⚡ EXCEL-LIKE: Select All (Ctrl+A)
     const handleSelectAll = useCallback(() => {
         const api = gridRef.current?.api;
@@ -1827,6 +2295,20 @@ export default function OutboundPage() {
                 return;
             }
 
+            // Ctrl+C → Copy selected cells to clipboard
+            if (ctrlKey && e.key.toLowerCase() === 'c' && !isEditing) {
+                e.preventDefault();
+                handleCopy();
+                return;
+            }
+
+            // Ctrl+V → Paste from clipboard
+            if (ctrlKey && e.key.toLowerCase() === 'v' && !isEditing) {
+                e.preventDefault();
+                handlePaste();
+                return;
+            }
+
             // Ctrl+Home → Go to first cell
             if (ctrlKey && e.key === 'Home') {
                 e.preventDefault();
@@ -1838,6 +2320,119 @@ export default function OutboundPage() {
             if (ctrlKey && e.key === 'End') {
                 e.preventDefault();
                 handleGoToLast();
+                return;
+            }
+
+            // ⚡ EXCEL-LIKE: Ctrl+Arrow - Jump to last cell with data in direction
+            if (ctrlKey && !shiftKey && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key) && !isEditing) {
+                const api = gridRef.current?.api;
+                if (!api) return;
+                const focusedCell = api.getFocusedCell();
+                if (!focusedCell) return;
+
+                e.preventDefault();
+                e.stopImmediatePropagation();
+
+                const { rowIndex, column } = focusedCell;
+                const colId = column.getColId();
+                const allColumns = api.getAllDisplayedColumns() || [];
+                const colIds = allColumns.map((c: any) => c.getColId());
+                const currentColIndex = colIds.indexOf(colId);
+
+                let targetRow = rowIndex;
+                let targetColIndex = currentColIndex;
+
+                if (e.key === 'ArrowDown') {
+                    // Find last row with data in this column
+                    for (let r = multiRowsRef.current.length - 1; r > rowIndex; r--) {
+                        if (multiRowsRef.current[r]?.[colId]?.toString().trim()) {
+                            targetRow = r;
+                            break;
+                        }
+                    }
+                    // If no data found below, go to last row
+                    if (targetRow === rowIndex) targetRow = multiRowsRef.current.length - 1;
+                } else if (e.key === 'ArrowUp') {
+                    // Find first row with data in column (Excel behavior: Ctrl+Up from last goes to first)
+                    for (let r = 0; r < rowIndex; r++) {
+                        if (multiRowsRef.current[r]?.[colId]?.toString().trim()) {
+                            targetRow = r;
+                            break; // Stop at FIRST row with data, not last
+                        }
+                    }
+                    // If no data found above, go to first row
+                    if (targetRow === rowIndex) targetRow = 0;
+                } else if (e.key === 'ArrowRight') {
+                    // Go to last column
+                    targetColIndex = colIds.length - 1;
+                } else if (e.key === 'ArrowLeft') {
+                    // Go to first column (skip SR.NO which is index 0)
+                    targetColIndex = 1;
+                }
+
+                // Clear selection and navigate
+                setSelectedRange(null);
+                rangeStartCellRef.current = null;
+                api.setFocusedCell(targetRow, colIds[targetColIndex]);
+                api.ensureIndexVisible(targetRow, 'middle');
+                api.refreshCells({ force: true });
+                return;
+            }
+
+            // ⚡ EXCEL-LIKE: Ctrl+Shift+Arrow - Select to last cell with data in direction
+            if (ctrlKey && shiftKey && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key) && !isEditing) {
+                const api = gridRef.current?.api;
+                if (!api) return;
+                const focusedCell = api.getFocusedCell();
+                if (!focusedCell) return;
+
+                e.preventDefault();
+                e.stopImmediatePropagation();
+
+                const { rowIndex, column } = focusedCell;
+                const colId = column.getColId();
+                const allColumns = api.getAllDisplayedColumns() || [];
+                const colIds = allColumns.map((c: any) => c.getColId());
+                const currentColIndex = colIds.indexOf(colId);
+
+                // Set anchor if not already set
+                if (!rangeStartCellRef.current) {
+                    rangeStartCellRef.current = { rowIndex, colId };
+                }
+
+                const currentRange = selectedRangeRef.current;
+                let endRow = currentRange ? currentRange.endRow : rowIndex;
+                let endCol = currentRange ? currentRange.endCol : colId;
+                let endColIndex = colIds.indexOf(endCol);
+
+                if (e.key === 'ArrowDown') {
+                    // Select to last row with data
+                    for (let r = multiRowsRef.current.length - 1; r > endRow; r--) {
+                        if (multiRowsRef.current[r]?.[colId]?.toString().trim()) {
+                            endRow = r;
+                            break;
+                        }
+                    }
+                    if (endRow === (currentRange?.endRow ?? rowIndex)) endRow = multiRowsRef.current.length - 1;
+                } else if (e.key === 'ArrowUp') {
+                    endRow = 0;
+                } else if (e.key === 'ArrowRight') {
+                    endColIndex = colIds.length - 1;
+                    endCol = colIds[endColIndex];
+                } else if (e.key === 'ArrowLeft') {
+                    endColIndex = 1;
+                    endCol = colIds[endColIndex];
+                }
+
+                setSelectedRange({
+                    startRow: rangeStartCellRef.current.rowIndex,
+                    endRow,
+                    startCol: rangeStartCellRef.current.colId,
+                    endCol,
+                });
+
+                api.setFocusedCell(endRow, endCol);
+                api.ensureIndexVisible(endRow, 'middle');
                 return;
             }
 
@@ -1883,6 +2478,21 @@ export default function OutboundPage() {
                         colKey: focusedCell.column.getColId(),
                     });
                 }
+                return;
+            }
+
+            // Arrow keys WITHOUT Shift - Clear selection and move (Excel-like behavior)
+            if (!shiftKey && !ctrlKey && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key) && !isEditing) {
+                // If there's a selection, clear it but let AG Grid handle the movement
+                if (selectedRangeRef.current) {
+                    setSelectedRange(null);
+                    rangeStartCellRef.current = null;
+                    const api = gridRef.current?.api;
+                    if (api) {
+                        api.refreshCells({ force: true });
+                    }
+                }
+                // Let AG Grid handle the arrow key navigation naturally
                 return;
             }
 
@@ -1947,7 +2557,7 @@ export default function OutboundPage() {
         // Use capture phase to intercept before AG Grid handles it
         window.addEventListener('keydown', handleKeyDown, true);
         return () => window.removeEventListener('keydown', handleKeyDown, true);
-    }, [currentTabCode, handleSelectAll, handleClearCells, handleUndo, handleRedo, handleFillDown, handleFillRight, handleGoToFirst, handleGoToLast, ctrlOProductLinkEnabled]);
+    }, [currentTabCode, handleSelectAll, handleClearCells, handleUndo, handleRedo, handleFillDown, handleFillRight, handleGoToFirst, handleGoToLast, handleCopy, handlePaste, ctrlOProductLinkEnabled]);
 
     // ✅ AUTO-FETCH SOURCE DATA ON WSN CELL EDIT (MULTI ENTRY)
     const onCellValueChanged = useCallback(
@@ -1987,29 +2597,22 @@ export default function OutboundPage() {
                     rowNode.setDataValue('wsn', wsn);
                 }
 
-                // WSN cleared -> clear all master data columns
+                // WSN cleared -> clear all master data columns using setData for performance
                 if (!wsn) {
-                    rowNode.setDataValue('source', '');
-                    rowNode.setDataValue('product_title', '');
-                    rowNode.setDataValue('brand', '');
-                    rowNode.setDataValue('cms_vertical', '');
-                    rowNode.setDataValue('wid', '');
-                    rowNode.setDataValue('fsn', '');
-                    rowNode.setDataValue('order_id', '');
-                    rowNode.setDataValue('fkqc_remark', '');
-                    rowNode.setDataValue('fk_grade', '');
-                    rowNode.setDataValue('hsn_sac', '');
-                    rowNode.setDataValue('igst_rate', '');
-                    rowNode.setDataValue('fsp', '');
-                    rowNode.setDataValue('mrp', '');
-                    rowNode.setDataValue('vrp', '');
-                    rowNode.setDataValue('yield_value', '');
-                    rowNode.setDataValue('invoice_date', '');
-                    rowNode.setDataValue('fkt_link', '');
-                    rowNode.setDataValue('wh_location', '');
-                    rowNode.setDataValue('p_type', '');
-                    rowNode.setDataValue('p_size', '');
-                    rowNode.setDataValue('quantity', '');
+                    const clearedData = {
+                        ...rowNode.data,
+                        wsn: '',
+                        source: '', product_title: '', brand: '', cms_vertical: '', wid: '', fsn: '',
+                        order_id: '', fkqc_remark: '', fk_grade: '', hsn_sac: '', igst_rate: '',
+                        fsp: '', mrp: '', vrp: '', yield_value: '', invoice_date: '', fkt_link: '',
+                        wh_location: '', p_type: '', p_size: '', quantity: ''
+                    };
+                    rowNode.setData(clearedData);
+
+                    // Sync to React state
+                    const updatedRows: any[] = [];
+                    gridRef.current?.api.forEachNode((node: any) => { if (node.data) updatedRows.push(node.data); });
+                    setMultiRows(updatedRows);
                     return;
                 }
 
@@ -2043,9 +2646,16 @@ export default function OutboundPage() {
                         icon: '⚠️',
                     });
 
-                    // Clear the cell and all master columns
-                    rowNode.setDataValue('wsn', '');
-                    ['source', 'product_title', 'brand', 'cms_vertical', 'wid', 'fsn', 'order_id', 'fkqc_remark', 'fk_grade', 'hsn_sac', 'igst_rate', 'fsp', 'mrp', 'vrp', 'yield_value', 'invoice_date', 'fkt_link', 'wh_location', 'p_type', 'p_size', 'quantity'].forEach(c => rowNode.setDataValue(c, ''));
+                    // ⚡ PERFORMANCE: Use setData() once instead of multiple setDataValue() calls
+                    const clearedData = {
+                        ...rowNode.data,
+                        wsn: '',
+                        source: '', product_title: '', brand: '', cms_vertical: '', wid: '', fsn: '',
+                        order_id: '', fkqc_remark: '', fk_grade: '', hsn_sac: '', igst_rate: '',
+                        fsp: '', mrp: '', vrp: '', yield_value: '', invoice_date: '', fkt_link: '',
+                        wh_location: '', p_type: '', p_size: '', quantity: ''
+                    };
+                    rowNode.setData(clearedData);
 
                     // Update duplicates state & refocus
                     const updatedRows: any[] = [];
@@ -2075,8 +2685,9 @@ export default function OutboundPage() {
                         icon: '⚠️',
                     });
 
-                    rowNode.setDataValue('wsn', '');
-                    ['source', 'product_title', 'brand', 'cms_vertical', 'wid', 'fsn', 'order_id', 'fkqc_remark', 'fk_grade', 'hsn_sac', 'igst_rate', 'fsp', 'mrp', 'vrp', 'yield_value', 'invoice_date', 'fkt_link', 'wh_location', 'p_type', 'p_size', 'quantity'].forEach(c => rowNode.setDataValue(c, ''));
+                    // Clear all data columns using setData for performance
+                    const clearedData = { ...rowNode.data, wsn: '', source: '', product_title: '', brand: '', cms_vertical: '', wid: '', fsn: '', order_id: '', fkqc_remark: '', fk_grade: '', hsn_sac: '', igst_rate: '', fsp: '', mrp: '', vrp: '', yield_value: '', invoice_date: '', fkt_link: '', wh_location: '', p_type: '', p_size: '', quantity: '' };
+                    rowNode.setData(clearedData);
 
                     const updatedRows: any[] = [];
                     gridRef.current?.api.forEachNode((node: any) => { if (node.data) updatedRows.push(node.data); });
@@ -2108,8 +2719,9 @@ export default function OutboundPage() {
                             icon: '🚫',
                         });
 
-                        rowNode.setDataValue('wsn', '');
-                        ['source', 'product_title', 'brand', 'cms_vertical', 'wid', 'fsn', 'order_id', 'fkqc_remark', 'fk_grade', 'hsn_sac', 'igst_rate', 'fsp', 'mrp', 'vrp', 'yield_value', 'invoice_date', 'fkt_link', 'wh_location', 'p_type', 'p_size', 'quantity'].forEach(c => rowNode.setDataValue(c, ''));
+                        // Clear all data columns using setData for performance
+                        const clearedData = { ...rowNode.data, wsn: '', source: '', product_title: '', brand: '', cms_vertical: '', wid: '', fsn: '', order_id: '', fkqc_remark: '', fk_grade: '', hsn_sac: '', igst_rate: '', fsp: '', mrp: '', vrp: '', yield_value: '', invoice_date: '', fkt_link: '', wh_location: '', p_type: '', p_size: '', quantity: '' };
+                        rowNode.setData(clearedData);
 
                         const updatedRows: any[] = [];
                         gridRef.current?.api.forEachNode((node: any) => { if (node.data) updatedRows.push(node.data); });
@@ -2168,29 +2780,33 @@ export default function OutboundPage() {
                         }
                     }
 
-                    // Set all product columns from response
-                    rowNode.setDataValue('source', data.source || '');
-                    rowNode.setDataValue('product_title', data.product_title || '');
-                    rowNode.setDataValue('brand', data.brand || '');
-                    rowNode.setDataValue('cms_vertical', data.cms_vertical || '');
-                    rowNode.setDataValue('wid', data.wid || '');
-                    rowNode.setDataValue('fsn', data.fsn || '');
-                    rowNode.setDataValue('order_id', data.order_id || '');
-                    rowNode.setDataValue('fkqc_remark', data.fkqc_remark || '');
-                    rowNode.setDataValue('fk_grade', data.fk_grade || '');
-                    rowNode.setDataValue('hsn_sac', data.hsn_sac || '');
-                    rowNode.setDataValue('igst_rate', data.igst_rate || '');
-                    rowNode.setDataValue('fsp', data.fsp || '');
-                    rowNode.setDataValue('mrp', data.mrp || '');
-                    rowNode.setDataValue('vrp', data.vrp || '');
-                    rowNode.setDataValue('yield_value', data.yield_value || '');
-                    rowNode.setDataValue('invoice_date', data.invoice_date || '');
-                    rowNode.setDataValue('fkt_link', data.fkt_link || '');
-                    rowNode.setDataValue('wh_location', data.wh_location || '');
-                    rowNode.setDataValue('p_type', data.p_type || '');
-                    rowNode.setDataValue('p_size', data.p_size || '');
-                    // ⚡ AUTO-SET: Quantity defaults to 1 since WSN is unique per product
-                    rowNode.setDataValue('quantity', data.quantity || 1);
+                    // Set all product columns from response - using setData for performance (single update instead of 21 calls)
+                    const updatedData = {
+                        ...rowNode.data,
+                        source: data.source || '',
+                        product_title: data.product_title || '',
+                        brand: data.brand || '',
+                        cms_vertical: data.cms_vertical || '',
+                        wid: data.wid || '',
+                        fsn: data.fsn || '',
+                        order_id: data.order_id || '',
+                        fkqc_remark: data.fkqc_remark || '',
+                        fk_grade: data.fk_grade || '',
+                        hsn_sac: data.hsn_sac || '',
+                        igst_rate: data.igst_rate || '',
+                        fsp: data.fsp || '',
+                        mrp: data.mrp || '',
+                        vrp: data.vrp || '',
+                        yield_value: data.yield_value || '',
+                        invoice_date: data.invoice_date || '',
+                        fkt_link: data.fkt_link || '',
+                        wh_location: data.wh_location || '',
+                        p_type: data.p_type || '',
+                        p_size: data.p_size || '',
+                        // ⚡ AUTO-SET: Quantity defaults to 1 since WSN is unique per product
+                        quantity: data.quantity || 1,
+                    };
+                    rowNode.setData(updatedData);
 
                     // ⚡ CTRL+O: Update last scanned row ref for product link shortcut
                     lastScannedRowRef.current = { wsn, ...data };
@@ -2334,7 +2950,16 @@ export default function OutboundPage() {
         if (!key) return;
         setDraftSaving(true);
         try {
-            await localforage.setItem(key, { rows: rowsToSave, savedAt: Date.now(), version: 1 });
+            // ⚡ DRAFT: Save customer and vehicle along with rows
+            await localforage.setItem(key, {
+                rows: rowsToSave,
+                savedAt: Date.now(),
+                version: 2,
+                // Include common fields in draft
+                customerName: selectedCustomer || commonCustomer,
+                vehicleNo: commonVehicle,
+                dispatchDate: commonDate,
+            });
             setDraftSavedAt(Date.now());
             setDraftExists(true);
         } catch (err) {
@@ -2351,6 +2976,10 @@ export default function OutboundPage() {
             await localforage.removeItem(key);
             setDraftSavedAt(null);
             setDraftExists(false);
+            // Also clear customer and vehicle fields
+            setCommonCustomer('');
+            setSelectedCustomer('');
+            setCommonVehicle('');
             toast.success('Draft cleared');
         } catch (err) {
             console.error('Failed to clear outbound draft', err);
@@ -2379,7 +3008,18 @@ export default function OutboundPage() {
                     setMultiRows(restored);
                     setDraftSavedAt(draft.savedAt || Date.now());
                     setDraftExists(true);
-                    // toast.success('✓ Draft restored');
+
+                    // ⚡ DRAFT: Restore customer and vehicle from draft
+                    if (draft.customerName) {
+                        setSelectedCustomer(draft.customerName);
+                        setCommonCustomer(draft.customerName);
+                    }
+                    if (draft.vehicleNo) {
+                        setCommonVehicle(draft.vehicleNo);
+                    }
+                    if (draft.dispatchDate) {
+                        setCommonDate(draft.dispatchDate);
+                    }
                 }
             } catch (err) {
                 console.error('Failed to load outbound draft', err);
@@ -2389,7 +3029,7 @@ export default function OutboundPage() {
         return () => { mounted = false; };
     }, [activeWarehouse?.id, user?.id]);
 
-    // Autosave (debounced) whenever multiRows change
+    // Autosave (debounced) whenever multiRows or common fields change
     useEffect(() => {
         lastChangeAtRef.current = Date.now();
 
@@ -2401,7 +3041,7 @@ export default function OutboundPage() {
         return () => {
             if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
         };
-    }, [multiRows, activeWarehouse?.id, user?.id]);
+    }, [multiRows, activeWarehouse?.id, user?.id, selectedCustomer, commonCustomer, commonVehicle, commonDate]);
 
     // Warn on unload if there are unsaved changes
     useEffect(() => {
@@ -4967,7 +5607,7 @@ export default function OutboundPage() {
                                                 <Button
                                                     size="small"
                                                     variant="outlined"
-                                                    onClick={exportMultiEntryToExcel}
+                                                    onClick={() => setExportConfirmOpen(true)}
                                                     disabled={!multiRows.some((r: any) => r.wsn?.trim())}
                                                     sx={{
                                                         fontSize: '0.7rem',
@@ -5212,6 +5852,63 @@ export default function OutboundPage() {
                                 </Button>
                             </DialogActions>
                         </Dialog>
+
+                        {/* Export Confirmation Dialog */}
+                        <Dialog
+                            open={exportConfirmOpen}
+                            onClose={() => setExportConfirmOpen(false)}
+                            PaperProps={{
+                                sx: {
+                                    borderRadius: 2,
+                                    minWidth: 340,
+                                }
+                            }}
+                        >
+                            <DialogTitle sx={{
+                                pb: 1,
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 1,
+                                fontWeight: 700,
+                                color: '#1e40af'
+                            }}>
+                                <DownloadIcon sx={{ color: '#10b981' }} />
+                                Export to Excel
+                            </DialogTitle>
+                            <DialogContent>
+                                <Typography variant="body2" color="text.secondary">
+                                    Export {multiRows.filter((r: any) => r.wsn?.trim()).length} rows with WSN data to Excel file?
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                                    All columns including product details will be exported.
+                                </Typography>
+                            </DialogContent>
+                            <DialogActions sx={{ p: 2, pt: 1 }}>
+                                <Button
+                                    onClick={() => setExportConfirmOpen(false)}
+                                    sx={{ color: '#64748b', fontWeight: 600 }}
+                                >
+                                    Cancel
+                                </Button>
+                                <Button
+                                    variant="contained"
+                                    onClick={() => {
+                                        setExportConfirmOpen(false);
+                                        exportMultiEntryToExcel();
+                                    }}
+                                    sx={{
+                                        background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                                        fontWeight: 700,
+                                        '&:hover': {
+                                            background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+                                        }
+                                    }}
+                                >
+                                    Yes, Export
+                                </Button>
+                            </DialogActions>
+                        </Dialog>
+
                         {multiErrorMessage && (
                             <Alert severity="error" sx={{ mb: 0.5, py: 0.5, borderRadius: 1, fontSize: '0.75rem', fontWeight: 600 }} onClose={() => setMultiErrorMessage('')}>
                                 {multiErrorMessage}
@@ -5362,13 +6059,18 @@ export default function OutboundPage() {
                                     }
                                 }}
 
-                                // ⚡ PERFORMANCE: Optimizations
-                                rowBuffer={20}
+                                // ⚡ PERFORMANCE: Optimizations for smooth grid experience
+                                rowBuffer={30}
                                 animateRows={false}
                                 suppressScrollOnNewData={true}
                                 debounceVerticalScrollbar={true}
                                 suppressPropertyNamesCheck={true}
                                 valueCache={true}
+                                suppressCellFocus={false}
+                                suppressRowHoverHighlight={false}
+                                suppressColumnVirtualisation={false}
+                                suppressRowVirtualisation={false}
+                                suppressAnimationFrame={false}
 
                                 // ✅ Save column widths when resized (matching inbound pattern)
                                 onColumnResized={(params: any) => {
