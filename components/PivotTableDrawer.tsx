@@ -524,7 +524,7 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
         )
         : drilldownData;
 
-    const drawerWidth = isMobile ? '100%' : 700;
+    const drawerWidth = isMobile ? '100%' : 900;
 
     const groupByOptions = [
         { value: 'cms_vertical', label: 'Category' },
@@ -597,10 +597,12 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
                         display: 'flex',
                         alignItems: 'center',
                         gap: 2,
-                        flexWrap: 'wrap',
+                        flexWrap: { xs: 'wrap', md: 'nowrap' }, // no wrap on md+
+                        overflowX: 'auto',
+                        whiteSpace: 'nowrap',
                     }}
                 >
-                    <FormControl size="small" sx={{ minWidth: 120 }}>
+                    <FormControl size="small" sx={{ minWidth: 120, flex: '0 0 auto' }}>
                         <InputLabel>Group By</InputLabel>
                         <Select
                             value={groupBy}
@@ -659,7 +661,7 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
                         </Button>
                     )}
 
-                    <Box sx={{ flex: 1 }} />
+                    <Box sx={{ flex: 1, minWidth: 0 }} />
 
                     <Button
                         size="small"
