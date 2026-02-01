@@ -17,7 +17,8 @@ import {
   DeleteSweep as DeleteSweepIcon, Download as DownloadIcon, Search as SearchIcon,
   Speed as SpeedIcon, Clear as ClearIcon, CheckCircle, Settings as SettingsIcon,
   Tune as TuneIcon, Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon,
-  ExpandMore as ExpandMoreIcon, Close as CloseIcon, KeyboardArrowLeft, KeyboardArrowRight, FirstPage, LastPage, AccessTime
+  ExpandMore as ExpandMoreIcon, Close as CloseIcon, KeyboardArrowLeft, KeyboardArrowRight, FirstPage, LastPage, AccessTime,
+  Print as PrintIcon
 } from '@mui/icons-material';
 import toast, { Toaster } from 'react-hot-toast';
 import { getStoredUser, logout } from '@/lib/auth';
@@ -28,6 +29,7 @@ import { useWarehouse } from '@/app/context/WarehouseContext';
 // ⚡ OPTIMIZED: XLSX loaded dynamically on export to reduce bundle size
 // import * as XLSX from 'xlsx'; // Removed - loaded dynamically
 import { useMasterDataPermissions } from '@/hooks/usePagePermissions';
+import { printLabel, isAgentRunning } from '@/lib/printAgent';
 // Simple localStorage-based grid state (native ag-Grid pattern)
 
 import FilterListIcon from '@mui/icons-material/FilterList';
@@ -200,40 +202,85 @@ const ActionsCellRenderer = memo((props: any) => {
   const showDeleteButton = isAdmin || canSeeButton?.('delete');
   const canDelete = isAdmin || canAccessButton?.('delete');
 
+  // Print button - always available if agent is ready
+  const { onPrint, agentReady } = context || {};
+
+  // Common button styles - professional look with no focus border
+  const buttonBase = {
+    width: 28,
+    height: 28,
+    borderRadius: '6px',
+    border: 'none',
+    transition: 'all 0.15s ease',
+    '&:focus': { outline: 'none' },
+    '&:focus-visible': { outline: 'none' },
+    '&.MuiIconButton-root:focus': { outline: 'none', boxShadow: 'none' },
+    '&.MuiIconButton-root:focus-visible': { outline: 'none', boxShadow: 'none' },
+  };
+
   return (
-    <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'center', alignItems: 'center', height: '100%' }}>
+    <Box sx={{ display: 'flex', gap: 0.75, justifyContent: 'center', alignItems: 'center', height: '100%' }}>
+      {/* Print Button */}
+      <IconButton
+        size="small"
+        onClick={(e) => { e.stopPropagation(); onPrint?.(data); }}
+        disabled={!agentReady}
+        sx={{
+          ...buttonBase,
+          bgcolor: agentReady ? 'rgba(34, 197, 94, 0.15)' : 'rgba(158, 158, 158, 0.1)',
+          opacity: agentReady ? 1 : 0.4,
+          '&:hover': {
+            bgcolor: agentReady ? 'rgba(34, 197, 94, 0.25)' : 'rgba(158, 158, 158, 0.1)',
+            transform: agentReady ? 'scale(1.08)' : 'none',
+          },
+          '&:active': { transform: 'scale(0.95)' },
+        }}
+        title={agentReady ? 'Print WSN Label' : 'Print Agent not available'}
+      >
+        <PrintIcon sx={{ fontSize: 15, color: agentReady ? '#16a34a' : '#9e9e9e' }} />
+      </IconButton>
+
+      {/* Edit Button */}
       {showEditButton && (
         <IconButton
           size="small"
-          onClick={() => context?.onEdit?.(data)}
+          onClick={(e) => { e.stopPropagation(); context?.onEdit?.(data); }}
           disabled={!canEdit}
           sx={{
-            bgcolor: canEdit ? '#e3f2fd' : '#f5f5f5',
-            borderRadius: 1,
-            p: 0.5,
-            opacity: canEdit ? 1 : 0.5,
-            '&:hover': { bgcolor: canEdit ? '#bbdefb' : '#f5f5f5' }
+            ...buttonBase,
+            bgcolor: canEdit ? 'rgba(59, 130, 246, 0.15)' : 'rgba(158, 158, 158, 0.1)',
+            opacity: canEdit ? 1 : 0.4,
+            '&:hover': {
+              bgcolor: canEdit ? 'rgba(59, 130, 246, 0.25)' : 'rgba(158, 158, 158, 0.1)',
+              transform: canEdit ? 'scale(1.08)' : 'none',
+            },
+            '&:active': { transform: 'scale(0.95)' },
           }}
           title="Edit"
         >
-          <EditIcon sx={{ fontSize: 16, color: canEdit ? '#1e40af' : '#9e9e9e' }} />
+          <EditIcon sx={{ fontSize: 15, color: canEdit ? '#2563eb' : '#9e9e9e' }} />
         </IconButton>
       )}
+
+      {/* Delete Button */}
       {showDeleteButton && (
         <IconButton
           size="small"
-          onClick={() => context?.onDelete?.(data)}
+          onClick={(e) => { e.stopPropagation(); context?.onDelete?.(data); }}
           disabled={!canDelete}
           sx={{
-            bgcolor: canDelete ? '#ffebee' : '#f5f5f5',
-            borderRadius: 1,
-            p: 0.5,
-            opacity: canDelete ? 1 : 0.5,
-            '&:hover': { bgcolor: canDelete ? '#ffcdd2' : '#f5f5f5' }
+            ...buttonBase,
+            bgcolor: canDelete ? 'rgba(239, 68, 68, 0.15)' : 'rgba(158, 158, 158, 0.1)',
+            opacity: canDelete ? 1 : 0.4,
+            '&:hover': {
+              bgcolor: canDelete ? 'rgba(239, 68, 68, 0.25)' : 'rgba(158, 158, 158, 0.1)',
+              transform: canDelete ? 'scale(1.08)' : 'none',
+            },
+            '&:active': { transform: 'scale(0.95)' },
           }}
           title="Delete"
         >
-          <DeleteIcon sx={{ fontSize: 16, color: canDelete ? '#d32f2f' : '#9e9e9e' }} />
+          <DeleteIcon sx={{ fontSize: 15, color: canDelete ? '#dc2626' : '#9e9e9e' }} />
         </IconButton>
       )}
     </Box>
@@ -313,6 +360,9 @@ export default function MasterDataPage() {
 
   // Permission hook
   const { filterTabs, canSeeTab, canSeeButton, canAccessButton, isAdmin, isLoading: permLoading } = useMasterDataPermissions();
+
+  // ====== PRINT AGENT STATE ======
+  const [agentReady, setAgentReady] = useState(false);
 
   const [user, setUser] = useState<any>(null);
   const [masterData, setMasterData] = useState<any[]>([]);
@@ -516,7 +566,7 @@ export default function MasterDataPage() {
       filter: false,
       pinned: 'left',
       lockPinned: true,
-      cellStyle: { fontWeight: 700, textAlign: 'center', backgroundColor: isDarkMode ? '#1e293b' : '#fafafa' },
+      cellStyle: { fontWeight: 700, textAlign: 'center' },
     };
 
     // Include ALL columns with hide property - columnDefs structure never changes
@@ -598,8 +648,9 @@ export default function MasterDataPage() {
       sortable: false,
       filter: false,
       resizable: true,
-      width: 100,
-      maxWidth: 120,
+      width: 130,
+      maxWidth: 150,
+      suppressCellFocus: true,
       cellRenderer: ActionsCellRenderer
     });
 
@@ -643,6 +694,58 @@ export default function MasterDataPage() {
   useEffect(() => {
     setIsClient(true);
   }, []);
+
+  // ====== CHECK PRINT AGENT STATUS ======
+  useEffect(() => {
+    const checkAgent = async () => {
+      const running = await isAgentRunning();
+      setAgentReady(running);
+      if (running) {
+        console.log('✅ Print Agent is ready');
+      }
+    };
+    checkAgent();
+    // Re-check every 30 seconds in case agent starts/stops
+    const interval = setInterval(checkAgent, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // ====== PRINT WSN HANDLER ======
+  const handlePrintWSN = useCallback(async (rowData: any) => {
+    if (!rowData?.wsn?.trim()) {
+      toast.error('No WSN to print');
+      return;
+    }
+
+    if (!agentReady) {
+      toast.error('Print agent not available. Please ensure the print agent is running.');
+      return;
+    }
+
+    const wsnUpper = rowData.wsn.trim().toUpperCase();
+
+    try {
+      const printPayload = {
+        wsn: wsnUpper,
+        fsn: rowData.fsn || '',
+        product_title: rowData.product_title || '',
+        brand: rowData.brand || '',
+        mrp: String(rowData.mrp || ''),
+        fsp: String(rowData.fsp || ''),
+        copies: 1,
+      };
+
+      const printSuccess = await printLabel(printPayload);
+
+      if (printSuccess) {
+        toast.success(`✓ Label printed: ${wsnUpper}`, { duration: 2000 });
+      } else {
+        toast.error('Print failed - check printer settings');
+      }
+    } catch (err: any) {
+      toast.error(`Print error: ${err.message}`);
+    }
+  }, [agentReady]);
 
   // Initial setup
   useEffect(() => {
@@ -2262,53 +2365,64 @@ export default function MasterDataPage() {
                           border: 'none',
                         },
                         '& .ag-header': {
-                          backgroundColor: isDarkMode ? '#334155' : '#f1f5f9',
-                          borderBottom: isDarkMode ? '2px solid #475569' : '2px solid #d1d5db',
+                          backgroundColor: isDarkMode ? '#334155 !important' : '#f8fafc !important',
+                          borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.1) !important' : '1px solid rgba(0,0,0,0.08) !important',
+                          fontWeight: 600,
                           opacity: '1 !important',
                           zIndex: 15,
                           position: 'relative'
                         },
                         '& .ag-header-cell': {
-                          backgroundColor: isDarkMode ? '#334155' : '#f1f5f9',
-                          color: isDarkMode ? '#f1f5f9' : '#1e293b',
-                          fontWeight: 700,
-                          fontSize: '0.8rem',
-                          textTransform: 'uppercase',
-                          letterSpacing: '0.3px',
-                          borderRight: isDarkMode ? '1px solid #475569' : '1px solid #d1d5db',
-                          opacity: '1 !important'
-                        },
-                        '& .ag-header-cell:last-child': {
-                          borderRight: 'none',
+                          padding: '0 12px',
+                          opacity: '1 !important',
+                          fontWeight: 600,
+                          letterSpacing: '0.01em',
+                          backgroundColor: isDarkMode ? '#334155 !important' : 'transparent !important',
+                          color: isDarkMode ? '#f1f5f9 !important' : 'inherit',
                         },
                         '& .ag-body-viewport': {
                           opacity: loading ? 0.3 : 1,
                           transition: 'opacity 0.2s ease-in-out',
-                          backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
                         },
                         '& .ag-row': {
-                          height: 36,
-                          borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #e5e7eb',
+                          height: '44px !important',
+                          overflow: 'visible',
+                          transition: 'background-color 0.15s ease',
+                          borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.06) !important' : '1px solid rgba(0,0,0,0.06) !important',
                         },
-                        '& .ag-row-even': { backgroundColor: isDarkMode ? '#1e293b' : '#ffffff' },
-                        '& .ag-row-odd': { backgroundColor: isDarkMode ? '#1a2536' : '#f8fafc' },
+                        '& .ag-row-even': {
+                          backgroundColor: isDarkMode ? '#1a2536 !important' : '#ffffff !important',
+                        },
+                        '& .ag-row-odd': {
+                          backgroundColor: isDarkMode ? '#1e293b !important' : 'rgba(248,250,252,0.5) !important',
+                        },
                         '& .ag-cell': {
-                          borderRight: isDarkMode ? '1px solid #334155' : '1px solid #e5e7eb',
-                          color: isDarkMode ? '#f1f5f9' : '#1e293b',
                           display: 'flex',
                           alignItems: 'center',
-                        },
-                        '& .ag-cell:last-child': {
-                          borderRight: 'none',
+                          lineHeight: '44px !important',
+                          fontSize: '0.875rem !important',
+                          padding: '0 12px !important',
+                          color: isDarkMode ? '#f1f5f9 !important' : 'inherit',
+                          borderRight: 'none !important',
                         },
                         '& .ag-cell-focus': {
-                          border: isDarkMode ? '2px solid #38bdf8 !important' : '2px solid #2563eb !important',
-                          outline: 'none',
+                          border: '2px solid #1e40af !important',
+                          boxSizing: 'border-box',
+                          outline: 'none'
+                        },
+                        // Actions column - no focus border
+                        '& .ag-cell[col-id="actions"].ag-cell-focus': {
+                          border: 'none !important',
+                          boxShadow: 'none !important',
+                          outline: 'none !important',
                         },
                         '& .ag-cell-range-selected': {
-                          backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.25) !important' : '#dbeafe !important',
+                          backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.2) !important' : 'rgba(30,64,175,0.08) !important',
                         },
-                        '& .ag-row-hover': { backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.15) !important' : '#eff6ff !important' },
+                        '& .ag-row-hover': {
+                          backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.15) !important' : 'rgba(30,64,175,0.04) !important',
+                          transition: 'background-color 0.1s ease'
+                        },
                         '& .ag-overlay-loading-wrapper': {
                           backgroundColor: isDarkMode ? 'rgba(30, 41, 59, 0.9)' : 'rgba(255, 255, 255, 0.9)',
                         },
@@ -2328,6 +2442,8 @@ export default function MasterDataPage() {
                             context={{
                               onEdit: handleOpenEditDialog,
                               onDelete: handleOpenDeleteConfirm,
+                              onPrint: handlePrintWSN,
+                              agentReady,
                               canSeeButton,
                               canAccessButton,
                               isAdmin
