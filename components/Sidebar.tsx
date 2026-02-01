@@ -55,6 +55,7 @@ import {
 import { getStoredUser, logout } from '@/lib/auth';
 import { usePermissions } from '@/app/context/PermissionContext';
 import ConfirmDialog from './ConfirmDialog';
+import TypingTitle from './TypingTitle';
 
 interface SidebarProps {
   username?: string;
@@ -124,6 +125,7 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
     }, 150);
   }, [sidebarMode]);
 
+
   // Cleanup timer on unmount
   useEffect(() => {
     return () => {
@@ -136,6 +138,28 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
   // Compute collapsed state from mode
   // IMPORTANT: On mobile, never use hover mode collapsed state - mobile sidebar should always be fully expanded when open
   const collapsed = !isMobile && (sidebarMode === 'collapsed' || (sidebarMode === 'hover' && !isHovering));
+
+  const [titlePulse, setTitlePulse] = useState(0);
+  const prevCollapsedRef = useRef(collapsed);
+  const prevMobileOpenRef = useRef(mobileOpen);
+
+  useEffect(() => {
+    if (prevCollapsedRef.current !== collapsed) {
+      // animate only when expanded (collapsed === false)
+      if (!collapsed) setTitlePulse(p => p + 1);
+      prevCollapsedRef.current = collapsed;
+    }
+  }, [collapsed]);
+
+  useEffect(() => {
+    if (prevMobileOpenRef.current !== mobileOpen) {
+      // animate only when mobile drawer opens
+      if (mobileOpen) setTitlePulse(p => p + 1);
+      prevMobileOpenRef.current = mobileOpen;
+    }
+  }, [mobileOpen]);
+
+
 
   // Legacy setter for compatibility
   const setCollapsed = (value: boolean) => {
@@ -301,75 +325,69 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
 
   const drawerContent = (
     <>
-      <Toolbar sx={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 1.5,
-        minHeight: { xs: 56, sm: 64 },
-        px: { xs: 1.5, sm: 2 },
+      <Box sx={{
+        position: 'sticky',
+        top: 0, zIndex: 20,
+        bgcolor: 'transparent',
+        backdropFilter: 'blur(6px)'
       }}>
-        <IconButton
-          onClick={() => (isMobile ? (setMobileOpen && setMobileOpen(false)) : setCollapsed(!collapsed))}
-          sx={{
-            color: 'white',
-            ml: -0.5,
-            '&:hover': {
-              bgcolor: 'rgba(255,255,255,0.1)',
-            },
-          }}
-        >
-          <MenuIcon />
-        </IconButton>
-
-        {!collapsed && (
-          <Box sx={{ display: 'flex', alignItems: 'center', ml: 0.5 }}>
-            <Typography
-              title="Divine WMS"
-              aria-label="Divine WMS"
-              variant="h4"
-              onCopy={(e) => e.preventDefault()}
-              onMouseDown={(e) => e.preventDefault()}
-              draggable={false}
-              sx={{
-                fontWeight: 900,
-                fontSize: { xs: '20px', sm: '28px', md: '36px' }, // explicit px sizes
-                background: 'linear-gradient(90deg,#ffffff 0%,#c7d2fe 60%)',
-                WebkitBackgroundClip: 'text',
-                backgroundClip: 'text',
-                color: 'transparent',
-                letterSpacing: '0.6px',
-                lineHeight: 1,
-                textShadow: 'none',
-                transition: 'none',
-                userSelect: 'none',
-                cursor: 'default',
-                display: 'inline-block',
-                pointerEvents: 'none',
-
-              }}
-            >
-              Divine WMS
-            </Typography>
-          </Box>
-        )}
-
-        {isMobile && (
+        <Toolbar sx={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1.5,
+          minHeight: { xs: 56, sm: 64 },
+          px: { xs: 1.5, sm: 2 },
+        }}>
           <IconButton
+            onClick={() => (isMobile ? (setMobileOpen && setMobileOpen(false)) : setCollapsed(!collapsed))}
             sx={{
-              marginLeft: 'auto',
               color: 'white',
+              ml: -0.5,
               '&:hover': {
                 bgcolor: 'rgba(255,255,255,0.1)',
               },
             }}
-            onClick={() => setMobileOpen && setMobileOpen(false)}
           >
-            <CloseIcon />
+            <MenuIcon />
           </IconButton>
-        )}
-      </Toolbar>
 
-      <Divider sx={{ bgcolor: 'rgba(255,255,255,0.08)' }} />
+          {!collapsed && (
+            <Box sx={{ display: 'flex', alignItems: 'center', ml: 0.5 }}>
+              <TypingTitle
+                text="Divine WMS"
+                variant="h4"
+                pulseKey={titlePulse}
+                sx={{
+                  fontWeight: 900,
+                  fontSize: { xs: '20px', sm: '28px', md: '36px' },
+                  letterSpacing: '0.6px',
+                  lineHeight: 1,
+                  display: 'inline-block',
+                  pointerEvents: 'none',
+                  color: '#ffffff',
+                }}
+              />
+            </Box>
+          )}
+
+          {isMobile && (
+            <IconButton
+              sx={{
+                marginLeft: 'auto',
+                color: 'white',
+                '&:hover': {
+                  bgcolor: 'rgba(255,255,255,0.1)',
+                },
+              }}
+              onClick={() => setMobileOpen && setMobileOpen(false)}
+            >
+              <CloseIcon />
+            </IconButton>
+          )}
+        </Toolbar>
+
+        <Divider sx={{ bgcolor: 'rgba(255,255,255,0.08)' }} />
+      </Box>
 
       <List sx={{ px: 0.5, py: 1 }}>
         {mainMenu.map((item) => {
@@ -698,218 +716,223 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
       <Box sx={{ flexGrow: 1 }} />
 
       {/* Sidebar Control Menu - Like Supabase */}
-      {!isMobile && (() => {
-        // Compute mode checks outside conditional to avoid TypeScript narrowing issues
-        const isExpandedMode = sidebarMode === 'expanded';
-        const isCollapsedMode = sidebarMode === 'collapsed';
-        const isHoverMode = sidebarMode === 'hover';
+      {
+        !isMobile && (() => {
+          // Compute mode checks outside conditional to avoid TypeScript narrowing issues
+          const isExpandedMode = sidebarMode === 'expanded';
+          const isCollapsedMode = sidebarMode === 'collapsed';
+          const isHoverMode = sidebarMode === 'hover';
 
-        return (
-          <Tooltip
-            title={collapsed ? "Sidebar control" : ""}
-            placement="right"
-            arrow
-            slotProps={{
-              tooltip: {
-                sx: {
-                  bgcolor: '#1e293b',
-                  color: 'white',
-                  fontSize: '0.8rem',
-                  fontWeight: 500,
-                  px: 1.5,
-                  py: 0.75,
-                  borderRadius: 1,
-                  boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
+          return (
+            <Tooltip
+              title={collapsed ? "Sidebar control" : ""}
+              placement="right"
+              arrow
+              slotProps={{
+                tooltip: {
+                  sx: {
+                    bgcolor: '#1e293b',
+                    color: 'white',
+                    fontSize: '0.8rem',
+                    fontWeight: 500,
+                    px: 1.5,
+                    py: 0.75,
+                    borderRadius: 1,
+                    boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
+                  }
+                },
+                arrow: {
+                  sx: {
+                    color: '#1e293b',
+                  }
                 }
-              },
-              arrow: {
-                sx: {
-                  color: '#1e293b',
-                }
-              }
-            }}
-          >
-            <Box sx={{ px: 1, pb: 1 }}>
-              <ListItemButton
-                onClick={() => setSidebarControlOpen(!sidebarControlOpen)}
-                sx={{
-                  py: 0.75,
-                  px: 1.5,
-                  borderRadius: 1.5,
-                  color: 'rgba(255,255,255,0.6)',
-                  bgcolor: sidebarControlOpen ? 'rgba(255,255,255,0.08)' : 'transparent',
-                  transition: 'all 0.15s ease',
-                  '&:hover': {
-                    bgcolor: 'rgba(255,255,255,0.1)',
-                    color: 'rgba(255,255,255,0.9)',
-                  },
-                }}
-              >
-                <ListItemIcon sx={{
-                  color: 'inherit',
-                  minWidth: collapsed ? 'auto' : 32,
-                  transition: 'min-width 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
-                }}>
-                  <SidebarIcon sx={{ fontSize: 18 }} />
-                </ListItemIcon>
-                {!collapsed && (
-                  <>
-                    <ListItemText
-                      primary="Sidebar control"
-                      sx={{
-                        opacity: collapsed ? 0 : 1,
-                        transition: 'opacity 0.2s ease',
-                        whiteSpace: 'nowrap',
-                      }}
-                      primaryTypographyProps={{
-                        fontSize: '0.8rem',
-                        fontWeight: 500,
-                      }}
-                    />
-                    {sidebarControlOpen ? <ExpandLess sx={{ fontSize: 18 }} /> : <ExpandMore sx={{ fontSize: 18 }} />}
-                  </>
-                )}
-              </ListItemButton>
-
-              <AnimatePresence>
-                {sidebarControlOpen && !collapsed && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: 'auto', opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    transition={{ duration: 0.15 }}
-                    style={{ overflow: 'hidden' }}
-                  >
-                    <Box sx={{ pl: 1, pr: 0.5, py: 0.5 }}>
-                      {/* Expanded Option */}
-                      <ListItemButton
-                        onClick={() => setSidebarMode('expanded')}
+              }}
+            >
+              <Box sx={{ px: 1, pb: 1 }}>
+                <ListItemButton
+                  onClick={() => setSidebarControlOpen(!sidebarControlOpen)}
+                  sx={{
+                    py: 0.75,
+                    px: 1.5,
+                    borderRadius: 1.5,
+                    color: 'rgba(255,255,255,0.6)',
+                    bgcolor: sidebarControlOpen ? 'rgba(255,255,255,0.08)' : 'transparent',
+                    transition: 'all 0.15s ease',
+                    '&:hover': {
+                      bgcolor: 'rgba(255,255,255,0.1)',
+                      color: 'rgba(255,255,255,0.9)',
+                    },
+                  }}
+                >
+                  <ListItemIcon sx={{
+                    color: 'inherit',
+                    minWidth: collapsed ? 'auto' : 32,
+                    transition: 'min-width 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+                  }}>
+                    <SidebarIcon sx={{ fontSize: 18 }} />
+                  </ListItemIcon>
+                  {!collapsed && (
+                    <>
+                      <ListItemText
+                        primary="Sidebar control"
                         sx={{
-                          py: 0.5,
-                          px: 1,
-                          borderRadius: 1,
-                          color: isExpandedMode ? '#60a5fa' : 'rgba(255,255,255,0.7)',
-                          bgcolor: isExpandedMode ? 'rgba(59,130,246,0.15)' : 'transparent',
-                          '&:hover': {
-                            bgcolor: isExpandedMode ? 'rgba(59,130,246,0.2)' : 'rgba(255,255,255,0.06)',
-                          },
+                          opacity: collapsed ? 0 : 1,
+                          transition: 'opacity 0.2s ease',
+                          whiteSpace: 'nowrap',
                         }}
-                      >
-                        <Box sx={{ display: 'flex', alignItems: 'center', width: '100%', gap: 1.5 }}>
-                          {isExpandedMode ? (
-                            <Box sx={{
-                              width: 6, height: 6, borderRadius: '50%',
-                              bgcolor: '#60a5fa',
-                              boxShadow: '0 0 8px rgba(96,165,250,0.6)'
-                            }} />
-                          ) : (
-                            <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: 'transparent', border: '1px solid rgba(255,255,255,0.3)' }} />
-                          )}
-                          <ExpandIcon sx={{ fontSize: 16, opacity: 0.8 }} />
-                          <Typography sx={{ fontSize: '0.8rem', fontWeight: isExpandedMode ? 600 : 400 }}>
-                            Expanded
-                          </Typography>
-                        </Box>
-                      </ListItemButton>
-
-                      {/* Collapsed Option */}
-                      <ListItemButton
-                        onClick={() => setSidebarMode('collapsed')}
-                        sx={{
-                          py: 0.5,
-                          px: 1,
-                          borderRadius: 1,
-                          color: isCollapsedMode ? '#60a5fa' : 'rgba(255,255,255,0.7)',
-                          bgcolor: isCollapsedMode ? 'rgba(59,130,246,0.15)' : 'transparent',
-                          '&:hover': {
-                            bgcolor: isCollapsedMode ? 'rgba(59,130,246,0.2)' : 'rgba(255,255,255,0.06)',
-                          },
+                        primaryTypographyProps={{
+                          fontSize: '0.8rem',
+                          fontWeight: 500,
                         }}
-                      >
-                        <Box sx={{ display: 'flex', alignItems: 'center', width: '100%', gap: 1.5 }}>
-                          {isCollapsedMode ? (
-                            <Box sx={{
-                              width: 6, height: 6, borderRadius: '50%',
-                              bgcolor: '#60a5fa',
-                              boxShadow: '0 0 8px rgba(96,165,250,0.6)'
-                            }} />
-                          ) : (
-                            <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: 'transparent', border: '1px solid rgba(255,255,255,0.3)' }} />
-                          )}
-                          <CollapseIcon sx={{ fontSize: 16, opacity: 0.8 }} />
-                          <Typography sx={{ fontSize: '0.8rem', fontWeight: isCollapsedMode ? 600 : 400 }}>
-                            Collapsed
-                          </Typography>
-                        </Box>
-                      </ListItemButton>
+                      />
+                      {sidebarControlOpen ? <ExpandLess sx={{ fontSize: 18 }} /> : <ExpandMore sx={{ fontSize: 18 }} />}
+                    </>
+                  )}
+                </ListItemButton>
 
-                      {/* Expand on Hover Option */}
-                      <ListItemButton
-                        onClick={() => setSidebarMode('hover')}
-                        sx={{
-                          py: 0.5,
-                          px: 1,
-                          borderRadius: 1,
-                          color: isHoverMode ? '#60a5fa' : 'rgba(255,255,255,0.7)',
-                          bgcolor: isHoverMode ? 'rgba(59,130,246,0.15)' : 'transparent',
-                          '&:hover': {
-                            bgcolor: isHoverMode ? 'rgba(59,130,246,0.2)' : 'rgba(255,255,255,0.06)',
-                          },
-                        }}
-                      >
-                        <Box sx={{ display: 'flex', alignItems: 'center', width: '100%', gap: 1.5 }}>
-                          {isHoverMode ? (
-                            <Box sx={{
-                              width: 6, height: 6, borderRadius: '50%',
-                              bgcolor: '#60a5fa',
-                              boxShadow: '0 0 8px rgba(96,165,250,0.6)'
-                            }} />
-                          ) : (
-                            <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: 'transparent', border: '1px solid rgba(255,255,255,0.3)' }} />
-                          )}
-                          <HoverIcon sx={{ fontSize: 16, opacity: 0.8 }} />
-                          <Typography sx={{ fontSize: '0.8rem', fontWeight: isHoverMode ? 600 : 400 }}>
-                            Expand on hover
-                          </Typography>
-                        </Box>
-                      </ListItemButton>
-                    </Box>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </Box>
-          </Tooltip>
-        );
-      })()}
+                <AnimatePresence>
+                  {sidebarControlOpen && !collapsed && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.15 }}
+                      style={{ overflow: 'hidden' }}
+                    >
+                      <Box sx={{ pl: 1, pr: 0.5, py: 0.5 }}>
+                        {/* Expanded Option */}
+                        <ListItemButton
+                          onClick={() => setSidebarMode('expanded')}
+                          sx={{
+                            py: 0.5,
+                            px: 1,
+                            borderRadius: 1,
+                            color: isExpandedMode ? '#60a5fa' : 'rgba(255,255,255,0.7)',
+                            bgcolor: isExpandedMode ? 'rgba(59,130,246,0.15)' : 'transparent',
+                            '&:hover': {
+                              bgcolor: isExpandedMode ? 'rgba(59,130,246,0.2)' : 'rgba(255,255,255,0.06)',
+                            },
+                          }}
+                        >
+                          <Box sx={{ display: 'flex', alignItems: 'center', width: '100%', gap: 1.5 }}>
+                            {isExpandedMode ? (
+                              <Box sx={{
+                                width: 6, height: 6, borderRadius: '50%',
+                                bgcolor: '#60a5fa',
+                                boxShadow: '0 0 8px rgba(96,165,250,0.6)'
+                              }} />
+                            ) : (
+                              <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: 'transparent', border: '1px solid rgba(255,255,255,0.3)' }} />
+                            )}
+                            <ExpandIcon sx={{ fontSize: 16, opacity: 0.8 }} />
+                            <Typography sx={{ fontSize: '0.8rem', fontWeight: isExpandedMode ? 600 : 400 }}>
+                              Expanded
+                            </Typography>
+                          </Box>
+                        </ListItemButton>
 
-      {!collapsed && (
-        <Box sx={{
-          p: 2,
-          borderTop: '1px solid rgba(255,255,255,0.08)',
-          pb: { xs: 'calc(16px + env(safe-area-inset-bottom))', sm: 2 },
-        }}>
-          <Typography
-            variant="caption"
-            sx={{
-              color: 'rgba(255,255,255,0.5)',
-              fontSize: '0.75rem',
-              display: 'block',
-            }}
-          >
-            Logged in as
-          </Typography>
-          <Typography
-            variant="body2"
-            sx={{
-              color: 'rgba(255,255,255,0.8)',
-              fontWeight: 600,
-              fontSize: '0.8125rem',
-            }}
-          >
-            {userName}
-          </Typography>
-        </Box>
-      )}
+                        {/* Collapsed Option */}
+                        <ListItemButton
+                          onClick={() => setSidebarMode('collapsed')}
+                          sx={{
+                            py: 0.5,
+                            px: 1,
+                            borderRadius: 1,
+                            color: isCollapsedMode ? '#60a5fa' : 'rgba(255,255,255,0.7)',
+                            bgcolor: isCollapsedMode ? 'rgba(59,130,246,0.15)' : 'transparent',
+                            '&:hover': {
+                              bgcolor: isCollapsedMode ? 'rgba(59,130,246,0.2)' : 'rgba(255,255,255,0.06)',
+                            },
+                          }}
+                        >
+                          <Box sx={{ display: 'flex', alignItems: 'center', width: '100%', gap: 1.5 }}>
+                            {isCollapsedMode ? (
+                              <Box sx={{
+                                width: 6, height: 6, borderRadius: '50%',
+                                bgcolor: '#60a5fa',
+                                boxShadow: '0 0 8px rgba(96,165,250,0.6)'
+                              }} />
+                            ) : (
+                              <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: 'transparent', border: '1px solid rgba(255,255,255,0.3)' }} />
+                            )}
+                            <CollapseIcon sx={{ fontSize: 16, opacity: 0.8 }} />
+                            <Typography sx={{ fontSize: '0.8rem', fontWeight: isCollapsedMode ? 600 : 400 }}>
+                              Collapsed
+                            </Typography>
+                          </Box>
+                        </ListItemButton>
+
+                        {/* Expand on Hover Option */}
+                        <ListItemButton
+                          onClick={() => setSidebarMode('hover')}
+                          sx={{
+                            py: 0.5,
+                            px: 1,
+                            borderRadius: 1,
+                            color: isHoverMode ? '#60a5fa' : 'rgba(255,255,255,0.7)',
+                            bgcolor: isHoverMode ? 'rgba(59,130,246,0.15)' : 'transparent',
+                            '&:hover': {
+                              bgcolor: isHoverMode ? 'rgba(59,130,246,0.2)' : 'rgba(255,255,255,0.06)',
+                            },
+                          }}
+                        >
+                          <Box sx={{ display: 'flex', alignItems: 'center', width: '100%', gap: 1.5 }}>
+                            {isHoverMode ? (
+                              <Box sx={{
+                                width: 6, height: 6, borderRadius: '50%',
+                                bgcolor: '#60a5fa',
+                                boxShadow: '0 0 8px rgba(96,165,250,0.6)'
+                              }} />
+                            ) : (
+                              <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: 'transparent', border: '1px solid rgba(255,255,255,0.3)' }} />
+                            )}
+                            <HoverIcon sx={{ fontSize: 16, opacity: 0.8 }} />
+                            <Typography sx={{ fontSize: '0.8rem', fontWeight: isHoverMode ? 600 : 400 }}>
+                              Expand on hover
+                            </Typography>
+                          </Box>
+                        </ListItemButton>
+                      </Box>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </Box>
+            </Tooltip>
+          );
+        })()
+      }
+
+      {
+        !collapsed && (
+          <Box sx={{
+            p: 2,
+            borderTop: '1px solid rgba(255,255,255,0.08)',
+            pb: { xs: 'calc(16px + env(safe-area-inset-bottom))', sm: 2 },
+          }}>
+            <Typography
+              variant="caption"
+              sx={{
+                color: 'rgba(255,255,255,0.5)',
+                fontSize: '0.75rem',
+                display: 'block',
+              }}
+            >
+              Logged in as
+            </Typography>
+            <Typography
+              variant="body2"
+              sx={{
+                color: 'rgba(255,255,255,0.8)',
+                fontWeight: 600,
+                fontSize: '0.8125rem',
+              }}
+            >
+              {userName}
+            </Typography>
+          </Box>
+        )
+      }
+
     </>
   );
 
