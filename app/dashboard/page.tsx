@@ -1579,25 +1579,62 @@ export default function DashboardPage() {
             sx={{
               background: isDarkMode ? '#0f172a' : '#f8fafc',
               px: { xs: 1, sm: 2, md: 2 },
-              py: { xs: 1, sm: 1.5, md: 2 },
+              py: { xs: 0.5, sm: 0.75, md: 1 },
               display: "flex",
               flexDirection: "column",
-              gap: { xs: 0.1, md: 0.1 },
+              gap: { xs: 0.1, md: 1.0 },
               flexShrink: 0,
-              borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(0,0,0,0.06)',
+              borderBottom: 'transparent',
               // Sticky filter bar on desktop
-              position: { xs: 'static', md: 'sticky' },
+              position: { xs: 'static', gap: '0.1rem', md: '1rem' },
               top: { md: 0 },
               zIndex: { md: 10 },
               boxShadow: { md: isDarkMode ? '0 4px 12px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.08)' },
+
+              // Paste inside the existing sx object
+              '& .MuiOutlinedInput-root': {
+                bgcolor: 'transparent !important',
+                boxShadow: 'none !important',
+                '&:hover': { bgcolor: 'transparent !important' },
+                '&.Mui-focused': { bgcolor: 'transparent !important', boxShadow: 'none !important' },
+              },
+              '& .MuiOutlinedInput-input': {
+                background: 'transparent !important',
+              },
+              '& input[type="date"], & .MuiOutlinedInput-input[type="date"], & .MuiInputBase-input[type="date"]': {
+                background: 'transparent !important',
+                color: 'inherit !important',
+                WebkitAppearance: 'none !important',
+                MozAppearance: 'textfield !important',
+                appearance: 'none !important',
+                borderRadius: '6px !important',
+                padding: '0 6px !important',
+              },
+              '& input[type="date"]::-webkit-datetime-edit, & input[type="date"]::-webkit-datetime-edit-text, & input[type="date"]::-webkit-datetime-edit-month-field, & input[type="date"]::-webkit-datetime-edit-day-field, & input[type="date"]::-webkit-datetime-edit-year-field': {
+                background: 'transparent !important',
+                color: 'inherit !important',
+              },
+              '& input[type="date"]::-webkit-calendar-picker-indicator': {
+                WebkitAppearance: 'none',
+                appearance: 'none',
+                background: 'transparent',
+                padding: 0,
+                margin: 0,
+              },
+              '& input:-webkit-autofill': {
+                WebkitBoxShadow: '0 0 0 1000px transparent inset',
+                boxShadow: '0 0 0 1000px transparent inset',
+                WebkitTextFillColor: 'inherit',
+              },
             }}
+
           >
             {/* TOP ROW: Search + Dates (desktop) + Filters toggle (mobile) */}
             <Box
               sx={{
                 display: "flex",
                 flexDirection: { xs: "row", md: "row" },
-                gap: { xs: 0.75, md: 1.5 },
+                gap: { xs: 0.5, md: 1 },
                 alignItems: "center",
               }}
             >
@@ -1810,7 +1847,7 @@ export default function DashboardPage() {
 
             {/* BODY: collapsible */}
             <Collapse in={filtersOpen} timeout="auto" sx={{ display: { xs: 'none', md: 'block' } }}>
-              <Box sx={{ mt: { xs: 1, md: 0.5 } }}>
+              <Box sx={{ mt: { xs: 0.5, md: 0.25 } }}>
                 {/* Dates on mobile */}
                 <Box
                   sx={{
@@ -1905,7 +1942,11 @@ export default function DashboardPage() {
                           PaperProps: { style: { maxHeight: 300 } },
                         },
                       }}
-                      sx={{ "& .MuiOutlinedInput-root": { height: { xs: 36, md: 40 }, fontSize: { xs: '0.85rem', md: '0.95rem' } } }}
+                      sx={{
+                        "& .MuiOutlinedInput-root": {
+                          height: { xs: 36, md: 40 }, fontSize: { xs: '0.85rem', md: '0.95rem' }
+                        }
+                      }}
                     >
                       {PIPELINE_STAGES.map((s) => (
                         <MenuItem key={s.value} value={s.value}>
@@ -2742,7 +2783,43 @@ export default function DashboardPage() {
           </Toolbar>
         </AppBar>
 
-        <DialogContent sx={{ p: 2, bgcolor: isDarkMode ? '#0f172a' : 'background.default' }}>
+        <DialogContent sx={{
+          p: 2, bgcolor: isDarkMode ? '#0f172a' : 'background.default',
+          // add inside the Filter Bar Box sx: { ... }
+          '& .MuiOutlinedInput-root': {
+            bgcolor: 'transparent !important',
+            boxShadow: 'none !important',
+            '&:hover': { bgcolor: 'transparent !important' },
+            '&.Mui-focused': { bgcolor: 'transparent !important', boxShadow: 'none !important' },
+          },
+          '& .MuiOutlinedInput-input': {
+            background: 'transparent !important',
+          },
+          '& input:-webkit-autofill': {
+            WebkitBoxShadow: '0 0 0 1000px transparent inset',
+            boxShadow: '0 0 0 1000px transparent inset',
+            WebkitTextFillColor: 'inherit',
+          },
+          // Add inside the same sx block where you added previous overrides
+          '& input[type="date"]': {
+            background: 'transparent !important',
+            color: 'inherit !important',
+            WebkitAppearance: 'textfield',
+            MozAppearance: 'textfield',
+            appearance: 'textfield',
+          },
+          '& input[type="date"]::-webkit-calendar-picker-indicator': {
+            WebkitAppearance: 'none',
+            appearance: 'none',
+            background: 'transparent',
+            padding: 0,
+            margin: 0,
+          },
+          '& input[type="date"]::-webkit-datetime-edit-text, & input[type="date"]::-webkit-datetime-edit, & input[type="date"]::-webkit-datetime-edit-month-field, & input[type="date"]::-webkit-datetime-edit-day-field, & input[type="date"]::-webkit-datetime-edit-year-field': {
+            color: 'inherit',
+            background: 'transparent',
+          },
+        }}>
           <Stack spacing={2}>
             {/* Filters */}
             <Box>
