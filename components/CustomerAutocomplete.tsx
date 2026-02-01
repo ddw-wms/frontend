@@ -377,7 +377,7 @@ export default function CustomerAutocomplete({
                         '&:hover': { bgcolor: '#dcfce7' }
                     }}
                 >
-                    <PersonAddIcon sx={{ fontSize: 18, color: '#10b981' }} />
+                    <PersonAddIcon sx={{ fontSize: 14, color: '#10b981' }} />
                     <span>Add New Customer</span>
                 </Box>
             );

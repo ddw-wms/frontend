@@ -1577,12 +1577,12 @@ export default function DashboardPage() {
           {/* ================= FILTER BAR ================= */}
           <Box
             sx={{
-              background: isDarkMode ? '#1e293b' : 'white',
+              background: isDarkMode ? '#0f172a' : '#f8fafc',
               px: { xs: 1, sm: 2, md: 2 },
               py: { xs: 1, sm: 1.5, md: 2 },
               display: "flex",
               flexDirection: "column",
-              gap: { xs: 0.75, md: 1.5 },
+              gap: { xs: 0.1, md: 0.1 },
               flexShrink: 0,
               borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(0,0,0,0.06)',
               // Sticky filter bar on desktop

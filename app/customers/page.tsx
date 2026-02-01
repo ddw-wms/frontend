@@ -50,7 +50,10 @@ export default function CustomersPage() {
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const isDarkMode = theme.palette.mode === 'dark';
   const gridRef = useRef<AgGridReact>(null);
+  const columnApiRef = useRef<any>(null);
+  const hasAutoFittedRef = useRef(false);
   const [user, setUser] = useState<any>(null);
+  const [gridReady, setGridReady] = useState(false);
 
   // Permission hook
   const { canSeeButton, isAdmin, isLoading: permLoading } = useCustomersPermissions();
@@ -630,82 +633,193 @@ export default function CustomersPage() {
             display: 'flex',
             flexDirection: 'column',
             bgcolor: isDarkMode ? '#1e293b' : 'white',
+            transition: 'opacity 0.2s ease-in-out',
+            opacity: loading ? 0.6 : 1,
+            // Header styling
             '& .ag-header': {
-              background: isDarkMode ? '#1e3a5f' : '#1e3a5f',
+              background: '#1e3a5f !important',
               borderBottom: 'none'
+            },
+            '& .ag-header-row': {
+              background: '#1e3a5f !important',
             },
             '& .ag-header-cell': {
               padding: '0 12px',
               fontWeight: 600,
               letterSpacing: '0.01em',
-              backgroundColor: isDarkMode ? '#1e3a5f' : '#1e3a5f',
+              backgroundColor: '#1e3a5f !important',
               color: '#ffffff !important',
             },
             '& .ag-header-cell-text': {
-              color: '#ffffff',
+              color: '#ffffff !important',
               fontWeight: 700,
               fontSize: '0.75rem'
             },
+            '& .ag-header-icon': {
+              color: '#ffffff !important'
+            },
+            '& .ag-icon': {
+              color: isDarkMode ? '#94a3b8 !important' : 'inherit'
+            },
+            // Root and body styling for dark mode
+            '& .ag-root-wrapper': {
+              backgroundColor: isDarkMode ? '#1e293b !important' : 'white',
+              border: 'none !important'
+            },
+            '& .ag-root': {
+              backgroundColor: isDarkMode ? '#1e293b !important' : 'white'
+            },
+            '& .ag-body-viewport': {
+              backgroundColor: isDarkMode ? '#1e293b !important' : 'white'
+            },
+            '& .ag-center-cols-viewport': {
+              backgroundColor: isDarkMode ? '#1e293b !important' : 'white'
+            },
+            '& .ag-center-cols-container': {
+              backgroundColor: isDarkMode ? '#1e293b !important' : 'white'
+            },
+            // Row styling
             '& .ag-row': {
-              height: 44,
-              borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.06)' : '1px solid rgba(0,0,0,0.06)',
+              backgroundColor: isDarkMode ? '#1e293b !important' : '#ffffff',
+              borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.08) !important' : '1px solid rgba(0,0,0,0.06)',
             },
             '& .ag-row-even': {
-              backgroundColor: isDarkMode ? '#1a2536' : '#ffffff',
+              backgroundColor: isDarkMode ? '#0f172a !important' : '#ffffff !important',
             },
             '& .ag-row-odd': {
-              backgroundColor: isDarkMode ? '#1e293b' : 'rgba(248,250,252,0.5)',
+              backgroundColor: isDarkMode ? '#1e293b !important' : 'rgba(248,250,252,0.5) !important',
             },
+            // Cell styling - critical for text visibility
             '& .ag-cell': {
               fontSize: '0.85rem',
               display: 'flex',
               alignItems: 'center',
               padding: '0 12px',
-              color: isDarkMode ? '#f1f5f9' : 'inherit',
+              color: isDarkMode ? '#f1f5f9 !important' : '#1e293b',
+              backgroundColor: 'transparent !important',
             },
+            '& .ag-cell-value': {
+              color: isDarkMode ? '#f1f5f9 !important' : '#1e293b'
+            },
+            '& .ag-cell-wrapper': {
+              color: isDarkMode ? '#f1f5f9 !important' : '#1e293b'
+            },
+            // Hover effect
             '& .ag-row-hover': {
-              backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.15) !important' : 'rgba(30,64,175,0.04) !important',
+              backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.2) !important' : 'rgba(30,64,175,0.04) !important',
             },
+            '& .ag-row-hover .ag-cell': {
+              backgroundColor: 'transparent !important',
+            },
+            // No rows overlay
+            '& .ag-overlay-no-rows-wrapper': {
+              backgroundColor: isDarkMode ? '#1e293b !important' : 'white',
+              color: isDarkMode ? '#94a3b8' : '#64748b'
+            },
+            '& .ag-overlay': {
+              backgroundColor: isDarkMode ? '#1e293b !important' : 'white'
+            },
+            // Scrollbar styling for dark mode
+            '& .ag-body-horizontal-scroll-viewport, & .ag-body-vertical-scroll-viewport': {
+              backgroundColor: isDarkMode ? '#0f172a' : '#f1f5f9'
+            }
           }}
         >
-          <Box className={isDarkMode ? 'ag-theme-quartz-dark' : 'ag-theme-quartz'} sx={{ flex: 1, minHeight: 0 }}>
-            {loading ? (
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+          <div className="ag-theme-quartz" style={{ flex: 1, minHeight: 0, height: '100%', width: '100%', position: 'relative' }}>
+            {loading && !gridReady && (
+              <Box sx={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, bgcolor: isDarkMode ? 'rgba(15,23,42,0.8)' : 'rgba(255,255,255,0.8)' }}>
                 <CircularProgress size={50} />
               </Box>
-            ) : (
-              <AgGridReact
-                ref={gridRef}
-                rowData={paginatedCustomers}
-                columnDefs={columnDefs}
-                defaultColDef={defaultColDef}
-                animateRows={false}
-                rowSelection={{ mode: 'singleRow', checkboxes: false, enableClickSelection: true }}
-                suppressCellFocus={true}
-                getRowId={(params) => String(params.data.id)}
-                overlayNoRowsTemplate="<div style='padding: 20px; font-weight: 600; color: #94a3b8;'>📭 No customers found</div>"
-                rowHeight={44}
-                headerHeight={40}
-              />
             )}
-          </Box>
-
-          {/* Pagination Footer - Dashboard Style */}
-          <Fade in={true} timeout={300}>
-            <Box
-              sx={{
-                px: 2,
-                py: 0.75,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                borderTop: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #ddd',
-                bgcolor: isDarkMode ? '#1e293b' : 'white',
-                flexShrink: 0,
-                minHeight: 52,
+            <AgGridReact
+              ref={gridRef}
+              rowData={paginatedCustomers}
+              columnDefs={columnDefs}
+              defaultColDef={defaultColDef}
+              animateRows={false}
+              rowSelection={{ mode: 'singleRow', checkboxes: false, enableClickSelection: true }}
+              suppressCellFocus={true}
+              enableCellTextSelection={true}
+              ensureDomOrder={true}
+              getRowId={(params) => String(params.data.id)}
+              overlayNoRowsTemplate={`<div style='padding: 20px; font-weight: 600; color: ${isDarkMode ? '#94a3b8' : '#64748b'};'>📭 No customers found</div>`}
+              rowHeight={44}
+              headerHeight={40}
+              onGridReady={(params: any) => {
+                columnApiRef.current = params.api;
+                setGridReady(true);
+                // Restore saved column state from localStorage
+                try {
+                  const saved = localStorage.getItem('customers_grid_state');
+                  if (saved) {
+                    const state = JSON.parse(saved);
+                    params.api.applyColumnState({ state, applyOrder: true });
+                    hasAutoFittedRef.current = true;
+                  }
+                } catch { /* ignore */ }
               }}
-            >
-              <Stack direction="row" spacing={1.5} alignItems="center">
+              onFirstDataRendered={(params: any) => {
+                // Auto-size columns on first load if no saved state
+                if (!hasAutoFittedRef.current && params.api) {
+                  try {
+                    const allColIds = params.api.getColumns()
+                      ?.filter((col: any) => col.getColId() !== 'actions')
+                      .map((col: any) => col.getColId()) || [];
+                    if (allColIds.length > 0) {
+                      params.api.autoSizeColumns(allColIds);
+                    }
+                    hasAutoFittedRef.current = true;
+                  } catch { /* ignore */ }
+                }
+              }}
+              onColumnResized={(params: any) => {
+                // Save state when user finishes resizing
+                if (params.finished && params.api) {
+                  try {
+                    const state = params.api.getColumnState();
+                    localStorage.setItem('customers_grid_state', JSON.stringify(state));
+                  } catch { /* ignore */ }
+                }
+              }}
+              onColumnMoved={(params: any) => {
+                // Save state when user finishes moving columns
+                if (params.finished && params.api) {
+                  try {
+                    const state = params.api.getColumnState();
+                    localStorage.setItem('customers_grid_state', JSON.stringify(state));
+                  } catch { /* ignore */ }
+                }
+              }}
+            />
+          </div>
+        </Box>
+
+        {/* Pagination Footer - Responsive Dashboard Style */}
+        <Fade in={true} timeout={300}>
+          <Box
+            sx={{
+              px: { xs: 1, sm: 2 },
+              py: { xs: 1, sm: 0.75 },
+              display: 'flex',
+              flexDirection: { xs: 'column', sm: 'row' },
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: { xs: 1, sm: 0 },
+              borderTop: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #ddd',
+              bgcolor: isDarkMode ? '#1e293b' : 'white',
+              flexShrink: 0,
+              minHeight: { xs: 'auto', sm: 52 },
+            }}
+          >
+            {/* Row 1 on Mobile: Page Size + Record Count */}
+            <Box sx={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: { xs: 'space-between', sm: 'flex-start' },
+              width: { xs: '100%', sm: 'auto' },
+              gap: 1.5
+            }}>
+              <Stack direction="row" spacing={1} alignItems="center">
                 <Typography sx={{ fontSize: '0.78rem', whiteSpace: 'nowrap', color: isDarkMode ? '#94a3b8' : 'inherit' }}>
                   Page Size:
                 </Typography>
@@ -713,7 +827,7 @@ export default function CustomersPage() {
                   size="small"
                   value={pageSize}
                   onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }}
-                  sx={{ minWidth: 70, '& .MuiSelect-select': { py: 0.75, fontSize: '0.875rem' } }}
+                  sx={{ minWidth: 65, '& .MuiSelect-select': { py: 0.5, fontSize: '0.8rem' } }}
                 >
                   <MenuItem value={25}>25</MenuItem>
                   <MenuItem value={50}>50</MenuItem>
@@ -722,30 +836,42 @@ export default function CustomersPage() {
                 </Select>
               </Stack>
 
-              <Typography sx={{ fontSize: '0.78rem', color: isDarkMode ? '#94a3b8' : 'inherit' }}>
-                {(page - 1) * pageSize + 1}to{Math.min(page * pageSize, customers.length)}of{customers.length}
+              <Typography sx={{ fontSize: '0.78rem', color: isDarkMode ? '#94a3b8' : 'inherit', whiteSpace: 'nowrap' }}>
+                {(page - 1) * pageSize + 1} to {Math.min(page * pageSize, customers.length)} of {customers.length}
               </Typography>
-
-              <Stack direction="row" spacing={0.5} alignItems="center">
-                <Typography sx={{ fontSize: '0.78rem', color: isDarkMode ? '#94a3b8' : 'inherit', mr: 1 }}>
-                  Page {page} of {totalPages}
-                </Typography>
-                <Pagination
-                  count={totalPages}
-                  page={page}
-                  onChange={(_, newPage) => setPage(newPage)}
-                  size="small"
-                  showFirstButton
-                  showLastButton
-                  sx={{
-                    '& .MuiPaginationItem-root': { fontSize: '0.75rem' },
-                    '& .Mui-selected': { bgcolor: '#1e40af !important', color: 'white' }
-                  }}
-                />
-              </Stack>
             </Box>
-          </Fade>
-        </Box>
+
+            {/* Row 2 on Mobile: Pagination */}
+            <Stack direction="row" spacing={0.5} alignItems="center" justifyContent="center">
+              <Typography sx={{
+                fontSize: '0.78rem',
+                color: isDarkMode ? '#94a3b8' : 'inherit',
+                mr: 1,
+                display: { xs: 'none', md: 'block' }
+              }}>
+                Page {page} of {totalPages}
+              </Typography>
+              <Pagination
+                count={totalPages}
+                page={page}
+                onChange={(_, newPage) => setPage(newPage)}
+                size="small"
+                showFirstButton
+                showLastButton
+                siblingCount={isMobile ? 0 : 1}
+                boundaryCount={isMobile ? 1 : 1}
+                sx={{
+                  '& .MuiPaginationItem-root': {
+                    fontSize: { xs: '0.7rem', sm: '0.75rem' },
+                    minWidth: { xs: 28, sm: 32 },
+                    height: { xs: 28, sm: 32 }
+                  },
+                  '& .Mui-selected': { bgcolor: '#1e40af !important', color: 'white' }
+                }}
+              />
+            </Stack>
+          </Box>
+        </Fade>
       </Box>
 
       {/* ZOHO-STYLE ADD/EDIT DIALOG */}
