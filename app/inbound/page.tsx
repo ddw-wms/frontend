@@ -1495,9 +1495,15 @@ export default function InboundPage() {
     try {
       const wsnUpper = singleWSN.trim().toUpperCase();
       setSingleLoading(true);
-      const response = await inboundAPI.getMasterDataByWSN(wsnUpper);
-      setMasterData(response.data);
-      setDuplicateWSN(null);
+      // ⚡ Use cached version for faster response when network is slow
+      const data = await getLocalMasterData(wsnUpper);
+      if (data) {
+        setMasterData(data);
+        setDuplicateWSN(null);
+      } else {
+        toast.error('WSN not found in master data');
+        setMasterData(null);
+      }
     } catch (error: any) {
       if (error.response?.status === 404) {
         toast.error('WSN not found in master data');
@@ -1519,9 +1525,14 @@ export default function InboundPage() {
 
     try {
       const wsnUpper = wsn.trim().toUpperCase();
-      const response = await inboundAPI.getMasterDataByWSN(wsnUpper);
-      setMasterData(response.data);
-      setDuplicateWSN(null);
+      // ⚡ Use cached version for faster response when network is slow
+      const data = await getLocalMasterData(wsnUpper);
+      if (data) {
+        setMasterData(data);
+        setDuplicateWSN(null);
+      } else {
+        setMasterData(null);
+      }
     } catch (error: any) {
       if (error.response?.status === 404) {
         // Don't show toast for auto-fetch, only on blur
@@ -2851,27 +2862,28 @@ export default function InboundPage() {
       debounceTimerRef.current = setTimeout(async () => {
         try {
           const wsnUpper = value.trim().toUpperCase();
-          const response = await inboundAPI.getMasterDataByWSN(wsnUpper);
-          const masterInfo = response.data;
+          // ⚡ Use cached version for faster response when network is slow
+          const masterInfo = await getLocalMasterData(wsnUpper);
 
-          setMultiRows(prevRows => {
-            const updatedRows = [...prevRows];
-            ALL_MASTER_COLUMNS.forEach(col => {
-              updatedRows[index][col] = masterInfo[col] || null;
+          if (masterInfo) {
+            setMultiRows(prevRows => {
+              const updatedRows = [...prevRows];
+              ALL_MASTER_COLUMNS.forEach(col => {
+                updatedRows[index][col] = masterInfo[col] || null;
+              });
+              return updatedRows;
             });
-            return updatedRows;
-          });
 
-          // Auto-print if no duplicates AND print is enabled
-          const wsn = wsnUpper;
-          const isGridDup = gridDuplicateWSNs.has(wsn);
-          const isCrossWh = crossWarehouseWSNs.has(wsn);
+            // Auto-print if no duplicates AND print is enabled
+            const wsn = wsnUpper;
+            const isGridDup = gridDuplicateWSNs.has(wsn);
+            const isCrossWh = crossWarehouseWSNs.has(wsn);
 
-          if (multiPrintEnabled && !isGridDup && !isCrossWh && agentReady) {
-            // Trigger print for this WSN
-            triggerPrint(wsn, masterInfo);
+            if (multiPrintEnabled && !isGridDup && !isCrossWh && agentReady) {
+              // Trigger print for this WSN
+              triggerPrint(wsn, masterInfo);
+            }
           }
-
 
         } catch (error) {
           console.log('WSN not found');

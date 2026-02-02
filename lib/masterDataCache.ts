@@ -83,10 +83,28 @@ const CACHE_CONFIG = {
     INCREMENTAL_SYNC_ENABLED: true,  // Only sync changes, not full data
     MAX_RECORDS_WARNING: 100000,  // ⚡ REDUCED from 500000: Show warning if > 1 lakh records (more reasonable threshold)
     YIELD_DELAY_MS: 16,  // ⚡ NEW: Time to yield between chunks (~1 frame at 60fps)
+    WSN_LOOKUP_TIMEOUT_MS: 2000,  // ⚡ NEW: Fast timeout for single WSN lookup (2 seconds)
 };
 
 /**
+ * ⚡ Helper: Check if browser is online
+ */
+function isNetworkOnline(): boolean {
+    return typeof navigator !== 'undefined' ? navigator.onLine : true;
+}
+
+/**
+ * ⚡ Helper: Create a timeout promise that rejects after specified ms
+ */
+function createTimeoutPromise<T>(ms: number, fallbackValue: T): Promise<T> {
+    return new Promise((resolve) => {
+        setTimeout(() => resolve(fallbackValue), ms);
+    });
+}
+
+/**
  * Get master data by WSN - LOCAL FIRST, then API fallback
+ * ⚡ OPTIMIZED: Fast timeout for API calls, instant cache return when offline/slow
  * This is the main function to use for WSN lookups
  */
 export async function getMasterDataByWSN(wsn: string): Promise<MasterDataRecord | null> {
@@ -107,28 +125,67 @@ export async function getMasterDataByWSN(wsn: string): Promise<MasterDataRecord 
                 console.log(`✅ Cache HIT for WSN: ${normalizedWSN}`);
                 return cached;
             }
-            console.log(`⚠️ Cache STALE for WSN: ${normalizedWSN}, fetching fresh...`);
+            console.log(`⚠️ Cache STALE for WSN: ${normalizedWSN}, will try API...`);
         }
 
-        // 2. Cache miss or stale - fetch from API
+        // ⚡ FAST PATH: If offline, return stale cache immediately (don't wait for API)
+        if (!isNetworkOnline()) {
+            console.log(`📴 Offline - using stale cache for WSN: ${normalizedWSN}`);
+            if (cached) return cached;
+            return null;
+        }
+
+        // 2. Cache miss or stale - fetch from API with FAST TIMEOUT
         console.log(`🔍 Cache MISS for WSN: ${normalizedWSN}, fetching from API...`);
-        const response = await inboundAPI.getMasterDataByWSN(normalizedWSN);
 
-        if (response?.data) {
-            const record: MasterDataRecord = {
-                ...response.data,
-                wsn: normalizedWSN,
-                cached_at: Date.now()
-            };
+        // ⚡ RACE: API call vs timeout - return stale cache if API is slow
+        const apiPromise = inboundAPI.getMasterDataByWSN(normalizedWSN)
+            .then(response => {
+                if (response?.data) {
+                    const record: MasterDataRecord = {
+                        ...response.data,
+                        wsn: normalizedWSN,
+                        cached_at: Date.now()
+                    };
+                    // Save to cache in background (don't await)
+                    database.masterData.put(record).catch(() => { });
+                    console.log(`💾 Cached WSN: ${normalizedWSN}`);
+                    return record;
+                }
+                return null;
+            })
+            .catch((error: any) => {
+                // Handle 404 - WSN not found in master data
+                if (error?.response?.status === 404) {
+                    console.log(`ℹ️ WSN not found in master data: ${normalizedWSN}`);
+                    return null;
+                }
+                throw error;
+            });
 
-            // Save to cache for next time
-            await database.masterData.put(record);
-            console.log(`💾 Cached WSN: ${normalizedWSN}`);
+        // ⚡ FAST TIMEOUT: If we have stale cache, use it if API is slow
+        if (cached) {
+            // Race: API vs 2-second timeout returning stale cache
+            const result = await Promise.race([
+                apiPromise,
+                createTimeoutPromise(CACHE_CONFIG.WSN_LOOKUP_TIMEOUT_MS, 'TIMEOUT' as const)
+            ]);
 
-            return record;
+            if (result === 'TIMEOUT') {
+                console.log(`⏱️ API slow - using stale cache for WSN: ${normalizedWSN}`);
+                return cached;
+            }
+
+            return result;
         }
 
-        return null;
+        // No cache - wait for API with timeout
+        const result = await Promise.race([
+            apiPromise,
+            createTimeoutPromise(CACHE_CONFIG.WSN_LOOKUP_TIMEOUT_MS, null)
+        ]);
+
+        return result;
     } catch (error: any) {
         // Handle 404 - WSN not found in master data (this is normal, not an error)
         if (error?.response?.status === 404) {
