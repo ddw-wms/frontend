@@ -64,6 +64,7 @@ import {
     FirstPage,
     LastPage,
     AccessTime,
+    PieChart as PieChartIcon,
 } from '@mui/icons-material';
 import { outboundAPI, customerAPI } from '@/lib/api';
 import { useWarehouse } from '@/app/context/WarehouseContext';
@@ -471,6 +472,11 @@ export default function OutboundPage() {
 
     // ====== EXPORT CONFIRMATION DIALOG ======
     const [exportConfirmOpen, setExportConfirmOpen] = useState(false);
+
+    // ====== CATEGORY PIVOT DIALOG ======
+    const [categoryPivotOpen, setCategoryPivotOpen] = useState(false);
+    const [categoryPivotSortBy, setCategoryPivotSortBy] = useState<'category' | 'qty' | 'fsp' | 'mrp'>('qty');
+    const [categoryPivotSortDir, setCategoryPivotSortDir] = useState<'asc' | 'desc'>('desc');
 
     // ====== MULTI ENTRY COLUMN WIDTHS PERSISTENCE ======
     const [multiColumnWidths, setMultiColumnWidths] = useState<Record<string, number>>({});
@@ -3590,6 +3596,134 @@ export default function OutboundPage() {
         setTabValue(0);
     };
 
+    // ====== CATEGORY PIVOT DATA COMPUTATION ======
+    // Calculate category-wise quantity summary from scanned rows in Multi Entry
+    const categoryPivotData = useMemo(() => {
+        // Only consider rows with WSN filled
+        const filledRows = multiRows.filter((row: any) => row.wsn?.trim());
+
+        if (filledRows.length === 0) {
+            return { categories: [], grandTotal: { qty: 0, fsp: 0, mrp: 0 } };
+        }
+
+        // Group by category (cms_vertical)
+        const categoryMap = new Map<string, { qty: number; fsp: number; mrp: number; items: any[] }>();
+
+        filledRows.forEach((row: any) => {
+            const category = row.cms_vertical?.trim() || 'Uncategorized';
+            const fsp = parseFloat(row.fsp) || 0;
+            const mrp = parseFloat(row.mrp) || 0;
+
+            if (!categoryMap.has(category)) {
+                categoryMap.set(category, { qty: 0, fsp: 0, mrp: 0, items: [] });
+            }
+
+            const data = categoryMap.get(category)!;
+            data.qty += 1;
+            data.fsp += fsp;
+            data.mrp += mrp;
+            data.items.push(row);
+        });
+
+        // Calculate grand total
+        const grandTotal = { qty: 0, fsp: 0, mrp: 0 };
+        categoryMap.forEach((data) => {
+            grandTotal.qty += data.qty;
+            grandTotal.fsp += data.fsp;
+            grandTotal.mrp += data.mrp;
+        });
+
+        // Convert to array with percentage
+        const categories = Array.from(categoryMap.entries()).map(([category, data]) => ({
+            category,
+            qty: data.qty,
+            fsp: data.fsp,
+            mrp: data.mrp,
+            percentage: grandTotal.qty > 0 ? (data.qty / grandTotal.qty) * 100 : 0,
+        }));
+
+        // Sort based on current sort settings
+        categories.sort((a, b) => {
+            let aVal: any, bVal: any;
+            switch (categoryPivotSortBy) {
+                case 'category':
+                    aVal = a.category.toLowerCase();
+                    bVal = b.category.toLowerCase();
+                    break;
+                case 'qty':
+                    aVal = a.qty;
+                    bVal = b.qty;
+                    break;
+                case 'fsp':
+                    aVal = a.fsp;
+                    bVal = b.fsp;
+                    break;
+                case 'mrp':
+                    aVal = a.mrp;
+                    bVal = b.mrp;
+                    break;
+                default:
+                    aVal = a.qty;
+                    bVal = b.qty;
+            }
+
+            if (categoryPivotSortDir === 'asc') {
+                return aVal > bVal ? 1 : aVal < bVal ? -1 : 0;
+            } else {
+                return aVal < bVal ? 1 : aVal > bVal ? -1 : 0;
+            }
+        });
+
+        return { categories, grandTotal };
+    }, [multiRows, categoryPivotSortBy, categoryPivotSortDir]);
+
+    // Handle sort column click for category pivot
+    const handleCategoryPivotSort = (column: 'category' | 'qty' | 'fsp' | 'mrp') => {
+        if (categoryPivotSortBy === column) {
+            setCategoryPivotSortDir(prev => prev === 'asc' ? 'desc' : 'asc');
+        } else {
+            setCategoryPivotSortBy(column);
+            setCategoryPivotSortDir('desc');
+        }
+    };
+
+    // Export category pivot to Excel
+    const exportCategoryPivotToExcel = async () => {
+        try {
+            const XLSX = await import('xlsx');
+            const exportData = categoryPivotData.categories.map((cat, idx) => ({
+                'Sr No': idx + 1,
+                'Category': cat.category,
+                'Quantity': cat.qty,
+                'Total FSP (₹)': cat.fsp,
+                'Total MRP (₹)': cat.mrp,
+                'Percentage (%)': cat.percentage.toFixed(1),
+            }));
+
+            // Add grand total row
+            exportData.push({
+                'Sr No': '',
+                'Category': 'GRAND TOTAL',
+                'Quantity': categoryPivotData.grandTotal.qty,
+                'Total FSP (₹)': categoryPivotData.grandTotal.fsp,
+                'Total MRP (₹)': categoryPivotData.grandTotal.mrp,
+                'Percentage (%)': '100.0',
+            } as any);
+
+            const ws = XLSX.utils.json_to_sheet(exportData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Category Summary');
+
+            const timestamp = new Date().toISOString().slice(0, 10);
+            XLSX.writeFile(wb, `Category_Pivot_${timestamp}.xlsx`);
+
+            toast.success('Category summary exported!');
+        } catch (err) {
+            console.error('Export error:', err);
+            toast.error('Export failed');
+        }
+    };
+
     // ✅ AG GRID COLUMN DEFINITIONS
     const columnDefs = useMemo(() => {
         // Serial column (Sr. No.) - pinned to left
@@ -5457,7 +5591,7 @@ export default function OutboundPage() {
                                             />
                                         </Box>
 
-                                        <Box sx={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 1, alignItems: 'center' }}>
+                                        <Box sx={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto', gap: 1, alignItems: 'center' }}>
                                             <TextField
                                                 label="Vehicle Number"
                                                 value={commonVehicle}
@@ -5474,7 +5608,17 @@ export default function OutboundPage() {
                                                 onClick={add500Rows}
                                                 sx={{ height: 32, fontSize: '0.7rem', fontWeight: 600, background: '#ec4899' }}
                                             >
-                                                +500 Add Rows
+                                                +500
+                                            </Button>
+
+                                            <Button
+                                                size="small"
+                                                onClick={() => setCategoryPivotOpen(true)}
+                                                disabled={!multiRows.some((r: any) => r.wsn?.trim())}
+                                                variant="outlined"
+                                                sx={{ height: 32, fontSize: '0.7rem', fontWeight: 600, px: 1, borderColor: '#8b5cf6', color: '#8b5cf6' }}
+                                            >
+                                                📊
                                             </Button>
 
                                             <Button
@@ -5605,6 +5749,33 @@ export default function OutboundPage() {
                                                 >
                                                     Export
                                                 </Button>
+
+                                                {/* Category Pivot Button */}
+                                                <Tooltip title="View category-wise quantity summary" placement="top">
+                                                    <Button
+                                                        size="small"
+                                                        variant="outlined"
+                                                        onClick={() => setCategoryPivotOpen(true)}
+                                                        disabled={!multiRows.some((r: any) => r.wsn?.trim())}
+                                                        startIcon={<PieChartIcon sx={{ fontSize: 16 }} />}
+                                                        sx={{
+                                                            fontSize: '0.7rem',
+                                                            fontWeight: 600,
+                                                            height: 32,
+                                                            minWidth: 'auto',
+                                                            px: 1.5,
+                                                            borderRadius: 1,
+                                                            borderColor: '#8b5cf6',
+                                                            color: '#8b5cf6',
+                                                            whiteSpace: 'nowrap',
+                                                            textTransform: 'none',
+                                                            '&:hover': { borderColor: '#7c3aed', bgcolor: 'rgba(139, 92, 246, 0.08)' },
+                                                            '&.Mui-disabled': { borderColor: '#94a3b8', color: '#94a3b8' }
+                                                        }}
+                                                    >
+                                                        Category Pivot
+                                                    </Button>
+                                                </Tooltip>
 
                                                 {/* Divider */}
                                                 <Box sx={{ width: 1, height: 20, bgcolor: isDarkMode ? '#475569' : '#d1d5db' }} />
@@ -5884,6 +6055,272 @@ export default function OutboundPage() {
                                     }}
                                 >
                                     Yes, Export
+                                </Button>
+                            </DialogActions>
+                        </Dialog>
+
+                        {/* Category Pivot Dialog */}
+                        <Dialog
+                            open={categoryPivotOpen}
+                            onClose={() => setCategoryPivotOpen(false)}
+                            maxWidth="md"
+                            fullWidth
+                            PaperProps={{
+                                sx: {
+                                    borderRadius: 2,
+                                    bgcolor: isDarkMode ? '#1e293b' : '#ffffff',
+                                }
+                            }}
+                        >
+                            <DialogTitle sx={{
+                                pb: 1,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                background: 'linear-gradient(135deg, #7c3aed 0%, #8b5cf6 100%)',
+                                color: 'white',
+                            }}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                    <PieChartIcon />
+                                    <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                                        Category Quantity Summary
+                                    </Typography>
+                                </Box>
+                                <Chip
+                                    label={`${categoryPivotData.grandTotal.qty} Items`}
+                                    size="small"
+                                    sx={{
+                                        bgcolor: 'rgba(255,255,255,0.2)',
+                                        color: 'white',
+                                        fontWeight: 700,
+                                    }}
+                                />
+                            </DialogTitle>
+                            <DialogContent sx={{ p: 0 }}>
+                                {categoryPivotData.categories.length === 0 ? (
+                                    <Box sx={{ p: 4, textAlign: 'center' }}>
+                                        <Typography color="text.secondary">
+                                            No scanned items found. Start scanning WSNs to see category summary.
+                                        </Typography>
+                                    </Box>
+                                ) : (
+                                    <TableContainer sx={{ maxHeight: 400 }}>
+                                        <Table stickyHeader size="small">
+                                            <TableHead>
+                                                <TableRow>
+                                                    <TableCell
+                                                        onClick={() => handleCategoryPivotSort('category')}
+                                                        sx={{
+                                                            fontWeight: 700,
+                                                            cursor: 'pointer',
+                                                            bgcolor: isDarkMode ? '#334155' : '#f1f5f9',
+                                                            color: isDarkMode ? '#f1f5f9' : '#1e293b',
+                                                            '&:hover': { bgcolor: isDarkMode ? '#475569' : '#e2e8f0' },
+                                                            userSelect: 'none',
+                                                        }}
+                                                    >
+                                                        Category {categoryPivotSortBy === 'category' && (categoryPivotSortDir === 'asc' ? '↑' : '↓')}
+                                                    </TableCell>
+                                                    <TableCell
+                                                        align="right"
+                                                        onClick={() => handleCategoryPivotSort('qty')}
+                                                        sx={{
+                                                            fontWeight: 700,
+                                                            cursor: 'pointer',
+                                                            bgcolor: isDarkMode ? '#334155' : '#f1f5f9',
+                                                            color: isDarkMode ? '#f1f5f9' : '#1e293b',
+                                                            '&:hover': { bgcolor: isDarkMode ? '#475569' : '#e2e8f0' },
+                                                            userSelect: 'none',
+                                                        }}
+                                                    >
+                                                        Qty {categoryPivotSortBy === 'qty' && (categoryPivotSortDir === 'asc' ? '↑' : '↓')}
+                                                    </TableCell>
+                                                    <TableCell
+                                                        align="right"
+                                                        onClick={() => handleCategoryPivotSort('fsp')}
+                                                        sx={{
+                                                            fontWeight: 700,
+                                                            cursor: 'pointer',
+                                                            bgcolor: isDarkMode ? '#334155' : '#f1f5f9',
+                                                            color: isDarkMode ? '#f1f5f9' : '#1e293b',
+                                                            '&:hover': { bgcolor: isDarkMode ? '#475569' : '#e2e8f0' },
+                                                            userSelect: 'none',
+                                                        }}
+                                                    >
+                                                        Total FSP {categoryPivotSortBy === 'fsp' && (categoryPivotSortDir === 'asc' ? '↑' : '↓')}
+                                                    </TableCell>
+                                                    <TableCell
+                                                        align="right"
+                                                        onClick={() => handleCategoryPivotSort('mrp')}
+                                                        sx={{
+                                                            fontWeight: 700,
+                                                            cursor: 'pointer',
+                                                            bgcolor: isDarkMode ? '#334155' : '#f1f5f9',
+                                                            color: isDarkMode ? '#f1f5f9' : '#1e293b',
+                                                            '&:hover': { bgcolor: isDarkMode ? '#475569' : '#e2e8f0' },
+                                                            userSelect: 'none',
+                                                        }}
+                                                    >
+                                                        Total MRP {categoryPivotSortBy === 'mrp' && (categoryPivotSortDir === 'asc' ? '↑' : '↓')}
+                                                    </TableCell>
+                                                    <TableCell
+                                                        align="center"
+                                                        sx={{
+                                                            fontWeight: 700,
+                                                            bgcolor: isDarkMode ? '#334155' : '#f1f5f9',
+                                                            color: isDarkMode ? '#f1f5f9' : '#1e293b',
+                                                        }}
+                                                    >
+                                                        %
+                                                    </TableCell>
+                                                </TableRow>
+                                            </TableHead>
+                                            <TableBody>
+                                                {categoryPivotData.categories.map((cat, idx) => (
+                                                    <TableRow
+                                                        key={cat.category}
+                                                        sx={{
+                                                            '&:nth-of-type(odd)': { bgcolor: isDarkMode ? 'rgba(51, 65, 85, 0.3)' : 'rgba(241, 245, 249, 0.5)' },
+                                                            '&:hover': { bgcolor: isDarkMode ? 'rgba(59, 130, 246, 0.15)' : 'rgba(59, 130, 246, 0.08)' },
+                                                        }}
+                                                    >
+                                                        <TableCell sx={{
+                                                            fontWeight: 600,
+                                                            color: isDarkMode ? '#f1f5f9' : '#1e293b',
+                                                        }}>
+                                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                                <Box
+                                                                    sx={{
+                                                                        width: 8,
+                                                                        height: 8,
+                                                                        borderRadius: '50%',
+                                                                        bgcolor: [
+                                                                            '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
+                                                                            '#ec4899', '#06b6d4', '#84cc16', '#f97316', '#6366f1'
+                                                                        ][idx % 10],
+                                                                    }}
+                                                                />
+                                                                {cat.category}
+                                                            </Box>
+                                                        </TableCell>
+                                                        <TableCell align="right" sx={{
+                                                            fontWeight: 700,
+                                                            color: isDarkMode ? '#60a5fa' : '#2563eb',
+                                                            fontSize: '0.95rem',
+                                                        }}>
+                                                            {cat.qty.toLocaleString()}
+                                                        </TableCell>
+                                                        <TableCell align="right" sx={{
+                                                            color: isDarkMode ? '#4ade80' : '#16a34a',
+                                                            fontWeight: 600,
+                                                        }}>
+                                                            ₹{cat.fsp.toLocaleString()}
+                                                        </TableCell>
+                                                        <TableCell align="right" sx={{
+                                                            color: isDarkMode ? '#f97316' : '#ea580c',
+                                                            fontWeight: 600,
+                                                        }}>
+                                                            ₹{cat.mrp.toLocaleString()}
+                                                        </TableCell>
+                                                        <TableCell align="center">
+                                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                                <Box sx={{
+                                                                    flex: 1,
+                                                                    height: 6,
+                                                                    bgcolor: isDarkMode ? '#334155' : '#e2e8f0',
+                                                                    borderRadius: 3,
+                                                                    overflow: 'hidden',
+                                                                }}>
+                                                                    <Box sx={{
+                                                                        width: `${cat.percentage}%`,
+                                                                        height: '100%',
+                                                                        bgcolor: [
+                                                                            '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
+                                                                            '#ec4899', '#06b6d4', '#84cc16', '#f97316', '#6366f1'
+                                                                        ][idx % 10],
+                                                                        borderRadius: 3,
+                                                                    }} />
+                                                                </Box>
+                                                                <Typography sx={{
+                                                                    fontSize: '0.75rem',
+                                                                    fontWeight: 600,
+                                                                    color: isDarkMode ? '#94a3b8' : '#64748b',
+                                                                    minWidth: 45,
+                                                                }}>
+                                                                    {cat.percentage.toFixed(1)}%
+                                                                </Typography>
+                                                            </Box>
+                                                        </TableCell>
+                                                    </TableRow>
+                                                ))}
+                                                {/* Grand Total Row */}
+                                                <TableRow sx={{
+                                                    bgcolor: isDarkMode ? '#1e3a5f' : '#1e40af',
+                                                    '& td': { borderBottom: 'none' },
+                                                }}>
+                                                    <TableCell sx={{
+                                                        fontWeight: 800,
+                                                        color: 'white',
+                                                        fontSize: '0.95rem',
+                                                    }}>
+                                                        GRAND TOTAL
+                                                    </TableCell>
+                                                    <TableCell align="right" sx={{
+                                                        fontWeight: 800,
+                                                        color: 'white',
+                                                        fontSize: '1.1rem',
+                                                    }}>
+                                                        {categoryPivotData.grandTotal.qty.toLocaleString()}
+                                                    </TableCell>
+                                                    <TableCell align="right" sx={{
+                                                        fontWeight: 700,
+                                                        color: '#4ade80',
+                                                    }}>
+                                                        ₹{categoryPivotData.grandTotal.fsp.toLocaleString()}
+                                                    </TableCell>
+                                                    <TableCell align="right" sx={{
+                                                        fontWeight: 700,
+                                                        color: '#fbbf24',
+                                                    }}>
+                                                        ₹{categoryPivotData.grandTotal.mrp.toLocaleString()}
+                                                    </TableCell>
+                                                    <TableCell align="center" sx={{
+                                                        fontWeight: 700,
+                                                        color: 'white',
+                                                    }}>
+                                                        100%
+                                                    </TableCell>
+                                                </TableRow>
+                                            </TableBody>
+                                        </Table>
+                                    </TableContainer>
+                                )}
+                            </DialogContent>
+                            <DialogActions sx={{ p: 2, borderTop: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0' }}>
+                                <Button
+                                    onClick={exportCategoryPivotToExcel}
+                                    startIcon={<DownloadIcon />}
+                                    disabled={categoryPivotData.categories.length === 0}
+                                    sx={{
+                                        color: '#10b981',
+                                        fontWeight: 600,
+                                        '&:hover': { bgcolor: 'rgba(16, 185, 129, 0.08)' },
+                                    }}
+                                >
+                                    Export to Excel
+                                </Button>
+                                <Button
+                                    onClick={() => setCategoryPivotOpen(false)}
+                                    variant="contained"
+                                    sx={{
+                                        background: 'linear-gradient(135deg, #7c3aed 0%, #8b5cf6 100%)',
+                                        fontWeight: 700,
+                                        '&:hover': {
+                                            background: 'linear-gradient(135deg, #6d28d9 0%, #7c3aed 100%)',
+                                        }
+                                    }}
+                                >
+                                    Close
                                 </Button>
                             </DialogActions>
                         </Dialog>
