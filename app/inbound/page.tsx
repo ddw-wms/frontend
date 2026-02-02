@@ -288,6 +288,9 @@ export default function InboundPage() {
   const receivingSyncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastSyncedWSNsRef = useRef<string>(''); // JSON string for comparison
 
+  // ---- Offline Warning Tracker ----
+  const offlineWarningShownRef = useRef<boolean>(false);
+
   const [crossWarehouseWSNs, setCrossWarehouseWSNs] = useState<Set<string>>(new Set());
   const [gridDuplicateWSNs, setGridDuplicateWSNs] = useState<Set<string>>(new Set());
 
@@ -697,6 +700,13 @@ export default function InboundPage() {
   const syncReceivingWSNs = async (rowsToSync = multiRows) => {
     if (!activeWarehouse?.id) return;
 
+    // ⚡ OFFLINE CHECK: Skip sync when offline
+    const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+    if (!isOnline) {
+      console.log('📴 Offline - skipping receiving WSNs sync');
+      return;
+    }
+
     // Extract valid WSNs from rows
     const wsns = rowsToSync
       .map((r: any) => r.wsn?.trim()?.toUpperCase())
@@ -715,7 +725,11 @@ export default function InboundPage() {
     }
 
     try {
-      await inboundAPI.syncReceivingWSNs(wsns, activeWarehouse.id);
+      // ⚡ Add timeout to prevent hanging
+      await Promise.race([
+        inboundAPI.syncReceivingWSNs(wsns, activeWarehouse.id),
+        new Promise<void>((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000))
+      ]);
       lastSyncedWSNsRef.current = wsnsHash;
       console.log('📡 Synced receiving WSNs:', wsns.length);
     } catch (err) {
@@ -725,6 +739,14 @@ export default function InboundPage() {
 
   const clearReceivingWSNs = async () => {
     if (!activeWarehouse?.id) return;
+
+    // ⚡ OFFLINE CHECK: Skip clear when offline
+    const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+    if (!isOnline) {
+      console.log('📴 Offline - skipping clear receiving WSNs');
+      return;
+    }
+
     try {
       await inboundAPI.clearReceivingWSNs(activeWarehouse.id);
       lastSyncedWSNsRef.current = '';
@@ -1548,6 +1570,16 @@ export default function InboundPage() {
 
     if (!singleWSN.trim()) {
       toast.error('WSN is required');
+      return;
+    }
+
+    // ⚡ OFFLINE CHECK: Prevent submit when offline
+    const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+    if (!isOnline) {
+      toast.error("Cannot submit while offline. Please try again when connected.", {
+        duration: 4000,
+        icon: '📴'
+      });
       return;
     }
 
@@ -2808,18 +2840,35 @@ export default function InboundPage() {
     // Update grid duplicates immediately for fast feedback
     setGridDuplicateWSNs(gridDup);
 
+    // ⚡ OFFLINE CHECK: Skip cross-warehouse API calls when offline
+    const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+    if (!isOnline) {
+      console.log('📴 Offline - skipping cross-warehouse check');
+      setCrossWarehouseWSNs(crossWh);
+      setDuplicateWSNs(gridDup);
+      return;
+    }
+
     // 2) Cross-warehouse check: batch the API calls for efficiency
     const uniqueWsns = Array.from(new Set(rows.map(r => r.wsn?.trim().toUpperCase()).filter(Boolean)));
 
     // Limit concurrent API calls to prevent overwhelming the server
     const BATCH_SIZE = 5;
+    const TIMEOUT_MS = 2000; // ⚡ Fast timeout for each batch
+
     for (let i = 0; i < uniqueWsns.length; i += BATCH_SIZE) {
       const batch = uniqueWsns.slice(i, i + BATCH_SIZE);
 
       await Promise.all(batch.map(async (wsn) => {
         try {
-          // Search for this WSN across inbound entries
-          const resp = await inboundAPI.getAll(1, 1, { search: wsn });
+          // ⚡ Add timeout to prevent hanging
+          const resp = await Promise.race([
+            inboundAPI.getAll(1, 1, { search: wsn }),
+            new Promise<null>((resolve) => setTimeout(() => resolve(null), TIMEOUT_MS))
+          ]);
+
+          if (!resp) return; // Timeout occurred
+
           const item = resp?.data?.data?.[0] || resp?.data?.[0] || null;
           if (item) {
             const itemWarehouseId = item.warehouse_id ?? item.warehouseId ?? item.warehouseid ?? null;
@@ -3008,6 +3057,16 @@ export default function InboundPage() {
       return;
     }
 
+    // ⚡ OFFLINE CHECK: Prevent submit when offline
+    const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+    if (!isOnline) {
+      toast.error("Cannot submit while offline. Data is saved locally - submit when back online.", {
+        duration: 4000,
+        icon: '📴'
+      });
+      return;
+    }
+
     const rowsWithDefaults = multiRows.map(row => ({
       ...row,
       inbound_date: row.inbound_date || commonDate,
@@ -3058,18 +3117,53 @@ export default function InboundPage() {
       // Save vehicle number from current entry
       saveVehicleNumber(commonVehicle);
 
-      toast.success(`✓ Saved ${res.data.successCount} rows`);
-      setMultiResults(res.data.results);
+      const results = res.data.results || [];
+      const successCount = res.data.successCount || 0;
+      const totalCount = res.data.totalCount || filtered.length;
+      const duplicateResults = results.filter((r: any) => r.status === 'DUPLICATE');
+      const errorResults = results.filter((r: any) => r.status === 'ERROR');
 
-      // Reset grid to 500 rows
-      setMultiRows(generateEmptyRows(500));
+      setMultiResults(results);
 
-      // Clear vehicle number after successful submit (both state and localStorage)
-      setCommonVehicle('');
-      localStorage.removeItem('inbound_multiVehicleNumber');
+      // ⚡ ENHANCED FEEDBACK: Show detailed results
+      if (duplicateResults.length > 0) {
+        // Some duplicates found (cross-warehouse or same warehouse)
+        const crossWhDuplicates = duplicateResults.filter((r: any) =>
+          r.message?.includes('warehouse') && !r.message?.includes('this warehouse')
+        );
 
-      // Clear saved draft after successful submit
-      await clearDraft();
+        if (crossWhDuplicates.length > 0) {
+          toast.error(`❌ ${crossWhDuplicates.length} WSN(s) already inbound in other warehouse(s)`, {
+            duration: 5000,
+          });
+        }
+
+        if (successCount > 0) {
+          toast.success(`✓ Saved ${successCount}/${totalCount} rows (${duplicateResults.length} duplicates skipped)`);
+        } else {
+          toast.error(`All ${totalCount} WSNs were duplicates`);
+        }
+      } else if (errorResults.length > 0) {
+        toast(`⚠️ Saved ${successCount}/${totalCount} rows (${errorResults.length} errors)`, {
+          icon: '⚠️',
+          duration: 4000,
+        });
+      } else {
+        toast.success(`✓ Saved ${successCount} rows`);
+      }
+
+      // Only reset grid if we had some success
+      if (successCount > 0) {
+        // Reset grid to 500 rows
+        setMultiRows(generateEmptyRows(500));
+
+        // Clear vehicle number after successful submit (both state and localStorage)
+        setCommonVehicle('');
+        localStorage.removeItem('inbound_multiVehicleNumber');
+
+        // Clear saved draft after successful submit
+        await clearDraft();
+      }
 
       // Clear receiving WSNs from server (they are now inbound)
       await clearReceivingWSNs();
@@ -6854,6 +6948,29 @@ export default function InboundPage() {
 
                         // ⚡ OFFLINE CHECK: Skip API calls when offline for instant response
                         const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+
+                        // ⚡ OFFLINE WARNING: Show once per offline session
+                        if (!isOnline && !offlineWarningShownRef.current) {
+                          offlineWarningShownRef.current = true;
+                          toast('📴 Offline Mode - Cross-warehouse duplicate check skipped. Will validate on submit.', {
+                            duration: 5000,
+                            style: {
+                              background: '#fef3c7',
+                              color: '#92400e',
+                              border: '1px solid #f59e0b',
+                              borderRadius: '8px',
+                              padding: '12px 16px',
+                              fontWeight: 500,
+                              fontSize: '13px',
+                            },
+                            icon: '⚠️',
+                          });
+                        }
+
+                        // Reset warning flag when back online
+                        if (isOnline && offlineWarningShownRef.current) {
+                          offlineWarningShownRef.current = false;
+                        }
 
                         // Start ownership check in parallel (only if online, with fast timeout)
                         const ownershipPromise = isOnline
