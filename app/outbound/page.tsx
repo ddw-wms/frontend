@@ -475,6 +475,7 @@ export default function OutboundPage() {
 
     // ====== CATEGORY PIVOT DIALOG ======
     const [categoryPivotOpen, setCategoryPivotOpen] = useState(false);
+    const [pivotGroupBy, setPivotGroupBy] = useState<'category' | 'brand'>('category');
     const [categoryPivotSortBy, setCategoryPivotSortBy] = useState<'category' | 'qty' | 'fsp' | 'mrp'>('qty');
     const [categoryPivotSortDir, setCategoryPivotSortDir] = useState<'asc' | 'desc'>('desc');
 
@@ -3597,7 +3598,7 @@ export default function OutboundPage() {
     };
 
     // ====== CATEGORY PIVOT DATA COMPUTATION ======
-    // Calculate category-wise quantity summary from scanned rows in Multi Entry
+    // Calculate category/brand-wise quantity summary from scanned rows in Multi Entry
     const categoryPivotData = useMemo(() => {
         // Only consider rows with WSN filled
         const filledRows = multiRows.filter((row: any) => row.wsn?.trim());
@@ -3606,11 +3607,13 @@ export default function OutboundPage() {
             return { categories: [], grandTotal: { qty: 0, fsp: 0, mrp: 0 } };
         }
 
-        // Group by category (cms_vertical)
+        // Group by category (cms_vertical) or brand based on pivotGroupBy
+        const groupField = pivotGroupBy === 'brand' ? 'brand' : 'cms_vertical';
+        const defaultLabel = pivotGroupBy === 'brand' ? 'Unknown Brand' : 'Uncategorized';
         const categoryMap = new Map<string, { qty: number; fsp: number; mrp: number; items: any[] }>();
 
         filledRows.forEach((row: any) => {
-            const category = row.cms_vertical?.trim() || 'Uncategorized';
+            const category = row[groupField]?.trim() || defaultLabel;
             const fsp = parseFloat(row.fsp) || 0;
             const mrp = parseFloat(row.mrp) || 0;
 
@@ -3675,7 +3678,7 @@ export default function OutboundPage() {
         });
 
         return { categories, grandTotal };
-    }, [multiRows, categoryPivotSortBy, categoryPivotSortDir]);
+    }, [multiRows, pivotGroupBy, categoryPivotSortBy, categoryPivotSortDir]);
 
     // Handle sort column click for category pivot
     const handleCategoryPivotSort = (column: 'category' | 'qty' | 'fsp' | 'mrp') => {
@@ -3691,9 +3694,10 @@ export default function OutboundPage() {
     const exportCategoryPivotToExcel = async () => {
         try {
             const XLSX = await import('xlsx');
+            const groupLabel = pivotGroupBy === 'brand' ? 'Brand' : 'Category';
             const exportData = categoryPivotData.categories.map((cat, idx) => ({
                 'Sr No': idx + 1,
-                'Category': cat.category,
+                [groupLabel]: cat.category,
                 'Quantity': cat.qty,
                 'Total FSP (₹)': cat.fsp,
                 'Total MRP (₹)': cat.mrp,
@@ -3703,7 +3707,7 @@ export default function OutboundPage() {
             // Add grand total row
             exportData.push({
                 'Sr No': '',
-                'Category': 'GRAND TOTAL',
+                [groupLabel]: 'GRAND TOTAL',
                 'Quantity': categoryPivotData.grandTotal.qty,
                 'Total FSP (₹)': categoryPivotData.grandTotal.fsp,
                 'Total MRP (₹)': categoryPivotData.grandTotal.mrp,
@@ -3712,12 +3716,12 @@ export default function OutboundPage() {
 
             const ws = XLSX.utils.json_to_sheet(exportData);
             const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, 'Category Summary');
+            XLSX.utils.book_append_sheet(wb, ws, `${groupLabel} Summary`);
 
             const timestamp = new Date().toISOString().slice(0, 10);
-            XLSX.writeFile(wb, `Category_Pivot_${timestamp}.xlsx`);
+            XLSX.writeFile(wb, `${groupLabel}_Pivot_${timestamp}.xlsx`);
 
-            toast.success('Category summary exported!');
+            toast.success(`${groupLabel} summary exported!`);
         } catch (err) {
             console.error('Export error:', err);
             toast.error('Export failed');
@@ -6083,7 +6087,7 @@ export default function OutboundPage() {
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                     <PieChartIcon />
                                     <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                                        Category Quantity Summary
+                                        {pivotGroupBy === 'brand' ? 'Brand' : 'Category'} Quantity Summary
                                     </Typography>
                                 </Box>
                                 <Chip
@@ -6097,10 +6101,72 @@ export default function OutboundPage() {
                                 />
                             </DialogTitle>
                             <DialogContent sx={{ p: 0 }}>
+                                {/* Group By Toggle */}
+                                <Box sx={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 2,
+                                    p: 2,
+                                    borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0',
+                                    bgcolor: isDarkMode ? '#1e293b' : '#f8fafc',
+                                }}>
+                                    <Typography sx={{ fontWeight: 600, color: isDarkMode ? '#94a3b8' : '#64748b', fontSize: '0.85rem' }}>
+                                        Group By:
+                                    </Typography>
+                                    <Box sx={{ display: 'flex', gap: 0.5 }}>
+                                        <Button
+                                            size="small"
+                                            variant={pivotGroupBy === 'category' ? 'contained' : 'outlined'}
+                                            onClick={() => setPivotGroupBy('category')}
+                                            sx={{
+                                                fontSize: '0.75rem',
+                                                fontWeight: 600,
+                                                px: 2,
+                                                py: 0.5,
+                                                borderRadius: 1,
+                                                textTransform: 'none',
+                                                ...(pivotGroupBy === 'category' ? {
+                                                    background: 'linear-gradient(135deg, #7c3aed 0%, #8b5cf6 100%)',
+                                                    '&:hover': { background: 'linear-gradient(135deg, #6d28d9 0%, #7c3aed 100%)' },
+                                                } : {
+                                                    borderColor: isDarkMode ? '#6366f1' : '#8b5cf6',
+                                                    color: isDarkMode ? '#a5b4fc' : '#7c3aed',
+                                                    '&:hover': { bgcolor: 'rgba(139, 92, 246, 0.08)' },
+                                                }),
+                                            }}
+                                        >
+                                            📁 Category
+                                        </Button>
+                                        <Button
+                                            size="small"
+                                            variant={pivotGroupBy === 'brand' ? 'contained' : 'outlined'}
+                                            onClick={() => setPivotGroupBy('brand')}
+                                            sx={{
+                                                fontSize: '0.75rem',
+                                                fontWeight: 600,
+                                                px: 2,
+                                                py: 0.5,
+                                                borderRadius: 1,
+                                                textTransform: 'none',
+                                                ...(pivotGroupBy === 'brand' ? {
+                                                    background: 'linear-gradient(135deg, #0891b2 0%, #06b6d4 100%)',
+                                                    '&:hover': { background: 'linear-gradient(135deg, #0e7490 0%, #0891b2 100%)' },
+                                                } : {
+                                                    borderColor: isDarkMode ? '#22d3ee' : '#0891b2',
+                                                    color: isDarkMode ? '#67e8f9' : '#0891b2',
+                                                    '&:hover': { bgcolor: 'rgba(6, 182, 212, 0.08)' },
+                                                }),
+                                            }}
+                                        >
+                                            🏷️ Brand
+                                        </Button>
+                                    </Box>
+                                </Box>
+
                                 {categoryPivotData.categories.length === 0 ? (
                                     <Box sx={{ p: 4, textAlign: 'center' }}>
                                         <Typography color="text.secondary">
-                                            No scanned items found. Start scanning WSNs to see category summary.
+                                            No scanned items found. Start scanning WSNs to see {pivotGroupBy} summary.
                                         </Typography>
                                     </Box>
                                 ) : (
@@ -6119,7 +6185,7 @@ export default function OutboundPage() {
                                                             userSelect: 'none',
                                                         }}
                                                     >
-                                                        Category {categoryPivotSortBy === 'category' && (categoryPivotSortDir === 'asc' ? '↑' : '↓')}
+                                                        {pivotGroupBy === 'brand' ? 'Brand' : 'Category'} {categoryPivotSortBy === 'category' && (categoryPivotSortDir === 'asc' ? '↑' : '↓')}
                                                     </TableCell>
                                                     <TableCell
                                                         align="right"
