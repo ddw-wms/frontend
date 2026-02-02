@@ -6852,8 +6852,16 @@ export default function InboundPage() {
                         const wsnUpper = newValue.trim().toUpperCase();
                         wsnFetchMapRef.current.set(rowIndex, wsnUpper);
 
-                        // Start ownership check in parallel (this still needs API)
-                        const ownershipPromise = inboundAPI.getAll(1, 1, { search: wsnUpper }).catch(() => null);
+                        // ⚡ OFFLINE CHECK: Skip API calls when offline for instant response
+                        const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+
+                        // Start ownership check in parallel (only if online, with fast timeout)
+                        const ownershipPromise = isOnline
+                          ? Promise.race([
+                            inboundAPI.getAll(1, 1, { search: wsnUpper }).catch(() => null),
+                            new Promise<null>(resolve => setTimeout(() => resolve(null), 2000)) // 2s timeout
+                          ])
+                          : Promise.resolve(null); // Skip API when offline
 
                         // Use LOCAL CACHE for master data (instant if cached)
                         const masterDataPromise = getLocalMasterData(wsnUpper).catch(() => null);
@@ -6900,7 +6908,77 @@ export default function InboundPage() {
                           };
 
                           try {
-                            // Check ownership first (usually faster)
+                            // ⚡ CACHE FIRST: Get master data immediately (from cache - instant!)
+                            const masterInfo = await masterDataPromise;
+
+                            // Check if this is still the latest fetch for this row
+                            const latestWSN = wsnFetchMapRef.current.get(rowIndex);
+                            if (latestWSN !== wsnUpper) {
+                              console.log(`⏭️ Skipping stale fetch for row ${rowIndex}: ${wsnUpper} (latest: ${latestWSN})`);
+                              return;
+                            }
+
+                            // ⚡ SHOW DATA IMMEDIATELY if we have master data
+                            if (masterInfo) {
+                              // ⚡ BATCH MODE: Check if WSN is in selected batch(es)
+                              if (selectedBatchIds.length > 0) {
+                                const wsnBatch = await isWSNInCachedBatches(wsnUpper);
+                                if (!wsnBatch) {
+                                  // WSN not in selected batch - show confirmation dialog
+                                  setWsnNotInBatchDialog({
+                                    open: true,
+                                    wsn: wsnUpper,
+                                    rowIndex,
+                                    masterData: masterInfo
+                                  });
+                                  // Don't auto-apply master data - wait for user confirmation
+                                  return;
+                                }
+                              }
+
+                              // Update master data in grid IMMEDIATELY
+                              setMultiRows((prevRows) => {
+                                const currentWSN = prevRows[rowIndex]?.wsn?.trim()?.toUpperCase();
+                                if (currentWSN !== wsnUpper) {
+                                  return prevRows;
+                                }
+
+                                const updatedRows = [...prevRows];
+                                updatedRows[rowIndex] = { ...updatedRows[rowIndex] };
+                                ALL_MASTER_COLUMNS.forEach((masterCol) => {
+                                  updatedRows[rowIndex][masterCol] = masterInfo[masterCol] || null;
+                                });
+
+                                // ⚡ CTRL+P REPRINT: Save last scanned row data for Ctrl+P shortcut
+                                lastScannedRowRef.current = { ...updatedRows[rowIndex], wsn: wsnUpper };
+
+                                return updatedRows;
+                              });
+
+                              // ✅ AUTO-PRINT: Only if multiPrintEnabled is ON
+                              if (multiPrintEnabled) {
+                                try {
+                                  const printPayload = {
+                                    wsn: wsnUpper,
+                                    fsn: masterInfo.fsn || '',
+                                    product_title: masterInfo.product_title || '',
+                                    brand: masterInfo.brand || '',
+                                    mrp: String(masterInfo.mrp || ''),
+                                    fsp: String(masterInfo.fsp || ''),
+                                    copies: 1,
+                                  };
+
+                                  const printSuccess = await printLabel(printPayload);
+                                  if (printSuccess) {
+                                    toast.success(`✓ Label printed: ${wsnUpper}`, { duration: 2000 });
+                                  }
+                                } catch (printError: any) {
+                                  toast.error(`Print error: ${printError.message}`, { duration: 3000 });
+                                }
+                              }
+                            }
+
+                            // ⚡ BACKGROUND: Check ownership (won't block UI)
                             const ownerResp = await ownershipPromise;
                             const ownerItem = ownerResp?.data?.data?.[0] || ownerResp?.data?.[0] || null;
 
@@ -6976,79 +7054,14 @@ export default function InboundPage() {
                               }
                             }
 
-                            // Now get master data result (from local cache or API)
-                            const masterInfo = await masterDataPromise;
+                            // If no master data found, just move to next row
                             if (!masterInfo) {
                               console.log('WSN not found in master data');
-                              // Still move to next row even if not found
                               moveToNextRow();
                               return;
                             }
 
-                            // Check if this is still the latest fetch for this row
-                            const latestWSN = wsnFetchMapRef.current.get(rowIndex);
-                            if (latestWSN !== wsnUpper) {
-                              console.log(`⏭️ Skipping stale fetch for row ${rowIndex}: ${wsnUpper} (latest: ${latestWSN})`);
-                              return;
-                            }
-
-                            // ⚡ BATCH MODE: Check if WSN is in selected batch(es)
-                            if (selectedBatchIds.length > 0) {
-                              const wsnBatch = await isWSNInCachedBatches(wsnUpper);
-                              if (!wsnBatch) {
-                                // WSN not in selected batch - show confirmation dialog
-                                setWsnNotInBatchDialog({
-                                  open: true,
-                                  wsn: wsnUpper,
-                                  rowIndex,
-                                  masterData: masterInfo
-                                });
-                                // Don't auto-apply master data - wait for user confirmation
-                                return;
-                              }
-                            }
-
-                            // Update master data in grid
-                            setMultiRows((prevRows) => {
-                              const currentWSN = prevRows[rowIndex]?.wsn?.trim()?.toUpperCase();
-                              if (currentWSN !== wsnUpper) {
-                                return prevRows;
-                              }
-
-                              const updatedRows = [...prevRows];
-                              updatedRows[rowIndex] = { ...updatedRows[rowIndex] };
-                              ALL_MASTER_COLUMNS.forEach((masterCol) => {
-                                updatedRows[rowIndex][masterCol] = masterInfo[masterCol] || null;
-                              });
-
-                              // ⚡ CTRL+P REPRINT: Save last scanned row data for Ctrl+P shortcut
-                              lastScannedRowRef.current = { ...updatedRows[rowIndex], wsn: wsnUpper };
-
-                              return updatedRows;
-                            });
-
-                            // ✅ AUTO-PRINT: Only if multiPrintEnabled is ON
-                            if (multiPrintEnabled) {
-                              try {
-                                const printPayload = {
-                                  wsn: wsnUpper,
-                                  fsn: masterInfo.fsn || '',
-                                  product_title: masterInfo.product_title || '',
-                                  brand: masterInfo.brand || '',
-                                  mrp: String(masterInfo.mrp || ''),
-                                  fsp: String(masterInfo.fsp || ''),
-                                  copies: 1,
-                                };
-
-                                const printSuccess = await printLabel(printPayload);
-                                if (printSuccess) {
-                                  toast.success(`✓ Label printed: ${wsnUpper}`, { duration: 2000 });
-                                }
-                              } catch (printError: any) {
-                                toast.error(`Print error: ${printError.message}`, { duration: 3000 });
-                              }
-                            }
-
+                            // Move to next row after processing
                             moveToNextRow();
                           } catch (error) {
                             console.log('WSN fetch error:', error);

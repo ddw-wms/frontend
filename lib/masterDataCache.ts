@@ -112,11 +112,24 @@ export async function getMasterDataByWSN(wsn: string): Promise<MasterDataRecord 
 
     const normalizedWSN = wsn.trim().toUpperCase();
 
+    // ⚡ INSTANT OFFLINE CHECK: Check network status FIRST before any async operations
+    const isOnline = isNetworkOnline();
+
     try {
         const database = getDB();
 
         // 1. Try local cache first (INSTANT)
         const cached = await database.masterData.get(normalizedWSN);
+
+        // ⚡ OFFLINE FAST PATH: Return cache immediately when offline (skip stale check)
+        if (!isOnline) {
+            if (cached) {
+                console.log(`📴 Offline - instant cache return for WSN: ${normalizedWSN}`);
+                return cached;
+            }
+            console.log(`📴 Offline - WSN not in cache: ${normalizedWSN}`);
+            return null;
+        }
 
         if (cached) {
             // Check if cache is not too old
@@ -126,13 +139,6 @@ export async function getMasterDataByWSN(wsn: string): Promise<MasterDataRecord 
                 return cached;
             }
             console.log(`⚠️ Cache STALE for WSN: ${normalizedWSN}, will try API...`);
-        }
-
-        // ⚡ FAST PATH: If offline, return stale cache immediately (don't wait for API)
-        if (!isNetworkOnline()) {
-            console.log(`📴 Offline - using stale cache for WSN: ${normalizedWSN}`);
-            if (cached) return cached;
-            return null;
         }
 
         // 2. Cache miss or stale - fetch from API with FAST TIMEOUT
