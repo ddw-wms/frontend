@@ -15,7 +15,8 @@ import {
   Add as AddIcon, Download as DownloadIcon, Settings as SettingsIcon,
   CheckCircle as CheckIcon, CheckCircle, Delete as DeleteIcon, Refresh as RefreshIcon, Visibility as VisibilityIcon,
   FilterList as FilterListIcon, ExpandMore as ExpandMoreIcon, Info as InfoIcon,
-  Tune as TuneIcon, Close as CloseIcon, KeyboardArrowLeft, KeyboardArrowRight, FirstPage, LastPage, AccessTime
+  Tune as TuneIcon, Close as CloseIcon, KeyboardArrowLeft, KeyboardArrowRight, FirstPage, LastPage, AccessTime,
+  PieChart as PieChartIcon, Link as LinkIcon
 } from '@mui/icons-material';
 import { pickingAPI, rackAPI, inboundAPI } from '@/lib/api';
 import { useWarehouse } from '@/app/context/WarehouseContext';
@@ -415,33 +416,60 @@ export default function PickingPage() {
     return () => window.removeEventListener('beforeunload', onBeforeUnload);
   }, [multiRows, draftSavedAt]);
 
-  // When switching to Multi Picking tab, auto-size columns so layout looks correct
-  useEffect(() => {
-    if (currentTabCode !== 'multi') return;
-    const t = setTimeout(() => {
-      try {
-        const colApi = columnApiRef.current;
-        const api = gridRef.current;
-        if (!colApi || !api) return;
-        const allCols = colApi.getAllColumns ? colApi.getAllColumns().map((c: any) => c.getColId()) : [];
-        if (!allCols || allCols.length === 0) return;
-        colApi.autoSizeColumns(allCols, false);
-        let total = 0;
-        for (const id of allCols) {
-          const col = colApi.getColumn(id);
-          total += col?.getActualWidth ? col.getActualWidth() : 0;
-        }
-        const dims = api.getSize ? api.getSize() : (api.gridPanel && api.gridPanel.getBodyClientRect && api.gridPanel.getBodyClientRect());
-        const gridW = dims?.width || 0;
-        if (gridW && total < gridW) api.sizeColumnsToFit();
-      } catch { /* ignore */ }
-    }, 50);
-    return () => clearTimeout(t);
-  }, [tabValue, visibleColumns, multiRows]);
+  // Track if Multi Picking grid has been initialized (to avoid resetting saved widths)
+  const multiGridInitializedRef = useRef(false);
   const [columnSettingsOpen, setColumnSettingsOpen] = useState(false);
   const [gridDuplicateWSNs, setGridDuplicateWSNs] = useState<Set<string>>(new Set());
   const [crossWarehouseWSNs, setCrossWarehouseWSNs] = useState<Set<string>>(new Set());
   const [existingPickingWSNs, setExistingPickingWSNs] = useState(new Set());
+
+  // ====== MULTI ENTRY: CTRL+O PRODUCT LINK SHORTCUT STATE ======
+  const [ctrlOProductLinkEnabled, setCtrlOProductLinkEnabled] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('picking_ctrlOProductLinkEnabled');
+      return saved !== 'false'; // Default to true
+    }
+    return true;
+  });
+
+  // Track last scanned row data for Ctrl+O
+  const lastScannedRowRef = useRef<any>(null);
+  // Ref for instant Ctrl+O toggle (avoids stale closure)
+  const ctrlOProductLinkEnabledRef = useRef(ctrlOProductLinkEnabled);
+
+  // ====== MULTI ENTRY: GRID SETTINGS ======
+  const [multiGridSettings, setMultiGridSettings] = useState({
+    sortable: true,
+    filter: true,
+    resizable: true,
+    editable: true,
+  });
+  const [multiGridSettingsOpen, setMultiGridSettingsOpen] = useState(false);
+
+  // Load Multi Entry grid settings from localStorage
+  useEffect(() => {
+    const savedMultiSettings = localStorage.getItem('picking_multi_grid_settings');
+    if (savedMultiSettings) {
+      try {
+        const parsed = JSON.parse(savedMultiSettings);
+        setMultiGridSettings(parsed);
+      } catch (e) {
+        console.log('Failed to parse multi grid settings');
+      }
+    }
+  }, []);
+
+  // Save Multi Entry grid settings
+  const updateMultiGridSettings = (newSettings: typeof multiGridSettings) => {
+    setMultiGridSettings(newSettings);
+    localStorage.setItem('picking_multi_grid_settings', JSON.stringify(newSettings));
+  };
+
+  // ====== MULTI ENTRY: CATEGORY PIVOT DIALOG ======
+  const [categoryPivotOpen, setCategoryPivotOpen] = useState(false);
+  const [pivotGroupBy, setPivotGroupBy] = useState<'category' | 'brand'>('category');
+  const [categoryPivotSortBy, setCategoryPivotSortBy] = useState<'category' | 'qty' | 'fsp' | 'mrp'>('qty');
+  const [categoryPivotSortDir, setCategoryPivotSortDir] = useState<'asc' | 'desc'>('desc');
 
   // Picking List state
   const [pickingList, setPickingList] = useState<any[]>([]);
@@ -459,8 +487,27 @@ export default function PickingPage() {
   const [brandFilter, setBrandFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [sourceFilter, setSourceFilter] = useState('');
+  const [customerFilter, setCustomerFilter] = useState('');
+  const [startDateFilter, setStartDateFilter] = useState('');
+  const [endDateFilter, setEndDateFilter] = useState('');
   const [brandOptions, setBrandOptions] = useState<string[]>([]);
   const [categoryOptions, setCategoryOptions] = useState<string[]>([]);
+  const [pickingCustomers, setPickingCustomers] = useState<string[]>([]);
+
+  // Load customers from picking table (for filter dropdown - only customers with picking entries)
+  const loadPickingCustomers = async () => {
+    try {
+      const response = await pickingAPI.getPickingCustomers(activeWarehouse?.id);
+      if (Array.isArray(response.data)) {
+        setPickingCustomers(response.data);
+      } else {
+        setPickingCustomers([]);
+      }
+    } catch (error) {
+      console.error('Failed to load picking customers:', error);
+      setPickingCustomers([]);
+    }
+  };
   const [filtersExpanded, setFiltersExpanded] = useState(false);
 
   // Mobile actions dialog state
@@ -515,7 +562,10 @@ export default function PickingPage() {
     (searchFilter && searchFilter.trim() !== '') ||
     (brandFilter && brandFilter !== '') ||
     (categoryFilter && categoryFilter !== '') ||
-    (sourceFilter && sourceFilter !== '')
+    (sourceFilter && sourceFilter !== '') ||
+    (customerFilter && customerFilter !== '') ||
+    (startDateFilter && startDateFilter !== '') ||
+    (endDateFilter && endDateFilter !== '')
   );
 
   // Default: filters collapsed by default on Picking List tab
@@ -630,7 +680,7 @@ export default function PickingPage() {
     if (activeWarehouse && currentTabCode === 'list') {
       loadPickingList();
     }
-  }, [activeWarehouse, currentTabCode, page, limit, searchDebounced, brandFilter, categoryFilter, sourceFilter]);
+  }, [activeWarehouse, currentTabCode, page, limit, searchDebounced, brandFilter, categoryFilter, sourceFilter, customerFilter, startDateFilter, endDateFilter]);
 
   // Load batches when batch tab opens
   useEffect(() => {
@@ -639,11 +689,12 @@ export default function PickingPage() {
     }
   }, [activeWarehouse, currentTabCode]);
 
-  // ✅ Load brands and categories from database when component mounts or warehouse changes
+  // ✅ Load brands, categories, and picking customers from database when component mounts or warehouse changes
   useEffect(() => {
     if (activeWarehouse) {
       loadBrands();
       loadCategories();
+      loadPickingCustomers();
     }
   }, [activeWarehouse]);
 
@@ -1571,6 +1622,38 @@ export default function PickingPage() {
       const isEditing = activeEl?.tagName === 'INPUT' || activeEl?.tagName === 'TEXTAREA' ||
         (activeEl?.classList?.contains('ag-input-field-input'));
 
+      // Ctrl+O → Open product link for last scanned WSN
+      if (ctrlKey && e.key.toLowerCase() === 'o') {
+        e.preventDefault();
+        e.stopPropagation();
+
+        // Use ref for instant toggle effect (no stale closure)
+        if (!ctrlOProductLinkEnabledRef.current) {
+          toast('Ctrl+O shortcut is disabled', { icon: '⚠️', duration: 1500 });
+          return;
+        }
+
+        if (!lastScannedRowRef.current?.wsn?.trim()) {
+          toast.error('No scanned WSN available', { duration: 2000 });
+          return;
+        }
+
+        const fktLink = lastScannedRowRef.current?.fkt_link;
+        if (!fktLink) {
+          toast.error('No product link available for this WSN', { duration: 2000 });
+          return;
+        }
+
+        // Open product link in new tab
+        try {
+          window.open(fktLink, '_blank');
+          toast.success(`Product link opened: ${lastScannedRowRef.current.wsn}`, { duration: 2000 });
+        } catch (err) {
+          toast.error('Failed to open product link', { duration: 2000 });
+        }
+        return;
+      }
+
       // Ctrl+Z - Undo
       if (ctrlKey && !shiftKey && e.key.toLowerCase() === 'z') {
         e.preventDefault();
@@ -1824,10 +1907,19 @@ export default function PickingPage() {
     setMultiRows([...multiRows, ...generateEmptyRows(500)]);
   };
 
-  // ⚡ MULTI ENTRY: Export entered data to Excel
+  // ⚡ MULTI ENTRY: Export entered data to Excel with ALL columns
   const exportMultiEntryToExcel = async () => {
     try {
-      const dataToExport = multiRows.filter((row: any) => row.wsn?.trim());
+      // Filter by customer if selected, otherwise export all
+      let dataToExport = multiRows.filter((row: any) => row.wsn?.trim());
+
+      // Apply customer filter if customer is selected in header
+      if (selectedCustomer) {
+        dataToExport = dataToExport.filter((row: any) =>
+          row.customer_name === selectedCustomer || !row.customer_name
+        );
+      }
+
       if (dataToExport.length === 0) {
         toast.error('No data to export');
         return;
@@ -1838,15 +1930,36 @@ export default function PickingPage() {
         'WSN': row.wsn || '',
         'Product Serial': row.product_serial_number || '',
         'Rack No': row.rack_no || '',
+        'Picking Date': row.picking_date || pickingDate || '',
+        'Customer': row.customer_name || selectedCustomer || '',
+        'Picker': row.picker_name || pickerName || '',
         'Picking Remarks': row.picking_remarks || '',
+        'Product Title': row.product_title || '',
         'Brand': row.brand || '',
         'Category': row.cms_vertical || '',
-        'Model': row.product_title || ''
+        'FSP': row.fsp || '',
+        'MRP': row.mrp || '',
+        'VRP': row.vrp || '',
+        'WID': row.wid || '',
+        'FSN': row.fsn || '',
+        'Order ID': row.order_id || '',
+        'HSN/SAC': row.hsn_sac || '',
+        'IGST Rate': row.igst_rate || '',
+        'Product Type': row.p_type || '',
+        'Product Size': row.p_size || '',
+        'Yield Value': row.yield_value || '',
+        'WH Location': row.wh_location || '',
+        'FK QC Remark': row.fkqc_remark || '',
+        'FK Grade': row.fk_grade || '',
+        'Invoice Date': row.invoice_date || '',
+        'FKT Link': row.fkt_link || '',
+        'Source': row.source || ''
       }));
       const ws = XLSX.utils.json_to_sheet(exportData);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'Multi Picking');
-      XLSX.writeFile(wb, `Picking_MultiEntry_${new Date().toISOString().split('T')[0]}_${Date.now()}.xlsx`);
+      const customerSuffix = selectedCustomer ? `_${selectedCustomer.replace(/\s+/g, '_')}` : '';
+      XLSX.writeFile(wb, `Picking_MultiEntry${customerSuffix}_${new Date().toISOString().split('T')[0]}_${Date.now()}.xlsx`);
       toast.success(`✓ Exported ${dataToExport.length} rows`);
     } catch (error) {
       toast.error('Export failed');
@@ -1945,6 +2058,137 @@ export default function PickingPage() {
     return { ready, duplicate, cross };
   }, [multiRows, gridDuplicateWSNs, crossWarehouseWSNs]);
 
+  // ====== CATEGORY PIVOT DATA COMPUTATION ======
+  // Calculate category/brand-wise quantity summary from scanned rows in Multi Entry
+  const categoryPivotData = useMemo(() => {
+    // Only consider rows with WSN filled
+    const filledRows = multiRows.filter((row: any) => row.wsn?.trim());
+
+    if (filledRows.length === 0) {
+      return { categories: [], grandTotal: { qty: 0, fsp: 0, mrp: 0 } };
+    }
+
+    // Group by category (cms_vertical) or brand based on pivotGroupBy
+    const groupField = pivotGroupBy === 'brand' ? 'brand' : 'cms_vertical';
+    const defaultLabel = pivotGroupBy === 'brand' ? 'Unknown Brand' : 'Uncategorized';
+    const categoryMap = new Map<string, { qty: number; fsp: number; mrp: number; items: any[] }>();
+
+    filledRows.forEach((row: any) => {
+      const category = row[groupField]?.trim() || defaultLabel;
+      const fsp = parseFloat(row.fsp) || 0;
+      const mrp = parseFloat(row.mrp) || 0;
+
+      if (!categoryMap.has(category)) {
+        categoryMap.set(category, { qty: 0, fsp: 0, mrp: 0, items: [] });
+      }
+
+      const data = categoryMap.get(category)!;
+      data.qty += 1;
+      data.fsp += fsp;
+      data.mrp += mrp;
+      data.items.push(row);
+    });
+
+    // Calculate grand total
+    const grandTotal = { qty: 0, fsp: 0, mrp: 0 };
+    categoryMap.forEach((data) => {
+      grandTotal.qty += data.qty;
+      grandTotal.fsp += data.fsp;
+      grandTotal.mrp += data.mrp;
+    });
+
+    // Convert to array with percentage
+    const categories = Array.from(categoryMap.entries()).map(([category, data]) => ({
+      category,
+      qty: data.qty,
+      fsp: data.fsp,
+      mrp: data.mrp,
+      percentage: grandTotal.qty > 0 ? (data.qty / grandTotal.qty) * 100 : 0,
+    }));
+
+    // Sort based on current sort settings
+    categories.sort((a, b) => {
+      let aVal: any, bVal: any;
+      switch (categoryPivotSortBy) {
+        case 'category':
+          aVal = a.category.toLowerCase();
+          bVal = b.category.toLowerCase();
+          break;
+        case 'qty':
+          aVal = a.qty;
+          bVal = b.qty;
+          break;
+        case 'fsp':
+          aVal = a.fsp;
+          bVal = b.fsp;
+          break;
+        case 'mrp':
+          aVal = a.mrp;
+          bVal = b.mrp;
+          break;
+        default:
+          aVal = a.qty;
+          bVal = b.qty;
+      }
+
+      if (categoryPivotSortDir === 'asc') {
+        return aVal > bVal ? 1 : aVal < bVal ? -1 : 0;
+      } else {
+        return aVal < bVal ? 1 : aVal > bVal ? -1 : 0;
+      }
+    });
+
+    return { categories, grandTotal };
+  }, [multiRows, pivotGroupBy, categoryPivotSortBy, categoryPivotSortDir]);
+
+  // Handle sort column click for category pivot
+  const handleCategoryPivotSort = (column: 'category' | 'qty' | 'fsp' | 'mrp') => {
+    if (categoryPivotSortBy === column) {
+      setCategoryPivotSortDir(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setCategoryPivotSortBy(column);
+      setCategoryPivotSortDir('desc');
+    }
+  };
+
+  // Export category pivot to Excel
+  const exportCategoryPivotToExcel = async () => {
+    try {
+      const XLSX = await import('xlsx');
+      const groupLabel = pivotGroupBy === 'brand' ? 'Brand' : 'Category';
+      const exportData = categoryPivotData.categories.map((cat, idx) => ({
+        'Sr No': idx + 1,
+        [groupLabel]: cat.category,
+        'Quantity': cat.qty,
+        'Total FSP (₹)': cat.fsp,
+        'Total MRP (₹)': cat.mrp,
+        'Percentage (%)': cat.percentage.toFixed(1),
+      }));
+
+      // Add grand total row
+      exportData.push({
+        'Sr No': '',
+        [groupLabel]: 'GRAND TOTAL',
+        'Quantity': categoryPivotData.grandTotal.qty,
+        'Total FSP (₹)': categoryPivotData.grandTotal.fsp,
+        'Total MRP (₹)': categoryPivotData.grandTotal.mrp,
+        'Percentage (%)': '100.0',
+      } as any);
+
+      const ws = XLSX.utils.json_to_sheet(exportData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, `${groupLabel} Summary`);
+
+      const timestamp = new Date().toISOString().slice(0, 10);
+      XLSX.writeFile(wb, `Picking_${groupLabel}_Pivot_${timestamp}.xlsx`);
+
+      toast.success(`${groupLabel} summary exported!`);
+    } catch (err) {
+      console.error('Export error:', err);
+      toast.error('Export failed');
+    }
+  };
+
   // ⚡ HELPER: Generate cache key for current filters
   const getCacheKey = useCallback(() => {
     return JSON.stringify({
@@ -1955,8 +2199,11 @@ export default function PickingPage() {
       brand: brandFilter,
       category: categoryFilter,
       source: sourceFilter,
+      customer: customerFilter,
+      startDate: startDateFilter,
+      endDate: endDateFilter,
     });
-  }, [activeWarehouse?.id, page, limit, searchDebounced, brandFilter, categoryFilter, sourceFilter]);
+  }, [activeWarehouse?.id, page, limit, searchDebounced, brandFilter, categoryFilter, sourceFilter, customerFilter, startDateFilter, endDateFilter]);
 
   // ⚡ PREFETCH: Prefetch next page in background
   const prefetchNextPage = useCallback(async () => {
@@ -1971,6 +2218,9 @@ export default function PickingPage() {
       brand: brandFilter,
       category: categoryFilter,
       source: sourceFilter,
+      customer: customerFilter,
+      startDate: startDateFilter,
+      endDate: endDateFilter,
     });
 
     const cached = pageCacheRef.current.get(nextPageCacheKey);
@@ -1985,6 +2235,9 @@ export default function PickingPage() {
         brand: brandFilter,
         category: categoryFilter,
         source: sourceFilter,
+        customer: customerFilter,
+        startDate: startDateFilter,
+        endDate: endDateFilter,
       });
       const rows = response.data?.data || [];
       pageCacheRef.current.set(nextPageCacheKey, {
@@ -1993,7 +2246,7 @@ export default function PickingPage() {
         timestamp: Date.now(),
       });
     } catch { /* Silently fail - prefetch is optional */ }
-  }, [activeWarehouse?.id, page, limit, total, searchDebounced, brandFilter, categoryFilter, sourceFilter]);
+  }, [activeWarehouse?.id, page, limit, total, searchDebounced, brandFilter, categoryFilter, sourceFilter, customerFilter, startDateFilter, endDateFilter]);
 
   // Load picking list (supports buttonRefresh for non-blocking inline refresh)
   const loadPickingList = async ({ buttonRefresh = false } = {}) => {
@@ -2063,7 +2316,10 @@ export default function PickingPage() {
         search: searchDebounced,
         brand: brandFilter,
         category: categoryFilter,
-        source: sourceFilter
+        source: sourceFilter,
+        customer: customerFilter,
+        startDate: startDateFilter,
+        endDate: endDateFilter
       });
 
       // Only process if this is still the latest request
@@ -2370,19 +2626,20 @@ export default function PickingPage() {
     }
   };
 
-  // Get unique customers from picking list
+  // Get unique customers from API (all customers, not just current page)
+  // customers state is loaded from backend via loadCustomers()
   const exportCustomerOptions = useMemo(() => {
-    const uniqueCustomers = Array.from(
-      new Set(pickingList.map((item: any) => item.customer_name).filter(Boolean))
-    ).sort();
-    return uniqueCustomers as string[];
-  }, [pickingList]);
+    return customers.sort();
+  }, [customers]);
 
   const handleListReset = () => {
     setSearchFilter('');
     setBrandFilter('');
     setCategoryFilter('');
     setSourceFilter('');
+    setCustomerFilter('');
+    setStartDateFilter('');
+    setEndDateFilter('');
     setPage(1);
   };
 
@@ -2441,16 +2698,29 @@ export default function PickingPage() {
 
   // ✅ LIST GRID COLUMN DEFINITIONS (AG GRID)
   // Include ALL columns with hide property - columnDefs structure never changes
+  // Store page/limit and grid settings in refs for stable valueGetter/columnDefs
+  const pageRef = useRef(page);
+  const limitRef = useRef(limit);
+  const enableSortingRef = useRef(enableSorting);
+  const enableColumnFiltersRef = useRef(enableColumnFilters);
+  const enableColumnResizeRef = useRef(enableColumnResize);
+  useEffect(() => { pageRef.current = page; }, [page]);
+  useEffect(() => { limitRef.current = limit; }, [limit]);
+  useEffect(() => { enableSortingRef.current = enableSorting; }, [enableSorting]);
+  useEffect(() => { enableColumnFiltersRef.current = enableColumnFilters; }, [enableColumnFilters]);
+  useEffect(() => { enableColumnResizeRef.current = enableColumnResize; }, [enableColumnResize]);
+
   const listColumnDefs = useMemo(() => {
     const sr = {
       headerName: 'SR.NO',
       field: '__sr',
-      valueGetter: (params: any) => params.node ? params.node.rowIndex + 1 + (page - 1) * limit : undefined,
+      valueGetter: (params: any) => params.node ? params.node.rowIndex + 1 + (pageRef.current - 1) * limitRef.current : undefined,
       width: 80,
       cellStyle: { fontWeight: 700, textAlign: 'center', color: isDarkMode ? '#94a3b8' : '#64748b' },
       suppressMovable: true,
       sortable: false,
       filter: false,
+      suppressSizeToFit: true,
     };
 
     // Include ALL columns - visibility controlled by ag-Grid state
@@ -2460,7 +2730,7 @@ export default function PickingPage() {
         return {
           field: col,
           headerName: col.replace(/_/g, ' ').toUpperCase(),
-          filter: enableColumnFilters ? 'agDateColumnFilter' : undefined,
+          filter: 'agDateColumnFilter',
           valueFormatter: (p: any) => formatDate(p.value),
           tooltipField: col,
           flex: 1,
@@ -2489,7 +2759,7 @@ export default function PickingPage() {
       return {
         field: col,
         headerName: col.replace(/_/g, ' ').toUpperCase(),
-        filter: enableColumnFilters ? 'agTextColumnFilter' : undefined,
+        filter: 'agTextColumnFilter',
         tooltipField: col,
         flex: 1,
         hide: false,
@@ -2497,20 +2767,41 @@ export default function PickingPage() {
     });
 
     return [sr, ...cols];
-  }, [page, limit, enableColumnFilters, isDarkMode]);
+  }, [isDarkMode]); // Only isDarkMode - grid settings handled via defaultColDef refs
 
   // NOTE: No longer need to re-apply column state on columnDefs change
   // because columnDefs structure is now STABLE (includes ALL columns with hide property)
   // Column visibility is controlled via setColumnsVisible() API which preserves order
 
+  // STABLE defaultColDef - no dependencies to prevent grid re-render
   const listDefaultColDef = useMemo(() => ({
-    sortable: !!enableSorting,
-    resizable: !!enableColumnResize,
-    filter: !!enableColumnFilters,
+    sortable: true,
+    resizable: true,
+    filter: true,
     editable: false,
-    suppressHeaderMenuButton: false,
+    suppressMovable: true,
     cellStyle: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
-  }), [enableSorting, enableColumnFilters, enableColumnResize]);
+  }), []);
+
+  // Apply grid settings dynamically via API (preserves column widths)
+  useEffect(() => {
+    const api = listGridRef.current;
+    if (!api) return;
+
+    try {
+      const columns = api.getColumns();
+      if (columns && columns.length > 0) {
+        columns.forEach((col: any) => {
+          const colDef = col.getColDef();
+          colDef.sortable = enableSorting;
+          colDef.resizable = enableColumnResize;
+          colDef.filter = enableColumnFilters;
+        });
+        // Refresh headers to apply changes
+        api.refreshHeader();
+      }
+    } catch { /* ignore */ }
+  }, [enableSorting, enableColumnFilters, enableColumnResize]);
 
   // Column widths for AG Grid
   const COLUMN_WIDTHS: Record<string, any> = {
@@ -2530,70 +2821,144 @@ export default function PickingPage() {
     return <AppLayout>⚠️ No warehouse selected</AppLayout>;
   }
 
-  // Column definitions for AG Grid
-  const columnDefs = visibleColumns.map((field) => {
-    // ✅ Use saved width if available, otherwise use default
-    const savedWidth = multiColumnWidths[field];
-    const widthConfig = savedWidth ? { width: savedWidth } : (COLUMN_WIDTHS[field] || {});
-    const isEditable = EDITABLE_COLUMNS.includes(field);
-    const baseColDef: any = {
-      field,
-      headerName: field === 'sno' ? 'S.No' : field.replace(/_/g, ' ').toUpperCase(),
-      ...widthConfig,
-      cellStyle: (params: any) => {
-        const wsn = params.data?.wsn?.trim()?.toUpperCase();
-        const styles: any = {};
-
-        // SNO special styling - no background, just centered bold text
-        if (field === 'sno') {
-          styles.fontWeight = 700;
-          styles.color = isDarkMode ? '#94a3b8' : '#64748b';
-          styles.textAlign = 'center';
-          return styles;
-        }
-
-        // WSN validation colors
-        if (wsn && field === 'wsn') {
-          if (crossWarehouseWSNs.has(wsn)) {
-            styles.backgroundColor = isDarkMode ? '#7f1d1d' : '#fee2e2';
-            styles.color = isDarkMode ? '#fca5a5' : '#dc2626';
-          } else if (gridDuplicateWSNs.has(wsn)) {
-            styles.backgroundColor = isDarkMode ? '#78350f' : '#fef3c7';
-            styles.color = isDarkMode ? '#fcd34d' : '#92400e';
-          }
-        }
-
-        return styles;
+  // ✅ MULTI ENTRY - COLUMN DEFS (useMemo for stable reference)
+  const columnDefs = useMemo(() => {
+    // Add row number column at the beginning
+    const rowNumberCol = {
+      field: 'rowNumber',
+      headerName: '#',
+      width: 50,
+      minWidth: 50,
+      maxWidth: 50,
+      suppressSizeToFit: true,
+      resizable: false,
+      editable: false,
+      sortable: false,
+      filter: false,
+      cellRenderer: (params: any) => {
+        return <span style={{ fontWeight: 700, color: isDarkMode ? '#94a3b8' : '#64748b' }}>{params.node.rowIndex + 1}</span>;
       },
+      cellStyle: { textAlign: 'center' }
     };
 
-    // S.NO is read-only and shows row index
-    if (field === 'sno') {
-      baseColDef.editable = false;
-      baseColDef.valueGetter = (params: any) => (params.node?.rowIndex != null ? params.node.rowIndex + 1 : '');
-      baseColDef.width = baseColDef.width || 60;
-      baseColDef.suppressSizeToFit = true;
-      return baseColDef;
-    }
+    const dataCols = visibleColumns.filter(f => f !== 'sno').map((field) => {
+      const savedWidth = multiColumnWidths[field];
+      const widthConfig = savedWidth ? { width: savedWidth } : (COLUMN_WIDTHS[field] || {});
+      const isEditable = EDITABLE_COLUMNS.includes(field);
 
-    // Rack select editor (editable)
-    if (field === 'rack_no') {
-      baseColDef.editable = EDITABLE_COLUMNS.includes('rack_no');
-      if (baseColDef.editable) {
-        baseColDef.cellEditor = 'agSelectCellEditor';
-        baseColDef.cellEditorParams = { values: ['', ...racks.map((r: any) => r.rack_name)] };
-        baseColDef.width = baseColDef.width || 110;
+      const baseColDef: any = {
+        field,
+        headerName: field.replace(/_/g, ' ').toUpperCase(),
+        editable: isEditable,
+        suppressSizeToFit: true,
+        resizable: true,
+        minWidth: 80,
+        ...widthConfig,
+        cellStyle: (params: any) => {
+          const wsn = params.data?.wsn?.trim()?.toUpperCase();
+          const styles: any = {};
+
+          // WSN validation colors
+          if (wsn && field === 'wsn') {
+            if (crossWarehouseWSNs.has(wsn)) {
+              styles.backgroundColor = isDarkMode ? '#7f1d1d' : '#fee2e2';
+              styles.color = isDarkMode ? '#fca5a5' : '#dc2626';
+            } else if (gridDuplicateWSNs.has(wsn)) {
+              styles.backgroundColor = isDarkMode ? '#78350f' : '#fef3c7';
+              styles.color = isDarkMode ? '#fcd34d' : '#92400e';
+            }
+          }
+
+          return styles;
+        },
+      };
+
+      // Rack select editor (editable)
+      if (field === 'rack_no' && isEditable) {
+        return {
+          ...baseColDef,
+          width: savedWidth || 110,
+          cellEditor: 'agSelectCellEditor',
+          cellEditorParams: { values: ['', ...racks.map((r: any) => r.rack_name)] },
+        };
       }
+
+      // Read-only for master data columns
+      if (ALL_MASTER_COLUMNS.includes(field)) {
+        baseColDef.editable = false;
+      }
+
+      // WSN column with product link
+      if (field === 'wsn') {
+        baseColDef.cellRenderer = (params: any) => {
+          const wsn = params.value?.trim()?.toUpperCase();
+          const isCross = wsn && crossWarehouseWSNs.has(wsn);
+          const isDup = wsn && gridDuplicateWSNs.has(wsn);
+
+          return (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontWeight: 700 }}>{params.value ?? ''}</span>
+              {params.data?.fkt_link && (
+                <a
+                  href={params.data.fkt_link}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    try { window.open(params.data.fkt_link, '_blank'); } catch (err) { /* ignore */ }
+                  }}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{ fontSize: 14, color: '#f59e0b', textDecoration: 'none', marginLeft: 4, cursor: 'pointer' }}
+                  title="Open product link"
+                >
+                  🔗
+                </a>
+              )}
+              {isCross && (
+                <Tooltip title="Already picked">
+                  <span style={{ color: '#dc2626', cursor: 'help' }}>⛔</span>
+                </Tooltip>
+              )}
+              {isDup && !isCross && (
+                <Tooltip title="Duplicate in grid">
+                  <span style={{ color: '#f59e0b', cursor: 'help' }}>⚠️</span>
+                </Tooltip>
+              )}
+            </div>
+          );
+        };
+      }
+
+      // FKT Link column - clickable
+      if (field === 'fkt_link') {
+        baseColDef.cellRenderer = (params: any) => {
+          if (!params.value) return null;
+          return (
+            <a
+              href={params.value}
+              target="_blank"
+              rel="noreferrer"
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                if (params.value) window.open(params.value, '_blank');
+              }}
+              style={{ color: '#f59e0b', textDecoration: 'underline' }}
+              title={params.value}
+            >
+              🔗
+            </a>
+          );
+        };
+      }
+
       return baseColDef;
-    }
+    });
 
-    // Read-only for master data columns
-    if (ALL_MASTER_COLUMNS.includes(field)) {
-      baseColDef.editable = false;
-    }
-
-    return baseColDef;
-  });
+    return [rowNumberCol, ...dataCols];
+  }, [visibleColumns, multiColumnWidths, racks, crossWarehouseWSNs, gridDuplicateWSNs, isDarkMode]);
 
   //////////////////////////////////====UI RENDERING====////////////////////////////////////
 
@@ -2640,282 +3005,238 @@ export default function PickingPage() {
         {/* ========== TAB: PICKING LIST ========== */}
         {currentTabCode === 'list' && (
           <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
-            {/* FILTERS */}
-            <Card sx={{ mb: { xs: 0, md: 0.5 }, borderRadius: 1.5, boxShadow: isDarkMode ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.06)', background: isDarkMode ? '#1e293b' : 'rgba(255, 255, 255, 0.98)' }}>
-              <CardContent sx={{ p: { xs: 0, md: 1 } }}>
-                <Stack spacing={{ xs: 0, md: 0.5 }}>
-                  <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: { xs: 1, md: 1 }, alignItems: { xs: 'stretch', md: 'center' }, width: '100%' }}>
-                    <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center', width: '100%', overflow: 'hidden' }}>
-                      <TextField size="small" placeholder="🔍 Search by WSN or Product" value={searchFilter} onChange={(e) => { setSearchFilter(e.target.value); setPage(1); }} sx={{ flex: '1 1 auto', flexGrow: 1, flexShrink: 1, minWidth: 0, maxWidth: { xs: 'calc(100% - 120px)', sm: 'calc(100% - 130px)', md: 'none' }, '& .MuiOutlinedInput-root': { height: 40 } }} />
+            {/* FILTERS - REDESIGNED LIKE INBOUND */}
+            <Card sx={{ mb: { xs: 0.5, md: 0.5 }, borderRadius: 1.5, boxShadow: isDarkMode ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.06)', background: isDarkMode ? '#1e293b' : 'rgba(255, 255, 255, 0.98)' }}>
+              <CardContent sx={{ p: { xs: 1, md: 1.5 }, '&:last-child': { pb: { xs: 1, md: 1.5 } } }}>
+                <Stack spacing={1}>
+                  {/* ROW 1: Search + Filter Toggle + Actions */}
+                  <Stack direction="row" spacing={1} alignItems="center" sx={{ flexWrap: { xs: 'wrap', md: 'nowrap' } }}>
+                    {/* Search Field */}
+                    <TextField
+                      size="small"
+                      placeholder="🔍 Search by WSN, Product, or any field..."
+                      value={searchFilter}
+                      onChange={(e) => { setSearchFilter(e.target.value); setPage(1); }}
+                      sx={{
+                        flex: 1,
+                        minWidth: { xs: '100%', sm: 200, md: 280 },
+                        '& .MuiOutlinedInput-root': {
+                          bgcolor: isDarkMode ? '#1e293b' : 'white',
+                          borderRadius: 1.5,
+                          height: 38,
+                          fontSize: { xs: '0.8rem', sm: '0.875rem' },
+                          fontWeight: 500,
+                          border: isDarkMode ? '2px solid rgba(255,255,255,0.15)' : '2px solid #e2e8f0',
+                          '&:hover': { borderColor: isDarkMode ? 'rgba(255,255,255,0.25)' : '#cbd5e1' },
+                          '&.Mui-focused': { borderColor: '#f59e0b' },
+                          '& fieldset': { border: 'none' }
+                        }
+                      }}
+                    />
 
-                      {/* Mobile: Actions button to open full-screen filter dialog */}
-                      <Button
-                        variant="contained"
-                        color="primary"
-                        startIcon={<TuneIcon />}
-                        sx={{
-                          display: { xs: 'inline-flex', md: 'none' },
-                          height: 40,
-                          px: 2,
-                          textTransform: 'none',
-                          flexShrink: 0,
-                          fontSize: '0.85rem',
-                          fontWeight: 600
-                        }}
-                        onClick={() => setMobileActionsOpen(true)}
-                      >
-                        Actions
-                      </Button>
+                    {/* Mobile: Actions button */}
+                    <Button
+                      variant="contained"
+                      startIcon={<TuneIcon />}
+                      sx={{
+                        display: { xs: 'inline-flex', md: 'none' },
+                        height: 38,
+                        px: 2,
+                        textTransform: 'none',
+                        fontSize: '0.85rem',
+                        fontWeight: 600,
+                        bgcolor: '#f59e0b',
+                        '&:hover': { bgcolor: '#d97706' }
+                      }}
+                      onClick={() => setMobileActionsOpen(true)}
+                    >
+                      Actions
+                    </Button>
 
-                      {/* Mobile: show the filter toggle button aligned to the right of search - HIDDEN, now in Actions dialog */}
+                    {/* Desktop: Filter Toggle Button */}
+                    <Button
+                      variant="outlined"
+                      onClick={() => setFiltersExpanded(!filtersExpanded)}
+                      sx={{
+                        display: { xs: 'none', md: 'inline-flex' },
+                        minWidth: 130,
+                        height: 38,
+                        borderWidth: 2,
+                        borderColor: filtersExpanded ? '#f59e0b' : (isDarkMode ? 'rgba(255,255,255,0.2)' : '#cbd5e1'),
+                        bgcolor: filtersExpanded ? 'rgba(245, 158, 11, 0.1)' : (isDarkMode ? '#0f172a' : 'white'),
+                        color: filtersExpanded ? '#f59e0b' : (isDarkMode ? '#94a3b8' : '#64748b'),
+                        fontWeight: 700,
+                        fontSize: '0.78rem',
+                        borderRadius: 1.5,
+                        transition: 'all 0.2s',
+                        '&:hover': {
+                          borderWidth: 2,
+                          borderColor: '#f59e0b',
+                          bgcolor: 'rgba(245, 158, 11, 0.15)'
+                        },
+                        position: 'relative'
+                      }}
+                    >
+                      <FilterListIcon sx={{ fontSize: '1.15rem', mr: 0.5 }} />
+                      {filtersExpanded ? 'Hide Filters' : 'Show Filters'}
+                      {filtersActive && (
+                        <Box sx={{
+                          position: 'absolute',
+                          top: -5,
+                          right: -5,
+                          width: 14,
+                          height: 14,
+                          borderRadius: '50%',
+                          bgcolor: '#10b981',
+                          border: '2px solid white'
+                        }} />
+                      )}
+                      <ExpandMoreIcon sx={{ ml: 0.5, transform: filtersExpanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 200ms' }} />
+                    </Button>
+
+                    {/* Desktop: Action Buttons */}
+                    <Stack direction="row" spacing={0.5} sx={{ display: { xs: 'none', md: 'flex' }, alignItems: 'center' }}>
+                      <Button size="small" variant="outlined" onClick={handleListReset} sx={{ height: 38, minWidth: 60, fontSize: '0.7rem', fontWeight: 700, borderColor: isDarkMode ? 'rgba(255,255,255,0.2)' : '#cbd5e1' }}>Clear</Button>
+                      {canSeeButton('list:columns') && (
+                        <Tooltip title={!canAccessButton('list:columns') ? "You don't have permission" : "Manage Columns"}>
+                          <span>
+                            <Button size="small" variant="outlined" startIcon={<SettingsIcon sx={{ fontSize: 16 }} />} disabled={!canAccessButton('list:columns')} onClick={() => setListColumnSettingsOpen(true)} sx={{ height: 38, fontSize: '0.7rem', fontWeight: 700, borderColor: isDarkMode ? 'rgba(255,255,255,0.2)' : '#cbd5e1' }}>Columns</Button>
+                          </span>
+                        </Tooltip>
+                      )}
+                      <Button size="small" variant="outlined" startIcon={<SettingsIcon sx={{ fontSize: 16 }} />} onClick={() => setGridSettingsOpen(true)} sx={{ height: 38, fontSize: '0.7rem', fontWeight: 700, borderColor: isDarkMode ? 'rgba(255,255,255,0.2)' : '#cbd5e1' }}>Grid</Button>
+                      {canSeeButton('list:export') && (
+                        <Tooltip title={!canAccessButton('list:export') ? "You don't have permission" : "Export Data"}>
+                          <span>
+                            <Button size="small" variant="outlined" startIcon={<DownloadIcon sx={{ fontSize: 16 }} />} disabled={!canAccessButton('list:export')} onClick={() => { loadBatches(); setExportDialogOpen(true); }} sx={{ height: 38, fontSize: '0.7rem', fontWeight: 700, borderColor: isDarkMode ? 'rgba(255,255,255,0.2)' : '#cbd5e1' }}>Export</Button>
+                          </span>
+                        </Tooltip>
+                      )}
                       <Button
-                        variant="outlined"
                         size="small"
-                        onClick={() => setFiltersExpanded(!filtersExpanded)}
-                        sx={{
-                          display: 'none',
-                          height: 40,
-                          minWidth: 64,
-                          fontSize: '0.63rem',
-                          fontWeight: 600,
-                          ml: 0,
-                          whiteSpace: 'nowrap',
-                          justifyContent: 'flex-start',
-                          gap: 0.4,
-                          px: 0.4,
-                          textTransform: 'none',
-                          flexShrink: 0
-                        }}
+                        variant="outlined"
+                        startIcon={refreshing ? <CircularProgress size={14} /> : refreshSuccess ? <CheckIcon sx={{ color: '#10b981' }} /> : <RefreshIcon sx={{ fontSize: 16 }} />}
+                        onClick={() => loadPickingList({ buttonRefresh: true })}
+                        disabled={refreshing}
+                        sx={{ height: 38, fontSize: '0.7rem', fontWeight: 700, borderColor: isDarkMode ? 'rgba(255,255,255,0.2)' : '#cbd5e1' }}
                       >
-                        <FilterListIcon sx={{ fontSize: { xs: '1.1rem', sm: '1.15rem' } }} />
-
-                        <Box component="span" sx={{ mr: 0.5, display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                          <Box component="span">Filters</Box>
-                          {filtersActive && (
-                            <Tooltip title="Filters active">
-                              <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#10b981', border: '2px solid white' }} />
-                            </Tooltip>
-                          )}
-                        </Box>
-
-                        <Box sx={{ ml: 'auto' }}>
-                          <ExpandMoreIcon sx={{ transform: filtersExpanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 200ms' }} />
-                        </Box>
+                        {refreshing ? 'Loading...' : refreshSuccess ? 'Done' : 'Refresh'}
                       </Button>
+                    </Stack>
+                  </Stack>
 
-                      {/* Desktop: show all filters in one row */}
-                      <Box sx={{ display: { xs: 'none', md: 'flex' }, gap: 1, alignItems: 'center', ml: 1, flexGrow: 1 }}>
-                        <TextField select size="small" label="Brand" value={brandFilter} onChange={(e) => { setBrandFilter(e.target.value); setPage(1); }} sx={{ minWidth: 150, '& .MuiOutlinedInput-root': { height: 40 } }}>
-                          <MenuItem value="">All Brands</MenuItem>
-                          {brandOptions.map(brand => (
-                            <MenuItem key={brand} value={brand}>{brand}</MenuItem>
-                          ))}
-                        </TextField>
-
-                        <TextField select size="small" label="Category" value={categoryFilter} onChange={(e) => { setCategoryFilter(e.target.value); setPage(1); }} sx={{ minWidth: 150, '& .MuiOutlinedInput-root': { height: 40 } }}>
-                          <MenuItem value="">All Categories</MenuItem>
-                          {categoryOptions.map(cat => (
-                            <MenuItem key={cat} value={cat}>{cat}</MenuItem>
-                          ))}
-                        </TextField>
-
-                        <TextField select size="small" label="Source" value={sourceFilter} onChange={(e) => { setSourceFilter(e.target.value); setPage(1); }} sx={{ minWidth: 150, '& .MuiOutlinedInput-root': { height: 40 } }}>
-                          <MenuItem value="">All Sources</MenuItem>
-                          <MenuItem value="QC">QC</MenuItem>
-                          <MenuItem value="INBOUND">INBOUND</MenuItem>
-                          <MenuItem value="MASTER">MASTER</MenuItem>
-                        </TextField>
-
-                        <Stack direction="row" spacing={0.5} sx={{ ml: 'auto', alignItems: 'center' }}>
-                          <Button size="small" variant="outlined" onClick={handleListReset} sx={{ height: 40, minWidth: 70, fontSize: '0.7rem', fontWeight: 700 }}>Clear</Button>
-                          {canSeeButton('list:columns') && (
-                            <Tooltip title={!canAccessButton('list:columns') ? "You don't have permission to use this feature" : "Manage Columns"} arrow>
-                              <span>
-                                <Button size="small" variant="outlined" startIcon={<SettingsIcon />} disabled={!canAccessButton('list:columns')} onClick={() => canAccessButton('list:columns') && setListColumnSettingsOpen(true)} sx={{ height: 40, fontSize: '0.7rem', fontWeight: 700 }}>Columns</Button>
-                              </span>
-                            </Tooltip>
-                          )}
-                          <Button size="small" variant="outlined" startIcon={<SettingsIcon />} onClick={() => setGridSettingsOpen(true)} sx={{ height: 40, fontSize: '0.7rem', fontWeight: 700 }}>Grid</Button>
-                          {canSeeButton('list:export') && (
-                            <Tooltip title={!canAccessButton('list:export') ? "You don't have permission to use this feature" : "Export Data"} arrow>
-                              <span>
-                                <Button size="small" variant="outlined" startIcon={<DownloadIcon />} disabled={!canAccessButton('list:export')} onClick={() => canAccessButton('list:export') && setExportDialogOpen(true)} sx={{ height: 40, fontSize: '0.7rem', fontWeight: 700 }}>Export</Button>
-                              </span>
-                            </Tooltip>
-                          )}
-                          <Button
+                  {/* ROW 2: Collapsible Filters */}
+                  <Collapse in={filtersExpanded} timeout="auto">
+                    <Card sx={{
+                      borderRadius: 1.5,
+                      boxShadow: isDarkMode ? '0 4px 20px rgba(0,0,0,0.4)' : '0 4px 20px rgba(0,0,0,0.1)',
+                      background: isDarkMode ? 'linear-gradient(135deg, #1e293b 0%, #334155 100%)' : 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
+                      border: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e2e8f0',
+                      mt: 1
+                    }}>
+                      <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+                        <Box sx={{
+                          display: 'grid',
+                          gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', md: 'repeat(6, 1fr)' },
+                          gap: 1
+                        }}>
+                          {/* Brand */}
+                          <TextField
+                            select
                             size="small"
-                            variant="outlined"
-                            startIcon={refreshing ? <CircularProgress size={14} /> : refreshSuccess ? <CheckIcon sx={{ color: '#10b981' }} /> : <RefreshIcon />}
-                            onClick={() => loadPickingList({ buttonRefresh: true })}
-                            disabled={refreshing}
-                            sx={{ height: 40, fontSize: '0.7rem', fontWeight: 700 }}
-
-                          >
-                            {refreshing ? 'Refreshing...' : refreshSuccess ? 'Refreshed' : 'Refresh'}
-                          </Button>
-
-                        </Stack>
-                      </Box>
-                    </Box>
-
-                    {filtersExpanded && (
-                      <Collapse
-                        in={filtersExpanded}
-                        timeout="auto"
-                        sx={{ display: { xs: 'block', md: 'none' } }}
-                      >
-                        <Box sx={{ mt: 0 }}>
-                          <Box
+                            label="Brand"
+                            value={brandFilter}
+                            onChange={(e) => { setBrandFilter(e.target.value); setPage(1); }}
                             sx={{
-                              display: 'grid',
-                              gridTemplateColumns: 'repeat(4, 1fr)',
-                              gap: 0.5,
+                              '& .MuiOutlinedInput-root': { height: 36, fontSize: '0.8rem', bgcolor: isDarkMode ? '#1e293b' : 'white' },
+                              '& .MuiInputLabel-root': { fontSize: '0.75rem' }
                             }}
                           >
-                            {/* Brand */}
-                            <TextField
-                              select
-                              size="small"
-                              fullWidth
-                              label="Brand"
-                              value={brandFilter}
-                              onChange={(e) => {
-                                setBrandFilter(e.target.value);
-                                setPage(1);
-                              }}
-                              sx={{
-                                gridColumn: 'span 2',
-                                minWidth: 0,
-                                '& .MuiOutlinedInput-root': { height: 36 },
-                              }}
-                            >
-                              <MenuItem value="">All Brands</MenuItem>
-                              {brandOptions.map((brand) => (
-                                <MenuItem key={brand} value={brand}>
-                                  {brand}
-                                </MenuItem>
-                              ))}
-                            </TextField>
+                            <MenuItem value="">All Brands</MenuItem>
+                            {brandOptions.map(brand => <MenuItem key={brand} value={brand}>{brand}</MenuItem>)}
+                          </TextField>
 
-                            {/* Category */}
-                            <TextField
-                              select
-                              size="small"
-                              fullWidth
-                              label="Category"
-                              value={categoryFilter}
-                              onChange={(e) => {
-                                setCategoryFilter(e.target.value);
-                                setPage(1);
-                              }}
-                              sx={{
-                                gridColumn: 'span 2',
-                                minWidth: 0,
-                                '& .MuiOutlinedInput-root': { height: 36 },
-                              }}
-                            >
-                              <MenuItem value="">All Categories</MenuItem>
-                              {categoryOptions.map((cat) => (
-                                <MenuItem key={cat} value={cat}>
-                                  {cat}
-                                </MenuItem>
-                              ))}
-                            </TextField>
+                          {/* Category */}
+                          <TextField
+                            select
+                            size="small"
+                            label="Category"
+                            value={categoryFilter}
+                            onChange={(e) => { setCategoryFilter(e.target.value); setPage(1); }}
+                            sx={{
+                              '& .MuiOutlinedInput-root': { height: 36, fontSize: '0.8rem', bgcolor: isDarkMode ? '#1e293b' : 'white' },
+                              '& .MuiInputLabel-root': { fontSize: '0.75rem' }
+                            }}
+                          >
+                            <MenuItem value="">All Categories</MenuItem>
+                            {categoryOptions.map(cat => <MenuItem key={cat} value={cat}>{cat}</MenuItem>)}
+                          </TextField>
 
-                            {/* Source */}
-                            <TextField
-                              select
-                              size="small"
-                              fullWidth
-                              label="Source"
-                              value={sourceFilter}
-                              onChange={(e) => {
-                                setSourceFilter(e.target.value);
-                                setPage(1);
-                              }}
-                              sx={{
-                                gridColumn: 'span 2',
-                                minWidth: 0,
-                                '& .MuiOutlinedInput-root': { height: 36 },
-                              }}
-                            >
-                              <MenuItem value="">All Sources</MenuItem>
-                              <MenuItem value="QC">QC</MenuItem>
-                              <MenuItem value="INBOUND">INBOUND</MenuItem>
-                              <MenuItem value="MASTER">MASTER</MenuItem>
-                            </TextField>
+                          {/* Source */}
+                          <TextField
+                            select
+                            size="small"
+                            label="Source"
+                            value={sourceFilter}
+                            onChange={(e) => { setSourceFilter(e.target.value); setPage(1); }}
+                            sx={{
+                              '& .MuiOutlinedInput-root': { height: 36, fontSize: '0.8rem', bgcolor: isDarkMode ? '#1e293b' : 'white' },
+                              '& .MuiInputLabel-root': { fontSize: '0.75rem' }
+                            }}
+                          >
+                            <MenuItem value="">All Sources</MenuItem>
+                            <MenuItem value="QC">QC</MenuItem>
+                            <MenuItem value="INBOUND">INBOUND</MenuItem>
+                            <MenuItem value="MASTER">MASTER</MenuItem>
+                          </TextField>
 
-                            {/* Buttons */}
-                            <Box
-                              sx={{
-                                gridColumn: 'span 2',
-                                display: 'grid',
-                                gridTemplateColumns: 'repeat(4, 1fr)',
-                                gap: 0.5,
-                              }}
-                            >
-                              {[
-                                {
-                                  icon: '🧹',
-                                  label: 'Reset',
-                                  onClick: () => {
-                                    setSearchFilter('');
-                                    setBrandFilter('');
-                                    setCategoryFilter('');
-                                    setSourceFilter('');
-                                    setPage(1);
-                                  },
-                                },
-                                { icon: <SettingsIcon fontSize="small" />, label: 'Columns', onClick: () => setListColumnSettingsOpen(true) },
-                                { icon: <DownloadIcon fontSize="small" />, label: 'Export', onClick: () => setExportDialogOpen(true) },
-                                { icon: <RefreshIcon fontSize="small" />, label: 'Refresh', onClick: () => loadPickingList({ buttonRefresh: true }) },
-                              ].map((btn, index) => (
-                                <Button
-                                  key={index}
-                                  size="small"
-                                  variant="outlined"
-                                  onClick={btn.label === 'Refresh' ? () => loadPickingList({ buttonRefresh: true }) : btn.onClick}
-                                  sx={{
-                                    minWidth: 0,
-                                    height: 36,
-                                    px: 0.5,
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    lineHeight: 1,
-                                  }}
-                                >
-                                  <Box
-                                    sx={{
-                                      fontSize: '1rem',
-                                      display: 'flex',
-                                      justifyContent: 'center',
-                                      alignItems: 'center',
-                                    }}
-                                  >
-                                    {btn.label === 'Refresh' ? (refreshing ? <CircularProgress size={16} /> : refreshSuccess ? <CheckIcon sx={{ color: '#10b981' }} /> : <RefreshIcon fontSize="small" />) : btn.icon}
-                                  </Box>
-                                  <Box
-                                    sx={{
-                                      fontSize: '0.55rem',
-                                      fontWeight: 600,
-                                      mt: 0.1,
-                                      textAlign: 'center',
-                                    }}
-                                  >
-                                    {btn.label}
-                                  </Box>
-                                </Button>
-                              ))}
-                            </Box>
-                          </Box>
+                          {/* Customer */}
+                          <TextField
+                            select
+                            size="small"
+                            label="Customer"
+                            value={customerFilter}
+                            onChange={(e) => { setCustomerFilter(e.target.value); setPage(1); }}
+                            sx={{
+                              '& .MuiOutlinedInput-root': { height: 36, fontSize: '0.8rem', bgcolor: isDarkMode ? '#1e293b' : 'white' },
+                              '& .MuiInputLabel-root': { fontSize: '0.75rem' }
+                            }}
+                          >
+                            <MenuItem value="">All Customers</MenuItem>
+                            {pickingCustomers.map(cust => <MenuItem key={cust} value={cust}>{cust}</MenuItem>)}
+                          </TextField>
+
+                          {/* From Date */}
+                          <TextField
+                            type="date"
+                            size="small"
+                            label="From Date"
+                            value={startDateFilter}
+                            onChange={(e) => { setStartDateFilter(e.target.value); setPage(1); }}
+                            InputLabelProps={{ shrink: true }}
+                            sx={{
+                              '& .MuiOutlinedInput-root': { height: 36, fontSize: '0.8rem', bgcolor: isDarkMode ? '#1e293b' : 'white' },
+                              '& .MuiInputLabel-root': { fontSize: '0.75rem' }
+                            }}
+                          />
+
+                          {/* To Date */}
+                          <TextField
+                            type="date"
+                            size="small"
+                            label="To Date"
+                            value={endDateFilter}
+                            onChange={(e) => { setEndDateFilter(e.target.value); setPage(1); }}
+                            InputLabelProps={{ shrink: true }}
+                            sx={{
+                              '& .MuiOutlinedInput-root': { height: 36, fontSize: '0.8rem', bgcolor: isDarkMode ? '#1e293b' : 'white' },
+                              '& .MuiInputLabel-root': { fontSize: '0.75rem' }
+                            }}
+                          />
                         </Box>
-                      </Collapse>
-                    )}
-
-                  </Box>
+                      </CardContent>
+                    </Card>
+                  </Collapse>
                 </Stack>
               </CardContent>
             </Card>
@@ -3154,7 +3475,7 @@ export default function PickingPage() {
                       ensureDomOrder={true}
                       animateRows={false}
                       rowBuffer={20}
-                      valueCache={true}
+                      valueCache={false}
                       debounceVerticalScrollbar={true}
                       gridOptions={{ getRowId: (params: any) => String(params.data?.wsn || params.data?.id || params.rowIndex), suppressRowTransform: true }}
                       onGridReady={(params: any) => {
@@ -3162,6 +3483,7 @@ export default function PickingPage() {
                         gridRef.current = params.api;
                         columnApiRef.current = params.api;
                         try {
+                          // Try localStorage
                           const savedState = localStorage.getItem('picking_grid_state');
                           if (savedState && params.api) {
                             params.api.applyColumnState({ state: JSON.parse(savedState), applyOrder: true });
@@ -3691,7 +4013,7 @@ export default function PickingPage() {
                               variant="outlined"
                               startIcon={<DownloadIcon />}
                               disabled={!canAccessButton('list:export')}
-                              onClick={() => { if (canAccessButton('list:export')) { setExportDialogOpen(true); setMobileActionsOpen(false); } }}
+                              onClick={() => { if (canAccessButton('list:export')) { loadBatches(); setExportDialogOpen(true); setMobileActionsOpen(false); } }}
                               sx={{ height: 44, fontSize: '0.85rem', width: '100%' }}
                             >
                               Export
@@ -3862,9 +4184,9 @@ export default function PickingPage() {
                   <CustomerAutocomplete
                     value={exportCustomer}
                     onChange={(newValue) => setExportCustomer(newValue)}
-                    customers={exportCustomerOptions}
+                    customers={pickingCustomers}
                     warehouseId={activeWarehouse?.id}
-                    onCustomerAdded={loadCustomers}
+                    onCustomerAdded={loadPickingCustomers}
                     size="medium"
                     label="Customer Name"
                     placeholder="Select or type customer name..."
@@ -4036,7 +4358,61 @@ export default function PickingPage() {
                   </Box>
 
                   {/* RIGHT: Actions */}
-                  <Box sx={{ gridColumn: { xs: '2 / span 1', md: '3 / span 1' }, display: 'flex', gap: 0.5, justifyContent: { xs: 'flex-end', md: 'flex-end' }, alignItems: 'center', pt: { xs: 0.5, md: 0 } }}>
+                  <Box sx={{ gridColumn: { xs: '2 / span 1', md: '3 / span 1' }, display: 'flex', gap: 0.5, justifyContent: { xs: 'flex-end', md: 'flex-end' }, alignItems: 'center', pt: { xs: 0.5, md: 0 }, flexWrap: 'wrap' }}>
+                    {/* Ctrl+O Product Link Toggle */}
+                    <Tooltip title="Ctrl+O: Open product link for last scanned WSN" placement="top">
+                      <Button
+                        size="small"
+                        variant={ctrlOProductLinkEnabled ? 'contained' : 'outlined'}
+                        onClick={() => {
+                          const newValue = !ctrlOProductLinkEnabled;
+                          setCtrlOProductLinkEnabled(newValue);
+                          ctrlOProductLinkEnabledRef.current = newValue; // Update ref for instant effect
+                          localStorage.setItem('picking_ctrlOProductLinkEnabled', String(newValue));
+                          toast.success(`Ctrl+O ${newValue ? 'enabled' : 'disabled'}`);
+                        }}
+                        startIcon={<LinkIcon sx={{ fontSize: 14 }} />}
+                        sx={{
+                          fontSize: '0.65rem',
+                          fontWeight: 600,
+                          px: 0.6,
+                          height: { xs: 40, md: 'auto' },
+                          minWidth: { xs: 92, md: 'auto' },
+                          textTransform: 'none',
+                          ...(ctrlOProductLinkEnabled ? {
+                            background: 'linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%)',
+                            '&:hover': { background: 'linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%)' },
+                          } : {
+                            borderColor: '#8b5cf6',
+                            color: '#8b5cf6',
+                          }),
+                        }}
+                      >
+                        Ctrl+O {ctrlOProductLinkEnabled ? 'ON' : 'OFF'}
+                      </Button>
+                    </Tooltip>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      onClick={() => setCategoryPivotOpen(true)}
+                      startIcon={<PieChartIcon sx={{ fontSize: 14 }} />}
+                      disabled={!multiRows.some((r: any) => r.wsn?.trim())}
+                      sx={{
+                        fontSize: '0.7rem',
+                        fontWeight: 700,
+                        px: 0.6,
+                        height: { xs: 40, md: 'auto' },
+                        textTransform: 'none',
+                        minWidth: { xs: 80, md: 'auto' },
+                        borderColor: '#7c3aed',
+                        color: '#7c3aed',
+                        '&:hover': { bgcolor: 'rgba(124, 58, 237, 0.1)', borderColor: '#7c3aed' },
+                        '&.Mui-disabled': { borderColor: '#94a3b8', color: '#94a3b8' }
+                      }}
+                    >
+                      Pivot
+                    </Button>
+                    <Button size="small" variant="outlined" onClick={() => setMultiGridSettingsOpen(true)} startIcon={<SettingsIcon sx={{ fontSize: 14 }} />} sx={{ fontSize: '0.7rem', fontWeight: 700, px: 0.6, height: { xs: 40, md: 'auto' }, textTransform: 'none', minWidth: { xs: 80, md: 'auto' } }}>Grid</Button>
                     <Button size="small" variant="outlined" onClick={() => setColumnSettingsOpen(true)} sx={{ fontSize: '0.7rem', fontWeight: 700, px: 0.6, height: { xs: 40, md: 'auto' }, textTransform: 'none', minWidth: { xs: 92, md: 'auto' } }}>⚙️ Columns</Button>
                     <Button size="small" variant="outlined" startIcon={<DownloadIcon sx={{ fontSize: 14 }} />} onClick={exportMultiEntryToExcel} disabled={!multiRows.some((r: any) => r.wsn?.trim())} sx={{ fontSize: '0.7rem', fontWeight: 700, px: 0.6, height: { xs: 40, md: 'auto' }, minWidth: { xs: 92, md: 'auto' }, borderColor: '#10b981', color: '#10b981', '&:hover': { bgcolor: 'rgba(16, 185, 129, 0.1)', borderColor: '#10b981' }, '&.Mui-disabled': { borderColor: '#94a3b8', color: '#94a3b8' } }}>Export</Button>
                     <Button size="small" variant="contained" onClick={add500Rows} sx={{ fontSize: '0.7rem', fontWeight: 700, background: '#ec4899', px: 0.6, height: { xs: 40, md: 'auto' }, minWidth: { xs: 92, md: 'auto' } }}>+500 Add Rows</Button>
@@ -4140,6 +4516,7 @@ export default function PickingPage() {
               }}
             >
               <AgGridReact
+                key={`multi-grid-${multiGridSettings.sortable}-${multiGridSettings.filter}-${multiGridSettings.resizable}-${multiGridSettings.editable}`}
                 ref={gridRef}
                 onGridReady={(params: any) => {
                   gridRef.current = params.api;
@@ -4170,10 +4547,13 @@ export default function PickingPage() {
                 headerHeight={32}
                 getRowId={(params) => String(params.data.id)}
                 defaultColDef={{
-                  sortable: false,
-                  filter: false,
-                  resizable: true,
+                  sortable: multiGridSettings.sortable,    // ✅ Apply grid settings
+                  filter: multiGridSettings.filter,        // ✅ Apply grid settings
+                  resizable: multiGridSettings.resizable,  // ✅ Apply grid settings
                   editable: (params) => {
+                    // Check grid settings first
+                    if (!multiGridSettings.editable) return false;
+
                     const field = params.colDef.field as string;
                     const wsn = params.data?.wsn?.trim()?.toUpperCase();
 
@@ -4312,26 +4692,36 @@ export default function PickingPage() {
                   }
                 }}
                 onGridSizeChanged={() => {
+                  // Only sizeColumnsToFit if no saved widths - don't auto-size if user has customized widths
                   try {
+                    const hasSavedWidths = Object.keys(multiColumnWidths).length > 0;
+                    if (hasSavedWidths) return; // Respect user's saved column widths
+
                     const colApi = columnApiRef.current;
                     const api = gridRef.current;
                     if (!colApi || !api) return;
+                    // Only fit to grid width if columns are narrower than grid
                     const allCols = colApi.getAllColumns ? colApi.getAllColumns().map((c: any) => c.getColId()) : [];
                     if (!allCols || allCols.length === 0) return;
-                    colApi.autoSizeColumns(allCols, false);
                     let total = 0;
                     for (const id of allCols) {
                       const col = colApi.getColumn(id);
                       total += col?.getActualWidth ? col.getActualWidth() : 0;
                     }
-                    const dims = api.getSize ? api.getSize() : (api.gridPanel && api.gridPanel.getBodyClientRect && api.gridPanel.getBodyClientRect());
+                    const dims = api.getSize ? api.getSize() : null;
                     const gridW = dims?.width || 0;
                     if (gridW && total < gridW) api.sizeColumnsToFit();
                   } catch { /* ignore */ }
                 }}
                 onFirstDataRendered={() => {
-                  // ensure columns fit on first render
+                  // Only auto-size columns on first render if no saved widths exist
+                  if (multiGridInitializedRef.current) return;
+                  multiGridInitializedRef.current = true;
+
                   try {
+                    const hasSavedWidths = Object.keys(multiColumnWidths).length > 0;
+                    if (hasSavedWidths) return; // Respect user's saved column widths
+
                     const colApi = columnApiRef.current;
                     const api = gridRef.current;
                     if (!colApi || !api) return;
@@ -4343,7 +4733,7 @@ export default function PickingPage() {
                       const col = colApi.getColumn(id);
                       total += col?.getActualWidth ? col.getActualWidth() : 0;
                     }
-                    const dims = api.getSize ? api.getSize() : (api.gridPanel && api.gridPanel.getBodyClientRect && api.gridPanel.getBodyClientRect());
+                    const dims = api.getSize ? api.getSize() : null;
                     const gridW = dims?.width || 0;
                     if (gridW && total < gridW) api.sizeColumnsToFit();
                   } catch { /* ignore */ }
@@ -4576,6 +4966,13 @@ export default function PickingPage() {
                     node.setDataValue('wh_location', d.wh_location ?? '');
                     node.setDataValue('yield_value', d.yield_value ?? '');
                     node.setDataValue('source', d.source ?? '');
+
+                    // ⚡ Track last scanned row for Ctrl+O product link
+                    lastScannedRowRef.current = {
+                      wsn,
+                      fkt_link: d.fkt_link ?? '',
+                      product_title: d.product_title ?? '',
+                    };
 
                     // 🔥 ALSO UPDATE REACT STATE FOR CONSISTENCY
                     setMultiRows((prev) => {
@@ -4844,6 +5241,464 @@ export default function PickingPage() {
             <Button onClick={() => setColumnSettingsOpen(false)} variant="outlined">Close</Button>
             <Button onClick={() => setVisibleColumns(DEFAULT_MULTI_COLUMNS)} variant="contained" sx={{ background: 'linear-gradient(135deg, #f59e0b 0%, #ea580c 100%)' }}>
               Reset to Default
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* ========== MULTI ENTRY GRID SETTINGS DIALOG ========== */}
+        <Dialog
+          open={multiGridSettingsOpen}
+          onClose={() => setMultiGridSettingsOpen(false)}
+          maxWidth="xs"
+          fullWidth
+          PaperProps={{ sx: { borderRadius: 2, boxShadow: '0 8px 32px rgba(0,0,0,0.12)' } }}
+        >
+          <DialogTitle sx={{
+            background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+            color: 'white',
+            fontWeight: 800,
+            fontSize: '1.1rem',
+            py: 1.5
+          }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <SettingsIcon />
+              Multi Entry Grid Settings
+            </Box>
+          </DialogTitle>
+
+          <DialogContent sx={{ mt: 2, pb: 1 }}>
+            <Stack spacing={2.5}>
+              <Alert severity="info" sx={{ fontSize: '0.8rem', py: 0.5 }}>
+                Settings auto-save and persist after reload 💾
+              </Alert>
+
+              {/* SORTABLE */}
+              <Box>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={multiGridSettings.sortable}
+                      onChange={(e) => updateMultiGridSettings({ ...multiGridSettings, sortable: e.target.checked })}
+                      sx={{ '&.Mui-checked': { color: '#f59e0b' } }}
+                    />
+                  }
+                  label={
+                    <Box>
+                      <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: isDarkMode ? '#f1f5f9' : '#1e293b' }}>
+                        ⬆️ Enable Sorting
+                      </Typography>
+                      <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem' }}>
+                        Click column headers to sort ascending/descending
+                      </Typography>
+                    </Box>
+                  }
+                />
+              </Box>
+
+              <Divider sx={{ my: 0.5 }} />
+
+              {/* FILTER */}
+              <Box>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={multiGridSettings.filter}
+                      onChange={(e) => updateMultiGridSettings({ ...multiGridSettings, filter: e.target.checked })}
+                      sx={{ '&.Mui-checked': { color: '#f59e0b' } }}
+                    />
+                  }
+                  label={
+                    <Box>
+                      <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: isDarkMode ? '#f1f5f9' : '#1e293b' }}>
+                        🔍 Enable Column Filters
+                      </Typography>
+                      <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem' }}>
+                        Filter menu icon in column headers
+                      </Typography>
+                    </Box>
+                  }
+                />
+              </Box>
+
+              <Divider sx={{ my: 0.5 }} />
+
+              {/* RESIZABLE */}
+              <Box>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={multiGridSettings.resizable}
+                      onChange={(e) => updateMultiGridSettings({ ...multiGridSettings, resizable: e.target.checked })}
+                      sx={{ '&.Mui-checked': { color: '#f59e0b' } }}
+                    />
+                  }
+                  label={
+                    <Box>
+                      <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: isDarkMode ? '#f1f5f9' : '#1e293b' }}>
+                        ↔️ Enable Column Resize
+                      </Typography>
+                      <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem' }}>
+                        Drag column borders to adjust width
+                      </Typography>
+                    </Box>
+                  }
+                />
+              </Box>
+            </Stack>
+          </DialogContent>
+
+          <DialogActions sx={{ p: 2, background: '#fef3c7', gap: 1 }}>
+            <Button
+              onClick={() => {
+                const defaultSettings = {
+                  sortable: true,
+                  filter: true,
+                  resizable: true,
+                  editable: true,
+                };
+                updateMultiGridSettings(defaultSettings);
+                toast.success('Settings reset to default');
+              }}
+              sx={{
+                fontWeight: 700,
+                color: '#78716c',
+                '&:hover': { bgcolor: 'rgba(120, 113, 108, 0.1)' }
+              }}
+            >
+              Reset
+            </Button>
+
+            <Box sx={{ flex: 1 }} />
+
+            <Button onClick={() => setMultiGridSettingsOpen(false)} sx={{ fontWeight: 700 }}>Close</Button>
+            <Button onClick={() => setMultiGridSettingsOpen(false)} variant="contained" sx={{ background: 'linear-gradient(135deg, #f59e0b 0%, #ea580c 100%)', color: '#fff' }}>Done</Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* ========== CATEGORY PIVOT DIALOG ========== */}
+        <Dialog
+          open={categoryPivotOpen}
+          onClose={() => setCategoryPivotOpen(false)}
+          maxWidth="md"
+          fullWidth
+          PaperProps={{
+            sx: {
+              borderRadius: 2,
+              bgcolor: isDarkMode ? '#1e293b' : '#ffffff',
+            }
+          }}
+        >
+          <DialogTitle sx={{
+            pb: 1,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            background: 'linear-gradient(135deg, #7c3aed 0%, #8b5cf6 100%)',
+            color: 'white',
+          }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <PieChartIcon />
+              <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                {pivotGroupBy === 'brand' ? 'Brand' : 'Category'} Quantity Summary
+              </Typography>
+            </Box>
+            <Chip
+              label={`${categoryPivotData.grandTotal.qty} Items`}
+              size="small"
+              sx={{
+                bgcolor: 'rgba(255,255,255,0.2)',
+                color: 'white',
+                fontWeight: 700,
+              }}
+            />
+          </DialogTitle>
+          <DialogContent sx={{ p: 0 }}>
+            {/* Group By Toggle */}
+            <Box sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 2,
+              p: 2,
+              borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0',
+              bgcolor: isDarkMode ? '#1e293b' : '#f8fafc',
+            }}>
+              <Typography sx={{ fontWeight: 600, color: isDarkMode ? '#94a3b8' : '#64748b', fontSize: '0.85rem' }}>
+                Group By:
+              </Typography>
+              <Box sx={{ display: 'flex', gap: 0.5 }}>
+                <Button
+                  size="small"
+                  variant={pivotGroupBy === 'category' ? 'contained' : 'outlined'}
+                  onClick={() => setPivotGroupBy('category')}
+                  sx={{
+                    fontSize: '0.75rem',
+                    fontWeight: 600,
+                    px: 2,
+                    py: 0.5,
+                    borderRadius: 1,
+                    textTransform: 'none',
+                    ...(pivotGroupBy === 'category' ? {
+                      background: 'linear-gradient(135deg, #7c3aed 0%, #8b5cf6 100%)',
+                      '&:hover': { background: 'linear-gradient(135deg, #6d28d9 0%, #7c3aed 100%)' },
+                    } : {
+                      borderColor: isDarkMode ? '#6366f1' : '#8b5cf6',
+                      color: isDarkMode ? '#a5b4fc' : '#7c3aed',
+                      '&:hover': { bgcolor: 'rgba(139, 92, 246, 0.08)' },
+                    }),
+                  }}
+                >
+                  📁 Category
+                </Button>
+                <Button
+                  size="small"
+                  variant={pivotGroupBy === 'brand' ? 'contained' : 'outlined'}
+                  onClick={() => setPivotGroupBy('brand')}
+                  sx={{
+                    fontSize: '0.75rem',
+                    fontWeight: 600,
+                    px: 2,
+                    py: 0.5,
+                    borderRadius: 1,
+                    textTransform: 'none',
+                    ...(pivotGroupBy === 'brand' ? {
+                      background: 'linear-gradient(135deg, #0891b2 0%, #06b6d4 100%)',
+                      '&:hover': { background: 'linear-gradient(135deg, #0e7490 0%, #0891b2 100%)' },
+                    } : {
+                      borderColor: isDarkMode ? '#22d3ee' : '#0891b2',
+                      color: isDarkMode ? '#67e8f9' : '#0891b2',
+                      '&:hover': { bgcolor: 'rgba(6, 182, 212, 0.08)' },
+                    }),
+                  }}
+                >
+                  🏷️ Brand
+                </Button>
+              </Box>
+            </Box>
+
+            {categoryPivotData.categories.length === 0 ? (
+              <Box sx={{ p: 4, textAlign: 'center' }}>
+                <Typography color="text.secondary">
+                  No scanned items found. Start scanning WSNs to see {pivotGroupBy} summary.
+                </Typography>
+              </Box>
+            ) : (
+              <TableContainer sx={{ maxHeight: 400 }}>
+                <Table stickyHeader size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell
+                        onClick={() => handleCategoryPivotSort('category')}
+                        sx={{
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          bgcolor: isDarkMode ? '#334155' : '#f1f5f9',
+                          color: isDarkMode ? '#f1f5f9' : '#1e293b',
+                          '&:hover': { bgcolor: isDarkMode ? '#475569' : '#e2e8f0' },
+                          userSelect: 'none',
+                        }}
+                      >
+                        {pivotGroupBy === 'brand' ? 'Brand' : 'Category'} {categoryPivotSortBy === 'category' && (categoryPivotSortDir === 'asc' ? '↑' : '↓')}
+                      </TableCell>
+                      <TableCell
+                        align="right"
+                        onClick={() => handleCategoryPivotSort('qty')}
+                        sx={{
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          bgcolor: isDarkMode ? '#334155' : '#f1f5f9',
+                          color: isDarkMode ? '#f1f5f9' : '#1e293b',
+                          '&:hover': { bgcolor: isDarkMode ? '#475569' : '#e2e8f0' },
+                          userSelect: 'none',
+                        }}
+                      >
+                        Qty {categoryPivotSortBy === 'qty' && (categoryPivotSortDir === 'asc' ? '↑' : '↓')}
+                      </TableCell>
+                      <TableCell
+                        align="right"
+                        onClick={() => handleCategoryPivotSort('fsp')}
+                        sx={{
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          bgcolor: isDarkMode ? '#334155' : '#f1f5f9',
+                          color: isDarkMode ? '#f1f5f9' : '#1e293b',
+                          '&:hover': { bgcolor: isDarkMode ? '#475569' : '#e2e8f0' },
+                          userSelect: 'none',
+                        }}
+                      >
+                        Total FSP {categoryPivotSortBy === 'fsp' && (categoryPivotSortDir === 'asc' ? '↑' : '↓')}
+                      </TableCell>
+                      <TableCell
+                        align="right"
+                        onClick={() => handleCategoryPivotSort('mrp')}
+                        sx={{
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          bgcolor: isDarkMode ? '#334155' : '#f1f5f9',
+                          color: isDarkMode ? '#f1f5f9' : '#1e293b',
+                          '&:hover': { bgcolor: isDarkMode ? '#475569' : '#e2e8f0' },
+                          userSelect: 'none',
+                        }}
+                      >
+                        Total MRP {categoryPivotSortBy === 'mrp' && (categoryPivotSortDir === 'asc' ? '↑' : '↓')}
+                      </TableCell>
+                      <TableCell
+                        align="center"
+                        sx={{
+                          fontWeight: 700,
+                          bgcolor: isDarkMode ? '#334155' : '#f1f5f9',
+                          color: isDarkMode ? '#f1f5f9' : '#1e293b',
+                        }}
+                      >
+                        %
+                      </TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {categoryPivotData.categories.map((cat, idx) => (
+                      <TableRow
+                        key={cat.category}
+                        sx={{
+                          '&:nth-of-type(odd)': { bgcolor: isDarkMode ? 'rgba(51, 65, 85, 0.3)' : 'rgba(241, 245, 249, 0.5)' },
+                          '&:hover': { bgcolor: isDarkMode ? 'rgba(59, 130, 246, 0.15)' : 'rgba(59, 130, 246, 0.08)' },
+                        }}
+                      >
+                        <TableCell sx={{
+                          fontWeight: 600,
+                          color: isDarkMode ? '#f1f5f9' : '#1e293b',
+                        }}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Box
+                              sx={{
+                                width: 8,
+                                height: 8,
+                                borderRadius: '50%',
+                                bgcolor: [
+                                  '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
+                                  '#ec4899', '#06b6d4', '#84cc16', '#f97316', '#6366f1'
+                                ][idx % 10],
+                              }}
+                            />
+                            {cat.category}
+                          </Box>
+                        </TableCell>
+                        <TableCell align="right" sx={{
+                          fontWeight: 700,
+                          color: isDarkMode ? '#60a5fa' : '#2563eb',
+                          fontSize: '0.95rem',
+                        }}>
+                          {cat.qty.toLocaleString()}
+                        </TableCell>
+                        <TableCell align="right" sx={{
+                          color: isDarkMode ? '#4ade80' : '#16a34a',
+                          fontWeight: 600,
+                        }}>
+                          ₹{cat.fsp.toLocaleString()}
+                        </TableCell>
+                        <TableCell align="right" sx={{
+                          color: isDarkMode ? '#f97316' : '#ea580c',
+                          fontWeight: 600,
+                        }}>
+                          ₹{cat.mrp.toLocaleString()}
+                        </TableCell>
+                        <TableCell align="center">
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Box sx={{
+                              flex: 1,
+                              height: 6,
+                              bgcolor: isDarkMode ? '#334155' : '#e2e8f0',
+                              borderRadius: 3,
+                              overflow: 'hidden',
+                            }}>
+                              <Box sx={{
+                                width: `${cat.percentage}%`,
+                                height: '100%',
+                                bgcolor: [
+                                  '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
+                                  '#ec4899', '#06b6d4', '#84cc16', '#f97316', '#6366f1'
+                                ][idx % 10],
+                                borderRadius: 3,
+                              }} />
+                            </Box>
+                            <Typography sx={{
+                              fontSize: '0.75rem',
+                              fontWeight: 600,
+                              color: isDarkMode ? '#94a3b8' : '#64748b',
+                              minWidth: 45,
+                            }}>
+                              {cat.percentage.toFixed(1)}%
+                            </Typography>
+                          </Box>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {/* Grand Total Row */}
+                    <TableRow sx={{
+                      bgcolor: isDarkMode ? '#1e3a5f' : '#1e40af',
+                      '& td': { borderBottom: 'none' },
+                    }}>
+                      <TableCell sx={{
+                        fontWeight: 800,
+                        color: 'white',
+                        fontSize: '0.95rem',
+                      }}>
+                        GRAND TOTAL
+                      </TableCell>
+                      <TableCell align="right" sx={{
+                        fontWeight: 800,
+                        color: 'white',
+                        fontSize: '1.1rem',
+                      }}>
+                        {categoryPivotData.grandTotal.qty.toLocaleString()}
+                      </TableCell>
+                      <TableCell align="right" sx={{
+                        fontWeight: 700,
+                        color: '#4ade80',
+                      }}>
+                        ₹{categoryPivotData.grandTotal.fsp.toLocaleString()}
+                      </TableCell>
+                      <TableCell align="right" sx={{
+                        fontWeight: 700,
+                        color: '#fbbf24',
+                      }}>
+                        ₹{categoryPivotData.grandTotal.mrp.toLocaleString()}
+                      </TableCell>
+                      <TableCell align="center" sx={{
+                        fontWeight: 700,
+                        color: 'white',
+                      }}>
+                        100%
+                      </TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            )}
+          </DialogContent>
+          <DialogActions sx={{ p: 2, borderTop: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0' }}>
+            <Button
+              onClick={exportCategoryPivotToExcel}
+              startIcon={<DownloadIcon />}
+              disabled={categoryPivotData.categories.length === 0}
+              sx={{
+                color: '#10b981',
+                fontWeight: 600,
+                '&:hover': { bgcolor: 'rgba(16, 185, 129, 0.08)' },
+              }}
+            >
+              Export to Excel
+            </Button>
+            <Button
+              onClick={() => setCategoryPivotOpen(false)}
+              variant="contained"
+              sx={{
+                background: 'linear-gradient(135deg, #7c3aed 0%, #8b5cf6 100%)',
+                fontWeight: 700,
+                '&:hover': {
+                  background: 'linear-gradient(135deg, #6d28d9 0%, #7c3aed 100%)',
+                }
+              }}
+            >
+              Close
             </Button>
           </DialogActions>
         </Dialog>

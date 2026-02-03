@@ -712,9 +712,16 @@ export const pickingAPI = {
     brand?: string;
     category?: string;
     source?: string;
+    customer?: string;
+    startDate?: string;
+    endDate?: string;
+    batchId?: string | string[];
   }) =>
     api.get('/picking/list', { params }),
-  // Get customers list for dropdown (using customer API)
+  // Get customers from picking table (unique customers who have picking entries)
+  getPickingCustomers: (warehouseId: number) =>
+    api.get('/picking/customers', { params: { warehouseId } }),
+  // Get all customers for Multi Picking entry (from customers table)
   getCustomers: (warehouseId: number) =>
     customerAPI.getNames(warehouseId),
   // Check if WSN exists
