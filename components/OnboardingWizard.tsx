@@ -164,7 +164,7 @@ export default function OnboardingWizard({ open, onComplete }: OnboardingWizardP
 
     const downloadPrintAgent = () => {
         try {
-            // Direct backend download (Cloudflare R2)
+            // Direct backend download (Supabase Storage)
             const link = document.createElement('a');
             link.href = `${process.env.NEXT_PUBLIC_API_URL}/downloads/print-agent`;
             link.download = 'WMS Print Agent Setup 1.0.0.exe';
