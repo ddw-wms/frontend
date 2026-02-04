@@ -34,6 +34,7 @@ const pathMenuMap: Record<string, string> = {
     '/settings/permissions': 'menu:settings:permissions',
     '/settings/appearance': 'menu:settings:appearance',
     '/settings/error-logs': 'menu:settings:errorlogs',
+    '/settings/rejections': 'menu:settings:rejections',
 };
 
 /**

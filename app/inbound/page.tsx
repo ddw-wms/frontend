@@ -53,7 +53,7 @@ const DEFAULT_MULTI_COLUMNS = [
   'fk_grade',
 ];
 
-const DEFault_LIST_COLUMNS = [
+const DEFAULT_LIST_COLUMNS = [
   'inbound_date',
   'vehicle_no',
   'rack_no',
@@ -69,6 +69,8 @@ const DEFault_LIST_COLUMNS = [
   'mrp',
   'quantity',
   'fkqc_remark',
+  'p_type',
+  'batch_id',
 ];
 
 const ALL_MASTER_COLUMNS = [
@@ -80,9 +82,6 @@ const ALL_MASTER_COLUMNS = [
 const INBOUND_LIST_COLUMNS = [
   'inbound_date',
   'vehicle_no',
-  'rack_no',
-  'product_serial_number',
-  'unload_remarks',
   'wsn',
   'wid',
   'fsn',
@@ -93,6 +92,11 @@ const INBOUND_LIST_COLUMNS = [
   'mrp',
   'quantity',
   'fkqc_remark',
+  'p_type',
+  'batch_id',
+  'rack_no',
+  'product_serial_number',
+  'unload_remarks',
 ];
 
 const EDITABLE_COLUMNS = ['wsn', 'product_serial_number', 'rack_no', 'unload_remarks'];
@@ -376,6 +380,11 @@ export default function InboundPage() {
       'wsn',
       'product_title',
       'brand',
+      'cms_vertical',
+      'fsp',
+      'mrp',
+      'p_type',
+      'fkqc_remark',
       'inbound_date',
       'vehicle_no',
       'rack_no',

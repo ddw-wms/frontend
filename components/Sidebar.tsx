@@ -48,6 +48,7 @@ import {
   Palette as AppearanceIcon,
   ViewSidebar as SidebarIcon,
   UnfoldMore as ExpandIcon,
+  Block as RejectionsIcon,
   UnfoldLess as CollapseIcon,
   TouchApp as HoverIcon,
   Check as CheckMarkIcon,
@@ -262,6 +263,7 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
     { label: 'Permissions', icon: PermissionsIcon, path: '/settings/permissions', code: 'menu:settings:permissions' },
     { label: 'Appearance', icon: AppearanceIcon, path: '/settings/appearance', code: 'menu:settings:appearance' },
     { label: 'Error Logs', icon: ErrorLogsIcon, path: '/settings/error-logs', code: 'menu:settings:errorlogs' },
+    { label: 'Rejections', icon: RejectionsIcon, path: '/settings/rejections', code: 'menu:settings:rejections' },
   ], []);
 
   // Filter menu items based on permissions

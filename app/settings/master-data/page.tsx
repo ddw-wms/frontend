@@ -171,7 +171,8 @@ const MasterDataRow = memo(({
           color={
             row.actual_received === 'Received' ? 'success' :
               row.actual_received === 'Receiving' ? 'info' :
-                'warning'
+                row.actual_received === 'Rejected' ? 'error' :
+                  'warning'
           }
           variant="outlined"
           sx={{ height: 20, fontSize: '0.75rem', fontWeight: 'bold' }}
@@ -305,6 +306,12 @@ const ActualReceivedCellRenderer = memo((props: any) => {
         bgcolor: '#3b82f6',  // solid blue background
         color: '#ffffff',    // white text
         borderColor: '#2563eb',
+      };
+    } else if (status === 'Rejected') {
+      return {
+        bgcolor: '#ef4444',  // solid red background
+        color: '#ffffff',    // white text
+        borderColor: '#dc2626',
       };
     } else {
       return {
@@ -1915,6 +1922,7 @@ export default function MasterDataPage() {
                                     <MenuItem value="All" sx={{ fontSize: '0.8rem' }}>All</MenuItem>
                                     <MenuItem value="Received" sx={{ fontSize: '0.8rem' }}>✅ Received</MenuItem>
                                     <MenuItem value="Receiving" sx={{ fontSize: '0.8rem' }}>🔄 Receiving</MenuItem>
+                                    <MenuItem value="Rejected" sx={{ fontSize: '0.8rem' }}>🚫 Rejected</MenuItem>
                                     <MenuItem value="Pending" sx={{ fontSize: '0.8rem' }}>❌ Pending</MenuItem>
                                   </Select>
                                 </FormControl>
@@ -3247,6 +3255,7 @@ export default function MasterDataPage() {
                     <MenuItem value="All">All</MenuItem>
                     <MenuItem value="Received">✅ Received</MenuItem>
                     <MenuItem value="Receiving">🔄 Receiving</MenuItem>
+                    <MenuItem value="Rejected">🚫 Rejected</MenuItem>
                     <MenuItem value="Pending">❌ Pending</MenuItem>
                   </Select>
                 </FormControl>

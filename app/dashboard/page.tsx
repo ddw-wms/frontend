@@ -181,6 +181,7 @@ const DEFAULT_VISIBLE_COLUMNS = [
   "outbound_status",
   "order_id",
   "fkqc_remark",
+  "p_type",
   "current_stage",
 ];
 

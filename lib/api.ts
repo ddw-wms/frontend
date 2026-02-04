@@ -873,5 +873,65 @@ export const errorLogsAPI = {
   cleanup: (days: number) => api.delete(`/error-logs/cleanup/${days}`),
 };
 
+// ================= Rejections API =======================
+export const rejectionsAPI = {
+  // Get rejections list with filters
+  getAll: (params?: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    rejection_type?: string;
+    rejected_by_person?: string;
+    batch_id?: string;
+    source_batch_id?: string;
+    warehouse_id?: number;
+    cn_status?: 'pending' | 'received' | 'all';
+  }) => api.get('/rejections', { params }),
+
+  // Get summary for credit note tracking
+  getSummary: (warehouse_id?: number) =>
+    api.get('/rejections/summary', { params: { warehouse_id } }),
+
+  // Get unique persons for filter dropdown
+  getPersons: (warehouse_id?: number) =>
+    api.get('/rejections/persons', { params: { warehouse_id } }),
+
+  // Get upload batches for filter dropdown
+  getBatches: (warehouse_id?: number) =>
+    api.get('/rejections/batches', { params: { warehouse_id } }),
+
+  // Download template
+  downloadTemplate: () =>
+    api.get('/rejections/template', { responseType: 'blob' }),
+
+  // Upload rejection Excel
+  uploadRejections: (formData: FormData) =>
+    api.post('/rejections/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }),
+
+  // Update credit note info
+  updateCreditNote: (data: {
+    batch_id?: string;
+    rejection_ids?: number[];
+    credit_note_no: string;
+    credit_note_date?: string;
+    credit_note_amount?: number;
+  }) => api.put('/rejections/credit-note', data),
+
+  // Export to Excel
+  exportRejections: (params?: {
+    batch_id?: string;
+    warehouse_id?: number;
+    cn_status?: string;
+  }) => api.get('/rejections/export', { params, responseType: 'blob' }),
+
+  // Delete single rejection
+  delete: (id: number) => api.delete(`/rejections/${id}`),
+
+  // Delete batch
+  deleteBatch: (batchId: string) => api.delete(`/rejections/batch/${batchId}`),
+};
+
 
 export default api;

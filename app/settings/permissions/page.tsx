@@ -153,6 +153,8 @@ const PAGE_LABELS: Record<string, string> = {
     'settings-permissions': '14. Settings/Permissions',
     'settings-appearance': '15. Settings/Appearance',
     'settings-errorlogs': '16. Settings/Error Logs',
+    'rejections': '17. Settings/Rejections',
+    'settings-rejections': '17. Settings/Rejections',
 };
 
 // Merge duplicate pages into single groups
@@ -177,7 +179,7 @@ const PAGE_ORDER = [
     'dashboard', 'inbound', 'qc', 'picking', 'outbound', 'customers',
     'reports', 'settings-masterdata', 'settings-warehouses', 'settings-racks',
     'settings-users', 'settings-printers', 'settings-backups', 'settings-permissions',
-    'settings-appearance', 'settings-errorlogs'
+    'settings-appearance', 'settings-errorlogs', 'rejections', 'settings-rejections'
 ];
 
 export default function PermissionsPage() {
