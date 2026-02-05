@@ -70,6 +70,7 @@ interface RejectionSummary {
 
 // Grid state persistence key
 const GRID_STATE_KEY = 'rejections_grid_state';
+const SUMMARY_GRID_STATE_KEY = 'rejections_summary_grid_state';
 
 export default function RejectionsPage() {
     const theme = useTheme();
@@ -388,6 +389,29 @@ export default function RejectionsPage() {
         }
     }, []);
 
+    const onSummaryColumnStateChanged = useCallback(() => {
+        if (summaryGridRef.current?.api) {
+            const columnState = summaryGridRef.current.api.getColumnState();
+            localStorage.setItem(SUMMARY_GRID_STATE_KEY, JSON.stringify({ columnState }));
+        }
+    }, []);
+
+    const onSummaryGridReady = useCallback(() => {
+        if (summaryGridRef.current?.api) {
+            const savedState = localStorage.getItem(SUMMARY_GRID_STATE_KEY);
+            if (savedState) {
+                try {
+                    const { columnState } = JSON.parse(savedState);
+                    if (columnState) {
+                        summaryGridRef.current.api.applyColumnState({ state: columnState, applyOrder: true });
+                    }
+                } catch (e) {
+                    console.error('Failed to restore summary grid state:', e);
+                }
+            }
+        }
+    }, []);
+
     // AG Grid column definitions with proper dark mode styling
     const columnDefs = useMemo(() => [
         { field: 'wsn', headerName: 'WSN', width: 130, pinned: isSmall ? undefined : 'left' as const },
@@ -549,17 +573,28 @@ export default function RejectionsPage() {
         {
             field: 'actions',
             headerName: 'Action',
-            width: 90,
+            width: 100,
             sortable: false,
             filter: false,
+            suppressCellFocus: true,
             cellRenderer: (params: any) => {
                 if (!canUpdateCN || params.data.cn_pending === 0) return null;
                 return (
                     <Button
                         size="small"
                         variant="outlined"
-                        sx={{ fontSize: '0.65rem', py: 0.2, px: 0.75, minWidth: 'auto' }}
-                        onClick={() => {
+                        sx={{
+                            fontSize: '0.65rem',
+                            py: 0.25,
+                            px: 0.75,
+                            minWidth: 'auto',
+                            height: 24,
+                            lineHeight: 1,
+                            textTransform: 'none',
+                            whiteSpace: 'nowrap'
+                        }}
+                        onClick={(e) => {
+                            e.stopPropagation();
                             setSelectedBatchForCN(params.data.batch_id);
                             setCnDialogOpen(true);
                         }}
@@ -1215,9 +1250,8 @@ export default function RejectionsPage() {
                                         transition: 'background-color 0.1s ease'
                                     },
                                     '& .ag-cell-focus': {
-                                        border: '2px solid #1e40af !important',
-                                        boxSizing: 'border-box',
-                                        outline: 'none',
+                                        border: 'none !important',
+                                        outline: 'none !important',
                                     },
                                     '& .ag-center-cols-viewport, & .ag-center-cols-container': {
                                         backgroundColor: isDarkMode ? '#1e293b' : '#fff'
@@ -1234,9 +1268,13 @@ export default function RejectionsPage() {
                                         enableCellTextSelection={true}
                                         loading={false}
                                         suppressNoRowsOverlay={true}
+                                        suppressCellFocus={true}
                                         containerStyle={{ height: '100%', width: '100%' }}
                                         rowHeight={36}
                                         headerHeight={36}
+                                        onGridReady={onSummaryGridReady}
+                                        onColumnMoved={onSummaryColumnStateChanged}
+                                        onColumnResized={onSummaryColumnStateChanged}
                                     />
                                 </Box>
                             </Box>
