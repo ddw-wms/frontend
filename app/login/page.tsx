@@ -51,10 +51,11 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    e.stopPropagation();
 
     if (!username.trim() || !password.trim()) {
       toast.error('Please enter username and password');
-      return;
+      return false;
     }
 
     setLoading(true);
@@ -96,24 +97,65 @@ export default function LoginPage() {
       // Better error messages based on error type
       const status = error.response?.status;
       const serverMessage = error.response?.data?.error || error.response?.data?.message;
+      const attemptsLeft = error.response?.data?.attemptsLeft;
+      const lockedUntil = error.response?.data?.lockedUntil;
 
       let errorMsg: string;
+      let toastType: 'error' | 'warning' = 'error';
 
       if (status === 503) {
         errorMsg = 'Server is still starting up. Please wait a minute and try again.';
       } else if (status === 504) {
         errorMsg = 'Request timed out. Please try again.';
+      } else if (status === 429) {
+        // Rate limited
+        const retryAfter = error.response?.data?.retryAfter || 60;
+        errorMsg = `⏳ Too many requests. Please wait ${retryAfter} seconds before trying again.`;
       } else if (error.code === 'ERR_NETWORK' || error.message === 'Network Error') {
         errorMsg = 'Cannot connect to server. Please check your internet connection or try again in a minute.';
       } else if (error.code === 'ECONNABORTED') {
         errorMsg = 'Connection timed out. Please try again.';
+      } else if (status === 423) {
+        // Account locked
+        if (lockedUntil) {
+          const lockTime = new Date(lockedUntil);
+          const minutesLeft = Math.ceil((lockTime.getTime() - Date.now()) / 60000);
+          errorMsg = `🔒 Account locked. Try again in ${minutesLeft} minute${minutesLeft !== 1 ? 's' : ''}.`;
+        } else {
+          errorMsg = serverMessage || 'Account temporarily locked. Please try again later.';
+        }
+        toastType = 'error';
       } else if (status === 401) {
-        errorMsg = serverMessage || 'Invalid username or password';
+        // Invalid credentials with attempts tracking
+        if (attemptsLeft !== undefined && attemptsLeft !== null) {
+          if (attemptsLeft <= 2 && attemptsLeft > 0) {
+            errorMsg = `⚠️ ${serverMessage || 'Invalid credentials'}`;
+            toastType = 'warning';
+          } else if (attemptsLeft === 0) {
+            errorMsg = `🔒 ${serverMessage || 'Account locked due to too many failed attempts'}`;
+          } else {
+            errorMsg = serverMessage || 'Invalid username or password';
+          }
+        } else {
+          errorMsg = serverMessage || 'Invalid username or password';
+        }
       } else {
         errorMsg = serverMessage || 'Login failed. Please try again.';
       }
 
-      toast.error('✗ ' + errorMsg);
+      // Use appropriate toast based on severity
+      if (toastType === 'warning') {
+        toast.error(errorMsg, {
+          style: {
+            background: '#ff9800',
+            color: '#000',
+            fontWeight: 500,
+          },
+          duration: 4000,
+        });
+      } else {
+        toast.error('✗ ' + errorMsg, { duration: 4000 });
+      }
 
     } finally {
       setLoading(false);
@@ -506,7 +548,7 @@ export default function LoginPage() {
                 },
               }}
             >
-              Divine WMS © {new Date().getFullYear()}
+              Divine WMS ©  {new Date().getFullYear()} | Devolped by Sr@n
             </Typography>
           </Paper>
         </Container>

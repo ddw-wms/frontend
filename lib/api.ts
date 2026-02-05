@@ -281,11 +281,14 @@ api.interceptors.response.use(
     // Handle 401 - authentication errors
     if (error.response?.status === 401) {
       const msg = ((error.response?.data as any)?.error || "").toLowerCase();
-      // Logout ONLY when token expired or invalid
+      // Logout ONLY when token expired or invalid - but NOT on login page
+      // Skip redirect if already on login page (login failures shouldn't redirect)
+      const isOnLoginPage = typeof window !== 'undefined' && window.location.pathname === '/login';
       if (
-        msg.includes("token") ||
-        msg.includes("invalid") ||
-        msg.includes("expired")
+        !isOnLoginPage &&
+        (msg.includes("token") ||
+          msg.includes("expired") ||
+          msg.includes("unauthorized"))
       ) {
         localStorage.removeItem("token");
         localStorage.removeItem("user");
