@@ -931,6 +931,10 @@ export const rejectionsAPI = {
 
   // Delete batch
   deleteBatch: (batchId: string) => api.delete(`/rejections/batch/${batchId}`),
+
+  // Rename batch
+  renameBatch: (batchId: string, newBatchId: string) =>
+    api.put(`/rejections/batch/${batchId}/rename`, { newBatchId }),
 };
 
 

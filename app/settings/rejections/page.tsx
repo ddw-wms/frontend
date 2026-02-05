@@ -4,12 +4,13 @@ import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import {
     Box, Button, Paper, Typography, Chip, Alert, FormControl, InputLabel, Select, MenuItem,
     useTheme, useMediaQuery, CircularProgress, Tooltip, Stack, TextField, IconButton,
-    InputAdornment, Dialog, DialogTitle, DialogContent, DialogActions, Card, CardContent, Tabs, Tab
+    InputAdornment, Dialog, DialogTitle, DialogContent, DialogActions, Card, CardContent, Tabs, Tab,
+    Pagination, LinearProgress
 } from '@mui/material';
 import {
     CloudUpload as UploadIcon, CloudDownload as DownloadIcon, Delete as DeleteIcon,
     Search as SearchIcon, Refresh as RefreshIcon,
-    CheckCircle as CheckIcon, Warning as WarningIcon,
+    CheckCircle as CheckIcon,
     Close as CloseIcon, Description as ExcelIcon
 } from '@mui/icons-material';
 
@@ -46,7 +47,9 @@ interface Rejection {
     product_title: string | null;
     brand: string | null;
     vrp: string | null;
+    fsp: string | null;
     mrp: string | null;
+    yield_value: string | null;
     cms_vertical: string | null;
     fsn: string | null;
 }
@@ -55,12 +58,17 @@ interface RejectionSummary {
     batch_id: string;
     rejection_date: string;
     item_count: number;
-    total_vrp: number;
+    total_fsp: number;
+    total_mrp: number;
+    total_yield: number;
     cn_pending: number;
     cn_received: number;
     upload_date: string;
     uploaded_by_name: string;
 }
+
+// Grid state persistence key
+const GRID_STATE_KEY = 'rejections_grid_state';
 
 export default function RejectionsPage() {
     const theme = useTheme();
@@ -72,6 +80,7 @@ export default function RejectionsPage() {
     const { canAccess, isAdmin } = usePermissions();
     const canUpdateCN = isAdmin || canAccess('feature:rejections:credit');
     const gridRef = useRef<AgGridReact>(null);
+    const summaryGridRef = useRef<AgGridReact>(null);
 
     // State
     const [rejections, setRejections] = useState<Rejection[]>([]);
@@ -80,6 +89,7 @@ export default function RejectionsPage() {
     const [uploading, setUploading] = useState(false);
     const [totalCount, setTotalCount] = useState(0);
     const [page, setPage] = useState(1);
+    const [limit, setLimit] = useState(100);
     const [activeTab, setActiveTab] = useState(0);
 
     // Filters
@@ -108,7 +118,10 @@ export default function RejectionsPage() {
     const [batchLoading, setBatchLoading] = useState(false);
 
     // Summary stats
-    const [stats, setStats] = useState({ total: 0, cn_pending: 0, cn_received: 0 });
+    const [stats, setStats] = useState({ total: 0, cn_pending: 0, cn_received: 0, total_yield: 0 });
+
+    // Total pages
+    const totalPages = Math.ceil(totalCount / limit);
 
     // Fetch rejections
     const fetchRejections = useCallback(async () => {
@@ -118,7 +131,7 @@ export default function RejectionsPage() {
         try {
             const response = await rejectionsAPI.getAll({
                 page,
-                limit: 100,
+                limit,
                 search: search || undefined,
                 rejection_type: rejectionType !== 'all' ? rejectionType : undefined,
                 cn_status: cnStatus !== 'all' ? cnStatus as any : undefined,
@@ -135,7 +148,7 @@ export default function RejectionsPage() {
         } finally {
             setLoading(false);
         }
-    }, [canView, page, search, rejectionType, cnStatus, personFilter, batchFilter, activeWarehouse?.id]);
+    }, [canView, page, limit, search, rejectionType, cnStatus, personFilter, batchFilter, activeWarehouse?.id]);
 
     // Fetch summary
     const fetchSummary = useCallback(async () => {
@@ -230,6 +243,7 @@ export default function RejectionsPage() {
             fetchRejections();
             fetchSummary();
             fetchFilterOptions();
+            fetchBatchList();
         } catch (error: any) {
             toast.error(error.response?.data?.error || 'Upload failed');
         } finally {
@@ -300,6 +314,21 @@ export default function RejectionsPage() {
         }
     };
 
+    // Handle rename batch
+    const handleRenameBatch = async (oldBatchId: string, newBatchId: string) => {
+        try {
+            await rejectionsAPI.renameBatch(oldBatchId, newBatchId);
+            toast.success('Batch renamed successfully');
+            fetchRejections();
+            fetchSummary();
+            fetchBatchList();
+            fetchFilterOptions();
+        } catch (error: any) {
+            toast.error(error.response?.data?.error || 'Failed to rename batch');
+            throw error;
+        }
+    };
+
     // Download template handler
     const handleDownloadTemplate = async () => {
         try {
@@ -337,57 +366,79 @@ export default function RejectionsPage() {
         }
     };
 
-    // AG Grid column definitions
+    // Save grid state
+    const onGridReady = useCallback(() => {
+        const savedState = localStorage.getItem(GRID_STATE_KEY);
+        if (savedState && gridRef.current?.api) {
+            try {
+                const state = JSON.parse(savedState);
+                gridRef.current.api.applyColumnState({ state: state.columnState, applyOrder: true });
+            } catch (e) {
+                console.log('Failed to restore grid state');
+            }
+        }
+    }, []);
+
+    const onColumnStateChanged = useCallback(() => {
+        if (gridRef.current?.api) {
+            const columnState = gridRef.current.api.getColumnState();
+            localStorage.setItem(GRID_STATE_KEY, JSON.stringify({ columnState }));
+        }
+    }, []);
+
+    // AG Grid column definitions with proper dark mode styling
     const columnDefs = useMemo(() => [
-        { field: 'wsn', headerName: 'WSN', width: 140, pinned: 'left' as const },
-        { field: 'product_title', headerName: 'Product', flex: 1, minWidth: 200, tooltipField: 'product_title' },
-        { field: 'brand', headerName: 'Brand', width: 110 },
-        { field: 'cms_vertical', headerName: 'Category', width: 120 },
-        {
-            field: 'vrp',
-            headerName: 'Order ID',
-            width: 100,
-        },
+        { field: 'wsn', headerName: 'WSN', width: 130, pinned: isSmall ? undefined : 'left' as const },
+        { field: 'product_title', headerName: 'Product', flex: 1, minWidth: 180, tooltipField: 'product_title' },
+        { field: 'brand', headerName: 'Brand', width: 100 },
+        { field: 'cms_vertical', headerName: 'Category', width: 110 },
+        { field: 'vrp', headerName: 'Order ID', width: 90 },
         {
             field: 'fsp',
             headerName: 'FSP',
-            width: 90,
+            width: 85,
             valueFormatter: (params: any) => params.value ? `₹${Number(params.value).toLocaleString()}` : '-'
         },
         {
             field: 'mrp',
             headerName: 'MRP',
-            width: 90,
+            width: 85,
+            valueFormatter: (params: any) => params.value ? `₹${Number(params.value).toLocaleString()}` : '-'
+        },
+        {
+            field: 'yield_value',
+            headerName: 'Yield',
+            width: 85,
             valueFormatter: (params: any) => params.value ? `₹${Number(params.value).toLocaleString()}` : '-'
         },
         {
             field: 'rejection_type',
             headerName: 'Type',
-            width: 100,
+            width: 95,
             cellRenderer: (params: any) => {
                 const type = params.value;
-                const colorMap: Record<string, 'error' | 'warning' | 'info' | 'default'> = {
-                    damaged: 'error',
-                    fraud: 'warning',
-                    short: 'info',
-                    other: 'default'
+                const colors: Record<string, { bg: string; color: string }> = {
+                    damaged: { bg: '#dc2626', color: '#fff' },
+                    fraud: { bg: '#f59e0b', color: '#fff' },
+                    short: { bg: '#3b82f6', color: '#fff' },
+                    other: { bg: '#6b7280', color: '#fff' }
                 };
+                const style = colors[type] || colors.other;
                 return (
                     <Chip
                         label={type?.toUpperCase() || 'N/A'}
                         size="small"
-                        color={colorMap[type] || 'default'}
-                        sx={{ height: 22, fontSize: '0.7rem', fontWeight: 600 }}
+                        sx={{ height: 20, fontSize: '0.65rem', fontWeight: 600, bgcolor: style.bg, color: style.color }}
                     />
                 );
             }
         },
-        { field: 'rejected_by_person', headerName: 'Rejected By', width: 120 },
-        { field: 'remarks', headerName: 'Remarks', width: 150, tooltipField: 'remarks' },
+        { field: 'rejected_by_person', headerName: 'Rejected By', width: 110 },
+        { field: 'remarks', headerName: 'Remarks', width: 130, tooltipField: 'remarks' },
         {
             field: 'rejection_date',
             headerName: 'Date',
-            width: 100,
+            width: 95,
             valueFormatter: (params: any) => {
                 if (!params.value) return '-';
                 return new Date(params.value).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' });
@@ -396,17 +447,14 @@ export default function RejectionsPage() {
         {
             field: 'credit_note_no',
             headerName: 'CN Status',
-            width: 130,
+            width: 110,
             cellRenderer: (params: any) => {
                 if (params.value) {
                     return (
                         <Chip
                             label={params.value}
                             size="small"
-                            sx={{
-                                height: 22, fontSize: '0.7rem', fontWeight: 600,
-                                bgcolor: '#22c55e', color: '#fff', border: '1px solid #16a34a'
-                            }}
+                            sx={{ height: 20, fontSize: '0.65rem', fontWeight: 600, bgcolor: '#22c55e', color: '#fff' }}
                         />
                     );
                 }
@@ -414,19 +462,16 @@ export default function RejectionsPage() {
                     <Chip
                         label="Pending"
                         size="small"
-                        sx={{
-                            height: 22, fontSize: '0.7rem', fontWeight: 600,
-                            bgcolor: '#f59e0b', color: '#fff', border: '1px solid #d97706'
-                        }}
+                        sx={{ height: 20, fontSize: '0.65rem', fontWeight: 600, bgcolor: '#f59e0b', color: '#fff' }}
                     />
                 );
             }
         },
-        { field: 'uploaded_by_name', headerName: 'Uploaded By', width: 120 },
+        { field: 'uploaded_by_name', headerName: 'Uploaded By', width: 100 },
         {
             field: 'actions',
             headerName: '',
-            width: 60,
+            width: 50,
             sortable: false,
             filter: false,
             cellRenderer: (params: any) => {
@@ -436,71 +481,70 @@ export default function RejectionsPage() {
                         <IconButton
                             size="small"
                             onClick={() => handleDelete(params.data.id)}
-                            sx={{
-                                width: 28, height: 28, borderRadius: '6px',
-                                bgcolor: 'rgba(239, 68, 68, 0.1)',
-                                '&:hover': { bgcolor: 'rgba(239, 68, 68, 0.2)' }
-                            }}
+                            sx={{ width: 24, height: 24, color: '#ef4444' }}
                         >
-                            <DeleteIcon sx={{ fontSize: 16, color: '#dc2626' }} />
+                            <DeleteIcon sx={{ fontSize: 16 }} />
                         </IconButton>
                     </Tooltip>
                 );
             }
         }
-    ], [canDelete]);
+    ], [canDelete, isSmall]);
 
     // Summary table columns
     const summaryColumns = useMemo<any[]>(() => [
-        { field: 'batch_id', headerName: 'Batch ID', width: 160 },
-        { field: 'item_count', headerName: 'Items', width: 70, type: 'number' as const },
+        { field: 'batch_id', headerName: 'Batch ID', width: 150 },
+        { field: 'item_count', headerName: 'Items', width: 70 },
         {
             field: 'total_fsp',
             headerName: 'Total FSP',
-            width: 110,
+            width: 100,
             valueFormatter: (params: any) => `₹${Number(params.value || 0).toLocaleString()}`
         },
         {
             field: 'total_mrp',
             headerName: 'Total MRP',
-            width: 110,
+            width: 100,
             valueFormatter: (params: any) => `₹${Number(params.value || 0).toLocaleString()}`
+        },
+        {
+            field: 'total_yield',
+            headerName: 'Total Yield (CN)',
+            width: 120,
+            valueFormatter: (params: any) => `₹${Number(params.value || 0).toLocaleString()}`,
+            cellStyle: { fontWeight: 600, color: '#22c55e' }
         },
         {
             field: 'rejection_date',
             headerName: 'Date',
-            width: 100,
+            width: 90,
             valueFormatter: (params: any) => params.value ? new Date(params.value).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' }) : '-'
         },
         {
             field: 'cn_pending',
             headerName: 'Pending',
-            width: 85,
+            width: 80,
             cellRenderer: (params: any) => (
                 <Chip
                     label={params.value}
                     size="small"
-                    sx={{
-                        height: 22, fontWeight: 600,
-                        bgcolor: params.value > 0 ? '#f59e0b' : '#22c55e',
-                        color: '#fff'
-                    }}
+                    sx={{ height: 20, fontWeight: 600, bgcolor: params.value > 0 ? '#f59e0b' : '#22c55e', color: '#fff' }}
                 />
             )
         },
         {
             field: 'cn_received',
             headerName: 'Received',
-            width: 85,
+            width: 80,
             cellRenderer: (params: any) => (
-                <Chip label={params.value} size="small" sx={{ height: 22, fontWeight: 600, bgcolor: '#22c55e', color: '#fff' }} />
+                <Chip label={params.value} size="small" sx={{ height: 20, fontWeight: 600, bgcolor: '#22c55e', color: '#fff' }} />
             )
         },
-        { field: 'uploaded_by_name', headerName: 'Uploaded By', width: 110 },
+        { field: 'uploaded_by_name', headerName: 'Uploaded By', width: 100 },
         {
             field: 'actions',
             headerName: 'Action',
-            width: 100,
+            width: 90,
             sortable: false,
             filter: false,
             cellRenderer: (params: any) => {
@@ -509,7 +553,7 @@ export default function RejectionsPage() {
                     <Button
                         size="small"
                         variant="outlined"
-                        sx={{ fontSize: '0.7rem', py: 0.25, px: 1 }}
+                        sx={{ fontSize: '0.65rem', py: 0.2, px: 0.75, minWidth: 'auto' }}
                         onClick={() => {
                             setSelectedBatchForCN(params.data.batch_id);
                             setCnDialogOpen(true);
@@ -542,7 +586,7 @@ export default function RejectionsPage() {
         <AppLayout>
             <Toaster position="top-right" />
             <Box sx={{
-                p: { xs: 0.75, md: 1 },
+                p: { xs: 0.5, md: 1 },
                 background: isDarkMode
                     ? 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)'
                     : 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
@@ -558,80 +602,56 @@ export default function RejectionsPage() {
                     icon="🚫"
                 />
 
-                <Box sx={{ p: { xs: 1, md: 2 }, flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                    {/* Stats Card */}
-                    <Card sx={{ mb: 2 }}>
-                        <CardContent sx={{ py: 1.5, px: 2, '&:last-child': { pb: 1.5 } }}>
+                <Box sx={{ px: { xs: 0.5, md: 1.5 }, pb: 1, flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                    {/* Stats Card - Responsive */}
+                    <Card sx={{ mb: 1.5 }}>
+                        <CardContent sx={{ py: { xs: 1, md: 1.5 }, px: { xs: 1.5, md: 2 }, '&:last-child': { pb: { xs: 1, md: 1.5 } } }}>
                             <Stack
-                                direction={{ xs: 'column', sm: 'row' }}
-                                spacing={{ xs: 1, sm: 3 }}
-                                alignItems={{ xs: 'flex-start', sm: 'center' }}
+                                direction={{ xs: 'column', md: 'row' }}
+                                spacing={{ xs: 1.5, md: 2 }}
+                                alignItems={{ xs: 'stretch', md: 'center' }}
                                 justifyContent="space-between"
-                                flexWrap="wrap"
                             >
-                                <Stack direction="row" spacing={3} alignItems="center" flexWrap="wrap" useFlexGap>
-                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                        <Typography variant="body2" color="text.secondary">Total:</Typography>
-                                        <Chip
-                                            label={stats.total}
-                                            size="small"
-                                            sx={{ bgcolor: '#ef4444', color: '#fff', fontWeight: 700, minWidth: 50 }}
-                                        />
+                                {/* Stats */}
+                                <Stack
+                                    direction="row"
+                                    spacing={{ xs: 1.5, sm: 2.5 }}
+                                    alignItems="center"
+                                    justifyContent={{ xs: 'space-between', md: 'flex-start' }}
+                                    flexWrap="wrap"
+                                    useFlexGap
+                                >
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                                        <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: '0.7rem', sm: '0.8rem' } }}>Total:</Typography>
+                                        <Chip label={stats.total} size="small" sx={{ bgcolor: '#ef4444', color: '#fff', fontWeight: 700, height: { xs: 22, sm: 24 }, fontSize: { xs: '0.7rem', sm: '0.75rem' } }} />
                                     </Box>
-                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                        <Typography variant="body2" color="text.secondary">CN Pending:</Typography>
-                                        <Chip
-                                            label={stats.cn_pending}
-                                            size="small"
-                                            sx={{ bgcolor: '#f59e0b', color: '#fff', fontWeight: 700, minWidth: 50 }}
-                                        />
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                                        <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: '0.7rem', sm: '0.8rem' } }}>Pending:</Typography>
+                                        <Chip label={stats.cn_pending} size="small" sx={{ bgcolor: '#f59e0b', color: '#fff', fontWeight: 700, height: { xs: 22, sm: 24 }, fontSize: { xs: '0.7rem', sm: '0.75rem' } }} />
                                     </Box>
-                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                        <Typography variant="body2" color="text.secondary">CN Received:</Typography>
-                                        <Chip
-                                            label={stats.cn_received}
-                                            size="small"
-                                            sx={{ bgcolor: '#22c55e', color: '#fff', fontWeight: 700, minWidth: 50 }}
-                                        />
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                                        <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: '0.7rem', sm: '0.8rem' } }}>Received:</Typography>
+                                        <Chip label={stats.cn_received} size="small" sx={{ bgcolor: '#22c55e', color: '#fff', fontWeight: 700, height: { xs: 22, sm: 24 }, fontSize: { xs: '0.7rem', sm: '0.75rem' } }} />
                                     </Box>
                                 </Stack>
 
-                                {/* Action Buttons */}
-                                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                                {/* Action Buttons - Responsive */}
+                                <Stack direction="row" spacing={0.75} alignItems="center" justifyContent={{ xs: 'flex-end', md: 'flex-end' }}>
                                     <Tooltip title="Refresh">
-                                        <IconButton
-                                            size="small"
-                                            onClick={() => { fetchRejections(); fetchSummary(); }}
-                                            disabled={loading}
-                                        >
-                                            <RefreshIcon fontSize="small" />
+                                        <IconButton size="small" onClick={() => { fetchRejections(); fetchSummary(); }} disabled={loading}>
+                                            {loading ? <CircularProgress size={18} /> : <RefreshIcon fontSize="small" />}
                                         </IconButton>
                                     </Tooltip>
-                                    <Button
-                                        size="small"
-                                        variant="outlined"
-                                        startIcon={<DownloadIcon />}
-                                        onClick={handleDownloadTemplate}
-                                    >
+                                    <Button size="small" variant="outlined" startIcon={<DownloadIcon sx={{ fontSize: 16 }} />} onClick={handleDownloadTemplate} sx={{ minWidth: 'auto', px: { xs: 1, sm: 1.5 }, fontSize: '0.75rem' }}>
                                         {isSmall ? '' : 'Template'}
                                     </Button>
                                     {canExport && (
-                                        <Button
-                                            size="small"
-                                            variant="outlined"
-                                            startIcon={<ExcelIcon />}
-                                            onClick={handleExport}
-                                        >
+                                        <Button size="small" variant="outlined" startIcon={<ExcelIcon sx={{ fontSize: 16 }} />} onClick={handleExport} sx={{ minWidth: 'auto', px: { xs: 1, sm: 1.5 }, fontSize: '0.75rem' }}>
                                             {isSmall ? '' : 'Export'}
                                         </Button>
                                     )}
                                     {canCreate && (
-                                        <Button
-                                            size="small"
-                                            variant="contained"
-                                            startIcon={<UploadIcon />}
-                                            onClick={() => setUploadDialogOpen(true)}
-                                        >
+                                        <Button size="small" variant="contained" startIcon={<UploadIcon sx={{ fontSize: 16 }} />} onClick={() => setUploadDialogOpen(true)} sx={{ minWidth: 'auto', px: { xs: 1, sm: 1.5 }, fontSize: '0.75rem' }}>
                                             {isSmall ? '' : 'Upload'}
                                         </Button>
                                     )}
@@ -644,39 +664,71 @@ export default function RejectionsPage() {
                     <Tabs
                         value={activeTab}
                         onChange={(_, v) => setActiveTab(v)}
+                        variant={isSmall ? 'scrollable' : 'standard'}
+                        scrollButtons={isSmall ? 'auto' : false}
                         sx={{
-                            minHeight: 36,
+                            minHeight: 32,
                             mb: 1,
-                            '& .MuiTab-root': { minHeight: 36, py: 0.5, fontSize: '0.85rem' }
+                            '& .MuiTab-root': { minHeight: 32, py: 0.5, px: { xs: 1, sm: 2 }, fontSize: { xs: '0.75rem', sm: '0.8rem' } }
                         }}
                     >
                         <Tab label={`Rejections (${totalCount})`} />
                         <Tab label={`CN Summary (${summary.length})`} />
-                        <Tab label={`Batch Management (${batchList.length})`} />
+                        <Tab label={`Batches (${batchList.length})`} />
                     </Tabs>
 
                     {/* Tab Panels */}
                     {activeTab === 0 && (
-                        <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-                            {/* Filters */}
-                            <Stack direction="row" spacing={1} sx={{ mb: 1.5, flexWrap: 'wrap', gap: 1 }}>
+                        <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
+                            {/* Filters Row - All in one line */}
+                            <Stack
+                                direction="row"
+                                spacing={1}
+                                alignItems="center"
+                                sx={{
+                                    mb: 1.5,
+                                    flexWrap: 'wrap',
+                                    gap: 1,
+                                    '& .MuiOutlinedInput-root': {
+                                        height: 36,
+                                        fontSize: '0.8rem',
+                                    },
+                                    '& .MuiInputLabel-root': {
+                                        fontSize: '0.8rem',
+                                        color: isDarkMode ? '#94a3b8' : undefined,
+                                    },
+                                    '& .MuiSelect-select': {
+                                        color: isDarkMode ? '#f1f5f9' : undefined,
+                                    },
+                                    '& .MuiOutlinedInput-notchedOutline': {
+                                        borderColor: isDarkMode ? 'rgba(148, 163, 184, 0.3)' : undefined,
+                                    },
+                                    '& .MuiSvgIcon-root': {
+                                        color: isDarkMode ? '#94a3b8' : undefined,
+                                    },
+                                }}
+                            >
+                                {/* Search */}
                                 <TextField
                                     size="small"
                                     placeholder="Search WSN, Product..."
                                     value={search}
-                                    onChange={(e) => setSearch(e.target.value)}
+                                    onChange={(e) => { setSearch(e.target.value); setPage(1); }}
                                     InputProps={{
-                                        startAdornment: (
-                                            <InputAdornment position="start">
-                                                <SearchIcon fontSize="small" />
-                                            </InputAdornment>
-                                        ),
+                                        startAdornment: <InputAdornment position="start"><SearchIcon sx={{ fontSize: 18, color: 'text.secondary' }} /></InputAdornment>,
                                     }}
-                                    sx={{ minWidth: { xs: '100%', sm: 220 }, flex: { xs: '1 1 100%', sm: '0 0 auto' } }}
+                                    sx={{ width: { xs: '100%', sm: 220 } }}
                                 />
-                                <FormControl size="small" sx={{ minWidth: 110 }}>
-                                    <InputLabel>Type</InputLabel>
-                                    <Select value={rejectionType} label="Type" onChange={(e) => setRejectionType(e.target.value)}>
+
+                                {/* Type Filter */}
+                                <FormControl size="small" sx={{ minWidth: 100 }}>
+                                    <InputLabel sx={{ color: isDarkMode ? '#94a3b8' : undefined }}>Type</InputLabel>
+                                    <Select
+                                        value={rejectionType}
+                                        label="Type"
+                                        onChange={(e) => { setRejectionType(e.target.value); setPage(1); }}
+                                        sx={{ color: isDarkMode ? '#f1f5f9' : undefined }}
+                                    >
                                         <MenuItem value="all">All</MenuItem>
                                         <MenuItem value="damaged">Damaged</MenuItem>
                                         <MenuItem value="fraud">Fraud</MenuItem>
@@ -684,76 +736,460 @@ export default function RejectionsPage() {
                                         <MenuItem value="other">Other</MenuItem>
                                     </Select>
                                 </FormControl>
-                                <FormControl size="small" sx={{ minWidth: 110 }}>
-                                    <InputLabel>CN Status</InputLabel>
-                                    <Select value={cnStatus} label="CN Status" onChange={(e) => setCnStatus(e.target.value)}>
+
+                                {/* CN Status Filter */}
+                                <FormControl size="small" sx={{ minWidth: 100 }}>
+                                    <InputLabel sx={{ color: isDarkMode ? '#94a3b8' : undefined }}>CN Status</InputLabel>
+                                    <Select
+                                        value={cnStatus}
+                                        label="CN Status"
+                                        onChange={(e) => { setCnStatus(e.target.value); setPage(1); }}
+                                        sx={{ color: isDarkMode ? '#f1f5f9' : undefined }}
+                                    >
                                         <MenuItem value="all">All</MenuItem>
                                         <MenuItem value="pending">Pending</MenuItem>
                                         <MenuItem value="received">Received</MenuItem>
                                     </Select>
                                 </FormControl>
-                                {!isSmall && persons.length > 0 && (
-                                    <FormControl size="small" sx={{ minWidth: 130 }}>
-                                        <InputLabel>Rejected By</InputLabel>
-                                        <Select value={personFilter} label="Rejected By" onChange={(e) => setPersonFilter(e.target.value)}>
+
+                                {/* Rejected By Filter */}
+                                {persons.length > 0 && (
+                                    <FormControl size="small" sx={{ minWidth: 120 }}>
+                                        <InputLabel sx={{ color: isDarkMode ? '#94a3b8' : undefined }}>Rejected By</InputLabel>
+                                        <Select
+                                            value={personFilter}
+                                            label="Rejected By"
+                                            onChange={(e) => { setPersonFilter(e.target.value); setPage(1); }}
+                                            sx={{ color: isDarkMode ? '#f1f5f9' : undefined }}
+                                        >
                                             <MenuItem value="">All</MenuItem>
-                                            {persons.map((p) => (
-                                                <MenuItem key={p} value={p}>{p}</MenuItem>
-                                            ))}
+                                            {persons.map((p) => <MenuItem key={p} value={p}>{p}</MenuItem>)}
                                         </Select>
                                     </FormControl>
                                 )}
                             </Stack>
 
-                            {/* Grid */}
-                            <Paper elevation={2} sx={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
-                                <div
-                                    className={isDarkMode ? 'ag-theme-quartz-dark' : 'ag-theme-quartz'}
-                                    style={{ flex: 1, width: '100%', minHeight: 0 }}
+                            {/* Grid Container with Fixed Height */}
+                            <Box sx={{
+                                position: 'relative',
+                                flex: 1,
+                                overflow: 'hidden',
+                                minHeight: 0,
+                                border: isDarkMode ? '2px solid rgba(255,255,255,0.1)' : '2px solid #e2e8f0',
+                                borderRadius: 1.5,
+                                boxShadow: isDarkMode ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.06)',
+                            }}>
+
+                                {/* Loading Spinner Overlay - semi-transparent so data stays visible */}
+                                {loading && rejections && rejections.length > 0 && (
+                                    <Box sx={{
+                                        position: 'absolute',
+                                        top: 0,
+                                        left: 0,
+                                        right: 0,
+                                        bottom: 0,
+                                        backgroundColor: isDarkMode ? 'rgba(15, 23, 42, 0.5)' : 'rgba(255, 255, 255, 0.5)',
+                                        zIndex: 10,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                    }}>
+                                        <Box sx={{
+                                            display: 'flex',
+                                            flexDirection: 'column',
+                                            alignItems: 'center',
+                                            gap: 1.5,
+                                            p: 3,
+                                            bgcolor: isDarkMode ? 'rgba(30, 41, 59, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+                                            borderRadius: 2,
+                                            boxShadow: '0 4px 20px rgba(0,0,0,0.15)'
+                                        }}>
+                                            <CircularProgress
+                                                size={40}
+                                                thickness={4}
+                                                sx={{ color: '#1e40af' }}
+                                            />
+                                            <Typography sx={{ fontSize: '0.85rem', fontWeight: 500, color: isDarkMode ? '#94a3b8' : '#64748b' }}>
+                                                Loading...
+                                            </Typography>
+                                        </Box>
+                                    </Box>
+                                )}
+
+                                {/* Full Loading Overlay - ONLY for initial load when no data exists */}
+                                {loading && (!rejections || rejections.length === 0) && (
+                                    <Box sx={{
+                                        position: 'absolute',
+                                        top: 48,
+                                        left: 0,
+                                        right: 0,
+                                        bottom: 0,
+                                        backgroundColor: isDarkMode ? 'rgba(15, 23, 42, 0.9)' : 'rgba(255, 255, 255, 0.9)',
+                                        backdropFilter: 'blur(3px)',
+                                        zIndex: 5,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                    }}>
+                                        <Box sx={{
+                                            display: 'flex',
+                                            flexDirection: 'column',
+                                            alignItems: 'center',
+                                            gap: 3,
+                                            p: 4,
+                                            bgcolor: isDarkMode ? '#1e293b' : 'white',
+                                            borderRadius: 3,
+                                            boxShadow: isDarkMode ? '0 8px 32px rgba(0,0,0,0.4)' : '0 8px 24px rgba(0,0,0,0.12)'
+                                        }}>
+                                            <Box sx={{ position: 'relative' }}>
+                                                <CircularProgress
+                                                    size={56}
+                                                    thickness={3.5}
+                                                    sx={{
+                                                        color: '#1e40af',
+                                                        filter: 'drop-shadow(0 2px 8px rgba(25, 118, 210, 0.2))'
+                                                    }}
+                                                />
+                                            </Box>
+                                            <Typography
+                                                sx={{
+                                                    fontSize: '0.95rem',
+                                                    fontWeight: 500,
+                                                    color: isDarkMode ? '#94a3b8' : '#546e7a',
+                                                    letterSpacing: 0.3,
+                                                    textAlign: 'center'
+                                                }}
+                                            >
+                                                Loading data...
+                                            </Typography>
+                                        </Box>
+                                    </Box>
+                                )}
+
+                                {/* Empty State Overlay */}
+                                {!loading && (!rejections || rejections.length === 0) && (
+                                    <Box sx={{
+                                        position: 'absolute',
+                                        top: 60,
+                                        left: 0,
+                                        right: 0,
+                                        bottom: 0,
+                                        backgroundColor: isDarkMode ? 'rgba(15, 23, 42, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+                                        zIndex: 5,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                    }}>
+                                        <Box sx={{
+                                            textAlign: 'center',
+                                            p: 4,
+                                            display: 'flex',
+                                            flexDirection: 'column',
+                                            alignItems: 'center',
+                                            gap: 2
+                                        }}>
+                                            <Box sx={{
+                                                fontSize: '4rem',
+                                                opacity: 0.3,
+                                                mb: 1
+                                            }}>
+                                                📭
+                                            </Box>
+                                            <Typography variant="h5" sx={{ fontWeight: 600, color: '#6b7280', mb: 0.5 }}>
+                                                No Data Found
+                                            </Typography>
+                                            <Typography variant="body2" sx={{ color: '#9ca3af', maxWidth: 400 }}>
+                                                No rejections match your current filters. Try adjusting your search criteria or reset filters to see all items.
+                                            </Typography>
+                                        </Box>
+                                    </Box>
+                                )}
+
+                                {/* AG Grid - Always Rendered with Fixed Height */}
+                                <Box className="ag-theme-quartz" sx={{
+                                    height: '100%',
+                                    width: '100%',
+                                    bgcolor: isDarkMode ? '#1e293b' : '#ffffff',
+                                    overflow: 'hidden',
+                                    '& .ag-root-wrapper': {
+                                        backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
+                                        border: 'none',
+                                        borderRadius: '8px',
+                                    },
+                                    '& .ag-header': {
+                                        backgroundColor: isDarkMode ? '#334155' : '#f8fafc',
+                                        borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(0,0,0,0.08)',
+                                        fontWeight: 600,
+                                        opacity: '1 !important',
+                                        zIndex: 15,
+                                        position: 'relative'
+                                    },
+                                    '& .ag-header-cell': {
+                                        padding: '0 12px',
+                                        opacity: '1 !important',
+                                        fontWeight: 600,
+                                        letterSpacing: '0.01em',
+                                        backgroundColor: isDarkMode ? '#334155' : 'transparent',
+                                        color: isDarkMode ? '#f1f5f9' : 'inherit',
+                                    },
+                                    '& .ag-header-cell-label': {
+                                        color: isDarkMode ? '#f1f5f9' : 'inherit'
+                                    },
+                                    '& .ag-icon': { color: isDarkMode ? '#94a3b8' : '#64748b' },
+                                    '& .ag-body-viewport': {
+                                        opacity: loading ? 0.3 : 1,
+                                        transition: 'opacity 0.2s ease-in-out',
+                                        backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
+                                    },
+                                    '& .ag-row': {
+                                        borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.06)' : '1px solid rgba(0,0,0,0.06)',
+                                        transition: 'background-color 0.15s ease',
+                                    },
+                                    '& .ag-row-even': {
+                                        backgroundColor: isDarkMode ? '#1a2536 !important' : '#ffffff !important',
+                                    },
+                                    '& .ag-row-odd': {
+                                        backgroundColor: isDarkMode ? '#1e293b !important' : 'rgba(248,250,252,0.5) !important',
+                                    },
+                                    '& .ag-cell': {
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        lineHeight: '36px',
+                                        fontSize: '0.875rem',
+                                        padding: '0 12px',
+                                        color: isDarkMode ? '#f1f5f9' : 'inherit',
+                                    },
+                                    '& .ag-row-hover': {
+                                        backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.15) !important' : 'rgba(30,64,175,0.04) !important',
+                                        transition: 'background-color 0.1s ease'
+                                    },
+                                    '& .ag-cell-focus': {
+                                        border: '2px solid #1e40af !important',
+                                        boxSizing: 'border-box',
+                                        outline: 'none',
+                                    },
+                                    '& .ag-cell-range-selected': {
+                                        backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.2) !important' : 'rgba(30,64,175,0.08) !important',
+                                    },
+                                    '& .ag-center-cols-viewport, & .ag-center-cols-container': {
+                                        backgroundColor: isDarkMode ? '#1e293b' : '#fff'
+                                    },
+                                }}
                                 >
                                     <AgGridReact
                                         ref={gridRef}
                                         rowData={rejections}
                                         columnDefs={columnDefs}
                                         defaultColDef={defaultColDef}
-                                        animateRows
+                                        animateRows={false}
                                         rowSelection="multiple"
-                                        loading={loading}
-                                        pagination
-                                        paginationPageSize={50}
-                                        paginationPageSizeSelector={[25, 50, 100, 200]}
-                                        domLayout="normal"
+                                        suppressCellFocus
+                                        onGridReady={onGridReady}
+                                        onColumnMoved={onColumnStateChanged}
+                                        onColumnResized={onColumnStateChanged}
+                                        suppressScrollOnNewData={true}
+                                        maintainColumnOrder={true}
+                                        enableCellTextSelection={true}
+                                        loading={false}
+                                        suppressNoRowsOverlay={true}
+                                        containerStyle={{ height: '100%', width: '100%' }}
+                                        rowHeight={36}
+                                        headerHeight={36}
                                     />
-                                </div>
-                            </Paper>
+                                </Box>
+                            </Box>
+
+                            {/* Pagination */}
+                            <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{
+                                px: { xs: 1, sm: 2 },
+                                py: { xs: 0.75, sm: 0.5 },
+                                borderTop: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #ddd',
+                                bgcolor: isDarkMode ? '#1e293b' : '#fff',
+                                borderRadius: '0 0 8px 8px',
+                                mt: 0.5,
+                                minHeight: { xs: 44, sm: 52 },
+                                gap: { xs: 0.5, sm: 1 },
+                                flexWrap: 'wrap',
+                            }}>
+                                {/* Left Section: Per Page */}
+                                <Stack direction="row" spacing={{ xs: 0.5, sm: 1.5 }} alignItems="center">
+                                    <Typography sx={{ fontSize: { xs: '0.7rem', sm: '0.78rem' }, whiteSpace: 'nowrap', color: isDarkMode ? '#94a3b8' : 'inherit' }}>
+                                        Per page:
+                                    </Typography>
+                                    <Select
+                                        size="small"
+                                        value={limit}
+                                        onChange={(e) => {
+                                            setLimit(Number(e.target.value));
+                                            setPage(1);
+                                        }}
+                                        sx={{
+                                            minWidth: { xs: 58, sm: 70 },
+                                            '& .MuiSelect-select': {
+                                                py: { xs: 0.5, sm: 0.75 },
+                                                fontSize: { xs: '0.75rem', sm: '0.875rem' },
+                                                color: isDarkMode ? '#f1f5f9' : 'inherit',
+                                            }
+                                        }}
+                                    >
+                                        <MenuItem value={50}>50</MenuItem>
+                                        <MenuItem value={100}>100</MenuItem>
+                                        <MenuItem value={500}>500</MenuItem>
+                                        <MenuItem value={1000}>1000</MenuItem>
+                                    </Select>
+                                </Stack>
+
+                                {/* Center Section: Count */}
+                                <Typography sx={{ fontSize: { xs: '0.7rem', sm: '0.78rem' }, whiteSpace: 'nowrap', color: isDarkMode ? '#94a3b8' : 'inherit' }}>
+                                    {totalCount > 0 ? `${(page - 1) * limit + 1}-${Math.min(page * limit, totalCount)} of ${totalCount}` : 'No records'}
+                                </Typography>
+
+                                {/* Right Section: Pagination */}
+                                <Pagination
+                                    count={totalPages}
+                                    page={page}
+                                    onChange={(_, p) => setPage(p)}
+                                    size="small"
+                                    siblingCount={isSmall ? 0 : 1}
+                                />
+                            </Stack>
                         </Box>
                     )}
 
                     {activeTab === 1 && (
-                        <Paper elevation={2} sx={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
-                            <div
-                                className={isDarkMode ? 'ag-theme-quartz-dark' : 'ag-theme-quartz'}
-                                style={{ flex: 1, width: '100%', minHeight: 0 }}
-                            >
+                        <Box sx={{
+                            position: 'relative',
+                            flex: 1,
+                            overflow: 'hidden',
+                            minHeight: 0,
+                            border: isDarkMode ? '2px solid rgba(255,255,255,0.1)' : '2px solid #e2e8f0',
+                            borderRadius: 1.5,
+                            boxShadow: isDarkMode ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.06)',
+                        }}>
+                            {/* Empty State */}
+                            {!loading && (!summary || summary.length === 0) && (
+                                <Box sx={{
+                                    position: 'absolute',
+                                    top: 60,
+                                    left: 0,
+                                    right: 0,
+                                    bottom: 0,
+                                    backgroundColor: isDarkMode ? 'rgba(15, 23, 42, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+                                    zIndex: 5,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                }}>
+                                    <Box sx={{
+                                        textAlign: 'center',
+                                        p: 4,
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        alignItems: 'center',
+                                        gap: 2
+                                    }}>
+                                        <Box sx={{ fontSize: '4rem', opacity: 0.3, mb: 1 }}>📋</Box>
+                                        <Typography variant="h5" sx={{ fontWeight: 600, color: '#6b7280', mb: 0.5 }}>
+                                            No CN Summary
+                                        </Typography>
+                                        <Typography variant="body2" sx={{ color: '#9ca3af', maxWidth: 400 }}>
+                                            Credit note summary will appear here once rejections are uploaded.
+                                        </Typography>
+                                    </Box>
+                                </Box>
+                            )}
+
+                            <Box className="ag-theme-quartz" sx={{
+                                height: '100%',
+                                width: '100%',
+                                bgcolor: isDarkMode ? '#1e293b' : '#ffffff',
+                                overflow: 'hidden',
+                                '& .ag-root-wrapper': {
+                                    backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
+                                    border: 'none',
+                                    borderRadius: '8px',
+                                },
+                                '& .ag-header': {
+                                    backgroundColor: isDarkMode ? '#334155' : '#f8fafc',
+                                    borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(0,0,0,0.08)',
+                                    fontWeight: 600,
+                                    opacity: '1 !important',
+                                    zIndex: 15,
+                                    position: 'relative'
+                                },
+                                '& .ag-header-cell': {
+                                    padding: '0 12px',
+                                    opacity: '1 !important',
+                                    fontWeight: 600,
+                                    letterSpacing: '0.01em',
+                                    backgroundColor: isDarkMode ? '#334155' : 'transparent',
+                                    color: isDarkMode ? '#f1f5f9' : 'inherit',
+                                },
+                                '& .ag-header-cell-label': { color: isDarkMode ? '#f1f5f9' : 'inherit' },
+                                '& .ag-icon': { color: isDarkMode ? '#94a3b8' : '#64748b' },
+                                '& .ag-body-viewport': {
+                                    backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
+                                },
+                                '& .ag-row': {
+                                    borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.06)' : '1px solid rgba(0,0,0,0.06)',
+                                    transition: 'background-color 0.15s ease',
+                                },
+                                '& .ag-row-even': {
+                                    backgroundColor: isDarkMode ? '#1a2536 !important' : '#ffffff !important',
+                                },
+                                '& .ag-row-odd': {
+                                    backgroundColor: isDarkMode ? '#1e293b !important' : 'rgba(248,250,252,0.5) !important',
+                                },
+                                '& .ag-cell': {
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    lineHeight: '36px',
+                                    fontSize: '0.875rem',
+                                    padding: '0 12px',
+                                    color: isDarkMode ? '#f1f5f9' : 'inherit',
+                                },
+                                '& .ag-row-hover': {
+                                    backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.15) !important' : 'rgba(30,64,175,0.04) !important',
+                                    transition: 'background-color 0.1s ease'
+                                },
+                                '& .ag-cell-focus': {
+                                    border: '2px solid #1e40af !important',
+                                    boxSizing: 'border-box',
+                                    outline: 'none',
+                                },
+                                '& .ag-center-cols-viewport, & .ag-center-cols-container': {
+                                    backgroundColor: isDarkMode ? '#1e293b' : '#fff'
+                                },
+                            }}>
                                 <AgGridReact
+                                    ref={summaryGridRef}
                                     rowData={summary}
                                     columnDefs={summaryColumns}
                                     defaultColDef={defaultColDef}
-                                    animateRows
-                                    domLayout="normal"
+                                    animateRows={false}
+                                    suppressScrollOnNewData={true}
+                                    maintainColumnOrder={true}
+                                    enableCellTextSelection={true}
+                                    loading={false}
+                                    suppressNoRowsOverlay={true}
+                                    containerStyle={{ height: '100%', width: '100%' }}
+                                    rowHeight={36}
+                                    headerHeight={36}
                                 />
-                            </div>
-                        </Paper>
+                            </Box>
+                        </Box>
                     )}
 
                     {activeTab === 2 && (
-                        <Paper elevation={2} sx={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
+                        <Paper elevation={2} sx={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 300, overflow: 'hidden' }}>
                             <BatchManagementTab
                                 batches={batchList}
                                 loading={batchLoading}
                                 onRefresh={fetchBatchList}
                                 onDelete={handleDeleteBatch}
+                                onRename={handleRenameBatch}
                                 canDelete={canDelete}
+                                canRename={canCreate}
                                 title="Rejection Batches"
                                 emptyMessage="No rejection batches found"
                                 emptySubMessage="Batches will appear here after uploading rejections"

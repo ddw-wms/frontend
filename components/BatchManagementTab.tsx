@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import {
     Box,
     Typography,
@@ -18,16 +18,23 @@ import {
     Tooltip,
     useTheme,
     useMediaQuery,
+    Dialog,
+    DialogTitle,
+    DialogContent,
+    DialogActions,
+    TextField,
 } from '@mui/material';
 import {
     Refresh as RefreshIcon,
     Delete as DeleteIcon,
     Visibility as VisibilityIcon,
     Inventory2 as BatchIcon,
+    Edit as EditIcon,
+    Close as CloseIcon,
 } from '@mui/icons-material';
 
-// Standard date formatter
-const formatDate = (dateStr?: string) => {
+// Standard date formatter with time
+const formatDateTime = (dateStr?: string) => {
     if (!dateStr) return '-';
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) return '-';
@@ -35,7 +42,11 @@ const formatDate = (dateStr?: string) => {
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const mon = months[d.getMonth()];
     const yyyy = d.getFullYear();
-    return `${day}-${mon}-${yyyy}`;
+    let hours = d.getHours();
+    const mins = String(d.getMinutes()).padStart(2, '0');
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12 || 12;
+    return `${day}-${mon}-${yyyy} ${hours}:${mins} ${ampm}`;
 };
 
 // Format number with commas
@@ -64,8 +75,10 @@ interface BatchManagementTabProps {
     onRefresh: () => void;
     onDelete?: (batchId: string) => void;
     onView?: (batchId: string) => void;
+    onRename?: (oldBatchId: string, newBatchId: string) => Promise<void>;
     canDelete?: boolean;
     canView?: boolean;
+    canRename?: boolean;
     title?: string;
     emptyMessage?: string;
     emptySubMessage?: string;
@@ -77,8 +90,10 @@ export default function BatchManagementTab({
     onRefresh,
     onDelete,
     onView,
+    onRename,
     canDelete = true,
     canView = false,
+    canRename = false,
     title = 'Batch Management',
     emptyMessage = 'No batches found',
     emptySubMessage = 'Batches will appear here after bulk uploads',
@@ -87,13 +102,41 @@ export default function BatchManagementTab({
     const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
     const isDarkMode = theme.palette.mode === 'dark';
 
+    // Rename dialog state
+    const [renameDialogOpen, setRenameDialogOpen] = useState(false);
+    const [selectedBatch, setSelectedBatch] = useState<string>('');
+    const [newBatchName, setNewBatchName] = useState('');
+    const [renaming, setRenaming] = useState(false);
+
     // Get date from batch (handles different field names)
     const getBatchDate = (batch: BatchData) => {
-        return batch.lastupdated_display || formatDate(batch.last_updated || batch.created_at);
+        return batch.lastupdated_display || formatDateTime(batch.last_updated || batch.created_at);
     };
 
     // Calculate total items properly (ensure numeric addition)
     const totalItems = batches.reduce((sum, b) => sum + (parseInt(String(b.count)) || 0), 0);
+
+    // Handle rename
+    const handleRename = async () => {
+        if (!onRename || !newBatchName.trim()) return;
+        setRenaming(true);
+        try {
+            await onRename(selectedBatch, newBatchName.trim());
+            setRenameDialogOpen(false);
+            setNewBatchName('');
+            setSelectedBatch('');
+        } catch (error) {
+            // Error handling done in parent
+        } finally {
+            setRenaming(false);
+        }
+    };
+
+    const openRenameDialog = (batchId: string) => {
+        setSelectedBatch(batchId);
+        setNewBatchName(batchId);
+        setRenameDialogOpen(true);
+    };
 
     return (
         <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', p: 1 }}>
@@ -158,7 +201,7 @@ export default function BatchManagementTab({
                     <Table size="small" stickyHeader>
                         <TableHead>
                             <TableRow>
-                                {['Batch ID', 'Count', ...(isMobile ? [] : ['Last Updated']), 'Actions'].map((header, i) => (
+                                {['Batch ID', 'Count', ...(isMobile ? [] : ['Last Updated']), 'Actions'].map((header) => (
                                     <TableCell
                                         key={header}
                                         align={header === 'Count' || header === 'Actions' ? (header === 'Actions' ? 'right' : 'center') : 'left'}
@@ -259,6 +302,23 @@ export default function BatchManagementTab({
                                         )}
                                         <TableCell align="right">
                                             <Stack direction="row" spacing={0.5} justifyContent="flex-end">
+                                                {canRename && onRename && (
+                                                    <Tooltip title="Rename" arrow placement="top">
+                                                        <IconButton
+                                                            size="small"
+                                                            onClick={() => openRenameDialog(batch.batch_id)}
+                                                            sx={{
+                                                                width: 26,
+                                                                height: 26,
+                                                                bgcolor: isDarkMode ? 'rgba(251, 191, 36, 0.1)' : '#fffbeb',
+                                                                color: isDarkMode ? '#fbbf24' : '#d97706',
+                                                                '&:hover': { bgcolor: isDarkMode ? 'rgba(251, 191, 36, 0.2)' : '#fef3c7' },
+                                                            }}
+                                                        >
+                                                            <EditIcon sx={{ fontSize: 14 }} />
+                                                        </IconButton>
+                                                    </Tooltip>
+                                                )}
                                                 {canView && onView && (
                                                     <Tooltip title="View" arrow placement="top">
                                                         <IconButton
@@ -325,6 +385,38 @@ export default function BatchManagementTab({
                     </Stack>
                 </Box>
             )}
+
+            {/* Rename Dialog */}
+            <Dialog open={renameDialogOpen} onClose={() => setRenameDialogOpen(false)} maxWidth="xs" fullWidth>
+                <DialogTitle sx={{ pb: 1 }}>
+                    Rename Batch
+                    <IconButton onClick={() => setRenameDialogOpen(false)} sx={{ position: 'absolute', right: 8, top: 8 }}>
+                        <CloseIcon />
+                    </IconButton>
+                </DialogTitle>
+                <DialogContent>
+                    <TextField
+                        fullWidth
+                        label="New Batch ID"
+                        value={newBatchName}
+                        onChange={(e) => setNewBatchName(e.target.value)}
+                        size="small"
+                        sx={{ mt: 1 }}
+                        autoFocus
+                    />
+                </DialogContent>
+                <DialogActions sx={{ px: 3, pb: 2 }}>
+                    <Button onClick={() => setRenameDialogOpen(false)}>Cancel</Button>
+                    <Button
+                        variant="contained"
+                        onClick={handleRename}
+                        disabled={!newBatchName.trim() || newBatchName === selectedBatch || renaming}
+                        startIcon={renaming ? <CircularProgress size={16} /> : <EditIcon />}
+                    >
+                        {renaming ? 'Renaming...' : 'Rename'}
+                    </Button>
+                </DialogActions>
+            </Dialog>
         </Box>
     );
 }

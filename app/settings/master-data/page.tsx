@@ -1754,7 +1754,7 @@ export default function MasterDataPage() {
                             '& .MuiOutlinedInput-root': {
                               bgcolor: isDarkMode ? '#1e293b' : 'white',
                               borderRadius: 1.5,
-                              height: 38,
+                              height: 36,
                               fontSize: { xs: '0.8rem', sm: '0.875rem' },
                               fontWeight: 500,
                               border: isDarkMode ? '2px solid rgba(255,255,255,0.15)' : '2px solid #e2e8f0',
