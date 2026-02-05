@@ -460,7 +460,8 @@ export const inboundAPI = {
         category: filters?.category,
         dateFrom: filters?.dateFrom,
         dateTo: filters?.dateTo,
-        batchId: filters?.batchId
+        // Send batch IDs as comma-separated string for reliable parsing
+        batchId: Array.isArray(filters?.batchId) ? filters.batchId.join(',') : filters?.batchId
       },
       ...(config || {})
     }),
