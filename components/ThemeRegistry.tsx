@@ -713,11 +713,13 @@ export default function ThemeRegistry({ children }: { children: React.ReactNode 
     const theme = React.useMemo(() => createAppTheme(mode), [mode]);
 
     return (
-        <AppRouterCacheProvider>
+        <AppRouterCacheProvider options={{ enableCssLayer: true }}>
             <ThemeModeContext.Provider value={{ mode, toggleMode, setMode }}>
                 <ThemeProvider theme={theme}>
-                    <CssBaseline />
-                    {children}
+                    <CssBaseline enableColorScheme />
+                    <div suppressHydrationWarning>
+                        {children}
+                    </div>
                 </ThemeProvider>
             </ThemeModeContext.Provider>
         </AppRouterCacheProvider>
