@@ -1503,33 +1503,38 @@ export default function MasterDataPage() {
       exportToast = toast.loading('Preparing export...');
       let data: any[] = [];
 
-      if (exportBatch.length > 0 || (exportDateFrom && exportDateTo)) {
-        const params = new URLSearchParams();
+      // Always fetch from API with current filters to get ALL filtered data (not just current page)
+      const params = new URLSearchParams();
 
-        if (exportBatch.length > 0) {
-          params.append('batchIds', exportBatch.join(','));
-        }
-
-        if (exportDateFrom && exportDateTo) {
-          params.append('dateFrom', exportDateFrom);
-          params.append('dateTo', exportDateTo);
-        }
-
-        const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/master-data/export?${params.toString()}`,
-          {
-            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-          }
-        );
-
-        if (!response.ok) throw new Error('Export failed');
-
-        const result = await response.json();
-        data = result.data || [];
-
-      } else {
-        data = [...masterData];
+      // Add batch filters if selected in export dialog
+      if (exportBatch.length > 0) {
+        params.append('batchIds', exportBatch.join(','));
       }
+
+      // Add date range if selected in export dialog
+      if (exportDateFrom && exportDateTo) {
+        params.append('dateFrom', exportDateFrom);
+        params.append('dateTo', exportDateTo);
+      }
+
+      // Add current active filters
+      if (debouncedSearch) params.append('search', debouncedSearch);
+      if (filterBatchId) params.append('batch_id', filterBatchId);
+      if (filterStatus && filterStatus !== 'All') params.append('status', filterStatus);
+      if (filterBrand) params.append('brand', filterBrand);
+      if (filterCategory) params.append('category', filterCategory);
+
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/master-data/export?${params.toString()}`,
+        {
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        }
+      );
+
+      if (!response.ok) throw new Error('Export failed');
+
+      const result = await response.json();
+      data = result.data || [];
 
       if (data.length === 0) {
         if (exportToast) toast.dismiss(exportToast);
