@@ -741,48 +741,66 @@ export default function RejectionsPage() {
                                 {/* Desktop: Inline Filters */}
                                 <Stack direction="row" spacing={1} alignItems="center" sx={{ display: { xs: 'none', md: 'flex' } }}>
                                     {/* Type Filter */}
-                                    <TextField
-                                        select
-                                        size="small"
-                                        label="Type"
-                                        value={rejectionType}
-                                        onChange={(e) => { setRejectionType(e.target.value); setPage(1); }}
-                                        sx={{ minWidth: 100, '& .MuiOutlinedInput-root': { height: 36 } }}
-                                    >
-                                        <MenuItem value="all">All</MenuItem>
-                                        <MenuItem value="damaged">Damaged</MenuItem>
-                                        <MenuItem value="fraud">Fraud</MenuItem>
-                                        <MenuItem value="short">Short</MenuItem>
-                                        <MenuItem value="other">Other</MenuItem>
-                                    </TextField>
+                                    <FormControl size="small" sx={{ minWidth: 130 }}>
+                                        <Select
+                                            value={rejectionType}
+                                            onChange={(e) => { setRejectionType(e.target.value); setPage(1); }}
+                                            displayEmpty
+                                            renderValue={(value) => (
+                                                <Typography variant="body2" sx={{ color: isDarkMode ? '#fff' : 'inherit' }} noWrap>
+                                                    <span style={{ color: isDarkMode ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)' }}>Type: </span>
+                                                    {value === 'all' ? 'All' : value.charAt(0).toUpperCase() + value.slice(1)}
+                                                </Typography>
+                                            )}
+                                            sx={{ height: 36, '& .MuiSelect-select': { py: 1, pr: 4 } }}
+                                        >
+                                            <MenuItem value="all">All</MenuItem>
+                                            <MenuItem value="damaged">Damaged</MenuItem>
+                                            <MenuItem value="fraud">Fraud</MenuItem>
+                                            <MenuItem value="short">Short</MenuItem>
+                                            <MenuItem value="other">Other</MenuItem>
+                                        </Select>
+                                    </FormControl>
 
                                     {/* CN Status Filter */}
-                                    <TextField
-                                        select
-                                        size="small"
-                                        label="CN Status"
-                                        value={cnStatus}
-                                        onChange={(e) => { setCnStatus(e.target.value); setPage(1); }}
-                                        sx={{ minWidth: 110, '& .MuiOutlinedInput-root': { height: 36 } }}
-                                    >
-                                        <MenuItem value="all">All</MenuItem>
-                                        <MenuItem value="pending">Pending</MenuItem>
-                                        <MenuItem value="received">Received</MenuItem>
-                                    </TextField>
+                                    <FormControl size="small" sx={{ minWidth: 160 }}>
+                                        <Select
+                                            value={cnStatus}
+                                            onChange={(e) => { setCnStatus(e.target.value); setPage(1); }}
+                                            displayEmpty
+                                            renderValue={(value) => (
+                                                <Typography variant="body2" sx={{ color: isDarkMode ? '#fff' : 'inherit' }} noWrap>
+                                                    <span style={{ color: isDarkMode ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)' }}>CN Status: </span>
+                                                    {value === 'all' ? 'All' : value.charAt(0).toUpperCase() + value.slice(1)}
+                                                </Typography>
+                                            )}
+                                            sx={{ height: 36, '& .MuiSelect-select': { py: 1, pr: 4 } }}
+                                        >
+                                            <MenuItem value="all">All</MenuItem>
+                                            <MenuItem value="pending">Pending</MenuItem>
+                                            <MenuItem value="received">Received</MenuItem>
+                                        </Select>
+                                    </FormControl>
 
                                     {/* Rejected By Filter */}
                                     {persons.length > 0 && (
-                                        <TextField
-                                            select
-                                            size="small"
-                                            label="Rejected By"
-                                            value={personFilter}
-                                            onChange={(e) => { setPersonFilter(e.target.value); setPage(1); }}
-                                            sx={{ minWidth: 120, '& .MuiOutlinedInput-root': { height: 36 } }}
-                                        >
-                                            <MenuItem value="">All</MenuItem>
-                                            {persons.map((p) => <MenuItem key={p} value={p}>{p}</MenuItem>)}
-                                        </TextField>
+                                        <FormControl size="small" sx={{ minWidth: 200 }}>
+                                            <Select
+                                                value={personFilter}
+                                                onChange={(e) => { setPersonFilter(e.target.value); setPage(1); }}
+                                                displayEmpty
+                                                renderValue={(value) => (
+                                                    <Typography variant="body2" sx={{ color: isDarkMode ? '#fff' : 'inherit' }} noWrap>
+                                                        <span style={{ color: isDarkMode ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)' }}>Rejected By: </span>
+                                                        {value === '' ? 'All' : value}
+                                                    </Typography>
+                                                )}
+                                                sx={{ height: 36, '& .MuiSelect-select': { py: 1, pr: 4 } }}
+                                            >
+                                                <MenuItem value="">All</MenuItem>
+                                                {persons.map((p) => <MenuItem key={p} value={p}>{p}</MenuItem>)}
+                                            </Select>
+                                        </FormControl>
                                     )}
 
                                     {/* Refresh Button */}
