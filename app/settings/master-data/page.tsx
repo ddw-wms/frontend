@@ -1583,6 +1583,7 @@ export default function MasterDataPage() {
         'Product Type': item.p_type,
         'Product Size': item.p_size,
         'FKQC Remark': item.fkqc_remark,
+        'Actual Received': item.actual_received || 'Pending',
         'Batch ID': item.batch_id,
         'Created At': item.created_at_display || formatDateToIST(item.created_at, 'datetime')
       }));
