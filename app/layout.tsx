@@ -16,9 +16,12 @@ const appearanceScript = `
 (function() {
   try {
     var settings = localStorage.getItem('app_appearance_settings');
+    var root = document.documentElement;
+    var body = document.body;
+    var isDark = false;
+    
     if (settings) {
       var s = JSON.parse(settings);
-      var root = document.documentElement;
       if (s.fontSize) root.style.setProperty('--app-font-size', s.fontSize + 'px');
       if (s.fontFamily) root.style.setProperty('--app-font-family', s.fontFamily);
       if (s.primaryColor) {
@@ -37,8 +40,12 @@ const appearanceScript = `
           effectiveTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
         }
         root.setAttribute('data-theme', effectiveTheme);
+        isDark = effectiveTheme === 'dark';
       }
     }
+    
+    // Set background color immediately to prevent flash
+    body.style.backgroundColor = isDark ? '#0f172a' : '#f5f7fa';
   } catch(e) {}
 })();
 `;
