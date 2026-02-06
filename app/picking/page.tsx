@@ -3719,10 +3719,13 @@ export default function PickingPage() {
                       enableCellTextSelection={true}
                       ensureDomOrder={true}
                       animateRows={false}
-                      rowBuffer={20}
-                      valueCache={false}
+                      // ⚡ PERFORMANCE: Optimizations for smooth fast scrolling
+                      rowBuffer={50}
+                      suppressRowTransform={true}
+                      suppressAnimationFrame={true}
+                      valueCache={true}
                       debounceVerticalScrollbar={true}
-                      gridOptions={{ getRowId: (params: any) => String(params.data?.wsn || params.data?.id || params.rowIndex), suppressRowTransform: true }}
+                      gridOptions={{ getRowId: (params: any) => String(params.data?.wsn || params.data?.id || params.rowIndex) }}
                       onGridReady={(params: any) => {
                         listGridRef.current = params.api;  // Use listGridRef for list grid
                         gridRef.current = params.api;
@@ -5309,8 +5312,9 @@ export default function PickingPage() {
                 ensureDomOrder={true}
                 suppressMovableColumns={true}
                 singleClickEdit={true}
-                // âš¡ PERFORMANCE: Optimizations for smooth grid experience
-                rowBuffer={30}
+                // ⚡ PERFORMANCE: Optimizations for smooth fast scrolling
+                rowBuffer={50}
+                suppressRowTransform={true}
                 animateRows={false}
                 suppressScrollOnNewData={true}
                 debounceVerticalScrollbar={true}
@@ -5320,7 +5324,7 @@ export default function PickingPage() {
                 suppressRowHoverHighlight={false}
                 suppressColumnVirtualisation={false}
                 suppressRowVirtualisation={false}
-                suppressAnimationFrame={false}
+                suppressAnimationFrame={true}
                 //theme="legacy"
                 className="ag-theme-quartz"
                 containerStyle={{ height: '100%', width: '100%' }}

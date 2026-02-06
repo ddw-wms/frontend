@@ -3104,10 +3104,13 @@ export default function QCPage() {
                         enableCellTextSelection={true}
                         ensureDomOrder={true}
                         animateRows={false}
-                        rowBuffer={20}
+                        // ⚡ PERFORMANCE: Optimizations for smooth fast scrolling
+                        rowBuffer={50}
+                        suppressRowTransform={true}
+                        suppressAnimationFrame={true}
                         valueCache={true}
                         debounceVerticalScrollbar={true}
-                        gridOptions={{ getRowId: (params: any) => String(params.data?.id || params.data?.wsn || params.rowIndex), suppressRowTransform: true }}
+                        gridOptions={{ getRowId: (params: any) => String(params.data?.id || params.data?.wsn || params.rowIndex) }}
                         onGridReady={(params: any) => {
                           listGridRef.current = params.api;  // Use listGridRef for list grid
                           gridRef.current = params.api;
@@ -4941,8 +4944,10 @@ export default function QCPage() {
                     navigateToNextCell={navigateToNextCell}
                     ensureDomOrder={true}
                     suppressMovableColumns={true}
-                    // âš¡ PERFORMANCE: Optimizations
-                    rowBuffer={20}
+                    // ⚡ PERFORMANCE: Optimizations for smooth fast scrolling
+                    rowBuffer={50}
+                    suppressRowTransform={true}
+                    suppressAnimationFrame={true}
                     animateRows={false}
                     suppressScrollOnNewData={true}
                     debounceVerticalScrollbar={true}

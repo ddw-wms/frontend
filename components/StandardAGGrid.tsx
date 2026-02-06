@@ -197,6 +197,12 @@ export const StandardAGGrid: React.FC<StandardAGGridProps> = ({
                     suppressMovableColumns={suppressMovableColumns !== undefined ? suppressMovableColumns : isMobile}
                     domLayout={domLayout}
                     loading={loading}
+                    // ⚡ PERFORMANCE: Optimizations for smooth fast scrolling
+                    rowBuffer={50}
+                    suppressRowTransform={true}
+                    suppressAnimationFrame={true}
+                    debounceVerticalScrollbar={true}
+                    suppressScrollOnNewData={true}
                     {...otherProps}
                 />
             </Box>

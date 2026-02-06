@@ -4624,9 +4624,10 @@ export default function InboundPage() {
                       enableCellTextSelection={true}
                       suppressRowTransform={true}
                       // ⚡ Performance optimizations for large datasets
-                      rowBuffer={20}
+                      rowBuffer={50}
                       valueCache={true}
                       debounceVerticalScrollbar={true}
+                      suppressAnimationFrame={true}
                       onGridReady={(params: any) => {
                         listGridRef.current = params.api;
                         columnApiRef.current = params.api;
@@ -7125,8 +7126,10 @@ export default function InboundPage() {
                     tabToNextCell={tabToNextCell}
                     ensureDomOrder={true}
                     suppressMovableColumns={true}
-                    // ⚡ PERFORMANCE: Increase row buffer for smoother scrolling
-                    rowBuffer={20}
+                    // ⚡ PERFORMANCE: Optimizations for smooth fast scrolling
+                    rowBuffer={50}
+                    suppressRowTransform={true}
+                    suppressAnimationFrame={true}
                     animateRows={false}
                     suppressScrollOnNewData={true}
                     // ⚡ PERFORMANCE: Additional optimizations for large datasets

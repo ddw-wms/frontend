@@ -741,6 +741,12 @@ export default function CustomersPage() {
               suppressCellFocus={true}
               enableCellTextSelection={true}
               ensureDomOrder={true}
+              // ⚡ PERFORMANCE: Optimizations for smooth fast scrolling
+              rowBuffer={50}
+              suppressRowTransform={true}
+              suppressAnimationFrame={true}
+              debounceVerticalScrollbar={true}
+              suppressScrollOnNewData={true}
               getRowId={(params) => String(params.data.id)}
               overlayNoRowsTemplate={`<div style='padding: 20px; font-weight: 600; color: ${isDarkMode ? '#94a3b8' : '#64748b'};'>📭 No customers found</div>`}
               rowHeight={44}

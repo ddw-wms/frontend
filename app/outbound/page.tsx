@@ -4764,10 +4764,12 @@ export default function OutboundPage() {
                                             enableCellTextSelection={true}
                                             ensureDomOrder={true}
                                             animateRows={false}
-                                            rowBuffer={20}
+                                            // ⚡ PERFORMANCE: Optimizations for smooth fast scrolling
+                                            rowBuffer={50}
+                                            suppressRowTransform={true}
+                                            suppressAnimationFrame={true}
                                             valueCache={true}
                                             debounceVerticalScrollbar={true}
-                                            gridOptions={{ suppressRowTransform: true }}
                                             onGridReady={(params: any) => {
                                                 listGridRef.current = params.api;
                                                 columnApiRef.current = params.api;
@@ -6954,8 +6956,9 @@ export default function OutboundPage() {
                                     }
                                 }}
 
-                                // ⚡ PERFORMANCE: Optimizations for smooth grid experience
-                                rowBuffer={30}
+                                // ⚡ PERFORMANCE: Optimizations for smooth fast scrolling
+                                rowBuffer={50}
+                                suppressRowTransform={true}
                                 animateRows={false}
                                 suppressScrollOnNewData={true}
                                 debounceVerticalScrollbar={true}
@@ -6965,7 +6968,7 @@ export default function OutboundPage() {
                                 suppressRowHoverHighlight={false}
                                 suppressColumnVirtualisation={false}
                                 suppressRowVirtualisation={false}
-                                suppressAnimationFrame={false}
+                                suppressAnimationFrame={true}
 
                                 // ✅ Save column widths when resized (matching inbound pattern)
                                 onColumnResized={(params: any) => {

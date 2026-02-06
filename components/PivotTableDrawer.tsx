@@ -1104,9 +1104,15 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
                                 pagination={true}
                                 paginationPageSize={100}
                                 paginationPageSizeSelector={[50, 100, 200, 500]}
-                                animateRows={true}
+                                animateRows={false}
                                 enableCellTextSelection={true}
                                 suppressMovableColumns={false}
+                                // ⚡ PERFORMANCE: Optimizations for smooth fast scrolling
+                                rowBuffer={50}
+                                suppressRowTransform={true}
+                                suppressAnimationFrame={true}
+                                debounceVerticalScrollbar={true}
+                                suppressScrollOnNewData={true}
                                 headerHeight={44}
                                 rowHeight={40}
                                 tooltipShowDelay={500}

@@ -2533,6 +2533,12 @@ export default function DashboardPage() {
                         }
                       }}
                       animateRows={false}
+                      // ⚡ PERFORMANCE: Optimizations for smooth fast scrolling
+                      rowBuffer={50}
+                      suppressRowTransform={true}
+                      suppressAnimationFrame={true}
+                      debounceVerticalScrollbar={true}
+                      suppressScrollOnNewData={true}
                       rowHeight={tableRowHeight}
                       headerHeight={32}
                     />
