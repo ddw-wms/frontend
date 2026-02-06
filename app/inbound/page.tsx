@@ -3748,7 +3748,7 @@ export default function InboundPage() {
   /////////////////////////////// UI RENDERING ///////////////////////////////////
   return (
     <AppLayout>
-      <Toaster position="top-right" />
+      <Toaster position="top-right" containerStyle={{ zIndex: 99999 }} />
 
       <Box sx={{
         p: { xs: 0.75, md: 1 },

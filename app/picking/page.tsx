@@ -3209,7 +3209,7 @@ export default function PickingPage() {
 
   return (
     <AppLayout>
-      <Toaster position="top-right" toastOptions={{
+      <Toaster position="top-right" containerStyle={{ zIndex: 99999 }} toastOptions={{
         duration: 3000,
         style: {
           background: '#363636',

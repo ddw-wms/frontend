@@ -2216,7 +2216,7 @@ export default function QCPage() {
   //////////////////////////////////====UI RENDERING====////////////////////////////////////
   return (
     <AppLayout>
-      <Toaster position="top-right" toastOptions={{
+      <Toaster position="top-right" containerStyle={{ zIndex: 99999 }} toastOptions={{
         duration: 3000,
         style: {
           background: '#363636', color: '#fff', borderRadius: '10px',
