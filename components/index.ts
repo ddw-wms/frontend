@@ -54,4 +54,8 @@ export {
 // Customer Autocomplete with quick-add feature
 export { default as CustomerAutocomplete } from './CustomerAutocomplete';
 
+// WSN Overwrite Dialog - warns when replacing an existing WSN in a row
+export { default as WSNOverwriteDialog } from './WSNOverwriteDialog';
+export type { WSNOverwriteDialogData } from './WSNOverwriteDialog';
+
 // export type { FilterField } from './StandardPageLayout';

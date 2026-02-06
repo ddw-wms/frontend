@@ -20,6 +20,12 @@ interface ConnectionStatusBannerProps {
 export function ConnectionStatusBanner({ variant = 'fixed', onDismiss }: ConnectionStatusBannerProps) {
     const { shouldShowBanner, message, status, isOnline, retry, isHealthy } = useConnectionStatus();
     const [dismissed, setDismissed] = React.useState(false);
+    const [mounted, setMounted] = React.useState(false);
+
+    // Mark as mounted after hydration to prevent hydration mismatch
+    React.useEffect(() => {
+        setMounted(true);
+    }, []);
 
     // Reset dismissed state when connection is restored
     React.useEffect(() => {
@@ -37,6 +43,11 @@ export function ConnectionStatusBanner({ variant = 'fixed', onDismiss }: Connect
         setDismissed(false);
         await retry();
     };
+
+    // Don't render anything until mounted to prevent hydration mismatch
+    if (!mounted) {
+        return null;
+    }
 
     const showBanner = shouldShowBanner && !dismissed;
 

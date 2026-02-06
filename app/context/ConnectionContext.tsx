@@ -32,20 +32,30 @@ const RECONNECT_INTERVAL = 10000; // Retry every 10 seconds when disconnected
 const MAX_RETRY_COUNT = 10;
 
 export function ConnectionProvider({ children }: { children: React.ReactNode }) {
+    // Initialize with consistent server-side values to prevent hydration mismatch
     const [state, setState] = useState<ConnectionState>({
         status: 'connecting',
         lastChecked: null,
         lastError: null,
         retryCount: 0,
-        isOnline: typeof navigator !== 'undefined' ? navigator.onLine : true,
+        isOnline: true, // Always start as true - will update after mount
         serverReady: false,
         databaseReady: false,
         initialCheckDone: false,
     });
+    const [mounted, setMounted] = useState(false);
 
     const healthCheckInterval = useRef<NodeJS.Timeout | null>(null);
     const reconnectTimeout = useRef<NodeJS.Timeout | null>(null);
     const isMounted = useRef(true);
+
+    // Sync with actual navigator.onLine after hydration
+    useEffect(() => {
+        setMounted(true);
+        if (typeof navigator !== 'undefined') {
+            setState(prev => ({ ...prev, isOnline: navigator.onLine }));
+        }
+    }, []);
 
     // Check server connection
     const checkConnection = useCallback(async (): Promise<boolean> => {

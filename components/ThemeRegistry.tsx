@@ -637,9 +637,17 @@ const createAppTheme = (mode: PaletteMode) => createTheme({
 
 export default function ThemeRegistry({ children }: { children: React.ReactNode }) {
     const [mode, setModeState] = React.useState<PaletteMode>('light');
+    const [mounted, setMounted] = React.useState(false);
 
-    // Load theme from localStorage on mount
+    // Mark as mounted after hydration to prevent hydration mismatch
     React.useEffect(() => {
+        setMounted(true);
+    }, []);
+
+    // Load theme from localStorage only after mounting (client-side)
+    React.useEffect(() => {
+        if (!mounted) return;
+
         const stored = localStorage.getItem('app_appearance_settings');
         if (stored) {
             try {
@@ -656,7 +664,7 @@ export default function ThemeRegistry({ children }: { children: React.ReactNode 
                 setModeState('light');
             }
         }
-    }, []);
+    }, [mounted]);
 
     // Listen for theme changes from AppearanceContext - instant switch
     React.useEffect(() => {

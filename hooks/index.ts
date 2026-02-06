@@ -32,3 +32,12 @@ export { useApiQuery, useApiMutation } from './useApiQuery';
 // ⚡ Performance-Optimized Hooks
 export { useDashboardFilters, type DashboardFilters, type DashboardPagination } from './useDashboardFilters';
 export { useGridSettings, type GridSettings } from './useGridSettings';
+
+// Fullscreen Mode
+export { useFullscreen } from './useFullscreen';
+
+// Live View (Real-time Multi Entry sharing)
+export { useLiveSession } from './useLiveSession';
+
+// Fast Submit (Optimistic batched submission)
+export { useFastSubmit } from './useFastSubmit';

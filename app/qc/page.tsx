@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
@@ -45,6 +45,11 @@ import {
   Pagination,
   InputBase,
   Fade,
+  Drawer,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
+  Switch,
 } from '@mui/material';
 import {
   Download as DownloadIcon,
@@ -65,16 +70,22 @@ import {
   FirstPage,
   LastPage,
   AccessTime,
+  Fullscreen as FullscreenIcon,
+  FullscreenExit as FullscreenExitIcon,
+  Menu as MenuIcon,
+  ViewColumn as ViewColumnIcon,
+  TableChart as TableChartIcon,
 } from '@mui/icons-material';
 import { qcAPI } from '@/lib/api';
 import { useWarehouse } from '@/app/context/WarehouseContext';
 import { getStoredUser } from '@/lib/auth';
 import AppLayout from '@/components/AppLayout';
-import { StandardPageHeader, StandardTabs, BatchManagementTab } from '@/components';
+import { StandardPageHeader, StandardTabs, BatchManagementTab, WSNOverwriteDialog } from '@/components';
+import type { WSNOverwriteDialogData } from '@/components';
 import { useTableRowHeight } from '@/app/context/AppearanceContext';
 
 import toast, { Toaster } from 'react-hot-toast';
-// ⚡ OPTIMIZED: XLSX loaded dynamically on export to reduce bundle size
+// âš¡ OPTIMIZED: XLSX loaded dynamically on export to reduce bundle size
 // import * as XLSX from 'xlsx'; // Removed - loaded dynamically
 import { AgGridReact } from 'ag-grid-react';
 import { ModuleRegistry, AllCommunityModule, ClientSideRowModelModule } from 'ag-grid-community';
@@ -86,7 +97,9 @@ import localforage from 'localforage';
 // Register AG Grid modules ONCE (include ClientSideRowModel for client-side features)
 ModuleRegistry.registerModules([AllCommunityModule, ClientSideRowModelModule]);
 import { useQCPermissions } from '@/hooks/usePagePermissions';
+import { useFullscreen, useLiveSession } from '@/hooks';
 import BulkUploadCard from '@/components/BulkUploadCard';
+import LiveViewPanel from '@/components/LiveViewPanel';
 
 // Tab definitions with permission codes
 const ALL_TABS = ['QC List', 'Single QC', 'Multi QC', 'Bulk Upload', 'Batch Management'];
@@ -258,10 +271,14 @@ export default function QCPage() {
   // AG Grid refs
   const gridRef = useRef<any>(null);
   const listGridRef = useRef<any>(null);  // Separate ref for List grid
+  const multiEntryContainerRef = useRef<HTMLDivElement>(null);  // Ref for fullscreen mode
   const columnApiRef = useRef<any>(null);
   const hasAutoFittedRef = useRef(false); // Track if auto-fit has been done
 
-  // ⚡ EXCEL-LIKE: Refs for smooth scrolling and selection
+  // ====== FULLSCREEN MODE ======
+  const { isFullscreen, toggleFullscreen } = useFullscreen(multiEntryContainerRef);
+
+  // âš¡ EXCEL-LIKE: Refs for smooth scrolling and selection
   const userScrolledRef = useRef(false);
   const userScrollTimeoutRef = useRef<number | null>(null);
   const lastGridScrollTopRef = useRef(0);
@@ -270,7 +287,7 @@ export default function QCPage() {
   const scanningModeRef = useRef(false);
   const multiRowsRef = useRef([] as any[]);
 
-  // ⚡ EXCEL-LIKE: Track selected cell range for multi-cell operations
+  // âš¡ EXCEL-LIKE: Track selected cell range for multi-cell operations
   const [selectedRange, setSelectedRange] = useState<{
     startRow: number;
     endRow: number;
@@ -280,7 +297,7 @@ export default function QCPage() {
   const rangeStartCellRef = useRef<{ rowIndex: number; colId: string } | null>(null);
   const selectedRangeRef = useRef<typeof selectedRange>(null);
 
-  // ⚡ PERFORMANCE: Cache computed selection bounds
+  // âš¡ PERFORMANCE: Cache computed selection bounds
   const selectionBoundsRef = useRef<{
     minRow: number;
     maxRow: number;
@@ -291,7 +308,7 @@ export default function QCPage() {
     colIndexMap: Map<string, number>;
   } | null>(null);
 
-  // ⚡ EXCEL-LIKE: Track mouse drag state for multi-cell selection
+  // âš¡ EXCEL-LIKE: Track mouse drag state for multi-cell selection
   const isDraggingRef = useRef(false);
   const dragStartCellRef = useRef<{ rowIndex: number; colId: string } | null>(null);
 
@@ -332,18 +349,18 @@ export default function QCPage() {
   const [topLoading, setTopLoading] = useState(false);
   const previousDataRef = useRef<QCItem[] | null>(null);
 
-  // ⚡ PAGE CACHE: Store fetched pages for instant back navigation
+  // âš¡ PAGE CACHE: Store fetched pages for instant back navigation
   const pageCacheRef = useRef<Map<string, { data: QCItem[], total: number, timestamp: number }>>(new Map());
   const PAGE_CACHE_TTL = 60000; // 1 minute cache validity
 
-  // ⚡ LAST REFRESH TIME: Track when data was last fetched
+  // âš¡ LAST REFRESH TIME: Track when data was last fetched
   const [lastRefreshTime, setLastRefreshTime] = useState<Date | null>(null);
 
-  // ⚡ AUTO-RETRY: Track retry attempts
+  // âš¡ AUTO-RETRY: Track retry attempts
   const retryCountRef = useRef(0);
   const MAX_RETRIES = 2;
 
-  // ⚡ LAZY LOADING: Defer filter options loading
+  // âš¡ LAZY LOADING: Defer filter options loading
   const [filtersLoaded, setFiltersLoaded] = useState(false);
 
   // Whether any filter is active (shows green dot on Filters button)
@@ -382,6 +399,10 @@ export default function QCPage() {
     try { return localStorage.getItem('qc_enableColumnResize') !== 'false'; } catch { return true; }
   });
   const [gridSettingsOpen, setGridSettingsOpen] = useState(false);
+
+  // ====== QC MULTI ENTRY SETTINGS PANEL STATE ======
+  const [qcSettingsPanelOpen, setQcSettingsPanelOpen] = useState(false);
+  const [settingsPanelExpanded, setSettingsPanelExpanded] = useState<string | false>('columns');
 
   // SINGLE ENTRY STATE
   const [singleWSN, setSingleWSN] = useState('');
@@ -451,6 +472,47 @@ export default function QCPage() {
   const [commonQcDate, setCommonQcDate] = useState('');
   const [commonQcByName, setCommonQcByName] = useState('');
 
+  // ====== WSN OVERWRITE WARNING DIALOG ======
+  const [wsnOverwriteDialog, setWsnOverwriteDialog] = useState<WSNOverwriteDialogData | null>(null);
+  const pendingWSNRef = useRef<{ rowIndex: number; newWSN: string; event: any } | null>(null);
+
+  // ====== LIVE VIEW SESSION ======
+  const isOnMultiTab = visibleTabCodes[tabValue] === 'multi';
+  const { startSession: startLiveSession, updateEntries: updateLiveEntries, endSession: endLiveSession, isActive: isLiveSessionActive } = useLiveSession({
+    warehouseId: activeWarehouse?.id,
+    pageType: 'qc',
+    enabled: isOnMultiTab && !!activeWarehouse?.id,
+  });
+
+  // Auto-start live session when entering Multi QC tab
+  useEffect(() => {
+    if (isOnMultiTab && activeWarehouse?.id && !isLiveSessionActive) {
+      startLiveSession();
+    } else if (!isOnMultiTab && isLiveSessionActive) {
+      endLiveSession();
+    }
+  }, [isOnMultiTab, activeWarehouse?.id, isLiveSessionActive, startLiveSession, endLiveSession]);
+
+  // Broadcast entries when multiRows change
+  useEffect(() => {
+    if (isLiveSessionActive && isOnMultiTab) {
+      const validEntries = multiRows
+        .map((row, idx) => ({
+          wsn: row.wsn || '',
+          product_title: row.producttitle || row.product_title || '',
+          brand: row.brand || '',
+          mrp: row.mrp,
+          fsp: row.fsp,
+          cms_vertical: row.cmsvertical || row.cms_vertical || '',
+          fkqc_remarks: row.fkqcremark || '',
+          p_type: row.ptype || '',
+          row_index: idx,
+        }))
+        .filter(e => e.wsn.trim());
+      updateLiveEntries(validEntries);
+    }
+  }, [multiRows, isLiveSessionActive, isOnMultiTab, updateLiveEntries]);
+
   // ---- Draft / Autosave (IndexedDB via localForage) ----
   const [draftSavedAt, setDraftSavedAt] = useState<number | null>(null);
   const [draftSaving, setDraftSaving] = useState(false);
@@ -506,7 +568,7 @@ export default function QCPage() {
   const updateGridSettings = (newSettings: typeof gridSettings) => {
     setGridSettings(newSettings);
     localStorage.setItem('qc_grid_settings', JSON.stringify(newSettings));
-    console.log('💾 Grid settings saved:', newSettings);
+    console.log('ðŸ’¾ Grid settings saved:', newSettings);
   };
 
 
@@ -578,7 +640,7 @@ export default function QCPage() {
           setMultiRows(restored);
           setDraftSavedAt(draft.savedAt || Date.now());
           setDraftExists(true);
-          //toast.success('✓ Draft restored');
+          //toast.success('âœ“ Draft restored');
         }
       } catch (err) {
         console.error('Failed to load QC draft', err);
@@ -755,7 +817,7 @@ export default function QCPage() {
       const currentRow = previousCellPosition.rowIndex;
 
       if (currentCol === visibleColumns[visibleColumns.length - 1]) {
-        // Last column → move to first column of next row
+        // Last column â†’ move to first column of next row
         return {
           rowIndex: currentRow + 1,
           column: params.api.getColumns()![0],
@@ -775,12 +837,12 @@ export default function QCPage() {
     return nextCellPosition;
   }, [visibleColumns]);
 
-  // ⚡ EXCEL-LIKE: Keep multiRowsRef in sync
+  // âš¡ EXCEL-LIKE: Keep multiRowsRef in sync
   useEffect(() => {
     multiRowsRef.current = multiRows;
   }, [multiRows]);
 
-  // ⚡ EXCEL-LIKE: Update selection bounds when selection changes
+  // âš¡ EXCEL-LIKE: Update selection bounds when selection changes
   useEffect(() => {
     selectedRangeRef.current = selectedRange;
 
@@ -813,7 +875,7 @@ export default function QCPage() {
     }
   }, [selectedRange]);
 
-  // ⚡ EXCEL-LIKE: Refresh grid when selection changes
+  // âš¡ EXCEL-LIKE: Refresh grid when selection changes
   useEffect(() => {
     const api = gridRef.current;
     if (api) {
@@ -823,7 +885,7 @@ export default function QCPage() {
     }
   }, [selectedRange]);
 
-  // ⚡ EXCEL-LIKE: Handle cell mouse down - start drag selection
+  // âš¡ EXCEL-LIKE: Handle cell mouse down - start drag selection
   const handleCellMouseDown = useCallback((rowIndex: number, colId: string, shiftKey: boolean) => {
     if (shiftKey && rangeStartCellRef.current) {
       setSelectedRange({
@@ -840,7 +902,7 @@ export default function QCPage() {
     }
   }, []);
 
-  // ⚡ EXCEL-LIKE: Handle cell mouse over - extend selection while dragging
+  // âš¡ EXCEL-LIKE: Handle cell mouse over - extend selection while dragging
   const handleCellMouseOver = useCallback((rowIndex: number, colId: string) => {
     if (!isDraggingRef.current || !dragStartCellRef.current) return;
     setSelectedRange({
@@ -851,7 +913,7 @@ export default function QCPage() {
     });
   }, []);
 
-  // ⚡ EXCEL-LIKE: Handle cell click for shift+click selection
+  // âš¡ EXCEL-LIKE: Handle cell click for shift+click selection
   const handleCellClick = useCallback((rowIndex: number, colId: string, shiftKey: boolean) => {
     if (shiftKey && rangeStartCellRef.current) {
       setSelectedRange({
@@ -866,7 +928,7 @@ export default function QCPage() {
     }
   }, []);
 
-  // ⚡ EXCEL-LIKE: Handle mouse up - end drag selection
+  // âš¡ EXCEL-LIKE: Handle mouse up - end drag selection
   useEffect(() => {
     const handleMouseUp = () => {
       if (isDraggingRef.current) {
@@ -877,7 +939,7 @@ export default function QCPage() {
     return () => window.removeEventListener('mouseup', handleMouseUp);
   }, []);
 
-  // ⚡ EXCEL-LIKE: Clear selected cells (Delete/Backspace)
+  // âš¡ EXCEL-LIKE: Clear selected cells (Delete/Backspace)
   const handleClearCells = useCallback(() => {
     const api = gridRef.current;
     if (!api) return;
@@ -927,7 +989,7 @@ export default function QCPage() {
     }
   }, []);
 
-  // ⚡ EXCEL-LIKE: Select All (Ctrl+A)
+  // âš¡ EXCEL-LIKE: Select All (Ctrl+A)
   const handleSelectAll = useCallback(() => {
     const api = gridRef.current;
     if (!api) return;
@@ -949,10 +1011,10 @@ export default function QCPage() {
     });
 
     rangeStartCellRef.current = { rowIndex: 0, colId: firstCol };
-    toast('All rows selected', { icon: '✓', duration: 1500 });
+    toast('All rows selected', { icon: 'âœ“', duration: 1500 });
   }, []);
 
-  // ⚡ EXCEL-LIKE: Smooth scroll to row
+  // âš¡ EXCEL-LIKE: Smooth scroll to row
   const ensureRowVisible = useCallback((rowIndex: number, position: 'top' | 'middle' | 'bottom' = 'middle') => {
     const api = gridRef.current;
     if (!api) return;
@@ -969,7 +1031,7 @@ export default function QCPage() {
     }
   }, []);
 
-  // ⚡ EXCEL-LIKE: Keyboard shortcuts for Multi QC tab
+  // âš¡ EXCEL-LIKE: Keyboard shortcuts for Multi QC tab
   useEffect(() => {
     if (currentTabCode !== 'multi') return;
 
@@ -1337,7 +1399,7 @@ export default function QCPage() {
   }), [enableSorting, enableColumnFilters, enableColumnResize]);
 
   // LOAD FUNCTIONS
-  // ⚡ HELPER: Generate cache key for current filters
+  // âš¡ HELPER: Generate cache key for current filters
   const getCacheKey = useCallback(() => {
     return JSON.stringify({
       warehouseId: activeWarehouse?.id,
@@ -1353,7 +1415,7 @@ export default function QCPage() {
     });
   }, [activeWarehouse?.id, page, limit, searchDebounced, statusFilter, gradeFilter, brandFilter, categoryFilter, dateFromFilter, dateToFilter]);
 
-  // ⚡ PREFETCH: Prefetch next page in background
+  // âš¡ PREFETCH: Prefetch next page in background
   const prefetchNextPage = useCallback(async () => {
     const totalPages = Math.ceil(total / limit);
     if (page >= totalPages) return;
@@ -1403,7 +1465,7 @@ export default function QCPage() {
 
     const cacheKey = getCacheKey();
 
-    // ⚡ PAGE CACHE: Check cache first (unless force refresh)
+    // âš¡ PAGE CACHE: Check cache first (unless force refresh)
     if (!buttonRefresh) {
       const cached = pageCacheRef.current.get(cacheKey);
       if (cached && Date.now() - cached.timestamp < PAGE_CACHE_TTL) {
@@ -1479,7 +1541,7 @@ export default function QCPage() {
         }
 
         if (data.length === 0) {
-          // Empty response → delayed clear to avoid flicker
+          // Empty response â†’ delayed clear to avoid flicker
           emptyTimerRef.current = setTimeout(() => {
             if (loadId === currentLoadIdRef.current) {
               setQcList([]);
@@ -1522,7 +1584,7 @@ export default function QCPage() {
           }
         }
 
-        // ⚡ PAGE CACHE: Store in cache
+        // âš¡ PAGE CACHE: Store in cache
         pageCacheRef.current.set(cacheKey, {
           data,
           total: response.data?.total || 0,
@@ -1531,11 +1593,11 @@ export default function QCPage() {
         setLastRefreshTime(new Date());
         retryCountRef.current = 0; // Reset retry count on success
 
-        // ⚡ PREFETCH: Prefetch next page after successful load
+        // âš¡ PREFETCH: Prefetch next page after successful load
         setTimeout(() => prefetchNextPage(), 500);
 
         if (buttonRefresh) {
-          toast.success('✓ List refreshed');
+          toast.success('âœ“ List refreshed');
           setRefreshSuccess(true);
           setTimeout(() => setRefreshSuccess(false), 1800);
         }
@@ -1573,7 +1635,7 @@ export default function QCPage() {
         if (error.name !== 'CanceledError' && error.name !== 'AbortError') {
           console.error('Load QC list error:', error);
 
-          // ⚡ AUTO-RETRY: Retry on failure
+          // âš¡ AUTO-RETRY: Retry on failure
           if (retryCountRef.current < MAX_RETRIES) {
             retryCountRef.current++;
             toast.error(`Loading failed, retrying... (${retryCountRef.current}/${MAX_RETRIES})`);
@@ -1665,7 +1727,7 @@ export default function QCPage() {
       const updatedGrades = [...QC_GRADES];
       updatedGrades[editingGradeIndex] = newGrade.toUpperCase();
       QC_GRADES = updatedGrades;
-      toast.success(`✓ Grade updated to ${newGrade}`);
+      toast.success(`âœ“ Grade updated to ${newGrade}`);
       setEditingGradeIndex(null);
     } else {
       // Add new grade
@@ -1674,7 +1736,7 @@ export default function QCPage() {
         return;
       }
       QC_GRADES = [...QC_GRADES, newGrade.toUpperCase()];
-      toast.success(`✓ Grade ${newGrade} added`);
+      toast.success(`âœ“ Grade ${newGrade} added`);
     }
 
     setNewGrade('');
@@ -1688,14 +1750,14 @@ export default function QCPage() {
     }
     const deletedGrade = QC_GRADES[index];
     QC_GRADES = QC_GRADES.filter((_, i) => i !== index);
-    toast.success(`✓ Grade ${deletedGrade} deleted`);
+    toast.success(`âœ“ Grade ${deletedGrade} deleted`);
   };
 
   const handleDeleteBatch = async (batchId: string) => {
     if (!confirm('Delete entire batch?')) return;
     try {
       await qcAPI.deleteBatch(batchId);
-      toast.success('✓ Batch deleted');
+      toast.success('âœ“ Batch deleted');
       loadBatches();
       loadStats();
     } catch (error) {
@@ -1723,7 +1785,7 @@ export default function QCPage() {
         warehouse_id: activeWarehouse?.id,
         update_existing: duplicateQC ? true : false,
       });
-      toast.success('✓ QC entry created');
+      toast.success('âœ“ QC entry created');
       setSingleWSN('');
       setDuplicateQC(null);
 
@@ -1742,7 +1804,7 @@ export default function QCPage() {
 
       setSingleForm({
         qc_date: new Date().toISOString().split('T')[0],
-        qc_by_name: userName,  // ← Auto-fills again
+        qc_by_name: userName,  // â† Auto-fills again
         qc_grade: '',
         qc_remarks: '',
         other_remarks: '',
@@ -1773,7 +1835,7 @@ export default function QCPage() {
   // TAB 2: BULK UPLOAD ACTIONS
   // ✅ ADD THIS - Actual download after confirmation (used by BulkUploadCard)
   const handleConfirmDownload = async () => {
-    // ⚡ OPTIMIZED: Load XLSX dynamically
+    // âš¡ OPTIMIZED: Load XLSX dynamically
     const XLSX = await import('xlsx');
 
     const template = [
@@ -1801,7 +1863,7 @@ export default function QCPage() {
     setMultiRows([...multiRows, ...generateEmptyRows(500)]);
   };
 
-  // ⚡ MULTI ENTRY: Export entered data to Excel
+  // âš¡ MULTI ENTRY: Export entered data to Excel
   const exportMultiEntryToExcel = async () => {
     try {
       const dataToExport = multiRows.filter((row: any) => row.wsn?.trim());
@@ -1826,7 +1888,7 @@ export default function QCPage() {
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'Multi QC');
       XLSX.writeFile(wb, `QC_MultiEntry_${new Date().toISOString().split('T')[0]}_${Date.now()}.xlsx`);
-      toast.success(`✓ Exported ${dataToExport.length} rows`);
+      toast.success(`âœ“ Exported ${dataToExport.length} rows`);
     } catch (error) {
       toast.error('Export failed');
     }
@@ -1864,6 +1926,166 @@ export default function QCPage() {
     invoicedate: { width: 90 },
   };
 
+  // ====== WSN OVERWRITE DIALOG HANDLERS ======
+  const handleOverwriteCancel = useCallback(() => {
+    setWsnOverwriteDialog(null);
+    pendingWSNRef.current = null;
+    // Refocus on same cell
+    if (wsnOverwriteDialog?.rowIndex !== undefined) {
+      setTimeout(() => {
+        gridRef.current?.api?.startEditingCell({
+          rowIndex: wsnOverwriteDialog.rowIndex,
+          colKey: 'wsn',
+        });
+      }, 100);
+    }
+  }, [wsnOverwriteDialog?.rowIndex]);
+
+  const handleOverwriteReplace = useCallback(async () => {
+    const pending = pendingWSNRef.current;
+    if (!pending) return;
+
+    const { rowIndex, newWSN } = pending;
+    setWsnOverwriteDialog(null);
+    pendingWSNRef.current = null;
+
+    // Replace with new WSN
+    const newRows = [...multiRowsRef.current];
+    newRows[rowIndex] = { ...newRows[rowIndex], wsn: newWSN };
+
+    // Clear old master data
+    ALL_MASTER_COLUMNS.forEach(col => {
+      newRows[rowIndex][col] = null;
+    });
+    setMultiRows(newRows);
+
+    // Fetch new master data
+    try {
+      const response = await qcAPI.getPendingInbound(activeWarehouse?.id, newWSN);
+      if (response.data.length > 0) {
+        const item = response.data[0];
+        setMultiRows(prevRows => {
+          const updatedRows = [...prevRows];
+          if (updatedRows[rowIndex]?.wsn?.trim()?.toUpperCase() === newWSN) {
+            updatedRows[rowIndex] = {
+              ...updatedRows[rowIndex],
+              fsn: item.fsn || '',
+              producttitle: item.product_title || '',
+              brand: item.brand || '',
+              cmsvertical: item.cms_vertical || '',
+              hsnsac: item.hsn_sac || '',
+              igstrate: item.igst_rate || '',
+              mrp: item.mrp || '',
+              fsp: item.fsp || '',
+              vrp: item.vrp || '',
+              yieldvalue: item.yield_value || '',
+              psize: item.p_size || '',
+              ptype: item.p_type || '',
+              fktlink: item.fkt_link || '',
+              whlocation: item.wh_location || '',
+              orderid: item.order_id || '',
+              fkqcremark: item.fkqc_remark || '',
+              fkgrade: item.fk_grade || '',
+              invoicedate: item.invoice_date || '',
+            };
+          }
+          return updatedRows;
+        });
+      }
+    } catch (e) {
+      console.error('Error fetching master data:', e);
+    }
+
+    // Move to next row
+    setTimeout(() => {
+      const nextIndex = rowIndex + 1;
+      if (nextIndex < multiRowsRef.current.length) {
+        ensureRowVisible(nextIndex);
+        gridRef.current?.api?.startEditingCell({
+          rowIndex: nextIndex,
+          colKey: 'wsn',
+        });
+      }
+    }, 100);
+  }, [activeWarehouse?.id, ensureRowVisible]);
+
+  const handleOverwriteAddToNextRow = useCallback(async () => {
+    const pending = pendingWSNRef.current;
+    if (!pending) return;
+
+    const { rowIndex, newWSN } = pending;
+    setWsnOverwriteDialog(null);
+    pendingWSNRef.current = null;
+
+    // Find next empty row
+    let nextEmptyRow = rowIndex + 1;
+    while (nextEmptyRow < multiRowsRef.current.length && multiRowsRef.current[nextEmptyRow]?.wsn?.trim()) {
+      nextEmptyRow++;
+    }
+
+    // If no empty row found, add new rows
+    if (nextEmptyRow >= multiRowsRef.current.length) {
+      add500Rows();
+      nextEmptyRow = multiRowsRef.current.length;
+    }
+
+    // Insert new WSN in next empty row
+    setMultiRows(prevRows => {
+      const newRows = [...prevRows];
+      newRows[nextEmptyRow] = { ...newRows[nextEmptyRow], wsn: newWSN };
+      return newRows;
+    });
+
+    // Fetch master data for new WSN
+    try {
+      const response = await qcAPI.getPendingInbound(activeWarehouse?.id, newWSN);
+      if (response.data.length > 0) {
+        const item = response.data[0];
+        setMultiRows(prevRows => {
+          const updatedRows = [...prevRows];
+          if (updatedRows[nextEmptyRow]?.wsn?.trim()?.toUpperCase() === newWSN) {
+            updatedRows[nextEmptyRow] = {
+              ...updatedRows[nextEmptyRow],
+              fsn: item.fsn || '',
+              producttitle: item.product_title || '',
+              brand: item.brand || '',
+              cmsvertical: item.cms_vertical || '',
+              hsnsac: item.hsn_sac || '',
+              igstrate: item.igst_rate || '',
+              mrp: item.mrp || '',
+              fsp: item.fsp || '',
+              vrp: item.vrp || '',
+              yieldvalue: item.yield_value || '',
+              psize: item.p_size || '',
+              ptype: item.p_type || '',
+              fktlink: item.fkt_link || '',
+              whlocation: item.wh_location || '',
+              orderid: item.order_id || '',
+              fkqcremark: item.fkqc_remark || '',
+              fkgrade: item.fk_grade || '',
+              invoicedate: item.invoice_date || '',
+            };
+          }
+          return updatedRows;
+        });
+      }
+    } catch (e) {
+      console.error('Error fetching master data:', e);
+    }
+
+    // Move to row after the newly inserted one
+    setTimeout(() => {
+      const focusRow = nextEmptyRow + 1;
+      if (focusRow < multiRowsRef.current.length) {
+        ensureRowVisible(focusRow);
+        gridRef.current?.api?.startEditingCell({
+          rowIndex: focusRow,
+          colKey: 'wsn',
+        });
+      }
+    }, 100);
+  }, [activeWarehouse?.id, ensureRowVisible, add500Rows]);
+
   const handleMultiSubmit = async () => {
     const validRows = multiRows.filter((r) => r.wsn?.trim());
     if (validRows.length === 0) {
@@ -1890,7 +2112,7 @@ export default function QCPage() {
       });
 
       setMultiResults(response.data?.results || []);
-      toast.success(`✓ ${response.data?.successCount || 0} entries created`);
+      toast.success(`âœ“ ${response.data?.successCount || 0} entries created`);
 
       // Reset rows
       setMultiRows(generateEmptyRows(500));
@@ -1910,7 +2132,7 @@ export default function QCPage() {
 
   const handleExport = async () => {
     try {
-      // ⚡ OPTIMIZED: Load XLSX dynamically
+      // âš¡ OPTIMIZED: Load XLSX dynamically
       const XLSX = await import('xlsx');
 
       const response = await qcAPI.exportData({
@@ -1968,7 +2190,7 @@ export default function QCPage() {
       XLSX.utils.book_append_sheet(wb, ws, 'QC');
       const filename = `QC_${exportStartDate || 'all'}_${Date.now()}.xlsx`;
       XLSX.writeFile(wb, filename);
-      toast.success(`✓ Exported ${exportData.length} records`);
+      toast.success(`âœ“ Exported ${exportData.length} records`);
       setExportDialogOpen(false);
     } catch (error) {
       toast.error('Export failed');
@@ -1979,7 +2201,7 @@ export default function QCPage() {
     if (!confirm('Delete QC entry?')) return;
     try {
       await qcAPI.deleteEntry(qcId);
-      toast.success('✓ Entry deleted');
+      toast.success('âœ“ Entry deleted');
       loadQCList();
       loadStats();
     } catch (error) {
@@ -1988,7 +2210,7 @@ export default function QCPage() {
   };
 
   if (!activeWarehouse) {
-    return <AppLayout>⚠️ No warehouse selected</AppLayout>;
+    return <AppLayout>âš ï¸ No warehouse selected</AppLayout>;
   }
 
   //////////////////////////////////====UI RENDERING====////////////////////////////////////
@@ -2155,7 +2377,7 @@ export default function QCPage() {
                               justifyContent: 'center'
                             }}>
                               <Typography sx={{ fontSize: '0.5rem', fontWeight: 800, color: 'white' }}>
-                                ●
+                                â—
                               </Typography>
                             </Box>
                           </Tooltip>
@@ -2333,7 +2555,7 @@ export default function QCPage() {
                               }
                             }}
                           >
-                            🔄 RESET
+                            ðŸ”„ RESET
                           </Button>
                           {canSeeButton('list:columns') && (
                             <Tooltip title={!canAccessButton('list:columns') ? "You don't have permission to use this feature" : "Manage Columns"} arrow>
@@ -2461,7 +2683,7 @@ export default function QCPage() {
                     {/* Filters */}
                     <Box>
                       <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1, color: isDarkMode ? '#94a3b8' : '#6b7280' }}>
-                        📊 Filters
+                        ðŸ“Š Filters
                       </Typography>
 
                       <Stack spacing={1.5}>
@@ -2543,7 +2765,7 @@ export default function QCPage() {
                     {/* Action Buttons */}
                     <Box>
                       <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1, color: isDarkMode ? '#94a3b8' : '#6b7280' }}>
-                        ⚡ Actions
+                        âš¡ Actions
                       </Typography>
 
                       <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 1 }}>
@@ -2792,7 +3014,7 @@ export default function QCPage() {
                         opacity: 0.3,
                         mb: 1
                       }}>
-                        📭
+                        ðŸ“­
                       </Box>
                       <Typography variant="h5" sx={{ fontWeight: 600, color: isDarkMode ? '#94a3b8' : '#6b7280', mb: 0.5 }}>
                         No Data Found
@@ -3169,7 +3391,7 @@ export default function QCPage() {
             <DialogContent sx={{ mt: 2, pb: 1 }}>
               <Stack spacing={2.5}>
                 <Alert severity="info" sx={{ fontSize: '0.8rem', py: 0.5 }}>
-                  Settings auto-save and persist after reload 💾
+                  Settings auto-save and persist after reload ðŸ’¾
                 </Alert>
 
                 {/* SORTABLE */}
@@ -3185,7 +3407,7 @@ export default function QCPage() {
                     label={
                       <Box>
                         <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#1e293b' }}>
-                          ⬆️ Enable Sorting
+                          â¬†ï¸ Enable Sorting
                         </Typography>
                         <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem' }}>
                           Click column headers to sort ascending/descending
@@ -3210,7 +3432,7 @@ export default function QCPage() {
                     label={
                       <Box>
                         <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#1e293b' }}>
-                          🔍 Enable Column Filters
+                          ðŸ” Enable Column Filters
                         </Typography>
                         <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem' }}>
                           Filter menu icon in column headers
@@ -3235,7 +3457,7 @@ export default function QCPage() {
                     label={
                       <Box>
                         <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#1e293b' }}>
-                          ↔️ Enable Column Resize
+                          â†”ï¸ Enable Column Resize
                         </Typography>
                         <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem' }}>
                           Drag column borders to adjust width
@@ -3311,7 +3533,7 @@ export default function QCPage() {
                         gap: 1
                       }}
                     >
-                      📝 Single QC Entry
+                      📋 Single QC Entry
                     </Typography>
 
                     {duplicateQC && (
@@ -3327,7 +3549,7 @@ export default function QCPage() {
                           border: '1px solid #f59e0b'
                         }}
                       >
-                        ⚠️ QC already exists. Click "Update" to modify existing entry.
+                        âš ï¸ QC already exists. Click "Update" to modify existing entry.
                       </Alert>
                     )}
 
@@ -3559,7 +3781,7 @@ export default function QCPage() {
                               }
                             }}
                           >
-                            🔄 Update Existing QC
+                            ðŸ”„ Update Existing QC
                           </Button>
                           <Button
                             fullWidth
@@ -3604,7 +3826,7 @@ export default function QCPage() {
                               }
                             }}
                           >
-                            ✓ Submit QC Entry
+                            ✅ Submit QC Entry
                           </Button>
 
                           <Button
@@ -3764,7 +3986,7 @@ export default function QCPage() {
                                   MRP
                                 </Typography>
                                 <Typography sx={{ fontWeight: 700, color: isDarkMode ? '#ecfdf5' : '#047857' }}>
-                                  ₹{singleProduct.mrp || 'N/A'}
+                                  â‚¹{singleProduct.mrp || 'N/A'}
                                 </Typography>
                               </Box>
                               <Box>
@@ -3779,7 +4001,7 @@ export default function QCPage() {
                                   FSP
                                 </Typography>
                                 <Typography sx={{ fontWeight: 700, color: isDarkMode ? '#ecfdf5' : '#047857' }}>
-                                  ₹{singleProduct.fsp || 'N/A'}
+                                  â‚¹{singleProduct.fsp || 'N/A'}
                                 </Typography>
                               </Box>
                             </Box>
@@ -3807,7 +4029,7 @@ export default function QCPage() {
                                   }}
                                   onClick={() => window.open(singleProduct.fkt_link, '_blank')}
                                 >
-                                  View Product Details →
+                                  View Product Details â†’
                                 </Typography>
                               </Box>
                             )}
@@ -3983,7 +4205,9 @@ export default function QCPage() {
             });
 
             return (
-              <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 1, mt: 0 }}>
+              <Box
+                ref={multiEntryContainerRef}
+                sx={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 1, mt: 0, bgcolor: isDarkMode ? '#0f172a' : '#f5f7fa' }}>
                 {/* HEADER */}
                 <Card sx={{ borderRadius: 1, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', bgcolor: isDarkMode ? '#1e293b' : 'white' }}>
                   <CardContent sx={{ p: 1.2, '&:last-child': { pb: 1.2 } }}>
@@ -4125,88 +4349,363 @@ export default function QCPage() {
                       </Stack>
                     </Box>
 
-                    {/* ===== DESKTOP: SINGLE ROW ===== */}
+                    {/* ===== DESKTOP: Clean Single Row Layout ===== */}
                     <Stack
                       direction="row"
-                      spacing={2}
-                      alignItems="center"
-                      sx={{ display: { xs: 'none', md: 'flex' } }}
+                      sx={{
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        width: '100%',
+                        display: { xs: 'none', md: 'flex' }
+                      }}
                     >
-                      {/* Date + Name Fields */}
-                      <TextField
-                        label="QC Date"
-                        type="date"
-                        value={commonQcDate}
-                        onChange={(e) => setCommonQcDate(e.target.value)}
-                        size="small"
-                        sx={{ width: 150 }}
-                        InputLabelProps={{ shrink: true }}
-                      />
-                      <TextField
-                        label="QC By Name"
-                        value={commonQcByName}
-                        onChange={(e) => setCommonQcByName(e.target.value)}
-                        size="small"
-                        sx={{ width: 200 }}
-                      />
-
-                      {/* Buttons */}
-                      <Stack direction="row" spacing={0.8}>
-
-                        <Button
+                      {/* LEFT: Date + Name Fields */}
+                      <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
+                        <TextField
+                          label="QC Date"
+                          type="date"
+                          value={commonQcDate}
+                          onChange={(e) => setCommonQcDate(e.target.value)}
                           size="small"
-                          variant="outlined"
-                          onClick={add500Rows}
                           sx={{
-                            fontSize: '0.7rem',
-                            fontWeight: 700,
-                            '&:hover': {
-                              borderWidth: 2,
-                              bgcolor: 'rgba(245, 158, 11, 0.1)'
+                            width: 150,
+                            '& .MuiInputBase-root': {
+                              height: 38,
+                              bgcolor: isDarkMode ? '#0f172a' : '#f8fafc',
+                              borderRadius: 1.5
                             }
                           }}
-                        >
-                          +500 Rows
-                        </Button>
-
-                        <Button
+                          InputLabelProps={{ shrink: true }}
+                        />
+                        <TextField
+                          label="QC By Name"
+                          value={commonQcByName}
+                          onChange={(e) => setCommonQcByName(e.target.value)}
                           size="small"
-                          variant="outlined"
-                          startIcon={<SettingsIcon sx={{ fontSize: '0.85rem' }} />}
-                          onClick={() => setColumnSettingsOpen(true)}
                           sx={{
-                            fontSize: '0.7rem',
-                            fontWeight: 700,
-                            '&:hover': {
-                              borderWidth: 2,
-                              bgcolor: 'rgba(245, 158, 11, 0.1)'
+                            width: 180,
+                            '& .MuiInputBase-root': {
+                              height: 38,
+                              bgcolor: isDarkMode ? '#0f172a' : '#f8fafc',
+                              borderRadius: 1.5
                             }
                           }}
-                        >
-                          Columns
-                        </Button>
+                        />
+                      </Stack>
 
+                      {/* RIGHT: Menu Button + Fullscreen + Live View */}
+                      <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                        {/* Settings Menu Button */}
+                        <Tooltip title="Open Settings Panel" placement="top">
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            startIcon={<MenuIcon sx={{ fontSize: 18 }} />}
+                            onClick={() => setQcSettingsPanelOpen(true)}
+                            sx={{
+                              height: 38,
+                              px: 2,
+                              borderRadius: 1.5,
+                              fontWeight: 600,
+                              fontSize: '0.8rem',
+                              textTransform: 'none',
+                              borderColor: isDarkMode ? '#3b82f6' : '#1e40af',
+                              color: isDarkMode ? '#60a5fa' : '#1e40af',
+                              bgcolor: isDarkMode ? 'rgba(59, 130, 246, 0.08)' : 'rgba(30, 64, 175, 0.04)',
+                              '&:hover': {
+                                borderColor: '#3b82f6',
+                                bgcolor: 'rgba(59, 130, 246, 0.12)'
+                              }
+                            }}
+                          >
+                            Menu
+                          </Button>
+                        </Tooltip>
 
-                        {/* ✅ NEW: Grid Settings Button */}
-                        <Button
-                          size="small"
-                          variant="outlined"
-                          startIcon={<SettingsIcon sx={{ fontSize: '0.85rem' }} />}
-                          onClick={() => setGridSettingsOpen(true)}
-                          sx={{
-                            fontSize: '0.7rem',
-                            fontWeight: 700,
+                        {/* Fullscreen Button */}
+                        <Tooltip title={isFullscreen ? "Exit fullscreen (Esc)" : "Enter fullscreen mode"} placement="top">
+                          <IconButton
+                            size="small"
+                            onClick={toggleFullscreen}
+                            sx={{
+                              width: 38,
+                              height: 38,
+                              borderRadius: 1.5,
+                              border: '1.5px solid',
+                              borderColor: isFullscreen ? '#f59e0b' : (isDarkMode ? '#475569' : '#d1d5db'),
+                              color: isFullscreen ? '#f59e0b' : (isDarkMode ? '#94a3b8' : '#64748b'),
+                              bgcolor: isFullscreen ? 'rgba(245, 158, 11, 0.1)' : 'transparent',
+                              '&:hover': {
+                                borderColor: '#f59e0b',
+                                bgcolor: 'rgba(245, 158, 11, 0.1)',
+                                color: '#f59e0b'
+                              }
+                            }}
+                          >
+                            {isFullscreen ? <FullscreenExitIcon sx={{ fontSize: 20 }} /> : <FullscreenIcon sx={{ fontSize: 20 }} />}
+                          </IconButton>
+                        </Tooltip>
 
-                            '&:hover': {
-                              borderWidth: 2,
-                              bgcolor: 'rgba(245, 158, 11, 0.1)'
-                            }
-                          }}
-                        >
-                          Grid
-                        </Button>
+                        {/* Live View Panel */}
+                        <LiveViewPanel
+                          warehouseId={activeWarehouse?.id}
+                          pageType="qc"
+                          isDarkMode={isDarkMode}
+                          container={multiEntryContainerRef.current}
+                        />
                       </Stack>
                     </Stack>
+
+                    {/* SETTINGS DRAWER - Right Side Panel with Accordions */}
+                    <Drawer
+                      anchor="right"
+                      open={qcSettingsPanelOpen}
+                      onClose={() => setQcSettingsPanelOpen(false)}
+                      container={multiEntryContainerRef.current}
+                      ModalProps={{
+                        container: multiEntryContainerRef.current,
+                        keepMounted: false,
+                      }}
+                      PaperProps={{
+                        sx: {
+                          width: { xs: '100%', sm: 380 },
+                          maxWidth: '100vw',
+                          bgcolor: isDarkMode ? '#1e293b' : '#ffffff',
+                          borderLeft: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0'
+                        }
+                      }}
+                    >
+                      {/* Panel Header */}
+                      <Box sx={{
+                        p: 2,
+                        background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
+                        color: 'white',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        position: 'sticky',
+                        top: 0,
+                        zIndex: 10
+                      }}>
+                        <Typography sx={{ fontWeight: 700, fontSize: '1rem' }}>⚙️ Settings</Typography>
+                        <IconButton size="small" onClick={() => setQcSettingsPanelOpen(false)} sx={{ color: 'white' }}>
+                          <CloseIcon />
+                        </IconButton>
+                      </Box>
+
+                      {/* Panel Content with Accordions */}
+                      <Box sx={{ overflow: 'auto', flex: 1 }}>
+
+                        {/* â•â•â•â•â•â•â•â•â•â•â• COLUMNS ACCORDION â•â•â•â•â•â•â•â•â•â•â• */}
+                        <Accordion
+                          expanded={settingsPanelExpanded === 'columns'}
+                          onChange={(_, isExpanded) => setSettingsPanelExpanded(isExpanded ? 'columns' : false)}
+                          disableGutters
+                          sx={{
+                            bgcolor: 'transparent',
+                            boxShadow: 'none',
+                            '&:before': { display: 'none' },
+                            borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0'
+                          }}
+                        >
+                          <AccordionSummary
+                            expandIcon={<ExpandMoreIcon sx={{ color: isDarkMode ? '#94a3b8' : '#64748b' }} />}
+                            sx={{
+                              px: 2,
+                              minHeight: 56,
+                              '&.Mui-expanded': { minHeight: 56 },
+                              '& .MuiAccordionSummary-content': { my: 1.5 }
+                            }}
+                          >
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                              <ViewColumnIcon sx={{ color: '#3b82f6', fontSize: 22 }} />
+                              <Box>
+                                <Typography sx={{ fontWeight: 700, fontSize: '0.9rem', color: isDarkMode ? '#e2e8f0' : '#1e293b' }}>Columns</Typography>
+                                <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>
+                                  {visibleColumns.length} columns visible
+                                </Typography>
+                              </Box>
+                            </Box>
+                          </AccordionSummary>
+                          <AccordionDetails sx={{ px: 2, pb: 2, pt: 0 }}>
+                            <Box sx={{ maxHeight: 280, overflow: 'auto', pr: 1 }}>
+                              <Typography sx={{ fontWeight: 700, fontSize: '0.7rem', color: '#3b82f6', mb: 1, textTransform: 'uppercase' }}>Editable Fields</Typography>
+                              <Stack spacing={0.5} sx={{ mb: 2 }}>
+                                {EDITABLE_COLUMNS.map((col) => (
+                                  <FormControlLabel
+                                    key={col}
+                                    control={
+                                      <Checkbox
+                                        size="small"
+                                        checked={visibleColumns.includes(col)}
+                                        onChange={(e) => {
+                                          if (e.target.checked) {
+                                            setVisibleColumns([...visibleColumns, col]);
+                                          } else {
+                                            setVisibleColumns(visibleColumns.filter((c: string) => c !== col));
+                                          }
+                                        }}
+                                        sx={{ py: 0.25, '&.Mui-checked': { color: '#3b82f6' } }}
+                                      />
+                                    }
+                                    label={<Typography sx={{ fontSize: '0.8rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>{col.replace(/_/g, ' ').toUpperCase()}</Typography>}
+                                    sx={{ m: 0 }}
+                                  />
+                                ))}
+                              </Stack>
+                              <Typography sx={{ fontWeight: 700, fontSize: '0.7rem', color: '#10b981', mb: 1, textTransform: 'uppercase' }}>Master Data Fields</Typography>
+                              <Stack spacing={0.5}>
+                                {ALL_MASTER_COLUMNS.map((col) => (
+                                  <FormControlLabel
+                                    key={col}
+                                    control={
+                                      <Checkbox
+                                        size="small"
+                                        checked={visibleColumns.includes(col)}
+                                        onChange={(e) => {
+                                          if (e.target.checked) {
+                                            setVisibleColumns([...visibleColumns, col]);
+                                          } else {
+                                            setVisibleColumns(visibleColumns.filter((c: string) => c !== col));
+                                          }
+                                        }}
+                                        sx={{ py: 0.25, '&.Mui-checked': { color: '#10b981' } }}
+                                      />
+                                    }
+                                    label={<Typography sx={{ fontSize: '0.8rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>{col.replace(/_/g, ' ').toUpperCase()}</Typography>}
+                                    sx={{ m: 0 }}
+                                  />
+                                ))}
+                              </Stack>
+                            </Box>
+                          </AccordionDetails>
+                        </Accordion>
+
+                        {/* â•â•â•â•â•â•â•â•â•â•â• GRID SETTINGS ACCORDION â•â•â•â•â•â•â•â•â•â•â• */}
+                        <Accordion
+                          expanded={settingsPanelExpanded === 'grid'}
+                          onChange={(_, isExpanded) => setSettingsPanelExpanded(isExpanded ? 'grid' : false)}
+                          disableGutters
+                          sx={{
+                            bgcolor: 'transparent',
+                            boxShadow: 'none',
+                            '&:before': { display: 'none' },
+                            borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0'
+                          }}
+                        >
+                          <AccordionSummary
+                            expandIcon={<ExpandMoreIcon sx={{ color: isDarkMode ? '#94a3b8' : '#64748b' }} />}
+                            sx={{
+                              px: 2,
+                              minHeight: 56,
+                              '&.Mui-expanded': { minHeight: 56 },
+                              '& .MuiAccordionSummary-content': { my: 1.5 }
+                            }}
+                          >
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                              <TableChartIcon sx={{ color: '#f59e0b', fontSize: 22 }} />
+                              <Box>
+                                <Typography sx={{ fontWeight: 700, fontSize: '0.9rem', color: isDarkMode ? '#e2e8f0' : '#1e293b' }}>Grid Settings</Typography>
+                                <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>Sorting, filtering, resize</Typography>
+                              </Box>
+                            </Box>
+                          </AccordionSummary>
+                          <AccordionDetails sx={{ px: 2, pb: 2, pt: 0 }}>
+                            <Stack spacing={1.5}>
+                              <FormControlLabel
+                                control={
+                                  <Checkbox
+                                    checked={enableSorting}
+                                    onChange={(e) => {
+                                      setEnableSorting(e.target.checked);
+                                      localStorage.setItem('qc_enableSorting', String(e.target.checked));
+                                    }}
+                                    sx={{ '&.Mui-checked': { color: '#f59e0b' } }}
+                                  />
+                                }
+                                label={
+                                  <Box>
+                                    <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>â¬†ï¸ Enable Sorting</Typography>
+                                    <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>Click headers to sort</Typography>
+                                  </Box>
+                                }
+                              />
+                              <FormControlLabel
+                                control={
+                                  <Checkbox
+                                    checked={enableColumnFilters}
+                                    onChange={(e) => {
+                                      setEnableColumnFilters(e.target.checked);
+                                      localStorage.setItem('qc_enableColumnFilters', String(e.target.checked));
+                                    }}
+                                    sx={{ '&.Mui-checked': { color: '#f59e0b' } }}
+                                  />
+                                }
+                                label={
+                                  <Box>
+                                    <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>ðŸ” Enable Filtering</Typography>
+                                    <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>Filter in column headers</Typography>
+                                  </Box>
+                                }
+                              />
+                              <FormControlLabel
+                                control={
+                                  <Checkbox
+                                    checked={enableColumnResize}
+                                    onChange={(e) => {
+                                      setEnableColumnResize(e.target.checked);
+                                      localStorage.setItem('qc_enableColumnResize', String(e.target.checked));
+                                    }}
+                                    sx={{ '&.Mui-checked': { color: '#f59e0b' } }}
+                                  />
+                                }
+                                label={
+                                  <Box>
+                                    <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>â†”ï¸ Column Resize</Typography>
+                                    <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>Drag borders to resize</Typography>
+                                  </Box>
+                                }
+                              />
+                              <Button
+                                size="small"
+                                onClick={() => {
+                                  setEnableSorting(true);
+                                  setEnableColumnFilters(true);
+                                  setEnableColumnResize(true);
+                                  localStorage.setItem('qc_enableSorting', 'true');
+                                  localStorage.setItem('qc_enableColumnFilters', 'true');
+                                  localStorage.setItem('qc_enableColumnResize', 'true');
+                                  toast.success('Grid settings reset');
+                                }}
+                                sx={{ alignSelf: 'flex-start', fontSize: '0.75rem', color: isDarkMode ? '#94a3b8' : '#64748b' }}
+                              >
+                                ðŸ”„ Reset to Default
+                              </Button>
+                            </Stack>
+                          </AccordionDetails>
+                        </Accordion>
+
+                        {/* â•â•â•â•â•â•â•â•â•â•â• EXPORT BUTTON â•â•â•â•â•â•â•â•â•â•â• */}
+                        <Box sx={{ p: 2, borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0' }}>
+                          <Button
+                            fullWidth
+                            variant="contained"
+                            startIcon={<DownloadIcon />}
+                            onClick={() => { exportMultiEntryToExcel(); setQcSettingsPanelOpen(false); }}
+                            disabled={!multiRows.some((r: any) => r.wsn?.trim())}
+                            sx={{
+                              height: 44,
+                              background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                              fontWeight: 600,
+                              '&:hover': { background: 'linear-gradient(135deg, #059669 0%, #047857 100%)' },
+                              '&.Mui-disabled': { background: '#94a3b8' }
+                            }}
+                          >
+                            Export to Excel
+                          </Button>
+                        </Box>
+                      </Box>
+                    </Drawer>
 
                   </CardContent>
                 </Card>
@@ -4292,7 +4791,7 @@ export default function QCPage() {
                       backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.2) !important' : '#eff6ff !important',
                     },
 
-                    // ⚡ EXCEL-LIKE: Custom range selection CSS classes
+                    // âš¡ EXCEL-LIKE: Custom range selection CSS classes
                     '& .custom-range-selected': {
                       backgroundColor: isDarkMode ? 'rgba(96, 165, 250, 0.4) !important' : 'rgba(37, 99, 235, 0.2) !important',
                     },
@@ -4344,7 +4843,7 @@ export default function QCPage() {
                         const field = params.colDef.field as string;
                         return EDITABLE_COLUMNS.includes(field);
                       },
-                      // ⚡ EXCEL-LIKE: Optimized cell style for selection
+                      // âš¡ EXCEL-LIKE: Optimized cell style for selection
                       cellStyle: (params: any) => {
                         const bounds = selectionBoundsRef.current;
                         if (!bounds) return undefined;
@@ -4398,7 +4897,7 @@ export default function QCPage() {
                       },
                     }}
 
-                    // ⚡ EXCEL-LIKE: Mouse events for drag selection
+                    // âš¡ EXCEL-LIKE: Mouse events for drag selection
                     onCellMouseDown={(event) => {
                       const rowIndex = event.rowIndex;
                       const colId = event.column?.getColId();
@@ -4420,7 +4919,7 @@ export default function QCPage() {
                       handleCellClick(rowIndex, colId, browserEvent?.shiftKey || false);
                     }}
 
-                    // ⚡ SMOOTH SCROLL: Detect user manual scroll
+                    // âš¡ SMOOTH SCROLL: Detect user manual scroll
                     onBodyScroll={(event) => {
                       if (!isAutoScrollingRef.current) {
                         const currentScrollTop = event.top;
@@ -4442,7 +4941,7 @@ export default function QCPage() {
                     navigateToNextCell={navigateToNextCell}
                     ensureDomOrder={true}
                     suppressMovableColumns={true}
-                    // ⚡ PERFORMANCE: Optimizations
+                    // âš¡ PERFORMANCE: Optimizations
                     rowBuffer={20}
                     animateRows={false}
                     suppressScrollOnNewData={true}
@@ -4461,9 +4960,49 @@ export default function QCPage() {
                       }
                     }}
                     onCellValueChanged={(event: any) => {
-                      const { colDef, newValue, rowIndex } = event;
+                      const { colDef, newValue, rowIndex, oldValue } = event;
                       const field = colDef?.field;
                       if (!field) return;
+
+                      // âš ï¸ WSN OVERWRITE WARNING: Check if replacing an existing WSN with a different one
+                      if (field === 'wsn') {
+                        const existingWSN = oldValue?.trim()?.toUpperCase();
+                        const newWSN = newValue?.trim()?.toUpperCase();
+
+                        // If row had a valid WSN and user is entering a DIFFERENT valid WSN
+                        if (existingWSN && newWSN && existingWSN !== newWSN) {
+                          // Store pending WSN and show dialog
+                          pendingWSNRef.current = { rowIndex, newWSN, event };
+
+                          // Get existing row data for display
+                          const existingData = multiRowsRef.current[rowIndex] || {};
+
+                          setWsnOverwriteDialog({
+                            open: true,
+                            rowIndex,
+                            existingWSN,
+                            existingData: {
+                              product_title: existingData.producttitle,
+                              brand: existingData.brand,
+                              mrp: existingData.mrp,
+                              fsp: existingData.fsp,
+                              fsn: existingData.fsn,
+                              cms_vertical: existingData.cmsvertical,
+                            },
+                            newWSN,
+                          });
+
+                          // REVERT the cell value to old WSN (user hasn't confirmed yet)
+                          setTimeout(() => {
+                            const node = event.api.getRowNode(String(rowIndex));
+                            if (node) {
+                              node.setDataValue('wsn', existingWSN);
+                            }
+                          }, 10);
+
+                          return; // Don't process further until user confirms
+                        }
+                      }
 
                       const newRows = [...multiRows];
 
@@ -4471,7 +5010,7 @@ export default function QCPage() {
                       if (field === 'wsn') {
                         const wsn = newValue?.trim()?.toUpperCase();
 
-                        // 🔴 WSN cleared - clear master data
+                        // ðŸ”´ WSN cleared - clear master data
                         if (!newValue || !newValue.trim()) {
                           newRows[rowIndex] = { ...newRows[rowIndex], [field]: newValue };
                           ALL_MASTER_COLUMNS.forEach((col) => {
@@ -4497,7 +5036,7 @@ export default function QCPage() {
                         const isSameWarehouseDup = existingRecord?.warehouseid === activeWarehouse?.id;
                         const isCrossWarehouse = existingRecord && existingRecord.warehouseid !== activeWarehouse?.id;
 
-                        // 🔴 CROSS-WAREHOUSE ERROR (different warehouse)
+                        // ðŸ”´ CROSS-WAREHOUSE ERROR (different warehouse)
                         if (isCrossWarehouse) {
                           toast.error(`WSN ${wsn} already QC'd in another warehouse`, {
                             duration: 3000,
@@ -4511,7 +5050,7 @@ export default function QCPage() {
                               fontSize: '14px',
                               boxShadow: '0 4px 12px rgba(220, 38, 38, 0.15)',
                             },
-                            icon: '🚫',
+                            icon: 'ðŸš«',
                           });
 
 
@@ -4524,7 +5063,7 @@ export default function QCPage() {
                           return;
                         }
 
-                        // 🟡 SAME WAREHOUSE DUPLICATE
+                        // ðŸŸ¡ SAME WAREHOUSE DUPLICATE
                         if (isSameWarehouseDup) {
                           toast(`WSN ${wsn} already QC'd in this warehouse`, {
                             duration: 2500,
@@ -4538,7 +5077,7 @@ export default function QCPage() {
                               fontSize: '14px',
                               boxShadow: '0 4px 12px rgba(245, 158, 11, 0.15)',
                             },
-                            icon: '⚠️',
+                            icon: 'âš ï¸',
                           });
 
 
@@ -4552,7 +5091,7 @@ export default function QCPage() {
                           return;
                         }
 
-                        // 🟡 GRID DUPLICATE
+                        // ðŸŸ¡ GRID DUPLICATE
                         if (isGridDuplicate) {
                           toast(`Duplicate WSN in grid: ${wsn}`, {
                             duration: 2500,
@@ -4566,7 +5105,7 @@ export default function QCPage() {
                               fontSize: '14px',
                               boxShadow: '0 4px 12px rgba(245, 158, 11, 0.15)',
                             },
-                            icon: '⚠️',
+                            icon: 'âš ï¸',
                           });
 
 
@@ -4605,7 +5144,7 @@ export default function QCPage() {
                               const response = await qcAPI.getPendingInbound(activeWarehouse?.id, wsn);
 
                               // ✅ ADD DEBUG
-                              console.log('🔍 API Response for WSN:', wsn, response.data[0]);
+                              console.log('ðŸ” API Response for WSN:', wsn, response.data[0]);
 
                               if (response.data.length > 0) {
                                 const item = response.data[0];
@@ -4683,7 +5222,7 @@ export default function QCPage() {
                   <DialogContent sx={{ mt: 2, pb: 1 }}>
                     <Stack spacing={2.5}>
                       <Alert severity="info" sx={{ fontSize: '0.8rem', py: 0.5 }}>
-                        Settings auto-save and persist after reload 💾
+                        Settings auto-save and persist after reload ðŸ’¾
                       </Alert>
 
                       {/* SORTABLE */}
@@ -4701,7 +5240,7 @@ export default function QCPage() {
                           label={
                             <Box>
                               <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#1e293b' }}>
-                                ⬆️ Enable Sorting
+                                â¬†ï¸ Enable Sorting
                               </Typography>
                               <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem' }}>
                                 Click column headers to sort ascending/descending
@@ -4728,7 +5267,7 @@ export default function QCPage() {
                           label={
                             <Box>
                               <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#1e293b' }}>
-                                🔍 Enable Column Filters
+                                ðŸ” Enable Column Filters
                               </Typography>
                               <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem' }}>
                                 Filter menu icon in column headers
@@ -4755,7 +5294,7 @@ export default function QCPage() {
                           label={
                             <Box>
                               <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#1e293b' }}>
-                                ↔️ Enable Column Resize
+                                â†”ï¸ Enable Column Resize
                               </Typography>
                               <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem' }}>
                                 Drag column borders to adjust width
@@ -4787,7 +5326,7 @@ export default function QCPage() {
                         }
                       }}
                     >
-                      🔄 Reset All
+                      ðŸ”„ Reset All
                     </Button>
                     <Box sx={{ flex: 1 }} />
                     <Button
@@ -4841,6 +5380,27 @@ export default function QCPage() {
                     sx={{ height: 32, fontSize: '0.75rem' }}
                   >
                     Clear Draft
+                  </Button>
+
+                  {/* +500 ROWS BUTTON - Desktop only */}
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    onClick={add500Rows}
+                    sx={{
+                      display: { xs: 'none', md: 'flex' },
+                      height: 32,
+                      fontSize: '0.75rem',
+                      fontWeight: 700,
+                      borderColor: '#f59e0b',
+                      color: '#f59e0b',
+                      '&:hover': {
+                        borderColor: '#d97706',
+                        bgcolor: 'rgba(245, 158, 11, 0.1)'
+                      }
+                    }}
+                  >
+                    +500 Rows
                   </Button>
 
                   {/* SUBMIT BUTTON */}
@@ -5033,7 +5593,7 @@ export default function QCPage() {
 
         {/* EXPORT DIALOG */}
         <Dialog open={exportDialogOpen} onClose={() => setExportDialogOpen(false)} maxWidth="sm" fullWidth>
-          <DialogTitle>📥 Export QC Data</DialogTitle>
+          <DialogTitle>ðŸ“¥ Export QC Data</DialogTitle>
           <DialogContent>
             <Stack spacing={2} sx={{ mt: 2 }}>
               <TextField type="date" label="Start Date" value={exportStartDate} onChange={(e) => setExportStartDate(e.target.value)} InputLabelProps={{ shrink: true }} fullWidth />
@@ -5127,6 +5687,14 @@ export default function QCPage() {
             <Button onClick={() => setListColumnSettingsOpen(false)}>Done</Button>
           </DialogActions>
         </Dialog>
+
+        {/* WSN Overwrite Warning Dialog */}
+        <WSNOverwriteDialog
+          data={wsnOverwriteDialog}
+          onCancel={handleOverwriteCancel}
+          onReplace={handleOverwriteReplace}
+          onAddToNextRow={handleOverwriteAddToNextRow}
+        />
       </Box >
     </AppLayout >
   );

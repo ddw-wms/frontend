@@ -941,5 +941,36 @@ export const rejectionsAPI = {
     api.put(`/rejections/batch/${batchId}/rename`, { newBatchId }),
 };
 
+// ============================ LIVE VIEW API ============================
+export const liveViewAPI = {
+  // Start a live entry session
+  startSession: (warehouse_id: number, page_type: string) =>
+    api.post('/live-view/start', { warehouse_id, page_type }),
+
+  // Update entries in current session
+  updateEntries: (session_id: string, entries: any[]) =>
+    api.post('/live-view/update', { session_id, entries }),
+
+  // End a live session
+  endSession: (session_id: string) =>
+    api.post('/live-view/end', { session_id }),
+
+  // Get active sessions for a warehouse/page
+  getActiveSessions: (warehouse_id: number, page_type: string) =>
+    api.get('/live-view/sessions', { params: { warehouse_id, page_type } }),
+
+  // Get entries for a specific session
+  getEntries: (session_id: string) =>
+    api.get(`/live-view/entries/${session_id}`),
+
+  // Export entries for a session
+  exportEntries: (session_id: string) =>
+    api.get(`/live-view/export/${session_id}`),
+
+  // Cleanup stale sessions (admin)
+  cleanup: () =>
+    api.post('/live-view/cleanup'),
+};
+
 
 export default api;

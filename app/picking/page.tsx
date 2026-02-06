@@ -1,4 +1,4 @@
-// File Path = warehouse-frontend\app\picking\page.tsx
+﻿// File Path = warehouse-frontend\app\picking\page.tsx
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
@@ -9,23 +9,27 @@ import {
   DialogContent, DialogActions, TextField, MenuItem, Chip, Stack, Tab, Tabs,
   CircularProgress, Alert, IconButton, Autocomplete, Checkbox, FormControlLabel,
   Card, CardContent, LinearProgress, Divider, Collapse, Tooltip, FormControl, InputLabel, Select,
-  useTheme, useMediaQuery, AppBar, Toolbar, Pagination, InputBase, Fade
+  useTheme, useMediaQuery, AppBar, Toolbar, Pagination, InputBase, Fade,
+  Drawer, Accordion, AccordionSummary, AccordionDetails, Switch
 } from '@mui/material';
 import {
   Add as AddIcon, Download as DownloadIcon, Settings as SettingsIcon,
   CheckCircle as CheckIcon, CheckCircle, Delete as DeleteIcon, Refresh as RefreshIcon, Visibility as VisibilityIcon,
   FilterList as FilterListIcon, ExpandMore as ExpandMoreIcon, Info as InfoIcon,
   Tune as TuneIcon, Close as CloseIcon, KeyboardArrowLeft, KeyboardArrowRight, FirstPage, LastPage, AccessTime,
-  PieChart as PieChartIcon, Link as LinkIcon
+  PieChart as PieChartIcon, Link as LinkIcon,
+  Fullscreen as FullscreenIcon, FullscreenExit as FullscreenExitIcon,
+  Menu as MenuIcon, ViewColumn as ViewColumnIcon, TableChart as TableChartIcon
 } from '@mui/icons-material';
 import { pickingAPI, rackAPI, inboundAPI } from '@/lib/api';
 import { useWarehouse } from '@/app/context/WarehouseContext';
 import { getStoredUser } from '@/lib/auth';
 import AppLayout from '@/components/AppLayout';
-import { StandardPageHeader, StandardTabs, BatchManagementTab, CustomerAutocomplete } from '@/components';
+import { StandardPageHeader, StandardTabs, BatchManagementTab, CustomerAutocomplete, WSNOverwriteDialog } from '@/components';
+import type { WSNOverwriteDialogData } from '@/components';
 import { useTableRowHeight } from '@/app/context/AppearanceContext';
 import toast, { Toaster } from 'react-hot-toast';
-// ⚡ OPTIMIZED: XLSX loaded dynamically on export to reduce bundle size
+// âš¡ OPTIMIZED: XLSX loaded dynamically on export to reduce bundle size
 // import * as XLSX from 'xlsx'; // Removed - loaded dynamically
 import { AgGridReact } from 'ag-grid-react';
 import { ModuleRegistry, AllCommunityModule, ClientSideRowModelModule } from 'ag-grid-community';
@@ -37,6 +41,8 @@ import localforage from 'localforage';
 // Register AG Grid modules ONCE (include ClientSideRowModel for client-side features)
 ModuleRegistry.registerModules([AllCommunityModule, ClientSideRowModelModule]);
 import { usePickingPermissions } from '@/hooks/usePagePermissions';
+import { useFullscreen, useLiveSession } from '@/hooks';
+import LiveViewPanel from '@/components/LiveViewPanel';
 
 // Tab definitions with permission codes
 const ALL_TABS = ['Picking List', 'Multi Picking', 'Batch Management'];
@@ -112,17 +118,21 @@ export default function PickingPage() {
   const [user, setUser] = useState<any>(null);
   const gridRef = useRef<any>(null);
   const listGridRef = useRef<any>(null);  // Separate ref for List grid
+  const multiEntryContainerRef = useRef<HTMLDivElement>(null);  // Ref for fullscreen mode
   const columnApiRef = useRef<any>(null);
   const hasAutoFittedRef = useRef(false); // Track if auto-fit has been done
 
-  // ⚡ EXCEL-LIKE: Refs for smooth scrolling and selection
+  // ====== FULLSCREEN MODE ======
+  const { isFullscreen, toggleFullscreen } = useFullscreen(multiEntryContainerRef);
+
+  // âš¡ EXCEL-LIKE: Refs for smooth scrolling and selection
   const userScrolledRef = useRef(false);
   const userScrollTimeoutRef = useRef<number | null>(null);
   const lastGridScrollTopRef = useRef(0);
   const isAutoScrollingRef = useRef(false);
   const multiRowsRef = useRef([] as any[]);
 
-  // ⚡ EXCEL-LIKE: Track selected cell range for multi-cell operations
+  // âš¡ EXCEL-LIKE: Track selected cell range for multi-cell operations
   const [selectedRange, setSelectedRange] = useState<{
     startRow: number;
     endRow: number;
@@ -132,7 +142,7 @@ export default function PickingPage() {
   const rangeStartCellRef = useRef<{ rowIndex: number; colId: string } | null>(null);
   const selectedRangeRef = useRef<typeof selectedRange>(null);
 
-  // ⚡ PERFORMANCE: Cache computed selection bounds
+  // âš¡ PERFORMANCE: Cache computed selection bounds
   const selectionBoundsRef = useRef<{
     minRow: number;
     maxRow: number;
@@ -141,11 +151,11 @@ export default function PickingPage() {
     colIndexMap: Map<string, number>;
   } | null>(null);
 
-  // ⚡ EXCEL-LIKE: Track mouse drag state
+  // âš¡ EXCEL-LIKE: Track mouse drag state
   const isDraggingRef = useRef(false);
   const dragStartCellRef = useRef<{ rowIndex: number; colId: string } | null>(null);
 
-  // ⚡ EXCEL-LIKE: Undo/Redo support with batch operations
+  // âš¡ EXCEL-LIKE: Undo/Redo support with batch operations
   interface UndoAction {
     type: 'cell' | 'paste' | 'fillDown' | 'batch';
     rowIndex: number;
@@ -165,7 +175,7 @@ export default function PickingPage() {
   const undoStackRef = useRef<UndoAction[]>([]);
   const redoStackRef = useRef<UndoAction[]>([]);
 
-  // ⚡ EXCEL-LIKE: Selection statistics
+  // âš¡ EXCEL-LIKE: Selection statistics
   const [selectionStats, setSelectionStats] = useState<{
     sum: number;
     count: number;
@@ -174,7 +184,7 @@ export default function PickingPage() {
   } | null>(null);
   const selectionStatsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // ⚡ EXCEL-LIKE: Previous selection bounds for smart refresh
+  // âš¡ EXCEL-LIKE: Previous selection bounds for smart refresh
   const prevSelectionBoundsRef = useRef<{ minRow: number; maxRow: number } | null>(null);
 
   // Get table row height from appearance settings
@@ -263,6 +273,43 @@ export default function PickingPage() {
   const [multiRows, setMultiRows] = useState<any[]>(generateEmptyRows(500));
   const [existingWSNs, setExistingWSNs] = useState<string[]>([]);
   const [multiLoading, setMultiLoading] = useState(false);
+
+  // ====== LIVE VIEW SESSION MANAGEMENT ======
+  const isOnMultiTab = visibleTabCodes[tabValue] === 'multi'; // Use tab code, not index
+  const { startSession: startLiveSession, updateEntries: updateLiveEntries, endSession: endLiveSession, isActive: isLiveSessionActive } = useLiveSession({
+    warehouseId: activeWarehouse?.id,
+    pageType: 'picking',
+    enabled: isOnMultiTab && !!activeWarehouse?.id,
+  });
+
+  // Auto-start live session when entering Multi Picking tab
+  useEffect(() => {
+    if (isOnMultiTab && activeWarehouse?.id && !isLiveSessionActive) {
+      startLiveSession();
+    } else if (!isOnMultiTab && isLiveSessionActive) {
+      endLiveSession();
+    }
+  }, [isOnMultiTab, activeWarehouse?.id, isLiveSessionActive, startLiveSession, endLiveSession]);
+
+  // Broadcast entries when multiRows change
+  useEffect(() => {
+    if (isLiveSessionActive && isOnMultiTab) {
+      const validEntries = multiRows
+        .map((row, idx) => ({
+          wsn: row.wsn || '',
+          product_title: row.product_title || '',
+          brand: row.brand || '',
+          mrp: row.mrp,
+          fsp: row.fsp,
+          cms_vertical: row.cms_vertical || '',
+          fkqc_remarks: row.fkqc_remark || '',
+          p_type: row.p_type || '',
+          row_index: idx,
+        }))
+        .filter(e => e.wsn.trim());
+      updateLiveEntries(validEntries);
+    }
+  }, [multiRows, isLiveSessionActive, isOnMultiTab, updateLiveEntries]);
 
   // ====== MULTI PICKING COLUMN WIDTHS PERSISTENCE ======
   const [multiColumnWidths, setMultiColumnWidths] = useState<Record<string, number>>({});
@@ -378,7 +425,7 @@ export default function PickingPage() {
           setMultiRows(restored);
           setDraftSavedAt(draft.savedAt || Date.now());
           setDraftExists(true);
-          // toast.success('✓ Draft restored');
+          // toast.success('âœ“ Draft restored');
         }
       } catch (err) {
         console.error('Failed to load picking draft', err);
@@ -419,9 +466,16 @@ export default function PickingPage() {
   // Track if Multi Picking grid has been initialized (to avoid resetting saved widths)
   const multiGridInitializedRef = useRef(false);
   const [columnSettingsOpen, setColumnSettingsOpen] = useState(false);
+  // Settings Panel state for Multi Picking
+  const [pickingSettingsPanelOpen, setPickingSettingsPanelOpen] = useState(false);
+  const [settingsPanelExpanded, setSettingsPanelExpanded] = useState<string | false>('columns');
   const [gridDuplicateWSNs, setGridDuplicateWSNs] = useState<Set<string>>(new Set());
   const [crossWarehouseWSNs, setCrossWarehouseWSNs] = useState<Set<string>>(new Set());
   const [existingPickingWSNs, setExistingPickingWSNs] = useState(new Set());
+
+  // ====== WSN OVERWRITE DIALOG STATE ======
+  const [wsnOverwriteDialog, setWsnOverwriteDialog] = useState<WSNOverwriteDialogData | null>(null);
+  const pendingWSNRef = useRef<{ wsn: string; rowIndex: number; event: any } | null>(null);
 
   // ====== MULTI ENTRY: CTRL+O PRODUCT LINK SHORTCUT STATE ======
   const [ctrlOProductLinkEnabled, setCtrlOProductLinkEnabled] = useState(() => {
@@ -529,18 +583,18 @@ export default function PickingPage() {
   const [topLoading, setTopLoading] = useState(false);
   const previousDataRef = useRef<any[] | null>(null);
 
-  // ⚡ PAGE CACHE: Store fetched pages for instant back navigation
+  // âš¡ PAGE CACHE: Store fetched pages for instant back navigation
   const pageCacheRef = useRef<Map<string, { data: any[], total: number, timestamp: number }>>(new Map());
   const PAGE_CACHE_TTL = 60000; // 1 minute cache validity
 
-  // ⚡ LAST REFRESH TIME: Track when data was last fetched
+  // âš¡ LAST REFRESH TIME: Track when data was last fetched
   const [lastRefreshTime, setLastRefreshTime] = useState<Date | null>(null);
 
-  // ⚡ AUTO-RETRY: Track retry attempts
+  // âš¡ AUTO-RETRY: Track retry attempts
   const retryCountRef = useRef(0);
   const MAX_RETRIES = 2;
 
-  // ⚡ LAZY LOADING: Defer filter options loading
+  // âš¡ LAZY LOADING: Defer filter options loading
   const [filtersLoaded, setFiltersLoaded] = useState(false);
 
   // Grid Settings (persisted)
@@ -790,7 +844,7 @@ export default function PickingPage() {
       const currentRow = previousCellPosition.rowIndex;
 
       if (currentCol === visibleColumns[visibleColumns.length - 1]) {
-        // Last column → move to first column of next row
+        // Last column â†’ move to first column of next row
         return {
           rowIndex: currentRow + 1,
           column: params.api.getColumns()![0],
@@ -810,12 +864,12 @@ export default function PickingPage() {
     return nextCellPosition;
   }, [visibleColumns]);
 
-  // ⚡ EXCEL-LIKE: Keep multiRowsRef in sync
+  // âš¡ EXCEL-LIKE: Keep multiRowsRef in sync
   useEffect(() => {
     multiRowsRef.current = multiRows;
   }, [multiRows]);
 
-  // ⚡ EXCEL-LIKE: Update selection bounds when selection changes
+  // âš¡ EXCEL-LIKE: Update selection bounds when selection changes
   useEffect(() => {
     selectedRangeRef.current = selectedRange;
 
@@ -839,7 +893,7 @@ export default function PickingPage() {
           colIndexMap,
         };
 
-        // ⚡ PERFORMANCE: Debounce selection statistics calculation (50ms)
+        // âš¡ PERFORMANCE: Debounce selection statistics calculation (50ms)
         if (selectionStatsTimeoutRef.current) {
           clearTimeout(selectionStatsTimeoutRef.current);
         }
@@ -899,7 +953,7 @@ export default function PickingPage() {
     }
   }, [selectedRange]);
 
-  // ⚡ EXCEL-LIKE: Optimized refresh - only refresh affected rows instead of entire grid
+  // âš¡ EXCEL-LIKE: Optimized refresh - only refresh affected rows instead of entire grid
   useEffect(() => {
     const api = gridRef.current;
     if (!api) return;
@@ -937,7 +991,7 @@ export default function PickingPage() {
     });
   }, [selectedRange]);
 
-  // ⚡ EXCEL-LIKE: Handle cell mouse down - start drag selection
+  // âš¡ EXCEL-LIKE: Handle cell mouse down - start drag selection
   const handleCellMouseDown = useCallback((rowIndex: number, colId: string, shiftKey: boolean) => {
     if (shiftKey && rangeStartCellRef.current) {
       setSelectedRange({
@@ -954,7 +1008,7 @@ export default function PickingPage() {
     }
   }, []);
 
-  // ⚡ EXCEL-LIKE: Handle cell mouse over - extend selection while dragging
+  // âš¡ EXCEL-LIKE: Handle cell mouse over - extend selection while dragging
   const handleCellMouseOver = useCallback((rowIndex: number, colId: string) => {
     if (!isDraggingRef.current || !dragStartCellRef.current) return;
     setSelectedRange({
@@ -965,7 +1019,7 @@ export default function PickingPage() {
     });
   }, []);
 
-  // ⚡ EXCEL-LIKE: Handle cell click for shift+click selection
+  // âš¡ EXCEL-LIKE: Handle cell click for shift+click selection
   const handleCellClick = useCallback((rowIndex: number, colId: string, shiftKey: boolean) => {
     if (shiftKey && rangeStartCellRef.current) {
       setSelectedRange({
@@ -980,7 +1034,7 @@ export default function PickingPage() {
     }
   }, []);
 
-  // ⚡ EXCEL-LIKE: Handle mouse up - end drag selection
+  // âš¡ EXCEL-LIKE: Handle mouse up - end drag selection
   useEffect(() => {
     const handleMouseUp = () => {
       if (isDraggingRef.current) {
@@ -991,7 +1045,7 @@ export default function PickingPage() {
     return () => window.removeEventListener('mouseup', handleMouseUp);
   }, []);
 
-  // ⚡ EXCEL-LIKE: Clear selected cells (Delete/Backspace)
+  // âš¡ EXCEL-LIKE: Clear selected cells (Delete/Backspace)
   const handleClearCells = useCallback(() => {
     const api = gridRef.current;
     if (!api) return;
@@ -1041,7 +1095,7 @@ export default function PickingPage() {
     }
   }, []);
 
-  // ⚡ EXCEL-LIKE: Select All (Ctrl+A)
+  // âš¡ EXCEL-LIKE: Select All (Ctrl+A)
   const handleSelectAll = useCallback(() => {
     const api = gridRef.current;
     if (!api) return;
@@ -1063,10 +1117,10 @@ export default function PickingPage() {
     });
 
     rangeStartCellRef.current = { rowIndex: 0, colId: firstCol };
-    toast('All rows selected', { icon: '✓', duration: 1500 });
+    toast('All rows selected', { icon: 'âœ“', duration: 1500 });
   }, []);
 
-  // ⚡ EXCEL-LIKE: Save cell-level undo action
+  // âš¡ EXCEL-LIKE: Save cell-level undo action
   const saveCellUndoAction = useCallback((
     rowIndex: number,
     field: string,
@@ -1099,10 +1153,10 @@ export default function PickingPage() {
     'wh_location', 'p_type', 'p_size', 'rack_no', 'product_serial_number'
   ];
 
-  // ⚡ UNDO: Handle undo (Ctrl+Z) - supports batch operations
+  // âš¡ UNDO: Handle undo (Ctrl+Z) - supports batch operations
   const handleUndo = useCallback(() => {
     if (undoStackRef.current.length === 0) {
-      toast('Nothing to undo', { icon: 'ℹ️', duration: 500 });
+      toast('Nothing to undo', { icon: 'ℹï¸', duration: 500 });
       return;
     }
 
@@ -1193,10 +1247,10 @@ export default function PickingPage() {
     toast.success(`Undo: ${count} cell${count > 1 ? 's' : ''}`, { duration: 1000 });
   }, []);
 
-  // ⚡ REDO: Handle redo (Ctrl+Y or Ctrl+Shift+Z) - supports batch operations
+  // âš¡ REDO: Handle redo (Ctrl+Y or Ctrl+Shift+Z) - supports batch operations
   const handleRedo = useCallback(() => {
     if (redoStackRef.current.length === 0) {
-      toast('Nothing to redo', { icon: 'ℹ️', duration: 1500 });
+      toast('Nothing to redo', { icon: 'ℹï¸', duration: 1500 });
       return;
     }
 
@@ -1272,7 +1326,7 @@ export default function PickingPage() {
     toast.success(`Redo: ${count} cell${count > 1 ? 's' : ''}`, { duration: 1000 });
   }, []);
 
-  // ⚡ EXCEL-LIKE: Copy selected cells (Ctrl+C)
+  // âš¡ EXCEL-LIKE: Copy selected cells (Ctrl+C)
   const handleCopy = useCallback(async () => {
     const api = gridRef.current;
     if (!api) return;
@@ -1319,7 +1373,7 @@ export default function PickingPage() {
     }
   }, []);
 
-  // ⚡ EXCEL-LIKE: Paste with ultra-fast parallel WSN lookups (Ctrl+V)
+  // âš¡ EXCEL-LIKE: Paste with ultra-fast parallel WSN lookups (Ctrl+V)
   const handlePaste = useCallback(async () => {
     try {
       const text = await navigator.clipboard.readText();
@@ -1411,7 +1465,7 @@ export default function PickingPage() {
         api.refreshCells({ force: true });
         toast.success(`Pasted ${pastedCount} cells`, { duration: 1500 });
 
-        // ⚡ ULTRA-FAST PARALLEL WSN LOOKUPS
+        // âš¡ ULTRA-FAST PARALLEL WSN LOOKUPS
         if (pastedWSNRows.length > 0 && activeWarehouse?.id) {
           const toastId = toast.loading(`Loading ${pastedWSNRows.length} WSNs...`);
 
@@ -1504,7 +1558,7 @@ export default function PickingPage() {
 
           toast.dismiss(toastId);
           if (successCount > 0) {
-            toast.success(`✓ Loaded ${successCount}/${pastedWSNRows.length} WSNs`, { duration: 2000 });
+            toast.success(`âœ“ Loaded ${successCount}/${pastedWSNRows.length} WSNs`, { duration: 2000 });
           }
           if (failCount > 0) {
             toast.error(`${failCount} WSNs not found`, { duration: 2000 });
@@ -1520,14 +1574,14 @@ export default function PickingPage() {
     }
   }, [activeWarehouse]);
 
-  // ⚡ EXCEL-LIKE: Fill Down (Ctrl+D)
+  // âš¡ EXCEL-LIKE: Fill Down (Ctrl+D)
   const handleFillDown = useCallback(() => {
     const api = gridRef.current;
     if (!api) return;
 
     const range = selectedRangeRef.current;
     if (!range) {
-      toast('Select a range first', { icon: 'ℹ️', duration: 1500 });
+      toast('Select a range first', { icon: 'ℹï¸', duration: 1500 });
       return;
     }
 
@@ -1535,7 +1589,7 @@ export default function PickingPage() {
     const maxRow = Math.max(range.startRow, range.endRow);
 
     if (minRow === maxRow) {
-      toast('Need at least 2 rows for Fill Down', { icon: 'ℹ️', duration: 1500 });
+      toast('Need at least 2 rows for Fill Down', { icon: 'ℹï¸', duration: 1500 });
       return;
     }
 
@@ -1569,7 +1623,7 @@ export default function PickingPage() {
     }
   }, []);
 
-  // ⚡ EXCEL-LIKE: Go to first cell (Ctrl+Home)
+  // âš¡ EXCEL-LIKE: Go to first cell (Ctrl+Home)
   const handleGoToFirst = useCallback(() => {
     const api = gridRef.current;
     if (!api) return;
@@ -1585,7 +1639,7 @@ export default function PickingPage() {
     api.setFocusedCell(0, colId);
   }, []);
 
-  // ⚡ EXCEL-LIKE: Go to last cell with data (Ctrl+End)
+  // âš¡ EXCEL-LIKE: Go to last cell with data (Ctrl+End)
   const handleGoToLast = useCallback(() => {
     const api = gridRef.current;
     if (!api) return;
@@ -1610,7 +1664,7 @@ export default function PickingPage() {
     api.setFocusedCell(lastRowWithData, lastCol);
   }, []);
 
-  // ⚡ EXCEL-LIKE: Keyboard shortcuts for Multi Picking tab
+  // âš¡ EXCEL-LIKE: Keyboard shortcuts for Multi Picking tab
   useEffect(() => {
     if (currentTabCode !== 'multi') return;
 
@@ -1622,14 +1676,14 @@ export default function PickingPage() {
       const isEditing = activeEl?.tagName === 'INPUT' || activeEl?.tagName === 'TEXTAREA' ||
         (activeEl?.classList?.contains('ag-input-field-input'));
 
-      // Ctrl+O → Open product link for last scanned WSN
+      // Ctrl+O â†’ Open product link for last scanned WSN
       if (ctrlKey && e.key.toLowerCase() === 'o') {
         e.preventDefault();
         e.stopPropagation();
 
         // Use ref for instant toggle effect (no stale closure)
         if (!ctrlOProductLinkEnabledRef.current) {
-          toast('Ctrl+O shortcut is disabled', { icon: '⚠️', duration: 1500 });
+          toast('Ctrl+O shortcut is disabled', { icon: 'âš ï¸', duration: 1500 });
           return;
         }
 
@@ -1742,7 +1796,7 @@ export default function PickingPage() {
         return;
       }
 
-      // ⚡ EXCEL-LIKE: Ctrl+Arrow - Jump to last cell with data in direction
+      // âš¡ EXCEL-LIKE: Ctrl+Arrow - Jump to last cell with data in direction
       if (ctrlKey && !shiftKey && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key) && !isEditing) {
         const api = gridRef.current;
         if (!api) return;
@@ -1791,7 +1845,7 @@ export default function PickingPage() {
         return;
       }
 
-      // ⚡ EXCEL-LIKE: Ctrl+Shift+Arrow - Select to last cell with data in direction
+      // âš¡ EXCEL-LIKE: Ctrl+Shift+Arrow - Select to last cell with data in direction
       if (ctrlKey && shiftKey && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key) && !isEditing) {
         const api = gridRef.current;
         if (!api) return;
@@ -1907,7 +1961,7 @@ export default function PickingPage() {
     setMultiRows([...multiRows, ...generateEmptyRows(500)]);
   };
 
-  // ⚡ MULTI ENTRY: Export entered data to Excel with ALL columns
+  // âš¡ MULTI ENTRY: Export entered data to Excel with ALL columns
   const exportMultiEntryToExcel = async () => {
     try {
       // Filter by customer if selected, otherwise export all
@@ -1960,10 +2014,201 @@ export default function PickingPage() {
       XLSX.utils.book_append_sheet(wb, ws, 'Multi Picking');
       const customerSuffix = selectedCustomer ? `_${selectedCustomer.replace(/\s+/g, '_')}` : '';
       XLSX.writeFile(wb, `Picking_MultiEntry${customerSuffix}_${new Date().toISOString().split('T')[0]}_${Date.now()}.xlsx`);
-      toast.success(`✓ Exported ${dataToExport.length} rows`);
+      toast.success(`âœ“ Exported ${dataToExport.length} rows`);
     } catch (error) {
       toast.error('Export failed');
     }
+  };
+
+  // ====== WSN OVERWRITE DIALOG HANDLERS ======
+  const handleOverwriteCancel = () => {
+    // User cancelled - keep existing WSN
+    if (pendingWSNRef.current) {
+      const { rowIndex, event } = pendingWSNRef.current;
+      // Restore original value (already done by reverting)
+      setTimeout(() => {
+        event?.api?.startEditingCell({ rowIndex, colKey: 'wsn' });
+      }, 100);
+    }
+    setWsnOverwriteDialog(null);
+    pendingWSNRef.current = null;
+  };
+
+  const handleOverwriteReplace = async () => {
+    // User chose to replace - proceed with new WSN
+    if (pendingWSNRef.current) {
+      const { wsn, rowIndex, event } = pendingWSNRef.current;
+      const node = event?.api?.getDisplayedRowAtIndex(rowIndex);
+      if (node) {
+        node.setDataValue('wsn', wsn);
+        // Fetch and apply master data for new WSN
+        try {
+          const res = await pickingAPI.getSourceByWSN(wsn, activeWarehouse?.id);
+          const d = res.data;
+          node.setDataValue('product_title', d.product_title ?? '');
+          node.setDataValue('brand', d.brand ?? '');
+          node.setDataValue('cms_vertical', d.cms_vertical ?? '');
+          node.setDataValue('fsp', d.fsp ?? '');
+          node.setDataValue('mrp', d.mrp ?? '');
+          node.setDataValue('rack_no', d.rack_no ?? '');
+          node.setDataValue('hsn_sac', d.hsn_sac ?? '');
+          node.setDataValue('igst_rate', d.igst_rate ?? '');
+          node.setDataValue('p_type', d.p_type ?? '');
+          node.setDataValue('p_size', d.p_size ?? '');
+          node.setDataValue('vrp', d.vrp ?? '');
+          node.setDataValue('wid', d.wid ?? '');
+          node.setDataValue('fsn', d.fsn ?? '');
+          node.setDataValue('order_id', d.order_id ?? '');
+          node.setDataValue('fkqc_remark', d.fkqc_remark ?? '');
+          node.setDataValue('fk_grade', d.fk_grade ?? '');
+          node.setDataValue('invoice_date', d.invoice_date ?? '');
+          node.setDataValue('fkt_link', d.fkt_link ?? '');
+          node.setDataValue('wh_location', d.wh_location ?? '');
+          node.setDataValue('yield_value', d.yield_value ?? '');
+          node.setDataValue('source', d.source ?? '');
+
+          setMultiRows((prev) => {
+            const rows = [...prev];
+            rows[rowIndex] = {
+              ...rows[rowIndex],
+              wsn,
+              product_title: d.product_title ?? '',
+              brand: d.brand ?? '',
+              cms_vertical: d.cms_vertical ?? '',
+              fsp: d.fsp ?? '',
+              mrp: d.mrp ?? '',
+              rack_no: d.rack_no ?? '',
+              hsn_sac: d.hsn_sac ?? '',
+              igst_rate: d.igst_rate ?? '',
+              p_type: d.p_type ?? '',
+              p_size: d.p_size ?? '',
+              vrp: d.vrp ?? '',
+              wid: d.wid ?? '',
+              fsn: d.fsn ?? '',
+              order_id: d.order_id ?? '',
+              fkqc_remark: d.fkqc_remark ?? '',
+              fk_grade: d.fk_grade ?? '',
+              invoice_date: d.invoice_date ?? '',
+              fkt_link: d.fkt_link ?? '',
+              wh_location: d.wh_location ?? '',
+              yield_value: d.yield_value ?? '',
+              source: d.source ?? ''
+            };
+            checkDuplicates(rows);
+            return rows;
+          });
+        } catch (err) {
+          // Try inbound master data fallback
+          try {
+            const inboundResp = await inboundAPI.getMasterDataByWSN(wsn);
+            const md = inboundResp.data;
+            node.setDataValue('product_title', md.product_title ?? '');
+            node.setDataValue('brand', md.brand ?? '');
+            node.setDataValue('cms_vertical', md.cms_vertical ?? '');
+            node.setDataValue('fsp', md.fsp ?? '');
+            node.setDataValue('mrp', md.mrp ?? '');
+            setMultiRows((prev) => {
+              const rows = [...prev];
+              rows[rowIndex] = { ...rows[rowIndex], wsn, product_title: md.product_title ?? '', brand: md.brand ?? '' };
+              checkDuplicates(rows);
+              return rows;
+            });
+          } catch { /* ignore */ }
+        }
+        // Move to next row
+        setTimeout(() => {
+          event?.api?.startEditingCell({ rowIndex: rowIndex + 1, colKey: 'wsn' });
+        }, 100);
+      }
+    }
+    setWsnOverwriteDialog(null);
+    pendingWSNRef.current = null;
+  };
+
+  const handleOverwriteAddToNextRow = async () => {
+    // User chose to add new WSN to next empty row
+    if (pendingWSNRef.current) {
+      const { wsn, event } = pendingWSNRef.current;
+      // Find next empty row
+      let nextEmptyIndex = -1;
+      for (let i = 0; i < multiRows.length; i++) {
+        if (!multiRows[i].wsn?.trim()) {
+          nextEmptyIndex = i;
+          break;
+        }
+      }
+      if (nextEmptyIndex >= 0) {
+        const node = event?.api?.getDisplayedRowAtIndex(nextEmptyIndex);
+        if (node) {
+          node.setDataValue('wsn', wsn);
+          // Fetch master data
+          try {
+            const res = await pickingAPI.getSourceByWSN(wsn, activeWarehouse?.id);
+            const d = res.data;
+            node.setDataValue('product_title', d.product_title ?? '');
+            node.setDataValue('brand', d.brand ?? '');
+            node.setDataValue('cms_vertical', d.cms_vertical ?? '');
+            node.setDataValue('fsp', d.fsp ?? '');
+            node.setDataValue('mrp', d.mrp ?? '');
+            node.setDataValue('rack_no', d.rack_no ?? '');
+            node.setDataValue('hsn_sac', d.hsn_sac ?? '');
+            node.setDataValue('igst_rate', d.igst_rate ?? '');
+            node.setDataValue('p_type', d.p_type ?? '');
+            node.setDataValue('p_size', d.p_size ?? '');
+            node.setDataValue('vrp', d.vrp ?? '');
+            node.setDataValue('wid', d.wid ?? '');
+            node.setDataValue('fsn', d.fsn ?? '');
+            node.setDataValue('order_id', d.order_id ?? '');
+            node.setDataValue('fkqc_remark', d.fkqc_remark ?? '');
+            node.setDataValue('fk_grade', d.fk_grade ?? '');
+            node.setDataValue('invoice_date', d.invoice_date ?? '');
+            node.setDataValue('fkt_link', d.fkt_link ?? '');
+            node.setDataValue('wh_location', d.wh_location ?? '');
+            node.setDataValue('yield_value', d.yield_value ?? '');
+            node.setDataValue('source', d.source ?? '');
+
+            setMultiRows((prev) => {
+              const rows = [...prev];
+              rows[nextEmptyIndex] = {
+                ...rows[nextEmptyIndex],
+                wsn,
+                product_title: d.product_title ?? '',
+                brand: d.brand ?? '',
+                cms_vertical: d.cms_vertical ?? '',
+                fsp: d.fsp ?? '',
+                mrp: d.mrp ?? '',
+                rack_no: d.rack_no ?? '',
+                hsn_sac: d.hsn_sac ?? '',
+                igst_rate: d.igst_rate ?? '',
+                p_type: d.p_type ?? '',
+                p_size: d.p_size ?? '',
+                vrp: d.vrp ?? '',
+                wid: d.wid ?? '',
+                fsn: d.fsn ?? '',
+                order_id: d.order_id ?? '',
+                fkqc_remark: d.fkqc_remark ?? '',
+                fk_grade: d.fk_grade ?? '',
+                invoice_date: d.invoice_date ?? '',
+                fkt_link: d.fkt_link ?? '',
+                wh_location: d.wh_location ?? '',
+                yield_value: d.yield_value ?? '',
+                source: d.source ?? ''
+              };
+              checkDuplicates(rows);
+              return rows;
+            });
+          } catch { /* ignore */ }
+          // Move to row after new one
+          setTimeout(() => {
+            event?.api?.startEditingCell({ rowIndex: nextEmptyIndex + 1, colKey: 'wsn' });
+          }, 100);
+        }
+      } else {
+        toast.error('No empty row available');
+      }
+    }
+    setWsnOverwriteDialog(null);
+    pendingWSNRef.current = null;
   };
 
   // Submit multi entry
@@ -2007,12 +2252,12 @@ export default function PickingPage() {
       const response = await pickingAPI.multiEntry(fixedRows, activeWarehouse?.id);
 
       if (response.data?.successCount > 0) {
-        toast.success(`✓ ${response.data.successCount} entries created`);
+        toast.success(`âœ“ ${response.data.successCount} entries created`);
       }
 
       if (response.data?.errors && response.data.errors.length > 0) {
         console.error('Errors:', response.data.errors);
-        toast.error(`❌ ${response.data.errors.length} entries failed. Check console.`);
+        toast.error(`âŒ ${response.data.errors.length} entries failed. Check console.`);
       }
 
       if (response.data?.successCount === 0 && response.data?.errors?.length === 0) {
@@ -2160,8 +2405,8 @@ export default function PickingPage() {
         'Sr No': idx + 1,
         [groupLabel]: cat.category,
         'Quantity': cat.qty,
-        'Total FSP (₹)': cat.fsp,
-        'Total MRP (₹)': cat.mrp,
+        'Total FSP (â‚¹)': cat.fsp,
+        'Total MRP (â‚¹)': cat.mrp,
         'Percentage (%)': cat.percentage.toFixed(1),
       }));
 
@@ -2170,8 +2415,8 @@ export default function PickingPage() {
         'Sr No': '',
         [groupLabel]: 'GRAND TOTAL',
         'Quantity': categoryPivotData.grandTotal.qty,
-        'Total FSP (₹)': categoryPivotData.grandTotal.fsp,
-        'Total MRP (₹)': categoryPivotData.grandTotal.mrp,
+        'Total FSP (â‚¹)': categoryPivotData.grandTotal.fsp,
+        'Total MRP (â‚¹)': categoryPivotData.grandTotal.mrp,
         'Percentage (%)': '100.0',
       } as any);
 
@@ -2189,7 +2434,7 @@ export default function PickingPage() {
     }
   };
 
-  // ⚡ HELPER: Generate cache key for current filters
+  // âš¡ HELPER: Generate cache key for current filters
   const getCacheKey = useCallback(() => {
     return JSON.stringify({
       warehouseId: activeWarehouse?.id,
@@ -2205,7 +2450,7 @@ export default function PickingPage() {
     });
   }, [activeWarehouse?.id, page, limit, searchDebounced, brandFilter, categoryFilter, sourceFilter, customerFilter, startDateFilter, endDateFilter]);
 
-  // ⚡ PREFETCH: Prefetch next page in background
+  // âš¡ PREFETCH: Prefetch next page in background
   const prefetchNextPage = useCallback(async () => {
     const totalPages = Math.ceil(total / limit);
     if (page >= totalPages) return;
@@ -2258,7 +2503,7 @@ export default function PickingPage() {
 
     const cacheKey = getCacheKey();
 
-    // ⚡ PAGE CACHE: Check cache first (unless force refresh)
+    // âš¡ PAGE CACHE: Check cache first (unless force refresh)
     if (!buttonRefresh) {
       const cached = pageCacheRef.current.get(cacheKey);
       if (cached && Date.now() - cached.timestamp < PAGE_CACHE_TTL) {
@@ -2350,7 +2595,7 @@ export default function PickingPage() {
 
         setTotal(totalCount);
 
-        // ⚡ PAGE CACHE: Store in cache
+        // âš¡ PAGE CACHE: Store in cache
         pageCacheRef.current.set(cacheKey, {
           data,
           total: totalCount,
@@ -2359,12 +2604,12 @@ export default function PickingPage() {
         setLastRefreshTime(new Date());
         retryCountRef.current = 0; // Reset retry count on success
 
-        // ⚡ PREFETCH: Prefetch next page after successful load
+        // âš¡ PREFETCH: Prefetch next page after successful load
         setTimeout(() => prefetchNextPage(), 500);
 
         if (buttonRefresh) {
           setRefreshSuccess(true);
-          toast.success('✓ List refreshed');
+          toast.success('âœ“ List refreshed');
           setTimeout(() => setRefreshSuccess(false), 1800);
         }
       }
@@ -2393,7 +2638,7 @@ export default function PickingPage() {
 
       console.error('Load picking list error:', err);
 
-      // ⚡ AUTO-RETRY: Retry on failure
+      // âš¡ AUTO-RETRY: Retry on failure
       if (retryCountRef.current < MAX_RETRIES) {
         retryCountRef.current++;
         toast.error(`Loading failed, retrying... (${retryCountRef.current}/${MAX_RETRIES})`);
@@ -2504,7 +2749,7 @@ export default function PickingPage() {
     if (window.confirm(`Delete batch ${batchId}?`)) {
       try {
         await pickingAPI.deleteBatch(batchId);
-        toast.success('✓ Batch deleted successfully');
+        toast.success('âœ“ Batch deleted successfully');
 
         // Reload existing WSNs after deletion
         const res = await pickingAPI.getExistingWSNs(activeWarehouse?.id);
@@ -2523,7 +2768,7 @@ export default function PickingPage() {
     if (!activeWarehouse) return;
 
     try {
-      // ⚡ OPTIMIZED: Load XLSX dynamically
+      // âš¡ OPTIMIZED: Load XLSX dynamically
       const XLSX = await import('xlsx');
 
       let dataToExport = pickingList;
@@ -2614,7 +2859,7 @@ export default function PickingPage() {
       const filename = `${filenameParts.join('_')}_${Date.now()}.xlsx`;
       XLSX.writeFile(wb, filename);
 
-      toast.success(`✓ Exported ${exportData.length} records`);
+      toast.success(`âœ“ Exported ${exportData.length} records`);
       setExportDialogOpen(false);
       setExportStartDate('');
       setExportEndDate('');
@@ -2818,7 +3063,7 @@ export default function PickingPage() {
   };
 
   if (!activeWarehouse) {
-    return <AppLayout>⚠️ No warehouse selected</AppLayout>;
+    return <AppLayout>âš ï¸ No warehouse selected</AppLayout>;
   }
 
   // ✅ MULTI ENTRY - COLUMN DEFS (useMemo for stable reference)
@@ -2917,12 +3162,12 @@ export default function PickingPage() {
               )}
               {isCross && (
                 <Tooltip title="Already picked">
-                  <span style={{ color: '#dc2626', cursor: 'help' }}>⛔</span>
+                  <span style={{ color: '#dc2626', cursor: 'help' }}>â›”</span>
                 </Tooltip>
               )}
               {isDup && !isCross && (
                 <Tooltip title="Duplicate in grid">
-                  <span style={{ color: '#f59e0b', cursor: 'help' }}>⚠️</span>
+                  <span style={{ color: '#f59e0b', cursor: 'help' }}>âš ï¸</span>
                 </Tooltip>
               )}
             </div>
@@ -3384,7 +3629,7 @@ export default function PickingPage() {
                       opacity: 0.3,
                       mb: 1
                     }}>
-                      📭
+                      ðŸ“­
                     </Box>
                     <Typography variant="h5" sx={{ fontWeight: 600, color: isDarkMode ? '#94a3b8' : '#6b7280', mb: 0.5 }}>
                       No Data Found
@@ -3734,7 +3979,7 @@ export default function PickingPage() {
 
             {/* Column Settings Dialog */}
             <Dialog open={listColumnSettingsOpen} onClose={() => setListColumnSettingsOpen(false)} maxWidth="sm" fullWidth>
-              <DialogTitle>⚙️ Column Settings</DialogTitle>
+              <DialogTitle>âš™ï¸ Column Settings</DialogTitle>
               <DialogContent>
                 <Stack spacing={1} sx={{ mt: 1 }}>
                   {ALL_LIST_COLUMNS.map((col) => (
@@ -3794,7 +4039,7 @@ export default function PickingPage() {
               <DialogContent sx={{ mt: 2, pb: 1 }}>
                 <Stack spacing={2.5}>
                   <Alert severity="info" sx={{ fontSize: '0.8rem', py: 0.5 }}>
-                    Settings auto-save and persist after reload 💾
+                    Settings auto-save and persist after reload ðŸ’¾
                   </Alert>
 
                   {/* SORTABLE */}
@@ -3810,7 +4055,7 @@ export default function PickingPage() {
                       label={
                         <Box>
                           <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#1e293b' }}>
-                            ⬆️ Enable Sorting
+                            â¬†ï¸ Enable Sorting
                           </Typography>
                           <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem' }}>
                             Click column headers to sort ascending/descending
@@ -3835,7 +4080,7 @@ export default function PickingPage() {
                       label={
                         <Box>
                           <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#1e293b' }}>
-                            🔍 Enable Column Filters
+                            ðŸ” Enable Column Filters
                           </Typography>
                           <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem' }}>
                             Filter menu icon in column headers
@@ -3860,7 +4105,7 @@ export default function PickingPage() {
                       label={
                         <Box>
                           <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#1e293b' }}>
-                            ↔️ Enable Column Resize
+                            â†”ï¸ Enable Column Resize
                           </Typography>
                           <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem' }}>
                             Drag column borders to adjust width
@@ -3914,7 +4159,7 @@ export default function PickingPage() {
                   {/* Filters */}
                   <Box>
                     <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1, color: '#6b7280' }}>
-                      📊 Filters
+                      ðŸ“Š Filters
                     </Typography>
 
                     <Stack spacing={1.5}>
@@ -3968,7 +4213,7 @@ export default function PickingPage() {
                   {/* Action Buttons */}
                   <Box>
                     <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1, color: '#6b7280' }}>
-                      ⚡ Actions
+                      âš¡ Actions
                     </Typography>
 
                     <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 1 }}>
@@ -4106,23 +4351,23 @@ export default function PickingPage() {
                     }}
                   >
                     <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1, color: '#0ea5e9' }}>
-                      📋 Applied Filters Preview:
+                      ðŸ“‹ Applied Filters Preview:
                     </Typography>
                     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 1 }}>
                       {exportStartDate && (
-                        <Chip size="small" label={`📅 From: ${exportStartDate}`} sx={{ bgcolor: '#e0e7ff', color: '#3730a3' }} />
+                        <Chip size="small" label={`ðŸ“… From: ${exportStartDate}`} sx={{ bgcolor: '#e0e7ff', color: '#3730a3' }} />
                       )}
                       {exportEndDate && (
-                        <Chip size="small" label={`📅 To: ${exportEndDate}`} sx={{ bgcolor: '#e0e7ff', color: '#3730a3' }} />
+                        <Chip size="small" label={`ðŸ“… To: ${exportEndDate}`} sx={{ bgcolor: '#e0e7ff', color: '#3730a3' }} />
                       )}
                       {exportCustomer && (
-                        <Chip size="small" label={`👤 ${exportCustomer}`} sx={{ bgcolor: '#dcfce7', color: '#166534' }} />
+                        <Chip size="small" label={`ðŸ‘¤ ${exportCustomer}`} sx={{ bgcolor: '#dcfce7', color: '#166534' }} />
                       )}
                       {(exportBatchIds && exportBatchIds.length > 0) && (
-                        <Chip size="small" label={`📦 ${exportBatchIds.length} Batch${exportBatchIds.length > 1 ? 'es' : ''}`} sx={{ bgcolor: '#f3e8ff', color: '#6b21a8' }} />
+                        <Chip size="small" label={`ðŸ“¦ ${exportBatchIds.length} Batch${exportBatchIds.length > 1 ? 'es' : ''}`} sx={{ bgcolor: '#f3e8ff', color: '#6b21a8' }} />
                       )}
                       {!exportStartDate && !exportEndDate && !exportCustomer && (!exportBatchIds || exportBatchIds.length === 0) && (
-                        <Chip size="small" label="📊 All Data" sx={{ bgcolor: '#fee2e2', color: '#dc2626' }} />
+                        <Chip size="small" label="ðŸ“Š All Data" sx={{ bgcolor: '#fee2e2', color: '#dc2626' }} />
                       )}
                     </Box>
                   </Alert>
@@ -4263,7 +4508,7 @@ export default function PickingPage() {
                   }}>
                     <CardContent sx={{ py: 2, px: 3 }}>
                       <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#166534', mb: 1 }}>
-                        📊 Export Summary:
+                        ðŸ“Š Export Summary:
                       </Typography>
                       <Typography variant="body2" sx={{ color: '#166534' }}>
                         This will export filtered picking records to Excel with all selected criteria applied.
@@ -4316,21 +4561,85 @@ export default function PickingPage() {
 
         {/* ========== TAB 1: MULTI PICKING (AG GRID) ========== */}
         {currentTabCode === 'multi' && (
-          <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, gap: 0.5, mt: 0, overflow: 'hidden' }}>
+          <Box
+            ref={multiEntryContainerRef}
+            sx={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, gap: 0.5, mt: 0, overflow: 'hidden', bgcolor: isDarkMode ? '#0f172a' : '#f5f7fa' }}>
             {/* HEADER */}
             <Card sx={{ borderRadius: 1, boxShadow: isDarkMode ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.06)', bgcolor: isDarkMode ? '#1e293b' : 'white' }}>
               <CardContent sx={{ p: 1.2, '&:last-child': { pb: 1.2 } }}>
-                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', md: 'auto 1fr auto' }, gap: 1, alignItems: 'center', width: '100%' }}>
 
-                  {/* LEFT: Picking Date + Picker Name (mobile: span both columns on first row) */}
-                  <Box sx={{ gridColumn: { xs: '1 / span 2', md: '1 / span 1' }, display: 'flex', gap: { xs: 0.5, md: 1 }, alignItems: 'center', width: '100%' }}>
+                {/* ===== MOBILE LAYOUT ===== */}
+                <Box sx={{ display: { xs: 'block', md: 'none' } }}>
+                  <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, alignItems: 'center', width: '100%' }}>
+                    <Box sx={{ gridColumn: '1 / span 2', display: 'flex', gap: 0.5, alignItems: 'center', width: '100%' }}>
+                      <TextField
+                        label="Picking Date"
+                        type="date"
+                        value={pickingDate}
+                        onChange={(e) => setPickingDate(e.target.value)}
+                        size="small"
+                        sx={{ flex: '0 0 45%', minWidth: '45%' }}
+                        InputLabelProps={{ shrink: true }}
+                      />
+                      <TextField
+                        label="Picker Name"
+                        value={pickerName}
+                        onChange={(e) => setPickerName(e.target.value)}
+                        size="small"
+                        sx={{ flex: '1 1 55%', minWidth: 100 }}
+                      />
+                    </Box>
+                    <Box sx={{ gridColumn: '1 / span 1', width: '100%', mt: 1 }}>
+                      <CustomerAutocomplete
+                        value={selectedCustomer}
+                        onChange={(newValue) => setSelectedCustomer(newValue)}
+                        customers={customers}
+                        warehouseId={activeWarehouse?.id}
+                        onCustomerAdded={loadCustomers}
+                        size="small"
+                        label="Customer Name"
+                        placeholder="Type to search or select..."
+                        sx={{ width: '100%' }}
+                      />
+                    </Box>
+                    <Box sx={{ gridColumn: '2 / span 1', display: 'flex', gap: 0.5, justifyContent: 'flex-end', alignItems: 'center', pt: 0.5, flexWrap: 'wrap' }}>
+                      <Button size="small" variant="outlined" onClick={() => setPickingSettingsPanelOpen(true)} startIcon={<MenuIcon sx={{ fontSize: 14 }} />} sx={{ fontSize: '0.7rem', fontWeight: 700, height: 40 }}>Menu</Button>
+                      <Tooltip title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}>
+                        <IconButton size="small" onClick={toggleFullscreen} sx={{ width: 36, height: 36, borderRadius: 1, border: '1.5px solid', borderColor: isFullscreen ? '#f59e0b' : (isDarkMode ? '#475569' : '#d1d5db'), color: isFullscreen ? '#f59e0b' : (isDarkMode ? '#94a3b8' : '#64748b'), bgcolor: isFullscreen ? 'rgba(245, 158, 11, 0.1)' : 'transparent' }}>
+                          {isFullscreen ? <FullscreenExitIcon sx={{ fontSize: 18 }} /> : <FullscreenIcon sx={{ fontSize: 18 }} />}
+                        </IconButton>
+                      </Tooltip>
+                      <LiveViewPanel warehouseId={activeWarehouse?.id} pageType="picking" isDarkMode={isDarkMode} container={multiEntryContainerRef.current} />
+                    </Box>
+                  </Box>
+                </Box>
+
+                {/* ===== DESKTOP: Clean Single Row Layout ===== */}
+                <Stack
+                  direction="row"
+                  sx={{
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    width: '100%',
+                    display: { xs: 'none', md: 'flex' }
+                  }}
+                >
+                  {/* LEFT: Date + Picker + Customer Fields */}
+                  <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', flex: 1, maxWidth: 700 }}>
                     <TextField
                       label="Picking Date"
                       type="date"
                       value={pickingDate}
                       onChange={(e) => setPickingDate(e.target.value)}
                       size="small"
-                      sx={{ flex: { xs: '0 0 45%', md: '0 0 35%' }, minWidth: { xs: '45%', md: 80 }, maxWidth: { md: 150 } }}
+                      sx={{
+                        width: 150,
+                        '& .MuiInputBase-root': {
+                          height: 38,
+                          bgcolor: isDarkMode ? '#0f172a' : '#f8fafc',
+                          borderRadius: 1.5
+                        }
+                      }}
                       InputLabelProps={{ shrink: true }}
                     />
                     <TextField
@@ -4338,99 +4647,438 @@ export default function PickingPage() {
                       value={pickerName}
                       onChange={(e) => setPickerName(e.target.value)}
                       size="small"
-                      sx={{ flex: { xs: '1 1 55%', md: '1 1 65%' }, minWidth: { xs: 100, md: 100 } }}
+                      sx={{
+                        width: 150,
+                        '& .MuiInputBase-root': {
+                          height: 38,
+                          bgcolor: isDarkMode ? '#0f172a' : '#f8fafc',
+                          borderRadius: 1.5
+                        }
+                      }}
                     />
-                  </Box>
+                    <Box sx={{ flex: 1, minWidth: 200, maxWidth: 350 }}>
+                      <CustomerAutocomplete
+                        value={selectedCustomer}
+                        onChange={(newValue) => setSelectedCustomer(newValue)}
+                        customers={customers}
+                        warehouseId={activeWarehouse?.id}
+                        onCustomerAdded={loadCustomers}
+                        size="small"
+                        label="Customer Name"
+                        placeholder="Type to search or select..."
+                        sx={{ width: '100%' }}
+                      />
+                    </Box>
+                  </Stack>
 
-                  {/* MIDDLE: Customer (on mobile occupies left column second row) */}
-                  <Box sx={{ gridColumn: { xs: '1 / span 1', md: '2 / span 1' }, width: '100%', mt: { xs: 1, md: 0 } }}>
-                    <CustomerAutocomplete
-                      value={selectedCustomer}
-                      onChange={(newValue) => setSelectedCustomer(newValue)}
-                      customers={customers}
-                      warehouseId={activeWarehouse?.id}
-                      onCustomerAdded={loadCustomers}
-                      size="small"
-                      label="Customer Name"
-                      placeholder="Type to search or select..."
-                      sx={{ width: '100%' }}
-                    />
-                  </Box>
-
-                  {/* RIGHT: Actions */}
-                  <Box sx={{ gridColumn: { xs: '2 / span 1', md: '3 / span 1' }, display: 'flex', gap: 0.5, justifyContent: { xs: 'flex-end', md: 'flex-end' }, alignItems: 'center', pt: { xs: 0.5, md: 0 }, flexWrap: 'wrap' }}>
-                    {/* Ctrl+O Product Link Toggle */}
-                    <Tooltip title="Ctrl+O: Open product link for last scanned WSN" placement="top">
+                  {/* RIGHT: Menu Button + Fullscreen + Live View */}
+                  <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                    {/* Settings Menu Button */}
+                    <Tooltip title="Open Settings Panel" placement="top">
                       <Button
                         size="small"
-                        variant={ctrlOProductLinkEnabled ? 'contained' : 'outlined'}
-                        onClick={() => {
-                          const newValue = !ctrlOProductLinkEnabled;
-                          setCtrlOProductLinkEnabled(newValue);
-                          ctrlOProductLinkEnabledRef.current = newValue; // Update ref for instant effect
-                          localStorage.setItem('picking_ctrlOProductLinkEnabled', String(newValue));
-                          toast.success(`Ctrl+O ${newValue ? 'enabled' : 'disabled'}`);
-                        }}
-                        startIcon={<LinkIcon sx={{ fontSize: 14 }} />}
+                        variant="outlined"
+                        startIcon={<MenuIcon sx={{ fontSize: 18 }} />}
+                        onClick={() => setPickingSettingsPanelOpen(true)}
                         sx={{
-                          fontSize: '0.65rem',
+                          height: 38,
+                          px: 2,
+                          borderRadius: 1.5,
                           fontWeight: 600,
-                          px: 0.6,
-                          height: { xs: 40, md: 'auto' },
-                          minWidth: { xs: 92, md: 'auto' },
+                          fontSize: '0.8rem',
                           textTransform: 'none',
-                          ...(ctrlOProductLinkEnabled ? {
-                            background: 'linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%)',
-                            '&:hover': { background: 'linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%)' },
-                          } : {
-                            borderColor: '#8b5cf6',
-                            color: '#8b5cf6',
-                          }),
+                          borderColor: isDarkMode ? '#3b82f6' : '#1e40af',
+                          color: isDarkMode ? '#60a5fa' : '#1e40af',
+                          bgcolor: isDarkMode ? 'rgba(59, 130, 246, 0.08)' : 'rgba(30, 64, 175, 0.04)',
+                          '&:hover': {
+                            borderColor: '#3b82f6',
+                            bgcolor: 'rgba(59, 130, 246, 0.12)'
+                          }
                         }}
                       >
-                        Ctrl+O {ctrlOProductLinkEnabled ? 'ON' : 'OFF'}
+                        Menu
                       </Button>
                     </Tooltip>
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      onClick={() => setCategoryPivotOpen(true)}
-                      startIcon={<PieChartIcon sx={{ fontSize: 14 }} />}
-                      disabled={!multiRows.some((r: any) => r.wsn?.trim())}
+
+                    {/* Fullscreen Button */}
+                    <Tooltip title={isFullscreen ? "Exit fullscreen (Esc)" : "Enter fullscreen mode"} placement="top">
+                      <IconButton
+                        size="small"
+                        onClick={toggleFullscreen}
+                        sx={{
+                          width: 38,
+                          height: 38,
+                          borderRadius: 1.5,
+                          border: '1.5px solid',
+                          borderColor: isFullscreen ? '#f59e0b' : (isDarkMode ? '#475569' : '#d1d5db'),
+                          color: isFullscreen ? '#f59e0b' : (isDarkMode ? '#94a3b8' : '#64748b'),
+                          bgcolor: isFullscreen ? 'rgba(245, 158, 11, 0.1)' : 'transparent',
+                          '&:hover': {
+                            borderColor: '#f59e0b',
+                            bgcolor: 'rgba(245, 158, 11, 0.1)',
+                            color: '#f59e0b'
+                          }
+                        }}
+                      >
+                        {isFullscreen ? <FullscreenExitIcon sx={{ fontSize: 20 }} /> : <FullscreenIcon sx={{ fontSize: 20 }} />}
+                      </IconButton>
+                    </Tooltip>
+
+                    {/* Live View Panel */}
+                    <LiveViewPanel
+                      warehouseId={activeWarehouse?.id}
+                      pageType="picking"
+                      isDarkMode={isDarkMode}
+                      container={multiEntryContainerRef.current}
+                    />
+                  </Stack>
+                </Stack>
+
+                {/* SETTINGS DRAWER - Right Side Panel with Accordions */}
+                <Drawer
+                  anchor="right"
+                  open={pickingSettingsPanelOpen}
+                  onClose={() => setPickingSettingsPanelOpen(false)}
+                  container={multiEntryContainerRef.current}
+                  ModalProps={{
+                    container: multiEntryContainerRef.current,
+                    keepMounted: false,
+                  }}
+                  PaperProps={{
+                    sx: {
+                      width: { xs: '100%', sm: 380 },
+                      maxWidth: '100vw',
+                      bgcolor: isDarkMode ? '#1e293b' : '#ffffff',
+                      borderLeft: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0'
+                    }
+                  }}
+                >
+                  {/* Panel Header */}
+                  <Box sx={{
+                    p: 2,
+                    background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
+                    color: 'white',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    position: 'sticky',
+                    top: 0,
+                    zIndex: 10
+                  }}>
+                    <Typography sx={{ fontWeight: 700, fontSize: '1rem' }}>âš™ï¸ Settings</Typography>
+                    <IconButton size="small" onClick={() => setPickingSettingsPanelOpen(false)} sx={{ color: 'white' }}>
+                      <CloseIcon />
+                    </IconButton>
+                  </Box>
+
+                  {/* Panel Content with Accordions */}
+                  <Box sx={{ overflow: 'auto', flex: 1 }}>
+
+                    {/* â•â•â•â•â•â•â•â•â•â•â• COLUMNS ACCORDION â•â•â•â•â•â•â•â•â•â•â• */}
+                    <Accordion
+                      expanded={settingsPanelExpanded === 'columns'}
+                      onChange={(_, isExpanded) => setSettingsPanelExpanded(isExpanded ? 'columns' : false)}
+                      disableGutters
                       sx={{
-                        fontSize: '0.7rem',
-                        fontWeight: 700,
-                        px: 0.6,
-                        height: { xs: 40, md: 'auto' },
-                        textTransform: 'none',
-                        minWidth: { xs: 80, md: 'auto' },
-                        borderColor: '#7c3aed',
-                        color: '#7c3aed',
-                        '&:hover': { bgcolor: 'rgba(124, 58, 237, 0.1)', borderColor: '#7c3aed' },
-                        '&.Mui-disabled': { borderColor: '#94a3b8', color: '#94a3b8' }
+                        bgcolor: 'transparent',
+                        boxShadow: 'none',
+                        '&:before': { display: 'none' },
+                        borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0'
                       }}
                     >
-                      Pivot
-                    </Button>
-                    <Button size="small" variant="outlined" onClick={() => setMultiGridSettingsOpen(true)} startIcon={<SettingsIcon sx={{ fontSize: 14 }} />} sx={{ fontSize: '0.7rem', fontWeight: 700, px: 0.6, height: { xs: 40, md: 'auto' }, textTransform: 'none', minWidth: { xs: 80, md: 'auto' } }}>Grid</Button>
-                    <Button size="small" variant="outlined" onClick={() => setColumnSettingsOpen(true)} sx={{ fontSize: '0.7rem', fontWeight: 700, px: 0.6, height: { xs: 40, md: 'auto' }, textTransform: 'none', minWidth: { xs: 92, md: 'auto' } }}>⚙️ Columns</Button>
-                    <Button size="small" variant="outlined" startIcon={<DownloadIcon sx={{ fontSize: 14 }} />} onClick={exportMultiEntryToExcel} disabled={!multiRows.some((r: any) => r.wsn?.trim())} sx={{ fontSize: '0.7rem', fontWeight: 700, px: 0.6, height: { xs: 40, md: 'auto' }, minWidth: { xs: 92, md: 'auto' }, borderColor: '#10b981', color: '#10b981', '&:hover': { bgcolor: 'rgba(16, 185, 129, 0.1)', borderColor: '#10b981' }, '&.Mui-disabled': { borderColor: '#94a3b8', color: '#94a3b8' } }}>Export</Button>
-                    <Button size="small" variant="contained" onClick={add500Rows} sx={{ fontSize: '0.7rem', fontWeight: 700, background: '#ec4899', px: 0.6, height: { xs: 40, md: 'auto' }, minWidth: { xs: 92, md: 'auto' } }}>+500 Add Rows</Button>
+                      <AccordionSummary
+                        expandIcon={<ExpandMoreIcon sx={{ color: isDarkMode ? '#94a3b8' : '#64748b' }} />}
+                        sx={{
+                          px: 2,
+                          minHeight: 56,
+                          '&.Mui-expanded': { minHeight: 56 },
+                          '& .MuiAccordionSummary-content': { my: 1.5 }
+                        }}
+                      >
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                          <ViewColumnIcon sx={{ color: '#3b82f6', fontSize: 22 }} />
+                          <Box>
+                            <Typography sx={{ fontWeight: 700, fontSize: '0.9rem', color: isDarkMode ? '#e2e8f0' : '#1e293b' }}>Columns</Typography>
+                            <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>
+                              {visibleColumns.length} columns visible
+                            </Typography>
+                          </Box>
+                        </Box>
+                      </AccordionSummary>
+                      <AccordionDetails sx={{ px: 2, pb: 2, pt: 0 }}>
+                        <Box sx={{ maxHeight: 280, overflow: 'auto', pr: 1 }}>
+                          <Typography sx={{ fontWeight: 700, fontSize: '0.7rem', color: '#3b82f6', mb: 1, textTransform: 'uppercase' }}>Editable Fields</Typography>
+                          <Stack spacing={0.5} sx={{ mb: 2 }}>
+                            {EDITABLE_COLUMNS.map((col) => (
+                              <FormControlLabel
+                                key={col}
+                                control={
+                                  <Checkbox
+                                    size="small"
+                                    checked={visibleColumns.includes(col)}
+                                    onChange={(e) => {
+                                      if (e.target.checked) {
+                                        setVisibleColumns([...visibleColumns, col]);
+                                      } else {
+                                        setVisibleColumns(visibleColumns.filter((c: string) => c !== col));
+                                      }
+                                    }}
+                                    sx={{ py: 0.25, '&.Mui-checked': { color: '#3b82f6' } }}
+                                  />
+                                }
+                                label={<Typography sx={{ fontSize: '0.8rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>{col.replace(/_/g, ' ').toUpperCase()}</Typography>}
+                                sx={{ m: 0 }}
+                              />
+                            ))}
+                          </Stack>
+                          <Typography sx={{ fontWeight: 700, fontSize: '0.7rem', color: '#10b981', mb: 1, textTransform: 'uppercase' }}>Master Data Fields</Typography>
+                          <Stack spacing={0.5}>
+                            {ALL_MASTER_COLUMNS.map((col) => (
+                              <FormControlLabel
+                                key={col}
+                                control={
+                                  <Checkbox
+                                    size="small"
+                                    checked={visibleColumns.includes(col)}
+                                    onChange={(e) => {
+                                      if (e.target.checked) {
+                                        setVisibleColumns([...visibleColumns, col]);
+                                      } else {
+                                        setVisibleColumns(visibleColumns.filter((c: string) => c !== col));
+                                      }
+                                    }}
+                                    sx={{ py: 0.25, '&.Mui-checked': { color: '#10b981' } }}
+                                  />
+                                }
+                                label={<Typography sx={{ fontSize: '0.8rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>{col.replace(/_/g, ' ').toUpperCase()}</Typography>}
+                                sx={{ m: 0 }}
+                              />
+                            ))}
+                          </Stack>
+                        </Box>
+                      </AccordionDetails>
+                    </Accordion>
+
+                    {/* â•â•â•â•â•â•â•â•â•â•â• GRID SETTINGS ACCORDION â•â•â•â•â•â•â•â•â•â•â• */}
+                    <Accordion
+                      expanded={settingsPanelExpanded === 'grid'}
+                      onChange={(_, isExpanded) => setSettingsPanelExpanded(isExpanded ? 'grid' : false)}
+                      disableGutters
+                      sx={{
+                        bgcolor: 'transparent',
+                        boxShadow: 'none',
+                        '&:before': { display: 'none' },
+                        borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0'
+                      }}
+                    >
+                      <AccordionSummary
+                        expandIcon={<ExpandMoreIcon sx={{ color: isDarkMode ? '#94a3b8' : '#64748b' }} />}
+                        sx={{
+                          px: 2,
+                          minHeight: 56,
+                          '&.Mui-expanded': { minHeight: 56 },
+                          '& .MuiAccordionSummary-content': { my: 1.5 }
+                        }}
+                      >
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                          <TableChartIcon sx={{ color: '#f59e0b', fontSize: 22 }} />
+                          <Box>
+                            <Typography sx={{ fontWeight: 700, fontSize: '0.9rem', color: isDarkMode ? '#e2e8f0' : '#1e293b' }}>Grid Settings</Typography>
+                            <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>Sorting, filtering, resize</Typography>
+                          </Box>
+                        </Box>
+                      </AccordionSummary>
+                      <AccordionDetails sx={{ px: 2, pb: 2, pt: 0 }}>
+                        <Stack spacing={1.5}>
+                          <FormControlLabel
+                            control={
+                              <Checkbox
+                                checked={enableSorting}
+                                onChange={(e) => {
+                                  setEnableSorting(e.target.checked);
+                                  localStorage.setItem('picking_enableSorting', String(e.target.checked));
+                                }}
+                                sx={{ '&.Mui-checked': { color: '#f59e0b' } }}
+                              />
+                            }
+                            label={
+                              <Box>
+                                <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>â¬†ï¸ Enable Sorting</Typography>
+                                <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>Click headers to sort</Typography>
+                              </Box>
+                            }
+                          />
+                          <FormControlLabel
+                            control={
+                              <Checkbox
+                                checked={enableColumnFilters}
+                                onChange={(e) => {
+                                  setEnableColumnFilters(e.target.checked);
+                                  localStorage.setItem('picking_enableColumnFilters', String(e.target.checked));
+                                }}
+                                sx={{ '&.Mui-checked': { color: '#f59e0b' } }}
+                              />
+                            }
+                            label={
+                              <Box>
+                                <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>ðŸ” Enable Filtering</Typography>
+                                <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>Filter in column headers</Typography>
+                              </Box>
+                            }
+                          />
+                          <FormControlLabel
+                            control={
+                              <Checkbox
+                                checked={enableColumnResize}
+                                onChange={(e) => {
+                                  setEnableColumnResize(e.target.checked);
+                                  localStorage.setItem('picking_enableColumnResize', String(e.target.checked));
+                                }}
+                                sx={{ '&.Mui-checked': { color: '#f59e0b' } }}
+                              />
+                            }
+                            label={
+                              <Box>
+                                <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>â†”ï¸ Column Resize</Typography>
+                                <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>Drag borders to resize</Typography>
+                              </Box>
+                            }
+                          />
+                          <Button
+                            size="small"
+                            onClick={() => {
+                              setEnableSorting(true);
+                              setEnableColumnFilters(true);
+                              setEnableColumnResize(true);
+                              localStorage.setItem('picking_enableSorting', 'true');
+                              localStorage.setItem('picking_enableColumnFilters', 'true');
+                              localStorage.setItem('picking_enableColumnResize', 'true');
+                              toast.success('Grid settings reset');
+                            }}
+                            sx={{ alignSelf: 'flex-start', fontSize: '0.75rem', color: isDarkMode ? '#94a3b8' : '#64748b' }}
+                          >
+                            ðŸ”„ Reset to Default
+                          </Button>
+                        </Stack>
+                      </AccordionDetails>
+                    </Accordion>
+
+                    {/* â•â•â•â•â•â•â•â•â•â•â• SHORTCUTS ACCORDION (Ctrl+O) â•â•â•â•â•â•â•â•â•â•â• */}
+                    <Accordion
+                      expanded={settingsPanelExpanded === 'shortcuts'}
+                      onChange={(_, isExpanded) => setSettingsPanelExpanded(isExpanded ? 'shortcuts' : false)}
+                      disableGutters
+                      sx={{
+                        bgcolor: 'transparent',
+                        boxShadow: 'none',
+                        '&:before': { display: 'none' },
+                        borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0'
+                      }}
+                    >
+                      <AccordionSummary
+                        expandIcon={<ExpandMoreIcon sx={{ color: isDarkMode ? '#94a3b8' : '#64748b' }} />}
+                        sx={{
+                          px: 2,
+                          minHeight: 56,
+                          '&.Mui-expanded': { minHeight: 56 },
+                          '& .MuiAccordionSummary-content': { my: 1.5 }
+                        }}
+                      >
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                          <LinkIcon sx={{ color: '#8b5cf6', fontSize: 22 }} />
+                          <Box>
+                            <Typography sx={{ fontWeight: 700, fontSize: '0.9rem', color: isDarkMode ? '#e2e8f0' : '#1e293b' }}>Keyboard Shortcuts</Typography>
+                            <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>Ctrl+O and more</Typography>
+                          </Box>
+                        </Box>
+                      </AccordionSummary>
+                      <AccordionDetails sx={{ px: 2, pb: 2, pt: 0 }}>
+                        <Stack spacing={1.5}>
+                          <Box sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            p: 1.5,
+                            borderRadius: 1.5,
+                            bgcolor: ctrlOProductLinkEnabled ? (isDarkMode ? 'rgba(139, 92, 246, 0.15)' : 'rgba(139, 92, 246, 0.08)') : (isDarkMode ? '#0f172a' : '#f8fafc'),
+                            border: ctrlOProductLinkEnabled ? '1px solid #8b5cf6' : (isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0')
+                          }}>
+                            <Box>
+                              <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>Ctrl+O Product Link</Typography>
+                              <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>Opens FKT link for last scanned WSN</Typography>
+                            </Box>
+                            <Switch
+                              checked={ctrlOProductLinkEnabled}
+                              onChange={(e) => {
+                                const newValue = e.target.checked;
+                                setCtrlOProductLinkEnabled(newValue);
+                                ctrlOProductLinkEnabledRef.current = newValue;
+                                localStorage.setItem('picking_ctrlOProductLinkEnabled', String(newValue));
+                                toast.success(`Ctrl+O ${newValue ? 'enabled' : 'disabled'}`);
+                              }}
+                              sx={{ '& .MuiSwitch-switchBase.Mui-checked': { color: '#8b5cf6' }, '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { backgroundColor: '#8b5cf6' } }}
+                            />
+                          </Box>
+                        </Stack>
+                      </AccordionDetails>
+                    </Accordion>
+
+                    {/* â•â•â•â•â•â•â•â•â•â•â• PIVOT BUTTON â•â•â•â•â•â•â•â•â•â•â• */}
+                    <Box sx={{ p: 2, borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0' }}>
+                      <Button
+                        fullWidth
+                        variant="outlined"
+                        startIcon={<PieChartIcon />}
+                        onClick={() => { setCategoryPivotOpen(true); setPickingSettingsPanelOpen(false); }}
+                        disabled={!multiRows.some((r: any) => r.wsn?.trim())}
+                        sx={{
+                          height: 44,
+                          fontWeight: 600,
+                          borderColor: '#7c3aed',
+                          color: '#7c3aed',
+                          '&:hover': { bgcolor: 'rgba(124, 58, 237, 0.1)', borderColor: '#7c3aed' },
+                          '&.Mui-disabled': { borderColor: '#94a3b8', color: '#94a3b8' }
+                        }}
+                      >
+                        Category Pivot View
+                      </Button>
+                    </Box>
+
+                    {/* â•â•â•â•â•â•â•â•â•â•â• EXPORT BUTTON â•â•â•â•â•â•â•â•â•â•â• */}
+                    <Box sx={{ p: 2, borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0' }}>
+                      <Button
+                        fullWidth
+                        variant="contained"
+                        startIcon={<DownloadIcon />}
+                        onClick={() => { exportMultiEntryToExcel(); setPickingSettingsPanelOpen(false); }}
+                        disabled={!multiRows.some((r: any) => r.wsn?.trim())}
+                        sx={{
+                          height: 44,
+                          background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                          fontWeight: 600,
+                          '&:hover': { background: 'linear-gradient(135deg, #059669 0%, #047857 100%)' },
+                          '&.Mui-disabled': { background: '#94a3b8' }
+                        }}
+                      >
+                        Export to Excel
+                      </Button>
+                    </Box>
                   </Box>
-                </Box>
+                </Drawer>
+
               </CardContent>
             </Card>
 
             {/* ERROR */}
             {crossWarehouseWSNs.size > 0 && (
               <Alert severity="error" sx={{ mb: 0.5, fontWeight: 700 }}>
-                ❌ Some WSNs are already picked. Remove them to proceed.
+                âŒ Some WSNs are already picked. Remove them to proceed.
               </Alert>
             )}
 
             {gridDuplicateWSNs.size > 0 && (
               <Alert severity="warning" sx={{ mb: 0.5, fontWeight: 700 }}>
-                ⚠️ Duplicate WSNs found inside the grid.
+                âš ï¸ Duplicate WSNs found inside the grid.
               </Alert>
             )}
 
@@ -4495,7 +5143,7 @@ export default function PickingPage() {
                 '& .ag-cell-range-selected': { backgroundColor: isDarkMode ? 'rgba(245, 158, 11, 0.25) !important' : '#fef3c7 !important' },
                 '& .ag-cell-range-single-cell': { backgroundColor: isDarkMode ? 'rgba(245, 158, 11, 0.2) !important' : '#fffbeb !important' },
 
-                // ⚡ EXCEL-LIKE: Custom range selection CSS classes
+                // âš¡ EXCEL-LIKE: Custom range selection CSS classes
                 '& .custom-range-selected': {
                   backgroundColor: isDarkMode ? 'rgba(251, 191, 36, 0.4) !important' : 'rgba(245, 158, 11, 0.2) !important',
                 },
@@ -4562,7 +5210,7 @@ export default function PickingPage() {
                     if (gridDuplicateWSNs.has(wsn)) return field === 'wsn';
                     return EDITABLE_COLUMNS.includes(field);
                   },
-                  // ⚡ EXCEL-LIKE: Optimized cell style for selection
+                  // âš¡ EXCEL-LIKE: Optimized cell style for selection
                   cellStyle: (params: any) => {
                     const bounds = selectionBoundsRef.current;
                     if (!bounds) return undefined;
@@ -4616,7 +5264,7 @@ export default function PickingPage() {
                   },
                 }}
 
-                // ⚡ EXCEL-LIKE: Mouse events for drag selection
+                // âš¡ EXCEL-LIKE: Mouse events for drag selection
                 onCellMouseDown={(event) => {
                   const rowIndex = event.rowIndex;
                   const colId = event.column?.getColId();
@@ -4638,7 +5286,7 @@ export default function PickingPage() {
                   handleCellClick(rowIndex, colId, browserEvent?.shiftKey || false);
                 }}
 
-                // ⚡ SMOOTH SCROLL: Detect user manual scroll
+                // âš¡ SMOOTH SCROLL: Detect user manual scroll
                 onBodyScroll={(event) => {
                   if (!isAutoScrollingRef.current) {
                     const currentScrollTop = event.top;
@@ -4661,7 +5309,7 @@ export default function PickingPage() {
                 ensureDomOrder={true}
                 suppressMovableColumns={true}
                 singleClickEdit={true}
-                // ⚡ PERFORMANCE: Optimizations for smooth grid experience
+                // âš¡ PERFORMANCE: Optimizations for smooth grid experience
                 rowBuffer={30}
                 animateRows={false}
                 suppressScrollOnNewData={true}
@@ -4742,12 +5390,37 @@ export default function PickingPage() {
                 onCellEditingStopped={async (event: any) => {
                   const field = event.colDef?.field;
                   const value = event.value;
+                  const oldValue = event.oldValue;
                   const node = event.node;
                   const rowIndex = event.rowIndex;
 
                   if (field !== 'wsn') return;
 
                   const wsn = value?.trim()?.toUpperCase();
+                  const existingWSN = oldValue?.trim()?.toUpperCase();
+
+                  // ====== WSN OVERWRITE CHECK ======
+                  // If user is replacing a valid WSN with a different valid WSN, show warning dialog
+                  if (existingWSN && wsn && existingWSN !== wsn) {
+                    // Revert cell to original value until user confirms
+                    node.setDataValue('wsn', existingWSN);
+                    // Store pending WSN data
+                    pendingWSNRef.current = { wsn, rowIndex, event };
+                    // Show dialog with existing product info
+                    setWsnOverwriteDialog({
+                      open: true,
+                      existingWSN,
+                      newWSN: wsn,
+                      existingData: {
+                        product_title: node.data?.product_title || '',
+                        brand: node.data?.brand || '',
+                        mrp: node.data?.mrp || '',
+                        fsp: node.data?.fsp || '',
+                      },
+                      rowIndex
+                    });
+                    return;
+                  }
 
                   // If WSN is cleared/deleted, reset all product fields
                   if (!wsn) {
@@ -4834,7 +5507,7 @@ export default function PickingPage() {
                         fontWeight: 600,
                         fontSize: '14px',
                       },
-                      icon: '⚠️',
+                      icon: 'âš ï¸',
                     });
 
                     // Clear the cell and master columns
@@ -4872,7 +5545,7 @@ export default function PickingPage() {
                       const existsHere = resp.data?.exists;
 
                       if (existsHere) {
-                        // Same-warehouse duplicate → warn + clear
+                        // Same-warehouse duplicate â†’ warn + clear
                         toast(`WSN ${wsn} already picked in this warehouse`, {
                           duration: 2500,
                           style: {
@@ -4884,11 +5557,11 @@ export default function PickingPage() {
                             fontWeight: 600,
                             fontSize: '14px',
                           },
-                          icon: '⚠️',
+                          icon: 'âš ï¸',
                         });
 
                       } else {
-                        // Cross-warehouse → error + clear
+                        // Cross-warehouse â†’ error + clear
                         toast.error(`WSN ${wsn} already picked in another warehouse`, {
                           duration: 3000,
                           style: {
@@ -4900,7 +5573,7 @@ export default function PickingPage() {
                             fontWeight: 600,
                             fontSize: '14px',
                           },
-                          icon: '🚫',
+                          icon: 'ðŸš«',
                         });
                       }
 
@@ -4944,7 +5617,7 @@ export default function PickingPage() {
                     const currentWsn = node?.data?.wsn?.trim()?.toUpperCase();
                     if (!currentWsn || currentWsn !== wsn) return;
 
-                    // 🔥 UPDATE AG GRID CELLS DIRECTLY
+                    // ðŸ”¥ UPDATE AG GRID CELLS DIRECTLY
                     node.setDataValue('product_title', d.product_title ?? '');
                     node.setDataValue('brand', d.brand ?? '');
                     node.setDataValue('cms_vertical', d.cms_vertical ?? '');
@@ -4967,14 +5640,14 @@ export default function PickingPage() {
                     node.setDataValue('yield_value', d.yield_value ?? '');
                     node.setDataValue('source', d.source ?? '');
 
-                    // ⚡ Track last scanned row for Ctrl+O product link
+                    // âš¡ Track last scanned row for Ctrl+O product link
                     lastScannedRowRef.current = {
                       wsn,
                       fkt_link: d.fkt_link ?? '',
                       product_title: d.product_title ?? '',
                     };
 
-                    // 🔥 ALSO UPDATE REACT STATE FOR CONSISTENCY
+                    // ðŸ”¥ ALSO UPDATE REACT STATE FOR CONSISTENCY
                     setMultiRows((prev) => {
                       const rows = [...prev];
                       rows[rowIndex] = {
@@ -5069,7 +5742,7 @@ export default function PickingPage() {
                           return rows;
                         });
 
-                        toast.success(`✓ Source data loaded from Inbound for ${wsn}`);
+                        toast.success(`âœ“ Source data loaded from Inbound for ${wsn}`);
                         return;
                       } catch (inErr) {
                         console.error('Inbound fallback failed:', inErr);
@@ -5096,7 +5769,7 @@ export default function PickingPage() {
               py: 0.5,
               flexShrink: 0
             }}>
-              {/* ⚡ EXCEL-LIKE: Selection Statistics */}
+              {/* âš¡ EXCEL-LIKE: Selection Statistics */}
               {selectionStats && (
                 <Box sx={{
                   display: 'flex',
@@ -5144,6 +5817,27 @@ export default function PickingPage() {
                 Clear Draft
               </Button>
 
+              {/* +500 ROWS BUTTON - Desktop only */}
+              <Button
+                size="small"
+                variant="outlined"
+                onClick={add500Rows}
+                sx={{
+                  display: { xs: 'none', md: 'flex' },
+                  height: 32,
+                  fontSize: '0.75rem',
+                  fontWeight: 700,
+                  borderColor: '#ec4899',
+                  color: '#ec4899',
+                  '&:hover': {
+                    borderColor: '#db2777',
+                    bgcolor: 'rgba(236, 72, 153, 0.1)'
+                  }
+                }}
+              >
+                +500 Rows
+              </Button>
+
               {/* SUBMIT BUTTON */}
               <Button
                 variant="contained"
@@ -5174,7 +5868,7 @@ export default function PickingPage() {
           PaperProps={{ sx: { borderRadius: 2 } }}
         >
           <DialogTitle sx={{ fontWeight: 800, background: 'linear-gradient(135deg, #f59e0b 0%, #ea580c 100%)', color: 'white', py: 2 }}>
-            📋 Column Settings
+            ðŸ“‹ Column Settings
           </DialogTitle>
           <DialogContent sx={{ mt: 2 }}>
             <Stack spacing={1.5}>
@@ -5182,7 +5876,7 @@ export default function PickingPage() {
                 Editable Columns
               </Typography>
 
-              {/* Locked S.No column — always visible */}
+              {/* Locked S.No column â€” always visible */}
               <FormControlLabel
                 key="sno"
                 control={<Checkbox checked={visibleColumns.includes('sno')} disabled />}
@@ -5269,7 +5963,7 @@ export default function PickingPage() {
           <DialogContent sx={{ mt: 2, pb: 1 }}>
             <Stack spacing={2.5}>
               <Alert severity="info" sx={{ fontSize: '0.8rem', py: 0.5 }}>
-                Settings auto-save and persist after reload 💾
+                Settings auto-save and persist after reload ðŸ’¾
               </Alert>
 
               {/* SORTABLE */}
@@ -5285,7 +5979,7 @@ export default function PickingPage() {
                   label={
                     <Box>
                       <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: isDarkMode ? '#f1f5f9' : '#1e293b' }}>
-                        ⬆️ Enable Sorting
+                        â¬†ï¸ Enable Sorting
                       </Typography>
                       <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem' }}>
                         Click column headers to sort ascending/descending
@@ -5310,7 +6004,7 @@ export default function PickingPage() {
                   label={
                     <Box>
                       <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: isDarkMode ? '#f1f5f9' : '#1e293b' }}>
-                        🔍 Enable Column Filters
+                        ðŸ” Enable Column Filters
                       </Typography>
                       <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem' }}>
                         Filter menu icon in column headers
@@ -5335,7 +6029,7 @@ export default function PickingPage() {
                   label={
                     <Box>
                       <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: isDarkMode ? '#f1f5f9' : '#1e293b' }}>
-                        ↔️ Enable Column Resize
+                        â†”ï¸ Enable Column Resize
                       </Typography>
                       <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem' }}>
                         Drag column borders to adjust width
@@ -5447,7 +6141,7 @@ export default function PickingPage() {
                     }),
                   }}
                 >
-                  📁 Category
+                  ðŸ“ Category
                 </Button>
                 <Button
                   size="small"
@@ -5470,7 +6164,7 @@ export default function PickingPage() {
                     }),
                   }}
                 >
-                  🏷️ Brand
+                  ðŸ·ï¸ Brand
                 </Button>
               </Box>
             </Box>
@@ -5497,7 +6191,7 @@ export default function PickingPage() {
                           userSelect: 'none',
                         }}
                       >
-                        {pivotGroupBy === 'brand' ? 'Brand' : 'Category'} {categoryPivotSortBy === 'category' && (categoryPivotSortDir === 'asc' ? '↑' : '↓')}
+                        {pivotGroupBy === 'brand' ? 'Brand' : 'Category'} {categoryPivotSortBy === 'category' && (categoryPivotSortDir === 'asc' ? 'â†‘' : 'â†“')}
                       </TableCell>
                       <TableCell
                         align="right"
@@ -5511,7 +6205,7 @@ export default function PickingPage() {
                           userSelect: 'none',
                         }}
                       >
-                        Qty {categoryPivotSortBy === 'qty' && (categoryPivotSortDir === 'asc' ? '↑' : '↓')}
+                        Qty {categoryPivotSortBy === 'qty' && (categoryPivotSortDir === 'asc' ? 'â†‘' : 'â†“')}
                       </TableCell>
                       <TableCell
                         align="right"
@@ -5525,7 +6219,7 @@ export default function PickingPage() {
                           userSelect: 'none',
                         }}
                       >
-                        Total FSP {categoryPivotSortBy === 'fsp' && (categoryPivotSortDir === 'asc' ? '↑' : '↓')}
+                        Total FSP {categoryPivotSortBy === 'fsp' && (categoryPivotSortDir === 'asc' ? 'â†‘' : 'â†“')}
                       </TableCell>
                       <TableCell
                         align="right"
@@ -5539,7 +6233,7 @@ export default function PickingPage() {
                           userSelect: 'none',
                         }}
                       >
-                        Total MRP {categoryPivotSortBy === 'mrp' && (categoryPivotSortDir === 'asc' ? '↑' : '↓')}
+                        Total MRP {categoryPivotSortBy === 'mrp' && (categoryPivotSortDir === 'asc' ? 'â†‘' : 'â†“')}
                       </TableCell>
                       <TableCell
                         align="center"
@@ -5592,13 +6286,13 @@ export default function PickingPage() {
                           color: isDarkMode ? '#4ade80' : '#16a34a',
                           fontWeight: 600,
                         }}>
-                          ₹{cat.fsp.toLocaleString()}
+                          â‚¹{cat.fsp.toLocaleString()}
                         </TableCell>
                         <TableCell align="right" sx={{
                           color: isDarkMode ? '#f97316' : '#ea580c',
                           fontWeight: 600,
                         }}>
-                          ₹{cat.mrp.toLocaleString()}
+                          â‚¹{cat.mrp.toLocaleString()}
                         </TableCell>
                         <TableCell align="center">
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -5654,13 +6348,13 @@ export default function PickingPage() {
                         fontWeight: 700,
                         color: '#4ade80',
                       }}>
-                        ₹{categoryPivotData.grandTotal.fsp.toLocaleString()}
+                        â‚¹{categoryPivotData.grandTotal.fsp.toLocaleString()}
                       </TableCell>
                       <TableCell align="right" sx={{
                         fontWeight: 700,
                         color: '#fbbf24',
                       }}>
-                        ₹{categoryPivotData.grandTotal.mrp.toLocaleString()}
+                        â‚¹{categoryPivotData.grandTotal.mrp.toLocaleString()}
                       </TableCell>
                       <TableCell align="center" sx={{
                         fontWeight: 700,
@@ -5716,6 +6410,14 @@ export default function PickingPage() {
             emptySubMessage="Batches will appear here after picking operations"
           />
         )}
+
+        {/* WSN Overwrite Warning Dialog */}
+        <WSNOverwriteDialog
+          data={wsnOverwriteDialog}
+          onCancel={handleOverwriteCancel}
+          onReplace={handleOverwriteReplace}
+          onAddToNextRow={handleOverwriteAddToNextRow}
+        />
       </Box>
     </AppLayout >
   );

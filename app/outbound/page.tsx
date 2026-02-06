@@ -46,6 +46,10 @@ import {
     Pagination,
     InputBase,
     Fade,
+    Drawer,
+    Accordion,
+    AccordionSummary,
+    AccordionDetails,
 } from '@mui/material';
 import {
     Download as DownloadIcon,
@@ -65,6 +69,12 @@ import {
     LastPage,
     AccessTime,
     PieChart as PieChartIcon,
+    Fullscreen as FullscreenIcon,
+    FullscreenExit as FullscreenExitIcon,
+    Menu as MenuIcon,
+    ViewColumn as ViewColumnIcon,
+    TableChart as TableChartIcon,
+    Link as LinkIcon,
 } from '@mui/icons-material';
 import { outboundAPI, customerAPI } from '@/lib/api';
 import { useWarehouse } from '@/app/context/WarehouseContext';
@@ -72,7 +82,8 @@ import { getStoredUser } from '@/lib/auth';
 
 import AppLayout from '@/components/AppLayout';
 import localforage from 'localforage';
-import { StandardPageHeader, StandardTabs, BatchManagementTab, CustomerAutocomplete } from '@/components';
+import { StandardPageHeader, StandardTabs, BatchManagementTab, CustomerAutocomplete, WSNOverwriteDialog } from '@/components';
+import type { WSNOverwriteDialogData } from '@/components';
 import { useTableRowHeight } from '@/app/context/AppearanceContext';
 import toast, { Toaster } from 'react-hot-toast';
 // ⚡ OPTIMIZED: XLSX not needed here - exports handled server-side
@@ -85,7 +96,9 @@ import 'ag-grid-community/styles/ag-theme-quartz.css';
 // Register AG Grid modules ONCE (include ClientSideRowModel for client-side features)
 ModuleRegistry.registerModules([AllCommunityModule, ClientSideRowModelModule]);
 import { useOutboundPermissions } from '@/hooks/usePagePermissions';
+import { useFullscreen, useLiveSession } from '@/hooks';
 import BulkUploadCard from '@/components/BulkUploadCard';
+import LiveViewPanel from '@/components/LiveViewPanel';
 
 // ⚡ OUTBOUND INVENTORY CACHE - for instant WSN lookups
 import {
@@ -238,11 +251,15 @@ export default function OutboundPage() {
     const currentTabCode = visibleTabCodes[tabValue];
     const gridRef = useRef<any>(null);  // For Multi Entry grid
     const listGridRef = useRef<any>(null);  // Separate ref for List grid
+    const multiEntryContainerRef = useRef<HTMLDivElement>(null);  // Ref for fullscreen mode
     const columnApiRef = useRef<any>(null);
     const hasAutoFittedRef = useRef(false); // Track if auto-fit has been done
     const wsnInputRef = useRef<HTMLInputElement>(null);
     const wsnFetchTimerRef = useRef<NodeJS.Timeout | null>(null);
     const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+    // ====== FULLSCREEN MODE ======
+    const { isFullscreen, toggleFullscreen } = useFullscreen(multiEntryContainerRef);
 
     // ⚡ EXCEL-LIKE: Refs for smooth scrolling and selection
     const userScrolledRef = useRef(false);
@@ -329,6 +346,10 @@ export default function OutboundPage() {
 
     // ⚡ PERFORMANCE: Debounce ref for selection stats calculation
     const selectionStatsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+    // ====== WSN OVERWRITE DIALOG STATE ======
+    const [wsnOverwriteDialog, setWsnOverwriteDialog] = useState<WSNOverwriteDialogData | null>(null);
+    const pendingWSNRef = useRef<{ wsn: string; rowIndex: number; params: any } | null>(null);
 
     // ====== SINGLE ENTRY STATE ======
     const [singleWSN, setSingleWSN] = useState('');
@@ -458,6 +479,43 @@ export default function OutboundPage() {
     const [existingOutboundWSNs, setExistingOutboundWSNs] = useState<Set<string>>(new Set());
     const [duplicateWSNs, setDuplicateWSNs] = useState<Set<string>>(new Set());
 
+    // ====== LIVE VIEW SESSION ======
+    const isOnMultiTab = visibleTabCodes[tabValue] === 'multi';
+    const { startSession: startLiveSession, updateEntries: updateLiveEntries, endSession: endLiveSession, isActive: isLiveSessionActive } = useLiveSession({
+        warehouseId: activeWarehouse?.id,
+        pageType: 'outbound',
+        enabled: isOnMultiTab && !!activeWarehouse?.id,
+    });
+
+    // Auto-start live session when entering Multi Entry tab
+    useEffect(() => {
+        if (isOnMultiTab && activeWarehouse?.id && !isLiveSessionActive) {
+            startLiveSession();
+        } else if (!isOnMultiTab && isLiveSessionActive) {
+            endLiveSession();
+        }
+    }, [isOnMultiTab, activeWarehouse?.id, isLiveSessionActive, startLiveSession, endLiveSession]);
+
+    // Broadcast entries when multiRows change
+    useEffect(() => {
+        if (isLiveSessionActive && isOnMultiTab) {
+            const validEntries = multiRows
+                .map((row, idx) => ({
+                    wsn: row.wsn || '',
+                    product_title: row.product_title || '',
+                    brand: row.brand || '',
+                    mrp: row.mrp,
+                    fsp: row.fsp,
+                    cms_vertical: row.cms_vertical || '',
+                    fkqc_remarks: row.fkqc_remark || '',
+                    p_type: row.p_type || '',
+                    row_index: idx,
+                }))
+                .filter(e => e.wsn.trim());
+            updateLiveEntries(validEntries);
+        }
+    }, [multiRows, isLiveSessionActive, isOnMultiTab, updateLiveEntries]);
+
     // ---- Draft / Autosave (IndexedDB via localForage) ----
     const [draftSavedAt, setDraftSavedAt] = useState<number | null>(null);
     const [draftSaving, setDraftSaving] = useState(false);
@@ -469,6 +527,9 @@ export default function OutboundPage() {
     const [crossWarehouseWSNs, setCrossWarehouseWSNs] = useState<Set<string>>(new Set());
     const [visibleColumns, setVisibleColumns] = useState<string[]>(DEFAULT_MULTI_COLUMNS);
     const [columnSettingsOpen, setColumnSettingsOpen] = useState(false);
+    // Settings Panel state for Multi Entry
+    const [outboundSettingsPanelOpen, setOutboundSettingsPanelOpen] = useState(false);
+    const [settingsPanelExpanded, setSettingsPanelExpanded] = useState<string | false>('columns');
 
     // ====== EXPORT CONFIRMATION DIALOG ======
     const [exportConfirmOpen, setExportConfirmOpen] = useState(false);
@@ -2623,6 +2684,30 @@ export default function OutboundPage() {
                     return;
                 }
 
+                // ====== WSN OVERWRITE CHECK ======
+                // If user is replacing a valid WSN with a different valid WSN, show warning dialog
+                const existingWSN = oldValue?.trim()?.toUpperCase();
+                if (existingWSN && wsn && existingWSN !== wsn) {
+                    // Revert cell to original value until user confirms
+                    rowNode.setDataValue('wsn', existingWSN);
+                    // Store pending WSN data
+                    pendingWSNRef.current = { wsn, rowIndex, params };
+                    // Show dialog with existing product info
+                    setWsnOverwriteDialog({
+                        open: true,
+                        existingWSN,
+                        newWSN: wsn,
+                        existingData: {
+                            product_title: rowData?.product_title || '',
+                            brand: rowData?.brand || '',
+                            mrp: rowData?.mrp || '',
+                            fsp: rowData?.fsp || '',
+                        },
+                        rowIndex
+                    });
+                    return;
+                }
+
                 if (!activeWarehouse) return;
 
                 // Build current grid snapshot
@@ -2864,6 +2949,91 @@ export default function OutboundPage() {
         },
         [gridDuplicateWSNs, crossWarehouseWSNs, highlightedRows]
     );
+
+    // ====== WSN OVERWRITE DIALOG HANDLERS ======
+    const handleOverwriteCancel = () => {
+        // User cancelled - keep existing WSN
+        if (pendingWSNRef.current) {
+            const { rowIndex, params } = pendingWSNRef.current;
+            setTimeout(() => {
+                params?.api?.startEditingCell({ rowIndex, colKey: 'wsn' });
+            }, 100);
+        }
+        setWsnOverwriteDialog(null);
+        pendingWSNRef.current = null;
+    };
+
+    const handleOverwriteReplace = async () => {
+        // User chose to replace - proceed with new WSN
+        if (pendingWSNRef.current && activeWarehouse?.id) {
+            const { wsn, rowIndex, params } = pendingWSNRef.current;
+            const rowNode = params?.api?.getDisplayedRowAtIndex(rowIndex);
+            if (rowNode) {
+                rowNode.setDataValue('wsn', wsn);
+                // Fetch and apply master data (cache function handles API fallback)
+                try {
+                    const data = await getAvailableInventoryByWSN(wsn, activeWarehouse.id);
+                    if (data) {
+                        const updatedData = { ...rowNode.data, ...data, wsn };
+                        rowNode.setData(updatedData);
+                        // Sync to React state
+                        const updatedRows: any[] = [];
+                        gridRef.current?.api.forEachNode((node: any) => { if (node.data) updatedRows.push(node.data); });
+                        setMultiRows(updatedRows);
+                        checkDuplicates(updatedRows);
+                    }
+                } catch { /* ignore */ }
+                // Move to next row
+                setTimeout(() => {
+                    params?.api?.startEditingCell({ rowIndex: rowIndex + 1, colKey: 'wsn' });
+                }, 100);
+            }
+        }
+        setWsnOverwriteDialog(null);
+        pendingWSNRef.current = null;
+    };
+
+    const handleOverwriteAddToNextRow = async () => {
+        // User chose to add new WSN to next empty row
+        if (pendingWSNRef.current && activeWarehouse?.id) {
+            const { wsn, params } = pendingWSNRef.current;
+            // Find next empty row
+            let nextEmptyIndex = -1;
+            for (let i = 0; i < multiRows.length; i++) {
+                if (!multiRows[i].wsn?.trim()) {
+                    nextEmptyIndex = i;
+                    break;
+                }
+            }
+            if (nextEmptyIndex >= 0) {
+                const rowNode = params?.api?.getDisplayedRowAtIndex(nextEmptyIndex);
+                if (rowNode) {
+                    rowNode.setDataValue('wsn', wsn);
+                    // Fetch master data (cache function handles API fallback)
+                    try {
+                        const data = await getAvailableInventoryByWSN(wsn, activeWarehouse.id);
+                        if (data) {
+                            const updatedData = { ...rowNode.data, ...data, wsn };
+                            rowNode.setData(updatedData);
+                            // Sync to React state
+                            const updatedRows: any[] = [];
+                            gridRef.current?.api.forEachNode((node: any) => { if (node.data) updatedRows.push(node.data); });
+                            setMultiRows(updatedRows);
+                            checkDuplicates(updatedRows);
+                        }
+                    } catch { /* ignore */ }
+                    // Move to row after new one
+                    setTimeout(() => {
+                        params?.api?.startEditingCell({ rowIndex: nextEmptyIndex + 1, colKey: 'wsn' });
+                    }, 100);
+                }
+            } else {
+                toast.error('No empty row available');
+            }
+        }
+        setWsnOverwriteDialog(null);
+        pendingWSNRef.current = null;
+    };
 
     // ✅ MULTI ENTRY SUBMIT
     const handleMultiSubmit = async () => {
@@ -5553,17 +5723,19 @@ export default function OutboundPage() {
 
                 {/* ====== TAB 3: MULTI ENTRY (AG GRID) ====== */}
                 {currentTabCode === 'multi' && (
-                    <Box sx={{
-                        display: 'flex',
-                        flexDirection: 'column',
-                        flex: 1,
-                        minHeight: 0,
-                        overflow: 'hidden',
-                        bgcolor: isDarkMode ? '#0f172a' : '#f5f7fa',
-                        // Prevent white flash during tab switch
-                        '& *': { transition: 'none !important' },
-                        '& .ag-root-wrapper': { backgroundColor: isDarkMode ? '#1e293b !important' : '#ffffff !important' },
-                    }}>
+                    <Box
+                        ref={multiEntryContainerRef}
+                        sx={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            flex: 1,
+                            minHeight: 0,
+                            overflow: 'hidden',
+                            bgcolor: isDarkMode ? '#0f172a' : '#f5f7fa',
+                            // Prevent white flash during tab switch
+                            '& *': { transition: 'none !important' },
+                            '& .ag-root-wrapper': { backgroundColor: isDarkMode ? '#1e293b !important' : '#ffffff !important' },
+                        }}>
 
                         {/* Common Fields */}
                         <Card sx={{ mb: 0.5, borderRadius: 1, boxShadow: isDarkMode ? '0 1px 3px rgba(0,0,0,0.3)' : '0 1px 3px rgba(0,0,0,0.05)', bgcolor: isDarkMode ? '#1e293b' : 'white' }}>
@@ -5637,10 +5809,10 @@ export default function OutboundPage() {
                                         </Box>
                                     </Box>
                                 ) : (
-                                    /* Desktop: Two sections - Left (inputs) | Right (buttons) - like Inbound */
-                                    <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', width: '100%' }}>
+                                    /* Desktop: Clean Single Row Layout - like Inbound */
+                                    <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
                                         {/* LEFT: Input Fields */}
-                                        <Stack direction="row" spacing={1} sx={{ flex: '0 0 auto' }}>
+                                        <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', flex: 1, maxWidth: 550 }}>
                                             <TextField
                                                 label="Dispatch Date *"
                                                 type="date"
@@ -5649,237 +5821,478 @@ export default function OutboundPage() {
                                                 InputLabelProps={{ shrink: true }}
                                                 size="small"
                                                 required
-                                                sx={{ width: 145, '& .MuiOutlinedInput-root': { height: 34 } }}
+                                                sx={{
+                                                    width: 150,
+                                                    '& .MuiInputBase-root': {
+                                                        height: 38,
+                                                        bgcolor: isDarkMode ? '#0f172a' : '#f8fafc',
+                                                        borderRadius: 1.5
+                                                    }
+                                                }}
                                             />
-                                            <CustomerAutocomplete
-                                                value={selectedCustomer}
-                                                onChange={(newValue) => setSelectedCustomer(newValue)}
-                                                customers={customers}
-                                                warehouseId={activeWarehouse?.id}
-                                                onCustomerAdded={loadCustomers}
-                                                size="small"
-                                                label="Customer Name *"
-                                                placeholder="Type or select..."
-                                                sx={{ width: 180, '& .MuiOutlinedInput-root': { height: 34 } }}
-                                            />
+                                            <Box sx={{ flex: 1, minWidth: 180, maxWidth: 240 }}>
+                                                <CustomerAutocomplete
+                                                    value={selectedCustomer}
+                                                    onChange={(newValue) => setSelectedCustomer(newValue)}
+                                                    customers={customers}
+                                                    warehouseId={activeWarehouse?.id}
+                                                    onCustomerAdded={loadCustomers}
+                                                    size="small"
+                                                    label="Customer Name *"
+                                                    placeholder="Type or select..."
+                                                    sx={{ width: '100%' }}
+                                                />
+                                            </Box>
                                             <TextField
                                                 label="Vehicle No"
                                                 value={commonVehicle}
                                                 onChange={(e) => setCommonVehicle(e.target.value.toUpperCase())}
                                                 size="small"
                                                 placeholder="Optional"
-                                                sx={{ width: 110, '& .MuiOutlinedInput-root': { height: 34 } }}
+                                                sx={{
+                                                    width: 120,
+                                                    '& .MuiInputBase-root': {
+                                                        height: 38,
+                                                        bgcolor: isDarkMode ? '#0f172a' : '#f8fafc',
+                                                        borderRadius: 1.5
+                                                    }
+                                                }}
                                             />
                                         </Stack>
 
-                                        {/* RIGHT: Action Buttons - Scrollable */}
-                                        <Box
-                                            sx={{
-                                                flex: 1,
-                                                minWidth: 0,
-                                                overflowX: 'auto',
-                                                overflowY: 'hidden',
-                                                WebkitOverflowScrolling: 'touch',
-                                                scrollbarWidth: 'thin',
-                                                '&::-webkit-scrollbar': { height: 4 },
-                                                '&::-webkit-scrollbar-thumb': { bgcolor: isDarkMode ? '#475569' : '#cbd5e1', borderRadius: 2 },
-                                                '&::-webkit-scrollbar-track': { bgcolor: 'transparent' },
-                                            }}
-                                        >
-                                            <Stack direction="row" spacing={0.75} sx={{ width: 'fit-content', minWidth: 'max-content', alignItems: 'center' }}>
+                                        {/* RIGHT: Menu Button + Fullscreen + Live View */}
+                                        <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                                            {/* Settings Menu Button */}
+                                            <Tooltip title="Open Settings Panel" placement="top">
                                                 <Button
                                                     size="small"
                                                     variant="outlined"
-                                                    onClick={() => setColumnSettingsOpen(true)}
+                                                    startIcon={<MenuIcon sx={{ fontSize: 18 }} />}
+                                                    onClick={() => setOutboundSettingsPanelOpen(true)}
                                                     sx={{
-                                                        fontSize: '0.7rem',
+                                                        height: 38,
+                                                        px: 2,
+                                                        borderRadius: 1.5,
                                                         fontWeight: 600,
-                                                        height: 32,
-                                                        minWidth: 'auto',
-                                                        px: 1.5,
-                                                        borderRadius: 1,
+                                                        fontSize: '0.8rem',
+                                                        textTransform: 'none',
                                                         borderColor: isDarkMode ? '#3b82f6' : '#1e40af',
                                                         color: isDarkMode ? '#60a5fa' : '#1e40af',
-                                                        whiteSpace: 'nowrap',
-                                                        textTransform: 'none',
-                                                        '&:hover': { borderColor: '#3b82f6', bgcolor: 'rgba(59, 130, 246, 0.08)' }
+                                                        bgcolor: isDarkMode ? 'rgba(59, 130, 246, 0.08)' : 'rgba(30, 64, 175, 0.04)',
+                                                        '&:hover': {
+                                                            borderColor: '#3b82f6',
+                                                            bgcolor: 'rgba(59, 130, 246, 0.12)'
+                                                        }
                                                     }}
                                                 >
-                                                    Columns
+                                                    Menu
                                                 </Button>
+                                            </Tooltip>
 
-                                                {/* +500 Rows Button */}
-                                                <Button
+                                            {/* Fullscreen Button */}
+                                            <Tooltip title={isFullscreen ? "Exit fullscreen (Esc)" : "Enter fullscreen mode"} placement="top">
+                                                <IconButton
                                                     size="small"
-                                                    variant="contained"
-                                                    onClick={add500Rows}
+                                                    onClick={toggleFullscreen}
                                                     sx={{
-                                                        fontSize: '0.7rem',
-                                                        fontWeight: 600,
-                                                        height: 32,
-                                                        minWidth: 'auto',
-                                                        px: 1.5,
-                                                        borderRadius: 1,
-                                                        background: 'linear-gradient(135deg, #3b82f6 0%, #1e40af 100%)',
-                                                        whiteSpace: 'nowrap',
-                                                        textTransform: 'none',
-                                                        boxShadow: 'none',
-                                                        '&:hover': { background: 'linear-gradient(135deg, #2563eb 0%, #1e3a8a 100%)', boxShadow: 'none' }
+                                                        width: 38,
+                                                        height: 38,
+                                                        borderRadius: 1.5,
+                                                        border: '1.5px solid',
+                                                        borderColor: isFullscreen ? '#f59e0b' : (isDarkMode ? '#475569' : '#d1d5db'),
+                                                        color: isFullscreen ? '#f59e0b' : (isDarkMode ? '#94a3b8' : '#64748b'),
+                                                        bgcolor: isFullscreen ? 'rgba(245, 158, 11, 0.1)' : 'transparent',
+                                                        '&:hover': {
+                                                            borderColor: '#f59e0b',
+                                                            bgcolor: 'rgba(245, 158, 11, 0.1)',
+                                                            color: '#f59e0b'
+                                                        }
                                                     }}
                                                 >
-                                                    +500 Rows
-                                                </Button>
+                                                    {isFullscreen ? <FullscreenExitIcon sx={{ fontSize: 20 }} /> : <FullscreenIcon sx={{ fontSize: 20 }} />}
+                                                </IconButton>
+                                            </Tooltip>
 
-                                                {/* Export Button */}
-                                                <Button
-                                                    size="small"
-                                                    variant="outlined"
-                                                    onClick={() => setExportConfirmOpen(true)}
-                                                    disabled={!multiRows.some((r: any) => r.wsn?.trim())}
-                                                    sx={{
-                                                        fontSize: '0.7rem',
-                                                        fontWeight: 600,
-                                                        height: 32,
-                                                        minWidth: 'auto',
-                                                        px: 1.5,
-                                                        borderRadius: 1,
-                                                        borderColor: '#10b981',
-                                                        color: '#10b981',
-                                                        whiteSpace: 'nowrap',
-                                                        textTransform: 'none',
-                                                        '&:hover': { borderColor: '#059669', bgcolor: 'rgba(16, 185, 129, 0.08)' },
-                                                        '&.Mui-disabled': { borderColor: '#94a3b8', color: '#94a3b8' }
-                                                    }}
-                                                >
-                                                    Export
-                                                </Button>
+                                            {/* Live View Panel */}
+                                            <LiveViewPanel
+                                                warehouseId={activeWarehouse?.id}
+                                                pageType="outbound"
+                                                isDarkMode={isDarkMode}
+                                                container={multiEntryContainerRef.current}
+                                            />
+                                        </Stack>
+                                    </Stack>
+                                )}
 
-                                                {/* Category Pivot Button */}
-                                                <Tooltip title="View category-wise quantity summary" placement="top">
+                                {/* SETTINGS DRAWER - Right Side Panel with Accordions */}
+                                <Drawer
+                                    anchor="right"
+                                    open={outboundSettingsPanelOpen}
+                                    onClose={() => setOutboundSettingsPanelOpen(false)}
+                                    container={multiEntryContainerRef.current}
+                                    ModalProps={{
+                                        container: multiEntryContainerRef.current,
+                                        keepMounted: false,
+                                    }}
+                                    PaperProps={{
+                                        sx: {
+                                            width: { xs: '100%', sm: 380 },
+                                            maxWidth: '100vw',
+                                            bgcolor: isDarkMode ? '#1e293b' : '#ffffff',
+                                            borderLeft: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0'
+                                        }
+                                    }}
+                                >
+                                    {/* Panel Header */}
+                                    <Box sx={{
+                                        p: 2,
+                                        background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
+                                        color: 'white',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'space-between',
+                                        position: 'sticky',
+                                        top: 0,
+                                        zIndex: 10
+                                    }}>
+                                        <Typography sx={{ fontWeight: 700, fontSize: '1rem' }}>⚙️ Settings</Typography>
+                                        <IconButton size="small" onClick={() => setOutboundSettingsPanelOpen(false)} sx={{ color: 'white' }}>
+                                            <CloseIcon />
+                                        </IconButton>
+                                    </Box>
+
+                                    {/* Panel Content with Accordions */}
+                                    <Box sx={{ overflow: 'auto', flex: 1 }}>
+
+                                        {/* ═══════════ COLUMNS ACCORDION ═══════════ */}
+                                        <Accordion
+                                            expanded={settingsPanelExpanded === 'columns'}
+                                            onChange={(_, isExpanded) => setSettingsPanelExpanded(isExpanded ? 'columns' : false)}
+                                            disableGutters
+                                            sx={{
+                                                bgcolor: 'transparent',
+                                                boxShadow: 'none',
+                                                '&:before': { display: 'none' },
+                                                borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0'
+                                            }}
+                                        >
+                                            <AccordionSummary
+                                                expandIcon={<ExpandMoreIcon sx={{ color: isDarkMode ? '#94a3b8' : '#64748b' }} />}
+                                                sx={{
+                                                    px: 2,
+                                                    minHeight: 56,
+                                                    '&.Mui-expanded': { minHeight: 56 },
+                                                    '& .MuiAccordionSummary-content': { my: 1.5 }
+                                                }}
+                                            >
+                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                                                    <ViewColumnIcon sx={{ color: '#3b82f6', fontSize: 22 }} />
+                                                    <Box>
+                                                        <Typography sx={{ fontWeight: 700, fontSize: '0.9rem', color: isDarkMode ? '#e2e8f0' : '#1e293b' }}>Columns</Typography>
+                                                        <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>
+                                                            {visibleColumns.length} columns visible
+                                                        </Typography>
+                                                    </Box>
+                                                </Box>
+                                            </AccordionSummary>
+                                            <AccordionDetails sx={{ px: 2, pb: 2, pt: 0 }}>
+                                                <Box sx={{ maxHeight: 280, overflow: 'auto', pr: 1 }}>
+                                                    <Typography sx={{ fontWeight: 700, fontSize: '0.7rem', color: '#3b82f6', mb: 1, textTransform: 'uppercase' }}>Editable Fields</Typography>
+                                                    <Stack spacing={0.5} sx={{ mb: 2 }}>
+                                                        {EDITABLE_COLUMNS.map((col) => (
+                                                            <FormControlLabel
+                                                                key={col}
+                                                                control={
+                                                                    <Checkbox
+                                                                        size="small"
+                                                                        checked={visibleColumns.includes(col)}
+                                                                        onChange={(e) => {
+                                                                            if (e.target.checked) {
+                                                                                setVisibleColumns([...visibleColumns, col]);
+                                                                            } else {
+                                                                                setVisibleColumns(visibleColumns.filter((c: string) => c !== col));
+                                                                            }
+                                                                        }}
+                                                                        sx={{ py: 0.25, '&.Mui-checked': { color: '#3b82f6' } }}
+                                                                    />
+                                                                }
+                                                                label={<Typography sx={{ fontSize: '0.8rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>{col.replace(/_/g, ' ').toUpperCase()}</Typography>}
+                                                                sx={{ m: 0 }}
+                                                            />
+                                                        ))}
+                                                    </Stack>
+                                                    <Typography sx={{ fontWeight: 700, fontSize: '0.7rem', color: '#10b981', mb: 1, textTransform: 'uppercase' }}>Master Data Fields</Typography>
+                                                    <Stack spacing={0.5}>
+                                                        {ALL_MULTI_COLUMNS.filter((col) => !EDITABLE_COLUMNS.includes(col)).map((col: string) => (
+                                                            <FormControlLabel
+                                                                key={col}
+                                                                control={
+                                                                    <Checkbox
+                                                                        size="small"
+                                                                        checked={visibleColumns.includes(col)}
+                                                                        onChange={(e) => {
+                                                                            if (e.target.checked) {
+                                                                                setVisibleColumns([...visibleColumns, col]);
+                                                                            } else {
+                                                                                setVisibleColumns(visibleColumns.filter((c: string) => c !== col));
+                                                                            }
+                                                                        }}
+                                                                        sx={{ py: 0.25, '&.Mui-checked': { color: '#10b981' } }}
+                                                                    />
+                                                                }
+                                                                label={<Typography sx={{ fontSize: '0.8rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>{col.replace(/_/g, ' ').toUpperCase()}</Typography>}
+                                                                sx={{ m: 0 }}
+                                                            />
+                                                        ))}
+                                                    </Stack>
+                                                </Box>
+                                            </AccordionDetails>
+                                        </Accordion>
+
+                                        {/* ═══════════ GRID SETTINGS ACCORDION ═══════════ */}
+                                        <Accordion
+                                            expanded={settingsPanelExpanded === 'grid'}
+                                            onChange={(_, isExpanded) => setSettingsPanelExpanded(isExpanded ? 'grid' : false)}
+                                            disableGutters
+                                            sx={{
+                                                bgcolor: 'transparent',
+                                                boxShadow: 'none',
+                                                '&:before': { display: 'none' },
+                                                borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0'
+                                            }}
+                                        >
+                                            <AccordionSummary
+                                                expandIcon={<ExpandMoreIcon sx={{ color: isDarkMode ? '#94a3b8' : '#64748b' }} />}
+                                                sx={{
+                                                    px: 2,
+                                                    minHeight: 56,
+                                                    '&.Mui-expanded': { minHeight: 56 },
+                                                    '& .MuiAccordionSummary-content': { my: 1.5 }
+                                                }}
+                                            >
+                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                                                    <TableChartIcon sx={{ color: '#f59e0b', fontSize: 22 }} />
+                                                    <Box>
+                                                        <Typography sx={{ fontWeight: 700, fontSize: '0.9rem', color: isDarkMode ? '#e2e8f0' : '#1e293b' }}>Grid Settings</Typography>
+                                                        <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>Sorting, filtering, resize</Typography>
+                                                    </Box>
+                                                </Box>
+                                            </AccordionSummary>
+                                            <AccordionDetails sx={{ px: 2, pb: 2, pt: 0 }}>
+                                                <Stack spacing={1.5}>
+                                                    <FormControlLabel
+                                                        control={
+                                                            <Checkbox
+                                                                checked={enableSorting}
+                                                                onChange={(e) => {
+                                                                    setEnableSorting(e.target.checked);
+                                                                    localStorage.setItem('outbound_enableSorting', String(e.target.checked));
+                                                                }}
+                                                                sx={{ '&.Mui-checked': { color: '#f59e0b' } }}
+                                                            />
+                                                        }
+                                                        label={
+                                                            <Box>
+                                                                <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>⬆️ Enable Sorting</Typography>
+                                                                <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>Click headers to sort</Typography>
+                                                            </Box>
+                                                        }
+                                                    />
+                                                    <FormControlLabel
+                                                        control={
+                                                            <Checkbox
+                                                                checked={enableColumnFilters}
+                                                                onChange={(e) => {
+                                                                    setEnableColumnFilters(e.target.checked);
+                                                                    localStorage.setItem('outbound_enableColumnFilters', String(e.target.checked));
+                                                                }}
+                                                                sx={{ '&.Mui-checked': { color: '#f59e0b' } }}
+                                                            />
+                                                        }
+                                                        label={
+                                                            <Box>
+                                                                <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>🔍 Enable Filtering</Typography>
+                                                                <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>Filter in column headers</Typography>
+                                                            </Box>
+                                                        }
+                                                    />
+                                                    <FormControlLabel
+                                                        control={
+                                                            <Checkbox
+                                                                checked={enableColumnResize}
+                                                                onChange={(e) => {
+                                                                    setEnableColumnResize(e.target.checked);
+                                                                    localStorage.setItem('outbound_enableColumnResize', String(e.target.checked));
+                                                                }}
+                                                                sx={{ '&.Mui-checked': { color: '#f59e0b' } }}
+                                                            />
+                                                        }
+                                                        label={
+                                                            <Box>
+                                                                <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>↔️ Column Resize</Typography>
+                                                                <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>Drag borders to resize</Typography>
+                                                            </Box>
+                                                        }
+                                                    />
                                                     <Button
                                                         size="small"
-                                                        variant="outlined"
-                                                        onClick={() => setCategoryPivotOpen(true)}
-                                                        disabled={!multiRows.some((r: any) => r.wsn?.trim())}
-                                                        startIcon={<PieChartIcon sx={{ fontSize: 16 }} />}
-                                                        sx={{
-                                                            fontSize: '0.7rem',
-                                                            fontWeight: 600,
-                                                            height: 32,
-                                                            minWidth: 'auto',
-                                                            px: 1.5,
-                                                            borderRadius: 1,
-                                                            borderColor: '#8b5cf6',
-                                                            color: '#8b5cf6',
-                                                            whiteSpace: 'nowrap',
-                                                            textTransform: 'none',
-                                                            '&:hover': { borderColor: '#7c3aed', bgcolor: 'rgba(139, 92, 246, 0.08)' },
-                                                            '&.Mui-disabled': { borderColor: '#94a3b8', color: '#94a3b8' }
+                                                        onClick={() => {
+                                                            setEnableSorting(true);
+                                                            setEnableColumnFilters(true);
+                                                            setEnableColumnResize(true);
+                                                            localStorage.setItem('outbound_enableSorting', 'true');
+                                                            localStorage.setItem('outbound_enableColumnFilters', 'true');
+                                                            localStorage.setItem('outbound_enableColumnResize', 'true');
+                                                            toast.success('Grid settings reset');
                                                         }}
+                                                        sx={{ alignSelf: 'flex-start', fontSize: '0.75rem', color: isDarkMode ? '#94a3b8' : '#64748b' }}
                                                     >
-                                                        Category Pivot
+                                                        🔄 Reset to Default
                                                     </Button>
-                                                </Tooltip>
+                                                </Stack>
+                                            </AccordionDetails>
+                                        </Accordion>
 
-                                                {/* Divider */}
-                                                <Box sx={{ width: 1, height: 20, bgcolor: isDarkMode ? '#475569' : '#d1d5db' }} />
-
-                                                {/* Ctrl+O Product Link Toggle */}
-                                                <Tooltip title="Ctrl+O: Open product link for last scanned WSN" placement="top">
-                                                    <Box
-                                                        onClick={() => setCtrlOProductLinkEnabled(!ctrlOProductLinkEnabled)}
-                                                        sx={{
-                                                            display: 'flex',
-                                                            alignItems: 'center',
-                                                            gap: 0.5,
-                                                            bgcolor: ctrlOProductLinkEnabled ? 'rgba(168, 85, 247, 0.1)' : isDarkMode ? 'rgba(100, 116, 139, 0.2)' : 'rgba(156, 163, 175, 0.1)',
-                                                            border: `1.5px solid ${ctrlOProductLinkEnabled ? '#a855f7' : isDarkMode ? '#64748b' : '#9ca3af'}`,
-                                                            borderRadius: 1,
-                                                            px: 1,
-                                                            height: 32,
-                                                            cursor: 'pointer',
-                                                            '&:hover': { opacity: 0.85 }
-                                                        }}
-                                                    >
-                                                        <Typography sx={{ color: ctrlOProductLinkEnabled ? '#a855f7' : isDarkMode ? '#94a3b8' : '#6b7280', fontWeight: 700, fontSize: '0.65rem', whiteSpace: 'nowrap' }}>
-                                                            Ctrl+O {ctrlOProductLinkEnabled ? 'ON' : 'OFF'}
+                                        {/* ═══════════ BATCH & CACHE ACCORDION ═══════════ */}
+                                        <Accordion
+                                            expanded={settingsPanelExpanded === 'cache'}
+                                            onChange={(_, isExpanded) => setSettingsPanelExpanded(isExpanded ? 'cache' : false)}
+                                            disableGutters
+                                            sx={{
+                                                bgcolor: 'transparent',
+                                                boxShadow: 'none',
+                                                '&:before': { display: 'none' },
+                                                borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0'
+                                            }}
+                                        >
+                                            <AccordionSummary
+                                                expandIcon={<ExpandMoreIcon sx={{ color: isDarkMode ? '#94a3b8' : '#64748b' }} />}
+                                                sx={{
+                                                    px: 2,
+                                                    minHeight: 56,
+                                                    '&.Mui-expanded': { minHeight: 56 },
+                                                    '& .MuiAccordionSummary-content': { my: 1.5 }
+                                                }}
+                                            >
+                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                                                    <Box sx={{ fontSize: 20 }}>💾</Box>
+                                                    <Box>
+                                                        <Typography sx={{ fontWeight: 700, fontSize: '0.9rem', color: isDarkMode ? '#e2e8f0' : '#1e293b' }}>Batch & Cache</Typography>
+                                                        <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>
+                                                            {cacheEnabled ? `${cacheStats?.totalRecords?.toLocaleString() || 0} items cached` : 'Cache disabled'}
                                                         </Typography>
-                                                        <Switch
-                                                            size="small"
-                                                            checked={ctrlOProductLinkEnabled}
-                                                            onChange={(e) => { e.stopPropagation(); setCtrlOProductLinkEnabled(e.target.checked); }}
-                                                            sx={{
-                                                                width: 32, height: 18, p: 0,
-                                                                '& .MuiSwitch-switchBase': { p: '2px' },
-                                                                '& .MuiSwitch-thumb': { width: 14, height: 14 },
-                                                                '& .MuiSwitch-switchBase.Mui-checked': { color: '#a855f7' },
-                                                                '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { bgcolor: '#a855f7' },
-                                                            }}
-                                                        />
                                                     </Box>
-                                                </Tooltip>
-
-                                                {/* Divider */}
-                                                <Box sx={{ width: 1, height: 20, bgcolor: isDarkMode ? '#475569' : '#d1d5db' }} />
-
-                                                {/* Cache Toggle */}
-                                                <Tooltip title={cacheEnabled ? 'Offline mode ON - Click to disable' : 'Enable offline mode for faster lookups'}>
-                                                    <Box
-                                                        onClick={toggleCache}
-                                                        sx={{
-                                                            display: 'flex',
-                                                            alignItems: 'center',
-                                                            gap: 0.5,
-                                                            bgcolor: cacheEnabled ? 'rgba(16, 185, 129, 0.1)' : 'rgba(148, 163, 184, 0.1)',
-                                                            border: `1.5px solid ${cacheEnabled ? '#10b981' : isDarkMode ? '#64748b' : '#9ca3af'}`,
-                                                            borderRadius: 1,
-                                                            px: 1,
-                                                            height: 32,
-                                                            cursor: 'pointer',
-                                                            '&:hover': { opacity: 0.85 }
-                                                        }}
-                                                    >
-                                                        <Typography sx={{ fontSize: '0.75rem', lineHeight: 1 }}>💾</Typography>
-                                                        <Typography sx={{ color: cacheEnabled ? '#10b981' : isDarkMode ? '#94a3b8' : '#6b7280', fontWeight: 700, fontSize: '0.65rem', whiteSpace: 'nowrap' }}>
-                                                            {cacheLoading ? 'Loading...' : cacheEnabled ? (cacheStats ? `${cacheStats.totalRecords.toLocaleString()}` : 'ON') : 'OFF'}
-                                                        </Typography>
+                                                </Box>
+                                            </AccordionSummary>
+                                            <AccordionDetails sx={{ px: 2, pb: 2, pt: 0 }}>
+                                                <Stack spacing={2}>
+                                                    {/* Cache Toggle */}
+                                                    <Box sx={{
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'space-between',
+                                                        p: 1.5,
+                                                        borderRadius: 1.5,
+                                                        bgcolor: cacheEnabled ? (isDarkMode ? 'rgba(16, 185, 129, 0.15)' : 'rgba(16, 185, 129, 0.08)') : (isDarkMode ? '#0f172a' : '#f8fafc'),
+                                                        border: cacheEnabled ? '1px solid #10b981' : (isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0')
+                                                    }}>
+                                                        <Box>
+                                                            <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>Offline Cache</Typography>
+                                                            <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>Faster WSN lookups</Typography>
+                                                        </Box>
                                                         <Switch
-                                                            size="small"
                                                             checked={cacheEnabled}
-                                                            onChange={(e) => { e.stopPropagation(); toggleCache(); }}
-                                                            sx={{
-                                                                width: 32, height: 18, p: 0,
-                                                                '& .MuiSwitch-switchBase': { p: '2px' },
-                                                                '& .MuiSwitch-thumb': { width: 14, height: 14 },
-                                                                '& .MuiSwitch-switchBase.Mui-checked': { color: '#10b981' },
-                                                                '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { bgcolor: '#10b981' },
-                                                            }}
+                                                            onChange={toggleCache}
+                                                            sx={{ '& .MuiSwitch-switchBase.Mui-checked': { color: '#10b981' }, '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { backgroundColor: '#10b981' } }}
                                                         />
                                                     </Box>
-                                                </Tooltip>
 
-                                                {/* Refresh Cache Button (only when cache enabled) */}
-                                                {cacheEnabled && (
-                                                    <Tooltip title="Refresh cache">
-                                                        <IconButton
+                                                    {/* Ctrl+O Toggle */}
+                                                    <Box sx={{
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'space-between',
+                                                        p: 1.5,
+                                                        borderRadius: 1.5,
+                                                        bgcolor: ctrlOProductLinkEnabled ? (isDarkMode ? 'rgba(168, 85, 247, 0.15)' : 'rgba(168, 85, 247, 0.08)') : (isDarkMode ? '#0f172a' : '#f8fafc'),
+                                                        border: ctrlOProductLinkEnabled ? '1px solid #a855f7' : (isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0')
+                                                    }}>
+                                                        <Box>
+                                                            <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>Ctrl+O Product Link</Typography>
+                                                            <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>Opens FKT link for last scanned WSN</Typography>
+                                                        </Box>
+                                                        <Switch
+                                                            checked={ctrlOProductLinkEnabled}
+                                                            onChange={(e) => setCtrlOProductLinkEnabled(e.target.checked)}
+                                                            sx={{ '& .MuiSwitch-switchBase.Mui-checked': { color: '#a855f7' }, '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { backgroundColor: '#a855f7' } }}
+                                                        />
+                                                    </Box>
+
+                                                    {/* Refresh Cache Button */}
+                                                    {cacheEnabled && (
+                                                        <Button
                                                             size="small"
+                                                            startIcon={<RefreshIcon />}
                                                             onClick={refreshCache}
                                                             disabled={cacheLoading}
                                                             sx={{
-                                                                width: 32,
-                                                                height: 32,
+                                                                alignSelf: 'flex-start',
+                                                                fontSize: '0.75rem',
                                                                 color: '#10b981',
+                                                                borderColor: '#10b981',
                                                                 '&:hover': { bgcolor: 'rgba(16, 185, 129, 0.1)' }
                                                             }}
+                                                            variant="outlined"
                                                         >
-                                                            <RefreshIcon sx={{ fontSize: 18, animation: cacheLoading ? 'spin 1s linear infinite' : 'none' }} />
-                                                        </IconButton>
-                                                    </Tooltip>
-                                                )}
-                                            </Stack>
+                                                            {cacheLoading ? 'Refreshing...' : 'Refresh Cache'}
+                                                        </Button>
+                                                    )}
+                                                </Stack>
+                                            </AccordionDetails>
+                                        </Accordion>
+
+                                        {/* ═══════════ CATEGORY PIVOT BUTTON ═══════════ */}
+                                        <Box sx={{ p: 2, borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0' }}>
+                                            <Button
+                                                fullWidth
+                                                variant="outlined"
+                                                startIcon={<PieChartIcon />}
+                                                onClick={() => { setCategoryPivotOpen(true); setOutboundSettingsPanelOpen(false); }}
+                                                disabled={!multiRows.some((r: any) => r.wsn?.trim())}
+                                                sx={{
+                                                    height: 44,
+                                                    fontWeight: 600,
+                                                    borderColor: '#8b5cf6',
+                                                    color: '#8b5cf6',
+                                                    '&:hover': { bgcolor: 'rgba(139, 92, 246, 0.1)', borderColor: '#8b5cf6' },
+                                                    '&.Mui-disabled': { borderColor: '#94a3b8', color: '#94a3b8' }
+                                                }}
+                                            >
+                                                Category Pivot View
+                                            </Button>
                                         </Box>
-                                    </Stack>
-                                )}
+
+                                        {/* ═══════════ EXPORT BUTTON ═══════════ */}
+                                        <Box sx={{ p: 2, borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0' }}>
+                                            <Button
+                                                fullWidth
+                                                variant="contained"
+                                                startIcon={<DownloadIcon />}
+                                                onClick={() => { setExportConfirmOpen(true); setOutboundSettingsPanelOpen(false); }}
+                                                disabled={!multiRows.some((r: any) => r.wsn?.trim())}
+                                                sx={{
+                                                    height: 44,
+                                                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                                                    fontWeight: 600,
+                                                    '&:hover': { background: 'linear-gradient(135deg, #059669 0%, #047857 100%)' },
+                                                    '&.Mui-disabled': { background: '#94a3b8' }
+                                                }}
+                                            >
+                                                Export to Excel
+                                            </Button>
+                                        </Box>
+                                    </Box>
+                                </Drawer>
                             </CardContent>
                         </Card>
 
@@ -6623,6 +7036,28 @@ export default function OutboundPage() {
                             />
                             <Button size="small" variant="outlined" onClick={() => saveDraftImmediate()} disabled={draftSaving} sx={{ height: 32, fontSize: '0.75rem' }}>Save Draft</Button>
                             <Button size="small" variant="text" onClick={clearDraft} disabled={!draftExists} sx={{ height: 32, fontSize: '0.75rem' }}>Clear Draft</Button>
+
+                            {/* +500 ROWS BUTTON - Desktop only */}
+                            <Button
+                                size="small"
+                                variant="outlined"
+                                onClick={add500Rows}
+                                sx={{
+                                    display: { xs: 'none', md: 'flex' },
+                                    height: 32,
+                                    fontSize: '0.75rem',
+                                    fontWeight: 700,
+                                    borderColor: '#3b82f6',
+                                    color: '#3b82f6',
+                                    '&:hover': {
+                                        borderColor: '#2563eb',
+                                        bgcolor: 'rgba(59, 130, 246, 0.1)'
+                                    }
+                                }}
+                            >
+                                +500 Rows
+                            </Button>
+
                             <Button
                                 variant="contained"
                                 onClick={handleMultiSubmit}
@@ -6715,6 +7150,14 @@ export default function OutboundPage() {
                         emptySubMessage="Batches will appear here after outbound operations"
                     />
                 )}
+
+                {/* WSN Overwrite Warning Dialog */}
+                <WSNOverwriteDialog
+                    data={wsnOverwriteDialog}
+                    onCancel={handleOverwriteCancel}
+                    onReplace={handleOverwriteReplace}
+                    onAddToNextRow={handleOverwriteAddToNextRow}
+                />
             </Box>
         </AppLayout >
     );

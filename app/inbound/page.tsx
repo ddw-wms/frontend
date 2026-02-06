@@ -9,7 +9,9 @@ import {
   DialogContent, DialogActions, TextField, MenuItem, Chip, Stack, Tab, Tabs,
   CircularProgress, Alert, Card, CardContent, LinearProgress, Divider,
   Select, FormControl, InputLabel, InputAdornment, Checkbox, FormControlLabel,
-  Collapse, IconButton, AppBar, Toolbar, useMediaQuery, useTheme, Switch, Pagination, InputBase, Fade
+  Collapse, IconButton, AppBar, Toolbar, useMediaQuery, useTheme, Switch, Pagination, InputBase, Fade,
+  Drawer, List, ListItem, ListItemIcon, ListItemText, ListItemButton,
+  Accordion, AccordionSummary, AccordionDetails
 } from '@mui/material';
 
 import {
@@ -20,14 +22,18 @@ import {
   ExpandMore as ExpandMoreIcon,
   FilterList as FilterListIcon,
   Close as CloseIcon,
-  Tune as TuneIcon, KeyboardArrowLeft, KeyboardArrowRight, FirstPage, LastPage, AccessTime
+  Tune as TuneIcon, KeyboardArrowLeft, KeyboardArrowRight, FirstPage, LastPage, AccessTime,
+  Fullscreen as FullscreenIcon, FullscreenExit as FullscreenExitIcon,
+  Menu as MenuIcon, ViewColumn as ViewColumnIcon, TableChart as TableChartIcon,
+  Print as PrintIcon, Keyboard as KeyboardIcon, Link as LinkIcon, Inventory as InventoryIcon
 } from '@mui/icons-material';
 
 import { inboundAPI } from '@/lib/api';
 import { useWarehouse } from '@/app/context/WarehouseContext';
 import { getStoredUser } from '@/lib/auth';
 import AppLayout from '@/components/AppLayout';
-import { StandardPageHeader, StandardTabs, BatchManagementTab } from '@/components';
+import { StandardPageHeader, StandardTabs, BatchManagementTab, WSNOverwriteDialog } from '@/components';
+import type { WSNOverwriteDialogData } from '@/components';
 import { useTableRowHeight } from '@/app/context/AppearanceContext';
 import toast, { Toaster } from 'react-hot-toast';
 // ⚡ OPTIMIZED: XLSX loaded dynamically on export to reduce bundle size
@@ -105,7 +111,9 @@ import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
 import React from 'react';
 import localforage from 'localforage';
 import { useInboundPermissions } from '@/hooks/usePagePermissions';
+import { useFullscreen, useLiveSession } from '@/hooks';
 import BulkUploadCard from '@/components/BulkUploadCard';
+import LiveViewPanel from '@/components/LiveViewPanel';
 // Simple localStorage-based grid state (native ag-Grid pattern)
 import {
   getMasterDataByWSN as getLocalMasterData,
@@ -148,6 +156,7 @@ export default function InboundPage() {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<any>(null);
   const listGridRef = useRef<any>(null);  // Separate ref for List grid
+  const multiEntryContainerRef = useRef<HTMLDivElement>(null);  // Ref for fullscreen mode
   const columnApiRef = useRef<any>(null);
   const hasAutoFittedRef = useRef(false); // Track if auto-fit has been done
   const isRestoringStateRef = useRef(false); // Prevent saving state during restore
@@ -169,6 +178,9 @@ export default function InboundPage() {
   const userScrollTimeoutRef = useRef<number | null>(null);
   const lastGridScrollTopRef = useRef<number>(0);
   const [agentReady, setAgentReady] = useState(false);
+
+  // ====== FULLSCREEN MODE ======
+  const { isFullscreen, toggleFullscreen } = useFullscreen(multiEntryContainerRef);
 
   // ====== PRINT TOGGLE STATE ======
   const [singlePrintEnabled, setSinglePrintEnabled] = useState(() => {
@@ -203,6 +215,10 @@ export default function InboundPage() {
     }
     return true;
   });
+
+  // ====== MULTI ENTRY SETTINGS PANEL STATE ======
+  const [multiSettingsPanelOpen, setMultiSettingsPanelOpen] = useState(false);
+  const [settingsPanelExpanded, setSettingsPanelExpanded] = useState<string | false>('columns');
 
   // Track last scanned row data for Ctrl+P reprint
   const lastScannedRowRef = useRef<any>(null);
@@ -297,6 +313,47 @@ export default function InboundPage() {
 
   const [crossWarehouseWSNs, setCrossWarehouseWSNs] = useState<Set<string>>(new Set());
   const [gridDuplicateWSNs, setGridDuplicateWSNs] = useState<Set<string>>(new Set());
+
+  // ====== WSN OVERWRITE WARNING DIALOG ======
+  const [wsnOverwriteDialog, setWsnOverwriteDialog] = useState<WSNOverwriteDialogData | null>(null);
+  const pendingWSNRef = useRef<{ rowIndex: number; newWSN: string; event: any } | null>(null);
+
+  // ====== LIVE VIEW SESSION MANAGEMENT ======
+  const isOnMultiTab = visibleTabCodes[tabValue] === 'multi';
+  const { startSession: startLiveSession, updateEntries: updateLiveEntries, endSession: endLiveSession, isActive: isLiveSessionActive } = useLiveSession({
+    warehouseId: activeWarehouse?.id,
+    pageType: 'inbound',
+    enabled: isOnMultiTab && !!activeWarehouse?.id,
+  });
+
+  // Auto-start live session when entering Multi Entry tab
+  useEffect(() => {
+    if (isOnMultiTab && activeWarehouse?.id && !isLiveSessionActive) {
+      startLiveSession();
+    } else if (!isOnMultiTab && isLiveSessionActive) {
+      endLiveSession();
+    }
+  }, [isOnMultiTab, activeWarehouse?.id, isLiveSessionActive, startLiveSession, endLiveSession]);
+
+  // Broadcast entries when multiRows change
+  useEffect(() => {
+    if (isLiveSessionActive && isOnMultiTab) {
+      const validEntries = multiRows
+        .map((row, idx) => ({
+          wsn: row.wsn || '',
+          product_title: row.product_title || '',
+          brand: row.brand || '',
+          mrp: row.mrp,
+          fsp: row.fsp,
+          cms_vertical: row.cms_vertical || '',
+          fkqc_remarks: row.fkqc_remark || '',
+          p_type: row.p_type || '',
+          row_index: idx,
+        }))
+        .filter(e => e.wsn.trim());
+      updateLiveEntries(validEntries);
+    }
+  }, [multiRows, isLiveSessionActive, isOnMultiTab, updateLiveEntries]);
 
   const [visibleColumns, setVisibleColumns] = useState(DEFAULT_MULTI_COLUMNS);
   const [columnSettingsOpen, setColumnSettingsOpen] = useState(false);
@@ -3058,6 +3115,130 @@ export default function InboundPage() {
     return nextCellPosition;
   }, [ensureRowVisible]);
 
+  // ====== WSN OVERWRITE DIALOG HANDLERS ======
+  const handleOverwriteCancel = useCallback(() => {
+    setWsnOverwriteDialog(null);
+    pendingWSNRef.current = null;
+    // Refocus on same cell
+    if (wsnOverwriteDialog?.rowIndex !== undefined) {
+      setTimeout(() => {
+        gridRef.current?.api?.startEditingCell({
+          rowIndex: wsnOverwriteDialog.rowIndex,
+          colKey: 'wsn',
+        });
+      }, 100);
+    }
+  }, [wsnOverwriteDialog?.rowIndex]);
+
+  const handleOverwriteReplace = useCallback(async () => {
+    const pending = pendingWSNRef.current;
+    if (!pending) return;
+
+    const { rowIndex, newWSN, event } = pending;
+    setWsnOverwriteDialog(null);
+    pendingWSNRef.current = null;
+
+    // Replace with new WSN
+    const newRows = [...multiRowsRef.current];
+    newRows[rowIndex] = { ...newRows[rowIndex], wsn: newWSN };
+
+    // Clear old master data
+    ALL_MASTER_COLUMNS.forEach(col => {
+      newRows[rowIndex][col] = null;
+    });
+    setMultiRows(newRows);
+
+    // Fetch new master data
+    try {
+      const masterData = await getLocalMasterData(newWSN);
+      if (masterData) {
+        setMultiRows(prevRows => {
+          const updatedRows = [...prevRows];
+          if (updatedRows[rowIndex]?.wsn?.trim()?.toUpperCase() === newWSN) {
+            ALL_MASTER_COLUMNS.forEach(col => {
+              updatedRows[rowIndex][col] = masterData[col] || null;
+            });
+          }
+          return updatedRows;
+        });
+      }
+    } catch (e) {
+      console.error('Error fetching master data:', e);
+    }
+
+    // Move to next row
+    setTimeout(() => {
+      const nextIndex = rowIndex + 1;
+      if (nextIndex < multiRowsRef.current.length) {
+        ensureRowVisible(nextIndex, 'bottom', 4, () => {
+          gridRef.current?.api?.startEditingCell({
+            rowIndex: nextIndex,
+            colKey: 'wsn',
+          });
+        }, true);
+      }
+    }, 100);
+  }, [ensureRowVisible]);
+
+  const handleOverwriteAddToNextRow = useCallback(async () => {
+    const pending = pendingWSNRef.current;
+    if (!pending) return;
+
+    const { rowIndex, newWSN } = pending;
+    setWsnOverwriteDialog(null);
+    pendingWSNRef.current = null;
+
+    // Find next empty row
+    let nextEmptyRow = rowIndex + 1;
+    while (nextEmptyRow < multiRowsRef.current.length && multiRowsRef.current[nextEmptyRow]?.wsn?.trim()) {
+      nextEmptyRow++;
+    }
+
+    // If no empty row found, add new rows
+    if (nextEmptyRow >= multiRowsRef.current.length) {
+      addMultiRow();
+      nextEmptyRow = multiRowsRef.current.length;
+    }
+
+    // Insert new WSN in next empty row
+    setMultiRows(prevRows => {
+      const newRows = [...prevRows];
+      newRows[nextEmptyRow] = { ...newRows[nextEmptyRow], wsn: newWSN };
+      return newRows;
+    });
+
+    // Fetch master data for new WSN
+    try {
+      const masterData = await getLocalMasterData(newWSN);
+      if (masterData) {
+        setMultiRows(prevRows => {
+          const updatedRows = [...prevRows];
+          if (updatedRows[nextEmptyRow]?.wsn?.trim()?.toUpperCase() === newWSN) {
+            ALL_MASTER_COLUMNS.forEach(col => {
+              updatedRows[nextEmptyRow][col] = masterData[col] || null;
+            });
+          }
+          return updatedRows;
+        });
+      }
+    } catch (e) {
+      console.error('Error fetching master data:', e);
+    }
+
+    // Move to row after the newly inserted one
+    setTimeout(() => {
+      const focusRow = nextEmptyRow + 1;
+      if (focusRow < multiRowsRef.current.length) {
+        ensureRowVisible(focusRow, 'bottom', 4, () => {
+          gridRef.current?.api?.startEditingCell({
+            rowIndex: focusRow,
+            colKey: 'wsn',
+          });
+        }, true);
+      }
+    }, 100);
+  }, [ensureRowVisible, addMultiRow]);
+
 
 
   const handleMultiSubmit = async () => {
@@ -5727,16 +5908,18 @@ export default function InboundPage() {
           {/* TAB: MULTI ENTRY */}
           {
             visibleTabCodes[tabValue] === 'multi' && (
-              <Box sx={{
-                display: 'flex',
-                flexDirection: 'column',
-                height: '100%', overflow: 'hidden',
-                p: { xs: 1, sm: 1, md: 1 },
-                bgcolor: isDarkMode ? '#0f172a' : '#f5f7fa',
-                // Prevent white flash during tab switch
-                '& *': { transition: 'none !important' },
-                '& .ag-root-wrapper': { backgroundColor: isDarkMode ? '#1e293b !important' : '#ffffff !important' },
-              }}>
+              <Box
+                ref={multiEntryContainerRef}
+                sx={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  height: '100%', overflow: 'hidden',
+                  p: { xs: 1, sm: 1, md: 1 },
+                  bgcolor: isDarkMode ? '#0f172a' : '#f5f7fa',
+                  // Prevent white flash during tab switch
+                  '& *': { transition: 'none !important' },
+                  '& .ag-root-wrapper': { backgroundColor: isDarkMode ? '#1e293b !important' : '#ffffff !important' },
+                }}>
                 {/* CONTROLS */}
                 <Card
                   sx={{
@@ -5749,23 +5932,23 @@ export default function InboundPage() {
                   }}
                 >
                   <CardContent sx={{ p: { xs: 1, sm: 1.5 }, '&:last-child': { pb: { xs: 1, sm: 1.5 } }, overflow: 'visible' }}>
-                    {/* DESKTOP: Side by side layout */}
+                    {/* DESKTOP: Clean Single Row Layout */}
                     <Box sx={{ display: { xs: 'none', md: 'block' } }}>
                       <Stack
                         direction="row"
-                        spacing={1.5}
                         sx={{
                           alignItems: 'center',
+                          justifyContent: 'space-between',
                           width: '100%'
                         }}
                       >
                         {/* LEFT: Date and Vehicle */}
                         <Stack
                           direction="row"
-                          spacing={1}
+                          spacing={1.5}
                           sx={{
                             flex: '0 0 auto',
-                            minWidth: 280
+                            alignItems: 'center'
                           }}
                         >
                           <TextField
@@ -5776,293 +5959,497 @@ export default function InboundPage() {
                             value={commonDate}
                             onChange={(e) => setCommonDate(e.target.value)}
                             sx={{
-                              width: 140,
-                              '& .MuiInputBase-root': { height: 34 }
+                              width: 150,
+                              '& .MuiInputBase-root': {
+                                height: 38,
+                                bgcolor: isDarkMode ? '#0f172a' : '#f8fafc',
+                                borderRadius: 1.5
+                              },
+                              '& .MuiOutlinedInput-notchedOutline': {
+                                borderColor: isDarkMode ? '#334155' : '#e2e8f0'
+                              }
                             }}
                           />
                           <TextField
                             size="small"
-                            label="Vehicle"
+                            label="Vehicle No."
                             value={commonVehicle}
                             onChange={(e) => setCommonVehicle(e.target.value)}
                             onBlur={saveMultiVehicleNumber}
                             sx={{
-                              width: 130,
-                              '& .MuiInputBase-root': { height: 34 }
+                              width: 140,
+                              '& .MuiInputBase-root': {
+                                height: 38,
+                                bgcolor: isDarkMode ? '#0f172a' : '#f8fafc',
+                                borderRadius: 1.5
+                              },
+                              '& .MuiOutlinedInput-notchedOutline': {
+                                borderColor: isDarkMode ? '#334155' : '#e2e8f0'
+                              }
                             }}
                             placeholder="Auto-fill"
                           />
                         </Stack>
 
-                        {/* RIGHT: Action Buttons - Scrollable */}
-                        <Box
-                          sx={{
-                            flex: 1,
-                            minWidth: 0,
-                            overflowX: 'auto',
-                            overflowY: 'hidden',
-                            WebkitOverflowScrolling: 'touch',
-                            scrollbarWidth: 'thin',
-                            '&::-webkit-scrollbar': { height: 4 },
-                            '&::-webkit-scrollbar-thumb': { bgcolor: isDarkMode ? '#475569' : '#cbd5e1', borderRadius: 2 },
-                            '&::-webkit-scrollbar-track': { bgcolor: 'transparent' },
-                          }}
-                        >
-                          {/* Action Buttons - Consistent Styling */}
-                          <Stack direction="row" spacing={0.75} sx={{ width: 'fit-content', minWidth: 'max-content', alignItems: 'center' }}>
-                            {/* COLUMNS Button */}
-                            <Tooltip title="Select which columns to show in the grid" placement="top">
-                              <Button
-                                size="small"
-                                variant="outlined"
-                                onClick={() => setColumnSettingsOpen(true)}
-                                sx={{
-                                  fontSize: '0.7rem',
-                                  fontWeight: 600,
-                                  height: 32,
-                                  minWidth: 'auto',
-                                  px: 1.5,
-                                  borderRadius: 1,
-                                  borderColor: isDarkMode ? '#3b82f6' : '#1e40af',
-                                  color: isDarkMode ? '#60a5fa' : '#1e40af',
-                                  whiteSpace: 'nowrap',
-                                  textTransform: 'none',
-                                  '&:hover': { borderColor: '#3b82f6', bgcolor: 'rgba(59, 130, 246, 0.08)' }
-                                }}
-                              >
-                                Columns
-                              </Button>
-                            </Tooltip>
-
-                            {/* +500 Add Rows Button */}
-                            <Tooltip title="Add 500 more empty rows to the grid" placement="top">
-                              <Button
-                                size="small"
-                                variant="contained"
-                                onClick={add500Rows}
-                                sx={{
-                                  fontSize: '0.7rem',
-                                  fontWeight: 600,
-                                  height: 32,
-                                  minWidth: 'auto',
-                                  px: 1.5,
-                                  borderRadius: 1,
-                                  background: 'linear-gradient(135deg, #3b82f6 0%, #1e40af 100%)',
-                                  whiteSpace: 'nowrap',
-                                  textTransform: 'none',
-                                  boxShadow: 'none',
-                                  '&:hover': { background: 'linear-gradient(135deg, #2563eb 0%, #1e3a8a 100%)', boxShadow: 'none' }
-                                }}
-                              >
-                                +500 Rows
-                              </Button>
-                            </Tooltip>
-
-                            {/* Grid Settings Button */}
-                            <Tooltip title="Configure grid display settings (row height, font size)" placement="top">
-                              <Button
-                                size="small"
-                                variant="outlined"
-                                startIcon={<SettingsIcon sx={{ fontSize: 14 }} />}
-                                onClick={(e) => { e.stopPropagation(); setMultiGridSettingsOpen(true); }}
-                                sx={{
-                                  fontSize: '0.7rem',
-                                  fontWeight: 600,
-                                  height: 32,
-                                  minWidth: 'auto',
-                                  px: 1,
-                                  borderRadius: 1,
-                                  borderColor: '#f59e0b',
-                                  color: '#f59e0b',
-                                  whiteSpace: 'nowrap',
-                                  textTransform: 'none',
-                                  '& .MuiButton-startIcon': { mr: 0.5 },
-                                  '&:hover': { borderColor: '#d97706', bgcolor: 'rgba(245, 158, 11, 0.08)' }
-                                }}
-                              >
-                                Grid
-                              </Button>
-                            </Tooltip>
-
-                            {/* Export Button */}
-                            <Tooltip title="Export grid data to Excel with all columns" placement="top">
-                              <Button
-                                size="small"
-                                variant="outlined"
-                                onClick={exportMultiEntryToExcel}
-                                sx={{
-                                  fontSize: '0.7rem',
-                                  fontWeight: 600,
-                                  height: 32,
-                                  minWidth: 'auto',
-                                  px: 1.5,
-                                  borderRadius: 1,
-                                  borderColor: '#10b981',
-                                  color: '#10b981',
-                                  whiteSpace: 'nowrap',
-                                  textTransform: 'none',
-                                  '&:hover': { borderColor: '#059669', bgcolor: 'rgba(16, 185, 129, 0.08)' }
-                                }}
-                              >
-                                Export
-                              </Button>
-                            </Tooltip>
-
-                            {/* Divider */}
-                            <Box sx={{ width: 1, height: 20, bgcolor: isDarkMode ? '#475569' : '#d1d5db', mx: 0.25 }} />
-
-                            {/* Print Toggle */}
-                            <Tooltip title="Auto-print label when WSN is scanned" placement="top">
-                              <Box
-                                onClick={() => setMultiPrintEnabled(!multiPrintEnabled)}
-                                sx={{
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  gap: 0.5,
-                                  bgcolor: multiPrintEnabled ? 'rgba(22, 163, 74, 0.1)' : 'rgba(220, 38, 38, 0.1)',
-                                  border: `1.5px solid ${multiPrintEnabled ? '#16a34a' : '#dc2626'}`,
-                                  borderRadius: 1,
-                                  px: 1,
-                                  height: 32,
-                                  cursor: 'pointer',
-                                  '&:hover': { opacity: 0.85 }
-                                }}
-                              >
-                                <Typography sx={{ fontSize: '0.85rem', lineHeight: 1 }}>🖨️</Typography>
-                                <Typography sx={{ color: multiPrintEnabled ? '#16a34a' : '#dc2626', fontWeight: 700, fontSize: '0.65rem' }}>
-                                  {multiPrintEnabled ? 'ON' : 'OFF'}
-                                </Typography>
-                                <Switch
-                                  size="small"
-                                  checked={multiPrintEnabled}
-                                  onChange={(e) => { e.stopPropagation(); setMultiPrintEnabled(e.target.checked); }}
-                                  sx={{
-                                    width: 32, height: 18, p: 0,
-                                    '& .MuiSwitch-switchBase': { p: '2px' },
-                                    '& .MuiSwitch-thumb': { width: 14, height: 14 },
-                                    '& .MuiSwitch-switchBase.Mui-checked': { color: '#16a34a' },
-                                    '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { bgcolor: '#16a34a' },
-                                  }}
-                                />
-                              </Box>
-                            </Tooltip>
-
-                            {/* Ctrl+P Toggle */}
-                            <Tooltip title="Ctrl+P: Reprint last scanned WSN label" placement="top">
-                              <Box
-                                onClick={() => setCtrlPPrintEnabled(!ctrlPPrintEnabled)}
-                                sx={{
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  gap: 0.5,
-                                  bgcolor: ctrlPPrintEnabled ? 'rgba(37, 99, 235, 0.1)' : isDarkMode ? 'rgba(100, 116, 139, 0.2)' : 'rgba(156, 163, 175, 0.1)',
-                                  border: `1.5px solid ${ctrlPPrintEnabled ? '#2563eb' : isDarkMode ? '#64748b' : '#9ca3af'}`,
-                                  borderRadius: 1,
-                                  px: 1,
-                                  height: 32,
-                                  cursor: 'pointer',
-                                  '&:hover': { opacity: 0.85 }
-                                }}
-                              >
-                                <Typography sx={{ color: ctrlPPrintEnabled ? '#2563eb' : isDarkMode ? '#94a3b8' : '#6b7280', fontWeight: 700, fontSize: '0.65rem', whiteSpace: 'nowrap' }}>
-                                  Ctrl+P {ctrlPPrintEnabled ? 'ON' : 'OFF'}
-                                </Typography>
-                                <Switch
-                                  size="small"
-                                  checked={ctrlPPrintEnabled}
-                                  onChange={(e) => { e.stopPropagation(); setCtrlPPrintEnabled(e.target.checked); }}
-                                  sx={{
-                                    width: 32, height: 18, p: 0,
-                                    '& .MuiSwitch-switchBase': { p: '2px' },
-                                    '& .MuiSwitch-thumb': { width: 14, height: 14 },
-                                    '& .MuiSwitch-switchBase.Mui-checked': { color: '#2563eb' },
-                                    '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { bgcolor: '#2563eb' },
-                                  }}
-                                />
-                              </Box>
-                            </Tooltip>
-
-                            {/* Ctrl+O Product Link Toggle */}
-                            <Tooltip title="Ctrl+O: Open product link for last scanned WSN" placement="top">
-                              <Box
-                                onClick={() => setCtrlOProductLinkEnabled(!ctrlOProductLinkEnabled)}
-                                sx={{
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  gap: 0.5,
-                                  bgcolor: ctrlOProductLinkEnabled ? 'rgba(168, 85, 247, 0.1)' : isDarkMode ? 'rgba(100, 116, 139, 0.2)' : 'rgba(156, 163, 175, 0.1)',
-                                  border: `1.5px solid ${ctrlOProductLinkEnabled ? '#a855f7' : isDarkMode ? '#64748b' : '#9ca3af'}`,
-                                  borderRadius: 1,
-                                  px: 1,
-                                  height: 32,
-                                  cursor: 'pointer',
-                                  '&:hover': { opacity: 0.85 }
-                                }}
-                              >
-                                <Typography sx={{ color: ctrlOProductLinkEnabled ? '#a855f7' : isDarkMode ? '#94a3b8' : '#6b7280', fontWeight: 700, fontSize: '0.65rem', whiteSpace: 'nowrap' }}>
-                                  Ctrl+O {ctrlOProductLinkEnabled ? 'ON' : 'OFF'}
-                                </Typography>
-                                <Switch
-                                  size="small"
-                                  checked={ctrlOProductLinkEnabled}
-                                  onChange={(e) => { e.stopPropagation(); setCtrlOProductLinkEnabled(e.target.checked); }}
-                                  sx={{
-                                    width: 32, height: 18, p: 0,
-                                    '& .MuiSwitch-switchBase': { p: '2px' },
-                                    '& .MuiSwitch-thumb': { width: 14, height: 14 },
-                                    '& .MuiSwitch-switchBase.Mui-checked': { color: '#a855f7' },
-                                    '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { bgcolor: '#a855f7' },
-                                  }}
-                                />
-                              </Box>
-                            </Tooltip>
-
-                            {/* Divider */}
-                            <Box sx={{ width: 1, height: 20, bgcolor: isDarkMode ? '#475569' : '#d1d5db', mx: 0.25 }} />
-
-                            {/* Cache Status Chip */}
-                            <Tooltip title="Click to select batch for WSN validation" placement="top">
-                              <Chip
-                                size="small"
-                                onClick={() => setBatchSelectorOpen(true)}
-                                icon={<Box sx={{ fontSize: '0.75rem', ml: 0.25 }}>{batchCacheLoading || cacheLoading ? '🔄' : selectedBatchIds.length > 0 ? '📦' : '✅'}</Box>}
-                                label={
-                                  batchCacheLoading
-                                    ? 'Loading...'
-                                    : selectedBatchIds.length > 0
-                                      ? `${selectedBatchIds.length} batch`
-                                      : cacheLoading
-                                        ? 'Syncing...'
-                                        : cacheStats
-                                          ? `${cacheStats.totalRecords.toLocaleString()} WSN`
-                                          : 'Loading...'
+                        {/* RIGHT: Menu Button + Fullscreen + Live View */}
+                        <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                          {/* Settings Menu Button */}
+                          <Tooltip title="Open Settings Panel" placement="top">
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              startIcon={<MenuIcon sx={{ fontSize: 18 }} />}
+                              onClick={() => setMultiSettingsPanelOpen(true)}
+                              sx={{
+                                height: 38,
+                                px: 2,
+                                borderRadius: 1.5,
+                                fontWeight: 600,
+                                fontSize: '0.8rem',
+                                textTransform: 'none',
+                                borderColor: isDarkMode ? '#3b82f6' : '#1e40af',
+                                color: isDarkMode ? '#60a5fa' : '#1e40af',
+                                bgcolor: isDarkMode ? 'rgba(59, 130, 246, 0.08)' : 'rgba(30, 64, 175, 0.04)',
+                                '&:hover': {
+                                  borderColor: '#3b82f6',
+                                  bgcolor: 'rgba(59, 130, 246, 0.12)'
                                 }
-                                sx={{
-                                  height: 32,
-                                  borderRadius: 1,
-                                  fontSize: '0.65rem',
-                                  fontWeight: 600,
-                                  cursor: 'pointer',
-                                  bgcolor: selectedBatchIds.length > 0
-                                    ? 'rgba(139, 92, 246, 0.12)'
-                                    : batchCacheLoading || cacheLoading
-                                      ? 'rgba(59, 130, 246, 0.12)'
-                                      : 'rgba(16, 185, 129, 0.12)',
-                                  color: selectedBatchIds.length > 0
-                                    ? '#8b5cf6'
-                                    : batchCacheLoading || cacheLoading
-                                      ? '#3b82f6'
-                                      : '#10b981',
-                                  border: `1.5px solid ${selectedBatchIds.length > 0 ? '#8b5cf6' : batchCacheLoading || cacheLoading ? '#3b82f6' : '#10b981'}`,
-                                  '& .MuiChip-icon': { color: 'inherit' },
-                                  '&:hover': { opacity: 0.85 }
-                                }}
-                              />
-                            </Tooltip>
-                          </Stack>
-                        </Box>
+                              }}
+                            >
+                              Menu
+                            </Button>
+                          </Tooltip>
+
+                          {/* Fullscreen Button */}
+                          <Tooltip title={isFullscreen ? "Exit fullscreen (Esc)" : "Enter fullscreen mode"} placement="top">
+                            <IconButton
+                              size="small"
+                              onClick={toggleFullscreen}
+                              sx={{
+                                width: 38,
+                                height: 38,
+                                borderRadius: 1.5,
+                                border: '1.5px solid',
+                                borderColor: isFullscreen ? '#f59e0b' : (isDarkMode ? '#475569' : '#d1d5db'),
+                                color: isFullscreen ? '#f59e0b' : (isDarkMode ? '#94a3b8' : '#64748b'),
+                                bgcolor: isFullscreen ? 'rgba(245, 158, 11, 0.1)' : 'transparent',
+                                '&:hover': {
+                                  borderColor: '#f59e0b',
+                                  bgcolor: 'rgba(245, 158, 11, 0.1)',
+                                  color: '#f59e0b'
+                                }
+                              }}
+                            >
+                              {isFullscreen ? <FullscreenExitIcon sx={{ fontSize: 20 }} /> : <FullscreenIcon sx={{ fontSize: 20 }} />}
+                            </IconButton>
+                          </Tooltip>
+
+                          {/* Live View Panel */}
+                          <LiveViewPanel
+                            warehouseId={activeWarehouse?.id}
+                            pageType="inbound"
+                            isDarkMode={isDarkMode}
+                            container={multiEntryContainerRef.current}
+                          />
+                        </Stack>
                       </Stack>
                     </Box>
+
+                    {/* SETTINGS DRAWER - Right Side Panel with Accordions */}
+                    <Drawer
+                      anchor="right"
+                      open={multiSettingsPanelOpen}
+                      onClose={() => setMultiSettingsPanelOpen(false)}
+                      container={multiEntryContainerRef.current}
+                      ModalProps={{
+                        container: multiEntryContainerRef.current,
+                        keepMounted: false,
+                      }}
+                      PaperProps={{
+                        sx: {
+                          width: { xs: '100%', sm: 380 },
+                          maxWidth: '100vw',
+                          bgcolor: isDarkMode ? '#1e293b' : '#ffffff',
+                          borderLeft: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0'
+                        }
+                      }}
+                    >
+                      {/* Panel Header */}
+                      <Box sx={{
+                        p: 2,
+                        background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
+                        color: 'white',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        position: 'sticky',
+                        top: 0,
+                        zIndex: 10
+                      }}>
+                        <Typography sx={{ fontWeight: 700, fontSize: '1rem' }}>⚙️ Settings</Typography>
+                        <IconButton size="small" onClick={() => setMultiSettingsPanelOpen(false)} sx={{ color: 'white' }}>
+                          <CloseIcon />
+                        </IconButton>
+                      </Box>
+
+                      {/* Panel Content with Accordions */}
+                      <Box sx={{ overflow: 'auto', flex: 1 }}>
+
+                        {/* ═══════════ COLUMNS ACCORDION ═══════════ */}
+                        <Accordion
+                          expanded={settingsPanelExpanded === 'columns'}
+                          onChange={(_, isExpanded) => setSettingsPanelExpanded(isExpanded ? 'columns' : false)}
+                          disableGutters
+                          sx={{
+                            bgcolor: 'transparent',
+                            boxShadow: 'none',
+                            '&:before': { display: 'none' },
+                            borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0'
+                          }}
+                        >
+                          <AccordionSummary
+                            expandIcon={<ExpandMoreIcon sx={{ color: isDarkMode ? '#94a3b8' : '#64748b' }} />}
+                            sx={{
+                              px: 2,
+                              minHeight: 56,
+                              '&.Mui-expanded': { minHeight: 56 },
+                              '& .MuiAccordionSummary-content': { my: 1.5 }
+                            }}
+                          >
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                              <ViewColumnIcon sx={{ color: '#3b82f6', fontSize: 22 }} />
+                              <Box>
+                                <Typography sx={{ fontWeight: 700, fontSize: '0.9rem', color: isDarkMode ? '#e2e8f0' : '#1e293b' }}>Columns</Typography>
+                                <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>
+                                  {visibleColumns.length} of {[...EDITABLE_COLUMNS, ...ALL_MASTER_COLUMNS.filter(c => !EDITABLE_COLUMNS.includes(c))].length} visible
+                                </Typography>
+                              </Box>
+                            </Box>
+                          </AccordionSummary>
+                          <AccordionDetails sx={{ px: 2, pb: 2, pt: 0 }}>
+                            <Box sx={{ maxHeight: 280, overflow: 'auto', pr: 1 }}>
+                              <Typography sx={{ fontWeight: 700, fontSize: '0.7rem', color: '#3b82f6', mb: 1, textTransform: 'uppercase' }}>Editable Fields</Typography>
+                              <Stack spacing={0.5} sx={{ mb: 2 }}>
+                                {EDITABLE_COLUMNS.map((col) => (
+                                  <FormControlLabel
+                                    key={col}
+                                    control={
+                                      <Checkbox
+                                        size="small"
+                                        checked={visibleColumns.includes(col)}
+                                        onChange={(e) => {
+                                          if (e.target.checked) {
+                                            setVisibleColumns([...visibleColumns, col]);
+                                          } else {
+                                            setVisibleColumns(visibleColumns.filter(c => c !== col));
+                                          }
+                                        }}
+                                        sx={{ py: 0.25, '&.Mui-checked': { color: '#3b82f6' } }}
+                                      />
+                                    }
+                                    label={<Typography sx={{ fontSize: '0.8rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>{col.replace(/_/g, ' ').toUpperCase()}</Typography>}
+                                    sx={{ m: 0 }}
+                                  />
+                                ))}
+                              </Stack>
+                              <Typography sx={{ fontWeight: 700, fontSize: '0.7rem', color: '#10b981', mb: 1, textTransform: 'uppercase' }}>Master Data Fields</Typography>
+                              <Stack spacing={0.5}>
+                                {ALL_MASTER_COLUMNS.filter(c => !EDITABLE_COLUMNS.includes(c)).map((col) => (
+                                  <FormControlLabel
+                                    key={col}
+                                    control={
+                                      <Checkbox
+                                        size="small"
+                                        checked={visibleColumns.includes(col)}
+                                        onChange={(e) => {
+                                          if (e.target.checked) {
+                                            setVisibleColumns([...visibleColumns, col]);
+                                          } else {
+                                            setVisibleColumns(visibleColumns.filter(c => c !== col));
+                                          }
+                                        }}
+                                        sx={{ py: 0.25, '&.Mui-checked': { color: '#10b981' } }}
+                                      />
+                                    }
+                                    label={<Typography sx={{ fontSize: '0.8rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>{col.replace(/_/g, ' ').toUpperCase()}</Typography>}
+                                    sx={{ m: 0 }}
+                                  />
+                                ))}
+                              </Stack>
+                            </Box>
+                          </AccordionDetails>
+                        </Accordion>
+
+                        {/* ═══════════ GRID SETTINGS ACCORDION ═══════════ */}
+                        <Accordion
+                          expanded={settingsPanelExpanded === 'grid'}
+                          onChange={(_, isExpanded) => setSettingsPanelExpanded(isExpanded ? 'grid' : false)}
+                          disableGutters
+                          sx={{
+                            bgcolor: 'transparent',
+                            boxShadow: 'none',
+                            '&:before': { display: 'none' },
+                            borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0'
+                          }}
+                        >
+                          <AccordionSummary
+                            expandIcon={<ExpandMoreIcon sx={{ color: isDarkMode ? '#94a3b8' : '#64748b' }} />}
+                            sx={{
+                              px: 2,
+                              minHeight: 56,
+                              '&.Mui-expanded': { minHeight: 56 },
+                              '& .MuiAccordionSummary-content': { my: 1.5 }
+                            }}
+                          >
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                              <TableChartIcon sx={{ color: '#f59e0b', fontSize: 22 }} />
+                              <Box>
+                                <Typography sx={{ fontWeight: 700, fontSize: '0.9rem', color: isDarkMode ? '#e2e8f0' : '#1e293b' }}>Grid Settings</Typography>
+                                <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>Sorting, filtering, resize</Typography>
+                              </Box>
+                            </Box>
+                          </AccordionSummary>
+                          <AccordionDetails sx={{ px: 2, pb: 2, pt: 0 }}>
+                            <Stack spacing={1.5}>
+                              <FormControlLabel
+                                control={
+                                  <Checkbox
+                                    checked={multiGridSettings.sortable}
+                                    onChange={(e) => updateMultiGridSettings({ ...multiGridSettings, sortable: e.target.checked })}
+                                    sx={{ '&.Mui-checked': { color: '#f59e0b' } }}
+                                  />
+                                }
+                                label={
+                                  <Box>
+                                    <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>⬆️ Enable Sorting</Typography>
+                                    <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>Click headers to sort</Typography>
+                                  </Box>
+                                }
+                              />
+                              <FormControlLabel
+                                control={
+                                  <Checkbox
+                                    checked={multiGridSettings.filter}
+                                    onChange={(e) => updateMultiGridSettings({ ...multiGridSettings, filter: e.target.checked })}
+                                    sx={{ '&.Mui-checked': { color: '#f59e0b' } }}
+                                  />
+                                }
+                                label={
+                                  <Box>
+                                    <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>🔍 Enable Filtering</Typography>
+                                    <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>Filter in column headers</Typography>
+                                  </Box>
+                                }
+                              />
+                              <FormControlLabel
+                                control={
+                                  <Checkbox
+                                    checked={multiGridSettings.resizable}
+                                    onChange={(e) => updateMultiGridSettings({ ...multiGridSettings, resizable: e.target.checked })}
+                                    sx={{ '&.Mui-checked': { color: '#f59e0b' } }}
+                                  />
+                                }
+                                label={
+                                  <Box>
+                                    <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>↔️ Column Resize</Typography>
+                                    <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>Drag borders to resize</Typography>
+                                  </Box>
+                                }
+                              />
+                              <Button
+                                size="small"
+                                onClick={() => {
+                                  updateMultiGridSettings({ sortable: true, filter: true, resizable: true, editable: true });
+                                  toast.success('Grid settings reset');
+                                }}
+                                sx={{ alignSelf: 'flex-start', fontSize: '0.75rem', color: isDarkMode ? '#94a3b8' : '#64748b' }}
+                              >
+                                🔄 Reset to Default
+                              </Button>
+                            </Stack>
+                          </AccordionDetails>
+                        </Accordion>
+
+                        {/* ═══════════ BATCH SELECTION ACCORDION ═══════════ */}
+                        <Accordion
+                          expanded={settingsPanelExpanded === 'batch'}
+                          onChange={(_, isExpanded) => setSettingsPanelExpanded(isExpanded ? 'batch' : false)}
+                          disableGutters
+                          sx={{
+                            bgcolor: 'transparent',
+                            boxShadow: 'none',
+                            '&:before': { display: 'none' },
+                            borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0'
+                          }}
+                        >
+                          <AccordionSummary
+                            expandIcon={<ExpandMoreIcon sx={{ color: isDarkMode ? '#94a3b8' : '#64748b' }} />}
+                            sx={{
+                              px: 2,
+                              minHeight: 56,
+                              '&.Mui-expanded': { minHeight: 56 },
+                              '& .MuiAccordionSummary-content': { my: 1.5 }
+                            }}
+                          >
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, width: '100%' }}>
+                              <InventoryIcon sx={{ color: '#8b5cf6', fontSize: 22 }} />
+                              <Box sx={{ flex: 1 }}>
+                                <Typography sx={{ fontWeight: 700, fontSize: '0.9rem', color: isDarkMode ? '#e2e8f0' : '#1e293b' }}>Batch & Cache</Typography>
+                                <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>
+                                  {batchCacheLoading ? 'Loading...' : selectedBatchIds.length > 0 ? `${selectedBatchIds.length} batch selected` : cacheStats ? `${cacheStats.totalRecords.toLocaleString()} WSN cached` : 'Loading...'}
+                                </Typography>
+                              </Box>
+                              <Chip
+                                size="small"
+                                label={batchCacheLoading || cacheLoading ? '🔄' : selectedBatchIds.length > 0 ? '📦' : '✅'}
+                                sx={{ height: 24, fontSize: '0.8rem', bgcolor: selectedBatchIds.length > 0 ? '#8b5cf6' : '#10b981', color: 'white' }}
+                              />
+                            </Box>
+                          </AccordionSummary>
+                          <AccordionDetails sx={{ px: 2, pb: 2, pt: 0 }}>
+                            <Stack spacing={1.5}>
+                              <Alert severity="info" sx={{ fontSize: '0.75rem', py: 0.5 }}>
+                                Select specific batches to validate WSN against, or use all cached data.
+                              </Alert>
+                              <Button
+                                fullWidth
+                                variant="outlined"
+                                onClick={() => { setBatchSelectorOpen(true); setMultiSettingsPanelOpen(false); }}
+                                sx={{
+                                  height: 44,
+                                  borderColor: '#8b5cf6',
+                                  color: '#8b5cf6',
+                                  fontWeight: 600,
+                                  '&:hover': { bgcolor: 'rgba(139, 92, 246, 0.08)' }
+                                }}
+                              >
+                                📦 Open Batch Selector
+                              </Button>
+                              {selectedBatchIds.length > 0 && (
+                                <Button
+                                  size="small"
+                                  onClick={() => {
+                                    setSelectedBatchIds([]);
+                                    localStorage.removeItem('inbound_selectedBatchIds');
+                                    toast.success('Batch selection cleared');
+                                  }}
+                                  sx={{ alignSelf: 'flex-start', fontSize: '0.75rem', color: '#dc2626' }}
+                                >
+                                  ✕ Clear Selection
+                                </Button>
+                              )}
+                            </Stack>
+                          </AccordionDetails>
+                        </Accordion>
+
+                        {/* ═══════════ EXPORT BUTTON ═══════════ */}
+                        <Box sx={{ p: 2, borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0' }}>
+                          <Button
+                            fullWidth
+                            variant="contained"
+                            startIcon={<DownloadIcon />}
+                            onClick={() => { exportMultiEntryToExcel(); setMultiSettingsPanelOpen(false); }}
+                            sx={{
+                              height: 44,
+                              background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                              fontWeight: 600,
+                              '&:hover': { background: 'linear-gradient(135deg, #059669 0%, #047857 100%)' }
+                            }}
+                          >
+                            Export to Excel
+                          </Button>
+                        </Box>
+
+                        {/* ═══════════ PRINT & SHORTCUTS SECTION ═══════════ */}
+                        <Box sx={{ p: 2 }}>
+                          <Typography sx={{ fontWeight: 700, fontSize: '0.75rem', color: isDarkMode ? '#94a3b8' : '#64748b', mb: 1.5, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                            Print & Shortcuts
+                          </Typography>
+                          <Stack spacing={1.5}>
+                            {/* Auto Print Toggle */}
+                            <Box sx={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              p: 1.5,
+                              borderRadius: 1.5,
+                              bgcolor: multiPrintEnabled ? 'rgba(22, 163, 74, 0.1)' : (isDarkMode ? '#0f172a' : '#f8fafc'),
+                              border: `1px solid ${multiPrintEnabled ? '#16a34a' : (isDarkMode ? '#334155' : '#e2e8f0')}`
+                            }}>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <PrintIcon sx={{ color: multiPrintEnabled ? '#16a34a' : (isDarkMode ? '#64748b' : '#94a3b8'), fontSize: 20 }} />
+                                <Box>
+                                  <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>Auto Print</Typography>
+                                  <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>Print label on WSN scan</Typography>
+                                </Box>
+                              </Box>
+                              <Switch
+                                checked={multiPrintEnabled}
+                                onChange={(e) => setMultiPrintEnabled(e.target.checked)}
+                                sx={{
+                                  '& .MuiSwitch-switchBase.Mui-checked': { color: '#16a34a' },
+                                  '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { bgcolor: '#16a34a' },
+                                }}
+                              />
+                            </Box>
+
+                            {/* Ctrl+P Toggle */}
+                            <Box sx={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              p: 1.5,
+                              borderRadius: 1.5,
+                              bgcolor: ctrlPPrintEnabled ? 'rgba(37, 99, 235, 0.1)' : (isDarkMode ? '#0f172a' : '#f8fafc'),
+                              border: `1px solid ${ctrlPPrintEnabled ? '#2563eb' : (isDarkMode ? '#334155' : '#e2e8f0')}`
+                            }}>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <KeyboardIcon sx={{ color: ctrlPPrintEnabled ? '#2563eb' : (isDarkMode ? '#64748b' : '#94a3b8'), fontSize: 20 }} />
+                                <Box>
+                                  <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>Ctrl+P Reprint</Typography>
+                                  <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>Reprint last scanned label</Typography>
+                                </Box>
+                              </Box>
+                              <Switch
+                                checked={ctrlPPrintEnabled}
+                                onChange={(e) => setCtrlPPrintEnabled(e.target.checked)}
+                                sx={{
+                                  '& .MuiSwitch-switchBase.Mui-checked': { color: '#2563eb' },
+                                  '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { bgcolor: '#2563eb' },
+                                }}
+                              />
+                            </Box>
+
+                            {/* Ctrl+O Toggle */}
+                            <Box sx={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              p: 1.5,
+                              borderRadius: 1.5,
+                              bgcolor: ctrlOProductLinkEnabled ? 'rgba(168, 85, 247, 0.1)' : (isDarkMode ? '#0f172a' : '#f8fafc'),
+                              border: `1px solid ${ctrlOProductLinkEnabled ? '#a855f7' : (isDarkMode ? '#334155' : '#e2e8f0')}`
+                            }}>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <LinkIcon sx={{ color: ctrlOProductLinkEnabled ? '#a855f7' : (isDarkMode ? '#64748b' : '#94a3b8'), fontSize: 20 }} />
+                                <Box>
+                                  <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>Ctrl+O Product Link</Typography>
+                                  <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>Open product link for WSN</Typography>
+                                </Box>
+                              </Box>
+                              <Switch
+                                checked={ctrlOProductLinkEnabled}
+                                onChange={(e) => setCtrlOProductLinkEnabled(e.target.checked)}
+                                sx={{
+                                  '& .MuiSwitch-switchBase.Mui-checked': { color: '#a855f7' },
+                                  '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { bgcolor: '#a855f7' },
+                                }}
+                              />
+                            </Box>
+                          </Stack>
+                        </Box>
+                      </Box>
+                    </Drawer>
 
                     {/* MOBILE: Two rows layout */}
                     <Box sx={{ display: { xs: 'block', md: 'none' } }}>
@@ -6848,6 +7235,46 @@ export default function InboundPage() {
                       // ✅ NULL SAFETY: Return early if field or rowIndex is null
                       if (!field || rowIndex === null || rowIndex === undefined) return;
 
+                      // ⚠️ WSN OVERWRITE WARNING: Check if replacing an existing WSN with a different one
+                      if (field === 'wsn') {
+                        const existingWSN = oldValue?.trim()?.toUpperCase();
+                        const newWSN = newValue?.trim()?.toUpperCase();
+
+                        // If row had a valid WSN and user is entering a DIFFERENT valid WSN
+                        if (existingWSN && newWSN && existingWSN !== newWSN) {
+                          // Store pending WSN and show dialog
+                          pendingWSNRef.current = { rowIndex, newWSN, event };
+
+                          // Get existing row data for display
+                          const existingData = multiRowsRef.current[rowIndex] || {};
+
+                          setWsnOverwriteDialog({
+                            open: true,
+                            rowIndex,
+                            existingWSN,
+                            existingData: {
+                              product_title: existingData.product_title,
+                              brand: existingData.brand,
+                              mrp: existingData.mrp,
+                              fsp: existingData.fsp,
+                              fsn: existingData.fsn,
+                              cms_vertical: existingData.cms_vertical,
+                            },
+                            newWSN,
+                          });
+
+                          // REVERT the cell value to old WSN (user hasn't confirmed yet)
+                          setTimeout(() => {
+                            const node = event.api.getRowNode(String(rowIndex));
+                            if (node) {
+                              node.setDataValue('wsn', existingWSN);
+                            }
+                          }, 10);
+
+                          return; // Don't process further until user confirms
+                        }
+                      }
+
                       // ⚡ EXCEL-LIKE: Save cell-level undo action for any meaningful change
                       if (oldValue !== newValue) {
                         // For WSN field, save the entire row data for proper undo
@@ -7344,6 +7771,28 @@ export default function InboundPage() {
                   >
                     Clear Draft
                   </Button>
+
+                  {/* +500 Rows Button - Moved to bottom bar */}
+                  <Tooltip title="Add 500 more empty rows to the grid" placement="top">
+                    <Button
+                      size="small"
+                      variant="contained"
+                      onClick={add500Rows}
+                      sx={{
+                        height: 32,
+                        px: 2,
+                        fontSize: '0.75rem',
+                        fontWeight: 600,
+                        borderRadius: 1,
+                        background: 'linear-gradient(135deg, #3b82f6 0%, #1e40af 100%)',
+                        textTransform: 'none',
+                        boxShadow: 'none',
+                        '&:hover': { background: 'linear-gradient(135deg, #2563eb 0%, #1e3a8a 100%)', boxShadow: 'none' }
+                      }}
+                    >
+                      +500 Rows
+                    </Button>
+                  </Tooltip>
 
                   {/* SUBMIT BUTTON */}
                   <Button
@@ -7894,6 +8343,14 @@ export default function InboundPage() {
           }
         </Box >
       </Box >
+
+      {/* WSN Overwrite Warning Dialog */}
+      <WSNOverwriteDialog
+        data={wsnOverwriteDialog}
+        onCancel={handleOverwriteCancel}
+        onReplace={handleOverwriteReplace}
+        onAddToNextRow={handleOverwriteAddToNextRow}
+      />
     </AppLayout >
   );
 }
