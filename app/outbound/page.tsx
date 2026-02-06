@@ -6919,22 +6919,41 @@ export default function OutboundPage() {
                                             ⚙️ Settings:
                                         </Typography>
                                         <FormControl size="small" sx={{ minWidth: 130 }}>
-                                            <InputLabel sx={{
+                                            <InputLabel id="crosstab-row-field-label" sx={{
                                                 fontSize: '0.75rem',
                                                 color: isDarkMode ? '#94a3b8' : 'inherit',
                                             }}>Row Field</InputLabel>
                                             <Select
+                                                labelId="crosstab-row-field-label"
+                                                id="crosstab-row-field"
                                                 value={crossTabRowField}
                                                 onChange={(e) => {
                                                     const newVal = e.target.value as 'category' | 'brand' | 'p_type';
-                                                    setCrossTabRowField(newVal);
                                                     if (newVal === crossTabColField) {
-                                                        // Swap with column
+                                                        // Swap: set col field to current row field before changing row field
                                                         setCrossTabColField(crossTabRowField);
                                                     }
+                                                    setCrossTabRowField(newVal);
                                                     setCrossTabFilter([]);
                                                 }}
                                                 label="Row Field"
+                                                MenuProps={{
+                                                    PaperProps: {
+                                                        sx: {
+                                                            bgcolor: isDarkMode ? '#1e293b' : '#fff',
+                                                            color: isDarkMode ? '#e2e8f0' : 'inherit',
+                                                            '& .MuiMenuItem-root': {
+                                                                fontSize: '0.75rem',
+                                                                '&:hover': {
+                                                                    bgcolor: isDarkMode ? 'rgba(239, 68, 68, 0.2)' : 'rgba(239, 68, 68, 0.1)',
+                                                                },
+                                                                '&.Mui-selected': {
+                                                                    bgcolor: isDarkMode ? 'rgba(239, 68, 68, 0.3)' : 'rgba(239, 68, 68, 0.15)',
+                                                                },
+                                                            },
+                                                        },
+                                                    },
+                                                }}
                                                 sx={{
                                                     fontSize: '0.75rem',
                                                     height: 36,
@@ -6943,31 +6962,53 @@ export default function OutboundPage() {
                                                     '& .MuiOutlinedInput-notchedOutline': {
                                                         borderColor: isDarkMode ? '#475569' : '#d1d5db',
                                                     },
+                                                    '& .MuiSelect-icon': {
+                                                        color: isDarkMode ? '#94a3b8' : 'inherit',
+                                                    },
                                                 }}
                                             >
-                                                <MenuItem value="category" sx={{ fontSize: '0.75rem' }}>📁 Category</MenuItem>
-                                                <MenuItem value="brand" sx={{ fontSize: '0.75rem' }}>🏷️ Brand</MenuItem>
-                                                <MenuItem value="p_type" sx={{ fontSize: '0.75rem' }}>📦 P_Type</MenuItem>
+                                                <MenuItem value="category">📁 Category</MenuItem>
+                                                <MenuItem value="brand">🏷️ Brand</MenuItem>
+                                                <MenuItem value="p_type">📦 P_Type</MenuItem>
                                             </Select>
                                         </FormControl>
                                         <Typography sx={{ color: isDarkMode ? '#94a3b8' : '#64748b', fontWeight: 600 }}>×</Typography>
                                         <FormControl size="small" sx={{ minWidth: 130 }}>
-                                            <InputLabel sx={{
+                                            <InputLabel id="crosstab-col-field-label" sx={{
                                                 fontSize: '0.75rem',
                                                 color: isDarkMode ? '#94a3b8' : 'inherit',
                                             }}>Column Field</InputLabel>
                                             <Select
+                                                labelId="crosstab-col-field-label"
+                                                id="crosstab-col-field"
                                                 value={crossTabColField}
                                                 onChange={(e) => {
                                                     const newVal = e.target.value as 'category' | 'brand' | 'p_type';
-                                                    setCrossTabColField(newVal);
                                                     if (newVal === crossTabRowField) {
-                                                        // Swap with row
+                                                        // Swap: set row field to current col field before changing col field
                                                         setCrossTabRowField(crossTabColField);
                                                     }
+                                                    setCrossTabColField(newVal);
                                                     setCrossTabFilter([]);
                                                 }}
                                                 label="Column Field"
+                                                MenuProps={{
+                                                    PaperProps: {
+                                                        sx: {
+                                                            bgcolor: isDarkMode ? '#1e293b' : '#fff',
+                                                            color: isDarkMode ? '#e2e8f0' : 'inherit',
+                                                            '& .MuiMenuItem-root': {
+                                                                fontSize: '0.75rem',
+                                                                '&:hover': {
+                                                                    bgcolor: isDarkMode ? 'rgba(239, 68, 68, 0.2)' : 'rgba(239, 68, 68, 0.1)',
+                                                                },
+                                                                '&.Mui-selected': {
+                                                                    bgcolor: isDarkMode ? 'rgba(239, 68, 68, 0.3)' : 'rgba(239, 68, 68, 0.15)',
+                                                                },
+                                                            },
+                                                        },
+                                                    },
+                                                }}
                                                 sx={{
                                                     fontSize: '0.75rem',
                                                     height: 36,
@@ -6976,20 +7017,25 @@ export default function OutboundPage() {
                                                     '& .MuiOutlinedInput-notchedOutline': {
                                                         borderColor: isDarkMode ? '#475569' : '#d1d5db',
                                                     },
+                                                    '& .MuiSelect-icon': {
+                                                        color: isDarkMode ? '#94a3b8' : 'inherit',
+                                                    },
                                                 }}
                                             >
-                                                <MenuItem value="category" sx={{ fontSize: '0.75rem' }}>📁 Category</MenuItem>
-                                                <MenuItem value="brand" sx={{ fontSize: '0.75rem' }}>🏷️ Brand</MenuItem>
-                                                <MenuItem value="p_type" sx={{ fontSize: '0.75rem' }}>📦 P_Type</MenuItem>
+                                                <MenuItem value="category">📁 Category</MenuItem>
+                                                <MenuItem value="brand">🏷️ Brand</MenuItem>
+                                                <MenuItem value="p_type">📦 P_Type</MenuItem>
                                             </Select>
                                         </FormControl>
                                         <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
                                         <Autocomplete
                                             multiple
                                             size="small"
+                                            disableCloseOnSelect
                                             options={crossTabFilterOptions}
                                             value={crossTabFilter}
                                             onChange={(_, newValue) => setCrossTabFilter(newValue)}
+                                            noOptionsText="No options available"
                                             renderInput={(params) => (
                                                 <TextField
                                                     {...params}
@@ -7009,6 +7055,9 @@ export default function OutboundPage() {
                                                         },
                                                         '& .MuiOutlinedInput-notchedOutline': {
                                                             borderColor: isDarkMode ? '#475569' : '#d1d5db',
+                                                        },
+                                                        '& .MuiSvgIcon-root': {
+                                                            color: isDarkMode ? '#94a3b8' : 'inherit',
                                                         },
                                                     }}
                                                 />
@@ -7043,9 +7092,13 @@ export default function OutboundPage() {
                                                             '&:hover': {
                                                                 bgcolor: isDarkMode ? 'rgba(239, 68, 68, 0.2)' : 'rgba(239, 68, 68, 0.1)',
                                                             },
-                                                            '&[aria-selected=\"true\"]': {
+                                                            '&[aria-selected="true"]': {
                                                                 bgcolor: isDarkMode ? 'rgba(239, 68, 68, 0.3)' : 'rgba(239, 68, 68, 0.2)',
                                                             },
+                                                        },
+                                                        '& .MuiAutocomplete-noOptions': {
+                                                            fontSize: '0.75rem',
+                                                            color: isDarkMode ? '#94a3b8' : '#64748b',
                                                         },
                                                     },
                                                 },
