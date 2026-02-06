@@ -536,7 +536,7 @@ export default function OutboundPage() {
 
     // ====== CATEGORY PIVOT DIALOG ======
     const [categoryPivotOpen, setCategoryPivotOpen] = useState(false);
-    const [pivotGroupBy, setPivotGroupBy] = useState<'category' | 'brand'>('category');
+    const [pivotGroupBy, setPivotGroupBy] = useState<'category' | 'brand' | 'p_type'>('category');
     const [categoryPivotSortBy, setCategoryPivotSortBy] = useState<'category' | 'qty' | 'fsp' | 'mrp'>('qty');
     const [categoryPivotSortDir, setCategoryPivotSortDir] = useState<'asc' | 'desc'>('desc');
 
@@ -3755,9 +3755,9 @@ export default function OutboundPage() {
             return { categories: [], grandTotal: { qty: 0, fsp: 0, mrp: 0 } };
         }
 
-        // Group by category (cms_vertical) or brand based on pivotGroupBy
-        const groupField = pivotGroupBy === 'brand' ? 'brand' : 'cms_vertical';
-        const defaultLabel = pivotGroupBy === 'brand' ? 'Unknown Brand' : 'Uncategorized';
+        // Group by category (cms_vertical), brand, or p_type based on pivotGroupBy
+        const groupField = pivotGroupBy === 'brand' ? 'brand' : pivotGroupBy === 'p_type' ? 'p_type' : 'cms_vertical';
+        const defaultLabel = pivotGroupBy === 'brand' ? 'Unknown Brand' : pivotGroupBy === 'p_type' ? 'Unknown Type' : 'Uncategorized';
         const categoryMap = new Map<string, { qty: number; fsp: number; mrp: number; items: any[] }>();
 
         filledRows.forEach((row: any) => {
@@ -3842,7 +3842,7 @@ export default function OutboundPage() {
     const exportCategoryPivotToExcel = async () => {
         try {
             const XLSX = await import('xlsx');
-            const groupLabel = pivotGroupBy === 'brand' ? 'Brand' : 'Category';
+            const groupLabel = pivotGroupBy === 'brand' ? 'Brand' : pivotGroupBy === 'p_type' ? 'P_Type' : 'Category';
             const exportData = categoryPivotData.categories.map((cat, idx) => ({
                 'Sr No': idx + 1,
                 [groupLabel]: cat.category,
@@ -6483,7 +6483,7 @@ export default function OutboundPage() {
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                     <PieChartIcon />
                                     <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                                        {pivotGroupBy === 'brand' ? 'Brand' : 'Category'} Quantity Summary
+                                        {pivotGroupBy === 'brand' ? 'Brand' : pivotGroupBy === 'p_type' ? 'P_Type' : 'Category'} Quantity Summary
                                     </Typography>
                                 </Box>
                                 <Chip
@@ -6556,6 +6556,29 @@ export default function OutboundPage() {
                                         >
                                             🏷️ Brand
                                         </Button>
+                                        <Button
+                                            size="small"
+                                            variant={pivotGroupBy === 'p_type' ? 'contained' : 'outlined'}
+                                            onClick={() => setPivotGroupBy('p_type')}
+                                            sx={{
+                                                fontSize: '0.75rem',
+                                                fontWeight: 600,
+                                                px: 2,
+                                                py: 0.5,
+                                                borderRadius: 1,
+                                                textTransform: 'none',
+                                                ...(pivotGroupBy === 'p_type' ? {
+                                                    background: 'linear-gradient(135deg, #ea580c 0%, #f97316 100%)',
+                                                    '&:hover': { background: 'linear-gradient(135deg, #c2410c 0%, #ea580c 100%)' },
+                                                } : {
+                                                    borderColor: isDarkMode ? '#fb923c' : '#ea580c',
+                                                    color: isDarkMode ? '#fdba74' : '#ea580c',
+                                                    '&:hover': { bgcolor: 'rgba(249, 115, 22, 0.08)' },
+                                                }),
+                                            }}
+                                        >
+                                            📦 P_Type
+                                        </Button>
                                     </Box>
                                 </Box>
 
@@ -6581,7 +6604,7 @@ export default function OutboundPage() {
                                                             userSelect: 'none',
                                                         }}
                                                     >
-                                                        {pivotGroupBy === 'brand' ? 'Brand' : 'Category'} {categoryPivotSortBy === 'category' && (categoryPivotSortDir === 'asc' ? '↑' : '↓')}
+                                                        {pivotGroupBy === 'brand' ? 'Brand' : pivotGroupBy === 'p_type' ? 'P_Type' : 'Category'} {categoryPivotSortBy === 'category' && (categoryPivotSortDir === 'asc' ? '↑' : '↓')}
                                                     </TableCell>
                                                     <TableCell
                                                         align="right"
