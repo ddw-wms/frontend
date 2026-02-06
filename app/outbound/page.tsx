@@ -547,6 +547,8 @@ export default function OutboundPage() {
     const [crossTabRowField, setCrossTabRowField] = useState<'category' | 'brand' | 'p_type'>('brand');
     const [crossTabColField, setCrossTabColField] = useState<'category' | 'brand' | 'p_type'>('p_type');
     const [crossTabFilter, setCrossTabFilter] = useState<string[]>([]);
+    // Pivot Dialog fullscreen toggle
+    const [pivotDialogFullscreen, setPivotDialogFullscreen] = useState(false);
 
     // ====== MULTI ENTRY COLUMN WIDTHS PERSISTENCE ======
     const [multiColumnWidths, setMultiColumnWidths] = useState<Record<string, number>>({});
@@ -6737,13 +6739,23 @@ export default function OutboundPage() {
                         <Dialog
                             open={categoryPivotOpen}
                             onClose={() => setCategoryPivotOpen(false)}
-                            maxWidth="md"
+                            maxWidth={pivotDialogFullscreen ? false : "lg"}
                             fullWidth
                             container={multiEntryContainerRef.current}
                             PaperProps={{
                                 sx: {
-                                    borderRadius: 2,
+                                    borderRadius: pivotDialogFullscreen ? 0 : 2,
                                     bgcolor: isDarkMode ? '#1e293b' : '#ffffff',
+                                    ...(pivotDialogFullscreen ? {
+                                        width: '98vw',
+                                        height: '92vh',
+                                        maxWidth: 'none',
+                                        maxHeight: 'none',
+                                        m: 1,
+                                    } : {
+                                        width: '1100px', // ~2 inch wider than md (900px)
+                                        minHeight: '600px', // ~1 inch taller
+                                    }),
                                 }
                             }}
                         >
@@ -6761,15 +6773,28 @@ export default function OutboundPage() {
                                         {pivotGroupBy === 'brand' ? 'Brand' : pivotGroupBy === 'p_type' ? 'P_Type' : pivotGroupBy === 'combined' ? 'Combined' : pivotGroupBy === 'crosstab' ? 'Cross-Tab' : 'Category'} Quantity Summary
                                     </Typography>
                                 </Box>
-                                <Chip
-                                    label={`${pivotGroupBy === 'crosstab' ? crossTabPivotData.grandTotal : categoryPivotData.grandTotal.qty} Items`}
-                                    size="small"
-                                    sx={{
-                                        bgcolor: 'rgba(255,255,255,0.2)',
-                                        color: 'white',
-                                        fontWeight: 700,
-                                    }}
-                                />
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                    <Chip
+                                        label={`${pivotGroupBy === 'crosstab' ? crossTabPivotData.grandTotal : categoryPivotData.grandTotal.qty} Items`}
+                                        size="small"
+                                        sx={{
+                                            bgcolor: 'rgba(255,255,255,0.2)',
+                                            color: 'white',
+                                            fontWeight: 700,
+                                        }}
+                                    />
+                                    <IconButton
+                                        size="small"
+                                        onClick={() => setPivotDialogFullscreen(!pivotDialogFullscreen)}
+                                        sx={{
+                                            color: 'white',
+                                            '&:hover': { bgcolor: 'rgba(255,255,255,0.15)' },
+                                        }}
+                                        title={pivotDialogFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
+                                    >
+                                        {pivotDialogFullscreen ? <FullscreenExitIcon /> : <FullscreenIcon />}
+                                    </IconButton>
+                                </Box>
                             </DialogTitle>
                             <DialogContent sx={{ p: 0 }}>
                                 {/* Group By Toggle */}
@@ -6919,10 +6944,19 @@ export default function OutboundPage() {
                                             ⚙️ Settings:
                                         </Typography>
                                         <FormControl size="small" sx={{ minWidth: 130 }}>
-                                            <InputLabel id="crosstab-row-field-label" sx={{
-                                                fontSize: '0.75rem',
-                                                color: isDarkMode ? '#94a3b8' : 'inherit',
-                                            }}>Row Field</InputLabel>
+                                            <InputLabel
+                                                id="crosstab-row-field-label"
+                                                sx={{
+                                                    fontSize: '0.75rem',
+                                                    color: isDarkMode ? '#e2e8f0' : 'inherit',
+                                                    '&.Mui-focused': {
+                                                        color: isDarkMode ? '#fca5a5' : '#dc2626',
+                                                    },
+                                                    '&.MuiInputLabel-shrink': {
+                                                        color: isDarkMode ? '#e2e8f0' : 'inherit',
+                                                    },
+                                                }}
+                                            >Row Field</InputLabel>
                                             <Select
                                                 labelId="crosstab-row-field-label"
                                                 id="crosstab-row-field"
@@ -6944,11 +6978,13 @@ export default function OutboundPage() {
                                                             color: isDarkMode ? '#e2e8f0' : 'inherit',
                                                             '& .MuiMenuItem-root': {
                                                                 fontSize: '0.75rem',
+                                                                color: isDarkMode ? '#e2e8f0' : 'inherit',
                                                                 '&:hover': {
                                                                     bgcolor: isDarkMode ? 'rgba(239, 68, 68, 0.2)' : 'rgba(239, 68, 68, 0.1)',
                                                                 },
                                                                 '&.Mui-selected': {
                                                                     bgcolor: isDarkMode ? 'rgba(239, 68, 68, 0.3)' : 'rgba(239, 68, 68, 0.15)',
+                                                                    color: isDarkMode ? '#fca5a5' : '#dc2626',
                                                                 },
                                                             },
                                                         },
@@ -6957,13 +6993,22 @@ export default function OutboundPage() {
                                                 sx={{
                                                     fontSize: '0.75rem',
                                                     height: 36,
-                                                    bgcolor: isDarkMode ? 'rgba(30, 41, 59, 0.8)' : '#fff',
+                                                    bgcolor: isDarkMode ? '#1e293b' : '#fff',
                                                     color: isDarkMode ? '#e2e8f0' : 'inherit',
+                                                    '& .MuiSelect-select': {
+                                                        color: isDarkMode ? '#e2e8f0' : 'inherit',
+                                                    },
                                                     '& .MuiOutlinedInput-notchedOutline': {
                                                         borderColor: isDarkMode ? '#475569' : '#d1d5db',
                                                     },
+                                                    '&:hover .MuiOutlinedInput-notchedOutline': {
+                                                        borderColor: isDarkMode ? '#f87171' : '#dc2626',
+                                                    },
+                                                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                                                        borderColor: isDarkMode ? '#f87171' : '#dc2626',
+                                                    },
                                                     '& .MuiSelect-icon': {
-                                                        color: isDarkMode ? '#94a3b8' : 'inherit',
+                                                        color: isDarkMode ? '#e2e8f0' : 'inherit',
                                                     },
                                                 }}
                                             >
@@ -6974,10 +7019,19 @@ export default function OutboundPage() {
                                         </FormControl>
                                         <Typography sx={{ color: isDarkMode ? '#94a3b8' : '#64748b', fontWeight: 600 }}>×</Typography>
                                         <FormControl size="small" sx={{ minWidth: 130 }}>
-                                            <InputLabel id="crosstab-col-field-label" sx={{
-                                                fontSize: '0.75rem',
-                                                color: isDarkMode ? '#94a3b8' : 'inherit',
-                                            }}>Column Field</InputLabel>
+                                            <InputLabel
+                                                id="crosstab-col-field-label"
+                                                sx={{
+                                                    fontSize: '0.75rem',
+                                                    color: isDarkMode ? '#e2e8f0' : 'inherit',
+                                                    '&.Mui-focused': {
+                                                        color: isDarkMode ? '#fca5a5' : '#dc2626',
+                                                    },
+                                                    '&.MuiInputLabel-shrink': {
+                                                        color: isDarkMode ? '#e2e8f0' : 'inherit',
+                                                    },
+                                                }}
+                                            >Column Field</InputLabel>
                                             <Select
                                                 labelId="crosstab-col-field-label"
                                                 id="crosstab-col-field"
@@ -6999,11 +7053,13 @@ export default function OutboundPage() {
                                                             color: isDarkMode ? '#e2e8f0' : 'inherit',
                                                             '& .MuiMenuItem-root': {
                                                                 fontSize: '0.75rem',
+                                                                color: isDarkMode ? '#e2e8f0' : 'inherit',
                                                                 '&:hover': {
                                                                     bgcolor: isDarkMode ? 'rgba(239, 68, 68, 0.2)' : 'rgba(239, 68, 68, 0.1)',
                                                                 },
                                                                 '&.Mui-selected': {
                                                                     bgcolor: isDarkMode ? 'rgba(239, 68, 68, 0.3)' : 'rgba(239, 68, 68, 0.15)',
+                                                                    color: isDarkMode ? '#fca5a5' : '#dc2626',
                                                                 },
                                                             },
                                                         },
@@ -7012,13 +7068,22 @@ export default function OutboundPage() {
                                                 sx={{
                                                     fontSize: '0.75rem',
                                                     height: 36,
-                                                    bgcolor: isDarkMode ? 'rgba(30, 41, 59, 0.8)' : '#fff',
+                                                    bgcolor: isDarkMode ? '#1e293b' : '#fff',
                                                     color: isDarkMode ? '#e2e8f0' : 'inherit',
+                                                    '& .MuiSelect-select': {
+                                                        color: isDarkMode ? '#e2e8f0' : 'inherit',
+                                                    },
                                                     '& .MuiOutlinedInput-notchedOutline': {
                                                         borderColor: isDarkMode ? '#475569' : '#d1d5db',
                                                     },
+                                                    '&:hover .MuiOutlinedInput-notchedOutline': {
+                                                        borderColor: isDarkMode ? '#f87171' : '#dc2626',
+                                                    },
+                                                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                                                        borderColor: isDarkMode ? '#f87171' : '#dc2626',
+                                                    },
                                                     '& .MuiSelect-icon': {
-                                                        color: isDarkMode ? '#94a3b8' : 'inherit',
+                                                        color: isDarkMode ? '#e2e8f0' : 'inherit',
                                                     },
                                                 }}
                                             >
@@ -7027,7 +7092,7 @@ export default function OutboundPage() {
                                                 <MenuItem value="p_type">📦 P_Type</MenuItem>
                                             </Select>
                                         </FormControl>
-                                        <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
+                                        <Divider orientation="vertical" flexItem sx={{ mx: 1, borderColor: isDarkMode ? '#475569' : '#e2e8f0' }} />
                                         <Autocomplete
                                             multiple
                                             size="small"
@@ -7046,18 +7111,37 @@ export default function OutboundPage() {
                                                         '& .MuiInputBase-root': {
                                                             fontSize: '0.75rem',
                                                             minHeight: 36,
-                                                            bgcolor: isDarkMode ? 'rgba(30, 41, 59, 0.8)' : '#fff',
+                                                            bgcolor: isDarkMode ? '#1e293b' : '#fff',
                                                             color: isDarkMode ? '#e2e8f0' : 'inherit',
+                                                        },
+                                                        '& .MuiInputBase-input': {
+                                                            color: isDarkMode ? '#e2e8f0' : 'inherit',
+                                                            '&::placeholder': {
+                                                                color: isDarkMode ? '#94a3b8' : '#9ca3af',
+                                                                opacity: 1,
+                                                            },
                                                         },
                                                         '& .MuiInputLabel-root': {
                                                             fontSize: '0.75rem',
-                                                            color: isDarkMode ? '#94a3b8' : 'inherit',
+                                                            color: isDarkMode ? '#e2e8f0' : 'inherit',
+                                                            '&.Mui-focused': {
+                                                                color: isDarkMode ? '#fca5a5' : '#dc2626',
+                                                            },
+                                                            '&.MuiInputLabel-shrink': {
+                                                                color: isDarkMode ? '#e2e8f0' : 'inherit',
+                                                            },
                                                         },
                                                         '& .MuiOutlinedInput-notchedOutline': {
                                                             borderColor: isDarkMode ? '#475569' : '#d1d5db',
                                                         },
+                                                        '&:hover .MuiOutlinedInput-notchedOutline': {
+                                                            borderColor: isDarkMode ? '#f87171' : '#dc2626',
+                                                        },
+                                                        '& .Mui-focused .MuiOutlinedInput-notchedOutline': {
+                                                            borderColor: isDarkMode ? '#f87171' : '#dc2626',
+                                                        },
                                                         '& .MuiSvgIcon-root': {
-                                                            color: isDarkMode ? '#94a3b8' : 'inherit',
+                                                            color: isDarkMode ? '#e2e8f0' : 'inherit',
                                                         },
                                                     }}
                                                 />
@@ -7153,18 +7237,31 @@ export default function OutboundPage() {
                                                         '& .MuiInputBase-root': {
                                                             fontSize: '0.75rem',
                                                             minHeight: 36,
-                                                            bgcolor: isDarkMode ? 'rgba(30, 41, 59, 0.8)' : '#fff',
+                                                            bgcolor: isDarkMode ? '#1e293b' : '#fff',
                                                             color: isDarkMode ? '#e2e8f0' : 'inherit',
+                                                        },
+                                                        '& .MuiInputBase-input': {
+                                                            color: isDarkMode ? '#e2e8f0' : 'inherit',
+                                                            '&::placeholder': {
+                                                                color: isDarkMode ? '#94a3b8' : '#9ca3af',
+                                                                opacity: 1,
+                                                            },
                                                         },
                                                         '& .MuiInputLabel-root': {
                                                             fontSize: '0.75rem',
-                                                            color: isDarkMode ? '#94a3b8' : 'inherit',
+                                                            color: isDarkMode ? '#e2e8f0' : 'inherit',
+                                                            '&.Mui-focused': {
+                                                                color: isDarkMode ? '#a78bfa' : '#7c3aed',
+                                                            },
                                                         },
                                                         '& .MuiOutlinedInput-notchedOutline': {
                                                             borderColor: isDarkMode ? '#475569' : '#d1d5db',
                                                         },
                                                         '&:hover .MuiOutlinedInput-notchedOutline': {
                                                             borderColor: isDarkMode ? '#7c3aed' : '#8b5cf6',
+                                                        },
+                                                        '& .MuiSvgIcon-root': {
+                                                            color: isDarkMode ? '#e2e8f0' : 'inherit',
                                                         },
                                                     }}
                                                 />
@@ -7223,18 +7320,31 @@ export default function OutboundPage() {
                                                         '& .MuiInputBase-root': {
                                                             fontSize: '0.75rem',
                                                             minHeight: 36,
-                                                            bgcolor: isDarkMode ? 'rgba(30, 41, 59, 0.8)' : '#fff',
+                                                            bgcolor: isDarkMode ? '#1e293b' : '#fff',
                                                             color: isDarkMode ? '#e2e8f0' : 'inherit',
+                                                        },
+                                                        '& .MuiInputBase-input': {
+                                                            color: isDarkMode ? '#e2e8f0' : 'inherit',
+                                                            '&::placeholder': {
+                                                                color: isDarkMode ? '#94a3b8' : '#9ca3af',
+                                                                opacity: 1,
+                                                            },
                                                         },
                                                         '& .MuiInputLabel-root': {
                                                             fontSize: '0.75rem',
-                                                            color: isDarkMode ? '#94a3b8' : 'inherit',
+                                                            color: isDarkMode ? '#e2e8f0' : 'inherit',
+                                                            '&.Mui-focused': {
+                                                                color: isDarkMode ? '#22d3ee' : '#0891b2',
+                                                            },
                                                         },
                                                         '& .MuiOutlinedInput-notchedOutline': {
                                                             borderColor: isDarkMode ? '#475569' : '#d1d5db',
                                                         },
                                                         '&:hover .MuiOutlinedInput-notchedOutline': {
                                                             borderColor: isDarkMode ? '#06b6d4' : '#0891b2',
+                                                        },
+                                                        '& .MuiSvgIcon-root': {
+                                                            color: isDarkMode ? '#e2e8f0' : 'inherit',
                                                         },
                                                     }}
                                                 />
@@ -7293,18 +7403,31 @@ export default function OutboundPage() {
                                                         '& .MuiInputBase-root': {
                                                             fontSize: '0.75rem',
                                                             minHeight: 36,
-                                                            bgcolor: isDarkMode ? 'rgba(30, 41, 59, 0.8)' : '#fff',
+                                                            bgcolor: isDarkMode ? '#1e293b' : '#fff',
                                                             color: isDarkMode ? '#e2e8f0' : 'inherit',
+                                                        },
+                                                        '& .MuiInputBase-input': {
+                                                            color: isDarkMode ? '#e2e8f0' : 'inherit',
+                                                            '&::placeholder': {
+                                                                color: isDarkMode ? '#94a3b8' : '#9ca3af',
+                                                                opacity: 1,
+                                                            },
                                                         },
                                                         '& .MuiInputLabel-root': {
                                                             fontSize: '0.75rem',
-                                                            color: isDarkMode ? '#94a3b8' : 'inherit',
+                                                            color: isDarkMode ? '#e2e8f0' : 'inherit',
+                                                            '&.Mui-focused': {
+                                                                color: isDarkMode ? '#fb923c' : '#ea580c',
+                                                            },
                                                         },
                                                         '& .MuiOutlinedInput-notchedOutline': {
                                                             borderColor: isDarkMode ? '#475569' : '#d1d5db',
                                                         },
                                                         '&:hover .MuiOutlinedInput-notchedOutline': {
                                                             borderColor: isDarkMode ? '#f97316' : '#ea580c',
+                                                        },
+                                                        '& .MuiSvgIcon-root': {
+                                                            color: isDarkMode ? '#e2e8f0' : 'inherit',
                                                         },
                                                     }}
                                                 />
@@ -7380,7 +7503,7 @@ export default function OutboundPage() {
                                             </Typography>
                                         </Box>
                                     ) : (
-                                        <TableContainer sx={{ maxHeight: 400 }}>
+                                        <TableContainer sx={{ maxHeight: pivotDialogFullscreen ? 'calc(92vh - 220px)' : 500 }}>
                                             <Table stickyHeader size="small">
                                                 <TableHead>
                                                     <TableRow>
@@ -7517,7 +7640,7 @@ export default function OutboundPage() {
                                         </Typography>
                                     </Box>
                                 ) : (
-                                    <TableContainer sx={{ maxHeight: 400 }}>
+                                    <TableContainer sx={{ maxHeight: pivotDialogFullscreen ? 'calc(92vh - 220px)' : 500 }}>
                                         <Table stickyHeader size="small">
                                             <TableHead>
                                                 <TableRow>
