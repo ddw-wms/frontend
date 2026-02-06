@@ -536,13 +536,17 @@ export default function OutboundPage() {
 
     // ====== CATEGORY PIVOT DIALOG ======
     const [categoryPivotOpen, setCategoryPivotOpen] = useState(false);
-    const [pivotGroupBy, setPivotGroupBy] = useState<'category' | 'brand' | 'p_type' | 'combined'>('category');
+    const [pivotGroupBy, setPivotGroupBy] = useState<'category' | 'brand' | 'p_type' | 'combined' | 'crosstab'>('category');
     const [categoryPivotSortBy, setCategoryPivotSortBy] = useState<'category' | 'qty' | 'fsp' | 'mrp'>('qty');
     const [categoryPivotSortDir, setCategoryPivotSortDir] = useState<'asc' | 'desc'>('desc');
     // Combined view filters (multiple selection)
     const [pivotCategoryFilter, setPivotCategoryFilter] = useState<string[]>([]);
     const [pivotBrandFilter, setPivotBrandFilter] = useState<string[]>([]);
     const [pivotPTypeFilter, setPivotPTypeFilter] = useState<string[]>([]);
+    // Cross-Tab Pivot settings
+    const [crossTabRowField, setCrossTabRowField] = useState<'category' | 'brand' | 'p_type'>('brand');
+    const [crossTabColField, setCrossTabColField] = useState<'category' | 'brand' | 'p_type'>('p_type');
+    const [crossTabFilter, setCrossTabFilter] = useState<string[]>([]);
 
     // ====== MULTI ENTRY COLUMN WIDTHS PERSISTENCE ======
     const [multiColumnWidths, setMultiColumnWidths] = useState<Record<string, number>>({});
@@ -3928,13 +3932,105 @@ export default function OutboundPage() {
         return { categories, grandTotal };
     }, [multiRows, pivotGroupBy, categoryPivotSortBy, categoryPivotSortDir, pivotCategoryFilter, pivotBrandFilter, pivotPTypeFilter]);
 
+    // Cross-Tab filter options (the third field not used in row/col)
+    const crossTabFilterField = useMemo(() => {
+        const fields: ('category' | 'brand' | 'p_type')[] = ['category', 'brand', 'p_type'];
+        return fields.find(f => f !== crossTabRowField && f !== crossTabColField) || 'category';
+    }, [crossTabRowField, crossTabColField]);
+
+    const crossTabFilterOptions = useMemo(() => {
+        const filledRows = multiRows.filter((row: any) => row.wsn?.trim());
+        const options = new Set<string>();
+        const fieldMap: Record<string, string> = {
+            'category': 'cms_vertical',
+            'brand': 'brand',
+            'p_type': 'p_type',
+        };
+        const dbField = fieldMap[crossTabFilterField];
+        filledRows.forEach((row: any) => {
+            if (row[dbField]?.trim()) options.add(row[dbField].trim());
+        });
+        return Array.from(options).sort();
+    }, [multiRows, crossTabFilterField]);
+
+    // Cross-Tab Pivot Data computation
+    const crossTabPivotData = useMemo(() => {
+        let filledRows = multiRows.filter((row: any) => row.wsn?.trim());
+
+        if (filledRows.length === 0) {
+            return { rowHeaders: [], colHeaders: [], data: {}, rowTotals: {}, colTotals: {}, grandTotal: 0 };
+        }
+
+        // Apply filter if selected
+        const fieldMap: Record<string, string> = {
+            'category': 'cms_vertical',
+            'brand': 'brand',
+            'p_type': 'p_type',
+        };
+
+        if (crossTabFilter.length > 0) {
+            const filterDbField = fieldMap[crossTabFilterField];
+            filledRows = filledRows.filter((row: any) => crossTabFilter.includes(row[filterDbField]?.trim()));
+        }
+
+        const rowDbField = fieldMap[crossTabRowField];
+        const colDbField = fieldMap[crossTabColField];
+
+        // Collect unique row and column values
+        const rowSet = new Set<string>();
+        const colSet = new Set<string>();
+
+        filledRows.forEach((row: any) => {
+            const rowVal = row[rowDbField]?.trim() || 'Unknown';
+            const colVal = row[colDbField]?.trim() || 'Unknown';
+            rowSet.add(rowVal);
+            colSet.add(colVal);
+        });
+
+        const rowHeaders = Array.from(rowSet).sort();
+        const colHeaders = Array.from(colSet).sort();
+
+        // Build the 2D data matrix
+        const data: Record<string, Record<string, number>> = {};
+        const rowTotals: Record<string, number> = {};
+        const colTotals: Record<string, number> = {};
+        let grandTotal = 0;
+
+        // Initialize
+        rowHeaders.forEach(rh => {
+            data[rh] = {};
+            rowTotals[rh] = 0;
+            colHeaders.forEach(ch => {
+                data[rh][ch] = 0;
+            });
+        });
+        colHeaders.forEach(ch => {
+            colTotals[ch] = 0;
+        });
+
+        // Fill data
+        filledRows.forEach((row: any) => {
+            const rowVal = row[rowDbField]?.trim() || 'Unknown';
+            const colVal = row[colDbField]?.trim() || 'Unknown';
+            data[rowVal][colVal] += 1;
+            rowTotals[rowVal] += 1;
+            colTotals[colVal] += 1;
+            grandTotal += 1;
+        });
+
+        return { rowHeaders, colHeaders, data, rowTotals, colTotals, grandTotal };
+    }, [multiRows, crossTabRowField, crossTabColField, crossTabFilter, crossTabFilterField]);
+
     // Clear pivot filters when switching away from combined view
-    const handlePivotGroupChange = (newGroup: 'category' | 'brand' | 'p_type' | 'combined') => {
+    const handlePivotGroupChange = (newGroup: 'category' | 'brand' | 'p_type' | 'combined' | 'crosstab') => {
         setPivotGroupBy(newGroup);
         if (newGroup !== 'combined') {
             setPivotCategoryFilter([]);
             setPivotBrandFilter([]);
             setPivotPTypeFilter([]);
+        }
+        if (newGroup !== 'crosstab') {
+            setCrossTabFilter([]);
         }
     };
 
@@ -3952,6 +4048,50 @@ export default function OutboundPage() {
     const exportCategoryPivotToExcel = async () => {
         try {
             const XLSX = await import('xlsx');
+
+            // Handle Cross-Tab export separately
+            if (pivotGroupBy === 'crosstab') {
+                const { rowHeaders, colHeaders, data, rowTotals, colTotals, grandTotal } = crossTabPivotData;
+                const rowLabel = crossTabRowField === 'category' ? 'Category' : crossTabRowField === 'brand' ? 'Brand' : 'P_Type';
+                const colLabel = crossTabColField === 'category' ? 'Category' : crossTabColField === 'brand' ? 'Brand' : 'P_Type';
+
+                // Build export data with cross-tab format
+                const exportData: any[] = [];
+
+                // Header row
+                const headerRow: any = { [rowLabel]: '' };
+                colHeaders.forEach(ch => { headerRow[ch] = ch; });
+                headerRow['Grand Total'] = 'Grand Total';
+
+                // Data rows
+                rowHeaders.forEach(rh => {
+                    const row: any = { [rowLabel]: rh };
+                    colHeaders.forEach(ch => {
+                        row[ch] = data[rh][ch] || 0;
+                    });
+                    row['Grand Total'] = rowTotals[rh];
+                    exportData.push(row);
+                });
+
+                // Grand Total row
+                const totalRow: any = { [rowLabel]: 'Grand Total' };
+                colHeaders.forEach(ch => {
+                    totalRow[ch] = colTotals[ch];
+                });
+                totalRow['Grand Total'] = grandTotal;
+                exportData.push(totalRow);
+
+                const ws = XLSX.utils.json_to_sheet(exportData);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, `${rowLabel} x ${colLabel}`);
+
+                const timestamp = new Date().toISOString().slice(0, 10);
+                XLSX.writeFile(wb, `CrossTab_${rowLabel}_${colLabel}_${timestamp}.xlsx`);
+
+                toast.success(`Cross-Tab (${rowLabel} × ${colLabel}) exported!`);
+                return;
+            }
+
             const groupLabel = pivotGroupBy === 'brand' ? 'Brand' : pivotGroupBy === 'p_type' ? 'P_Type' : pivotGroupBy === 'combined' ? 'Combined' : 'Category';
 
             let exportData;
@@ -6618,11 +6758,11 @@ export default function OutboundPage() {
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                     <PieChartIcon />
                                     <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                                        {pivotGroupBy === 'brand' ? 'Brand' : pivotGroupBy === 'p_type' ? 'P_Type' : pivotGroupBy === 'combined' ? 'Combined' : 'Category'} Quantity Summary
+                                        {pivotGroupBy === 'brand' ? 'Brand' : pivotGroupBy === 'p_type' ? 'P_Type' : pivotGroupBy === 'combined' ? 'Combined' : pivotGroupBy === 'crosstab' ? 'Cross-Tab' : 'Category'} Quantity Summary
                                     </Typography>
                                 </Box>
                                 <Chip
-                                    label={`${categoryPivotData.grandTotal.qty} Items`}
+                                    label={`${pivotGroupBy === 'crosstab' ? crossTabPivotData.grandTotal : categoryPivotData.grandTotal.qty} Items`}
                                     size="small"
                                     sx={{
                                         bgcolor: 'rgba(255,255,255,0.2)',
@@ -6737,8 +6877,197 @@ export default function OutboundPage() {
                                         >
                                             🔗 Combined
                                         </Button>
+                                        <Button
+                                            size="small"
+                                            variant={pivotGroupBy === 'crosstab' ? 'contained' : 'outlined'}
+                                            onClick={() => handlePivotGroupChange('crosstab')}
+                                            sx={{
+                                                fontSize: '0.75rem',
+                                                fontWeight: 600,
+                                                px: 2,
+                                                py: 0.5,
+                                                borderRadius: 1,
+                                                textTransform: 'none',
+                                                ...(pivotGroupBy === 'crosstab' ? {
+                                                    background: 'linear-gradient(135deg, #dc2626 0%, #ef4444 100%)',
+                                                    '&:hover': { background: 'linear-gradient(135deg, #b91c1c 0%, #dc2626 100%)' },
+                                                } : {
+                                                    borderColor: isDarkMode ? '#f87171' : '#dc2626',
+                                                    color: isDarkMode ? '#fca5a5' : '#dc2626',
+                                                    '&:hover': { bgcolor: 'rgba(239, 68, 68, 0.08)' },
+                                                }),
+                                            }}
+                                        >
+                                            📊 Cross-Tab
+                                        </Button>
                                     </Box>
                                 </Box>
+
+                                {/* Cross-Tab Settings */}
+                                {pivotGroupBy === 'crosstab' && (
+                                    <Box sx={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 2,
+                                        px: 2,
+                                        py: 1.5,
+                                        borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0',
+                                        bgcolor: isDarkMode ? 'rgba(239, 68, 68, 0.08)' : 'rgba(239, 68, 68, 0.03)',
+                                        flexWrap: 'wrap',
+                                    }}>
+                                        <Typography sx={{ fontWeight: 600, color: isDarkMode ? '#fca5a5' : '#dc2626', fontSize: '0.8rem' }}>
+                                            ⚙️ Settings:
+                                        </Typography>
+                                        <FormControl size="small" sx={{ minWidth: 130 }}>
+                                            <InputLabel sx={{
+                                                fontSize: '0.75rem',
+                                                color: isDarkMode ? '#94a3b8' : 'inherit',
+                                            }}>Row Field</InputLabel>
+                                            <Select
+                                                value={crossTabRowField}
+                                                onChange={(e) => {
+                                                    const newVal = e.target.value as 'category' | 'brand' | 'p_type';
+                                                    setCrossTabRowField(newVal);
+                                                    if (newVal === crossTabColField) {
+                                                        // Swap with column
+                                                        setCrossTabColField(crossTabRowField);
+                                                    }
+                                                    setCrossTabFilter([]);
+                                                }}
+                                                label="Row Field"
+                                                sx={{
+                                                    fontSize: '0.75rem',
+                                                    height: 36,
+                                                    bgcolor: isDarkMode ? 'rgba(30, 41, 59, 0.8)' : '#fff',
+                                                    color: isDarkMode ? '#e2e8f0' : 'inherit',
+                                                    '& .MuiOutlinedInput-notchedOutline': {
+                                                        borderColor: isDarkMode ? '#475569' : '#d1d5db',
+                                                    },
+                                                }}
+                                            >
+                                                <MenuItem value="category" sx={{ fontSize: '0.75rem' }}>📁 Category</MenuItem>
+                                                <MenuItem value="brand" sx={{ fontSize: '0.75rem' }}>🏷️ Brand</MenuItem>
+                                                <MenuItem value="p_type" sx={{ fontSize: '0.75rem' }}>📦 P_Type</MenuItem>
+                                            </Select>
+                                        </FormControl>
+                                        <Typography sx={{ color: isDarkMode ? '#94a3b8' : '#64748b', fontWeight: 600 }}>×</Typography>
+                                        <FormControl size="small" sx={{ minWidth: 130 }}>
+                                            <InputLabel sx={{
+                                                fontSize: '0.75rem',
+                                                color: isDarkMode ? '#94a3b8' : 'inherit',
+                                            }}>Column Field</InputLabel>
+                                            <Select
+                                                value={crossTabColField}
+                                                onChange={(e) => {
+                                                    const newVal = e.target.value as 'category' | 'brand' | 'p_type';
+                                                    setCrossTabColField(newVal);
+                                                    if (newVal === crossTabRowField) {
+                                                        // Swap with row
+                                                        setCrossTabRowField(crossTabColField);
+                                                    }
+                                                    setCrossTabFilter([]);
+                                                }}
+                                                label="Column Field"
+                                                sx={{
+                                                    fontSize: '0.75rem',
+                                                    height: 36,
+                                                    bgcolor: isDarkMode ? 'rgba(30, 41, 59, 0.8)' : '#fff',
+                                                    color: isDarkMode ? '#e2e8f0' : 'inherit',
+                                                    '& .MuiOutlinedInput-notchedOutline': {
+                                                        borderColor: isDarkMode ? '#475569' : '#d1d5db',
+                                                    },
+                                                }}
+                                            >
+                                                <MenuItem value="category" sx={{ fontSize: '0.75rem' }}>📁 Category</MenuItem>
+                                                <MenuItem value="brand" sx={{ fontSize: '0.75rem' }}>🏷️ Brand</MenuItem>
+                                                <MenuItem value="p_type" sx={{ fontSize: '0.75rem' }}>📦 P_Type</MenuItem>
+                                            </Select>
+                                        </FormControl>
+                                        <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
+                                        <Autocomplete
+                                            multiple
+                                            size="small"
+                                            options={crossTabFilterOptions}
+                                            value={crossTabFilter}
+                                            onChange={(_, newValue) => setCrossTabFilter(newValue)}
+                                            renderInput={(params) => (
+                                                <TextField
+                                                    {...params}
+                                                    label={`Filter by ${crossTabFilterField === 'category' ? 'Category' : crossTabFilterField === 'brand' ? 'Brand' : 'P_Type'}`}
+                                                    placeholder={crossTabFilter.length === 0 ? "All" : ""}
+                                                    sx={{
+                                                        minWidth: 200,
+                                                        '& .MuiInputBase-root': {
+                                                            fontSize: '0.75rem',
+                                                            minHeight: 36,
+                                                            bgcolor: isDarkMode ? 'rgba(30, 41, 59, 0.8)' : '#fff',
+                                                            color: isDarkMode ? '#e2e8f0' : 'inherit',
+                                                        },
+                                                        '& .MuiInputLabel-root': {
+                                                            fontSize: '0.75rem',
+                                                            color: isDarkMode ? '#94a3b8' : 'inherit',
+                                                        },
+                                                        '& .MuiOutlinedInput-notchedOutline': {
+                                                            borderColor: isDarkMode ? '#475569' : '#d1d5db',
+                                                        },
+                                                    }}
+                                                />
+                                            )}
+                                            renderTags={(value, getTagProps) =>
+                                                value.map((option, index) => (
+                                                    <Chip
+                                                        {...getTagProps({ index })}
+                                                        key={option}
+                                                        label={option}
+                                                        size="small"
+                                                        sx={{
+                                                            fontSize: '0.65rem',
+                                                            height: 22,
+                                                            bgcolor: isDarkMode ? 'rgba(239, 68, 68, 0.3)' : 'rgba(239, 68, 68, 0.15)',
+                                                            color: isDarkMode ? '#fca5a5' : '#dc2626',
+                                                            '& .MuiChip-deleteIcon': {
+                                                                color: isDarkMode ? '#f87171' : '#ef4444',
+                                                                fontSize: '0.9rem',
+                                                            },
+                                                        }}
+                                                    />
+                                                ))
+                                            }
+                                            slotProps={{
+                                                paper: {
+                                                    sx: {
+                                                        bgcolor: isDarkMode ? '#1e293b' : '#fff',
+                                                        color: isDarkMode ? '#e2e8f0' : 'inherit',
+                                                        '& .MuiAutocomplete-option': {
+                                                            fontSize: '0.75rem',
+                                                            '&:hover': {
+                                                                bgcolor: isDarkMode ? 'rgba(239, 68, 68, 0.2)' : 'rgba(239, 68, 68, 0.1)',
+                                                            },
+                                                            '&[aria-selected=\"true\"]': {
+                                                                bgcolor: isDarkMode ? 'rgba(239, 68, 68, 0.3)' : 'rgba(239, 68, 68, 0.2)',
+                                                            },
+                                                        },
+                                                    },
+                                                },
+                                            }}
+                                        />
+                                        {crossTabFilter.length > 0 && (
+                                            <Button
+                                                size="small"
+                                                onClick={() => setCrossTabFilter([])}
+                                                sx={{
+                                                    fontSize: '0.7rem',
+                                                    fontWeight: 600,
+                                                    color: '#ef4444',
+                                                    textTransform: 'none',
+                                                    '&:hover': { bgcolor: 'rgba(239, 68, 68, 0.08)' },
+                                                }}
+                                            >
+                                                ✕ Clear
+                                            </Button>
+                                        )}
+                                    </Box>
+                                )}
 
                                 {/* Combined View Filters */}
                                 {pivotGroupBy === 'combined' && (
@@ -6987,7 +7316,146 @@ export default function OutboundPage() {
                                     </Box>
                                 )}
 
-                                {categoryPivotData.categories.length === 0 ? (
+                                {/* Cross-Tab View */}
+                                {pivotGroupBy === 'crosstab' ? (
+                                    crossTabPivotData.grandTotal === 0 ? (
+                                        <Box sx={{ p: 4, textAlign: 'center' }}>
+                                            <Typography color="text.secondary">
+                                                {crossTabFilter.length > 0
+                                                    ? 'No items match the selected filters.'
+                                                    : 'No scanned items found. Start scanning WSNs to see cross-tab summary.'}
+                                            </Typography>
+                                        </Box>
+                                    ) : (
+                                        <TableContainer sx={{ maxHeight: 400 }}>
+                                            <Table stickyHeader size="small">
+                                                <TableHead>
+                                                    <TableRow>
+                                                        <TableCell
+                                                            sx={{
+                                                                fontWeight: 700,
+                                                                bgcolor: isDarkMode ? '#334155' : '#f1f5f9',
+                                                                color: isDarkMode ? '#f1f5f9' : '#1e293b',
+                                                                borderRight: isDarkMode ? '2px solid #475569' : '2px solid #e2e8f0',
+                                                                minWidth: 120,
+                                                            }}
+                                                        >
+                                                            {crossTabRowField === 'category' ? '📁 Category' : crossTabRowField === 'brand' ? '🏷️ Brand' : '📦 P_Type'} ↓ / {crossTabColField === 'category' ? 'Category' : crossTabColField === 'brand' ? 'Brand' : 'P_Type'} →
+                                                        </TableCell>
+                                                        {crossTabPivotData.colHeaders.map((col) => (
+                                                            <TableCell
+                                                                key={col}
+                                                                align="center"
+                                                                sx={{
+                                                                    fontWeight: 600,
+                                                                    bgcolor: isDarkMode ? '#334155' : '#f1f5f9',
+                                                                    color: isDarkMode ? '#67e8f9' : '#0891b2',
+                                                                    fontSize: '0.75rem',
+                                                                    whiteSpace: 'nowrap',
+                                                                }}
+                                                            >
+                                                                {col}
+                                                            </TableCell>
+                                                        ))}
+                                                        <TableCell
+                                                            align="center"
+                                                            sx={{
+                                                                fontWeight: 700,
+                                                                bgcolor: isDarkMode ? '#374151' : '#e2e8f0',
+                                                                color: isDarkMode ? '#f97316' : '#ea580c',
+                                                                borderLeft: isDarkMode ? '2px solid #475569' : '2px solid #cbd5e1',
+                                                            }}
+                                                        >
+                                                            Grand Total
+                                                        </TableCell>
+                                                    </TableRow>
+                                                </TableHead>
+                                                <TableBody>
+                                                    {crossTabPivotData.rowHeaders.map((row) => (
+                                                        <TableRow key={row} hover>
+                                                            <TableCell
+                                                                sx={{
+                                                                    fontWeight: 600,
+                                                                    color: isDarkMode ? '#c4b5fd' : '#7c3aed',
+                                                                    fontSize: '0.8rem',
+                                                                    borderRight: isDarkMode ? '2px solid #475569' : '2px solid #e2e8f0',
+                                                                    bgcolor: isDarkMode ? 'rgba(139, 92, 246, 0.05)' : 'rgba(139, 92, 246, 0.03)',
+                                                                }}
+                                                            >
+                                                                {row}
+                                                            </TableCell>
+                                                            {crossTabPivotData.colHeaders.map((col) => (
+                                                                <TableCell
+                                                                    key={col}
+                                                                    align="center"
+                                                                    sx={{
+                                                                        fontSize: '0.8rem',
+                                                                        color: crossTabPivotData.data[row][col] > 0
+                                                                            ? (isDarkMode ? '#34d399' : '#059669')
+                                                                            : (isDarkMode ? '#64748b' : '#94a3b8'),
+                                                                        fontWeight: crossTabPivotData.data[row][col] > 0 ? 600 : 400,
+                                                                    }}
+                                                                >
+                                                                    {crossTabPivotData.data[row][col] || '-'}
+                                                                </TableCell>
+                                                            ))}
+                                                            <TableCell
+                                                                align="center"
+                                                                sx={{
+                                                                    fontWeight: 700,
+                                                                    color: isDarkMode ? '#f97316' : '#ea580c',
+                                                                    borderLeft: isDarkMode ? '2px solid #475569' : '2px solid #cbd5e1',
+                                                                    bgcolor: isDarkMode ? 'rgba(249, 115, 22, 0.08)' : 'rgba(249, 115, 22, 0.05)',
+                                                                }}
+                                                            >
+                                                                {crossTabPivotData.rowTotals[row]}
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    ))}
+                                                    {/* Grand Total Row */}
+                                                    <TableRow sx={{
+                                                        bgcolor: isDarkMode ? 'rgba(99, 102, 241, 0.2)' : 'rgba(99, 102, 241, 0.1)',
+                                                        '& td': { borderTop: isDarkMode ? '2px solid #6366f1' : '2px solid #818cf8' },
+                                                    }}>
+                                                        <TableCell
+                                                            sx={{
+                                                                fontWeight: 700,
+                                                                color: isDarkMode ? '#a5b4fc' : '#4f46e5',
+                                                                borderRight: isDarkMode ? '2px solid #475569' : '2px solid #e2e8f0',
+                                                            }}
+                                                        >
+                                                            Grand Total
+                                                        </TableCell>
+                                                        {crossTabPivotData.colHeaders.map((col) => (
+                                                            <TableCell
+                                                                key={col}
+                                                                align="center"
+                                                                sx={{
+                                                                    fontWeight: 700,
+                                                                    color: isDarkMode ? '#67e8f9' : '#0891b2',
+                                                                }}
+                                                            >
+                                                                {crossTabPivotData.colTotals[col]}
+                                                            </TableCell>
+                                                        ))}
+                                                        <TableCell
+                                                            align="center"
+                                                            sx={{
+                                                                fontWeight: 700,
+                                                                fontSize: '1rem',
+                                                                color: 'white',
+                                                                bgcolor: isDarkMode ? '#dc2626' : '#ef4444',
+                                                                borderLeft: isDarkMode ? '2px solid #475569' : '2px solid #cbd5e1',
+                                                            }}
+                                                        >
+                                                            {crossTabPivotData.grandTotal}
+                                                        </TableCell>
+                                                    </TableRow>
+                                                </TableBody>
+                                            </Table>
+                                        </TableContainer>
+                                    )
+                                ) : categoryPivotData.categories.length === 0 ? (
                                     <Box sx={{ p: 4, textAlign: 'center' }}>
                                         <Typography color="text.secondary">
                                             {pivotGroupBy === 'combined' && (pivotCategoryFilter.length > 0 || pivotBrandFilter.length > 0 || pivotPTypeFilter.length > 0)
@@ -7273,7 +7741,7 @@ export default function OutboundPage() {
                                 <Button
                                     onClick={exportCategoryPivotToExcel}
                                     startIcon={<DownloadIcon />}
-                                    disabled={categoryPivotData.categories.length === 0}
+                                    disabled={pivotGroupBy === 'crosstab' ? crossTabPivotData.grandTotal === 0 : categoryPivotData.categories.length === 0}
                                     sx={{
                                         color: '#10b981',
                                         fontWeight: 600,
