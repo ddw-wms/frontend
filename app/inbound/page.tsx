@@ -348,6 +348,19 @@ export default function InboundPage() {
           cms_vertical: row.cms_vertical || '',
           fkqc_remarks: row.fkqc_remark || '',
           p_type: row.p_type || '',
+          p_size: row.p_size || '',
+          source: row.source || '',
+          wid: row.wid || '',
+          fsn: row.fsn || '',
+          fk_grade: row.fk_grade || '',
+          hsn_sac: row.hsn_sac || '',
+          igst_rate: row.igst_rate,
+          vrp: row.vrp,
+          yield_value: row.yield_value,
+          fkt_link: row.fkt_link || '',
+          wh_location: row.wh_location || '',
+          rack_no: row.rack_no || '',
+          product_serial_number: row.product_serial_number || '',
           row_index: idx,
         }))
         .filter(e => e.wsn.trim());
@@ -1085,7 +1098,7 @@ export default function InboundPage() {
         const currentLimit = ctx.limit || 100;
         return params.node.rowIndex + 1 + (currentPage - 1) * currentLimit;
       },
-      width: 80,
+      width: 20,
       cellStyle: { fontWeight: 700, textAlign: 'center', color: isDarkMode ? '#94a3b8' : '#64748b' },
       suppressMovable: true,
       sortable: false,
@@ -3493,7 +3506,7 @@ export default function InboundPage() {
     vrp: { width: 70 },
     yield_value: { width: 60 },
     fk_grade: { width: 80 },
-    inbound_date: { width: 110 },
+    inbound_date: { width: 90 },
     fkt_link: { width: 50 },
     fkqc_remark: { flex: 1, minWidth: 40 },
   }), []);
@@ -4624,10 +4637,11 @@ export default function InboundPage() {
                       enableCellTextSelection={true}
                       suppressRowTransform={true}
                       // ⚡ Performance optimizations for large datasets
-                      rowBuffer={50}
+                      rowBuffer={100}
                       valueCache={true}
                       debounceVerticalScrollbar={true}
                       suppressAnimationFrame={true}
+                      alwaysShowVerticalScroll={true}
                       onGridReady={(params: any) => {
                         listGridRef.current = params.api;
                         columnApiRef.current = params.api;
@@ -7127,9 +7141,10 @@ export default function InboundPage() {
                     ensureDomOrder={true}
                     suppressMovableColumns={true}
                     // ⚡ PERFORMANCE: Optimizations for smooth fast scrolling
-                    rowBuffer={50}
+                    rowBuffer={100}
                     suppressRowTransform={true}
                     suppressAnimationFrame={true}
+                    alwaysShowVerticalScroll={true}
                     animateRows={false}
                     suppressScrollOnNewData={true}
                     // ⚡ PERFORMANCE: Additional optimizations for large datasets

@@ -63,6 +63,53 @@ html[data-theme="dark"] [class*="ag-theme-"] {
   background-color: #1e293b !important;
 }
 
+/* ============================================
+   AG GRID FAST SCROLLING OPTIMIZATIONS
+   Prevents blank rows during rapid scrolling
+   ============================================ */
+/* Disable transitions on rows during scroll for performance */
+.ag-theme-quartz .ag-row,
+.ag-theme-quartz-dark .ag-row {
+  transition: none !important;
+  will-change: transform;
+  contain: layout style paint;
+}
+
+/* Optimize body viewport for fast scrolling */
+.ag-theme-quartz .ag-body-viewport,
+.ag-theme-quartz-dark .ag-body-viewport {
+  will-change: scroll-position;
+  contain: strict;
+  overflow-anchor: none;
+}
+
+/* Optimize center cols container */
+.ag-theme-quartz .ag-center-cols-container,
+.ag-theme-quartz-dark .ag-center-cols-container {
+  contain: layout style;
+}
+
+/* Optimize cell rendering */
+.ag-theme-quartz .ag-cell,
+.ag-theme-quartz-dark .ag-cell {
+  contain: layout style paint;
+  will-change: contents;
+}
+
+/* Ensure row container has proper containment */
+.ag-theme-quartz .ag-center-cols-clipper,
+.ag-theme-quartz-dark .ag-center-cols-clipper {
+  contain: strict;
+}
+
+/* Optimize pinned columns */
+.ag-theme-quartz .ag-pinned-left-cols-container,
+.ag-theme-quartz .ag-pinned-right-cols-container,
+.ag-theme-quartz-dark .ag-pinned-left-cols-container,
+.ag-theme-quartz-dark .ag-pinned-right-cols-container {
+  contain: layout style paint;
+}
+
 /* Recharts - force dark background on ALL elements */
 html[data-theme="dark"] .recharts-wrapper,
 html[data-theme="dark"] .recharts-surface,

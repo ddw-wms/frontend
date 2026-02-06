@@ -1080,9 +1080,10 @@ export default function RejectionsPage() {
                                         loading={false}
                                         suppressNoRowsOverlay={true}
                                         // ⚡ PERFORMANCE: Optimizations for smooth fast scrolling
-                                        rowBuffer={50}
+                                        rowBuffer={100}
                                         suppressRowTransform={true}
                                         suppressAnimationFrame={true}
+                                        alwaysShowVerticalScroll={true}
                                         debounceVerticalScrollbar={true}
                                         containerStyle={{ height: '100%', width: '100%' }}
                                         rowHeight={36}
@@ -1276,9 +1277,10 @@ export default function RejectionsPage() {
                                         suppressNoRowsOverlay={true}
                                         suppressCellFocus={true}
                                         // ⚡ PERFORMANCE: Optimizations for smooth fast scrolling
-                                        rowBuffer={50}
+                                        rowBuffer={100}
                                         suppressRowTransform={true}
                                         suppressAnimationFrame={true}
+                                        alwaysShowVerticalScroll={true}
                                         debounceVerticalScrollbar={true}
                                         containerStyle={{ height: '100%', width: '100%' }}
                                         rowHeight={36}

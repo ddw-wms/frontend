@@ -1,7 +1,7 @@
 // LiveViewPanel.tsx - Real-time view of other users' Multi Entry data
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   Box,
   Button,
@@ -24,6 +24,8 @@ import {
   Avatar,
   useTheme,
   alpha,
+  ToggleButton,
+  ToggleButtonGroup,
 } from '@mui/material';
 import {
   Visibility as VisibilityIcon,
@@ -33,6 +35,8 @@ import {
   Person as PersonIcon,
   AccessTime as AccessTimeIcon,
   Inventory as InventoryIcon,
+  TableChart as TableChartIcon,
+  PieChart as PieChartIcon,
 } from '@mui/icons-material';
 import { liveViewAPI } from '@/lib/api';
 import toast from 'react-hot-toast';
@@ -57,6 +61,26 @@ interface LiveEntry {
   cms_vertical?: string;
   fkqc_remarks?: string;
   p_type?: string;
+  p_size?: string;
+  source?: string;
+  wid?: string;
+  fsn?: string;
+  order_id?: string;
+  fk_grade?: string;
+  hsn_sac?: string;
+  igst_rate?: number;
+  vrp?: number;
+  yield_value?: number;
+  invoice_date?: string;
+  fkt_link?: string;
+  wh_location?: string;
+  quantity?: number;
+  dispatch_remarks?: string;
+  other_remarks?: string;
+  rack_no?: string;
+  qc_grade?: string;
+  qc_remarks?: string;
+  product_serial_number?: string;
   row_index: number;
   created_at?: string;
 }
@@ -76,9 +100,38 @@ export default function LiveViewPanel({ warehouseId, pageType, isDarkMode = fals
   const [entries, setEntries] = useState<LiveEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingEntries, setLoadingEntries] = useState(false);
+  const [viewMode, setViewMode] = useState<'table' | 'pivot'>('table');
   const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const initialLoadDoneRef = useRef(false);
   const initialEntriesLoadDoneRef = useRef(false);
+
+  // Pivot data computation
+  const pivotData = useMemo(() => {
+    if (entries.length === 0) return { rows: [], grandTotal: { qty: 0, fsp: 0, mrp: 0 } };
+    
+    const grouped: Record<string, { qty: number; fsp: number; mrp: number }> = {};
+    
+    entries.forEach(entry => {
+      const category = entry.cms_vertical || 'Uncategorized';
+      if (!grouped[category]) {
+        grouped[category] = { qty: 0, fsp: 0, mrp: 0 };
+      }
+      grouped[category].qty += 1;
+      grouped[category].fsp += Number(entry.fsp) || 0;
+      grouped[category].mrp += Number(entry.mrp) || 0;
+    });
+    
+    const rows = Object.entries(grouped)
+      .map(([category, data]) => ({ category, ...data }))
+      .sort((a, b) => b.qty - a.qty);
+    
+    const grandTotal = rows.reduce(
+      (acc, row) => ({ qty: acc.qty + row.qty, fsp: acc.fsp + row.fsp, mrp: acc.mrp + row.mrp }),
+      { qty: 0, fsp: 0, mrp: 0 }
+    );
+    
+    return { rows, grandTotal };
+  }, [entries]);
 
   // Fetch active sessions
   const fetchSessions = useCallback(async (isInitial = false) => {
@@ -160,6 +213,7 @@ export default function LiveViewPanel({ warehouseId, pageType, isDarkMode = fals
   // Select a session
   const handleSelectSession = (session: LiveSession) => {
     setSelectedSession(session);
+    setViewMode('table'); // Reset to table view for new session
     initialEntriesLoadDoneRef.current = false; // Reset for new session
     fetchEntries(session.session_id, true);
   };
@@ -181,15 +235,50 @@ export default function LiveViewPanel({ warehouseId, pageType, isDarkMode = fals
         'Product Title': e.product_title || '',
         'Brand': e.brand || '',
         'Category': e.cms_vertical || '',
+        'Source': e.source || '',
+        'WID': e.wid || '',
+        'FSN': e.fsn || '',
+        'Order ID': e.order_id || '',
+        'FK Grade': e.fk_grade || '',
+        'FKQC Remarks': e.fkqc_remarks || '',
+        'QC Grade': e.qc_grade || '',
+        'QC Remarks': e.qc_remarks || '',
+        'HSN SAC': e.hsn_sac || '',
+        'IGST Rate': e.igst_rate || '',
         'FSP': e.fsp || '',
         'MRP': e.mrp || '',
-        'FKQC Remarks': e.fkqc_remarks || '',
+        'VRP': e.vrp || '',
+        'Yield Value': e.yield_value || '',
+        'Invoice Date': e.invoice_date || '',
+        'FK Link': e.fkt_link || '',
+        'WH Location': e.wh_location || '',
         'P-Type': e.p_type || '',
+        'P-Size': e.p_size || '',
+        'Rack No': e.rack_no || '',
+        'Quantity': e.quantity || '',
+        'Dispatch Remarks': e.dispatch_remarks || '',
+        'Other Remarks': e.other_remarks || '',
+        'Product Serial No': e.product_serial_number || '',
       }));
 
       const ws = XLSX.utils.json_to_sheet(exportData);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'Live Entries');
+
+      // Add pivot sheet if there's data
+      if (pivotData.rows.length > 0) {
+        const pivotExport = [
+          ...pivotData.rows.map(row => ({
+            'Category': row.category,
+            'Quantity': row.qty,
+            'Total FSP': row.fsp,
+            'Total MRP': row.mrp,
+          })),
+          { 'Category': 'GRAND TOTAL', 'Quantity': pivotData.grandTotal.qty, 'Total FSP': pivotData.grandTotal.fsp, 'Total MRP': pivotData.grandTotal.mrp }
+        ];
+        const pivotWs = XLSX.utils.json_to_sheet(pivotExport);
+        XLSX.utils.book_append_sheet(wb, pivotWs, 'Category Summary');
+      }
 
       const fileName = `LiveView_${data.user_name}_${pageType}_${new Date().toISOString().split('T')[0]}.xlsx`;
       XLSX.writeFile(wb, fileName);
@@ -417,22 +506,41 @@ export default function LiveViewPanel({ warehouseId, pageType, isDarkMode = fals
               </Stack>
 
               <Paper sx={{ p: 2, mb: 2, bgcolor: isDarkMode ? '#1e293b' : 'white', borderRadius: 2 }}>
-                <Stack direction="row" alignItems="center" spacing={2}>
-                  <Avatar sx={{ bgcolor: pageColor }}>
-                    <PersonIcon />
-                  </Avatar>
-                  <Box>
-                    <Typography fontWeight={700} sx={{ color: isDarkMode ? '#f1f5f9' : '#1e293b' }}>
-                      {selectedSession.user_name}
-                    </Typography>
-                    <Typography variant="caption" color="textSecondary">
-                      {entries.length} entries • Last update: {formatTimeAgo(selectedSession.last_activity_at)}
-                    </Typography>
-                  </Box>
+                <Stack direction="row" alignItems="center" justifyContent="space-between">
+                  <Stack direction="row" alignItems="center" spacing={2}>
+                    <Avatar sx={{ bgcolor: pageColor }}>
+                      <PersonIcon />
+                    </Avatar>
+                    <Box>
+                      <Typography fontWeight={700} sx={{ color: isDarkMode ? '#f1f5f9' : '#1e293b' }}>
+                        {selectedSession.user_name}
+                      </Typography>
+                      <Typography variant="caption" color="textSecondary">
+                        {entries.length} entries • Last update: {formatTimeAgo(selectedSession.last_activity_at)}
+                      </Typography>
+                    </Box>
+                  </Stack>
+                  
+                  {/* View Toggle */}
+                  <ToggleButtonGroup
+                    value={viewMode}
+                    exclusive
+                    onChange={(_, val) => val && setViewMode(val)}
+                    size="small"
+                  >
+                    <ToggleButton value="table" sx={{ px: 2 }}>
+                      <TableChartIcon fontSize="small" sx={{ mr: 0.5 }} />
+                      Table
+                    </ToggleButton>
+                    <ToggleButton value="pivot" sx={{ px: 2 }}>
+                      <PieChartIcon fontSize="small" sx={{ mr: 0.5 }} />
+                      Pivot
+                    </ToggleButton>
+                  </ToggleButtonGroup>
                 </Stack>
               </Paper>
 
-              {/* Table with overlay spinner - no blinking */}
+              {/* Table/Pivot with overlay spinner - no blinking */}
               <Box sx={{ position: 'relative' }}>
                 {/* Loading overlay - shows on top of table */}
                 {loadingEntries && entries.length > 0 && (
@@ -462,11 +570,77 @@ export default function LiveViewPanel({ warehouseId, pageType, isDarkMode = fals
                   <Box sx={{ textAlign: 'center', py: 4 }}>
                     <Typography color="textSecondary">No entries yet</Typography>
                   </Box>
-                ) : (
+                ) : viewMode === 'pivot' ? (
+                  /* Pivot View */
                   <TableContainer
                     component={Paper}
                     sx={{
-                      maxHeight: 'calc(100vh - 320px)',
+                      maxHeight: 'calc(100vh - 360px)',
+                      bgcolor: isDarkMode ? '#1e293b' : 'white',
+                    }}
+                  >
+                    <Table size="small" stickyHeader>
+                      <TableHead>
+                        <TableRow>
+                          <TableCell sx={{ fontWeight: 700, bgcolor: isDarkMode ? '#334155' : '#f1f5f9', minWidth: 180 }}>CMS Vertical</TableCell>
+                          <TableCell sx={{ fontWeight: 700, bgcolor: isDarkMode ? '#334155' : '#f1f5f9', textAlign: 'center', minWidth: 80 }}>Qty</TableCell>
+                          <TableCell sx={{ fontWeight: 700, bgcolor: isDarkMode ? '#334155' : '#f1f5f9', textAlign: 'right', minWidth: 100 }}>Total FSP</TableCell>
+                          <TableCell sx={{ fontWeight: 700, bgcolor: isDarkMode ? '#334155' : '#f1f5f9', textAlign: 'right', minWidth: 100 }}>Total MRP</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {pivotData.rows.map((row) => (
+                          <TableRow key={row.category} hover>
+                            <TableCell sx={{ 
+                              fontWeight: 600, 
+                              color: isDarkMode ? '#f1f5f9' : '#1e293b' 
+                            }}>
+                              {row.category}
+                            </TableCell>
+                            <TableCell sx={{ 
+                              textAlign: 'center',
+                              color: isDarkMode ? '#cbd5e1' : '#475569' 
+                            }}>
+                              {row.qty}
+                            </TableCell>
+                            <TableCell sx={{ 
+                              textAlign: 'right',
+                              color: isDarkMode ? '#cbd5e1' : '#475569' 
+                            }}>
+                              ₹{row.fsp.toLocaleString('en-IN')}
+                            </TableCell>
+                            <TableCell sx={{ 
+                              textAlign: 'right',
+                              color: isDarkMode ? '#cbd5e1' : '#475569' 
+                            }}>
+                              ₹{row.mrp.toLocaleString('en-IN')}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                        {/* Total Row */}
+                        <TableRow sx={{ bgcolor: isDarkMode ? alpha(pageColor, 0.2) : alpha(pageColor, 0.1) }}>
+                          <TableCell sx={{ fontWeight: 700, color: isDarkMode ? '#f1f5f9' : '#1e293b' }}>
+                            TOTAL
+                          </TableCell>
+                          <TableCell sx={{ textAlign: 'center', fontWeight: 700, color: isDarkMode ? '#f1f5f9' : '#1e293b' }}>
+                            {pivotData.grandTotal.qty}
+                          </TableCell>
+                          <TableCell sx={{ textAlign: 'right', fontWeight: 700, color: isDarkMode ? '#f1f5f9' : '#1e293b' }}>
+                            ₹{pivotData.grandTotal.fsp.toLocaleString('en-IN')}
+                          </TableCell>
+                          <TableCell sx={{ textAlign: 'right', fontWeight: 700, color: isDarkMode ? '#f1f5f9' : '#1e293b' }}>
+                            ₹{pivotData.grandTotal.mrp.toLocaleString('en-IN')}
+                          </TableCell>
+                        </TableRow>
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                ) : (
+                  /* Table View */
+                  <TableContainer
+                    component={Paper}
+                    sx={{
+                      maxHeight: 'calc(100vh - 360px)',
                       bgcolor: isDarkMode ? '#1e293b' : 'white',
                     }}
                   >
@@ -477,9 +651,9 @@ export default function LiveViewPanel({ warehouseId, pageType, isDarkMode = fals
                           <TableCell sx={{ fontWeight: 700, bgcolor: isDarkMode ? '#334155' : '#f1f5f9', minWidth: 120 }}>WSN</TableCell>
                           <TableCell sx={{ fontWeight: 700, bgcolor: isDarkMode ? '#334155' : '#f1f5f9', minWidth: 180 }}>Product</TableCell>
                           <TableCell sx={{ fontWeight: 700, bgcolor: isDarkMode ? '#334155' : '#f1f5f9', minWidth: 80 }}>Brand</TableCell>
+                          <TableCell sx={{ fontWeight: 700, bgcolor: isDarkMode ? '#334155' : '#f1f5f9', minWidth: 100 }}>CMS Vertical</TableCell>
                           <TableCell sx={{ fontWeight: 700, bgcolor: isDarkMode ? '#334155' : '#f1f5f9', minWidth: 70 }}>MRP</TableCell>
-                          <TableCell sx={{ fontWeight: 700, bgcolor: isDarkMode ? '#334155' : '#f1f5f9', minWidth: 150 }}>FKQC Remarks</TableCell>
-                          <TableCell sx={{ fontWeight: 700, bgcolor: isDarkMode ? '#334155' : '#f1f5f9', minWidth: 100 }}>P-Type</TableCell>
+                          <TableCell sx={{ fontWeight: 700, bgcolor: isDarkMode ? '#334155' : '#f1f5f9', minWidth: 70 }}>FSP</TableCell>
                         </TableRow>
                       </TableHead>
                       <TableBody>
@@ -502,13 +676,13 @@ export default function LiveViewPanel({ warehouseId, pageType, isDarkMode = fals
                               {entry.brand || '-'}
                             </TableCell>
                             <TableCell sx={{ color: isDarkMode ? '#cbd5e1' : '#475569' }}>
-                              {entry.mrp ? `₹${entry.mrp}` : '-'}
-                            </TableCell>
-                            <TableCell sx={{ color: isDarkMode ? '#cbd5e1' : '#475569', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {entry.fkqc_remarks || '-'}
+                              {entry.cms_vertical || '-'}
                             </TableCell>
                             <TableCell sx={{ color: isDarkMode ? '#cbd5e1' : '#475569' }}>
-                              {entry.p_type || '-'}
+                              {entry.mrp ? `₹${entry.mrp}` : '-'}
+                            </TableCell>
+                            <TableCell sx={{ color: isDarkMode ? '#cbd5e1' : '#475569' }}>
+                              {entry.fsp ? `₹${entry.fsp}` : '-'}
                             </TableCell>
                           </TableRow>
                         ))}

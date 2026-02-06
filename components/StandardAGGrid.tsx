@@ -198,11 +198,12 @@ export const StandardAGGrid: React.FC<StandardAGGridProps> = ({
                     domLayout={domLayout}
                     loading={loading}
                     // ⚡ PERFORMANCE: Optimizations for smooth fast scrolling
-                    rowBuffer={50}
+                    rowBuffer={100}
                     suppressRowTransform={true}
                     suppressAnimationFrame={true}
                     debounceVerticalScrollbar={true}
                     suppressScrollOnNewData={true}
+                    alwaysShowVerticalScroll={true}
                     {...otherProps}
                 />
             </Box>

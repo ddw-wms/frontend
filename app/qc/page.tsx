@@ -506,6 +506,22 @@ export default function QCPage() {
           cms_vertical: row.cmsvertical || row.cms_vertical || '',
           fkqc_remarks: row.fkqcremark || '',
           p_type: row.ptype || '',
+          p_size: row.psize || '',
+          source: row.source || '',
+          wid: row.wid || '',
+          fsn: row.fsn || '',
+          fk_grade: row.fkgrade || '',
+          hsn_sac: row.hsnsac || '',
+          igst_rate: row.igstrate,
+          vrp: row.vrp,
+          yield_value: row.yieldvalue,
+          fkt_link: row.fktlink || '',
+          wh_location: row.whlocation || '',
+          rack_no: row.rackno || '',
+          qc_grade: row.grade || '',
+          qc_remarks: row.qcremarks || '',
+          other_remarks: row.otherremarks || '',
+          product_serial_number: row.productserialnumber || '',
           row_index: idx,
         }))
         .filter(e => e.wsn.trim());
@@ -1293,6 +1309,25 @@ export default function QCPage() {
     }
   };
 
+  // Column minWidth config based on content type for QC List
+  const QC_COLUMN_MIN_WIDTHS: Record<string, number> = {
+    wsn: 80,
+    product_title: 400,
+    brand: 100,
+    cms_vertical: 120,
+    mrp: 70,
+    fsp: 70,
+    inbound_date: 100,
+    vehicle_no: 100,
+    qc_date: 100,
+    qc_by_name: 120,
+    qc_grade: 90,
+    qc_status: 90,
+    qc_remarks: 150,
+    updated_by_name: 120,
+    updated_at: 140,
+  };
+
   // ✅ LIST GRID COLUMN DEFINITIONS (AG GRID)
   // Include ALL columns with hide property - columnDefs structure never changes
   const listColumnDefs = useMemo(() => {
@@ -1300,15 +1335,18 @@ export default function QCPage() {
       headerName: 'SR.NO',
       field: '__sr',
       valueGetter: (params: any) => params.node ? params.node.rowIndex + 1 + (page - 1) * limit : undefined,
-      width: 80,
+      width: 20,
       cellStyle: { fontWeight: 700, textAlign: 'center', color: isDarkMode ? '#94a3b8' : '#64748b' },
       suppressMovable: true,
       sortable: false,
       filter: false,
+      suppressSizeToFit: true,
     };
 
     // Include ALL columns - visibility controlled by ag-Grid state
     const cols = ALL_LIST_COLUMNS.map((col: string) => {
+      const minWidth = QC_COLUMN_MIN_WIDTHS[col] || 100;
+
       // Dates
       if (col.includes('date')) {
         return {
@@ -1317,7 +1355,7 @@ export default function QCPage() {
           filter: enableColumnFilters ? 'agDateColumnFilter' : undefined,
           valueFormatter: (p: any) => formatDate(p.value),
           tooltipField: col,
-          flex: 1,
+          minWidth,
           hide: false, // ag-Grid state controls visibility
         };
       }
@@ -1344,7 +1382,7 @@ export default function QCPage() {
               textAlign: 'center' as any,
             };
           },
-          flex: 1,
+          minWidth,
           hide: false,
         };
       }
@@ -1366,7 +1404,7 @@ export default function QCPage() {
               textAlign: 'center' as any,
             };
           },
-          flex: 1,
+          minWidth,
           hide: false,
         };
       }
@@ -1377,7 +1415,7 @@ export default function QCPage() {
         headerName: col.replace(/_/g, ' ').toUpperCase(),
         filter: enableColumnFilters ? 'agTextColumnFilter' : undefined,
         tooltipField: col,
-        flex: 1,
+        minWidth,
         hide: false,
       };
     });
@@ -3105,9 +3143,10 @@ export default function QCPage() {
                         ensureDomOrder={true}
                         animateRows={false}
                         // ⚡ PERFORMANCE: Optimizations for smooth fast scrolling
-                        rowBuffer={50}
+                        rowBuffer={100}
                         suppressRowTransform={true}
                         suppressAnimationFrame={true}
+                        alwaysShowVerticalScroll={true}
                         valueCache={true}
                         debounceVerticalScrollbar={true}
                         gridOptions={{ getRowId: (params: any) => String(params.data?.id || params.data?.wsn || params.rowIndex) }}
@@ -3140,7 +3179,28 @@ export default function QCPage() {
                                 ?.filter((col: any) => col.getColId() !== '__action' && col.getColId() !== '__sr')
                                 .map((col: any) => col.getColId()) || [];
                               if (allColIds.length > 0) {
+                                // Auto-size columns based on content
                                 params.api.autoSizeColumns(allColIds);
+
+                                // If total width is less than grid width, stretch to fill
+                                setTimeout(() => {
+                                  try {
+                                    let total = 0;
+                                    for (const id of allColIds) {
+                                      const col = params.api.getColumn(id);
+                                      total += col?.getActualWidth ? col.getActualWidth() : 0;
+                                    }
+                                    // Add SR column width
+                                    const srCol = params.api.getColumn('__sr');
+                                    total += srCol?.getActualWidth ? srCol.getActualWidth() : 80;
+
+                                    const dims = params.api.getSize ? params.api.getSize() : null;
+                                    const gridW = dims?.width || 0;
+                                    if (gridW && total < gridW) {
+                                      params.api.sizeColumnsToFit();
+                                    }
+                                  } catch { /* ignore */ }
+                                }, 50);
                               }
                               hasAutoFittedRef.current = true;
                             } catch { /* ignore */ }
@@ -4945,9 +5005,10 @@ export default function QCPage() {
                     ensureDomOrder={true}
                     suppressMovableColumns={true}
                     // ⚡ PERFORMANCE: Optimizations for smooth fast scrolling
-                    rowBuffer={50}
+                    rowBuffer={100}
                     suppressRowTransform={true}
                     suppressAnimationFrame={true}
+                    alwaysShowVerticalScroll={true}
                     animateRows={false}
                     suppressScrollOnNewData={true}
                     debounceVerticalScrollbar={true}

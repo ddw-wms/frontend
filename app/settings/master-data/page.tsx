@@ -2540,9 +2540,10 @@ export default function MasterDataPage() {
                             }}
                             animateRows={false}
                             // ⚡ PERFORMANCE: Optimizations for smooth fast scrolling
-                            rowBuffer={50}
+                            rowBuffer={100}
                             suppressRowTransform={true}
                             suppressAnimationFrame={true}
+                            alwaysShowVerticalScroll={true}
                             valueCache={true}
                             debounceVerticalScrollbar={true}
                             suppressScrollOnNewData={true}

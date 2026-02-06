@@ -742,9 +742,10 @@ export default function CustomersPage() {
               enableCellTextSelection={true}
               ensureDomOrder={true}
               // ⚡ PERFORMANCE: Optimizations for smooth fast scrolling
-              rowBuffer={50}
+              rowBuffer={100}
               suppressRowTransform={true}
               suppressAnimationFrame={true}
+              alwaysShowVerticalScroll={true}
               debounceVerticalScrollbar={true}
               suppressScrollOnNewData={true}
               getRowId={(params) => String(params.data.id)}

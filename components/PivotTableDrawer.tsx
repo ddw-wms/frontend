@@ -1108,9 +1108,10 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
                                 enableCellTextSelection={true}
                                 suppressMovableColumns={false}
                                 // ⚡ PERFORMANCE: Optimizations for smooth fast scrolling
-                                rowBuffer={50}
+                                rowBuffer={100}
                                 suppressRowTransform={true}
                                 suppressAnimationFrame={true}
+                                alwaysShowVerticalScroll={true}
                                 debounceVerticalScrollbar={true}
                                 suppressScrollOnNewData={true}
                                 headerHeight={44}

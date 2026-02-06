@@ -304,6 +304,21 @@ export default function PickingPage() {
           cms_vertical: row.cms_vertical || '',
           fkqc_remarks: row.fkqc_remark || '',
           p_type: row.p_type || '',
+          p_size: row.p_size || '',
+          source: row.source || '',
+          wid: row.wid || '',
+          fsn: row.fsn || '',
+          order_id: row.order_id || '',
+          fk_grade: row.fk_grade || '',
+          hsn_sac: row.hsn_sac || '',
+          igst_rate: row.igst_rate,
+          vrp: row.vrp,
+          yield_value: row.yield_value,
+          invoice_date: row.invoice_date || '',
+          fkt_link: row.fkt_link || '',
+          wh_location: row.wh_location || '',
+          rack_no: row.rack_no || '',
+          product_serial_number: row.product_serial_number || '',
           row_index: idx,
         }))
         .filter(e => e.wsn.trim());
@@ -2955,12 +2970,46 @@ export default function PickingPage() {
   useEffect(() => { enableColumnFiltersRef.current = enableColumnFilters; }, [enableColumnFilters]);
   useEffect(() => { enableColumnResizeRef.current = enableColumnResize; }, [enableColumnResize]);
 
+  // Column minWidth config based on content type
+  const COLUMN_MIN_WIDTHS: Record<string, number> = {
+    wsn: 80,
+    product_title: 500,
+    brand: 90,
+    cms_vertical: 120,
+    fsp: 60,
+    mrp: 60,
+    rack_no: 70,
+    batch_id: 100,
+    source: 90,
+    picking_date: 90,
+    invoice_date: 100,
+    customer_name: 100,
+    picker_name: 90,
+    quantity: 50,
+    picking_remarks: 90,
+    other_remarks: 90,
+    created_user_name: 120,
+    wid: 100,
+    fsn: 150,
+    order_id: 90,
+    hsn_sac: 90,
+    igst_rate: 60,
+    p_type: 80,
+    p_size: 80,
+    vrp: 70,
+    yield_value: 80,
+    wh_location: 100,
+    fkqc_remark: 80,
+    fk_grade: 90,
+    fkt_link: 150,
+  };
+
   const listColumnDefs = useMemo(() => {
     const sr = {
       headerName: 'SR.NO',
       field: '__sr',
       valueGetter: (params: any) => params.node ? params.node.rowIndex + 1 + (pageRef.current - 1) * limitRef.current : undefined,
-      width: 80,
+      width: 20,
       cellStyle: { fontWeight: 700, textAlign: 'center', color: isDarkMode ? '#94a3b8' : '#64748b' },
       suppressMovable: true,
       sortable: false,
@@ -2970,6 +3019,8 @@ export default function PickingPage() {
 
     // Include ALL columns - visibility controlled by ag-Grid state
     const cols = ALL_LIST_COLUMNS.map((col: string) => {
+      const minWidth = COLUMN_MIN_WIDTHS[col] || 100;
+
       // Dates
       if (col.includes('date')) {
         return {
@@ -2978,7 +3029,7 @@ export default function PickingPage() {
           filter: 'agDateColumnFilter',
           valueFormatter: (p: any) => formatDate(p.value),
           tooltipField: col,
-          flex: 1,
+          minWidth,
           hide: false, // ag-Grid state controls visibility
         };
       }
@@ -2995,7 +3046,7 @@ export default function PickingPage() {
               <Chip label={p.value} size="small" color={colorMap[p.value] || 'default'} sx={{ height: 20, fontSize: '0.7rem', fontWeight: 600 }} />
             );
           },
-          flex: 1,
+          minWidth,
           hide: false,
         };
       }
@@ -3006,7 +3057,7 @@ export default function PickingPage() {
         headerName: col.replace(/_/g, ' ').toUpperCase(),
         filter: 'agTextColumnFilter',
         tooltipField: col,
-        flex: 1,
+        minWidth,
         hide: false,
       };
     });
@@ -3720,9 +3771,10 @@ export default function PickingPage() {
                       ensureDomOrder={true}
                       animateRows={false}
                       // ⚡ PERFORMANCE: Optimizations for smooth fast scrolling
-                      rowBuffer={50}
+                      rowBuffer={100}
                       suppressRowTransform={true}
                       suppressAnimationFrame={true}
+                      alwaysShowVerticalScroll={true}
                       valueCache={true}
                       debounceVerticalScrollbar={true}
                       gridOptions={{ getRowId: (params: any) => String(params.data?.wsn || params.data?.id || params.rowIndex) }}
@@ -3755,7 +3807,28 @@ export default function PickingPage() {
                               ?.filter((col: any) => col.getColId() !== '__action' && col.getColId() !== '__sr')
                               .map((col: any) => col.getColId()) || [];
                             if (allColIds.length > 0) {
+                              // Auto-size columns based on content
                               params.api.autoSizeColumns(allColIds);
+
+                              // If total width is less than grid width, stretch to fill
+                              setTimeout(() => {
+                                try {
+                                  let total = 0;
+                                  for (const id of allColIds) {
+                                    const col = params.api.getColumn(id);
+                                    total += col?.getActualWidth ? col.getActualWidth() : 0;
+                                  }
+                                  // Add SR column width
+                                  const srCol = params.api.getColumn('__sr');
+                                  total += srCol?.getActualWidth ? srCol.getActualWidth() : 80;
+
+                                  const dims = params.api.getSize ? params.api.getSize() : null;
+                                  const gridW = dims?.width || 0;
+                                  if (gridW && total < gridW) {
+                                    params.api.sizeColumnsToFit();
+                                  }
+                                } catch { /* ignore */ }
+                              }, 50);
                             }
                             hasAutoFittedRef.current = true;
                           } catch { /* ignore */ }
@@ -3982,7 +4055,7 @@ export default function PickingPage() {
 
             {/* Column Settings Dialog */}
             <Dialog open={listColumnSettingsOpen} onClose={() => setListColumnSettingsOpen(false)} maxWidth="sm" fullWidth container={isFullscreen ? multiEntryContainerRef.current : undefined}>
-              <DialogTitle>âš™ï¸ Column Settings</DialogTitle>
+              <DialogTitle>⚙️ Column Settings</DialogTitle>
               <DialogContent>
                 <Stack spacing={1} sx={{ mt: 1 }}>
                   {ALL_LIST_COLUMNS.map((col) => (
@@ -4042,7 +4115,7 @@ export default function PickingPage() {
               <DialogContent sx={{ mt: 2, pb: 1 }}>
                 <Stack spacing={2.5}>
                   <Alert severity="info" sx={{ fontSize: '0.8rem', py: 0.5 }}>
-                    Settings auto-save and persist after reload ðŸ’¾
+                    Settings auto-save and persist after reload 💾
                   </Alert>
 
                   {/* SORTABLE */}
@@ -4058,7 +4131,7 @@ export default function PickingPage() {
                       label={
                         <Box>
                           <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#1e293b' }}>
-                            â¬†ï¸ Enable Sorting
+                            ⬆️ Enable Sorting
                           </Typography>
                           <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem' }}>
                             Click column headers to sort ascending/descending
@@ -4083,7 +4156,7 @@ export default function PickingPage() {
                       label={
                         <Box>
                           <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#1e293b' }}>
-                            ðŸ” Enable Column Filters
+                            🔍 Enable Column Filters
                           </Typography>
                           <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem' }}>
                             Filter menu icon in column headers
@@ -4108,7 +4181,7 @@ export default function PickingPage() {
                       label={
                         <Box>
                           <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#1e293b' }}>
-                            â†”ï¸ Enable Column Resize
+                            ↔️ Enable Column Resize
                           </Typography>
                           <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem' }}>
                             Drag column borders to adjust width
@@ -4162,7 +4235,7 @@ export default function PickingPage() {
                   {/* Filters */}
                   <Box>
                     <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1, color: '#6b7280' }}>
-                      ðŸ“Š Filters
+                      🔍 Filters
                     </Typography>
 
                     <Stack spacing={1.5}>
@@ -4216,7 +4289,7 @@ export default function PickingPage() {
                   {/* Action Buttons */}
                   <Box>
                     <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1, color: '#6b7280' }}>
-                      âš¡ Actions
+                      ⚡ Actions
                     </Typography>
 
                     <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 1 }}>
@@ -4354,23 +4427,23 @@ export default function PickingPage() {
                     }}
                   >
                     <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1, color: '#0ea5e9' }}>
-                      ðŸ“‹ Applied Filters Preview:
+                      📋 Applied Filters Preview:
                     </Typography>
                     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 1 }}>
                       {exportStartDate && (
-                        <Chip size="small" label={`ðŸ“… From: ${exportStartDate}`} sx={{ bgcolor: '#e0e7ff', color: '#3730a3' }} />
+                        <Chip size="small" label={`📅 From: ${exportStartDate}`} sx={{ bgcolor: '#e0e7ff', color: '#3730a3' }} />
                       )}
                       {exportEndDate && (
-                        <Chip size="small" label={`ðŸ“… To: ${exportEndDate}`} sx={{ bgcolor: '#e0e7ff', color: '#3730a3' }} />
+                        <Chip size="small" label={`📅 To: ${exportEndDate}`} sx={{ bgcolor: '#e0e7ff', color: '#3730a3' }} />
                       )}
                       {exportCustomer && (
-                        <Chip size="small" label={`ðŸ‘¤ ${exportCustomer}`} sx={{ bgcolor: '#dcfce7', color: '#166534' }} />
+                        <Chip size="small" label={`👤 ${exportCustomer}`} sx={{ bgcolor: '#dcfce7', color: '#166534' }} />
                       )}
                       {(exportBatchIds && exportBatchIds.length > 0) && (
-                        <Chip size="small" label={`ðŸ“¦ ${exportBatchIds.length} Batch${exportBatchIds.length > 1 ? 'es' : ''}`} sx={{ bgcolor: '#f3e8ff', color: '#6b21a8' }} />
+                        <Chip size="small" label={`📦 ${exportBatchIds.length} Batch${exportBatchIds.length > 1 ? 'es' : ''}`} sx={{ bgcolor: '#f3e8ff', color: '#6b21a8' }} />
                       )}
                       {!exportStartDate && !exportEndDate && !exportCustomer && (!exportBatchIds || exportBatchIds.length === 0) && (
-                        <Chip size="small" label="ðŸ“Š All Data" sx={{ bgcolor: '#fee2e2', color: '#dc2626' }} />
+                        <Chip size="small" label="📊 All Data" sx={{ bgcolor: '#fee2e2', color: '#dc2626' }} />
                       )}
                     </Box>
                   </Alert>
@@ -4511,7 +4584,7 @@ export default function PickingPage() {
                   }}>
                     <CardContent sx={{ py: 2, px: 3 }}>
                       <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#166534', mb: 1 }}>
-                        ðŸ“Š Export Summary:
+                        📊 Export Summary:
                       </Typography>
                       <Typography variant="body2" sx={{ color: '#166534' }}>
                         This will export filtered picking records to Excel with all selected criteria applied.
@@ -4906,7 +4979,7 @@ export default function PickingPage() {
                             }
                             label={
                               <Box>
-                                <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>â¬†ï¸ Enable Sorting</Typography>
+                                <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>⬆️ Enable Sorting</Typography>
                                 <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>Click headers to sort</Typography>
                               </Box>
                             }
@@ -5313,8 +5386,9 @@ export default function PickingPage() {
                 suppressMovableColumns={true}
                 singleClickEdit={true}
                 // ⚡ PERFORMANCE: Optimizations for smooth fast scrolling
-                rowBuffer={50}
+                rowBuffer={100}
                 suppressRowTransform={true}
+                alwaysShowVerticalScroll={true}
                 animateRows={false}
                 suppressScrollOnNewData={true}
                 debounceVerticalScrollbar={true}
@@ -5872,7 +5946,7 @@ export default function PickingPage() {
           PaperProps={{ sx: { borderRadius: 2 } }}
         >
           <DialogTitle sx={{ fontWeight: 800, background: 'linear-gradient(135deg, #f59e0b 0%, #ea580c 100%)', color: 'white', py: 2 }}>
-            ðŸ“‹ Column Settings
+            ⚙️ Column Settings
           </DialogTitle>
           <DialogContent sx={{ mt: 2 }}>
             <Stack spacing={1.5}>
@@ -5967,7 +6041,7 @@ export default function PickingPage() {
           <DialogContent sx={{ mt: 2, pb: 1 }}>
             <Stack spacing={2.5}>
               <Alert severity="info" sx={{ fontSize: '0.8rem', py: 0.5 }}>
-                Settings auto-save and persist after reload ðŸ’¾
+                Settings auto-save and persist after reload 💾
               </Alert>
 
               {/* SORTABLE */}
@@ -5983,7 +6057,7 @@ export default function PickingPage() {
                   label={
                     <Box>
                       <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: isDarkMode ? '#f1f5f9' : '#1e293b' }}>
-                        â¬†ï¸ Enable Sorting
+                        ⬆️ Enable Sorting
                       </Typography>
                       <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem' }}>
                         Click column headers to sort ascending/descending
@@ -6008,7 +6082,7 @@ export default function PickingPage() {
                   label={
                     <Box>
                       <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: isDarkMode ? '#f1f5f9' : '#1e293b' }}>
-                        ðŸ” Enable Column Filters
+                        🔍 Enable Column Filters
                       </Typography>
                       <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem' }}>
                         Filter menu icon in column headers
@@ -6033,7 +6107,7 @@ export default function PickingPage() {
                   label={
                     <Box>
                       <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: isDarkMode ? '#f1f5f9' : '#1e293b' }}>
-                        â†”ï¸ Enable Column Resize
+                        ↔️ Enable Column Resize
                       </Typography>
                       <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem' }}>
                         Drag column borders to adjust width

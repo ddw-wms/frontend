@@ -188,7 +188,7 @@ const DEFAULT_VISIBLE_COLUMNS = [
 // Column width configuration - adjust per column. Use numbers for fixed widths (px) or flex for flexible columns.
 // You can add mobile overrides using a `mobile` key; otherwise the helper will scale widths on small screens.
 const COLUMN_WIDTHS: Record<string, any> = {
-  wid: { width: 120 },
+  wid: { width: 80 },
   fsn: { width: 130 },
   order_id: { width: 130 },
   fkqc_remark: { width: 150 },
@@ -202,7 +202,7 @@ const COLUMN_WIDTHS: Record<string, any> = {
   yield_value: { width: 100 },
   p_type: { width: 100 },
   p_size: { width: 100 },
-  wsn: { width: 110 },
+  wsn: { width: 80 },
   product_title: { width: 350 },
   brand: { width: 100 },
   cms_vertical: { width: 120 },
@@ -401,8 +401,8 @@ export default function DashboardPage() {
       headerName: 'SR.NO',
       field: '__sr',
       valueGetter: (params: any) => params.node ? (page - 1) * limit + params.node.rowIndex + 1 : undefined,
-      width: 80,
-      maxWidth: 100,
+      width: 20,
+      maxWidth: 50,
       suppressMovable: true,
       sortable: false,
       filter: false,
@@ -2431,12 +2431,10 @@ export default function DashboardPage() {
                   },
                   '& .ag-body-viewport': {
                     opacity: loading ? 0.3 : 1,
-                    transition: 'opacity 0.2s ease-in-out',
                   },
                   '& .ag-row': {
                     height: { xs: 44, md: 44 },
                     overflow: 'visible',
-                    transition: 'background-color 0.15s ease',
                     borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.06)' : '1px solid rgba(0,0,0,0.06)',
                   },
                   '& .ag-row-even': {
@@ -2463,7 +2461,6 @@ export default function DashboardPage() {
                   },
                   '& .ag-row-hover': {
                     backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.15) !important' : 'rgba(30,64,175,0.04) !important',
-                    transition: 'background-color 0.1s ease'
                   },
                 }}>
                   <div className="ag-theme-quartz" style={{ height: '100%', width: '100%' }}>
@@ -2534,11 +2531,12 @@ export default function DashboardPage() {
                       }}
                       animateRows={false}
                       // ⚡ PERFORMANCE: Optimizations for smooth fast scrolling
-                      rowBuffer={50}
+                      rowBuffer={100}
                       suppressRowTransform={true}
                       suppressAnimationFrame={true}
                       debounceVerticalScrollbar={true}
                       suppressScrollOnNewData={true}
+                      alwaysShowVerticalScroll={true}
                       rowHeight={tableRowHeight}
                       headerHeight={32}
                     />

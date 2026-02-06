@@ -509,6 +509,22 @@ export default function OutboundPage() {
                     cms_vertical: row.cms_vertical || '',
                     fkqc_remarks: row.fkqc_remark || '',
                     p_type: row.p_type || '',
+                    p_size: row.p_size || '',
+                    source: row.source || '',
+                    wid: row.wid || '',
+                    fsn: row.fsn || '',
+                    order_id: row.order_id || '',
+                    fk_grade: row.fk_grade || '',
+                    hsn_sac: row.hsn_sac || '',
+                    igst_rate: row.igst_rate,
+                    vrp: row.vrp,
+                    yield_value: row.yield_value,
+                    invoice_date: row.invoice_date || '',
+                    fkt_link: row.fkt_link || '',
+                    wh_location: row.wh_location || '',
+                    quantity: row.quantity,
+                    dispatch_remarks: row.dispatch_remarks || '',
+                    other_remarks: row.other_remarks || '',
                     row_index: idx,
                 }))
                 .filter(e => e.wsn.trim());
@@ -4160,7 +4176,7 @@ export default function OutboundPage() {
             headerName: 'SR.NO',
             field: '__sr',
             valueGetter: (params: any) => params.node ? params.node.rowIndex + 1 : undefined,
-            width: 70,
+            width: 20,
             suppressSizeToFit: true,
             cellStyle: {
                 fontWeight: 700,
@@ -4286,6 +4302,39 @@ export default function OutboundPage() {
         [gridDuplicateWSNs, crossWarehouseWSNs, isDarkMode]
     );
 
+    // Column minWidth config based on content type for Outbound List
+    const OUTBOUND_COLUMN_MIN_WIDTHS: Record<string, number> = {
+        wsn: 80,
+        customer_name: 140,
+        dispatch_date: 100,
+        vehicle_no: 100,
+        source: 90,
+        product_title: 400,
+        brand: 100,
+        cms_vertical: 120,
+        wid: 100,
+        fsn: 120,
+        order_id: 80,
+        fkqc_remark: 70,
+        fk_grade: 90,
+        hsn_sac: 90,
+        igst_rate: 60,
+        fsp: 70,
+        mrp: 70,
+        vrp: 70,
+        yield_value: 80,
+        invoice_date: 100,
+        fkt_link: 150,
+        wh_location: 100,
+        p_type: 80,
+        p_size: 80,
+        batch_id: 100,
+        dispatch_remarks: 150,
+        other_remarks: 150,
+        quantity: 70,
+        created_user_name: 120,
+    };
+
     // ✅ LIST GRID COLUMN DEFINITIONS (AG GRID)
     // Include ALL columns with hide property - columnDefs structure never changes
     const listColumnDefs = useMemo(() => {
@@ -4300,15 +4349,18 @@ export default function OutboundPage() {
                 const currentLimit = ctx.limit || 100;
                 return params.node.rowIndex + 1 + (currentPage - 1) * currentLimit;
             },
-            width: 80,
+            width: 20,
             cellStyle: { fontWeight: 700, textAlign: 'center', color: isDarkMode ? '#94a3b8' : '#64748b' },
             suppressMovable: true,
             sortable: false,
             filter: false,
+            suppressSizeToFit: true,
         };
 
         // Include ALL columns - visibility controlled by ag-Grid state
         const cols = ALL_LIST_COLUMNS.map((col: string) => {
+            const minWidth = OUTBOUND_COLUMN_MIN_WIDTHS[col] || 100;
+
             // Dates
             if (col.includes('date')) {
                 return {
@@ -4317,7 +4369,7 @@ export default function OutboundPage() {
                     filter: enableColumnFilters ? 'agDateColumnFilter' : undefined,
                     valueFormatter: (p: any) => formatDate(p.value),
                     tooltipField: col,
-                    flex: 1,
+                    minWidth,
                     hide: false, // ag-Grid state controls visibility
                 };
             }
@@ -4333,7 +4385,7 @@ export default function OutboundPage() {
                             <Chip label={p.value} size="small" color={p.value === 'PICKING' ? 'primary' : p.value === 'QC' ? 'success' : 'warning'} sx={{ height: 20, fontSize: '0.7rem', fontWeight: 600 }} />
                         );
                     },
-                    flex: 1,
+                    minWidth,
                     hide: false,
                 };
             }
@@ -4344,7 +4396,7 @@ export default function OutboundPage() {
                 headerName: col.replace(/_/g, ' ').toUpperCase(),
                 filter: enableColumnFilters ? 'agTextColumnFilter' : undefined,
                 tooltipField: col,
-                flex: col === 'wsn' ? 1.2 : 1,
+                minWidth,
                 hide: false,
             };
         });
@@ -5020,9 +5072,10 @@ export default function OutboundPage() {
                                             ensureDomOrder={true}
                                             animateRows={false}
                                             // ⚡ PERFORMANCE: Optimizations for smooth fast scrolling
-                                            rowBuffer={50}
+                                            rowBuffer={100}
                                             suppressRowTransform={true}
                                             suppressAnimationFrame={true}
+                                            alwaysShowVerticalScroll={true}
                                             valueCache={true}
                                             debounceVerticalScrollbar={true}
                                             onGridReady={(params: any) => {
@@ -5052,7 +5105,28 @@ export default function OutboundPage() {
                                                             ?.filter((col: any) => col.getColId() !== '__action' && col.getColId() !== '__sr')
                                                             .map((col: any) => col.getColId()) || [];
                                                         if (allColIds.length > 0) {
+                                                            // Auto-size columns based on content
                                                             params.api.autoSizeColumns(allColIds);
+
+                                                            // If total width is less than grid width, stretch to fill
+                                                            setTimeout(() => {
+                                                                try {
+                                                                    let total = 0;
+                                                                    for (const id of allColIds) {
+                                                                        const col = params.api.getColumn(id);
+                                                                        total += col?.getActualWidth ? col.getActualWidth() : 0;
+                                                                    }
+                                                                    // Add SR column width
+                                                                    const srCol = params.api.getColumn('__sr');
+                                                                    total += srCol?.getActualWidth ? srCol.getActualWidth() : 80;
+
+                                                                    const dims = params.api.getSize ? params.api.getSize() : null;
+                                                                    const gridW = dims?.width || 0;
+                                                                    if (gridW && total < gridW) {
+                                                                        params.api.sizeColumnsToFit();
+                                                                    }
+                                                                } catch { /* ignore */ }
+                                                            }, 50);
                                                         }
                                                         hasAutoFittedRef.current = true;
                                                     } catch { /* ignore */ }
@@ -8128,8 +8202,9 @@ export default function OutboundPage() {
                                 }}
 
                                 // ⚡ PERFORMANCE: Optimizations for smooth fast scrolling
-                                rowBuffer={50}
+                                rowBuffer={100}
                                 suppressRowTransform={true}
+                                alwaysShowVerticalScroll={true}
                                 animateRows={false}
                                 suppressScrollOnNewData={true}
                                 debounceVerticalScrollbar={true}
