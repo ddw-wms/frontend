@@ -6715,10 +6715,12 @@ export default function OutboundPage() {
                                             🔍 Filters:
                                         </Typography>
                                         <FormControl size="small" sx={{ minWidth: 140 }}>
-                                            <InputLabel sx={{ fontSize: '0.75rem' }}>Category</InputLabel>
+                                            <InputLabel id="pivot-category-filter-label" sx={{ fontSize: '0.75rem' }}>Category</InputLabel>
                                             <Select
+                                                labelId="pivot-category-filter-label"
+                                                id="pivot-category-filter"
                                                 value={pivotCategoryFilter}
-                                                onChange={(e) => setPivotCategoryFilter(e.target.value)}
+                                                onChange={(e) => setPivotCategoryFilter(e.target.value as string)}
                                                 label="Category"
                                                 sx={{ fontSize: '0.75rem', height: 32 }}
                                             >
@@ -6731,10 +6733,12 @@ export default function OutboundPage() {
                                             </Select>
                                         </FormControl>
                                         <FormControl size="small" sx={{ minWidth: 140 }}>
-                                            <InputLabel sx={{ fontSize: '0.75rem' }}>Brand</InputLabel>
+                                            <InputLabel id="pivot-brand-filter-label" sx={{ fontSize: '0.75rem' }}>Brand</InputLabel>
                                             <Select
+                                                labelId="pivot-brand-filter-label"
+                                                id="pivot-brand-filter"
                                                 value={pivotBrandFilter}
-                                                onChange={(e) => setPivotBrandFilter(e.target.value)}
+                                                onChange={(e) => setPivotBrandFilter(e.target.value as string)}
                                                 label="Brand"
                                                 sx={{ fontSize: '0.75rem', height: 32 }}
                                             >
@@ -6747,10 +6751,12 @@ export default function OutboundPage() {
                                             </Select>
                                         </FormControl>
                                         <FormControl size="small" sx={{ minWidth: 140 }}>
-                                            <InputLabel sx={{ fontSize: '0.75rem' }}>P_Type</InputLabel>
+                                            <InputLabel id="pivot-ptype-filter-label" sx={{ fontSize: '0.75rem' }}>P_Type</InputLabel>
                                             <Select
+                                                labelId="pivot-ptype-filter-label"
+                                                id="pivot-ptype-filter"
                                                 value={pivotPTypeFilter}
-                                                onChange={(e) => setPivotPTypeFilter(e.target.value)}
+                                                onChange={(e) => setPivotPTypeFilter(e.target.value as string)}
                                                 label="P_Type"
                                                 sx={{ fontSize: '0.75rem', height: 32 }}
                                             >
