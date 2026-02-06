@@ -5004,7 +5004,7 @@ export default function OutboundPage() {
                         </Fade>
 
                         {/* List Column Settings Dialog */}
-                        <Dialog open={listColumnSettingsOpen} onClose={() => setListColumnSettingsOpen(false)} maxWidth="sm" fullWidth>
+                        <Dialog open={listColumnSettingsOpen} onClose={() => setListColumnSettingsOpen(false)} maxWidth="sm" fullWidth container={isFullscreen ? multiEntryContainerRef.current : undefined}>
                             <DialogTitle>⚙️ Column Settings</DialogTitle>
                             <DialogContent>
                                 <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#6b21a8', mb: 1 }}>EDITABLE FIELDS</Typography>
@@ -5066,7 +5066,7 @@ export default function OutboundPage() {
                         </Dialog>
 
                         {/* Export Dialog */}
-                        <Dialog open={exportDialogOpen} onClose={() => setExportDialogOpen(false)} maxWidth="sm" fullWidth>
+                        <Dialog open={exportDialogOpen} onClose={() => setExportDialogOpen(false)} maxWidth="sm" fullWidth container={isFullscreen ? multiEntryContainerRef.current : undefined}>
                             <DialogTitle>Export to Excel</DialogTitle>
                             <DialogContent>
                                 <Stack spacing={2} sx={{ mt: 1 }}>
@@ -6290,6 +6290,7 @@ export default function OutboundPage() {
                             onClose={() => setColumnSettingsOpen(false)}
                             maxWidth="sm"
                             fullWidth
+                            container={multiEntryContainerRef.current}
                             PaperProps={{ sx: { borderRadius: 2 } }}
                         >
                             <DialogTitle
@@ -6404,6 +6405,7 @@ export default function OutboundPage() {
                         <Dialog
                             open={exportConfirmOpen}
                             onClose={() => setExportConfirmOpen(false)}
+                            container={multiEntryContainerRef.current}
                             PaperProps={{
                                 sx: {
                                     borderRadius: 2,
@@ -6462,6 +6464,7 @@ export default function OutboundPage() {
                             onClose={() => setCategoryPivotOpen(false)}
                             maxWidth="md"
                             fullWidth
+                            container={multiEntryContainerRef.current}
                             PaperProps={{
                                 sx: {
                                     borderRadius: 2,
@@ -7095,7 +7098,7 @@ export default function OutboundPage() {
                 )}
 
                 {/* Column Settings Dialog - Outside flex container */}
-                <Dialog open={columnSettingsOpen} onClose={() => setColumnSettingsOpen(false)} maxWidth="sm" fullWidth>
+                <Dialog open={columnSettingsOpen} onClose={() => setColumnSettingsOpen(false)} maxWidth="sm" fullWidth container={isFullscreen ? multiEntryContainerRef.current : undefined}>
                     <DialogTitle>⚙️ Columns View Settings</DialogTitle>
                     <DialogContent>
                         <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
@@ -7173,6 +7176,7 @@ export default function OutboundPage() {
                     onCancel={handleOverwriteCancel}
                     onReplace={handleOverwriteReplace}
                     onAddToNextRow={handleOverwriteAddToNextRow}
+                    container={isFullscreen ? multiEntryContainerRef.current : undefined}
                 />
             </Box>
         </AppLayout >

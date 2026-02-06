@@ -8353,6 +8353,7 @@ export default function InboundPage() {
         onCancel={handleOverwriteCancel}
         onReplace={handleOverwriteReplace}
         onAddToNextRow={handleOverwriteAddToNextRow}
+        container={isFullscreen ? multiEntryContainerRef.current : undefined}
       />
     </AppLayout >
   );

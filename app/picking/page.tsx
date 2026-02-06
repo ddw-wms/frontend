@@ -3981,7 +3981,7 @@ export default function PickingPage() {
             </Fade>
 
             {/* Column Settings Dialog */}
-            <Dialog open={listColumnSettingsOpen} onClose={() => setListColumnSettingsOpen(false)} maxWidth="sm" fullWidth>
+            <Dialog open={listColumnSettingsOpen} onClose={() => setListColumnSettingsOpen(false)} maxWidth="sm" fullWidth container={isFullscreen ? multiEntryContainerRef.current : undefined}>
               <DialogTitle>âš™ï¸ Column Settings</DialogTitle>
               <DialogContent>
                 <Stack spacing={1} sx={{ mt: 1 }}>
@@ -6421,6 +6421,7 @@ export default function PickingPage() {
           onCancel={handleOverwriteCancel}
           onReplace={handleOverwriteReplace}
           onAddToNextRow={handleOverwriteAddToNextRow}
+          container={isFullscreen ? multiEntryContainerRef.current : undefined}
         />
       </Box>
     </AppLayout >

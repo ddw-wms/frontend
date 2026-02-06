@@ -5597,7 +5597,7 @@ export default function QCPage() {
         </Paper>
 
         {/* EXPORT DIALOG */}
-        <Dialog open={exportDialogOpen} onClose={() => setExportDialogOpen(false)} maxWidth="sm" fullWidth>
+        <Dialog open={exportDialogOpen} onClose={() => setExportDialogOpen(false)} maxWidth="sm" fullWidth container={isFullscreen ? multiEntryContainerRef.current : undefined}>
           <DialogTitle>ðŸ“¥ Export QC Data</DialogTitle>
           <DialogContent>
             <Stack spacing={2} sx={{ mt: 2 }}>
@@ -5629,7 +5629,7 @@ export default function QCPage() {
         </Dialog>
 
         {/* GRADE MANAGEMENT DIALOG */}
-        <Dialog open={gradeDialogOpen} onClose={() => { setGradeDialogOpen(false); setNewGrade(''); setEditingGradeIndex(null); }} maxWidth="sm" fullWidth>
+        <Dialog open={gradeDialogOpen} onClose={() => { setGradeDialogOpen(false); setNewGrade(''); setEditingGradeIndex(null); }} maxWidth="sm" fullWidth container={isFullscreen ? multiEntryContainerRef.current : undefined}>
           <DialogTitle>⚙️ Manage QC Grades</DialogTitle>
           <DialogContent>
             <Stack spacing={2} sx={{ mt: 2 }}>
@@ -5669,7 +5669,7 @@ export default function QCPage() {
         </Dialog>
 
         {/* COLUMN SETTINGS - LIST */}
-        <Dialog open={listColumnSettingsOpen} onClose={() => setListColumnSettingsOpen(false)} maxWidth="sm" fullWidth>
+        <Dialog open={listColumnSettingsOpen} onClose={() => setListColumnSettingsOpen(false)} maxWidth="sm" fullWidth container={isFullscreen ? multiEntryContainerRef.current : undefined}>
           <DialogTitle>⚙️ Column Settings</DialogTitle>
           <DialogContent>
             <Stack spacing={1} sx={{ mt: 2 }}>
@@ -5699,6 +5699,7 @@ export default function QCPage() {
           onCancel={handleOverwriteCancel}
           onReplace={handleOverwriteReplace}
           onAddToNextRow={handleOverwriteAddToNextRow}
+          container={isFullscreen ? multiEntryContainerRef.current : undefined}
         />
       </Box >
     </AppLayout >

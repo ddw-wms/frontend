@@ -41,6 +41,7 @@ interface WSNOverwriteDialogProps {
     onCancel: () => void;
     onReplace: () => void;
     onAddToNextRow: () => void;
+    container?: HTMLElement | null;
 }
 
 export default function WSNOverwriteDialog({
@@ -48,6 +49,7 @@ export default function WSNOverwriteDialog({
     onCancel,
     onReplace,
     onAddToNextRow,
+    container,
 }: WSNOverwriteDialogProps) {
     const theme = useTheme();
     const isDarkMode = theme.palette.mode === 'dark';
@@ -62,6 +64,7 @@ export default function WSNOverwriteDialog({
             onClose={onCancel}
             maxWidth="sm"
             fullWidth
+            container={container}
             PaperProps={{
                 sx: {
                     borderRadius: 2,
