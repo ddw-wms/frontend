@@ -77,15 +77,21 @@ export default function LiveViewPanel({ warehouseId, pageType, isDarkMode = fals
   const [loading, setLoading] = useState(false);
   const [loadingEntries, setLoadingEntries] = useState(false);
   const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const initialLoadDoneRef = useRef(false);
+  const initialEntriesLoadDoneRef = useRef(false);
 
   // Fetch active sessions
-  const fetchSessions = useCallback(async () => {
+  const fetchSessions = useCallback(async (isInitial = false) => {
     if (!warehouseId) return;
 
     try {
-      setLoading(true);
+      // Only show loading spinner on initial load
+      if (isInitial || !initialLoadDoneRef.current) {
+        setLoading(true);
+      }
       const res = await liveViewAPI.getActiveSessions(warehouseId, pageType);
       setSessions(res.data.sessions || []);
+      initialLoadDoneRef.current = true;
     } catch (error) {
       // Silently ignore - live view is not critical
       setSessions([]);
@@ -95,11 +101,15 @@ export default function LiveViewPanel({ warehouseId, pageType, isDarkMode = fals
   }, [warehouseId, pageType]);
 
   // Fetch entries for selected session
-  const fetchEntries = useCallback(async (sessionId: string) => {
+  const fetchEntries = useCallback(async (sessionId: string, isInitial = false) => {
     try {
-      setLoadingEntries(true);
+      // Only show loading spinner on initial load
+      if (isInitial || !initialEntriesLoadDoneRef.current) {
+        setLoadingEntries(true);
+      }
       const res = await liveViewAPI.getEntries(sessionId);
       setEntries(res.data.entries || []);
+      initialEntriesLoadDoneRef.current = true;
     } catch (error) {
       console.debug('Failed to fetch live entries:', error);
       setEntries([]);
@@ -113,12 +123,13 @@ export default function LiveViewPanel({ warehouseId, pageType, isDarkMode = fals
     if (!warehouseId) return;
 
     // Initial fetch
-    fetchSessions();
+    initialLoadDoneRef.current = false;
+    fetchSessions(true);
 
     // Poll every 10 seconds in background
     const bgInterval = setInterval(() => {
       if (!open) {
-        fetchSessions();
+        fetchSessions(false);
       }
     }, 10000);
 
@@ -128,13 +139,13 @@ export default function LiveViewPanel({ warehouseId, pageType, isDarkMode = fals
   // Auto-refresh sessions and entries when drawer is open
   useEffect(() => {
     if (open && warehouseId) {
-      fetchSessions();
+      fetchSessions(false);
 
       // Refresh every 5 seconds when open
       refreshIntervalRef.current = setInterval(() => {
-        fetchSessions();
+        fetchSessions(false);
         if (selectedSession) {
-          fetchEntries(selectedSession.session_id);
+          fetchEntries(selectedSession.session_id, false);
         }
       }, 5000);
     }
@@ -149,7 +160,8 @@ export default function LiveViewPanel({ warehouseId, pageType, isDarkMode = fals
   // Select a session
   const handleSelectSession = (session: LiveSession) => {
     setSelectedSession(session);
-    fetchEntries(session.session_id);
+    initialEntriesLoadDoneRef.current = false; // Reset for new session
+    fetchEntries(session.session_id, true);
   };
 
   // Export to Excel
@@ -294,7 +306,7 @@ export default function LiveViewPanel({ warehouseId, pageType, isDarkMode = fals
               </Typography>
             </Stack>
             <Stack direction="row" spacing={1}>
-              <IconButton size="small" onClick={fetchSessions} sx={{ color: 'white' }}>
+              <IconButton size="small" onClick={() => fetchSessions(false)} sx={{ color: 'white' }}>
                 <RefreshIcon />
               </IconButton>
               <IconButton size="small" onClick={() => setOpen(false)} sx={{ color: 'white' }}>
@@ -380,7 +392,11 @@ export default function LiveViewPanel({ warehouseId, pageType, isDarkMode = fals
               <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
                 <Button
                   size="small"
-                  onClick={() => { setSelectedSession(null); setEntries([]); }}
+                  onClick={() => {
+                    setSelectedSession(null);
+                    setEntries([]);
+                    initialEntriesLoadDoneRef.current = false;
+                  }}
                   sx={{ textTransform: 'none' }}
                 >
                   ← Back to sessions
