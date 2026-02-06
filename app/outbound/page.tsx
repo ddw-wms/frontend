@@ -539,6 +539,10 @@ export default function OutboundPage() {
     const [pivotGroupBy, setPivotGroupBy] = useState<'category' | 'brand' | 'p_type' | 'combined'>('category');
     const [categoryPivotSortBy, setCategoryPivotSortBy] = useState<'category' | 'qty' | 'fsp' | 'mrp'>('qty');
     const [categoryPivotSortDir, setCategoryPivotSortDir] = useState<'asc' | 'desc'>('desc');
+    // Combined view filters
+    const [pivotCategoryFilter, setPivotCategoryFilter] = useState<string>('');
+    const [pivotBrandFilter, setPivotBrandFilter] = useState<string>('');
+    const [pivotPTypeFilter, setPivotPTypeFilter] = useState<string>('');
 
     // ====== MULTI ENTRY COLUMN WIDTHS PERSISTENCE ======
     const [multiColumnWidths, setMultiColumnWidths] = useState<Record<string, number>>({});
@@ -3747,12 +3751,49 @@ export default function OutboundPage() {
 
     // ====== CATEGORY PIVOT DATA COMPUTATION ======
     // Calculate category/brand-wise quantity summary from scanned rows in Multi Entry
+    // Get available filter options for combined view
+    const pivotFilterOptions = useMemo(() => {
+        const filledRows = multiRows.filter((row: any) => row.wsn?.trim());
+        const categories = new Set<string>();
+        const brands = new Set<string>();
+        const pTypes = new Set<string>();
+
+        filledRows.forEach((row: any) => {
+            if (row.cms_vertical?.trim()) categories.add(row.cms_vertical.trim());
+            if (row.brand?.trim()) brands.add(row.brand.trim());
+            if (row.p_type?.trim()) pTypes.add(row.p_type.trim());
+        });
+
+        return {
+            categories: Array.from(categories).sort(),
+            brands: Array.from(brands).sort(),
+            pTypes: Array.from(pTypes).sort(),
+        };
+    }, [multiRows]);
+
     const categoryPivotData = useMemo(() => {
         // Only consider rows with WSN filled
-        const filledRows = multiRows.filter((row: any) => row.wsn?.trim());
+        let filledRows = multiRows.filter((row: any) => row.wsn?.trim());
 
         if (filledRows.length === 0) {
-            return { categories: [], grandTotal: { qty: 0, fsp: 0, mrp: 0 } };
+            return { categories: [], grandTotal: { qty: 0, fsp: 0, mrp: 0 }, filteredTotal: { qty: 0, fsp: 0, mrp: 0 } };
+        }
+
+        // Apply filters for combined view
+        if (pivotGroupBy === 'combined') {
+            if (pivotCategoryFilter) {
+                filledRows = filledRows.filter((row: any) => row.cms_vertical?.trim() === pivotCategoryFilter);
+            }
+            if (pivotBrandFilter) {
+                filledRows = filledRows.filter((row: any) => row.brand?.trim() === pivotBrandFilter);
+            }
+            if (pivotPTypeFilter) {
+                filledRows = filledRows.filter((row: any) => row.p_type?.trim() === pivotPTypeFilter);
+            }
+        }
+
+        if (filledRows.length === 0) {
+            return { categories: [], grandTotal: { qty: 0, fsp: 0, mrp: 0 }, filteredTotal: { qty: 0, fsp: 0, mrp: 0 } };
         }
 
         // Group by category (cms_vertical), brand, p_type, or combined based on pivotGroupBy
@@ -3844,7 +3885,17 @@ export default function OutboundPage() {
         });
 
         return { categories, grandTotal };
-    }, [multiRows, pivotGroupBy, categoryPivotSortBy, categoryPivotSortDir]);
+    }, [multiRows, pivotGroupBy, categoryPivotSortBy, categoryPivotSortDir, pivotCategoryFilter, pivotBrandFilter, pivotPTypeFilter]);
+
+    // Clear pivot filters when switching away from combined view
+    const handlePivotGroupChange = (newGroup: 'category' | 'brand' | 'p_type' | 'combined') => {
+        setPivotGroupBy(newGroup);
+        if (newGroup !== 'combined') {
+            setPivotCategoryFilter('');
+            setPivotBrandFilter('');
+            setPivotPTypeFilter('');
+        }
+    };
 
     // Handle sort column click for category pivot
     const handleCategoryPivotSort = (column: 'category' | 'qty' | 'fsp' | 'mrp') => {
@@ -6556,7 +6607,7 @@ export default function OutboundPage() {
                                         <Button
                                             size="small"
                                             variant={pivotGroupBy === 'category' ? 'contained' : 'outlined'}
-                                            onClick={() => setPivotGroupBy('category')}
+                                            onClick={() => handlePivotGroupChange('category')}
                                             sx={{
                                                 fontSize: '0.75rem',
                                                 fontWeight: 600,
@@ -6579,7 +6630,7 @@ export default function OutboundPage() {
                                         <Button
                                             size="small"
                                             variant={pivotGroupBy === 'brand' ? 'contained' : 'outlined'}
-                                            onClick={() => setPivotGroupBy('brand')}
+                                            onClick={() => handlePivotGroupChange('brand')}
                                             sx={{
                                                 fontSize: '0.75rem',
                                                 fontWeight: 600,
@@ -6602,7 +6653,7 @@ export default function OutboundPage() {
                                         <Button
                                             size="small"
                                             variant={pivotGroupBy === 'p_type' ? 'contained' : 'outlined'}
-                                            onClick={() => setPivotGroupBy('p_type')}
+                                            onClick={() => handlePivotGroupChange('p_type')}
                                             sx={{
                                                 fontSize: '0.75rem',
                                                 fontWeight: 600,
@@ -6625,7 +6676,7 @@ export default function OutboundPage() {
                                         <Button
                                             size="small"
                                             variant={pivotGroupBy === 'combined' ? 'contained' : 'outlined'}
-                                            onClick={() => setPivotGroupBy('combined')}
+                                            onClick={() => handlePivotGroupChange('combined')}
                                             sx={{
                                                 fontSize: '0.75rem',
                                                 fontWeight: 600,
@@ -6648,10 +6699,97 @@ export default function OutboundPage() {
                                     </Box>
                                 </Box>
 
+                                {/* Combined View Filters */}
+                                {pivotGroupBy === 'combined' && (
+                                    <Box sx={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 2,
+                                        px: 2,
+                                        py: 1.5,
+                                        borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0',
+                                        bgcolor: isDarkMode ? 'rgba(16, 185, 129, 0.05)' : 'rgba(16, 185, 129, 0.03)',
+                                        flexWrap: 'wrap',
+                                    }}>
+                                        <Typography sx={{ fontWeight: 600, color: isDarkMode ? '#6ee7b7' : '#059669', fontSize: '0.8rem' }}>
+                                            🔍 Filters:
+                                        </Typography>
+                                        <FormControl size="small" sx={{ minWidth: 140 }}>
+                                            <InputLabel sx={{ fontSize: '0.75rem' }}>Category</InputLabel>
+                                            <Select
+                                                value={pivotCategoryFilter}
+                                                onChange={(e) => setPivotCategoryFilter(e.target.value)}
+                                                label="Category"
+                                                sx={{ fontSize: '0.75rem', height: 32 }}
+                                            >
+                                                <MenuItem value="">
+                                                    <em>All Categories</em>
+                                                </MenuItem>
+                                                {pivotFilterOptions.categories.map((cat) => (
+                                                    <MenuItem key={cat} value={cat} sx={{ fontSize: '0.75rem' }}>{cat}</MenuItem>
+                                                ))}
+                                            </Select>
+                                        </FormControl>
+                                        <FormControl size="small" sx={{ minWidth: 140 }}>
+                                            <InputLabel sx={{ fontSize: '0.75rem' }}>Brand</InputLabel>
+                                            <Select
+                                                value={pivotBrandFilter}
+                                                onChange={(e) => setPivotBrandFilter(e.target.value)}
+                                                label="Brand"
+                                                sx={{ fontSize: '0.75rem', height: 32 }}
+                                            >
+                                                <MenuItem value="">
+                                                    <em>All Brands</em>
+                                                </MenuItem>
+                                                {pivotFilterOptions.brands.map((brand) => (
+                                                    <MenuItem key={brand} value={brand} sx={{ fontSize: '0.75rem' }}>{brand}</MenuItem>
+                                                ))}
+                                            </Select>
+                                        </FormControl>
+                                        <FormControl size="small" sx={{ minWidth: 140 }}>
+                                            <InputLabel sx={{ fontSize: '0.75rem' }}>P_Type</InputLabel>
+                                            <Select
+                                                value={pivotPTypeFilter}
+                                                onChange={(e) => setPivotPTypeFilter(e.target.value)}
+                                                label="P_Type"
+                                                sx={{ fontSize: '0.75rem', height: 32 }}
+                                            >
+                                                <MenuItem value="">
+                                                    <em>All Types</em>
+                                                </MenuItem>
+                                                {pivotFilterOptions.pTypes.map((pType) => (
+                                                    <MenuItem key={pType} value={pType} sx={{ fontSize: '0.75rem' }}>{pType}</MenuItem>
+                                                ))}
+                                            </Select>
+                                        </FormControl>
+                                        {(pivotCategoryFilter || pivotBrandFilter || pivotPTypeFilter) && (
+                                            <Button
+                                                size="small"
+                                                onClick={() => {
+                                                    setPivotCategoryFilter('');
+                                                    setPivotBrandFilter('');
+                                                    setPivotPTypeFilter('');
+                                                }}
+                                                sx={{
+                                                    fontSize: '0.7rem',
+                                                    fontWeight: 600,
+                                                    color: '#ef4444',
+                                                    textTransform: 'none',
+                                                    '&:hover': { bgcolor: 'rgba(239, 68, 68, 0.08)' },
+                                                }}
+                                            >
+                                                ✕ Clear Filters
+                                            </Button>
+                                        )}
+                                    </Box>
+                                )}
+
                                 {categoryPivotData.categories.length === 0 ? (
                                     <Box sx={{ p: 4, textAlign: 'center' }}>
                                         <Typography color="text.secondary">
-                                            No scanned items found. Start scanning WSNs to see {pivotGroupBy} summary.
+                                            {pivotGroupBy === 'combined' && (pivotCategoryFilter || pivotBrandFilter || pivotPTypeFilter)
+                                                ? 'No items match the selected filters.'
+                                                : `No scanned items found. Start scanning WSNs to see ${pivotGroupBy} summary.`}
                                         </Typography>
                                     </Box>
                                 ) : (
