@@ -536,7 +536,7 @@ export default function OutboundPage() {
 
     // ====== CATEGORY PIVOT DIALOG ======
     const [categoryPivotOpen, setCategoryPivotOpen] = useState(false);
-    const [pivotGroupBy, setPivotGroupBy] = useState<'category' | 'brand' | 'p_type'>('category');
+    const [pivotGroupBy, setPivotGroupBy] = useState<'category' | 'brand' | 'p_type' | 'combined'>('category');
     const [categoryPivotSortBy, setCategoryPivotSortBy] = useState<'category' | 'qty' | 'fsp' | 'mrp'>('qty');
     const [categoryPivotSortDir, setCategoryPivotSortDir] = useState<'asc' | 'desc'>('desc');
 
@@ -3755,21 +3755,35 @@ export default function OutboundPage() {
             return { categories: [], grandTotal: { qty: 0, fsp: 0, mrp: 0 } };
         }
 
-        // Group by category (cms_vertical), brand, or p_type based on pivotGroupBy
-        const groupField = pivotGroupBy === 'brand' ? 'brand' : pivotGroupBy === 'p_type' ? 'p_type' : 'cms_vertical';
-        const defaultLabel = pivotGroupBy === 'brand' ? 'Unknown Brand' : pivotGroupBy === 'p_type' ? 'Unknown Type' : 'Uncategorized';
-        const categoryMap = new Map<string, { qty: number; fsp: number; mrp: number; items: any[] }>();
+        // Group by category (cms_vertical), brand, p_type, or combined based on pivotGroupBy
+        const categoryMap = new Map<string, { qty: number; fsp: number; mrp: number; items: any[]; categoryName?: string; brandName?: string; pTypeName?: string }>();
 
         filledRows.forEach((row: any) => {
-            const category = row[groupField]?.trim() || defaultLabel;
+            let groupKey: string;
+            let categoryName = '';
+            let brandName = '';
+            let pTypeName = '';
+
+            if (pivotGroupBy === 'combined') {
+                // Combined: group by category + brand + p_type
+                categoryName = row.cms_vertical?.trim() || 'Uncategorized';
+                brandName = row.brand?.trim() || 'Unknown Brand';
+                pTypeName = row.p_type?.trim() || 'Unknown Type';
+                groupKey = `${categoryName}|||${brandName}|||${pTypeName}`;
+            } else {
+                const groupField = pivotGroupBy === 'brand' ? 'brand' : pivotGroupBy === 'p_type' ? 'p_type' : 'cms_vertical';
+                const defaultLabel = pivotGroupBy === 'brand' ? 'Unknown Brand' : pivotGroupBy === 'p_type' ? 'Unknown Type' : 'Uncategorized';
+                groupKey = row[groupField]?.trim() || defaultLabel;
+            }
+
             const fsp = parseFloat(row.fsp) || 0;
             const mrp = parseFloat(row.mrp) || 0;
 
-            if (!categoryMap.has(category)) {
-                categoryMap.set(category, { qty: 0, fsp: 0, mrp: 0, items: [] });
+            if (!categoryMap.has(groupKey)) {
+                categoryMap.set(groupKey, { qty: 0, fsp: 0, mrp: 0, items: [], categoryName, brandName, pTypeName });
             }
 
-            const data = categoryMap.get(category)!;
+            const data = categoryMap.get(groupKey)!;
             data.qty += 1;
             data.fsp += fsp;
             data.mrp += mrp;
@@ -3791,6 +3805,10 @@ export default function OutboundPage() {
             fsp: data.fsp,
             mrp: data.mrp,
             percentage: grandTotal.qty > 0 ? (data.qty / grandTotal.qty) * 100 : 0,
+            // For combined view
+            categoryName: data.categoryName || '',
+            brandName: data.brandName || '',
+            pTypeName: data.pTypeName || '',
         }));
 
         // Sort based on current sort settings
@@ -3842,25 +3860,50 @@ export default function OutboundPage() {
     const exportCategoryPivotToExcel = async () => {
         try {
             const XLSX = await import('xlsx');
-            const groupLabel = pivotGroupBy === 'brand' ? 'Brand' : pivotGroupBy === 'p_type' ? 'P_Type' : 'Category';
-            const exportData = categoryPivotData.categories.map((cat, idx) => ({
-                'Sr No': idx + 1,
-                [groupLabel]: cat.category,
-                'Quantity': cat.qty,
-                'Total FSP (₹)': cat.fsp,
-                'Total MRP (₹)': cat.mrp,
-                'Percentage (%)': cat.percentage.toFixed(1),
-            }));
+            const groupLabel = pivotGroupBy === 'brand' ? 'Brand' : pivotGroupBy === 'p_type' ? 'P_Type' : pivotGroupBy === 'combined' ? 'Combined' : 'Category';
 
-            // Add grand total row
-            exportData.push({
-                'Sr No': '',
-                [groupLabel]: 'GRAND TOTAL',
-                'Quantity': categoryPivotData.grandTotal.qty,
-                'Total FSP (₹)': categoryPivotData.grandTotal.fsp,
-                'Total MRP (₹)': categoryPivotData.grandTotal.mrp,
-                'Percentage (%)': '100.0',
-            } as any);
+            let exportData;
+            if (pivotGroupBy === 'combined') {
+                exportData = categoryPivotData.categories.map((cat, idx) => ({
+                    'Sr No': idx + 1,
+                    'Category': cat.categoryName,
+                    'Brand': cat.brandName,
+                    'P_Type': cat.pTypeName,
+                    'Quantity': cat.qty,
+                    'Total FSP (₹)': cat.fsp,
+                    'Total MRP (₹)': cat.mrp,
+                    'Percentage (%)': cat.percentage.toFixed(1),
+                }));
+                // Add grand total row
+                exportData.push({
+                    'Sr No': '',
+                    'Category': 'GRAND TOTAL',
+                    'Brand': '',
+                    'P_Type': '',
+                    'Quantity': categoryPivotData.grandTotal.qty,
+                    'Total FSP (₹)': categoryPivotData.grandTotal.fsp,
+                    'Total MRP (₹)': categoryPivotData.grandTotal.mrp,
+                    'Percentage (%)': '100.0',
+                } as any);
+            } else {
+                exportData = categoryPivotData.categories.map((cat, idx) => ({
+                    'Sr No': idx + 1,
+                    [groupLabel]: cat.category,
+                    'Quantity': cat.qty,
+                    'Total FSP (₹)': cat.fsp,
+                    'Total MRP (₹)': cat.mrp,
+                    'Percentage (%)': cat.percentage.toFixed(1),
+                }));
+                // Add grand total row
+                exportData.push({
+                    'Sr No': '',
+                    [groupLabel]: 'GRAND TOTAL',
+                    'Quantity': categoryPivotData.grandTotal.qty,
+                    'Total FSP (₹)': categoryPivotData.grandTotal.fsp,
+                    'Total MRP (₹)': categoryPivotData.grandTotal.mrp,
+                    'Percentage (%)': '100.0',
+                } as any);
+            }
 
             const ws = XLSX.utils.json_to_sheet(exportData);
             const wb = XLSX.utils.book_new();
@@ -6483,7 +6526,7 @@ export default function OutboundPage() {
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                     <PieChartIcon />
                                     <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                                        {pivotGroupBy === 'brand' ? 'Brand' : pivotGroupBy === 'p_type' ? 'P_Type' : 'Category'} Quantity Summary
+                                        {pivotGroupBy === 'brand' ? 'Brand' : pivotGroupBy === 'p_type' ? 'P_Type' : pivotGroupBy === 'combined' ? 'Combined' : 'Category'} Quantity Summary
                                     </Typography>
                                 </Box>
                                 <Chip
@@ -6579,6 +6622,29 @@ export default function OutboundPage() {
                                         >
                                             📦 P_Type
                                         </Button>
+                                        <Button
+                                            size="small"
+                                            variant={pivotGroupBy === 'combined' ? 'contained' : 'outlined'}
+                                            onClick={() => setPivotGroupBy('combined')}
+                                            sx={{
+                                                fontSize: '0.75rem',
+                                                fontWeight: 600,
+                                                px: 2,
+                                                py: 0.5,
+                                                borderRadius: 1,
+                                                textTransform: 'none',
+                                                ...(pivotGroupBy === 'combined' ? {
+                                                    background: 'linear-gradient(135deg, #059669 0%, #10b981 100%)',
+                                                    '&:hover': { background: 'linear-gradient(135deg, #047857 0%, #059669 100%)' },
+                                                } : {
+                                                    borderColor: isDarkMode ? '#34d399' : '#059669',
+                                                    color: isDarkMode ? '#6ee7b7' : '#059669',
+                                                    '&:hover': { bgcolor: 'rgba(16, 185, 129, 0.08)' },
+                                                }),
+                                            }}
+                                        >
+                                            🔗 Combined
+                                        </Button>
                                     </Box>
                                 </Box>
 
@@ -6593,19 +6659,56 @@ export default function OutboundPage() {
                                         <Table stickyHeader size="small">
                                             <TableHead>
                                                 <TableRow>
-                                                    <TableCell
-                                                        onClick={() => handleCategoryPivotSort('category')}
-                                                        sx={{
-                                                            fontWeight: 700,
-                                                            cursor: 'pointer',
-                                                            bgcolor: isDarkMode ? '#334155' : '#f1f5f9',
-                                                            color: isDarkMode ? '#f1f5f9' : '#1e293b',
-                                                            '&:hover': { bgcolor: isDarkMode ? '#475569' : '#e2e8f0' },
-                                                            userSelect: 'none',
-                                                        }}
-                                                    >
-                                                        {pivotGroupBy === 'brand' ? 'Brand' : pivotGroupBy === 'p_type' ? 'P_Type' : 'Category'} {categoryPivotSortBy === 'category' && (categoryPivotSortDir === 'asc' ? '↑' : '↓')}
-                                                    </TableCell>
+                                                    {/* For combined view, show 3 columns */}
+                                                    {pivotGroupBy === 'combined' ? (
+                                                        <>
+                                                            <TableCell
+                                                                onClick={() => handleCategoryPivotSort('category')}
+                                                                sx={{
+                                                                    fontWeight: 700,
+                                                                    cursor: 'pointer',
+                                                                    bgcolor: isDarkMode ? '#334155' : '#f1f5f9',
+                                                                    color: isDarkMode ? '#f1f5f9' : '#1e293b',
+                                                                    '&:hover': { bgcolor: isDarkMode ? '#475569' : '#e2e8f0' },
+                                                                    userSelect: 'none',
+                                                                }}
+                                                            >
+                                                                Category {categoryPivotSortBy === 'category' && (categoryPivotSortDir === 'asc' ? '↑' : '↓')}
+                                                            </TableCell>
+                                                            <TableCell
+                                                                sx={{
+                                                                    fontWeight: 700,
+                                                                    bgcolor: isDarkMode ? '#334155' : '#f1f5f9',
+                                                                    color: isDarkMode ? '#f1f5f9' : '#1e293b',
+                                                                }}
+                                                            >
+                                                                Brand
+                                                            </TableCell>
+                                                            <TableCell
+                                                                sx={{
+                                                                    fontWeight: 700,
+                                                                    bgcolor: isDarkMode ? '#334155' : '#f1f5f9',
+                                                                    color: isDarkMode ? '#f1f5f9' : '#1e293b',
+                                                                }}
+                                                            >
+                                                                P_Type
+                                                            </TableCell>
+                                                        </>
+                                                    ) : (
+                                                        <TableCell
+                                                            onClick={() => handleCategoryPivotSort('category')}
+                                                            sx={{
+                                                                fontWeight: 700,
+                                                                cursor: 'pointer',
+                                                                bgcolor: isDarkMode ? '#334155' : '#f1f5f9',
+                                                                color: isDarkMode ? '#f1f5f9' : '#1e293b',
+                                                                '&:hover': { bgcolor: isDarkMode ? '#475569' : '#e2e8f0' },
+                                                                userSelect: 'none',
+                                                            }}
+                                                        >
+                                                            {pivotGroupBy === 'brand' ? 'Brand' : pivotGroupBy === 'p_type' ? 'P_Type' : 'Category'} {categoryPivotSortBy === 'category' && (categoryPivotSortDir === 'asc' ? '↑' : '↓')}
+                                                        </TableCell>
+                                                    )}
                                                     <TableCell
                                                         align="right"
                                                         onClick={() => handleCategoryPivotSort('qty')}
@@ -6669,25 +6772,62 @@ export default function OutboundPage() {
                                                             '&:hover': { bgcolor: isDarkMode ? 'rgba(59, 130, 246, 0.15)' : 'rgba(59, 130, 246, 0.08)' },
                                                         }}
                                                     >
-                                                        <TableCell sx={{
-                                                            fontWeight: 600,
-                                                            color: isDarkMode ? '#f1f5f9' : '#1e293b',
-                                                        }}>
-                                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                                                <Box
-                                                                    sx={{
-                                                                        width: 8,
-                                                                        height: 8,
-                                                                        borderRadius: '50%',
-                                                                        bgcolor: [
-                                                                            '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
-                                                                            '#ec4899', '#06b6d4', '#84cc16', '#f97316', '#6366f1'
-                                                                        ][idx % 10],
-                                                                    }}
-                                                                />
-                                                                {cat.category}
-                                                            </Box>
-                                                        </TableCell>
+                                                        {/* For combined view, show 3 columns */}
+                                                        {pivotGroupBy === 'combined' ? (
+                                                            <>
+                                                                <TableCell sx={{
+                                                                    fontWeight: 600,
+                                                                    color: isDarkMode ? '#f1f5f9' : '#1e293b',
+                                                                }}>
+                                                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                                        <Box
+                                                                            sx={{
+                                                                                width: 8,
+                                                                                height: 8,
+                                                                                borderRadius: '50%',
+                                                                                bgcolor: [
+                                                                                    '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
+                                                                                    '#ec4899', '#06b6d4', '#84cc16', '#f97316', '#6366f1'
+                                                                                ][idx % 10],
+                                                                            }}
+                                                                        />
+                                                                        {cat.categoryName}
+                                                                    </Box>
+                                                                </TableCell>
+                                                                <TableCell sx={{
+                                                                    fontWeight: 600,
+                                                                    color: isDarkMode ? '#67e8f9' : '#0891b2',
+                                                                }}>
+                                                                    {cat.brandName}
+                                                                </TableCell>
+                                                                <TableCell sx={{
+                                                                    fontWeight: 600,
+                                                                    color: isDarkMode ? '#fdba74' : '#ea580c',
+                                                                }}>
+                                                                    {cat.pTypeName}
+                                                                </TableCell>
+                                                            </>
+                                                        ) : (
+                                                            <TableCell sx={{
+                                                                fontWeight: 600,
+                                                                color: isDarkMode ? '#f1f5f9' : '#1e293b',
+                                                            }}>
+                                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                                    <Box
+                                                                        sx={{
+                                                                            width: 8,
+                                                                            height: 8,
+                                                                            borderRadius: '50%',
+                                                                            bgcolor: [
+                                                                                '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
+                                                                                '#ec4899', '#06b6d4', '#84cc16', '#f97316', '#6366f1'
+                                                                            ][idx % 10],
+                                                                        }}
+                                                                    />
+                                                                    {cat.category}
+                                                                </Box>
+                                                            </TableCell>
+                                                        )}
                                                         <TableCell align="right" sx={{
                                                             fontWeight: 700,
                                                             color: isDarkMode ? '#60a5fa' : '#2563eb',
@@ -6750,6 +6890,13 @@ export default function OutboundPage() {
                                                     }}>
                                                         GRAND TOTAL
                                                     </TableCell>
+                                                    {/* Empty cells for combined view extra columns */}
+                                                    {pivotGroupBy === 'combined' && (
+                                                        <>
+                                                            <TableCell sx={{ color: 'white' }}></TableCell>
+                                                            <TableCell sx={{ color: 'white' }}></TableCell>
+                                                        </>
+                                                    )}
                                                     <TableCell align="right" sx={{
                                                         fontWeight: 800,
                                                         color: 'white',
