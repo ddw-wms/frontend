@@ -2684,29 +2684,7 @@ export default function OutboundPage() {
                     return;
                 }
 
-                // ====== WSN OVERWRITE CHECK ======
-                // If user is replacing a valid WSN with a different valid WSN, show warning dialog
-                const existingWSN = oldValue?.trim()?.toUpperCase();
-                if (existingWSN && wsn && existingWSN !== wsn) {
-                    // Revert cell to original value until user confirms
-                    rowNode.setDataValue('wsn', existingWSN);
-                    // Store pending WSN data
-                    pendingWSNRef.current = { wsn, rowIndex, params };
-                    // Show dialog with existing product info
-                    setWsnOverwriteDialog({
-                        open: true,
-                        existingWSN,
-                        newWSN: wsn,
-                        existingData: {
-                            product_title: rowData?.product_title || '',
-                            brand: rowData?.brand || '',
-                            mrp: rowData?.mrp || '',
-                            fsp: rowData?.fsp || '',
-                        },
-                        rowIndex
-                    });
-                    return;
-                }
+                // NOTE: WSN overwrite check moved to onCellEditingStopped to prevent re-trigger loops
 
                 if (!activeWarehouse) return;
 
@@ -6908,6 +6886,41 @@ export default function OutboundPage() {
                                 headerHeight={32}
                                 defaultColDef={defaultColDef}
                                 onCellValueChanged={onCellValueChanged}
+                                onCellEditingStopped={async (event: any) => {
+                                    const field = event.colDef?.field;
+                                    const value = event.value;
+                                    const oldValue = event.oldValue;
+                                    const node = event.node;
+                                    const rowIndex = event.rowIndex;
+
+                                    if (field !== 'wsn') return;
+
+                                    const wsn = value?.trim()?.toUpperCase();
+                                    const existingWSN = oldValue?.trim()?.toUpperCase();
+
+                                    // ====== WSN OVERWRITE CHECK ======
+                                    // If user is replacing a valid WSN with a different valid WSN, show warning dialog
+                                    if (existingWSN && wsn && existingWSN !== wsn) {
+                                        // Revert cell to original value until user confirms
+                                        node.setDataValue('wsn', existingWSN);
+                                        // Store pending WSN data
+                                        pendingWSNRef.current = { wsn, rowIndex, params: event };
+                                        // Show dialog with existing product info
+                                        setWsnOverwriteDialog({
+                                            open: true,
+                                            existingWSN,
+                                            newWSN: wsn,
+                                            existingData: {
+                                                product_title: node.data?.product_title || '',
+                                                brand: node.data?.brand || '',
+                                                mrp: node.data?.mrp || '',
+                                                fsp: node.data?.fsp || '',
+                                            },
+                                            rowIndex
+                                        });
+                                        return;
+                                    }
+                                }}
                                 getRowStyle={getRowStyle}
                                 getRowId={(params: any) => params.data._rowId}
                                 navigateToNextCell={navigateToNextCell}
