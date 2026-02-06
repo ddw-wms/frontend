@@ -1113,7 +1113,7 @@ export default function InboundPage() {
       const base: any = {
         field: col,
         headerName,
-        minWidth: col === 'product_title' ? 240 : col === 'brand' ? 140 : 120,
+        minWidth: col === 'product_title' ? 240 : col === 'brand' ? 120 : 120,
         flex: col === 'product_title' ? 1.5 : 1,
         hide: false, // Start visible, ag-Grid state will control visibility
       };
@@ -3589,7 +3589,7 @@ export default function InboundPage() {
         editable: isEditable,
         suppressSizeToFit: true,
         resizable: true,
-        minWidth: 80,
+        minWidth: 50,
         ...(savedWidth ? { width: savedWidth } : {}),
         // Clean consistent cell styling - no different backgrounds
         cellStyle: () => ({})
