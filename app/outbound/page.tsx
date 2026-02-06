@@ -539,10 +539,10 @@ export default function OutboundPage() {
     const [pivotGroupBy, setPivotGroupBy] = useState<'category' | 'brand' | 'p_type' | 'combined'>('category');
     const [categoryPivotSortBy, setCategoryPivotSortBy] = useState<'category' | 'qty' | 'fsp' | 'mrp'>('qty');
     const [categoryPivotSortDir, setCategoryPivotSortDir] = useState<'asc' | 'desc'>('desc');
-    // Combined view filters
-    const [pivotCategoryFilter, setPivotCategoryFilter] = useState<string>('');
-    const [pivotBrandFilter, setPivotBrandFilter] = useState<string>('');
-    const [pivotPTypeFilter, setPivotPTypeFilter] = useState<string>('');
+    // Combined view filters (multiple selection)
+    const [pivotCategoryFilter, setPivotCategoryFilter] = useState<string[]>([]);
+    const [pivotBrandFilter, setPivotBrandFilter] = useState<string[]>([]);
+    const [pivotPTypeFilter, setPivotPTypeFilter] = useState<string[]>([]);
 
     // ====== MULTI ENTRY COLUMN WIDTHS PERSISTENCE ======
     const [multiColumnWidths, setMultiColumnWidths] = useState<Record<string, number>>({});
@@ -3752,15 +3752,56 @@ export default function OutboundPage() {
     // ====== CATEGORY PIVOT DATA COMPUTATION ======
     // Calculate category/brand-wise quantity summary from scanned rows in Multi Entry
     // Get available filter options for combined view
+    // Dynamic filter options based on selected filters
     const pivotFilterOptions = useMemo(() => {
         const filledRows = multiRows.filter((row: any) => row.wsn?.trim());
+
+        // Filter rows based on current selections for dynamic options
+        let filteredForCategories = filledRows;
+        let filteredForBrands = filledRows;
+        let filteredForPTypes = filledRows;
+
+        // For categories dropdown: filter by selected brands and pTypes
+        if (pivotBrandFilter.length > 0) {
+            filteredForCategories = filteredForCategories.filter((row: any) =>
+                pivotBrandFilter.includes(row.brand?.trim()));
+        }
+        if (pivotPTypeFilter.length > 0) {
+            filteredForCategories = filteredForCategories.filter((row: any) =>
+                pivotPTypeFilter.includes(row.p_type?.trim()));
+        }
+
+        // For brands dropdown: filter by selected categories and pTypes
+        if (pivotCategoryFilter.length > 0) {
+            filteredForBrands = filteredForBrands.filter((row: any) =>
+                pivotCategoryFilter.includes(row.cms_vertical?.trim()));
+        }
+        if (pivotPTypeFilter.length > 0) {
+            filteredForBrands = filteredForBrands.filter((row: any) =>
+                pivotPTypeFilter.includes(row.p_type?.trim()));
+        }
+
+        // For pTypes dropdown: filter by selected categories and brands
+        if (pivotCategoryFilter.length > 0) {
+            filteredForPTypes = filteredForPTypes.filter((row: any) =>
+                pivotCategoryFilter.includes(row.cms_vertical?.trim()));
+        }
+        if (pivotBrandFilter.length > 0) {
+            filteredForPTypes = filteredForPTypes.filter((row: any) =>
+                pivotBrandFilter.includes(row.brand?.trim()));
+        }
+
         const categories = new Set<string>();
         const brands = new Set<string>();
         const pTypes = new Set<string>();
 
-        filledRows.forEach((row: any) => {
+        filteredForCategories.forEach((row: any) => {
             if (row.cms_vertical?.trim()) categories.add(row.cms_vertical.trim());
+        });
+        filteredForBrands.forEach((row: any) => {
             if (row.brand?.trim()) brands.add(row.brand.trim());
+        });
+        filteredForPTypes.forEach((row: any) => {
             if (row.p_type?.trim()) pTypes.add(row.p_type.trim());
         });
 
@@ -3769,7 +3810,7 @@ export default function OutboundPage() {
             brands: Array.from(brands).sort(),
             pTypes: Array.from(pTypes).sort(),
         };
-    }, [multiRows]);
+    }, [multiRows, pivotCategoryFilter, pivotBrandFilter, pivotPTypeFilter]);
 
     const categoryPivotData = useMemo(() => {
         // Only consider rows with WSN filled
@@ -3779,16 +3820,16 @@ export default function OutboundPage() {
             return { categories: [], grandTotal: { qty: 0, fsp: 0, mrp: 0 }, filteredTotal: { qty: 0, fsp: 0, mrp: 0 } };
         }
 
-        // Apply filters for combined view
+        // Apply filters for combined view (multiple selection)
         if (pivotGroupBy === 'combined') {
-            if (pivotCategoryFilter) {
-                filledRows = filledRows.filter((row: any) => row.cms_vertical?.trim() === pivotCategoryFilter);
+            if (pivotCategoryFilter.length > 0) {
+                filledRows = filledRows.filter((row: any) => pivotCategoryFilter.includes(row.cms_vertical?.trim()));
             }
-            if (pivotBrandFilter) {
-                filledRows = filledRows.filter((row: any) => row.brand?.trim() === pivotBrandFilter);
+            if (pivotBrandFilter.length > 0) {
+                filledRows = filledRows.filter((row: any) => pivotBrandFilter.includes(row.brand?.trim()));
             }
-            if (pivotPTypeFilter) {
-                filledRows = filledRows.filter((row: any) => row.p_type?.trim() === pivotPTypeFilter);
+            if (pivotPTypeFilter.length > 0) {
+                filledRows = filledRows.filter((row: any) => pivotPTypeFilter.includes(row.p_type?.trim()));
             }
         }
 
@@ -3891,9 +3932,9 @@ export default function OutboundPage() {
     const handlePivotGroupChange = (newGroup: 'category' | 'brand' | 'p_type' | 'combined') => {
         setPivotGroupBy(newGroup);
         if (newGroup !== 'combined') {
-            setPivotCategoryFilter('');
-            setPivotBrandFilter('');
-            setPivotPTypeFilter('');
+            setPivotCategoryFilter([]);
+            setPivotBrandFilter([]);
+            setPivotPTypeFilter([]);
         }
     };
 
@@ -6708,73 +6749,229 @@ export default function OutboundPage() {
                                         px: 2,
                                         py: 1.5,
                                         borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0',
-                                        bgcolor: isDarkMode ? 'rgba(16, 185, 129, 0.05)' : 'rgba(16, 185, 129, 0.03)',
+                                        bgcolor: isDarkMode ? 'rgba(16, 185, 129, 0.08)' : 'rgba(16, 185, 129, 0.03)',
                                         flexWrap: 'wrap',
                                     }}>
                                         <Typography sx={{ fontWeight: 600, color: isDarkMode ? '#6ee7b7' : '#059669', fontSize: '0.8rem' }}>
                                             🔍 Filters:
                                         </Typography>
-                                        <FormControl size="small" sx={{ minWidth: 140 }}>
-                                            <InputLabel id="pivot-category-filter-label" sx={{ fontSize: '0.75rem' }}>Category</InputLabel>
-                                            <Select
-                                                labelId="pivot-category-filter-label"
-                                                id="pivot-category-filter"
-                                                value={pivotCategoryFilter}
-                                                onChange={(e) => setPivotCategoryFilter(e.target.value as string)}
-                                                label="Category"
-                                                sx={{ fontSize: '0.75rem', height: 32 }}
-                                            >
-                                                <MenuItem value="">
-                                                    <em>All Categories</em>
-                                                </MenuItem>
-                                                {pivotFilterOptions.categories.map((cat) => (
-                                                    <MenuItem key={cat} value={cat} sx={{ fontSize: '0.75rem' }}>{cat}</MenuItem>
-                                                ))}
-                                            </Select>
-                                        </FormControl>
-                                        <FormControl size="small" sx={{ minWidth: 140 }}>
-                                            <InputLabel id="pivot-brand-filter-label" sx={{ fontSize: '0.75rem' }}>Brand</InputLabel>
-                                            <Select
-                                                labelId="pivot-brand-filter-label"
-                                                id="pivot-brand-filter"
-                                                value={pivotBrandFilter}
-                                                onChange={(e) => setPivotBrandFilter(e.target.value as string)}
-                                                label="Brand"
-                                                sx={{ fontSize: '0.75rem', height: 32 }}
-                                            >
-                                                <MenuItem value="">
-                                                    <em>All Brands</em>
-                                                </MenuItem>
-                                                {pivotFilterOptions.brands.map((brand) => (
-                                                    <MenuItem key={brand} value={brand} sx={{ fontSize: '0.75rem' }}>{brand}</MenuItem>
-                                                ))}
-                                            </Select>
-                                        </FormControl>
-                                        <FormControl size="small" sx={{ minWidth: 140 }}>
-                                            <InputLabel id="pivot-ptype-filter-label" sx={{ fontSize: '0.75rem' }}>P_Type</InputLabel>
-                                            <Select
-                                                labelId="pivot-ptype-filter-label"
-                                                id="pivot-ptype-filter"
-                                                value={pivotPTypeFilter}
-                                                onChange={(e) => setPivotPTypeFilter(e.target.value as string)}
-                                                label="P_Type"
-                                                sx={{ fontSize: '0.75rem', height: 32 }}
-                                            >
-                                                <MenuItem value="">
-                                                    <em>All Types</em>
-                                                </MenuItem>
-                                                {pivotFilterOptions.pTypes.map((pType) => (
-                                                    <MenuItem key={pType} value={pType} sx={{ fontSize: '0.75rem' }}>{pType}</MenuItem>
-                                                ))}
-                                            </Select>
-                                        </FormControl>
-                                        {(pivotCategoryFilter || pivotBrandFilter || pivotPTypeFilter) && (
+                                        <Autocomplete
+                                            multiple
+                                            size="small"
+                                            options={pivotFilterOptions.categories}
+                                            value={pivotCategoryFilter}
+                                            onChange={(_, newValue) => setPivotCategoryFilter(newValue)}
+                                            renderInput={(params) => (
+                                                <TextField
+                                                    {...params}
+                                                    label="Category"
+                                                    placeholder={pivotCategoryFilter.length === 0 ? "All" : ""}
+                                                    sx={{
+                                                        minWidth: 180,
+                                                        '& .MuiInputBase-root': {
+                                                            fontSize: '0.75rem',
+                                                            minHeight: 36,
+                                                            bgcolor: isDarkMode ? 'rgba(30, 41, 59, 0.8)' : '#fff',
+                                                            color: isDarkMode ? '#e2e8f0' : 'inherit',
+                                                        },
+                                                        '& .MuiInputLabel-root': {
+                                                            fontSize: '0.75rem',
+                                                            color: isDarkMode ? '#94a3b8' : 'inherit',
+                                                        },
+                                                        '& .MuiOutlinedInput-notchedOutline': {
+                                                            borderColor: isDarkMode ? '#475569' : '#d1d5db',
+                                                        },
+                                                        '&:hover .MuiOutlinedInput-notchedOutline': {
+                                                            borderColor: isDarkMode ? '#7c3aed' : '#8b5cf6',
+                                                        },
+                                                    }}
+                                                />
+                                            )}
+                                            renderTags={(value, getTagProps) =>
+                                                value.map((option, index) => (
+                                                    <Chip
+                                                        {...getTagProps({ index })}
+                                                        key={option}
+                                                        label={option}
+                                                        size="small"
+                                                        sx={{
+                                                            fontSize: '0.65rem',
+                                                            height: 22,
+                                                            bgcolor: isDarkMode ? 'rgba(139, 92, 246, 0.3)' : 'rgba(139, 92, 246, 0.15)',
+                                                            color: isDarkMode ? '#c4b5fd' : '#7c3aed',
+                                                            '& .MuiChip-deleteIcon': {
+                                                                color: isDarkMode ? '#a78bfa' : '#8b5cf6',
+                                                                fontSize: '0.9rem',
+                                                            },
+                                                        }}
+                                                    />
+                                                ))
+                                            }
+                                            slotProps={{
+                                                paper: {
+                                                    sx: {
+                                                        bgcolor: isDarkMode ? '#1e293b' : '#fff',
+                                                        color: isDarkMode ? '#e2e8f0' : 'inherit',
+                                                        '& .MuiAutocomplete-option': {
+                                                            fontSize: '0.75rem',
+                                                            '&:hover': {
+                                                                bgcolor: isDarkMode ? 'rgba(139, 92, 246, 0.2)' : 'rgba(139, 92, 246, 0.1)',
+                                                            },
+                                                            '&[aria-selected="true"]': {
+                                                                bgcolor: isDarkMode ? 'rgba(139, 92, 246, 0.3)' : 'rgba(139, 92, 246, 0.2)',
+                                                            },
+                                                        },
+                                                    },
+                                                },
+                                            }}
+                                        />
+                                        <Autocomplete
+                                            multiple
+                                            size="small"
+                                            options={pivotFilterOptions.brands}
+                                            value={pivotBrandFilter}
+                                            onChange={(_, newValue) => setPivotBrandFilter(newValue)}
+                                            renderInput={(params) => (
+                                                <TextField
+                                                    {...params}
+                                                    label="Brand"
+                                                    placeholder={pivotBrandFilter.length === 0 ? "All" : ""}
+                                                    sx={{
+                                                        minWidth: 180,
+                                                        '& .MuiInputBase-root': {
+                                                            fontSize: '0.75rem',
+                                                            minHeight: 36,
+                                                            bgcolor: isDarkMode ? 'rgba(30, 41, 59, 0.8)' : '#fff',
+                                                            color: isDarkMode ? '#e2e8f0' : 'inherit',
+                                                        },
+                                                        '& .MuiInputLabel-root': {
+                                                            fontSize: '0.75rem',
+                                                            color: isDarkMode ? '#94a3b8' : 'inherit',
+                                                        },
+                                                        '& .MuiOutlinedInput-notchedOutline': {
+                                                            borderColor: isDarkMode ? '#475569' : '#d1d5db',
+                                                        },
+                                                        '&:hover .MuiOutlinedInput-notchedOutline': {
+                                                            borderColor: isDarkMode ? '#06b6d4' : '#0891b2',
+                                                        },
+                                                    }}
+                                                />
+                                            )}
+                                            renderTags={(value, getTagProps) =>
+                                                value.map((option, index) => (
+                                                    <Chip
+                                                        {...getTagProps({ index })}
+                                                        key={option}
+                                                        label={option}
+                                                        size="small"
+                                                        sx={{
+                                                            fontSize: '0.65rem',
+                                                            height: 22,
+                                                            bgcolor: isDarkMode ? 'rgba(6, 182, 212, 0.3)' : 'rgba(6, 182, 212, 0.15)',
+                                                            color: isDarkMode ? '#67e8f9' : '#0891b2',
+                                                            '& .MuiChip-deleteIcon': {
+                                                                color: isDarkMode ? '#22d3ee' : '#06b6d4',
+                                                                fontSize: '0.9rem',
+                                                            },
+                                                        }}
+                                                    />
+                                                ))
+                                            }
+                                            slotProps={{
+                                                paper: {
+                                                    sx: {
+                                                        bgcolor: isDarkMode ? '#1e293b' : '#fff',
+                                                        color: isDarkMode ? '#e2e8f0' : 'inherit',
+                                                        '& .MuiAutocomplete-option': {
+                                                            fontSize: '0.75rem',
+                                                            '&:hover': {
+                                                                bgcolor: isDarkMode ? 'rgba(6, 182, 212, 0.2)' : 'rgba(6, 182, 212, 0.1)',
+                                                            },
+                                                            '&[aria-selected="true"]': {
+                                                                bgcolor: isDarkMode ? 'rgba(6, 182, 212, 0.3)' : 'rgba(6, 182, 212, 0.2)',
+                                                            },
+                                                        },
+                                                    },
+                                                },
+                                            }}
+                                        />
+                                        <Autocomplete
+                                            multiple
+                                            size="small"
+                                            options={pivotFilterOptions.pTypes}
+                                            value={pivotPTypeFilter}
+                                            onChange={(_, newValue) => setPivotPTypeFilter(newValue)}
+                                            renderInput={(params) => (
+                                                <TextField
+                                                    {...params}
+                                                    label="P_Type"
+                                                    placeholder={pivotPTypeFilter.length === 0 ? "All" : ""}
+                                                    sx={{
+                                                        minWidth: 180,
+                                                        '& .MuiInputBase-root': {
+                                                            fontSize: '0.75rem',
+                                                            minHeight: 36,
+                                                            bgcolor: isDarkMode ? 'rgba(30, 41, 59, 0.8)' : '#fff',
+                                                            color: isDarkMode ? '#e2e8f0' : 'inherit',
+                                                        },
+                                                        '& .MuiInputLabel-root': {
+                                                            fontSize: '0.75rem',
+                                                            color: isDarkMode ? '#94a3b8' : 'inherit',
+                                                        },
+                                                        '& .MuiOutlinedInput-notchedOutline': {
+                                                            borderColor: isDarkMode ? '#475569' : '#d1d5db',
+                                                        },
+                                                        '&:hover .MuiOutlinedInput-notchedOutline': {
+                                                            borderColor: isDarkMode ? '#f97316' : '#ea580c',
+                                                        },
+                                                    }}
+                                                />
+                                            )}
+                                            renderTags={(value, getTagProps) =>
+                                                value.map((option, index) => (
+                                                    <Chip
+                                                        {...getTagProps({ index })}
+                                                        key={option}
+                                                        label={option}
+                                                        size="small"
+                                                        sx={{
+                                                            fontSize: '0.65rem',
+                                                            height: 22,
+                                                            bgcolor: isDarkMode ? 'rgba(249, 115, 22, 0.3)' : 'rgba(249, 115, 22, 0.15)',
+                                                            color: isDarkMode ? '#fdba74' : '#ea580c',
+                                                            '& .MuiChip-deleteIcon': {
+                                                                color: isDarkMode ? '#fb923c' : '#f97316',
+                                                                fontSize: '0.9rem',
+                                                            },
+                                                        }}
+                                                    />
+                                                ))
+                                            }
+                                            slotProps={{
+                                                paper: {
+                                                    sx: {
+                                                        bgcolor: isDarkMode ? '#1e293b' : '#fff',
+                                                        color: isDarkMode ? '#e2e8f0' : 'inherit',
+                                                        '& .MuiAutocomplete-option': {
+                                                            fontSize: '0.75rem',
+                                                            '&:hover': {
+                                                                bgcolor: isDarkMode ? 'rgba(249, 115, 22, 0.2)' : 'rgba(249, 115, 22, 0.1)',
+                                                            },
+                                                            '&[aria-selected="true"]': {
+                                                                bgcolor: isDarkMode ? 'rgba(249, 115, 22, 0.3)' : 'rgba(249, 115, 22, 0.2)',
+                                                            },
+                                                        },
+                                                    },
+                                                },
+                                            }}
+                                        />
+                                        {(pivotCategoryFilter.length > 0 || pivotBrandFilter.length > 0 || pivotPTypeFilter.length > 0) && (
                                             <Button
                                                 size="small"
                                                 onClick={() => {
-                                                    setPivotCategoryFilter('');
-                                                    setPivotBrandFilter('');
-                                                    setPivotPTypeFilter('');
+                                                    setPivotCategoryFilter([]);
+                                                    setPivotBrandFilter([]);
+                                                    setPivotPTypeFilter([]);
                                                 }}
                                                 sx={{
                                                     fontSize: '0.7rem',
@@ -6784,7 +6981,7 @@ export default function OutboundPage() {
                                                     '&:hover': { bgcolor: 'rgba(239, 68, 68, 0.08)' },
                                                 }}
                                             >
-                                                ✕ Clear Filters
+                                                ✕ Clear All
                                             </Button>
                                         )}
                                     </Box>
@@ -6793,7 +6990,7 @@ export default function OutboundPage() {
                                 {categoryPivotData.categories.length === 0 ? (
                                     <Box sx={{ p: 4, textAlign: 'center' }}>
                                         <Typography color="text.secondary">
-                                            {pivotGroupBy === 'combined' && (pivotCategoryFilter || pivotBrandFilter || pivotPTypeFilter)
+                                            {pivotGroupBy === 'combined' && (pivotCategoryFilter.length > 0 || pivotBrandFilter.length > 0 || pivotPTypeFilter.length > 0)
                                                 ? 'No items match the selected filters.'
                                                 : `No scanned items found. Start scanning WSNs to see ${pivotGroupBy} summary.`}
                                         </Typography>
