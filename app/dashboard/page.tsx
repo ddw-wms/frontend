@@ -95,6 +95,7 @@ interface User {
 }
 
 interface InventoryItem {
+  _isSkeleton?: boolean;
   wsn: string;
   wid?: string;
   fsn?: string;
@@ -130,6 +131,10 @@ interface InventoryItem {
   current_stage: string;
   [key: string]: any;
 }
+
+// ⚡ PERSISTENT CACHE CONSTANTS: Define at module level for immediate access
+const DASHBOARD_CACHE_KEY = 'dashboard_data_cache';
+const DASHBOARD_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 const ALL_COLUMNS = [
   "wsn",
@@ -253,9 +258,47 @@ export default function DashboardPage() {
     router.push("/login");
   };
 
-  const [inventoryData, setInventoryData] = useState<InventoryItem[]>([]);
-  const [filteredData, setFilteredData] = useState<InventoryItem[]>([]);
-  const [loading, setLoading] = useState(true); // Start true for initial load spinner
+  // ⚡ INSTANT PAGE LOAD: Initialize from localStorage cache immediately
+  const [inventoryData, setInventoryData] = useState<InventoryItem[]>(() => {
+    if (typeof window === 'undefined') return []; // SSR safety
+    try {
+      const saved = localStorage.getItem(DASHBOARD_CACHE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed?.data && Date.now() - parsed.timestamp < DASHBOARD_CACHE_TTL) {
+          return parsed.data;
+        }
+      }
+    } catch { /* ignore */ }
+    return [];
+  });
+  const [filteredData, setFilteredData] = useState<InventoryItem[]>(() => {
+    if (typeof window === 'undefined') return []; // SSR safety
+    try {
+      const saved = localStorage.getItem(DASHBOARD_CACHE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed?.data && Date.now() - parsed.timestamp < DASHBOARD_CACHE_TTL) {
+          return parsed.data;
+        }
+      }
+    } catch { /* ignore */ }
+    return [];
+  });
+  // Start false if we have cached data, true otherwise
+  const [loading, setLoading] = useState(() => {
+    if (typeof window === 'undefined') return true; // SSR safety - show loading on server
+    try {
+      const saved = localStorage.getItem(DASHBOARD_CACHE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed?.data?.length > 0 && Date.now() - parsed.timestamp < DASHBOARD_CACHE_TTL) {
+          return false; // Have cached data, don't show loading
+        }
+      }
+    } catch { /* ignore */ }
+    return true; // No cache, show loading spinner
+  });
   const [visibleColumns, setVisibleColumns] = useState<string[]>([]);
   const gridRef = useRef<any>(null);
   const columnApiRef = useRef<any>(null);
@@ -273,7 +316,19 @@ export default function DashboardPage() {
   // Pagination state - declared early for use in column defs
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(50);
-  const [total, setTotal] = useState(0);
+  const [total, setTotal] = useState(() => {
+    if (typeof window === 'undefined') return 0; // SSR safety
+    try {
+      const saved = localStorage.getItem(DASHBOARD_CACHE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed?.total && Date.now() - parsed.timestamp < DASHBOARD_CACHE_TTL) {
+          return parsed.total;
+        }
+      }
+    } catch { /* ignore */ }
+    return 0;
+  });
 
   // Smooth loading helpers (avoid blinking): debounce, abort controller, delayed overlay
   const currentLoadIdRef = useRef(0);
@@ -285,7 +340,20 @@ export default function DashboardPage() {
   const MIN_LOADING_MS = 100; // ms - ensure overlay visible long enough to avoid flicker
   const [topLoading, setTopLoading] = useState(false);
   const inventoryLoadDebounceRef = useRef<NodeJS.Timeout | null>(null);
-  const [initialLoad, setInitialLoad] = useState<boolean>(true);
+  // If we started with cached data, initialLoad is false
+  const [initialLoad, setInitialLoad] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return true; // SSR safety
+    try {
+      const saved = localStorage.getItem(DASHBOARD_CACHE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed?.data?.length > 0 && Date.now() - parsed.timestamp < DASHBOARD_CACHE_TTL) {
+          return false; // Started with cached data, not initial load
+        }
+      }
+    } catch { /* ignore */ }
+    return true;
+  });
   // ⚡ PROFESSIONAL PAGINATION: Keep previous data visible during page transitions
   const previousDataRef = useRef<InventoryItem[] | null>(null);
   const [isFetching, setIsFetching] = useState(false);
@@ -293,6 +361,48 @@ export default function DashboardPage() {
   // ⚡ PAGE CACHE: Store fetched pages for instant back navigation
   const pageCacheRef = useRef<Map<string, { data: InventoryItem[], total: number, timestamp: number }>>(new Map());
   const PAGE_CACHE_TTL = 60000; // 1 minute cache validity
+
+  // ⚡ PERSISTENT CACHE: Track cached data state
+  const [isCachedData, setIsCachedData] = useState(() => {
+    if (typeof window === 'undefined') return false; // SSR safety
+    try {
+      const saved = localStorage.getItem(DASHBOARD_CACHE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed?.data?.length > 0 && Date.now() - parsed.timestamp < DASHBOARD_CACHE_TTL) {
+          return true; // Started with cached data
+        }
+      }
+    } catch { /* ignore */ }
+    return false;
+  });
+
+  // ⚡ SKELETON: Generate skeleton rows for loading state
+  const skeletonData = useMemo((): InventoryItem[] => {
+    return Array.from({ length: limit || 10 }, (_, i) => ({
+      _isSkeleton: true,
+      wsn: `skeleton-${i}`,
+      wid: '',
+      product_title: '',
+      brand: '',
+      cms_vertical: '',
+      mrp: 0,
+      fsp: 0,
+      inbound_date: '',
+      inbound_status: '',
+      qc_date: '',
+      qc_status: '',
+      qc_grade: '',
+      picking_date: '',
+      picking_status: '',
+      outbound_date: '',
+      outbound_status: '',
+      vehicle_no: '',
+      warehouse_location: '',
+      rack_no: '',
+      current_stage: '',
+    }));
+  }, [limit]);
 
   // ⚡ LAST REFRESH TIME: Track when data was last fetched
   const [lastRefreshTime, setLastRefreshTime] = useState<Date | null>(null);
@@ -400,13 +510,19 @@ export default function DashboardPage() {
     const srCol = {
       headerName: 'SR.NO',
       field: '__sr',
-      valueGetter: (params: any) => params.node ? (page - 1) * limit + params.node.rowIndex + 1 : undefined,
+      valueGetter: (params: any) => params.data?._isSkeleton ? '' : (params.node ? (page - 1) * limit + params.node.rowIndex + 1 : undefined),
       width: 20,
       maxWidth: 50,
       suppressMovable: true,
       sortable: false,
       filter: false,
       cellStyle: { fontWeight: 700, textAlign: 'center' },
+      cellRenderer: (params: any) => {
+        if (params.data?._isSkeleton) {
+          return <Skeleton variant="text" width="60%" animation="wave" sx={{ mx: 'auto' }} />;
+        }
+        return params.value;
+      },
     };
 
     const defs: any = [srCol, ...visibleColumns.map((col) => {
@@ -416,6 +532,14 @@ export default function DashboardPage() {
         headerName,
         sortable: enableSorting,
         resizable: enableColumnResize,
+        // ⚡ SKELETON: Add skeleton cell renderer for all columns
+        cellRenderer: (params: any) => {
+          if (params.data?._isSkeleton) {
+            const width = col === 'product_title' ? '90%' : col.includes('date') ? '70%' : '80%';
+            return <Skeleton variant="text" width={width} animation="wave" />;
+          }
+          return params.valueFormatted ?? params.value ?? ''; // Show actual value
+        },
       };
 
       // Status-like columns (use chips)
@@ -424,6 +548,11 @@ export default function DashboardPage() {
           ...base,
           filter: enableColumnFilters ? 'agTextColumnFilter' : undefined,
           cellRenderer: (p: any) => {
+            // ⚡ SKELETON: Show skeleton for status columns
+            if (p.data?._isSkeleton) {
+              return <Skeleton variant="rounded" width={60} height={20} animation="wave" />;
+            }
+
             // Use latest pickingWSNs and outboundWSNs values
             const wsn = p.data?.wsn;
             if (col === 'picking_status' && wsn && pickingWSNs.has(wsn)) {
@@ -465,9 +594,12 @@ export default function DashboardPage() {
         return {
           ...base,
           filter: enableColumnFilters ? 'agTextColumnFilter' : undefined,
-          cellRenderer: (p: any) => (
-            <Chip label={p.value || '-'} color={getStageColor(p.value) as any} size="small" variant="outlined" />
-          ),
+          cellRenderer: (p: any) => {
+            if (p.data?._isSkeleton) {
+              return <Skeleton variant="rounded" width={70} height={20} animation="wave" />;
+            }
+            return <Chip label={p.value || '-'} color={getStageColor(p.value) as any} size="small" variant="outlined" />;
+          },
           suppressHeaderMenuButton: true,
           ...getColumnSizing(col),
         };
@@ -478,7 +610,12 @@ export default function DashboardPage() {
         return {
           ...base,
           filter: enableColumnFilters ? 'agDateColumnFilter' : undefined,
-          valueFormatter: (p: any) => formatGridDate(p.value),
+          cellRenderer: (p: any) => {
+            if (p.data?._isSkeleton) {
+              return <Skeleton variant="text" width="70%" animation="wave" />;
+            }
+            return formatGridDate(p.value); // Return formatted date
+          },
           tooltipField: col,
           ...getColumnSizing(col),
         };
@@ -498,18 +635,23 @@ export default function DashboardPage() {
     defs.push({
       headerName: 'Action',
       field: '__action',
-      cellRenderer: (p: any) => (
-        <IconButton
-          size="small"
-          onClick={() => {
-            setSelectedItem(p.data);
-            setDetailsDialogOpen(true);
-          }}
-          sx={{ color: "#1e40af", p: 0.5 }}
-        >
-          <FilterIcon fontSize="small" />
-        </IconButton>
-      ),
+      cellRenderer: (p: any) => {
+        if (p.data?._isSkeleton) {
+          return <Skeleton variant="circular" width={24} height={24} animation="wave" />;
+        }
+        return (
+          <IconButton
+            size="small"
+            onClick={() => {
+              setSelectedItem(p.data);
+              setDetailsDialogOpen(true);
+            }}
+            sx={{ color: "#1e40af", p: 0.5 }}
+          >
+            <FilterIcon fontSize="small" />
+          </IconButton>
+        );
+      },
       width: 90,
       suppressHeaderMenuButton: true,
       resizable: enableColumnResize,
@@ -770,9 +912,33 @@ export default function DashboardPage() {
     const loadId = currentLoadIdRef.current;
 
     const cacheKey = getCacheKey();
+    let usedCachedData = false; // Track if we showed cached data
+
+    // ⚡ PERSISTENT CACHE: On initial load, try localStorage first
+    if (!forceRefresh && initialLoad) {
+      try {
+        const savedCache = localStorage.getItem(DASHBOARD_CACHE_KEY);
+        if (savedCache) {
+          const parsed = JSON.parse(savedCache);
+          if (parsed && parsed.data && Date.now() - parsed.timestamp < DASHBOARD_CACHE_TTL) {
+            // Show cached data INSTANTLY
+            previousDataRef.current = parsed.data;
+            setInventoryData(parsed.data);
+            setFilteredData(parsed.data);
+            setTotal(parsed.total || 0);
+            setLastRefreshTime(new Date(parsed.timestamp));
+            setIsCachedData(true);
+            setLoading(false);
+            setInitialLoad(false);
+            usedCachedData = true;
+            // Continue to fetch fresh data in background (don't return)
+          }
+        }
+      } catch { /* ignore localStorage errors */ }
+    }
 
     // ⚡ PAGE CACHE: Check cache first (unless force refresh)
-    if (!forceRefresh) {
+    if (!forceRefresh && !usedCachedData) {
       const cached = pageCacheRef.current.get(cacheKey);
       if (cached && Date.now() - cached.timestamp < PAGE_CACHE_TTL) {
         // Use cached data - instant!
@@ -781,6 +947,7 @@ export default function DashboardPage() {
         setFilteredData(cached.data);
         setTotal(cached.total);
         setLastRefreshTime(new Date(cached.timestamp));
+        setIsCachedData(false);
         setLoading(false);
 
         // Prefetch next page in background
@@ -789,8 +956,10 @@ export default function DashboardPage() {
       }
     }
 
-    // ⚡ Show loading spinner
-    setLoading(true);
+    // ⚡ Show loading spinner (only if no cached data shown)
+    if (!usedCachedData) {
+      setLoading(true);
+    }
 
     // Cancel any previous in-flight request
     if (inventoryAbortControllerRef.current) {
@@ -836,6 +1005,18 @@ export default function DashboardPage() {
           total: response.data?.pagination?.total || 0,
           timestamp: Date.now(),
         });
+
+        // ⚡ PERSISTENT CACHE: Save to localStorage for next session
+        try {
+          localStorage.setItem(DASHBOARD_CACHE_KEY, JSON.stringify({
+            data: rows.slice(0, 100), // Only cache first 100 rows to save space
+            total: response.data?.pagination?.total || 0,
+            timestamp: Date.now(),
+          }));
+        } catch { /* ignore quota errors */ }
+
+        // Clear cached data flag
+        setIsCachedData(false);
 
         // Reset retry count on success
         retryCountRef.current = 0;
@@ -2466,7 +2647,7 @@ export default function DashboardPage() {
                   <div className="ag-theme-quartz" style={{ height: '100%', width: '100%' }}>
                     <AgGridReact
                       ref={gridRef}
-                      rowData={filteredData}
+                      rowData={(loading && filteredData.length === 0 ? skeletonData : filteredData) as any[]}
                       columnDefs={columnDefs}
                       defaultColDef={defaultColDef}
                       rowSelection={{ mode: 'singleRow', checkboxes: false, enableClickSelection: true }}
@@ -2597,6 +2778,27 @@ export default function DashboardPage() {
                           </Typography>
                         </Stack>
                       </Tooltip>
+                    )}
+
+                    {/* ⚡ CACHED DATA: Show indicator when displaying cached data while refreshing */}
+                    {isCachedData && loading && (
+                      <Chip
+                        size="small"
+                        icon={<RefreshIcon sx={{ fontSize: '12px !important', animation: 'spin 1s linear infinite' }} />}
+                        label="Refreshing..."
+                        sx={{
+                          ml: 1,
+                          height: 22,
+                          fontSize: '0.65rem',
+                          bgcolor: isDarkMode ? 'rgba(59, 130, 246, 0.2)' : 'rgba(30, 64, 175, 0.1)',
+                          color: isDarkMode ? '#60a5fa' : '#1e40af',
+                          '& .MuiChip-icon': { ml: 0.5 },
+                          '@keyframes spin': {
+                            '0%': { transform: 'rotate(0deg)' },
+                            '100%': { transform: 'rotate(360deg)' },
+                          },
+                        }}
+                      />
                     )}
                   </Stack>
 
@@ -2829,7 +3031,7 @@ export default function DashboardPage() {
             {/* Filters */}
             <Box>
               <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1, color: isDarkMode ? '#94a3b8' : '#6b7280' }}>
-                📊 Filters
+                🔍 Filters
               </Typography>
 
               <Stack spacing={1.5}>

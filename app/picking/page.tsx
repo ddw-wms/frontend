@@ -1132,7 +1132,7 @@ export default function PickingPage() {
     });
 
     rangeStartCellRef.current = { rowIndex: 0, colId: firstCol };
-    toast('All rows selected', { icon: 'âœ“', duration: 1500 });
+    toast('All rows selected', { icon: '🚫', duration: 1500 });
   }, []);
 
   // âš¡ EXCEL-LIKE: Save cell-level undo action
@@ -1171,7 +1171,7 @@ export default function PickingPage() {
   // âš¡ UNDO: Handle undo (Ctrl+Z) - supports batch operations
   const handleUndo = useCallback(() => {
     if (undoStackRef.current.length === 0) {
-      toast('Nothing to undo', { icon: 'ℹï¸', duration: 500 });
+      toast('Nothing to undo', { icon: '🚫', duration: 500 });
       return;
     }
 
@@ -1265,7 +1265,7 @@ export default function PickingPage() {
   // âš¡ REDO: Handle redo (Ctrl+Y or Ctrl+Shift+Z) - supports batch operations
   const handleRedo = useCallback(() => {
     if (redoStackRef.current.length === 0) {
-      toast('Nothing to redo', { icon: 'ℹï¸', duration: 1500 });
+      toast('Nothing to redo', { icon: '🚫', duration: 1500 });
       return;
     }
 
@@ -1596,7 +1596,7 @@ export default function PickingPage() {
 
     const range = selectedRangeRef.current;
     if (!range) {
-      toast('Select a range first', { icon: 'ℹï¸', duration: 1500 });
+      toast('Select a range first', { icon: '🚫', duration: 1500 });
       return;
     }
 
@@ -1604,7 +1604,7 @@ export default function PickingPage() {
     const maxRow = Math.max(range.startRow, range.endRow);
 
     if (minRow === maxRow) {
-      toast('Need at least 2 rows for Fill Down', { icon: 'ℹï¸', duration: 1500 });
+      toast('Need at least 2 rows for Fill Down', { icon: '🚫', duration: 1500 });
       return;
     }
 
@@ -1698,7 +1698,7 @@ export default function PickingPage() {
 
         // Use ref for instant toggle effect (no stale closure)
         if (!ctrlOProductLinkEnabledRef.current) {
-          toast('Ctrl+O shortcut is disabled', { icon: 'âš ï¸', duration: 1500 });
+          toast('Ctrl+O shortcut is disabled', { icon: '🚫', duration: 1500 });
           return;
         }
 
@@ -4443,7 +4443,7 @@ export default function PickingPage() {
                         <Chip size="small" label={`📦 ${exportBatchIds.length} Batch${exportBatchIds.length > 1 ? 'es' : ''}`} sx={{ bgcolor: '#f3e8ff', color: '#6b21a8' }} />
                       )}
                       {!exportStartDate && !exportEndDate && !exportCustomer && (!exportBatchIds || exportBatchIds.length === 0) && (
-                        <Chip size="small" label="📊 All Data" sx={{ bgcolor: '#fee2e2', color: '#dc2626' }} />
+                        <Chip size="small" label="🔍 All Data" sx={{ bgcolor: '#fee2e2', color: '#dc2626' }} />
                       )}
                     </Box>
                   </Alert>
@@ -4997,7 +4997,7 @@ export default function PickingPage() {
                             }
                             label={
                               <Box>
-                                <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>ðŸ” Enable Filtering</Typography>
+                                <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>🔍 Enable Filtering</Typography>
                                 <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>Filter in column headers</Typography>
                               </Box>
                             }
@@ -5015,7 +5015,7 @@ export default function PickingPage() {
                             }
                             label={
                               <Box>
-                                <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>â†”ï¸ Column Resize</Typography>
+                                <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>↔️ Column Resize</Typography>
                                 <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>Drag borders to resize</Typography>
                               </Box>
                             }
@@ -5033,7 +5033,7 @@ export default function PickingPage() {
                             }}
                             sx={{ alignSelf: 'flex-start', fontSize: '0.75rem', color: isDarkMode ? '#94a3b8' : '#64748b' }}
                           >
-                            ðŸ”„ Reset to Default
+                            🔄 Reset to Default
                           </Button>
                         </Stack>
                       </AccordionDetails>
@@ -5585,7 +5585,7 @@ export default function PickingPage() {
                         fontWeight: 600,
                         fontSize: '14px',
                       },
-                      icon: 'âš ï¸',
+                      icon: '🚫',
                     });
 
                     // Clear the cell and master columns
@@ -5635,7 +5635,7 @@ export default function PickingPage() {
                             fontWeight: 600,
                             fontSize: '14px',
                           },
-                          icon: 'âš ï¸',
+                          icon: '🚫',
                         });
 
                       } else {
@@ -5651,7 +5651,7 @@ export default function PickingPage() {
                             fontWeight: 600,
                             fontSize: '14px',
                           },
-                          icon: 'ðŸš«',
+                          icon: '🚫',
                         });
                       }
 

@@ -1195,7 +1195,7 @@ export default function MasterDataPage() {
     setFilterCategory('');
     setSearchQuery('');
     setPage(0);
-    toast('✓ Filters reset', { icon: '🔄' });
+    toast('🔍 Filters reset', { icon: '🔄' });
   };
 
   // ✅ Reset product form
@@ -3464,7 +3464,7 @@ export default function MasterDataPage() {
                     <Chip size="small" label={`✅ ${filterStatus}`} sx={{ bgcolor: '#fef3c7', color: '#92400e' }} />
                   )}
                   {!debouncedSearch && !filterBrand && !filterCategory && !filterBatchId && (!filterStatus || filterStatus === 'All') && (
-                    <Chip size="small" label="📊 All Data" sx={{ bgcolor: '#fee2e2', color: '#dc2626' }} />
+                    <Chip size="small" label="🔍 All Data" sx={{ bgcolor: '#fee2e2', color: '#dc2626' }} />
                   )}
                 </Box>
               </Paper>

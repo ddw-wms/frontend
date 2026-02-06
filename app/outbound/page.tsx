@@ -5513,7 +5513,7 @@ export default function OutboundPage() {
                             {/* Filters */}
                             <Box>
                                 <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1, color: isDarkMode ? '#94a3b8' : '#6b7280' }}>
-                                    📊 Filters
+                                    🔍 Filters
                                 </Typography>
 
                                 <Stack spacing={1.5}>
@@ -6045,7 +6045,7 @@ export default function OutboundPage() {
                             }}
                             onDownloadTemplate={handleConfirmDownload}
                             templateColumns={['WSN', 'DISPATCHDATE', 'CUSTOMERNAME', 'VEHICLENO', 'DISPATCHREMARKS', 'OTHERREMARKS']}
-                            title="📤 Bulk Outbound Upload"
+                            title="🔍 Bulk Outbound Upload"
                         />
                     </Box>
                 )}

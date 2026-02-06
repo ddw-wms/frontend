@@ -4245,7 +4245,7 @@ export default function InboundPage() {
                         {/* Filters */}
                         <Box>
                           <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1, color: isDarkMode ? '#94a3b8' : '#6b7280' }}>
-                            📊 Filters
+                            🔍 Filters
                           </Typography>
 
                           <Stack spacing={1.5}>
@@ -4977,7 +4977,7 @@ export default function InboundPage() {
                             <Chip size="small" label={`📦 ${exportBatchIds.length} Batch${exportBatchIds.length > 1 ? 'es' : ''}`} sx={{ bgcolor: isDarkMode ? 'rgba(168, 85, 247, 0.2)' : '#f3e8ff', color: isDarkMode ? '#c4b5fd' : '#6b21a8' }} />
                           )}
                           {!exportStartDate && !exportEndDate && (!exportBatchIds || exportBatchIds.length === 0) && !searchFilter && !brandFilter && !categoryFilter && !dateFromFilter && !dateToFilter && (
-                            <Chip size="small" label="📊 All Data" sx={{ bgcolor: isDarkMode ? 'rgba(239, 68, 68, 0.2)' : '#fee2e2', color: isDarkMode ? '#fca5a5' : '#dc2626' }} />
+                            <Chip size="small" label="🔍 All Data" sx={{ bgcolor: isDarkMode ? 'rgba(239, 68, 68, 0.2)' : '#fee2e2', color: isDarkMode ? '#fca5a5' : '#dc2626' }} />
                           )}
                         </Box>
                       </Alert>
@@ -5913,7 +5913,7 @@ export default function InboundPage() {
                   }}
                   onDownloadTemplate={downloadTemplate}
                   templateColumns={['WSN', 'INBOUND_DATE', 'VEHICLE_NO', 'PRODUCT_SERIAL_NUMBER', 'RACK_NO', 'UNLOAD_REMARKS']}
-                  title="📤 Bulk Inbound Upload"
+                  title="🔍 Bulk Inbound Upload"
                 />
               </Box>
             )

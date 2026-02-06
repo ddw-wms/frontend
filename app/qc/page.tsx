@@ -573,7 +573,7 @@ export default function QCPage() {
       try {
         const parsed = JSON.parse(savedSettings);
         setGridSettings(parsed);
-        console.log('✅ Grid settings loaded:', parsed);
+        console.log('💾 Grid settings loaded:', parsed);
       } catch (e) {
         console.log('Failed to parse grid settings');
       }
@@ -584,7 +584,7 @@ export default function QCPage() {
   const updateGridSettings = (newSettings: typeof gridSettings) => {
     setGridSettings(newSettings);
     localStorage.setItem('qc_grid_settings', JSON.stringify(newSettings));
-    console.log('ðŸ’¾ Grid settings saved:', newSettings);
+    console.log('💾 Grid settings saved:', newSettings);
   };
 
 
@@ -1027,7 +1027,7 @@ export default function QCPage() {
     });
 
     rangeStartCellRef.current = { rowIndex: 0, colId: firstCol };
-    toast('All rows selected', { icon: 'âœ“', duration: 1500 });
+    toast('All rows selected', { icon: '🚫', duration: 1500 });
   }, []);
 
   // âš¡ EXCEL-LIKE: Smooth scroll to row
@@ -2721,7 +2721,7 @@ export default function QCPage() {
                     {/* Filters */}
                     <Box>
                       <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1, color: isDarkMode ? '#94a3b8' : '#6b7280' }}>
-                        ðŸ“Š Filters
+                        🔍 Filters
                       </Typography>
 
                       <Stack spacing={1.5}>
@@ -2803,7 +2803,7 @@ export default function QCPage() {
                     {/* Action Buttons */}
                     <Box>
                       <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1, color: isDarkMode ? '#94a3b8' : '#6b7280' }}>
-                        âš¡ Actions
+                        ⚡ Actions
                       </Typography>
 
                       <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 1 }}>
@@ -3454,7 +3454,7 @@ export default function QCPage() {
             <DialogContent sx={{ mt: 2, pb: 1 }}>
               <Stack spacing={2.5}>
                 <Alert severity="info" sx={{ fontSize: '0.8rem', py: 0.5 }}>
-                  Settings auto-save and persist after reload ðŸ’¾
+                  Settings auto-save and persist after reload 💾
                 </Alert>
 
                 {/* SORTABLE */}
@@ -3470,7 +3470,7 @@ export default function QCPage() {
                     label={
                       <Box>
                         <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#1e293b' }}>
-                          â¬†ï¸ Enable Sorting
+                          ⬆️ Enable Sorting
                         </Typography>
                         <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem' }}>
                           Click column headers to sort ascending/descending
@@ -3495,7 +3495,7 @@ export default function QCPage() {
                     label={
                       <Box>
                         <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#1e293b' }}>
-                          ðŸ” Enable Column Filters
+                          🔍 Enable Column Filters
                         </Typography>
                         <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem' }}>
                           Filter menu icon in column headers
@@ -3520,7 +3520,7 @@ export default function QCPage() {
                     label={
                       <Box>
                         <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#1e293b' }}>
-                          â†”ï¸ Enable Column Resize
+                          ↔️ Enable Column Resize
                         </Typography>
                         <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem' }}>
                           Drag column borders to adjust width
@@ -4688,7 +4688,7 @@ export default function QCPage() {
                                 }
                                 label={
                                   <Box>
-                                    <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>â¬†ï¸ Enable Sorting</Typography>
+                                    <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>⬆️ Enable Sorting</Typography>
                                     <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>Click headers to sort</Typography>
                                   </Box>
                                 }
@@ -4706,7 +4706,7 @@ export default function QCPage() {
                                 }
                                 label={
                                   <Box>
-                                    <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>ðŸ” Enable Filtering</Typography>
+                                    <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>🔍 Enable Filtering</Typography>
                                     <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>Filter in column headers</Typography>
                                   </Box>
                                 }
@@ -4724,7 +4724,7 @@ export default function QCPage() {
                                 }
                                 label={
                                   <Box>
-                                    <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>â†”ï¸ Column Resize</Typography>
+                                    <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>↔️ Column Resize</Typography>
                                     <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>Drag borders to resize</Typography>
                                   </Box>
                                 }
@@ -4742,7 +4742,7 @@ export default function QCPage() {
                                 }}
                                 sx={{ alignSelf: 'flex-start', fontSize: '0.75rem', color: isDarkMode ? '#94a3b8' : '#64748b' }}
                               >
-                                ðŸ”„ Reset to Default
+                                🔄 Reset to Default
                               </Button>
                             </Stack>
                           </AccordionDetails>
@@ -5116,7 +5116,7 @@ export default function QCPage() {
                               fontSize: '14px',
                               boxShadow: '0 4px 12px rgba(220, 38, 38, 0.15)',
                             },
-                            icon: 'ðŸš«',
+                            icon: '🚫',
                           });
 
 
@@ -5143,7 +5143,7 @@ export default function QCPage() {
                               fontSize: '14px',
                               boxShadow: '0 4px 12px rgba(245, 158, 11, 0.15)',
                             },
-                            icon: 'âš ï¸',
+                            icon: '🚫',
                           });
 
 
@@ -5171,7 +5171,7 @@ export default function QCPage() {
                               fontSize: '14px',
                               boxShadow: '0 4px 12px rgba(245, 158, 11, 0.15)',
                             },
-                            icon: 'âš ï¸',
+                            icon: '🚫',
                           });
 
 
@@ -5210,7 +5210,7 @@ export default function QCPage() {
                               const response = await qcAPI.getPendingInbound(activeWarehouse?.id, wsn);
 
                               // ✅ ADD DEBUG
-                              console.log('ðŸ” API Response for WSN:', wsn, response.data[0]);
+                              console.log('📝 API Response for WSN:', wsn, response.data[0]);
 
                               if (response.data.length > 0) {
                                 const item = response.data[0];
@@ -5288,7 +5288,7 @@ export default function QCPage() {
                   <DialogContent sx={{ mt: 2, pb: 1 }}>
                     <Stack spacing={2.5}>
                       <Alert severity="info" sx={{ fontSize: '0.8rem', py: 0.5 }}>
-                        Settings auto-save and persist after reload ðŸ’¾
+                        Settings auto-save and persist after reload 💾
                       </Alert>
 
                       {/* SORTABLE */}
@@ -5306,7 +5306,7 @@ export default function QCPage() {
                           label={
                             <Box>
                               <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#1e293b' }}>
-                                â¬†ï¸ Enable Sorting
+                                ⬆️ Enable Sorting
                               </Typography>
                               <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem' }}>
                                 Click column headers to sort ascending/descending
@@ -5333,7 +5333,7 @@ export default function QCPage() {
                           label={
                             <Box>
                               <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#1e293b' }}>
-                                ðŸ” Enable Column Filters
+                                🔍 Enable Column Filters
                               </Typography>
                               <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem' }}>
                                 Filter menu icon in column headers
@@ -5360,7 +5360,7 @@ export default function QCPage() {
                           label={
                             <Box>
                               <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#1e293b' }}>
-                                â†”ï¸ Enable Column Resize
+                                ↔️ Enable Column Resize
                               </Typography>
                               <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem' }}>
                                 Drag column borders to adjust width
@@ -5635,7 +5635,7 @@ export default function QCPage() {
                 }}
                 onDownloadTemplate={handleConfirmDownload}
                 templateColumns={['WSN', 'QCBYNAME', 'QCDATE', 'GRADE', 'QCREMARKS', 'OTHERREMARKS', 'PRODUCTSERIALNUMBER', 'RACKNO']}
-                title="📤 Bulk QC Upload"
+                title="🔍 Bulk QC Upload"
               />
             </Box>
           )}
@@ -5659,7 +5659,7 @@ export default function QCPage() {
 
         {/* EXPORT DIALOG */}
         <Dialog open={exportDialogOpen} onClose={() => setExportDialogOpen(false)} maxWidth="sm" fullWidth container={isFullscreen ? multiEntryContainerRef.current : undefined}>
-          <DialogTitle>ðŸ“¥ Export QC Data</DialogTitle>
+          <DialogTitle>📥 Export QC Data</DialogTitle>
           <DialogContent>
             <Stack spacing={2} sx={{ mt: 2 }}>
               <TextField type="date" label="Start Date" value={exportStartDate} onChange={(e) => setExportStartDate(e.target.value)} InputLabelProps={{ shrink: true }} fullWidth />
