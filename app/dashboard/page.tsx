@@ -432,6 +432,9 @@ export default function DashboardPage() {
   // ⚡ BACKGROUND REFRESH: Track when refreshing with existing data visible (prevents row fluctuation)
   const isBackgroundRefreshRef = useRef(false);
 
+  // ⚡ FORCE OVERLAY: Track when we want to force show overlay spinner (e.g., reset filters)
+  const forceOverlayRef = useRef(false);
+
   // ⚡ INSTANT NAVIGATION: Keep last non-empty data to prevent empty grid flash on return
   const lastNonEmptyDataRef = useRef<InventoryItem[] | null>(getCachedDashboardData().length > 0 ? getCachedDashboardData() : null);
 
@@ -941,10 +944,16 @@ export default function DashboardPage() {
     }
   }, [activeWarehouse?.id, page, limit, total, searchDebounced, stageFilter, availableOnly, brandFilter, categoryFilter, dateFrom, dateTo]);
 
-  const loadInventoryData = useCallback(async (forceRefresh = false) => {
+  const loadInventoryData = useCallback(async (forceRefresh = false, showOverlay = false) => {
     currentLoadIdRef.current += 1;
     const loadId = currentLoadIdRef.current;
     const cacheKey = getCacheKey();
+
+    // ⚡ Check if force overlay was requested (e.g., from reset filters)
+    const shouldShowOverlay = showOverlay || forceOverlayRef.current;
+    if (forceOverlayRef.current) {
+      forceOverlayRef.current = false; // Reset the flag
+    }
 
     // ⚡ PAGE CACHE: Check cache first (unless force refresh)
     if (!forceRefresh) {
@@ -962,11 +971,16 @@ export default function DashboardPage() {
       }
     }
 
-    // 🔥 ENHANCED: Use subtle progress bar for background refresh, NOT blocking overlay
+    // 🔥 ENHANCED: Show overlay spinner when showOverlay=true (filter changes/reset)
     const hasExistingData = (filteredData && filteredData.length > 0) ||
       (lastNonEmptyDataRef.current && lastNonEmptyDataRef.current.length > 0);
 
-    if (hasExistingData) {
+    if (shouldShowOverlay || forceRefresh) {
+      // ⚡ FILTER CHANGE: Show blocking overlay spinner
+      setLoading(true);
+      setIsBackgroundRefresh(false);
+      isBackgroundRefreshRef.current = false;
+    } else if (hasExistingData) {
       // ⚡ SUBTLE REFRESH: Only show progress bar, not blocking overlay
       setIsBackgroundRefresh(true);
       setLoading(false); // Don't show blocking overlay
@@ -1143,11 +1157,12 @@ export default function DashboardPage() {
   }, [activeWarehouse?.id, filtersLoaded]);
 
   // ⚡ LAZY LOAD: If filters are already open on mount, load filter options
+  // Also load when mobile actions dialog opens (it has brand/category filters)
   useEffect(() => {
-    if (filtersOpen && !filtersLoaded && activeWarehouse?.id) {
+    if ((filtersOpen || mobileActionsOpen) && !filtersLoaded && activeWarehouse?.id) {
       loadFilterOptions();
     }
-  }, [filtersOpen, filtersLoaded, activeWarehouse?.id, loadFilterOptions]);
+  }, [filtersOpen, mobileActionsOpen, filtersLoaded, activeWarehouse?.id, loadFilterOptions]);
 
   // 🔥 GET FILTERED CATEGORIES - only for selected brand
   // ⚡ OPTIMIZED: Use local inventory data instead of API call
@@ -1240,14 +1255,17 @@ export default function DashboardPage() {
         // ⚡ INSTANT NAVIGATION: Mark session as mounted
         try { sessionStorage.setItem('dashboard_mounted_this_session', 'true'); } catch { }
 
-        // ⚡ BACKGROUND REFRESH: If we have cached data, do silent background refresh
-        if (filteredData.length > 0) {
+        // ⚡ Check if overlay was requested (e.g., from reset filters)
+        const shouldForceRefresh = forceOverlayRef.current;
+
+        // ⚡ BACKGROUND REFRESH: If we have cached data and no force overlay, do silent background refresh
+        if (filteredData.length > 0 && !shouldForceRefresh) {
           isBackgroundRefreshRef.current = true;
           setIsBackgroundRefresh(true); // Show subtle progress bar only
           // DON'T set loading=true - this prevents blocking overlay
         }
 
-        loadInventoryData();
+        loadInventoryData(shouldForceRefresh, shouldForceRefresh);
         inventoryLoadDebounceRef.current = null;
       }, 50);
 
@@ -1615,13 +1633,20 @@ export default function DashboardPage() {
   };
 
   const resetFilters = () => {
+    // ⚡ Set flag to show overlay spinner when data reloads
+    forceOverlayRef.current = true;
+    setLoading(true); // Show spinner immediately
+
+    // Clear all filters
     setSearchWSN("");
     setStageFilter("all");
     setBrandFilter("");
     setCategoryFilter("");
     setDateFrom("");
     setDateTo("");
+    setAvailableOnly(false);
     setPage(1);
+    // useEffect will detect filter changes and call loadInventoryData
   };
 
 
@@ -3145,7 +3170,7 @@ export default function DashboardPage() {
                   size="small"
                   label="Stage"
                   value={stageFilter}
-                  onChange={(e) => setStageFilter(e.target.value)}
+                  onChange={(e) => { setStageFilter(e.target.value); setPage(1); }}
                   fullWidth
                   SelectProps={{ MenuProps: { PaperProps: { style: { maxHeight: 300 } } } }}
                   sx={{ '& .MuiOutlinedInput-root': { height: 40 } }}
@@ -3158,7 +3183,7 @@ export default function DashboardPage() {
                   size="small"
                   label="Brand"
                   value={brandFilter}
-                  onChange={(e) => setBrandFilter(e.target.value)}
+                  onChange={(e) => { setBrandFilter(e.target.value); setPage(1); }}
                   fullWidth
                   SelectProps={{ MenuProps: { PaperProps: { style: { maxHeight: 300 } } } }}
                   sx={{ '& .MuiOutlinedInput-root': { height: 40 } }}
@@ -3172,7 +3197,7 @@ export default function DashboardPage() {
                   size="small"
                   label="Category"
                   value={categoryFilter}
-                  onChange={(e) => setCategoryFilter(e.target.value)}
+                  onChange={(e) => { setCategoryFilter(e.target.value); setPage(1); }}
                   fullWidth
                   SelectProps={{ MenuProps: { PaperProps: { style: { maxHeight: 300 } } } }}
                   sx={{ '& .MuiOutlinedInput-root': { height: 40 } }}
@@ -3189,7 +3214,7 @@ export default function DashboardPage() {
                     variant="outlined"
                     InputLabelProps={{ shrink: true }}
                     value={dateFrom || ''}
-                    onChange={(e) => setDateFrom(e.target.value)}
+                    onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
                     sx={{ flex: 1, '& .MuiOutlinedInput-root': { height: 40 } }}
                   />
                   <TextField
@@ -3199,13 +3224,13 @@ export default function DashboardPage() {
                     variant="outlined"
                     InputLabelProps={{ shrink: true }}
                     value={dateTo || ''}
-                    onChange={(e) => setDateTo(e.target.value)}
+                    onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
                     sx={{ flex: 1, '& .MuiOutlinedInput-root': { height: 40 } }}
                   />
                 </Box>
 
                 <FormControlLabel
-                  control={<Checkbox checked={availableOnly} onChange={(e) => setAvailableOnly(e.target.checked)} />}
+                  control={<Checkbox checked={availableOnly} onChange={(e) => { setAvailableOnly(e.target.checked); setPage(1); }} />}
                   label={<Typography sx={{ fontSize: '0.9rem', fontWeight: 600 }}>Available Only</Typography>}
                 />
               </Stack>
@@ -3292,12 +3317,20 @@ export default function DashboardPage() {
             fullWidth
             variant="outlined"
             onClick={() => {
+              // ⚡ Set flag to show overlay spinner when data reloads
+              forceOverlayRef.current = true;
+              setLoading(true);
+              setMobileActionsOpen(false);
+              // Clear all filters
+              setSearchWSN('');
               setDateFrom('');
               setDateTo('');
               setStageFilter('all');
               setBrandFilter('');
               setCategoryFilter('');
               setAvailableOnly(false);
+              setPage(1);
+              // useEffect will detect filter changes and call loadInventoryData
             }}
             sx={{ height: 48 }}
           >
@@ -3306,7 +3339,14 @@ export default function DashboardPage() {
           <Button
             fullWidth
             variant="contained"
-            onClick={() => { setPage(1); setMobileActionsOpen(false); }}
+            onClick={() => {
+              // ⚡ Set flag to show overlay spinner when data reloads
+              forceOverlayRef.current = true;
+              setLoading(true);
+              setPage(1);
+              setMobileActionsOpen(false);
+              // useEffect will detect changes and call loadInventoryData
+            }}
             sx={{ height: 48 }}
           >
             Apply
