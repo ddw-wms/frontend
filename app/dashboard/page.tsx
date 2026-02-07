@@ -238,6 +238,9 @@ export default function DashboardPage() {
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [user, setUser] = useState<User | null>(null);
 
+  const didInitialMountRef = useRef(false);
+
+
   // Dark mode state
   const isDarkMode = theme.palette.mode === 'dark';
 
@@ -253,9 +256,38 @@ export default function DashboardPage() {
     router.push("/login");
   };
 
-  const [inventoryData, setInventoryData] = useState<InventoryItem[]>([]);
-  const [filteredData, setFilteredData] = useState<InventoryItem[]>([]);
-  const [loading, setLoading] = useState(true); // Start true for initial load spinner
+  // ⚡ INSTANT NAVIGATION: Initialize from sessionStorage to prevent empty grid flash
+  const [inventoryData, setInventoryData] = useState<InventoryItem[]>(() => {
+    try {
+      const saved = sessionStorage.getItem('dashboard_last_data');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch { /* ignore */ }
+    return [];
+  });
+  const [filteredData, setFilteredData] = useState<InventoryItem[]>(() => {
+    try {
+      const saved = sessionStorage.getItem('dashboard_last_data');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch { /* ignore */ }
+    return [];
+  });
+  // loading=false if we have sessionStorage data (instant navigation), true otherwise
+  const [loading, setLoading] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem('dashboard_last_data');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return false;
+      }
+    } catch { /* ignore */ }
+    return true;
+  });
   const [visibleColumns, setVisibleColumns] = useState<string[]>([]);
   const gridRef = useRef<any>(null);
   const columnApiRef = useRef<any>(null);
@@ -292,6 +324,23 @@ export default function DashboardPage() {
   // ⚡ PROFESSIONAL PAGINATION: Keep previous data visible during page transitions
   const previousDataRef = useRef<InventoryItem[] | null>(null);
   const [isFetching, setIsFetching] = useState(false);
+
+  // ⚡ BACKGROUND REFRESH: Track when refreshing with existing data visible (prevents row fluctuation)
+  const isBackgroundRefreshRef = useRef(false);
+
+  // ⚡ INSTANT NAVIGATION: Keep last non-empty data to prevent empty grid flash on return
+  const lastNonEmptyDataRef = useRef<InventoryItem[] | null>(
+    (() => {
+      try {
+        const saved = sessionStorage.getItem('dashboard_last_data');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch { /* ignore */ }
+      return null;
+    })()
+  );
 
   // ⚡ PAGE CACHE: Store fetched pages for instant back navigation
   const pageCacheRef = useRef<Map<string, { data: InventoryItem[], total: number, timestamp: number }>>(new Map());
@@ -647,6 +696,9 @@ export default function DashboardPage() {
   });
   const [exportLoading, setExportLoading] = useState(false);
 
+  // NOTE: sessionStorage read moved to useState initializers for instant data on navigation return
+
+
   useEffect(() => {
     const id = setTimeout(() => setSearchDebounced(searchWSN), 100);
     return () => clearTimeout(id);
@@ -793,7 +845,12 @@ export default function DashboardPage() {
     }
 
     // ⚡ Show loading spinner
-    setLoading(true);
+    if (filteredData.length === 0 && !lastNonEmptyDataRef.current) {
+      setLoading(true);
+    } else {
+      setLoading(true); // overlay only
+    }
+
 
     // Cancel any previous in-flight request
     if (inventoryAbortControllerRef.current) {
@@ -828,10 +885,18 @@ export default function DashboardPage() {
         // ⚡ Store current data for next transition
         previousDataRef.current = rows;
 
+        // ⚡ INSTANT NAVIGATION: Store last non-empty data for return visits
+        if (rows && rows.length > 0) {
+          lastNonEmptyDataRef.current = rows;
+        }
+
         setInventoryData(rows);
         setFilteredData(rows); // server already applied filters so show directly
         setTotal(response.data?.pagination?.total || 0);
         setLastRefreshTime(new Date());
+
+        // ⚡ BACKGROUND REFRESH: Clear flag after successful update
+        isBackgroundRefreshRef.current = false;
 
         // Mark initial load complete (persists across navigation)
         if (initialLoad) {
@@ -845,6 +910,13 @@ export default function DashboardPage() {
           total: response.data?.pagination?.total || 0,
           timestamp: Date.now(),
         });
+
+        if (rows && rows.length > 0) {
+          try {
+            sessionStorage.setItem('dashboard_last_data', JSON.stringify(rows));
+          } catch { }
+        }
+
 
         // Reset retry count on success
         retryCountRef.current = 0;
@@ -1045,21 +1117,21 @@ export default function DashboardPage() {
       // Debounce inventory loads to avoid flicker on rapid filter changes
       if (inventoryLoadDebounceRef.current) clearTimeout(inventoryLoadDebounceRef.current);
       inventoryLoadDebounceRef.current = setTimeout(() => {
-        loadInventoryData();
-        inventoryLoadDebounceRef.current = null;
-
-        // ⚡ PRIORITY 2: Load secondary data AFTER main data (deferred)
-        if (!initialDataLoadedRef.current) {
-          initialDataLoadedRef.current = true;
-          // Defer non-critical loads by 500ms after main data
-          setTimeout(() => {
-            loadMetrics();
-            loadInventorySummary();
-            // Load existing WSN lists (even more deferred)
-            setTimeout(() => loadExistingStageWSNs(), 300);
-          }, 200);
+        // ⚡ BACKGROUND REFRESH: If we have data from sessionStorage, do background refresh with overlay
+        if (filteredData.length > 0 && !didInitialMountRef.current) {
+          isBackgroundRefreshRef.current = true;
+          setLoading(true); // Show overlay spinner
+          didInitialMountRef.current = true;
         }
-      }, 50); // Reduced from 100ms
+
+        loadInventoryData();
+        if (!didInitialMountRef.current) {
+          didInitialMountRef.current = true;
+        }
+
+        inventoryLoadDebounceRef.current = null;
+      }, 50);
+
 
       // ⚡ EGRESS OPTIMIZATION: Reduced polling from 5s to 60s (saves ~1.3GB/day)
       // Manual refresh still available via Refresh button
@@ -1079,9 +1151,8 @@ export default function DashboardPage() {
     }
   }, [activeWarehouse, page, limit, searchDebounced, stageFilter, availableOnly, brandFilter, categoryFilter, dateFrom, dateTo, loadMetrics, loadInventorySummary, loadExistingStageWSNs, loadInventoryData]);
 
-  useEffect(() => {
-    setFilteredData(inventoryData);
-  }, [inventoryData]);
+  // NOTE: Removed redundant inventoryData → filteredData sync useEffect
+  // loadInventoryData already sets both, and having this useEffect caused double render/fluctuation
 
   // Removed AG Grid overlay sync to avoid flash during loading
 
@@ -2476,7 +2547,7 @@ export default function DashboardPage() {
                   <div className="ag-theme-quartz" style={{ height: '100%', width: '100%' }}>
                     <AgGridReact
                       ref={gridRef}
-                      rowData={filteredData}
+                      rowData={filteredData.length > 0 ? filteredData : (lastNonEmptyDataRef.current || [])}
                       columnDefs={columnDefs}
                       defaultColDef={defaultColDef}
                       rowSelection={{ mode: 'singleRow', checkboxes: false, enableClickSelection: true }}
