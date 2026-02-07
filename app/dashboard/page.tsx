@@ -1298,7 +1298,10 @@ export default function DashboardPage() {
   }, []);
 
   // Content-based auto-sizing: auto-size columns to their content, then fallback to sizeColumnsToFit if there's extra space
+  // Only runs after initial render is complete (gridDataRendered = true)
   useEffect(() => {
+    if (!gridDataRendered) return; // Don't run until overlay is hidden
+
     const autoSize = () => {
       try {
         const colApi = columnApiRef.current;
@@ -1335,7 +1338,7 @@ export default function DashboardPage() {
       clearTimeout(r);
       window.removeEventListener('resize', onResize);
     };
-  }, [filteredData, columnDefs]);
+  }, [filteredData, columnDefs, gridDataRendered]);
 
 
   const memoizedFilteredBrands = useMemo(() => {
@@ -2643,8 +2646,6 @@ export default function DashboardPage() {
                         } catch { /* ignore */ }
                       }}
                       onFirstDataRendered={(params: any) => {
-                        // ⚡ FLASH FIX: Mark data as rendered to hide the covering overlay
-                        setGridDataRendered(true);
                         // Auto-size columns on first load if no saved state
                         if (!hasAutoFittedRef.current && params.api) {
                           try {
@@ -2657,6 +2658,10 @@ export default function DashboardPage() {
                             hasAutoFittedRef.current = true;
                           } catch { /* ignore */ }
                         }
+                        // ⚡ Hide overlay immediately after columns sized
+                        requestAnimationFrame(() => {
+                          setGridDataRendered(true);
+                        });
                       }}
                       onColumnResized={(params: any) => {
                         // Save state when user finishes resizing
