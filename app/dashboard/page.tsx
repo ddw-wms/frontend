@@ -285,7 +285,10 @@ export default function DashboardPage() {
   const MIN_LOADING_MS = 100; // ms - ensure overlay visible long enough to avoid flicker
   const [topLoading, setTopLoading] = useState(false);
   const inventoryLoadDebounceRef = useRef<NodeJS.Timeout | null>(null);
-  const [initialLoad, setInitialLoad] = useState<boolean>(true);
+  // Track if this is the very first load ever (persisted to localStorage)
+  const [initialLoad, setInitialLoad] = useState<boolean>(() => {
+    try { return !localStorage.getItem('dashboard_ever_loaded'); } catch { return true; }
+  });
   // ⚡ PROFESSIONAL PAGINATION: Keep previous data visible during page transitions
   const previousDataRef = useRef<InventoryItem[] | null>(null);
   const [isFetching, setIsFetching] = useState(false);
@@ -829,6 +832,12 @@ export default function DashboardPage() {
         setFilteredData(rows); // server already applied filters so show directly
         setTotal(response.data?.pagination?.total || 0);
         setLastRefreshTime(new Date());
+
+        // Mark initial load complete (persists across navigation)
+        if (initialLoad) {
+          setInitialLoad(false);
+          try { localStorage.setItem('dashboard_ever_loaded', 'true'); } catch { /* ignore */ }
+        }
 
         // ⚡ PAGE CACHE: Store in cache
         pageCacheRef.current.set(cacheKey, {
@@ -2208,7 +2217,8 @@ export default function DashboardPage() {
                 bgcolor: isDarkMode ? '#1e293b' : 'transparent',
               }}>
                 {/* Loading Spinner Overlay - semi-transparent so data stays visible */}
-                {loading && filteredData && filteredData.length > 0 && (
+                {/* Shows when: loading AND (has existing data OR not initial load) */}
+                {loading && (!initialLoad || (filteredData && filteredData.length > 0)) && (
                   <Box sx={{
                     position: 'absolute',
                     top: 0,
@@ -2243,8 +2253,8 @@ export default function DashboardPage() {
                   </Box>
                 )}
 
-                {/* Full Loading Overlay - ONLY for initial load when no data exists */}
-                {loading && (!filteredData || filteredData.length === 0) && (
+                {/* Full Loading Overlay - ONLY for very first load when no data exists */}
+                {loading && initialLoad && (!filteredData || filteredData.length === 0) && (
                   <Box sx={{
                     position: 'absolute',
                     top: 48,
