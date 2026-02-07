@@ -2530,8 +2530,8 @@ export default function DashboardPage() {
                     backgroundColor: isDarkMode ? '#1e293b' : 'transparent',
                   },
                   '& .ag-header': {
-                    backgroundColor: (isDarkMode ? '#1e3a5f' : '#f1f5f9') + ' !important',
-                    borderBottom: isDarkMode ? '2px solid #2d5a87' : '2px solid #d1d5db',
+                    backgroundColor: '#1e3a5f !important',
+                    borderBottom: isDarkMode ? '2px solid #10b981' : '2px solid #059669',
                     fontWeight: 700,
                     opacity: '1 !important',
                     zIndex: 15,
@@ -2542,21 +2542,32 @@ export default function DashboardPage() {
                     opacity: '1 !important',
                     fontWeight: 700,
                     fontSize: '0.75rem',
-                    backgroundColor: (isDarkMode ? '#1e3a5f' : '#f1f5f9') + ' !important',
-                    color: isDarkMode ? '#f1f5f9' : '#1e293b',
-                    borderRight: isDarkMode ? '1px solid #2d5a87' : '1px solid #d1d5db',
+                    backgroundColor: '#1e3a5f !important',
+                    color: '#ffffff !important',
+                    borderRight: '1px solid #3b5998',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.02em',
                   },
                   '& .ag-header-cell:last-child': {
                     borderRight: 'none',
                   },
                   '& .ag-header-row': {
-                    backgroundColor: (isDarkMode ? '#1e3a5f' : '#f1f5f9') + ' !important',
+                    backgroundColor: '#1e3a5f !important',
                   },
                   '& .ag-header-viewport': {
-                    backgroundColor: (isDarkMode ? '#1e3a5f' : '#f1f5f9') + ' !important',
+                    backgroundColor: '#1e3a5f !important',
                   },
                   '& .ag-header-container': {
-                    backgroundColor: (isDarkMode ? '#1e3a5f' : '#f1f5f9') + ' !important',
+                    backgroundColor: '#1e3a5f !important',
+                  },
+                  '& .ag-header-cell-label': {
+                    color: '#ffffff !important',
+                  },
+                  '& .ag-header-cell-text': {
+                    color: '#ffffff !important',
+                  },
+                  '& .ag-icon': {
+                    color: '#94a3b8 !important',
                   },
                   // ⚡ FLASH FIX: Hide body viewport until rows are rendered
                   // This prevents the empty white flash during hydration
@@ -2712,15 +2723,15 @@ export default function DashboardPage() {
                         height: 35,
                         px: 1.5,
                         gap: 2,
-                        bgcolor: isDarkMode ? '#1e3a5f' : '#f1f5f9',
-                        borderBottom: isDarkMode ? '2px solid #2d5a87' : '2px solid #d1d5db',
+                        bgcolor: '#1e3a5f',
+                        borderBottom: isDarkMode ? '2px solid #10b981' : '2px solid #059669',
                       }}>
-                        <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: isDarkMode ? '#f1f5f9' : '#1e293b', minWidth: 50 }}>SR.NO</Typography>
-                        <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: isDarkMode ? '#f1f5f9' : '#1e293b', minWidth: 80 }}>WSN</Typography>
-                        <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: isDarkMode ? '#f1f5f9' : '#1e293b', minWidth: 80 }}>WID</Typography>
-                        <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: isDarkMode ? '#f1f5f9' : '#1e293b', minWidth: 100 }}>FSN</Typography>
-                        <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: isDarkMode ? '#f1f5f9' : '#1e293b', flex: 1 }}>PRODUCT TITLE</Typography>
-                        <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: isDarkMode ? '#f1f5f9' : '#1e293b', minWidth: 80 }}>BRAND</Typography>
+                        <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: '#ffffff', minWidth: 50, textTransform: 'uppercase', letterSpacing: '0.02em' }}>SR.NO</Typography>
+                        <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: '#ffffff', minWidth: 80, textTransform: 'uppercase', letterSpacing: '0.02em' }}>WSN</Typography>
+                        <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: '#ffffff', minWidth: 80, textTransform: 'uppercase', letterSpacing: '0.02em' }}>WID</Typography>
+                        <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: '#ffffff', minWidth: 100, textTransform: 'uppercase', letterSpacing: '0.02em' }}>FSN</Typography>
+                        <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: '#ffffff', flex: 1, textTransform: 'uppercase', letterSpacing: '0.02em' }}>PRODUCT TITLE</Typography>
+                        <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: '#ffffff', minWidth: 80, textTransform: 'uppercase', letterSpacing: '0.02em' }}>BRAND</Typography>
                       </Box>
                       {/* Loading body area with centered spinner - same style as inbound page */}
                       <Box sx={{
