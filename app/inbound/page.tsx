@@ -1138,7 +1138,7 @@ export default function InboundPage() {
   useEffect(() => {
     // We avoid showing the loading overlay directly here to prevent flicker.
     // However, when not loading we still need to show NoRows overlay if appropriate.
-    const api = gridRef.current?.api;
+    const api = gridRef.current;
     if (!api) return;
 
     if (!listLoading) {
@@ -3135,7 +3135,7 @@ export default function InboundPage() {
     // Refocus on same cell
     if (wsnOverwriteDialog?.rowIndex !== undefined) {
       setTimeout(() => {
-        gridRef.current?.api?.startEditingCell({
+        gridRef.current?.startEditingCell({
           rowIndex: wsnOverwriteDialog.rowIndex,
           colKey: 'wsn',
         });
@@ -3184,7 +3184,7 @@ export default function InboundPage() {
       const nextIndex = rowIndex + 1;
       if (nextIndex < multiRowsRef.current.length) {
         ensureRowVisible(nextIndex, 'bottom', 4, () => {
-          gridRef.current?.api?.startEditingCell({
+          gridRef.current?.startEditingCell({
             rowIndex: nextIndex,
             colKey: 'wsn',
           });
@@ -3243,7 +3243,7 @@ export default function InboundPage() {
       const focusRow = nextEmptyRow + 1;
       if (focusRow < multiRowsRef.current.length) {
         ensureRowVisible(focusRow, 'bottom', 4, () => {
-          gridRef.current?.api?.startEditingCell({
+          gridRef.current?.startEditingCell({
             rowIndex: focusRow,
             colKey: 'wsn',
           });
@@ -4625,7 +4625,6 @@ export default function InboundPage() {
                     },
                   }}>
                     <AgGridReact
-                      ref={gridRef}
                       rowData={listData}
                       columnDefs={inboundColumnDefs}
                       defaultColDef={inboundDefaultColDef}
@@ -6976,7 +6975,6 @@ export default function InboundPage() {
                   }}
                 >
                   <AgGridReact
-                    ref={gridRef}
                     className="ag-theme-quartz"
                     containerStyle={{ height: '100%', width: '100%', backgroundColor: isDarkMode ? '#1e293b' : '#ffffff' }}
                     // ⚡ PERFORMANCE: getRowId for efficient row tracking and updates

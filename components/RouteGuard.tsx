@@ -67,8 +67,21 @@ export default function RouteGuard({
     const router = useRouter();
     const pathname = usePathname();
     const { canAccess, canSee, isAdmin, isLoading } = usePermissions();
-    const [authorized, setAuthorized] = useState<boolean | null>(null);
-    const [checkingAuth, setCheckingAuth] = useState(true);
+
+    // ⚡ FLICKER FIX: Initialize optimistically for authenticated users
+    // This prevents full-page loading spinner when navigating between pages
+    // Security is still enforced - unauthorized users will be redirected after check
+    const [authorized, setAuthorized] = useState<boolean | null>(() => {
+        // For login page, always authorized
+        if (typeof window !== 'undefined' && window.location.pathname === '/login') return true;
+        // For authenticated users, assume authorized initially (optimistic)
+        // The useEffect will verify and redirect if actually unauthorized
+        return isAuthenticated() ? true : null;
+    });
+    const [checkingAuth, setCheckingAuth] = useState(() => {
+        // Skip loading state for authenticated users - show content immediately
+        return !isAuthenticated();
+    });
 
     useEffect(() => {
         // Skip for login page

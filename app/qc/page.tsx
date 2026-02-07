@@ -3130,7 +3130,6 @@ export default function QCPage() {
                       },
                     }}>
                       <AgGridReact
-                        ref={gridRef}
                         rowData={qcList}
                         columnDefs={listColumnDefs}
                         defaultColDef={listDefaultColDef}
@@ -4878,7 +4877,6 @@ export default function QCPage() {
                   }}
                 >
                   <AgGridReact
-                    ref={gridRef}
                     rowData={multiRows}
                     columnDefs={columnDefs}
                     rowHeight={tableRowHeight}
