@@ -820,39 +820,37 @@ export default function DashboardPage() {
   }, [activeWarehouse?.id, page, limit, total, searchDebounced, stageFilter, availableOnly, brandFilter, categoryFilter, dateFrom, dateTo]);
 
   const loadInventoryData = useCallback(async (forceRefresh = false) => {
-    // Use request id to ignore stale responses
     currentLoadIdRef.current += 1;
     const loadId = currentLoadIdRef.current;
-
     const cacheKey = getCacheKey();
 
     // ⚡ PAGE CACHE: Check cache first (unless force refresh)
     if (!forceRefresh) {
       const cached = pageCacheRef.current.get(cacheKey);
       if (cached && Date.now() - cached.timestamp < PAGE_CACHE_TTL) {
-        // Use cached data - instant!
         previousDataRef.current = cached.data;
         setInventoryData(cached.data);
         setFilteredData(cached.data);
         setTotal(cached.total);
         setLastRefreshTime(new Date(cached.timestamp));
         setLoading(false);
-
-        // Prefetch next page in background
         setTimeout(() => prefetchNextPage(), 100);
         return;
       }
     }
 
-    // ⚡ Show loading spinner
-    if (filteredData.length === 0 && !lastNonEmptyDataRef.current) {
+    // 🔥 KEY FIX: ONLY show loading overlay if we have existing data
+    const hasExistingData = (filteredData && filteredData.length > 0) ||
+      (lastNonEmptyDataRef.current && lastNonEmptyDataRef.current.length > 0);
+
+    if (hasExistingData) {
       setLoading(true);
-    } else {
-      setLoading(true); // overlay only
+      isBackgroundRefreshRef.current = true;
+    } else if (!initialLoad) {
+      setLoading(true);
     }
 
-
-    // Cancel any previous in-flight request
+    // Cancel previous request
     if (inventoryAbortControllerRef.current) {
       try { inventoryAbortControllerRef.current.abort(); } catch { }
       inventoryAbortControllerRef.current = null;
@@ -867,7 +865,6 @@ export default function DashboardPage() {
         limit,
       };
 
-      // Only include filters when present
       if (searchDebounced) params.search = searchDebounced;
       if (stageFilter && stageFilter !== "all") params.stage = stageFilter;
       if (availableOnly) params.availableOnly = true;
@@ -877,90 +874,74 @@ export default function DashboardPage() {
       if (dateTo) params.dateTo = dateTo;
 
       const response = await dashboardAPI.getInventoryPipeline(params, { signal: controller.signal });
-      // backend returns paginated data + pagination meta
       const rows = (response.data?.data || []) as InventoryItem[];
 
-      // Only apply if this is latest request
       if (loadId === currentLoadIdRef.current) {
-        // ⚡ Store current data for next transition
+        // 🔥 Update data BEFORE clearing loading
         previousDataRef.current = rows;
 
-        // ⚡ INSTANT NAVIGATION: Store last non-empty data for return visits
         if (rows && rows.length > 0) {
           lastNonEmptyDataRef.current = rows;
+          try {
+            sessionStorage.setItem('dashboard_last_data', JSON.stringify(rows));
+          } catch { }
         }
 
         setInventoryData(rows);
-        setFilteredData(rows); // server already applied filters so show directly
+        setFilteredData(rows);
         setTotal(response.data?.pagination?.total || 0);
         setLastRefreshTime(new Date());
-
-        // ⚡ BACKGROUND REFRESH: Clear flag after successful update
         isBackgroundRefreshRef.current = false;
 
-        // Mark initial load complete (persists across navigation)
         if (initialLoad) {
           setInitialLoad(false);
-          try { localStorage.setItem('dashboard_ever_loaded', 'true'); } catch { /* ignore */ }
+          try { localStorage.setItem('dashboard_ever_loaded', 'true'); } catch { }
         }
 
-        // ⚡ PAGE CACHE: Store in cache
         pageCacheRef.current.set(cacheKey, {
           data: rows,
           total: response.data?.pagination?.total || 0,
           timestamp: Date.now(),
         });
 
-        if (rows && rows.length > 0) {
+        retryCountRef.current = 0;
+
+        // 🔥 Force AG Grid update
+        if (gridRef.current?.api) {
           try {
-            sessionStorage.setItem('dashboard_last_data', JSON.stringify(rows));
+            gridRef.current.api.setRowData(rows);
           } catch { }
         }
 
-
-        // Reset retry count on success
-        retryCountRef.current = 0;
-
-        // Update grid rows immediately if grid API supports it
-        if (gridRef.current && typeof (gridRef.current as any).setRowData === 'function') {
-          try {
-            (gridRef.current as any).setRowData(rows);
-          } catch { /* ignore */ }
-        }
-
-        // ⚡ PREFETCH: Prefetch next page after successful load
         setTimeout(() => prefetchNextPage(), 500);
       }
 
     } catch (error: any) {
-      // ignore aborts
       if (error?.name === 'CanceledError' || error?.code === 'ERR_CANCELED' || error?.name === 'AbortError') {
-        // aborted or canceled - clear loading and return
         setLoading(false);
         return;
       }
       console.error("Load inventory error:", error);
 
-      // ⚡ AUTO-RETRY: Retry on failure
       if (retryCountRef.current < MAX_RETRIES) {
         retryCountRef.current++;
         toast.error(`Loading failed, retrying... (${retryCountRef.current}/${MAX_RETRIES})`);
         setTimeout(() => {
           loadInventoryData(true);
-        }, 1000 * retryCountRef.current); // Exponential backoff
+        }, 1000 * retryCountRef.current);
         return;
       }
 
       toast.error("Failed to load inventory data");
       retryCountRef.current = 0;
     } finally {
-      // Only clear loading when this is the latest request
       if (loadId === currentLoadIdRef.current) {
         setLoading(false);
         inventoryAbortControllerRef.current = null;
       }
     }
-  }, [activeWarehouse?.id, page, limit, searchDebounced, stageFilter, availableOnly, brandFilter, categoryFilter, dateFrom, dateTo, getCacheKey, prefetchNextPage]);
+  }, [activeWarehouse?.id, page, limit, searchDebounced, stageFilter, availableOnly, brandFilter, categoryFilter, dateFrom, dateTo, getCacheKey, prefetchNextPage, filteredData, initialLoad]);
+
 
   // ⚡ QUICK PAGE JUMP: Handle page input submit
   const handlePageJump = useCallback(() => {
