@@ -2,7 +2,7 @@
 "use client";
 
 //import { useState, useEffect } from "react";
-import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
   Box,
@@ -231,6 +231,42 @@ const PIPELINE_STAGES = [
   { value: "dispatched", label: "Dispatched" },
 ];
 
+// ⚡ WINDOW-LEVEL CACHE: Persists data outside React lifecycle for instant navigation
+// This survives component unmount/remount during client-side navigation
+declare global {
+  interface Window {
+    __DASHBOARD_CACHE__?: {
+      data: InventoryItem[];
+      total: number;
+      timestamp: number;
+      warehouseId?: number;
+    };
+  }
+}
+
+// Helper to get cached data (checks both window cache and sessionStorage)
+const getCachedDashboardData = (): InventoryItem[] => {
+  // Priority 1: Window cache (fastest, survives navigation)
+  if (typeof window !== 'undefined' && window.__DASHBOARD_CACHE__?.data?.length) {
+    return window.__DASHBOARD_CACHE__.data;
+  }
+  // Priority 2: SessionStorage (survives page refresh)
+  try {
+    if (typeof window !== 'undefined') {
+      const saved = sessionStorage.getItem('dashboard_last_data');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          // Also populate window cache for faster subsequent access
+          window.__DASHBOARD_CACHE__ = { data: parsed, total: parsed.length, timestamp: Date.now() };
+          return parsed;
+        }
+      }
+    }
+  } catch { /* ignore */ }
+  return [];
+};
+
 export default function DashboardPage() {
   const router = useRouter();
   const { activeWarehouse } = useWarehouse();
@@ -238,7 +274,44 @@ export default function DashboardPage() {
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [user, setUser] = useState<User | null>(null);
 
-  const didInitialMountRef = useRef(false);
+  // ⚡ INSTANT NAVIGATION: Track if dashboard was already mounted in this session
+  const didInitialMountRef = useRef(
+    (() => {
+      try {
+        return sessionStorage.getItem('dashboard_mounted_this_session') === 'true';
+      } catch { return false; }
+    })()
+  );
+
+  // ⚡ BACKGROUND REFRESH: State for subtle progress bar (not blocking overlay)
+  const [isBackgroundRefresh, setIsBackgroundRefresh] = useState(false);
+
+  // ⚡ SSR/HYDRATION FIX: Track if component has mounted on client
+  // This prevents empty grid flash during SSR and hydration
+  const [isMounted, setIsMounted] = useState(false);
+
+  // ⚡ INSTANT DATA REF: Store cached data in ref for immediate synchronous access
+  // This ref is read SYNCHRONOUSLY during render to avoid empty grid flash
+  // Use IIFE to get cache data on client, empty array on server
+  const cachedDataRef = useRef<InventoryItem[]>(
+    typeof window !== 'undefined' ? getCachedDashboardData() : []
+  );
+
+  // ⚡ SYNCHRONOUS MOUNT: Use useLayoutEffect to load cache BEFORE paint
+  // This runs synchronously after DOM mutations but before browser paint
+  useLayoutEffect(() => {
+    setIsMounted(true);
+    // Load cached data SYNCHRONOUSLY for immediate display
+    const cached = getCachedDashboardData();
+    if (cached.length > 0) {
+      cachedDataRef.current = cached;
+      setFilteredData(cached);
+      setInventoryData(cached);
+      setLoading(false); // Important: set loading false since we have data
+      lastNonEmptyDataRef.current = cached;
+      previousDataRef.current = cached;
+    }
+  }, []);
 
 
   // Dark mode state
@@ -256,43 +329,73 @@ export default function DashboardPage() {
     router.push("/login");
   };
 
-  // ⚡ INSTANT NAVIGATION: Initialize from sessionStorage to prevent empty grid flash
-  const [inventoryData, setInventoryData] = useState<InventoryItem[]>(() => {
+  // ⚡ INSTANT NAVIGATION: Initialize from window cache/sessionStorage to prevent empty grid flash
+  const [inventoryData, setInventoryData] = useState<InventoryItem[]>(() => getCachedDashboardData());
+  const [filteredData, setFilteredData] = useState<InventoryItem[]>(() => getCachedDashboardData());
+
+  // loading=false if we have cached data (instant navigation), true otherwise
+  const [loading, setLoading] = useState(() => getCachedDashboardData().length === 0);
+  // ⚡ INSTANT NAVIGATION: Initialize columns synchronously to prevent empty grid flash
+  const [visibleColumns, setVisibleColumns] = useState<string[]>(() => {
     try {
-      const saved = sessionStorage.getItem('dashboard_last_data');
+      const saved = localStorage.getItem('dashboardColumns');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       }
     } catch { /* ignore */ }
-    return [];
+    return DEFAULT_VISIBLE_COLUMNS;
   });
-  const [filteredData, setFilteredData] = useState<InventoryItem[]>(() => {
-    try {
-      const saved = sessionStorage.getItem('dashboard_last_data');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-    } catch { /* ignore */ }
-    return [];
-  });
-  // loading=false if we have sessionStorage data (instant navigation), true otherwise
-  const [loading, setLoading] = useState(() => {
-    try {
-      const saved = sessionStorage.getItem('dashboard_last_data');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return false;
-      }
-    } catch { /* ignore */ }
-    return true;
-  });
-  const [visibleColumns, setVisibleColumns] = useState<string[]>([]);
   const gridRef = useRef<any>(null);
   const columnApiRef = useRef<any>(null);
   const hasAutoFittedRef = useRef(false); // Track if auto-fit has been done
-  const [columnDefs, setColumnDefs] = useState<any[]>([]);
+  // ⚡ FLASH FIX: Track when AG Grid has actually rendered data rows
+  const [gridDataRendered, setGridDataRendered] = useState(false);
+  // ⚡ INSTANT COLUMN DEFS: Initialize with default columns to prevent empty grid header
+  const [columnDefs, setColumnDefs] = useState<any[]>(() => {
+    // Build initial column defs synchronously for immediate render
+    const cols = (() => {
+      try {
+        const saved = localStorage.getItem('dashboardColumns');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch { /* ignore */ }
+      return DEFAULT_VISIBLE_COLUMNS;
+    })();
+
+    const srCol = {
+      headerName: 'SR.NO',
+      field: '__sr',
+      valueGetter: (params: any) => params.node ? params.node.rowIndex + 1 : undefined,
+      width: 20,
+      maxWidth: 50,
+      suppressMovable: true,
+      sortable: false,
+      filter: false,
+      cellStyle: { fontWeight: 700, textAlign: 'center' },
+    };
+
+    const colDefs = [srCol, ...cols.map((col) => ({
+      field: col,
+      headerName: col.replace(/_/g, ' ').toUpperCase(),
+      sortable: true,
+      resizable: true,
+      filter: 'agTextColumnFilter',
+    }))];
+
+    colDefs.push({
+      headerName: 'Action',
+      field: '__action',
+      width: 90,
+      resizable: true,
+      sortable: false,
+      filter: false,
+    } as any);
+
+    return colDefs;
+  });
   const [pickingWSNs, setPickingWSNs] = useState<Set<string>>(new Set());
   const [outboundWSNs, setOutboundWSNs] = useState<Set<string>>(new Set());
 
@@ -322,29 +425,30 @@ export default function DashboardPage() {
     try { return !localStorage.getItem('dashboard_ever_loaded'); } catch { return true; }
   });
   // ⚡ PROFESSIONAL PAGINATION: Keep previous data visible during page transitions
-  const previousDataRef = useRef<InventoryItem[] | null>(null);
+  // Initialize from cache to ensure immediate availability
+  const previousDataRef = useRef<InventoryItem[] | null>(getCachedDashboardData().length > 0 ? getCachedDashboardData() : null);
   const [isFetching, setIsFetching] = useState(false);
 
   // ⚡ BACKGROUND REFRESH: Track when refreshing with existing data visible (prevents row fluctuation)
   const isBackgroundRefreshRef = useRef(false);
 
   // ⚡ INSTANT NAVIGATION: Keep last non-empty data to prevent empty grid flash on return
-  const lastNonEmptyDataRef = useRef<InventoryItem[] | null>(
+  const lastNonEmptyDataRef = useRef<InventoryItem[] | null>(getCachedDashboardData().length > 0 ? getCachedDashboardData() : null);
+
+  // ⚡ PAGE CACHE: Store fetched pages for instant back navigation (persisted to sessionStorage)
+  const pageCacheRef = useRef<Map<string, { data: InventoryItem[], total: number, timestamp: number }>>(
     (() => {
       try {
-        const saved = sessionStorage.getItem('dashboard_last_data');
+        const saved = sessionStorage.getItem('dashboard_page_cache');
         if (saved) {
           const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+          return new Map(Object.entries(parsed)) as Map<string, { data: InventoryItem[], total: number, timestamp: number }>;
         }
       } catch { /* ignore */ }
-      return null;
+      return new Map();
     })()
   );
-
-  // ⚡ PAGE CACHE: Store fetched pages for instant back navigation
-  const pageCacheRef = useRef<Map<string, { data: InventoryItem[], total: number, timestamp: number }>>(new Map());
-  const PAGE_CACHE_TTL = 60000; // 1 minute cache validity
+  const PAGE_CACHE_TTL = 120000; // 2 minutes cache validity for smoother navigation
 
   // ⚡ LAST REFRESH TIME: Track when data was last fetched
   const [lastRefreshTime, setLastRefreshTime] = useState<Date | null>(null);
@@ -383,6 +487,34 @@ export default function DashboardPage() {
     tooltipComponentParams: { color: '#ececec' },
     cellStyle: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   }), [enableSorting, enableColumnFilters, enableColumnResize]);
+
+  // ⚡ STABLE ROW DATA: Compute grid row data with useMemo for stable reference
+  // This ensures the grid NEVER receives an empty array when we have cached data
+  // Priority order: Window cache (survives navigation) > State > Refs
+  const gridRowData = useMemo(() => {
+    // Priority 1: Window cache - MOST RELIABLE on client navigation (survives remount)
+    if (typeof window !== 'undefined' && window.__DASHBOARD_CACHE__?.data?.length) {
+      return window.__DASHBOARD_CACHE__.data;
+    }
+    // Priority 2: Current filtered data from state
+    if (filteredData && filteredData.length > 0) {
+      return filteredData;
+    }
+    // Priority 3: Cached data ref (synchronously available on client)
+    if (cachedDataRef.current && cachedDataRef.current.length > 0) {
+      return cachedDataRef.current;
+    }
+    // Priority 4: Last non-empty data ref
+    if (lastNonEmptyDataRef.current && lastNonEmptyDataRef.current.length > 0) {
+      return lastNonEmptyDataRef.current;
+    }
+    // Priority 5: Previous data ref
+    if (previousDataRef.current && previousDataRef.current.length > 0) {
+      return previousDataRef.current;
+    }
+    return [];
+  }, [filteredData, inventoryData, isMounted]); // isMounted triggers recompute after client mount
+
   const [columnDialogOpen, setColumnDialogOpen] = useState(false);
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
@@ -713,20 +845,10 @@ export default function DashboardPage() {
     setUser(storedUser);
   }, [router]);
 
+  // NOTE: visibleColumns now initialized synchronously in useState
+  // Only load savedLimit here (columns already loaded)
   useEffect(() => {
-    const savedColumns = localStorage.getItem("dashboardColumns");
     const savedLimit = localStorage.getItem("dashboardLimit");
-
-    if (savedColumns) {
-      try {
-        setVisibleColumns(JSON.parse(savedColumns));
-      } catch {
-        setVisibleColumns(DEFAULT_VISIBLE_COLUMNS);
-      }
-    } else {
-      setVisibleColumns(DEFAULT_VISIBLE_COLUMNS);
-    }
-
     if (savedLimit) {
       setLimit(Number(savedLimit));
     }
@@ -834,20 +956,24 @@ export default function DashboardPage() {
         setTotal(cached.total);
         setLastRefreshTime(new Date(cached.timestamp));
         setLoading(false);
+        setIsBackgroundRefresh(false);
         setTimeout(() => prefetchNextPage(), 100);
         return;
       }
     }
 
-    // 🔥 KEY FIX: ONLY show loading overlay if we have existing data
+    // 🔥 ENHANCED: Use subtle progress bar for background refresh, NOT blocking overlay
     const hasExistingData = (filteredData && filteredData.length > 0) ||
       (lastNonEmptyDataRef.current && lastNonEmptyDataRef.current.length > 0);
 
     if (hasExistingData) {
-      setLoading(true);
+      // ⚡ SUBTLE REFRESH: Only show progress bar, not blocking overlay
+      setIsBackgroundRefresh(true);
+      setLoading(false); // Don't show blocking overlay
       isBackgroundRefreshRef.current = true;
     } else if (!initialLoad) {
       setLoading(true);
+      setIsBackgroundRefresh(false);
     }
 
     // Cancel previous request
@@ -882,6 +1008,15 @@ export default function DashboardPage() {
 
         if (rows && rows.length > 0) {
           lastNonEmptyDataRef.current = rows;
+          // ⚡ WINDOW CACHE: Store in window for instant navigation (survives component unmount)
+          if (typeof window !== 'undefined') {
+            window.__DASHBOARD_CACHE__ = {
+              data: rows,
+              total: response.data?.pagination?.total || 0,
+              timestamp: Date.now(),
+              warehouseId: activeWarehouse?.id
+            };
+          }
           try {
             sessionStorage.setItem('dashboard_last_data', JSON.stringify(rows));
           } catch { }
@@ -892,26 +1027,28 @@ export default function DashboardPage() {
         setTotal(response.data?.pagination?.total || 0);
         setLastRefreshTime(new Date());
         isBackgroundRefreshRef.current = false;
+        setIsBackgroundRefresh(false);
 
         if (initialLoad) {
           setInitialLoad(false);
           try { localStorage.setItem('dashboard_ever_loaded', 'true'); } catch { }
         }
 
+        // ⚡ PERSIST CACHE: Save to sessionStorage for navigation survival
         pageCacheRef.current.set(cacheKey, {
           data: rows,
           total: response.data?.pagination?.total || 0,
           timestamp: Date.now(),
         });
+        try {
+          const cacheObj = Object.fromEntries(pageCacheRef.current);
+          sessionStorage.setItem('dashboard_page_cache', JSON.stringify(cacheObj));
+        } catch { /* ignore quota errors */ }
 
         retryCountRef.current = 0;
 
-        // 🔥 Force AG Grid update
-        if (gridRef.current?.api) {
-          try {
-            gridRef.current.api.setRowData(rows);
-          } catch { }
-        }
+        // NOTE: Removed direct setRowData() - let React's controlled rowData prop handle updates
+        // This prevents race conditions between React state and AG Grid internal state
 
         setTimeout(() => prefetchNextPage(), 500);
       }
@@ -919,6 +1056,7 @@ export default function DashboardPage() {
     } catch (error: any) {
       if (error?.name === 'CanceledError' || error?.code === 'ERR_CANCELED' || error?.name === 'AbortError') {
         setLoading(false);
+        setIsBackgroundRefresh(false);
         return;
       }
       console.error("Load inventory error:", error);
@@ -937,6 +1075,7 @@ export default function DashboardPage() {
     } finally {
       if (loadId === currentLoadIdRef.current) {
         setLoading(false);
+        setIsBackgroundRefresh(false);
         inventoryAbortControllerRef.current = null;
       }
     }
@@ -1098,21 +1237,24 @@ export default function DashboardPage() {
       // Debounce inventory loads to avoid flicker on rapid filter changes
       if (inventoryLoadDebounceRef.current) clearTimeout(inventoryLoadDebounceRef.current);
       inventoryLoadDebounceRef.current = setTimeout(() => {
-        // ⚡ BACKGROUND REFRESH: If we have data from sessionStorage, do background refresh with overlay
-        if (filteredData.length > 0 && !didInitialMountRef.current) {
+        // ⚡ INSTANT NAVIGATION: Mark session as mounted
+        try { sessionStorage.setItem('dashboard_mounted_this_session', 'true'); } catch { }
+
+        // ⚡ BACKGROUND REFRESH: If we have cached data, do silent background refresh
+        if (filteredData.length > 0) {
           isBackgroundRefreshRef.current = true;
-          setLoading(true); // Show overlay spinner
-          didInitialMountRef.current = true;
+          setIsBackgroundRefresh(true); // Show subtle progress bar only
+          // DON'T set loading=true - this prevents blocking overlay
         }
 
         loadInventoryData();
-        if (!didInitialMountRef.current) {
-          didInitialMountRef.current = true;
-        }
-
         inventoryLoadDebounceRef.current = null;
       }, 50);
 
+      // ⚡ FIX: Load metrics, summary, and stage WSNs IMMEDIATELY on mount (not just in interval)
+      loadMetrics();
+      loadInventorySummary();
+      loadExistingStageWSNs();
 
       // ⚡ EGRESS OPTIMIZATION: Reduced polling from 5s to 60s (saves ~1.3GB/day)
       // Manual refresh still available via Refresh button
@@ -2268,114 +2410,25 @@ export default function DashboardPage() {
                 position: 'relative',
                 bgcolor: isDarkMode ? '#1e293b' : 'transparent',
               }}>
-                {/* Loading Spinner Overlay - semi-transparent so data stays visible */}
-                {/* Shows when: loading AND (has existing data OR not initial load) */}
-                {loading && (!initialLoad || (filteredData && filteredData.length > 0)) && (
-                  <Box sx={{
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    backgroundColor: isDarkMode ? 'rgba(15, 23, 42, 0.5)' : 'rgba(255, 255, 255, 0.5)',
-                    zIndex: 10,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}>
-                    <Box sx={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      gap: 1.5,
-                      p: 3,
-                      bgcolor: isDarkMode ? 'rgba(30, 41, 59, 0.95)' : 'rgba(255, 255, 255, 0.95)',
-                      borderRadius: 2,
-                      boxShadow: '0 4px 20px rgba(0,0,0,0.15)'
-                    }}>
-                      <CircularProgress
-                        size={40}
-                        thickness={4}
-                        sx={{ color: '#1e40af' }}
-                      />
-                      <Typography sx={{ fontSize: '0.85rem', fontWeight: 500, color: isDarkMode ? '#94a3b8' : '#64748b' }}>
-                        Loading...
-                      </Typography>
-                    </Box>
-                  </Box>
+                {/* ⚡ SUBTLE PROGRESS BAR - Shows during background refresh without blocking UI */}
+                {isBackgroundRefresh && (
+                  <LinearProgress
+                    sx={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      zIndex: 15,
+                      height: 3,
+                      '& .MuiLinearProgress-bar': {
+                        backgroundColor: '#1e40af'
+                      },
+                      backgroundColor: isDarkMode ? 'rgba(30, 64, 175, 0.2)' : 'rgba(30, 64, 175, 0.1)'
+                    }}
+                  />
                 )}
 
-                {/* Full Loading Overlay - ONLY for very first load when no data exists */}
-                {loading && initialLoad && (!filteredData || filteredData.length === 0) && (
-                  <Box sx={{
-                    position: 'absolute',
-                    top: 48,
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    backgroundColor: isDarkMode ? 'rgba(15, 23, 42, 0.9)' : 'rgba(255, 255, 255, 0.9)',
-                    backdropFilter: 'blur(4px)',
-                    zIndex: 5,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}>
-                    <Box sx={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      gap: 2.5,
-                      p: { xs: 3, md: 4 },
-                      bgcolor: isDarkMode ? '#1e293b' : 'white',
-                      borderRadius: 3,
-                      boxShadow: isDarkMode ? '0 8px 32px rgba(0,0,0,0.4)' : '0 8px 32px rgba(0,0,0,0.1)'
-                    }}>
-                      <Box sx={{ position: 'relative' }}>
-                        <CircularProgress
-                          size={52}
-                          thickness={4}
-                          sx={{
-                            color: '#1e40af',
-                            filter: 'drop-shadow(0 2px 8px rgba(30, 64, 175, 0.2))'
-                          }}
-                        />
-                        <Box sx={{
-                          position: 'absolute',
-                          top: '50%',
-                          left: '50%',
-                          transform: 'translate(-50%, -50%)',
-                          width: 40,
-                          height: 40,
-                          borderRadius: '50%',
-                          background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
-                          opacity: 0.12,
-                          animation: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-                          '@keyframes pulse': {
-                            '0%, 100%': {
-                              transform: 'translate(-50%, -50%) scale(1)',
-                              opacity: 0.12
-                            },
-                            '50%': {
-                              transform: 'translate(-50%, -50%) scale(1.2)',
-                              opacity: 0.04
-                            }
-                          }
-                        }} />
-                      </Box>
-                      <Typography
-                        sx={{
-                          fontSize: '0.9rem',
-                          fontWeight: 500,
-                          color: isDarkMode ? '#94a3b8' : '#64748b',
-                          letterSpacing: 0.2,
-                          textAlign: 'center'
-                        }}
-                      >
-                        Loading data...
-                      </Typography>
-                    </Box>
-                  </Box>
-                )}
+                {/* NOTE: Skeleton loading overlay removed - now handled inside AG Grid Box below */}
 
                 {/* Empty State Overlay - shows when no data but headers remain visible */}
                 {!activeWarehouse && (!filteredData || filteredData.length === 0) && !loading && (
@@ -2422,10 +2475,10 @@ export default function DashboardPage() {
                   </Box>
                 )}
 
-                {activeWarehouse && (!filteredData || filteredData.length === 0) && !loading && (
+                {activeWarehouse && (!filteredData || filteredData.length === 0) && !loading && !isBackgroundRefresh && isMounted && (
                   <Box sx={{
                     position: 'absolute',
-                    top: 60,
+                    top: 0,
                     left: 0,
                     right: 0,
                     bottom: 0,
@@ -2461,12 +2514,13 @@ export default function DashboardPage() {
                   </Box>
                 )}
 
-                {/* AG Grid - Always Rendered */}
+                {/* AG Grid - Always rendered, covered by skeleton overlay when loading */}
                 <Box sx={{
                   flex: 1,
                   overflow: 'hidden',
                   display: 'flex',
                   flexDirection: 'column',
+                  position: 'relative', // ⚡ FLASH FIX: Required for absolute overlay positioning
                   bgcolor: isDarkMode ? '#1e293b' : 'transparent',
                   '& .ag-root-wrapper': {
                     height: '100%',
@@ -2476,9 +2530,9 @@ export default function DashboardPage() {
                     backgroundColor: isDarkMode ? '#1e293b' : 'transparent',
                   },
                   '& .ag-header': {
-                    backgroundColor: isDarkMode ? '#334155' : '#f8fafc',
-                    borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(0,0,0,0.08)',
-                    fontWeight: 600,
+                    backgroundColor: (isDarkMode ? '#1e3a5f' : '#f1f5f9') + ' !important',
+                    borderBottom: isDarkMode ? '2px solid #2d5a87' : '2px solid #d1d5db',
+                    fontWeight: 700,
                     opacity: '1 !important',
                     zIndex: 15,
                     position: 'relative'
@@ -2486,13 +2540,40 @@ export default function DashboardPage() {
                   '& .ag-header-cell': {
                     padding: '0 12px',
                     opacity: '1 !important',
-                    fontWeight: 600,
-                    letterSpacing: '0.01em',
-                    backgroundColor: isDarkMode ? '#334155' : 'transparent',
-                    color: isDarkMode ? '#f1f5f9' : 'inherit',
+                    fontWeight: 700,
+                    fontSize: '0.75rem',
+                    backgroundColor: (isDarkMode ? '#1e3a5f' : '#f1f5f9') + ' !important',
+                    color: isDarkMode ? '#f1f5f9' : '#1e293b',
+                    borderRight: isDarkMode ? '1px solid #2d5a87' : '1px solid #d1d5db',
                   },
+                  '& .ag-header-cell:last-child': {
+                    borderRight: 'none',
+                  },
+                  '& .ag-header-row': {
+                    backgroundColor: (isDarkMode ? '#1e3a5f' : '#f1f5f9') + ' !important',
+                  },
+                  '& .ag-header-viewport': {
+                    backgroundColor: (isDarkMode ? '#1e3a5f' : '#f1f5f9') + ' !important',
+                  },
+                  '& .ag-header-container': {
+                    backgroundColor: (isDarkMode ? '#1e3a5f' : '#f1f5f9') + ' !important',
+                  },
+                  // ⚡ FLASH FIX: Hide body viewport until rows are rendered
+                  // This prevents the empty white flash during hydration
                   '& .ag-body-viewport': {
-                    opacity: loading ? 0.3 : 1,
+                    opacity: (loading && gridRowData.length === 0) ? 0.3 : 1,
+                    // Match background to prevent white flash
+                    backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
+                  },
+                  // ⚡ FLASH FIX: Ensure center viewport also has correct background
+                  '& .ag-center-cols-viewport': {
+                    backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
+                  },
+                  '& .ag-center-cols-container': {
+                    backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
+                  },
+                  '& .ag-body': {
+                    backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
                   },
                   '& .ag-row': {
                     height: { xs: 44, md: 44 },
@@ -2525,10 +2606,10 @@ export default function DashboardPage() {
                     backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.15) !important' : 'rgba(30,64,175,0.04) !important',
                   },
                 }}>
-                  <div className="ag-theme-quartz" style={{ height: '100%', width: '100%' }}>
+                  <div className="ag-theme-quartz" style={{ height: '100%', width: '100%', position: 'relative', zIndex: 1 }}>
                     <AgGridReact
                       ref={gridRef}
-                      rowData={filteredData.length > 0 ? filteredData : (lastNonEmptyDataRef.current || [])}
+                      rowData={gridRowData}
                       columnDefs={columnDefs}
                       defaultColDef={defaultColDef}
                       rowSelection={{ mode: 'singleRow', checkboxes: false, enableClickSelection: true }}
@@ -2551,6 +2632,8 @@ export default function DashboardPage() {
                         } catch { /* ignore */ }
                       }}
                       onFirstDataRendered={(params: any) => {
+                        // ⚡ FLASH FIX: Mark data as rendered to hide the covering overlay
+                        setGridDataRendered(true);
                         // Auto-size columns on first load if no saved state
                         if (!hasAutoFittedRef.current && params.api) {
                           try {
@@ -2600,9 +2683,146 @@ export default function DashboardPage() {
                       suppressScrollOnNewData={true}
                       alwaysShowVerticalScroll={true}
                       rowHeight={tableRowHeight}
-                      headerHeight={32}
+                      headerHeight={35}
+
                     />
                   </div>
+
+                  {/* ⚡ Initial Loading Overlay - covers AG Grid completely during first load */}
+                  {/* MUST be AFTER ag-grid in DOM to properly cover it */}
+                  {((gridRowData.length === 0 && activeWarehouse) || (gridRowData.length > 0 && !gridDataRendered)) && (
+                    <Box sx={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      bgcolor: isDarkMode ? '#1e293b' : '#ffffff',
+                      zIndex: 100, // Very high to ensure it covers AG Grid header
+                      display: 'flex',
+                      flexDirection: 'column',
+                      borderRadius: { xs: 0, md: '12px' },
+                      overflow: 'hidden',
+                      border: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(0,0,0,0.06)',
+                    }}>
+                      {/* Static header row that matches AG Grid header exactly */}
+                      <Box sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        height: 35,
+                        px: 1.5,
+                        gap: 2,
+                        bgcolor: isDarkMode ? '#1e3a5f' : '#f1f5f9',
+                        borderBottom: isDarkMode ? '2px solid #2d5a87' : '2px solid #d1d5db',
+                      }}>
+                        <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: isDarkMode ? '#f1f5f9' : '#1e293b', minWidth: 50 }}>SR.NO</Typography>
+                        <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: isDarkMode ? '#f1f5f9' : '#1e293b', minWidth: 80 }}>WSN</Typography>
+                        <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: isDarkMode ? '#f1f5f9' : '#1e293b', minWidth: 80 }}>WID</Typography>
+                        <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: isDarkMode ? '#f1f5f9' : '#1e293b', minWidth: 100 }}>FSN</Typography>
+                        <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: isDarkMode ? '#f1f5f9' : '#1e293b', flex: 1 }}>PRODUCT TITLE</Typography>
+                        <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: isDarkMode ? '#f1f5f9' : '#1e293b', minWidth: 80 }}>BRAND</Typography>
+                      </Box>
+                      {/* Loading body area with centered spinner - same style as inbound page */}
+                      <Box sx={{
+                        flex: 1,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        bgcolor: isDarkMode ? '#1e293b' : '#ffffff',
+                      }}>
+                        <Box sx={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          gap: 3,
+                          p: 4,
+                          bgcolor: isDarkMode ? '#1e293b' : 'white',
+                          borderRadius: 3,
+                          boxShadow: isDarkMode ? '0 8px 32px rgba(0,0,0,0.4)' : '0 8px 24px rgba(0,0,0,0.12)'
+                        }}>
+                          <Box sx={{ position: 'relative' }}>
+                            <CircularProgress
+                              size={56}
+                              thickness={3.5}
+                              sx={{
+                                color: '#1e40af',
+                                filter: 'drop-shadow(0 2px 8px rgba(25, 118, 210, 0.2))'
+                              }}
+                            />
+                            <Box sx={{
+                              position: 'absolute',
+                              top: '50%',
+                              left: '50%',
+                              transform: 'translate(-50%, -50%)',
+                              width: 44,
+                              height: 44,
+                              borderRadius: '50%',
+                              background: 'linear-gradient(135deg, #1e40af 0%, #60a5fa 100%)',
+                              opacity: 0.15,
+                              animation: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                              '@keyframes pulse': {
+                                '0%, 100%': {
+                                  transform: 'translate(-50%, -50%) scale(1)',
+                                  opacity: 0.15
+                                },
+                                '50%': {
+                                  transform: 'translate(-50%, -50%) scale(1.15)',
+                                  opacity: 0.05
+                                }
+                              }
+                            }} />
+                          </Box>
+                          <Typography
+                            sx={{
+                              fontSize: '0.95rem',
+                              fontWeight: 500,
+                              color: isDarkMode ? '#94a3b8' : '#546e7a',
+                              letterSpacing: 0.3,
+                              textAlign: 'center'
+                            }}
+                          >
+                            Loading data...
+                          </Typography>
+                        </Box>
+                      </Box>
+                    </Box>
+                  )}
+
+                  {/* Loading Spinner Overlay - shows when fetching data with existing data visible */}
+                  {(loading || isFetching) && gridRowData.length > 0 && gridDataRendered && (
+                    <Box sx={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      backgroundColor: isDarkMode ? 'rgba(15, 23, 42, 0.5)' : 'rgba(255, 255, 255, 0.5)',
+                      zIndex: 100,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}>
+                      <Box sx={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: 1.5,
+                        p: 3,
+                        bgcolor: isDarkMode ? 'rgba(30, 41, 59, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+                        borderRadius: 2,
+                        boxShadow: '0 4px 20px rgba(0,0,0,0.15)'
+                      }}>
+                        <CircularProgress
+                          size={40}
+                          thickness={4}
+                          sx={{ color: '#1e40af' }}
+                        />
+                        <Typography sx={{ fontSize: '0.85rem', fontWeight: 500, color: isDarkMode ? '#94a3b8' : '#64748b' }}>
+                          Loading...
+                        </Typography>
+                      </Box>
+                    </Box>
+                  )}
                 </Box>
               </Box>
               {/* ================= PAGINATION (ENHANCED WITH ALL IMPROVEMENTS) ================= */}
