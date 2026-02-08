@@ -37,6 +37,10 @@ import {
   Skeleton,
   InputBase,
   Fade,
+  Drawer,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
 } from "@mui/material";
 import {
   Logout as LogoutIcon,
@@ -55,6 +59,9 @@ import {
   FirstPage,
   LastPage,
   AccessTime,
+  Menu as MenuIcon,
+  ViewColumn as ViewColumnIcon,
+  TableChart as TableChartIcon,
 } from "@mui/icons-material";
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { dashboardAPI, inventoryAPI, inboundAPI, pickingAPI, outboundAPI } from "@/lib/api";
@@ -524,6 +531,10 @@ export default function DashboardPage() {
   const [gridSettingsOpen, setGridSettingsOpen] = useState(false);
   const [pivotOpen, setPivotOpen] = useState(false);
 
+  // ====== SETTINGS PANEL STATE ======
+  const [settingsPanelOpen, setSettingsPanelOpen] = useState(false);
+  const [settingsPanelExpanded, setSettingsPanelExpanded] = useState<string | false>('filters');
+
   // Grid settings
   useEffect(() => {
     try {
@@ -736,35 +747,8 @@ export default function DashboardPage() {
   const [searchDebounced, setSearchDebounced] = useState(searchWSN);
   const [filteredCategories, setFilteredCategories] = useState<string[]>([]);
   // fallbackRows removed; grid now always displays server-provided data via `filteredData` (pagination handled by server)
-  const [filtersOpen, setFiltersOpen] = useState<boolean>(() => {
-    try {
-      const saved = localStorage.getItem('dashboardFiltersOpen');
-      if (saved !== null) return saved === 'true';
-    } catch {
-      // ignore
-    }
-    return false;
-  });
-  // Mobile full-screen filter modal state (Flipkart/Myntra style)
-  const [mobileActionsOpen, setMobileActionsOpen] = useState(false);
-  // Actions overflow menu on mobile (used for compact action access)
 
-
-  const toggleFilters = () => {
-    setFiltersOpen((prev) => {
-      const next = !prev;
-      // ⚡ LAZY LOAD: Load filter options when filters panel opens for first time
-      if (next && !filtersLoaded) {
-        loadFilterOptions();
-      }
-      try {
-        localStorage.setItem('dashboardFiltersOpen', next ? 'true' : 'false');
-      } catch { }
-      return next;
-    });
-  };
-
-  // Determine if any filters are active (used to show green dot on toggle button)
+  // Determine if any filters are active (used to show Reset button instead of Menu)
   const filtersActive = Boolean(
     (searchWSN && searchWSN.trim() !== "") ||
     (stageFilter && stageFilter !== "all") ||
@@ -866,17 +850,6 @@ export default function DashboardPage() {
   useEffect(() => {
     localStorage.setItem("dashboardLimit", String(limit));
   }, [limit]);
-
-  // If user has not set a preference for filters, default to collapsed on mobile and expanded on desktop
-  useEffect(() => {
-    try {
-      const savedFilters = localStorage.getItem('dashboardFiltersOpen');
-      // Default to collapsed when user has not set a preference
-      if (savedFilters === null) {
-        setFiltersOpen(false);
-      }
-    } catch { /* ignore */ }
-  }, [isMobile]);
 
   // ⚡ HELPER: Generate cache key for current filters
   const getCacheKey = useCallback(() => {
@@ -1156,13 +1129,12 @@ export default function DashboardPage() {
     }
   }, [activeWarehouse?.id, filtersLoaded]);
 
-  // ⚡ LAZY LOAD: If filters are already open on mount, load filter options
-  // Also load when mobile actions dialog opens (it has brand/category filters)
+  // ⚡ LAZY LOAD: If settings panel opens, load filter options
   useEffect(() => {
-    if ((filtersOpen || mobileActionsOpen) && !filtersLoaded && activeWarehouse?.id) {
+    if (settingsPanelOpen && !filtersLoaded && activeWarehouse?.id) {
       loadFilterOptions();
     }
-  }, [filtersOpen, mobileActionsOpen, filtersLoaded, activeWarehouse?.id, loadFilterOptions]);
+  }, [settingsPanelOpen, filtersLoaded, activeWarehouse?.id, loadFilterOptions]);
 
   // 🔥 GET FILTERED CATEGORIES - only for selected brand
   // ⚡ OPTIMIZED: Use local inventory data instead of API call
@@ -1861,199 +1833,63 @@ export default function DashboardPage() {
             }}
 
           >
-            {/* TOP ROW: Search + Dates (desktop) + Filters toggle (mobile) */}
+            {/* TOP ROW: Search + Pivot + Menu/Reset */}
             <Box
               sx={{
                 display: "flex",
-                flexDirection: { xs: "row", md: "row" },
-                gap: { xs: 0.5, md: 1 },
+                flexDirection: "row",
+                gap: { xs: 0.75, md: 1 },
                 alignItems: "center",
               }}
             >
-              {/* Search + Mobile Actions */}
-              <Box sx={{ display: 'flex', gap: 0.75, alignItems: 'center', width: '100%' }}>
-                <TextField
-                  size="small"
-                  placeholder="🔍 Search WSN or Product"
-                  value={searchWSN}
-                  onChange={(e) => {
-                    setSearchWSN(e.target.value);
-                    setPage(1);
-                  }}
-                  fullWidth
-                  sx={{
-                    "& .MuiOutlinedInput-root": {
-                      height: { xs: 40, sm: 42 },
-                      bgcolor: isDarkMode ? '#1e293b' : '#f8fafc',
-                      borderRadius: 2.5,
-                      transition: "all 0.2s ease",
-                      "&:hover": {
-                        bgcolor: isDarkMode ? '#334155' : '#f1f5f9',
-                      },
-                      "&.Mui-focused": {
-                        bgcolor: isDarkMode ? '#1e293b' : 'white',
-                        "& .MuiOutlinedInput-notchedOutline": {
-                          borderColor: "primary.main",
-                          borderWidth: 2,
-                        },
-                      },
-                    },
-                    "& .MuiOutlinedInput-notchedOutline": {
-                      borderColor: isDarkMode ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)',
-                    },
-                  }}
-                />
-
-                {/* Mobile Actions button: opens a full-screen dialog with filters + actions */}
-                <Button
-                  variant="contained"
-                  color="primary"
-                  startIcon={<TuneIcon />}
-                  sx={{
-                    display: { xs: 'inline-flex', md: 'none' },
-                    height: 40,
-                    px: 2,
-                    textTransform: 'none',
-                    flexShrink: 0,
-                    fontSize: '0.85rem',
-                    fontWeight: 600
-                  }}
-                  onClick={() => setMobileActionsOpen(true)}
-                >
-                  Actions
-                </Button>
-              </Box>
-
-              {/* Desktop dates */}
-              <Box
-                sx={{
-                  display: { xs: "none", md: "flex" },
-                  gap: 1,
-                }}
-              >
-                <TextField
-                  label="From Date"
-                  type="date"
-                  size="small"
-                  variant="outlined"
-                  InputLabelProps={{ shrink: true }}
-                  value={dateFrom || ""}
-                  onChange={(e) => {
-                    setDateFrom(e.target.value);
-                    setPage(1);
-                  }}
-                  sx={{
-                    "& .MuiOutlinedInput-root": {
-                      height: 42,
-                      fontSize: "0.875rem",
-                      bgcolor: isDarkMode ? '#1e293b' : '#f8fafc',
-                      borderRadius: 2,
-                      "&:hover": { bgcolor: isDarkMode ? '#334155' : '#f1f5f9' },
-                      "&.Mui-focused": { bgcolor: isDarkMode ? '#1e293b' : 'white' },
-                    },
-                    "& .MuiOutlinedInput-notchedOutline": {
-                      borderColor: isDarkMode ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)',
-                    },
-                  }}
-                />
-                <TextField
-                  label="To Date"
-                  type="date"
-                  size="small"
-                  variant="outlined"
-                  InputLabelProps={{ shrink: true }}
-                  value={dateTo || ""}
-                  onChange={(e) => {
-                    setDateTo(e.target.value);
-                    setPage(1);
-                  }}
-                  sx={{
-                    "& .MuiOutlinedInput-root": {
-                      height: 42,
-                      fontSize: "0.875rem",
-                      bgcolor: isDarkMode ? '#1e293b' : '#f8fafc',
-                      borderRadius: 2,
-                      "&:hover": { bgcolor: isDarkMode ? '#334155' : '#f1f5f9' },
-                      "&.Mui-focused": { bgcolor: isDarkMode ? '#1e293b' : 'white' },
-                    },
-                    "& .MuiOutlinedInput-notchedOutline": {
-                      borderColor: isDarkMode ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)',
-                    },
-                  }}
-                />
-              </Box>
-
-              {/* Filters toggle (desktop only) */}
-              <Button
-                variant={filtersOpen ? "contained" : "outlined"}
+              {/* Search Field */}
+              <TextField
                 size="small"
-                onClick={toggleFilters}
-                sx={{
-                  display: { xs: 'none', md: 'inline-flex' },
-                  height: 42,
-                  minWidth: 130,
-                  fontSize: "0.75rem",
-                  fontWeight: 600,
-                  ml: 0.5,
-                  whiteSpace: "nowrap",
-                  justifyContent: "space-between",
-                  px: 2,
-                  borderRadius: 2.5,
-                  position: "relative",
-                  ...(filtersOpen ? {
-                    background: "linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%)",
-                  } : {
-                    borderWidth: 1.5,
-                    "&:hover": { borderWidth: 1.5 },
-                  }),
+                placeholder="🔍 Search WSN or Product"
+                value={searchWSN}
+                onChange={(e) => {
+                  setSearchWSN(e.target.value);
+                  setPage(1);
                 }}
-              >
-                <FilterIcon sx={{
-                  fontSize: '1.1rem',
-                  mr: 0.75,
-                }} />
+                fullWidth
+                sx={{
+                  "& .MuiOutlinedInput-root": {
+                    height: { xs: 40, sm: 42 },
+                    bgcolor: isDarkMode ? '#1e293b' : '#f8fafc',
+                    borderRadius: 2.5,
+                    transition: "all 0.2s ease",
+                    "&:hover": {
+                      bgcolor: isDarkMode ? '#334155' : '#f1f5f9',
+                    },
+                    "&.Mui-focused": {
+                      bgcolor: isDarkMode ? '#1e293b' : 'white',
+                      "& .MuiOutlinedInput-notchedOutline": {
+                        borderColor: "primary.main",
+                        borderWidth: 2,
+                      },
+                    },
+                  },
+                  "& .MuiOutlinedInput-notchedOutline": {
+                    borderColor: isDarkMode ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)',
+                  },
+                }}
+              />
 
-                <Box component="span" sx={{ mr: 0.5, display: 'flex', alignItems: 'center' }}>
-                  <Box component="span">{filtersOpen ? "Hide" : "Filters"}</Box>
-                  {filtersActive && !filtersOpen && (
-                    <Tooltip title="Filters active">
-                      <Box sx={{
-                        position: 'absolute',
-                        top: -4,
-                        right: -4,
-                        width: 12,
-                        height: 12,
-                        borderRadius: '50%',
-                        bgcolor: '#10b981',
-                        border: '2px solid white',
-                        boxShadow: "0 2px 4px rgba(16,185,129,0.3)",
-                      }} />
-                    </Tooltip>
-                  )}
-                </Box>
-                <ExpandMoreIcon sx={{
-                  transform: filtersOpen ? "rotate(180deg)" : "rotate(0deg)",
-                  transition: "transform 200ms",
-                  fontSize: "1.1rem",
-                }} />
-              </Button>
-
-              {/* Pivot Table Button (desktop only) */}
+              {/* Pivot Table Button */}
               <Tooltip title="Open Pivot Analysis - Excel-style pivot table">
                 <Button
                   variant={pivotOpen ? "contained" : "outlined"}
                   size="small"
                   onClick={() => setPivotOpen(!pivotOpen)}
                   sx={{
-                    display: { xs: 'none', md: 'inline-flex' },
-                    height: 42,
-                    minWidth: 110,
+                    height: { xs: 40, md: 42 },
+                    minWidth: { xs: 'auto', md: 100 },
+                    px: { xs: 1.5, md: 2 },
                     fontSize: "0.75rem",
                     fontWeight: 600,
-                    ml: 0.5,
                     whiteSpace: "nowrap",
-                    px: 2,
-                    borderRadius: 2.5,
+                    borderRadius: 2,
+                    flexShrink: 0,
                     ...(pivotOpen ? {
                       background: "linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)",
                     } : {
@@ -2068,343 +1904,80 @@ export default function DashboardPage() {
                     }),
                   }}
                 >
-                  <PivotIcon sx={{
-                    fontSize: '1.1rem',
-                    mr: 0.75,
-                  }} />
-                  Pivot
+                  <PivotIcon sx={{ fontSize: '1.1rem', mr: { xs: 0, md: 0.5 } }} />
+                  <Box component="span" sx={{ display: { xs: 'none', md: 'inline' } }}>Pivot</Box>
                 </Button>
               </Tooltip>
-            </Box>
 
-            {/* BODY: collapsible */}
-            <Collapse in={filtersOpen} timeout="auto" sx={{ display: { xs: 'none', md: 'block' } }}>
-              <Box sx={{ mt: { xs: 0.5, md: 0.25 } }}>
-                {/* Dates on mobile */}
-                <Box
-                  sx={{
-                    display: { xs: "flex", md: "none" },
-                    flexDirection: "row",
-                    gap: 1,
-                    mb: 1,
-                  }}
-                >
-                  <TextField
-                    label="From Date"
-                    type="date"
+              {/* Menu / Reset Button - Shows Reset when filters are active */}
+              {filtersActive ? (
+                <Tooltip title="Reset all filters">
+                  <Button
+                    variant="contained"
                     size="small"
-                    variant="outlined"
-                    InputLabelProps={{ shrink: true }}
-                    value={dateFrom || ""}
-                    onChange={(e) => {
-                      setDateFrom(e.target.value);
-                      setPage(1);
+                    onClick={() => {
+                      resetFilters();
+                      // Close settings panel if open
+                      setSettingsPanelOpen(false);
                     }}
-                    sx={{ flex: 1 }}
-                  />
-                  <TextField
-                    label="To Date"
-                    type="date"
-                    size="small"
-                    variant="outlined"
-                    InputLabelProps={{ shrink: true }}
-                    value={dateTo || ""}
-                    onChange={(e) => {
-                      setDateTo(e.target.value);
-                      setPage(1);
-                    }}
-                    sx={{ flex: 1 }}
-                  />
-
-                  {/* Mobile: move Available toggle to the right of date filters */}
-                  <Box sx={{ ml: 'auto', display: { xs: 'flex', md: 'none' }, alignItems: 'center' }}>
-                    <FormControlLabel
-                      control={
-                        <Checkbox
-                          checked={availableOnly}
-                          onChange={(e) => {
-                            setAvailableOnly(e.target.checked);
-                            if (e.target.checked) {
-                              toast.success("Showing available inventory only");
-                            } else {
-                              toast.success("Showing all items");
-                            }
-                            setPage(1);
-                          }}
-                          sx={{ color: '#1e40af', '&.Mui-checked': { color: '#1e40af' } }}
-                        />
-                      }
-                      label={<Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: '#424242' }}>Available</Typography>}
-                      sx={{ mr: 0 }}
-                    />
-                  </Box>
-                </Box>
-
-                {/* MAIN ROW: filters + buttons, no empty space */}
-                <Box
-                  sx={{
-                    display: "flex",
-                    flexDirection: { xs: "column", md: "row" },
-                    gap: 1,
-                    alignItems: { xs: "stretch", md: "center" },
-                    justifyContent: "space-between",
-                  }}
-                >
-                  {/* LEFT: Stage / Brand / Category - tightly packed (stack on mobile) */}
-                  <Box
                     sx={{
-                      display: "flex",
-                      flexDirection: { xs: 'column', md: 'row' },
-                      gap: { xs: 0.5, md: 1 },
-                      flexGrow: 1,
-                    }}
-                  >
-                    <TextField
-                      select
-                      size="small"
-                      label="Stage"
-                      value={stageFilter}
-                      onChange={(e) => {
-                        setStageFilter(e.target.value);
-                        setPage(1);
-                      }}
-                      fullWidth
-                      SelectProps={{
-                        MenuProps: {
-                          PaperProps: { style: { maxHeight: 300 } },
-                        },
-                      }}
-                      sx={{
-                        "& .MuiOutlinedInput-root": {
-                          height: { xs: 36, md: 40 }, fontSize: { xs: '0.85rem', md: '0.95rem' }
-                        }
-                      }}
-                    >
-                      {PIPELINE_STAGES.map((s) => (
-                        <MenuItem key={s.value} value={s.value}>
-                          {s.label}
-                        </MenuItem>
-                      ))}
-                    </TextField>
-
-                    <TextField
-                      select
-                      size="small"
-                      label="Brand"
-                      value={brandFilter}
-                      onChange={(e) => {
-                        setBrandFilter(e.target.value);
-                        setPage(1);
-                      }}
-                      fullWidth
-                      SelectProps={{
-                        MenuProps: {
-                          PaperProps: { style: { maxHeight: 300 } },
-                        },
-                      }}
-                      sx={{ "& .MuiOutlinedInput-root": { height: { xs: 36, md: 40 }, fontSize: { xs: '0.85rem', md: '0.95rem' } } }}
-                    >
-                      <MenuItem value="">All</MenuItem>
-                      {(categoryFilter ? memoizedFilteredBrands : brands).map((b) => (
-                        <MenuItem key={b} value={b}>
-                          {b}
-                        </MenuItem>
-                      ))}
-                    </TextField>
-
-                    <TextField
-                      select
-                      size="small"
-                      label="Category"
-                      value={categoryFilter}
-                      onChange={(e) => {
-                        setCategoryFilter(e.target.value);
-                        setPage(1);
-                      }}
-                      fullWidth
-                      SelectProps={{
-                        MenuProps: {
-                          PaperProps: { style: { maxHeight: 300 } },
-                        },
-                      }}
-                      sx={{ "& .MuiOutlinedInput-root": { height: { xs: 36, md: 40 }, fontSize: { xs: '0.85rem', md: '0.95rem' } } }}
-                    >
-                      <MenuItem value="">All</MenuItem>
-                      {(brandFilter ? filteredCategories : categories).map((c) => (
-                        <MenuItem key={c} value={c}>
-                          {c}
-                        </MenuItem>
-                      ))}
-                    </TextField>
-                  </Box>
-
-                  {/* RIGHT: Buttons - responsive 2x2 on mobile */}
-                  <Box
-                    sx={{
-                      display: "grid",
-                      gridTemplateColumns: {
-                        xs: "repeat(6, 1fr)", // mobile: tighter fit for 6 items
-                        md: "repeat(6, auto)", // desktop: 6 items in a row (includes Available Only)
+                      height: { xs: 40, md: 42 },
+                      minWidth: { xs: 'auto', md: 100 },
+                      px: { xs: 1.5, md: 2 },
+                      fontSize: "0.75rem",
+                      fontWeight: 700,
+                      whiteSpace: "nowrap",
+                      borderRadius: 2,
+                      flexShrink: 0,
+                      background: "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)",
+                      color: 'white',
+                      "&:hover": {
+                        background: "linear-gradient(135deg, #d97706 0%, #b45309 100%)",
                       },
-                      gap: { xs: 0.5, md: 1 },
-                      width: { xs: "100%", md: "auto" },
-                      justifyContent: { xs: "stretch", md: "flex-end" },
-                      alignItems: "center",
-                      overflowX: { xs: 'auto', md: 'visible' }
                     }}
                   >
-                    <Button
-                      variant="outlined"
-                      size="small"
-                      startIcon={<RestartAltIcon sx={{ fontSize: 14 }} />}
-                      onClick={resetFilters}
-                      sx={{
-                        height: { xs: 34, md: 40 },
-                        px: 1,
-                        fontSize: { xs: '0.62rem', md: '0.65rem' },
-                        fontWeight: 600,
-                        width: "100%",
-                      }}
-                    >
-                      RESET
-                    </Button>
-
-
-                    {canSeeButton('columns') && (
-                      <Tooltip title={!canAccessButton('columns') ? "You don't have permission to use this feature" : "Manage Columns"} arrow>
-                        <span style={{ width: '100%' }}>
-                          <Button
-                            size="small"
-                            startIcon={<SettingsIcon sx={{ fontSize: 11 }} />}
-                            variant="outlined"
-                            disabled={!canAccessButton('columns')}
-                            onClick={() => canAccessButton('columns') && setColumnDialogOpen(true)}
-                            sx={{
-                              height: { xs: 34, md: 40 },
-                              px: 1,
-                              fontSize: { xs: '0.62rem', md: '0.65rem' },
-                              fontWeight: 600,
-                              width: "100%",
-                            }}
-                          >
-                            COLUMNS
-                          </Button>
-                        </span>
-                      </Tooltip>
-                    )}
-
-
-                    <Button
-                      size="small"
-                      startIcon={<SettingsIcon sx={{ fontSize: 11 }} />}
-                      variant="outlined"
-                      onClick={() => setGridSettingsOpen(true)}
-                      sx={{
-                        height: { xs: 32, md: 36 },
-                        px: 0.6,
-                        fontSize: { xs: '0.6rem', md: '0.62rem' },
-                        fontWeight: 600,
-                        width: "100%",
-                      }}
-                    >
-                      <TuneIcon sx={{ fontSize: 15, mr: 0.3 }} />
-                      <Box component="span" sx={{ fontSize: '0.65rem', fontWeight: 600 }}>GRID</Box>
-                    </Button>
-
-                    {canSeeButton('export') && (
-                      <Tooltip title={!canAccessButton('export') ? "You don't have permission to use this feature" : "Export Data"} arrow>
-                        <span style={{ width: '100%' }}>
-                          <Button
-                            variant="outlined"
-                            size="small"
-                            startIcon={<DownloadIcon sx={{ fontSize: 11 }} />}
-                            disabled={!canAccessButton('export')}
-                            onClick={() => {
-                              if (!canAccessButton('export')) return;
-                              // Prefill export dialog with current active filters (use same stage codes as main filter)
-                              setExportFilters({
-                                dateFrom,
-                                dateTo,
-                                stage: stageFilter || 'all',
-                                brand: brandFilter,
-                                category: categoryFilter,
-                                availableOnly: availableOnly ? 'available' : 'all',
-                              });
-
-                              setExportDialogOpen(true);
-                            }}
-                            sx={{
-                              height: { xs: 34, md: 40 },
-                              px: 1,
-                              fontSize: { xs: '0.62rem', md: '0.65rem' },
-                              fontWeight: 600,
-                              width: "100%",
-                            }}
-                          >
-                            EXPORT
-                          </Button>
-                        </span>
-                      </Tooltip>
-                    )}
-
-                    <Button
-                      variant="outlined"
-                      size="small"
-                      startIcon={<RefreshIcon sx={{ fontSize: 14 }} />}
-                      onClick={() => {
-                        loadInventoryData();
-                        loadMetrics();
-                      }}
-                      sx={{
-                        height: { xs: 34, md: 40 },
-                        px: 1,
-                        fontSize: { xs: '0.62rem', md: '0.65rem' },
-                        fontWeight: 600,
-                        width: "100%",
-                      }}
-                    >
-                      REFRESH
-                    </Button>
-
-                    {/* Available Only - inline in the button grid so it stays on same row */}
-                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', pl: { xs: 0, md: 1 } }}>
-                      <FormControlLabel
-                        control={
-                          <Checkbox
-                            checked={availableOnly}
-                            onChange={(e) => {
-                              setAvailableOnly(e.target.checked);
-                              if (e.target.checked) {
-                                toast.success("Showing available inventory only");
-                              } else {
-                                toast.success("Showing all items");
-                              }
-                              setPage(1);
-                            }}
-                            sx={{
-                              color: "#1e40af",
-                              '&.Mui-checked': {
-                                color: "#1e40af",
-                              },
-                              transform: { xs: 'scale(0.9)', md: 'scale(1)' },
-                              mr: { xs: 0.4, md: 0.8 }
-                            }}
-                          />
-                        }
-                        label={
-                          <Typography sx={{ fontSize: { xs: '0.6rem', md: '0.75rem' }, fontWeight: 600, color: "#424242" }}>
-                            Available Only
-                          </Typography>
-                        }
-                        sx={{ mr: 0 }}
-                      />
-                    </Box>
-
-                  </Box>
-
-                </Box>
-              </Box>
-            </Collapse>
+                    <RestartAltIcon sx={{ fontSize: '1.1rem', mr: { xs: 0, md: 0.5 } }} />
+                    <Box component="span" sx={{ display: { xs: 'none', md: 'inline' } }}>Reset</Box>
+                  </Button>
+                </Tooltip>
+              ) : (
+                <Tooltip title="Open Options Panel">
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={() => {
+                      setSettingsPanelOpen(true);
+                      // ⚡ LAZY LOAD: Load filter options when settings panel opens
+                      if (!filtersLoaded) {
+                        loadFilterOptions();
+                      }
+                    }}
+                    sx={{
+                      height: { xs: 40, md: 42 },
+                      minWidth: { xs: 'auto', md: 100 },
+                      px: { xs: 1.5, md: 2 },
+                      fontSize: "0.75rem",
+                      fontWeight: 600,
+                      whiteSpace: "nowrap",
+                      borderRadius: 2,
+                      flexShrink: 0,
+                      borderColor: isDarkMode ? '#3b82f6' : '#1e40af',
+                      color: isDarkMode ? '#60a5fa' : '#1e40af',
+                      bgcolor: isDarkMode ? 'rgba(59, 130, 246, 0.08)' : 'rgba(30, 64, 175, 0.04)',
+                      borderWidth: 1.5,
+                      "&:hover": {
+                        borderWidth: 1.5,
+                        borderColor: '#3b82f6',
+                        bgcolor: 'rgba(59, 130, 246, 0.12)',
+                      },
+                    }}
+                  >
+                    <MenuIcon sx={{ fontSize: '1.1rem', mr: { xs: 0, md: 0.5 } }} />
+                    <Box component="span" sx={{ display: { xs: 'none', md: 'inline' } }}>Options</Box>
+                  </Button>
+                </Tooltip>
+              )}
+            </Box>
           </Box>
 
 
@@ -3099,72 +2672,109 @@ export default function DashboardPage() {
         </Box>{/* END SCROLLABLE CONTENT AREA */}
       </Box>{/* END MAIN WRAPPER */}
 
-      {/* MOBILE ACTIONS DIALOG (Filters + Actions combined) */}
-      <Dialog fullScreen open={mobileActionsOpen} onClose={() => setMobileActionsOpen(false)}>
-        <AppBar position="sticky" elevation={1} sx={{ bgcolor: isDarkMode ? '#1e293b' : 'background.paper', color: isDarkMode ? '#f1f5f9' : 'text.primary', borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e0e0e0' }}>
-          <Toolbar>
-            <IconButton edge="start" color="inherit" onClick={() => setMobileActionsOpen(false)} aria-label="close">
-              <CloseIcon />
-            </IconButton>
-            <Typography sx={{ ml: 2, flex: 1, fontWeight: 700 }}>Filters & Actions</Typography>
-            <Button color="primary" onClick={() => setMobileActionsOpen(false)}>Close</Button>
-          </Toolbar>
-        </AppBar>
-
-        <DialogContent sx={{
-          p: 2, bgcolor: isDarkMode ? '#0f172a' : 'background.default',
-          // add inside the Filter Bar Box sx: { ... }
-          '& .MuiOutlinedInput-root': {
-            bgcolor: 'transparent !important',
-            boxShadow: 'none !important',
-            '&:hover': { bgcolor: 'transparent !important' },
-            '&.Mui-focused': { bgcolor: 'transparent !important', boxShadow: 'none !important' },
-          },
-          '& .MuiOutlinedInput-input': {
-            background: 'transparent !important',
-          },
-          '& input:-webkit-autofill': {
-            WebkitBoxShadow: '0 0 0 1000px transparent inset',
-            boxShadow: '0 0 0 1000px transparent inset',
-            WebkitTextFillColor: 'inherit',
-          },
-          // Add inside the same sx block where you added previous overrides
-          '& input[type="date"]': {
-            background: 'transparent !important',
-            color: 'inherit !important',
-            WebkitAppearance: 'textfield',
-            MozAppearance: 'textfield',
-            appearance: 'textfield',
-          },
-          '& input[type="date"]::-webkit-calendar-picker-indicator': {
-            WebkitAppearance: 'none',
-            appearance: 'none',
-            background: 'transparent',
-            padding: 0,
-            margin: 0,
-          },
-          '& input[type="date"]::-webkit-datetime-edit-text, & input[type="date"]::-webkit-datetime-edit, & input[type="date"]::-webkit-datetime-edit-month-field, & input[type="date"]::-webkit-datetime-edit-day-field, & input[type="date"]::-webkit-datetime-edit-year-field': {
-            color: 'inherit',
-            background: 'transparent',
-          },
+      {/* ================= SETTINGS PANEL DRAWER ================= */}
+      <Drawer
+        anchor="right"
+        open={settingsPanelOpen}
+        onClose={() => setSettingsPanelOpen(false)}
+        PaperProps={{
+          sx: {
+            width: { xs: '100%', sm: 380 },
+            maxWidth: '100vw',
+            bgcolor: isDarkMode ? '#1e293b' : '#ffffff',
+            borderLeft: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0'
+          }
+        }}
+      >
+        {/* Panel Header */}
+        <Box sx={{
+          p: 2,
+          background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
+          color: 'white',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          position: 'sticky',
+          top: 0,
+          zIndex: 10
         }}>
-          <Stack spacing={2}>
-            {/* Filters */}
-            <Box>
-              <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1, color: isDarkMode ? '#94a3b8' : '#6b7280' }}>
-                🔍 Filters
-              </Typography>
+          <Typography sx={{ fontWeight: 700, fontSize: '1rem' }}>🔍 Filters</Typography>
+          <IconButton size="small" onClick={() => setSettingsPanelOpen(false)} sx={{ color: 'white' }}>
+            <CloseIcon />
+          </IconButton>
+        </Box>
 
+        {/* Panel Content with Accordions */}
+        <Box sx={{ overflow: 'auto', flex: 1 }}>
+
+          {/* ═══════════ FILTERS ACCORDION ═══════════ */}
+          <Accordion
+            expanded={settingsPanelExpanded === 'filters'}
+            onChange={(_, isExpanded) => setSettingsPanelExpanded(isExpanded ? 'filters' : false)}
+            disableGutters
+            sx={{
+              bgcolor: 'transparent',
+              boxShadow: 'none',
+              '&:before': { display: 'none' },
+              borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0'
+            }}
+          >
+            <AccordionSummary
+              expandIcon={<ExpandMoreIcon sx={{ color: isDarkMode ? '#94a3b8' : '#64748b' }} />}
+              sx={{
+                px: 2,
+                minHeight: 56,
+                '&.Mui-expanded': { minHeight: 56 },
+                '& .MuiAccordionSummary-content': { my: 1.5 }
+              }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                <FilterIcon sx={{ color: '#3b82f6', fontSize: 22 }} />
+                <Box>
+                  <Typography sx={{ fontWeight: 700, fontSize: '0.9rem', color: isDarkMode ? '#e2e8f0' : '#1e293b' }}>Filters</Typography>
+                  <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>
+                    {filtersActive ? 'Active filters applied' : 'No filters applied'}
+                  </Typography>
+                </Box>
+              </Box>
+            </AccordionSummary>
+            <AccordionDetails sx={{ px: 2, pb: 2, pt: 0 }}>
               <Stack spacing={1.5}>
-                <TextField
-                  fullWidth
-                  placeholder="Search WSN or Product"
-                  value={searchWSN}
-                  onChange={(e) => { setSearchWSN(e.target.value); }}
-                  size="small"
-                  sx={{ '& .MuiOutlinedInput-root': { height: 40 } }}
-                />
+                {/* Date Filters */}
+                <Box sx={{ display: 'flex', gap: 1 }}>
+                  <TextField
+                    label="From Date"
+                    type="date"
+                    size="small"
+                    InputLabelProps={{ shrink: true }}
+                    value={dateFrom || ''}
+                    onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
+                    fullWidth
+                    sx={{
+                      '& .MuiOutlinedInput-root': {
+                        height: 40,
+                        bgcolor: isDarkMode ? '#0f172a' : '#f8fafc',
+                      }
+                    }}
+                  />
+                  <TextField
+                    label="To Date"
+                    type="date"
+                    size="small"
+                    InputLabelProps={{ shrink: true }}
+                    value={dateTo || ''}
+                    onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
+                    fullWidth
+                    sx={{
+                      '& .MuiOutlinedInput-root': {
+                        height: 40,
+                        bgcolor: isDarkMode ? '#0f172a' : '#f8fafc',
+                      }
+                    }}
+                  />
+                </Box>
 
+                {/* Stage Filter */}
                 <TextField
                   select
                   size="small"
@@ -3172,12 +2782,19 @@ export default function DashboardPage() {
                   value={stageFilter}
                   onChange={(e) => { setStageFilter(e.target.value); setPage(1); }}
                   fullWidth
-                  SelectProps={{ MenuProps: { PaperProps: { style: { maxHeight: 300 } } } }}
-                  sx={{ '& .MuiOutlinedInput-root': { height: 40 } }}
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      height: 40,
+                      bgcolor: isDarkMode ? '#0f172a' : '#f8fafc',
+                    }
+                  }}
                 >
-                  {PIPELINE_STAGES.map((s) => <MenuItem key={s.value} value={s.value}>{s.label}</MenuItem>)}
+                  {PIPELINE_STAGES.map((s) => (
+                    <MenuItem key={s.value} value={s.value}>{s.label}</MenuItem>
+                  ))}
                 </TextField>
 
+                {/* Brand Filter */}
                 <TextField
                   select
                   size="small"
@@ -3185,13 +2802,20 @@ export default function DashboardPage() {
                   value={brandFilter}
                   onChange={(e) => { setBrandFilter(e.target.value); setPage(1); }}
                   fullWidth
-                  SelectProps={{ MenuProps: { PaperProps: { style: { maxHeight: 300 } } } }}
-                  sx={{ '& .MuiOutlinedInput-root': { height: 40 } }}
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      height: 40,
+                      bgcolor: isDarkMode ? '#0f172a' : '#f8fafc',
+                    }
+                  }}
                 >
                   <MenuItem value="">All Brands</MenuItem>
-                  {(categoryFilter ? memoizedFilteredBrands : brands).map((b) => (<MenuItem key={b} value={b}>{b}</MenuItem>))}
+                  {(categoryFilter ? memoizedFilteredBrands : brands).map((b) => (
+                    <MenuItem key={b} value={b}>{b}</MenuItem>
+                  ))}
                 </TextField>
 
+                {/* Category Filter */}
                 <TextField
                   select
                   size="small"
@@ -3199,160 +2823,290 @@ export default function DashboardPage() {
                   value={categoryFilter}
                   onChange={(e) => { setCategoryFilter(e.target.value); setPage(1); }}
                   fullWidth
-                  SelectProps={{ MenuProps: { PaperProps: { style: { maxHeight: 300 } } } }}
-                  sx={{ '& .MuiOutlinedInput-root': { height: 40 } }}
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      height: 40,
+                      bgcolor: isDarkMode ? '#0f172a' : '#f8fafc',
+                    }
+                  }}
                 >
                   <MenuItem value="">All Categories</MenuItem>
-                  {(brandFilter ? filteredCategories : categories).map((c) => (<MenuItem key={c} value={c}>{c}</MenuItem>))}
+                  {(brandFilter ? filteredCategories : categories).map((c) => (
+                    <MenuItem key={c} value={c}>{c}</MenuItem>
+                  ))}
                 </TextField>
 
-                <Box display="flex" gap={1}>
-                  <TextField
-                    label="From Date"
-                    type="date"
-                    size="small"
-                    variant="outlined"
-                    InputLabelProps={{ shrink: true }}
-                    value={dateFrom || ''}
-                    onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
-                    sx={{ flex: 1, '& .MuiOutlinedInput-root': { height: 40 } }}
-                  />
-                  <TextField
-                    label="To Date"
-                    type="date"
-                    size="small"
-                    variant="outlined"
-                    InputLabelProps={{ shrink: true }}
-                    value={dateTo || ''}
-                    onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
-                    sx={{ flex: 1, '& .MuiOutlinedInput-root': { height: 40 } }}
-                  />
-                </Box>
-
+                {/* Available Only Checkbox */}
                 <FormControlLabel
-                  control={<Checkbox checked={availableOnly} onChange={(e) => { setAvailableOnly(e.target.checked); setPage(1); }} />}
-                  label={<Typography sx={{ fontSize: '0.9rem', fontWeight: 600 }}>Available Only</Typography>}
+                  control={
+                    <Checkbox
+                      checked={availableOnly}
+                      onChange={(e) => {
+                        setAvailableOnly(e.target.checked);
+                        if (e.target.checked) {
+                          toast.success("Showing available inventory only");
+                        } else {
+                          toast.success("Showing all items");
+                        }
+                        setPage(1);
+                      }}
+                      sx={{ '&.Mui-checked': { color: '#3b82f6' } }}
+                    />
+                  }
+                  label={
+                    <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>
+                      Available Only
+                    </Typography>
+                  }
                 />
               </Stack>
-            </Box>
+            </AccordionDetails>
+          </Accordion>
 
-            {/* Action Buttons */}
-            <Box>
-              <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1, color: isDarkMode ? '#94a3b8' : '#6b7280' }}>
-                ⚡ Actions
-              </Typography>
+          {/* ═══════════ COLUMNS ACCORDION ═══════════ */}
+          {canSeeButton('columns') && (
+            <Accordion
+              expanded={settingsPanelExpanded === 'columns'}
+              onChange={(_, isExpanded) => setSettingsPanelExpanded(isExpanded ? 'columns' : false)}
+              disableGutters
+              sx={{
+                bgcolor: 'transparent',
+                boxShadow: 'none',
+                '&:before': { display: 'none' },
+                borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0'
+              }}
+            >
+              <AccordionSummary
+                expandIcon={<ExpandMoreIcon sx={{ color: isDarkMode ? '#94a3b8' : '#64748b' }} />}
+                sx={{
+                  px: 2,
+                  minHeight: 56,
+                  '&.Mui-expanded': { minHeight: 56 },
+                  '& .MuiAccordionSummary-content': { my: 1.5 }
+                }}
+              >
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                  <ViewColumnIcon sx={{ color: '#10b981', fontSize: 22 }} />
+                  <Box>
+                    <Typography sx={{ fontWeight: 700, fontSize: '0.9rem', color: isDarkMode ? '#e2e8f0' : '#1e293b' }}>Columns</Typography>
+                    <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>
+                      {visibleColumns.length} of {ALL_COLUMNS.length} visible
+                    </Typography>
+                  </Box>
+                </Box>
+              </AccordionSummary>
+              <AccordionDetails sx={{ px: 2, pb: 2, pt: 0 }}>
+                {!canAccessButton('columns') ? (
+                  <Alert severity="warning" sx={{ fontSize: '0.8rem' }}>
+                    You don't have permission to manage columns
+                  </Alert>
+                ) : (
+                  <Box sx={{ maxHeight: 280, overflow: 'auto', pr: 1 }}>
+                    <Stack spacing={0.5}>
+                      {ALL_COLUMNS.map((col) => (
+                        <FormControlLabel
+                          key={col}
+                          control={
+                            <Checkbox
+                              size="small"
+                              checked={visibleColumns.includes(col)}
+                              onChange={() => toggleColumn(col)}
+                              sx={{ py: 0.25, '&.Mui-checked': { color: '#10b981' } }}
+                            />
+                          }
+                          label={
+                            <Typography sx={{ fontSize: '0.8rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>
+                              {col.replace(/_/g, ' ').toUpperCase()}
+                            </Typography>
+                          }
+                          sx={{ m: 0 }}
+                        />
+                      ))}
+                    </Stack>
+                  </Box>
+                )}
+              </AccordionDetails>
+            </Accordion>
+          )}
 
-              <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 1 }}>
+          {/* ═══════════ GRID SETTINGS ACCORDION ═══════════ */}
+          <Accordion
+            expanded={settingsPanelExpanded === 'grid'}
+            onChange={(_, isExpanded) => setSettingsPanelExpanded(isExpanded ? 'grid' : false)}
+            disableGutters
+            sx={{
+              bgcolor: 'transparent',
+              boxShadow: 'none',
+              '&:before': { display: 'none' },
+              borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0'
+            }}
+          >
+            <AccordionSummary
+              expandIcon={<ExpandMoreIcon sx={{ color: isDarkMode ? '#94a3b8' : '#64748b' }} />}
+              sx={{
+                px: 2,
+                minHeight: 56,
+                '&.Mui-expanded': { minHeight: 56 },
+                '& .MuiAccordionSummary-content': { my: 1.5 }
+              }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                <TableChartIcon sx={{ color: '#f59e0b', fontSize: 22 }} />
+                <Box>
+                  <Typography sx={{ fontWeight: 700, fontSize: '0.9rem', color: isDarkMode ? '#e2e8f0' : '#1e293b' }}>Grid Settings</Typography>
+                  <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>Sorting, filtering, resize</Typography>
+                </Box>
+              </Box>
+            </AccordionSummary>
+            <AccordionDetails sx={{ px: 2, pb: 2, pt: 0 }}>
+              <Stack spacing={1.5}>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={enableSorting}
+                      onChange={(e) => setEnableSorting(e.target.checked)}
+                      sx={{ '&.Mui-checked': { color: '#f59e0b' } }}
+                    />
+                  }
+                  label={
+                    <Box>
+                      <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>⬆️ Enable Sorting</Typography>
+                      <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>Click headers to sort</Typography>
+                    </Box>
+                  }
+                />
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={enableColumnFilters}
+                      onChange={(e) => setEnableColumnFilters(e.target.checked)}
+                      sx={{ '&.Mui-checked': { color: '#f59e0b' } }}
+                    />
+                  }
+                  label={
+                    <Box>
+                      <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>🔍 Enable Filtering</Typography>
+                      <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>Filter in column headers</Typography>
+                    </Box>
+                  }
+                />
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={enableColumnResize}
+                      onChange={(e) => setEnableColumnResize(e.target.checked)}
+                      sx={{ '&.Mui-checked': { color: '#f59e0b' } }}
+                    />
+                  }
+                  label={
+                    <Box>
+                      <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>↔️ Column Resize</Typography>
+                      <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>Drag borders to resize</Typography>
+                    </Box>
+                  }
+                />
                 <Button
+                  size="small"
+                  onClick={() => {
+                    setEnableSorting(true);
+                    setEnableColumnFilters(true);
+                    setEnableColumnResize(true);
+                    toast.success('Grid settings reset');
+                  }}
+                  sx={{ alignSelf: 'flex-start', fontSize: '0.75rem', color: isDarkMode ? '#94a3b8' : '#64748b' }}
+                >
+                  🔄 Reset to Default
+                </Button>
+              </Stack>
+            </AccordionDetails>
+          </Accordion>
+
+          {/* ═══════════ ACTIONS SECTION ═══════════ */}
+          <Box sx={{ p: 2, borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0' }}>
+            <Typography sx={{ fontWeight: 700, fontSize: '0.8rem', color: isDarkMode ? '#94a3b8' : '#64748b', mb: 1.5, textTransform: 'uppercase' }}>
+              Actions
+            </Typography>
+            <Stack spacing={1}>
+              {canSeeButton('export') && (
+                <Tooltip title={!canAccessButton('export') ? "You don't have permission to use this feature" : ""} arrow>
+                  <span style={{ width: '100%' }}>
+                    <Button
+                      fullWidth
+                      variant="contained"
+                      startIcon={<DownloadIcon />}
+                      disabled={!canAccessButton('export')}
+                      onClick={() => {
+                        if (!canAccessButton('export')) return;
+                        setExportFilters({
+                          dateFrom,
+                          dateTo,
+                          stage: stageFilter || 'all',
+                          brand: brandFilter,
+                          category: categoryFilter,
+                          availableOnly: availableOnly ? 'available' : 'all',
+                        });
+                        setExportDialogOpen(true);
+                        setSettingsPanelOpen(false);
+                      }}
+                      sx={{
+                        height: 44,
+                        background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                        fontWeight: 600,
+                        '&:hover': { background: 'linear-gradient(135deg, #059669 0%, #047857 100%)' },
+                        '&.Mui-disabled': { background: '#94a3b8' }
+                      }}
+                    >
+                      Export to Excel
+                    </Button>
+                  </span>
+                </Tooltip>
+              )}
+
+              <Button
+                fullWidth
+                variant="outlined"
+                startIcon={loading ? <CircularProgress size={16} /> : <RefreshIcon />}
+                disabled={loading}
+                onClick={() => {
+                  loadInventoryData();
+                  loadMetrics();
+                  setSettingsPanelOpen(false);
+                }}
+                sx={{
+                  height: 44,
+                  fontWeight: 600,
+                  borderColor: '#3b82f6',
+                  color: '#3b82f6',
+                  '&:hover': { borderColor: '#2563eb', bgcolor: 'rgba(59, 130, 246, 0.08)' }
+                }}
+              >
+                {loading ? 'Refreshing...' : 'Refresh Data'}
+              </Button>
+
+              {filtersActive && (
+                <Button
+                  fullWidth
                   variant="outlined"
                   startIcon={<RestartAltIcon />}
-                  onClick={resetFilters}
-                  sx={{ height: 44, fontSize: '0.85rem' }}
+                  onClick={() => {
+                    resetFilters();
+                    setSettingsPanelOpen(false);
+                  }}
+                  sx={{
+                    height: 44,
+                    fontWeight: 600,
+                    borderColor: '#f59e0b',
+                    color: '#f59e0b',
+                    '&:hover': { borderColor: '#d97706', bgcolor: 'rgba(245, 158, 11, 0.08)' }
+                  }}
                 >
-                  Clear
+                  Reset All Filters
                 </Button>
-
-                {canSeeButton('columns') && (
-                  <Tooltip title={!canAccessButton('columns') ? "You don't have permission to use this feature" : ""} arrow>
-                    <span style={{ width: '100%' }}>
-                      <Button
-                        variant="outlined"
-                        startIcon={<SettingsIcon />}
-                        disabled={!canAccessButton('columns')}
-                        onClick={() => { if (canAccessButton('columns')) { setColumnDialogOpen(true); setMobileActionsOpen(false); } }}
-                        sx={{ height: 44, fontSize: '0.85rem', width: '100%' }}
-                      >
-                        Columns
-                      </Button>
-                    </span>
-                  </Tooltip>
-                )}
-
-                <Button
-                  variant="outlined"
-                  startIcon={<TuneIcon />}
-                  onClick={() => { setGridSettingsOpen(true); setMobileActionsOpen(false); }}
-                  sx={{ height: 44, fontSize: '0.85rem' }}
-                >
-                  Grid
-                </Button>
-
-                {canSeeButton('export') && (
-                  <Tooltip title={!canAccessButton('export') ? "You don't have permission to use this feature" : ""} arrow>
-                    <span style={{ width: '100%' }}>
-                      <Button
-                        variant="outlined"
-                        startIcon={<DownloadIcon />}
-                        disabled={!canAccessButton('export')}
-                        onClick={() => {
-                          if (!canAccessButton('export')) return;
-                          setExportFilters({ dateFrom, dateTo, stage: stageFilter || 'all', brand: brandFilter, category: categoryFilter, availableOnly: availableOnly ? 'available' : 'all' });
-                          setExportDialogOpen(true);
-                          setMobileActionsOpen(false);
-                        }}
-                        sx={{ height: 44, fontSize: '0.85rem', width: '100%' }}
-                      >
-                        Export
-                      </Button>
-                    </span>
-                  </Tooltip>
-                )}
-
-                <Button
-                  variant="outlined"
-                  startIcon={loading ? <CircularProgress size={14} /> : <RefreshIcon />}
-                  onClick={() => loadInventoryData()}
-                  disabled={loading}
-                  sx={{ height: 44, fontSize: '0.85rem', gridColumn: 'span 2' }}
-                >
-                  {loading ? 'Refreshing...' : 'Refresh'}
-                </Button>
-              </Box>
-            </Box>
-          </Stack>
-        </DialogContent>
-
-        <Box sx={{ position: 'sticky', bottom: 0, left: 0, right: 0, bgcolor: isDarkMode ? '#1e293b' : 'background.paper', p: 2, borderTop: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e0e0e0', display: 'flex', gap: 1 }}>
-          <Button
-            fullWidth
-            variant="outlined"
-            onClick={() => {
-              // ⚡ Set flag to show overlay spinner when data reloads
-              forceOverlayRef.current = true;
-              setLoading(true);
-              setMobileActionsOpen(false);
-              // Clear all filters
-              setSearchWSN('');
-              setDateFrom('');
-              setDateTo('');
-              setStageFilter('all');
-              setBrandFilter('');
-              setCategoryFilter('');
-              setAvailableOnly(false);
-              setPage(1);
-              // useEffect will detect filter changes and call loadInventoryData
-            }}
-            sx={{ height: 48 }}
-          >
-            Reset Filters
-          </Button>
-          <Button
-            fullWidth
-            variant="contained"
-            onClick={() => {
-              // ⚡ Set flag to show overlay spinner when data reloads
-              forceOverlayRef.current = true;
-              setLoading(true);
-              setPage(1);
-              setMobileActionsOpen(false);
-              // useEffect will detect changes and call loadInventoryData
-            }}
-            sx={{ height: 48 }}
-          >
-            Apply
-          </Button>
+              )}
+            </Stack>
+          </Box>
         </Box>
-      </Dialog>
+      </Drawer>
 
       {/* EXPORT DIALOG */}
       <Dialog
