@@ -524,7 +524,7 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
         )
         : drilldownData;
 
-    const drawerWidth = isMobile ? '100%' : 900;
+    const drawerWidth = isMobile ? '100%' : '50%'; // Full screen on mobile, half on desktop
 
     const groupByOptions = [
         { value: 'cms_vertical', label: 'Category' },
