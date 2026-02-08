@@ -26,6 +26,7 @@ import { masterDataAPI } from '@/lib/api';
 import AppLayout from '@/components/AppLayout';
 import { BatchManagementTab, StandardPageHeader } from '@/components';
 import { useWarehouse } from '@/app/context/WarehouseContext';
+import { useTableRowHeight } from '@/app/context/AppearanceContext';
 // ⚡ OPTIMIZED: XLSX loaded dynamically on export to reduce bundle size
 // import * as XLSX from 'xlsx'; // Removed - loaded dynamically
 import { useMasterDataPermissions } from '@/hooks/usePagePermissions';
@@ -365,6 +366,9 @@ export default function MasterDataPage() {
   // Warehouse context
   const { activeWarehouse } = useWarehouse();
 
+  // Table row height from appearance settings
+  const tableRowHeight = useTableRowHeight();
+
   // Permission hook
   const { filterTabs, canSeeTab, canSeeButton, canAccessButton, isAdmin, isLoading: permLoading } = useMasterDataPermissions();
 
@@ -376,6 +380,7 @@ export default function MasterDataPage() {
   const [batches, setBatches] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [showLoadingOverlay, setShowLoadingOverlay] = useState(false);
+  const [gridDataRendered, setGridDataRendered] = useState(false);
   // Local refresh button state (non-blocking refresh)
   const [refreshing, setRefreshing] = useState(false);
   const [refreshSuccess, setRefreshSuccess] = useState(false);
@@ -509,10 +514,7 @@ export default function MasterDataPage() {
     filter: !!enableColumnFilters,
     editable: !!enableCellEditing,
     tooltipComponentParams: { color: '#ececec' },
-
-    // Disable wrapping of header text
-    wrapHeaderText: false,
-    autoHeaderHeight: false,
+    cellStyle: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   }), [enableSorting, enableColumnFilters, enableColumnResize, enableCellEditing]);
 
   const columns = [
@@ -551,8 +553,10 @@ export default function MasterDataPage() {
     // Add flex for columns that should expand (like product_title)
     if (colConfig.flex) {
       sizing.flex = colConfig.flex;
+      sizing.minWidth = isMobile ? 150 : 250;
     } else {
       sizing.width = isMobile ? Math.max(70, Math.round(colConfig.width * 0.7)) : colConfig.width;
+      sizing.minWidth = Math.max(60, isMobile ? 50 : 80);
     }
 
     return sizing;
@@ -566,7 +570,8 @@ export default function MasterDataPage() {
       headerName: 'SR.NO',
       field: '__sr',
       valueGetter: (params: any) => params.node ? page * rowsPerPage + params.node.rowIndex + 1 : undefined,
-      width: 80,
+      width: 20,
+      minWidth: 40,
       maxWidth: 100,
       suppressMovable: true,
       sortable: false,
@@ -2252,74 +2257,101 @@ export default function MasterDataPage() {
                         </Box>
                       )}
 
-                      {/* Full Loading Overlay - ONLY for initial load when no data exists */}
-                      {loading && (!masterData || masterData.length === 0) && (
+                      {/* Full Loading Overlay - shows during initial load OR while columns are being sized */}
+                      {(!gridDataRendered || (loading && (!masterData || masterData.length === 0))) && (
                         <Box sx={{
                           position: 'absolute',
                           top: 0,
                           left: 0,
                           right: 0,
                           bottom: 0,
+                          bgcolor: isDarkMode ? '#1e293b' : '#ffffff',
+                          zIndex: 100,
                           display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          backgroundColor: isDarkMode ? 'rgba(15, 23, 42, 0.9)' : 'rgba(255, 255, 255, 0.9)',
-                          backdropFilter: 'blur(3px)',
-                          zIndex: 10,
+                          flexDirection: 'column',
+                          borderRadius: '4px',
+                          overflow: 'hidden',
+                          border: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(0,0,0,0.06)',
                         }}>
+                          {/* Static header row that matches AG Grid header exactly */}
                           <Box sx={{
                             display: 'flex',
-                            flexDirection: 'column',
                             alignItems: 'center',
-                            gap: 3,
-                            p: 4,
-                            bgcolor: isDarkMode ? '#1e293b' : 'white',
-                            borderRadius: 3,
-                            boxShadow: isDarkMode ? '0 8px 24px rgba(0,0,0,0.4)' : '0 8px 24px rgba(0,0,0,0.12)'
+                            height: 32,
+                            bgcolor: '#1e3a5f',
+                            borderBottom: isDarkMode ? '2px solid #10b981' : '2px solid #059669',
+                            borderRadius: '4px 4px 0 0',
                           }}>
-                            <Box sx={{ position: 'relative' }}>
-                              <CircularProgress
-                                size={56}
-                                thickness={3.5}
-                                sx={{
-                                  color: '#1e40af',
-                                  filter: 'drop-shadow(0 2px 8px rgba(25, 118, 210, 0.2))'
-                                }}
-                              />
-                              <Box sx={{
-                                position: 'absolute',
-                                top: '50%',
-                                left: '50%',
-                                transform: 'translate(-50%, -50%)',
-                                width: 44,
-                                height: 44,
-                                borderRadius: '50%',
-                                background: 'linear-gradient(135deg, #1e40af 0%, #60a5fa 100%)',
-                                opacity: 0.15,
-                                animation: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-                                '@keyframes pulse': {
-                                  '0%, 100%': {
-                                    transform: 'translate(-50%, -50%) scale(1)',
-                                    opacity: 0.15
-                                  },
-                                  '50%': {
-                                    transform: 'translate(-50%, -50%) scale(1.15)',
-                                    opacity: 0.05
+                            <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: '#ffffff', minWidth: 50, textTransform: 'uppercase', letterSpacing: '0.02em', px: 1.5, borderRight: '1px solid #3b5998' }}>SR.NO</Typography>
+                            <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: '#ffffff', minWidth: 100, textTransform: 'uppercase', letterSpacing: '0.02em', px: 1.5, borderRight: '1px solid #3b5998' }}>WSN</Typography>
+                            <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: '#ffffff', minWidth: 80, textTransform: 'uppercase', letterSpacing: '0.02em', px: 1.5, borderRight: '1px solid #3b5998' }}>WID</Typography>
+                            <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: '#ffffff', minWidth: 100, textTransform: 'uppercase', letterSpacing: '0.02em', px: 1.5, borderRight: '1px solid #3b5998' }}>FSN</Typography>
+                            <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: '#ffffff', flex: 1, textTransform: 'uppercase', letterSpacing: '0.02em', px: 1.5, borderRight: '1px solid #3b5998' }}>PRODUCT TITLE</Typography>
+                            <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: '#ffffff', minWidth: 80, textTransform: 'uppercase', letterSpacing: '0.02em', px: 1.5, borderRight: '1px solid #3b5998' }}>BRAND</Typography>
+                            <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: '#ffffff', minWidth: 100, textTransform: 'uppercase', letterSpacing: '0.02em', px: 1.5 }}>CATEGORY</Typography>
+                          </Box>
+                          {/* Loading body area with centered spinner */}
+                          <Box sx={{
+                            flex: 1,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            bgcolor: isDarkMode ? '#1e293b' : '#ffffff',
+                          }}>
+                            <Box sx={{
+                              display: 'flex',
+                              flexDirection: 'column',
+                              alignItems: 'center',
+                              gap: 3,
+                              p: 4,
+                              bgcolor: isDarkMode ? '#1e293b' : 'white',
+                              borderRadius: 3,
+                              boxShadow: isDarkMode ? '0 8px 32px rgba(0,0,0,0.4)' : '0 8px 24px rgba(0,0,0,0.12)'
+                            }}>
+                              <Box sx={{ position: 'relative' }}>
+                                <CircularProgress
+                                  size={56}
+                                  thickness={3.5}
+                                  sx={{
+                                    color: '#1e40af',
+                                    filter: 'drop-shadow(0 2px 8px rgba(25, 118, 210, 0.2))'
+                                  }}
+                                />
+                                <Box sx={{
+                                  position: 'absolute',
+                                  top: '50%',
+                                  left: '50%',
+                                  transform: 'translate(-50%, -50%)',
+                                  width: 44,
+                                  height: 44,
+                                  borderRadius: '50%',
+                                  background: 'linear-gradient(135deg, #1e40af 0%, #60a5fa 100%)',
+                                  opacity: 0.15,
+                                  animation: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                                  '@keyframes pulse': {
+                                    '0%, 100%': {
+                                      transform: 'translate(-50%, -50%) scale(1)',
+                                      opacity: 0.15
+                                    },
+                                    '50%': {
+                                      transform: 'translate(-50%, -50%) scale(1.15)',
+                                      opacity: 0.05
+                                    }
                                   }
-                                }
-                              }} />
+                                }} />
+                              </Box>
+                              <Typography
+                                sx={{
+                                  fontSize: '0.95rem',
+                                  fontWeight: 500,
+                                  color: isDarkMode ? '#94a3b8' : '#546e7a',
+                                  letterSpacing: 0.3,
+                                  textAlign: 'center'
+                                }}
+                              >
+                                Loading data...
+                              </Typography>
                             </Box>
-                            <Typography
-                              sx={{
-                                fontSize: '0.95rem',
-                                fontWeight: 500,
-                                color: isDarkMode ? '#94a3b8' : '#546e7a',
-                                letterSpacing: 0.3,
-                                textAlign: 'center'
-                              }}
-                            >
-                              Loading data...
-                            </Typography>
                           </Box>
                         </Box>
                       )}
@@ -2363,25 +2395,21 @@ export default function MasterDataPage() {
                         </Box>
                       )}
 
-                      <Box sx={{
-                        flex: 1,
-                        overflow: 'hidden',
-                        px: 1,
-                        pb: 1,
-                        display: 'flex',
-                        flexDirection: 'column',
+                      <Box className="ag-theme-quartz" sx={{
+                        height: '100%',
+                        width: '100%',
                         bgcolor: isDarkMode ? '#1e293b' : '#ffffff',
-                        border: isDarkMode ? '1px solid #475569' : '1px solid #d1d5db',
-                        borderRadius: '4px',
+                        border: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(0,0,0,0.06)',
+                        borderRadius: '12px',
+                        overflow: 'hidden',
                         '& .ag-root-wrapper': {
-                          height: '100%',
                           backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
                           border: 'none',
                         },
                         '& .ag-header': {
-                          backgroundColor: isDarkMode ? '#334155 !important' : '#f8fafc !important',
-                          borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.1) !important' : '1px solid rgba(0,0,0,0.08) !important',
-                          fontWeight: 600,
+                          backgroundColor: '#1e3a5f !important',
+                          borderBottom: isDarkMode ? '2px solid #10b981' : '2px solid #059669',
+                          fontWeight: 700,
                           opacity: '1 !important',
                           zIndex: 15,
                           position: 'relative'
@@ -2389,53 +2417,75 @@ export default function MasterDataPage() {
                         '& .ag-header-cell': {
                           padding: '0 12px',
                           opacity: '1 !important',
-                          fontWeight: 600,
-                          letterSpacing: '0.01em',
-                          backgroundColor: isDarkMode ? '#334155 !important' : 'transparent !important',
-                          color: isDarkMode ? '#f1f5f9 !important' : 'inherit',
+                          fontWeight: 700,
+                          fontSize: '0.75rem',
+                          backgroundColor: '#1e3a5f !important',
+                          color: '#ffffff !important',
+                          borderRight: '1px solid #3b5998',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.02em',
+                        },
+                        '& .ag-header-cell:last-child': {
+                          borderRight: 'none',
+                        },
+                        '& .ag-header-row': {
+                          backgroundColor: '#1e3a5f !important',
+                        },
+                        '& .ag-header-viewport': {
+                          backgroundColor: '#1e3a5f !important',
+                        },
+                        '& .ag-header-container': {
+                          backgroundColor: '#1e3a5f !important',
+                        },
+                        '& .ag-header-cell-label': {
+                          color: '#ffffff !important',
+                        },
+                        '& .ag-header-cell-text': {
+                          color: '#ffffff !important',
+                        },
+                        '& .ag-icon': {
+                          color: '#94a3b8 !important',
                         },
                         '& .ag-body-viewport': {
                           opacity: loading ? 0.3 : 1,
                           transition: 'opacity 0.2s ease-in-out',
+                          backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
+                        },
+                        '& .ag-center-cols-viewport': {
+                          backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
+                        },
+                        '& .ag-center-cols-container': {
+                          backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
+                        },
+                        '& .ag-body': {
+                          backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
                         },
                         '& .ag-row': {
-                          height: '44px !important',
-                          overflow: 'visible',
-                          transition: 'background-color 0.15s ease',
-                          borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.06) !important' : '1px solid rgba(0,0,0,0.06) !important',
+                          borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.06)' : '1px solid rgba(0,0,0,0.06)',
                         },
                         '& .ag-row-even': {
-                          backgroundColor: isDarkMode ? '#1a2536 !important' : '#ffffff !important',
+                          backgroundColor: isDarkMode ? '#1a2536' : '#ffffff',
                         },
                         '& .ag-row-odd': {
-                          backgroundColor: isDarkMode ? '#1e293b !important' : 'rgba(248,250,252,0.5) !important',
+                          backgroundColor: isDarkMode ? '#1e293b' : 'rgba(248,250,252,0.5)',
                         },
                         '& .ag-cell': {
                           display: 'flex',
                           alignItems: 'center',
-                          lineHeight: '44px !important',
-                          fontSize: '0.875rem !important',
-                          padding: '0 12px !important',
-                          color: isDarkMode ? '#f1f5f9 !important' : 'inherit',
-                          borderRight: 'none !important',
+                          fontSize: '0.875rem',
+                          padding: '0 12px',
+                          color: isDarkMode ? '#f1f5f9' : 'inherit',
                         },
                         '& .ag-cell-focus': {
                           border: '2px solid #1e40af !important',
                           boxSizing: 'border-box',
                           outline: 'none'
                         },
-                        // Actions column - no focus border
-                        '& .ag-cell[col-id="actions"].ag-cell-focus': {
-                          border: 'none !important',
-                          boxShadow: 'none !important',
-                          outline: 'none !important',
-                        },
                         '& .ag-cell-range-selected': {
                           backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.2) !important' : 'rgba(30,64,175,0.08) !important',
                         },
                         '& .ag-row-hover': {
                           backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.15) !important' : 'rgba(30,64,175,0.04) !important',
-                          transition: 'background-color 0.1s ease'
                         },
                         '& .ag-overlay-loading-wrapper': {
                           backgroundColor: isDarkMode ? 'rgba(30, 41, 59, 0.9)' : 'rgba(255, 255, 255, 0.9)',
@@ -2444,117 +2494,117 @@ export default function MasterDataPage() {
                           backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
                         },
                       }}>
-                        <div className="ag-theme-quartz" style={{ height: '100%', width: '100%' }}>
-                          <AgGridReact
-                            ref={gridRef}
-                            rowData={masterData}
-                            columnDefs={columnDefs}
-                            defaultColDef={defaultColDef}
-                            rowSelection={{ mode: 'singleRow', checkboxes: false, enableClickSelection: true }}
-                            loading={false}
-                            suppressNoRowsOverlay={true}
-                            context={{
-                              onEdit: handleOpenEditDialog,
-                              onDelete: handleOpenDeleteConfirm,
-                              onPrint: handlePrintWSN,
-                              agentReady,
-                              canSeeButton,
-                              canAccessButton,
-                              isAdmin
-                            }}
-                            getRowId={(params: any) => String(params.data?.id || params.data?.wsn || params.rowIndex)}
-                            onGridReady={(params: any) => {
-                              gridRef.current = params.api;
-                              columnApiRef.current = params.columnApi;
+                        <AgGridReact
+                          ref={gridRef}
+                          rowData={masterData}
+                          columnDefs={columnDefs}
+                          defaultColDef={defaultColDef}
+                          rowSelection={{ mode: 'singleRow', checkboxes: false, enableClickSelection: true }}
+                          loading={false}
+                          suppressNoRowsOverlay={true}
+                          context={{
+                            onEdit: handleOpenEditDialog,
+                            onDelete: handleOpenDeleteConfirm,
+                            onPrint: handlePrintWSN,
+                            agentReady,
+                            canSeeButton,
+                            canAccessButton,
+                            isAdmin
+                          }}
+                          getRowId={(params: any) => String(params.data?.id || params.data?.wsn || params.rowIndex)}
+                          onGridReady={(params: any) => {
+                            gridRef.current = params.api;
+                            columnApiRef.current = params.columnApi;
 
-                              // Load saved column state from localStorage
+                            // Load saved column state from localStorage
+                            try {
+                              const savedState = localStorage.getItem('masterdata_grid_state');
+                              if (savedState && params.api) {
+                                // Apply saved column state (user's custom widths)
+                                params.api.applyColumnState({
+                                  state: JSON.parse(savedState),
+                                  applyOrder: true,
+                                });
+                                hasAutoFittedRef.current = true; // Mark as fitted
+                                console.log('Column state restored from localStorage');
+                              } else {
+                                // No saved state - hide columns based on columnVisibility
+                                const allColIds = params.api.getColumns()?.map((c: any) => c.getColId()) || [];
+                                allColIds.forEach((colId: string) => {
+                                  if (colId === '__sr' || colId === 'actions') return;
+                                  const shouldShow = columnVisibility[colId as keyof typeof columnVisibility] ?? false;
+                                  params.api.setColumnsVisible([colId], shouldShow);
+                                });
+                              }
+                            } catch (err) {
+                              console.error('Failed to restore column state:', err);
+                            }
+                          }}
+                          onFirstDataRendered={(params: any) => {
+                            // Auto-size columns on first load if no saved state
+                            if (!hasAutoFittedRef.current && params.api) {
                               try {
-                                const savedState = localStorage.getItem('masterdata_grid_state');
-                                if (savedState && params.api) {
-                                  // Apply saved column state (user's custom widths)
-                                  params.api.applyColumnState({
-                                    state: JSON.parse(savedState),
-                                    applyOrder: true,
-                                  });
-                                  hasAutoFittedRef.current = true; // Mark as fitted
-                                  console.log('Column state restored from localStorage');
-                                } else {
-                                  // No saved state - hide columns based on columnVisibility
-                                  const allColIds = params.api.getColumns()?.map((c: any) => c.getColId()) || [];
-                                  allColIds.forEach((colId: string) => {
-                                    if (colId === '__sr' || colId === 'actions') return;
-                                    const shouldShow = columnVisibility[colId as keyof typeof columnVisibility] ?? false;
-                                    params.api.setColumnsVisible([colId], shouldShow);
-                                  });
+                                const allColIds = params.api.getColumns()
+                                  ?.filter((col: any) => col.getColId() !== 'actions')
+                                  .map((col: any) => col.getColId()) || [];
+                                if (allColIds.length > 0) {
+                                  params.api.autoSizeColumns(allColIds);
                                 }
+                                hasAutoFittedRef.current = true;
+                              } catch { /* ignore */ }
+                            }
+                            // Mark grid as rendered
+                            requestAnimationFrame(() => setGridDataRendered(true));
+                          }}
+                          onColumnResized={(params: any) => {
+                            // Save column state when resized to localStorage
+                            if (params.finished && params.api) {
+                              try {
+                                const columnState = params.api.getColumnState();
+                                localStorage.setItem('masterdata_grid_state', JSON.stringify(columnState));
                               } catch (err) {
-                                console.error('Failed to restore column state:', err);
+                                console.error('Failed to save column state:', err);
                               }
-                            }}
-                            onFirstDataRendered={(params: any) => {
-                              // Auto-size columns on first load if no saved state
-                              if (!hasAutoFittedRef.current && params.api) {
-                                try {
-                                  const allColIds = params.api.getColumns()
-                                    ?.filter((col: any) => col.getColId() !== 'actions')
-                                    .map((col: any) => col.getColId()) || [];
-                                  if (allColIds.length > 0) {
-                                    params.api.autoSizeColumns(allColIds);
-                                  }
-                                  hasAutoFittedRef.current = true;
-                                } catch { /* ignore */ }
+                            }
+                          }}
+                          onColumnMoved={(params: any) => {
+                            // Save column state when moved to localStorage
+                            if (params.finished && params.api) {
+                              try {
+                                const columnState = params.api.getColumnState();
+                                localStorage.setItem('masterdata_grid_state', JSON.stringify(columnState));
+                              } catch (err) {
+                                console.error('Failed to save column state:', err);
                               }
-                            }}
-                            onColumnResized={(params: any) => {
-                              // Save column state when resized to localStorage
-                              if (params.finished && params.api) {
-                                try {
-                                  const columnState = params.api.getColumnState();
-                                  localStorage.setItem('masterdata_grid_state', JSON.stringify(columnState));
-                                } catch (err) {
-                                  console.error('Failed to save column state:', err);
-                                }
+                            }
+                          }}
+                          onColumnVisible={(params: any) => {
+                            // Save column state when visibility changes to localStorage
+                            if (params.api) {
+                              try {
+                                const columnState = params.api.getColumnState();
+                                localStorage.setItem('masterdata_grid_state', JSON.stringify(columnState));
+                              } catch (err) {
+                                console.error('Failed to save column visibility state:', err);
                               }
-                            }}
-                            onColumnMoved={(params: any) => {
-                              // Save column state when moved to localStorage
-                              if (params.finished && params.api) {
-                                try {
-                                  const columnState = params.api.getColumnState();
-                                  localStorage.setItem('masterdata_grid_state', JSON.stringify(columnState));
-                                } catch (err) {
-                                  console.error('Failed to save column state:', err);
-                                }
-                              }
-                            }}
-                            onColumnVisible={(params: any) => {
-                              // Save column state when visibility changes to localStorage
-                              if (params.api) {
-                                try {
-                                  const columnState = params.api.getColumnState();
-                                  localStorage.setItem('masterdata_grid_state', JSON.stringify(columnState));
-                                } catch (err) {
-                                  console.error('Failed to save column visibility state:', err);
-                                }
-                              }
-                            }}
-                            animateRows={false}
-                            // ⚡ PERFORMANCE: Optimizations for smooth fast scrolling
-                            rowBuffer={100}
-                            suppressRowTransform={true}
-                            suppressAnimationFrame={true}
-                            alwaysShowVerticalScroll={true}
-                            valueCache={true}
-                            debounceVerticalScrollbar={true}
-                            suppressScrollOnNewData={true}
-                            maintainColumnOrder={true}
-                            rowHeight={36}
-                            headerHeight={isMobile ? 40 : 48}
-                            pagination={false}
-                            suppressPaginationPanel={true}
-                            domLayout="normal"
-                          />
-                        </div>
+                            }
+                          }}
+                          animateRows={false}
+                          // ⚡ PERFORMANCE: Optimizations for smooth fast scrolling
+                          rowBuffer={100}
+                          suppressRowTransform={true}
+                          suppressAnimationFrame={true}
+                          alwaysShowVerticalScroll={true}
+                          valueCache={true}
+                          debounceVerticalScrollbar={true}
+                          suppressScrollOnNewData={true}
+                          maintainColumnOrder={true}
+                          ensureDomOrder={true}
+                          enableCellTextSelection={true}
+                          containerStyle={{ height: '100%', width: '100%' }}
+                          rowHeight={tableRowHeight}
+                          headerHeight={35}
+                        />
                       </Box>
 
                       {/* ================= PAGINATION (DASHBOARD STYLE - FULLY RESPONSIVE) ================= */}

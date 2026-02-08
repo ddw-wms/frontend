@@ -3648,18 +3648,16 @@ export default function PickingPage() {
                   <Box sx={{
                     display: 'flex',
                     alignItems: 'center',
-                    height: 35,
-                    px: 1.5,
-                    gap: 2,
+                    height: 32,
                     bgcolor: '#1e3a5f',
                     borderBottom: isDarkMode ? '2px solid #10b981' : '2px solid #059669',
                   }}>
-                    <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: '#ffffff', minWidth: 50, textTransform: 'uppercase', letterSpacing: '0.02em' }}>SR.NO</Typography>
-                    <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: '#ffffff', minWidth: 100, textTransform: 'uppercase', letterSpacing: '0.02em' }}>WSN</Typography>
-                    <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: '#ffffff', minWidth: 100, textTransform: 'uppercase', letterSpacing: '0.02em' }}>CUSTOMER</Typography>
-                    <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: '#ffffff', flex: 1, textTransform: 'uppercase', letterSpacing: '0.02em' }}>PRODUCT TITLE</Typography>
-                    <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: '#ffffff', minWidth: 80, textTransform: 'uppercase', letterSpacing: '0.02em' }}>BRAND</Typography>
-                    <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: '#ffffff', minWidth: 100, textTransform: 'uppercase', letterSpacing: '0.02em' }}>CATEGORY</Typography>
+                    <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: '#ffffff', minWidth: 50, textTransform: 'uppercase', letterSpacing: '0.02em', px: 1.5, borderRight: '1px solid #3b5998' }}>SR.NO</Typography>
+                    <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: '#ffffff', minWidth: 100, textTransform: 'uppercase', letterSpacing: '0.02em', px: 1.5, borderRight: '1px solid #3b5998' }}>WSN</Typography>
+                    <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: '#ffffff', minWidth: 100, textTransform: 'uppercase', letterSpacing: '0.02em', px: 1.5, borderRight: '1px solid #3b5998' }}>CUSTOMER</Typography>
+                    <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: '#ffffff', flex: 1, textTransform: 'uppercase', letterSpacing: '0.02em', px: 1.5, borderRight: '1px solid #3b5998' }}>PRODUCT TITLE</Typography>
+                    <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: '#ffffff', minWidth: 80, textTransform: 'uppercase', letterSpacing: '0.02em', px: 1.5, borderRight: '1px solid #3b5998' }}>BRAND</Typography>
+                    <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: '#ffffff', minWidth: 100, textTransform: 'uppercase', letterSpacing: '0.02em', px: 1.5 }}>CATEGORY</Typography>
                   </Box>
                   {/* Loading body area with centered spinner */}
                   <Box sx={{
