@@ -2679,7 +2679,7 @@ export default function DashboardPage() {
         onClose={() => setSettingsPanelOpen(false)}
         PaperProps={{
           sx: {
-            width: { xs: '100%', sm: 380 },
+            width: { xs: '50%', sm: 380 },
             maxWidth: '100vw',
             bgcolor: isDarkMode ? '#1e293b' : '#ffffff',
             borderLeft: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0'
