@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef, useLayoutEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
     Box,
@@ -95,6 +95,42 @@ import 'ag-grid-community/styles/ag-theme-quartz.css';
 
 // Register AG Grid modules ONCE (include ClientSideRowModel for client-side features)
 ModuleRegistry.registerModules([AllCommunityModule, ClientSideRowModelModule]);
+
+// ⚡ WINDOW-LEVEL CACHE: Persists data outside React lifecycle for instant navigation
+declare global {
+    interface Window {
+        __OUTBOUND_LIST_CACHE__?: {
+            data: OutboundItem[];
+            total: number;
+            timestamp: number;
+            warehouseId?: number;
+        };
+    }
+}
+
+// Helper to get cached data (checks both window cache and sessionStorage)
+const getCachedOutboundListData = (): OutboundItem[] => {
+    // Priority 1: Window cache (fastest, survives navigation)
+    if (typeof window !== 'undefined' && window.__OUTBOUND_LIST_CACHE__?.data?.length) {
+        return window.__OUTBOUND_LIST_CACHE__.data;
+    }
+    // Priority 2: SessionStorage (survives page refresh)
+    try {
+        if (typeof window !== 'undefined') {
+            const saved = sessionStorage.getItem('outbound_list_cache');
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    // Also populate window cache for faster subsequent access
+                    window.__OUTBOUND_LIST_CACHE__ = { data: parsed, total: parsed.length, timestamp: Date.now() };
+                    return parsed;
+                }
+            }
+        }
+    } catch { /* ignore */ }
+    return [];
+};
+
 import { useOutboundPermissions } from '@/hooks/usePagePermissions';
 import { useFullscreen, useLiveSession } from '@/hooks';
 import BulkUploadCard from '@/components/BulkUploadCard';
@@ -588,10 +624,24 @@ export default function OutboundPage() {
     const [selectedCustomer, setSelectedCustomer] = useState('');
 
     // ====== OUTBOUND LIST STATE ======
-    const [listData, setListData] = useState<OutboundItem[]>([]);
-    const [listLoading, setListLoading] = useState(true); // Start with loading=true to prevent flash
-    const [isFetching, setIsFetching] = useState(true); // Start with fetching=true
-    const [initialLoadDone, setInitialLoadDone] = useState(false); // Track if first load completed
+    // ⚡ INSTANT NAVIGATION: Initialize from cache to prevent empty grid flash
+    const [listData, setListData] = useState<OutboundItem[]>(() => getCachedOutboundListData());
+    const [listLoading, setListLoading] = useState(() => getCachedOutboundListData().length === 0);
+    const [isFetching, setIsFetching] = useState(() => getCachedOutboundListData().length === 0);
+    // ⚡ PREVENT COLUMN RESIZE FLASH: Hide grid body until columns are auto-sized
+    const [gridDataRendered, setGridDataRendered] = useState(false);
+
+    // ⚡ SYNCHRONOUS MOUNT: Load cache BEFORE paint for instant display
+    useLayoutEffect(() => {
+        const cached = getCachedOutboundListData();
+        if (cached.length > 0) {
+            setListData(cached);
+            setListLoading(false);
+            setIsFetching(false);
+        }
+    }, []);
+
+    const [initialLoadDone, setInitialLoadDone] = useState(() => getCachedOutboundListData().length > 0);
     const [refreshing, setRefreshing] = useState(false);
     const [refreshSuccess, setRefreshSuccess] = useState(false);
     const [page, setPage] = useState(1);
@@ -3343,9 +3393,9 @@ export default function OutboundPage() {
                 setListData(cached.data);
                 setTotal(cached.total);
                 setLastRefreshTime(new Date(cached.timestamp));
-                setListLoading(false);
-                setIsFetching(false);
                 setInitialLoadDone(true);
+                // Keep spinner visible briefly for consistent UX during filter reset
+                setTimeout(() => { setListLoading(false); setIsFetching(false); }, 300);
                 setTimeout(() => prefetchNextPage(), 100);
                 return;
             }
@@ -3492,6 +3542,19 @@ export default function OutboundPage() {
                 listRetryCountRef.current = 0;
                 retryCountRef.current = 0;
 
+                // ⚡ WINDOW CACHE: Store in window for instant navigation (survives component unmount)
+                if (typeof window !== 'undefined' && data && data.length > 0) {
+                    window.__OUTBOUND_LIST_CACHE__ = {
+                        data: data,
+                        total: res.data?.total || 0,
+                        timestamp: Date.now(),
+                        warehouseId: activeWarehouse?.id
+                    };
+                    try {
+                        sessionStorage.setItem('outbound_list_cache', JSON.stringify(data));
+                    } catch { /* ignore quota errors */ }
+                }
+
                 // ⚡ PAGE CACHE: Store in cache
                 pageCacheRef.current.set(cacheKey, {
                     data,
@@ -3561,7 +3624,7 @@ export default function OutboundPage() {
 
             // Do not clear existing list data on error to avoid blinking; keep previous rows visible
         } finally {
-            // Only clear loading/overlays when this is the latest request
+            // Only clear overlays when this is the latest request
             if (loadId === currentLoadIdRef.current) {
                 if (overlayShownRef.current && overlayStartRef.current) {
                     const elapsed = Date.now() - overlayStartRef.current;
@@ -3580,37 +3643,19 @@ export default function OutboundPage() {
                     }
                 }
 
-                // If we have no previous data and listData is empty (and there is no pending empty timer), show full spinner; else keep previous rows visible
-                if (!previousDataRef.current || (Array.isArray(previousDataRef.current) && previousDataRef.current.length === 0)) {
-                    if (!emptyTimerRef.current) {
-                        // No previous data - normal behavior
-                        if (buttonRefresh) setRefreshing(false);
-                        else setListLoading(false);
-                    } else {
-                        // If an empty timer is pending, keep showing old rows until it resolves; ensure we don't show full spinner
-                        if (buttonRefresh) setRefreshing(false);
-                        else setListLoading(false);
-                    }
-                } else {
-                    // We have previous data - keep it visible, don't show full-screen spinner
-                    if (buttonRefresh) setRefreshing(false);
-                    else setListLoading(false);
-                }
-                // Clear both loaders to avoid stuck spinner in empty-list + refresh cases
-                try { setRefreshing(false); } catch { }
-                try { setListLoading(false); } catch { }
-
                 // Mark initial load as done (even if it failed, we've attempted a load)
                 setInitialLoadDone(true);
-
-                // Clear fetching flag for latest request
-                setIsFetching(false);
                 outboundAbortControllerRef.current = null;
             }
+            // Always clear loading states to prevent infinite spinner
+            try { setRefreshing(false); } catch { }
+            try { setListLoading(false); } catch { }
+            setIsFetching(false);
         }
     };
 
     const handleListReset = () => {
+        setListLoading(true);
         setSearchFilter('');
         setSourceFilter('');
         setCustomerFilter('');
@@ -4846,7 +4891,7 @@ export default function OutboundPage() {
                         }}>
 
                             {/* Loading Spinner Overlay - semi-transparent so data stays visible */}
-                            {listLoading && listData && listData.length > 0 && (
+                            {(listLoading || isFetching) && listData && listData.length > 0 && gridDataRendered && (
                                 <Box sx={{
                                     position: 'absolute',
                                     top: 0,
@@ -4854,7 +4899,7 @@ export default function OutboundPage() {
                                     right: 0,
                                     bottom: 0,
                                     backgroundColor: isDarkMode ? 'rgba(15, 23, 42, 0.5)' : 'rgba(255, 255, 255, 0.5)',
-                                    zIndex: 10,
+                                    zIndex: 100,
                                     display: 'flex',
                                     alignItems: 'center',
                                     justifyContent: 'center',
@@ -4881,80 +4926,107 @@ export default function OutboundPage() {
                                 </Box>
                             )}
 
-                            {/* Full Loading Overlay - ONLY for initial load when no data exists */}
-                            {listLoading && (!listData || listData.length === 0) && (
+                            {/* Full Loading Overlay - shows during initial load OR while columns are being sized */}
+                            {(!gridDataRendered || (listLoading && (!listData || listData.length === 0))) && (
                                 <Box sx={{
                                     position: 'absolute',
-                                    top: 48,
+                                    top: 0,
                                     left: 0,
                                     right: 0,
                                     bottom: 0,
-                                    backgroundColor: isDarkMode ? 'rgba(15, 23, 42, 0.9)' : 'rgba(255, 255, 255, 0.9)',
-                                    backdropFilter: 'blur(3px)',
-                                    zIndex: 5,
+                                    bgcolor: isDarkMode ? '#1e293b' : '#ffffff',
+                                    zIndex: 100,
                                     display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
+                                    flexDirection: 'column',
+                                    borderRadius: { xs: 0, md: '12px' },
+                                    overflow: 'hidden',
+                                    border: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(0,0,0,0.06)',
                                 }}>
+                                    {/* Static header row that matches AG Grid header exactly */}
                                     <Box sx={{
                                         display: 'flex',
-                                        flexDirection: 'column',
                                         alignItems: 'center',
-                                        gap: 3,
-                                        p: 4,
-                                        bgcolor: isDarkMode ? '#1e293b' : 'white',
-                                        borderRadius: 3,
-                                        boxShadow: isDarkMode ? '0 8px 24px rgba(0,0,0,0.4)' : '0 8px 24px rgba(0,0,0,0.12)'
+                                        height: 35,
+                                        px: 1.5,
+                                        gap: 2,
+                                        bgcolor: '#1e3a5f',
+                                        borderBottom: isDarkMode ? '2px solid #10b981' : '2px solid #059669',
                                     }}>
-                                        <Box sx={{ position: 'relative' }}>
-                                            <CircularProgress
-                                                size={56}
-                                                thickness={3.5}
-                                                sx={{
-                                                    color: '#1e40af',
-                                                    filter: 'drop-shadow(0 2px 8px rgba(25, 118, 210, 0.2))'
-                                                }}
-                                            />
-                                            <Box sx={{
-                                                position: 'absolute',
-                                                top: '50%',
-                                                left: '50%',
-                                                transform: 'translate(-50%, -50%)',
-                                                width: 44,
-                                                height: 44,
-                                                borderRadius: '50%',
-                                                background: 'linear-gradient(135deg, #1e40af 0%, #60a5fa 100%)',
-                                                opacity: 0.15,
-                                                animation: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-                                                '@keyframes pulse': {
-                                                    '0%, 100%': {
-                                                        transform: 'translate(-50%, -50%) scale(1)',
-                                                        opacity: 0.15
-                                                    },
-                                                    '50%': {
-                                                        transform: 'translate(-50%, -50%) scale(1.15)',
-                                                        opacity: 0.05
+                                        <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: '#ffffff', minWidth: 50, textTransform: 'uppercase', letterSpacing: '0.02em' }}>SR.NO</Typography>
+                                        <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: '#ffffff', minWidth: 100, textTransform: 'uppercase', letterSpacing: '0.02em' }}>WSN</Typography>
+                                        <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: '#ffffff', minWidth: 100, textTransform: 'uppercase', letterSpacing: '0.02em' }}>CUSTOMER</Typography>
+                                        <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: '#ffffff', flex: 1, textTransform: 'uppercase', letterSpacing: '0.02em' }}>PRODUCT TITLE</Typography>
+                                        <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: '#ffffff', minWidth: 80, textTransform: 'uppercase', letterSpacing: '0.02em' }}>SOURCE</Typography>
+                                        <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: '#ffffff', minWidth: 100, textTransform: 'uppercase', letterSpacing: '0.02em' }}>DISPATCH DATE</Typography>
+                                    </Box>
+                                    {/* Loading body area with centered spinner */}
+                                    <Box sx={{
+                                        flex: 1,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        bgcolor: isDarkMode ? '#1e293b' : '#ffffff',
+                                    }}>
+                                        <Box sx={{
+                                            display: 'flex',
+                                            flexDirection: 'column',
+                                            alignItems: 'center',
+                                            gap: 3,
+                                            p: 4,
+                                            bgcolor: isDarkMode ? '#1e293b' : 'white',
+                                            borderRadius: 3,
+                                            boxShadow: isDarkMode ? '0 8px 24px rgba(0,0,0,0.4)' : '0 8px 24px rgba(0,0,0,0.12)'
+                                        }}>
+                                            <Box sx={{ position: 'relative' }}>
+                                                <CircularProgress
+                                                    size={56}
+                                                    thickness={3.5}
+                                                    sx={{
+                                                        color: '#1e40af',
+                                                        filter: 'drop-shadow(0 2px 8px rgba(25, 118, 210, 0.2))'
+                                                    }}
+                                                />
+                                                <Box sx={{
+                                                    position: 'absolute',
+                                                    top: '50%',
+                                                    left: '50%',
+                                                    transform: 'translate(-50%, -50%)',
+                                                    width: 44,
+                                                    height: 44,
+                                                    borderRadius: '50%',
+                                                    background: 'linear-gradient(135deg, #1e40af 0%, #60a5fa 100%)',
+                                                    opacity: 0.15,
+                                                    animation: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                                                    '@keyframes pulse': {
+                                                        '0%, 100%': {
+                                                            transform: 'translate(-50%, -50%) scale(1)',
+                                                            opacity: 0.15
+                                                        },
+                                                        '50%': {
+                                                            transform: 'translate(-50%, -50%) scale(1.15)',
+                                                            opacity: 0.05
+                                                        }
                                                     }
-                                                }
-                                            }} />
+                                                }} />
+                                            </Box>
+                                            <Typography
+                                                sx={{
+                                                    fontSize: '0.95rem',
+                                                    fontWeight: 500,
+                                                    color: isDarkMode ? '#94a3b8' : '#546e7a',
+                                                    letterSpacing: 0.3,
+                                                    textAlign: 'center'
+                                                }}
+                                            >
+                                                Loading data...
+                                            </Typography>
                                         </Box>
-                                        <Typography
-                                            sx={{
-                                                fontSize: '0.95rem',
-                                                fontWeight: 500,
-                                                color: '#546e7a',
-                                                letterSpacing: 0.3,
-                                                textAlign: 'center'
-                                            }}
-                                        >
-                                            Loading data...
-                                        </Typography>
                                     </Box>
                                 </Box>
                             )}
 
                             {/* Empty State Overlay - Only show when NOT loading AND NOT fetching AND initial load is done */}
-                            {!listLoading && !isFetching && initialLoadDone && (!listData || listData.length === 0) && (
+                            {!listLoading && !isFetching && initialLoadDone && gridDataRendered && (!listData || listData.length === 0) && (
                                 <Box sx={{
                                     position: 'absolute',
                                     top: 60,
@@ -4992,7 +5064,7 @@ export default function OutboundPage() {
                                 </Box>
                             )}
 
-                            <Box sx={{ height: '100%', width: '100%', bgcolor: isDarkMode ? '#1e293b' : '#ffffff' }}>
+                            <Box sx={{ height: '100%', width: '100%', bgcolor: isDarkMode ? '#1e293b' : '#ffffff', position: 'relative' }}>
                                 <div className="ag-theme-quartz" style={{ height: '100%', width: '100%', position: 'relative', backgroundColor: isDarkMode ? '#1e293b' : '#ffffff' }}>
                                     <Box sx={{
                                         height: '100%',
@@ -5006,26 +5078,55 @@ export default function OutboundPage() {
                                             border: 'none',
                                         },
                                         '& .ag-header': {
-                                            backgroundColor: isDarkMode ? '#334155' : '#f1f5f9',
-                                            borderBottom: isDarkMode ? '2px solid #475569' : '2px solid #d1d5db',
+                                            backgroundColor: '#1e3a5f !important',
+                                            borderBottom: isDarkMode ? '2px solid #10b981' : '2px solid #059669',
+                                            fontWeight: 700,
                                             opacity: '1 !important',
                                             zIndex: 15,
                                             position: 'relative'
                                         },
                                         '& .ag-header-cell': {
-                                            backgroundColor: isDarkMode ? '#334155' : '#f1f5f9',
-                                            color: isDarkMode ? '#f1f5f9' : '#1e293b',
+                                            padding: '0 12px',
+                                            opacity: '1 !important',
                                             fontWeight: 700,
                                             fontSize: '0.75rem',
-                                            borderRight: isDarkMode ? '1px solid #475569' : '1px solid #d1d5db',
-                                            opacity: '1 !important'
+                                            backgroundColor: '#1e3a5f !important',
+                                            color: '#ffffff !important',
+                                            borderRight: '1px solid #3b5998',
+                                            textTransform: 'uppercase',
+                                            letterSpacing: '0.02em',
                                         },
                                         '& .ag-header-cell:last-child': {
                                             borderRight: 'none',
                                         },
+                                        '& .ag-header-row': {
+                                            backgroundColor: '#1e3a5f !important',
+                                        },
+                                        '& .ag-header-viewport': {
+                                            backgroundColor: '#1e3a5f !important',
+                                        },
+                                        '& .ag-header-container': {
+                                            backgroundColor: '#1e3a5f !important',
+                                        },
+                                        '& .ag-header-cell-label': {
+                                            color: '#ffffff !important',
+                                        },
+                                        '& .ag-header-cell-text': {
+                                            color: '#ffffff !important',
+                                        },
+                                        '& .ag-icon': {
+                                            color: '#94a3b8 !important',
+                                        },
                                         '& .ag-body-viewport': {
-                                            opacity: listLoading ? 0.3 : 1,
-                                            transition: 'opacity 0.2s ease-in-out',
+                                            backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
+                                        },
+                                        '& .ag-center-cols-viewport': {
+                                            backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
+                                        },
+                                        '& .ag-center-cols-container': {
+                                            backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
+                                        },
+                                        '& .ag-body': {
                                             backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
                                         },
                                         '& .ag-row': {
@@ -5109,6 +5210,7 @@ export default function OutboundPage() {
                                                             params.api.autoSizeColumns(allColIds);
 
                                                             // If total width is less than grid width, stretch to fill
+                                                            // ⚡ IMPORTANT: Show grid AFTER all sizing is complete to prevent flash
                                                             setTimeout(() => {
                                                                 try {
                                                                     let total = 0;
@@ -5126,10 +5228,21 @@ export default function OutboundPage() {
                                                                         params.api.sizeColumnsToFit();
                                                                     }
                                                                 } catch { /* ignore */ }
+                                                                // ⚡ Show grid body AFTER sizeColumnsToFit completes
+                                                                requestAnimationFrame(() => setGridDataRendered(true));
                                                             }, 50);
+                                                        } else {
+                                                            // No columns to resize - show immediately
+                                                            requestAnimationFrame(() => setGridDataRendered(true));
                                                         }
                                                         hasAutoFittedRef.current = true;
-                                                    } catch { /* ignore */ }
+                                                    } catch {
+                                                        // On error, still show the grid
+                                                        requestAnimationFrame(() => setGridDataRendered(true));
+                                                    }
+                                                } else {
+                                                    // Saved state exists - show grid immediately
+                                                    requestAnimationFrame(() => setGridDataRendered(true));
                                                 }
                                             }}
                                             onColumnResized={(params: any) => {
