@@ -109,21 +109,42 @@ declare global {
   }
 }
 
+// Helper to get current warehouse ID from localStorage
+const getCurrentWarehouseId = (): number | null => {
+  try {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('activeWarehouse');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        return parsed?.id ?? null;
+      }
+    }
+  } catch { /* ignore */ }
+  return null;
+};
+
 // Helper to get cached data (checks both window cache and sessionStorage)
+// ⚡ FIX: Only returns cache if warehouseId matches current warehouse
 const getCachedQCListData = (): QCItem[] => {
+  const currentWarehouseId = getCurrentWarehouseId();
+
   // Priority 1: Window cache (fastest, survives navigation)
   if (typeof window !== 'undefined' && window.__QC_LIST_CACHE__?.data?.length) {
-    return window.__QC_LIST_CACHE__.data;
+    // Only use cache if warehouse matches
+    if (window.__QC_LIST_CACHE__.warehouseId === currentWarehouseId) {
+      return window.__QC_LIST_CACHE__.data;
+    }
   }
-  // Priority 2: SessionStorage (survives page refresh)
+  // Priority 2: SessionStorage (survives page refresh) - skip if warehouse mismatch
   try {
     if (typeof window !== 'undefined') {
       const saved = sessionStorage.getItem('qc_list_cache');
-      if (saved) {
+      const savedWarehouseId = sessionStorage.getItem('qc_list_cache_warehouseId');
+      if (saved && savedWarehouseId && parseInt(savedWarehouseId, 10) === currentWarehouseId) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
           // Also populate window cache for faster subsequent access
-          window.__QC_LIST_CACHE__ = { data: parsed, total: parsed.length, timestamp: Date.now() };
+          window.__QC_LIST_CACHE__ = { data: parsed, total: parsed.length, timestamp: Date.now(), warehouseId: currentWarehouseId };
           return parsed;
         }
       }
@@ -1685,6 +1706,7 @@ export default function QCPage() {
           };
           try {
             sessionStorage.setItem('qc_list_cache', JSON.stringify(data));
+            sessionStorage.setItem('qc_list_cache_warehouseId', String(activeWarehouse?.id || ''));
           } catch { /* ignore quota errors */ }
         }
 
