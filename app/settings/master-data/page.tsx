@@ -9,7 +9,8 @@ import {
   Dialog, DialogTitle, DialogContent, DialogActions, Chip, CircularProgress,
   LinearProgress, IconButton, Tabs, Tab, Menu, MenuItem, Checkbox, ListItemText,
   TextField, FormControl, InputLabel, Select, InputAdornment, Badge, useTheme, useMediaQuery,
-  Collapse, Tooltip, FormControlLabel, Divider, Grid, Card, CardContent, InputBase, Fade
+  Collapse, Tooltip, FormControlLabel, Divider, Grid, Card, CardContent, InputBase, Fade,
+  Drawer, Accordion, AccordionSummary, AccordionDetails
 } from '@mui/material';
 import {
   Upload as UploadIcon, Refresh as RefreshIcon, Logout as LogoutIcon,
@@ -18,7 +19,7 @@ import {
   Speed as SpeedIcon, Clear as ClearIcon, CheckCircle, Settings as SettingsIcon,
   Tune as TuneIcon, Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon,
   ExpandMore as ExpandMoreIcon, Close as CloseIcon, KeyboardArrowLeft, KeyboardArrowRight, FirstPage, LastPage, AccessTime,
-  Print as PrintIcon
+  Print as PrintIcon, Menu as MenuIcon, ViewColumn as ViewColumnIcon, TableChart as TableChartIcon
 } from '@mui/icons-material';
 import toast, { Toaster } from 'react-hot-toast';
 import { getStoredUser, logout } from '@/lib/auth';
@@ -448,9 +449,13 @@ export default function MasterDataPage() {
   const [filterStatus, setFilterStatus] = useState('All');
   const [filterBrand, setFilterBrand] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
-  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
-  const [mobileActionsOpen, setMobileActionsOpen] = useState(false);
-  const [filtersExpanded, setFiltersExpanded] = useState(false);
+
+  // ====== OPTIONS PANEL STATE ======
+  const [optionsPanelOpen, setOptionsPanelOpen] = useState(false);
+  const [optionsPanelExpanded, setOptionsPanelExpanded] = useState<string | false>('filters');
+
+  // ====== COMPUTED: Check if any filter is active ======
+  const filtersActive = filterBatchId || filterStatus !== 'All' || filterBrand || filterCategory;
 
   // ✅ NEW: Brands and categories loaded from API (database)
   const [brandOptions, setBrandOptions] = useState<string[]>([]);
@@ -487,7 +492,6 @@ export default function MasterDataPage() {
   const [columnDefs, setColumnDefs] = useState<any[]>([]);
   const hasAutoFittedRef = useRef(false); // Track if auto-fit has been done
   const [topLoading, setTopLoading] = useState(false);
-  const [gridSettingsOpen, setGridSettingsOpen] = useState(false);
   const overlayTimerRef = useRef<NodeJS.Timeout | null>(null);
   const overlayShownRef = useRef(false);
   const overlayStartRef = useRef<number | null>(null);
@@ -1749,9 +1753,9 @@ export default function MasterDataPage() {
                 {/* Tab 1: Master Data List */}
                 {actualTabIndex === 0 && (
                   <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', p: { xs: 0.25, sm: 0.5 } }}>
-                    {/* SEARCH BAR + FILTERS TOGGLE */}
+                    {/* SEARCH BAR + OPTIONS BUTTON */}
                     <Box sx={{ flexShrink: 0, mb: 1, position: 'relative', zIndex: 95 }}>
-                      <Stack direction="row" spacing={1} alignItems="stretch" sx={{ mb: 1 }}>
+                      <Stack direction="row" spacing={1} alignItems="stretch">
                         {/* Search Field */}
                         <TextField
                           fullWidth
@@ -1765,7 +1769,7 @@ export default function MasterDataPage() {
                             '& .MuiOutlinedInput-root': {
                               bgcolor: isDarkMode ? '#1e293b' : 'white',
                               borderRadius: 1.5,
-                              height: 36,
+                              height: 38,
                               fontSize: { xs: '0.8rem', sm: '0.875rem' },
                               fontWeight: 500,
                               border: isDarkMode ? '2px solid rgba(255,255,255,0.15)' : '2px solid #e2e8f0',
@@ -1787,426 +1791,52 @@ export default function MasterDataPage() {
                           }}
                         />
 
-                        {/* Desktop Refresh (visible md+) */}
-                        <Button
-                          variant="outlined"
-                          onClick={() => loadMasterData({ buttonRefresh: true })}
-                          disabled={refreshing}
-                          startIcon={refreshing ? <CircularProgress size={14} /> : refreshSuccess ? <CheckCircle sx={{ color: '#10b981' }} /> : <RefreshIcon sx={{ fontSize: '0.95rem' }} />}
-                          sx={{
-                            display: { xs: 'none', md: 'inline-flex' },
-                            minWidth: 110,
-                            height: 38,
-                            borderWidth: 2,
-                            borderColor: '#3b82f6',
-                            color: '#3b82f6',
-                            fontWeight: 700,
-                            '&:hover': { bgcolor: 'rgba(59,130,246,0.08)' }
-                          }}
-                        >
-                          {refreshing ? '...' : refreshSuccess ? '✓' : 'Refresh'}
-                        </Button>
-
-                        {/* Mobile Actions button */}
-                        <Button
-                          variant="contained"
-                          color="primary"
-                          startIcon={<TuneIcon />}
-                          sx={{
-                            display: { xs: 'inline-flex', md: 'none' },
-                            height: 40,
-                            px: 2,
-                            textTransform: 'none',
-                            flexShrink: 0,
-                            fontSize: '0.85rem',
-                            fontWeight: 600
-                          }}
-                          onClick={() => setMobileActionsOpen(true)}
-                        >
-                          Actions
-                        </Button>
-
-
-
-                        {/* Show Filters Toggle Button - Desktop */}
-                        <Button
-                          variant="outlined"
-                          onClick={() => setFiltersExpanded(!filtersExpanded)}
-                          sx={{
-                            display: { xs: 'none', md: 'inline-flex' },
-                            minWidth: 130,
-                            height: 38,
-                            borderWidth: 2,
-                            borderColor: filtersExpanded ? '#1e40af' : (isDarkMode ? 'rgba(255,255,255,0.2)' : '#cbd5e1'),
-                            bgcolor: filtersExpanded ? 'rgba(30, 64, 175, 0.1)' : (isDarkMode ? '#0f172a' : 'white'),
-                            color: filtersExpanded ? '#1e40af' : (isDarkMode ? '#94a3b8' : '#64748b'),
-                            fontWeight: 700,
-                            fontSize: '0.78rem',
-                            borderRadius: 1.5,
-                            boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
-                            transition: 'all 0.2s',
-                            px: 1.5,
-                            '&:hover': {
+                        {/* Options Button - Opens Options Panel Drawer */}
+                        <Tooltip title="Open Options Panel">
+                          <Button
+                            variant="outlined"
+                            onClick={() => setOptionsPanelOpen(true)}
+                            sx={{
+                              minWidth: { xs: 'auto', sm: 100 },
+                              height: 38,
                               borderWidth: 2,
-                              borderColor: '#1e40af',
-                              bgcolor: 'rgba(30, 64, 175, 0.15)',
-                              boxShadow: '0 4px 12px rgba(30, 64, 175, 0.2)'
-                            },
-                            position: 'relative'
-                          }}
-                        >
-                          <FilterListIcon sx={{ fontSize: '1.15rem', mr: 0.5 }} />
-                          <Box component="span" sx={{ mr: 0.5 }}>
-                            {filtersExpanded ? "Hide Filters" : "Show Filters"}
-                          </Box>
-                          {(filterBatchId || filterBrand || filterCategory) && (
-                            <Box sx={{
-                              position: 'absolute',
-                              top: -5,
-                              right: -5,
-                              width: 14,
-                              height: 14,
-                              borderRadius: '50%',
-                              bgcolor: '#10b981',
-                              border: '2px solid white'
-                            }} />
-                          )}
-                          <ExpandMoreIcon sx={{ transform: filtersExpanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 200ms" }} />
-                        </Button>
+                              borderColor: isDarkMode ? '#3b82f6' : '#1e40af',
+                              bgcolor: isDarkMode ? 'rgba(59, 130, 246, 0.08)' : 'rgba(30, 64, 175, 0.04)',
+                              color: isDarkMode ? '#60a5fa' : '#1e40af',
+                              fontWeight: 700,
+                              fontSize: { xs: '0.75rem', sm: '0.78rem' },
+                              borderRadius: 1.5,
+                              boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+                              transition: 'all 0.2s',
+                              px: { xs: 1.5, sm: 2 },
+                              '&:hover': {
+                                borderWidth: 2,
+                                borderColor: '#3b82f6',
+                                bgcolor: 'rgba(59, 130, 246, 0.12)',
+                                boxShadow: '0 4px 12px rgba(59, 130, 246, 0.2)'
+                              },
+                              position: 'relative'
+                            }}
+                          >
+                            <MenuIcon sx={{ fontSize: '1.1rem', mr: { xs: 0, sm: 0.5 } }} />
+                            <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>Options</Box>
+                            {/* Green dot indicator when filters are active */}
+                            {filtersActive && (
+                              <Box sx={{
+                                position: 'absolute',
+                                top: -4,
+                                right: -4,
+                                width: 12,
+                                height: 12,
+                                borderRadius: '50%',
+                                bgcolor: '#10b981',
+                                border: '2px solid white',
+                                boxShadow: '0 2px 4px rgba(16, 185, 129, 0.4)'
+                              }} />
+                            )}
+                          </Button>
+                        </Tooltip>
                       </Stack>
-
-                      {/* Collapsible Filter Card */}
-                      <Collapse in={filtersExpanded} timeout="auto">
-                        <Card sx={{
-                          borderRadius: 1.5,
-                          boxShadow: isDarkMode ? '0 4px 20px rgba(0,0,0,0.4)' : '0 4px 20px rgba(0,0,0,0.15)',
-                          background: isDarkMode ? 'linear-gradient(135deg, #1e293b 0%, #334155 100%)' : 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
-                          border: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e2e8f0',
-                          position: 'relative',
-                          zIndex: 95
-                        }}>
-                          <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
-                            <Stack spacing={1.5}>
-                              {/* ROW 1: All Filters in one row */}
-                              <Box sx={{
-                                display: 'grid',
-                                gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(4, 1fr)', md: 'repeat(4, 1fr)' },
-                                gap: 1
-                              }}>
-                                {/* Batch ID Filter */}
-                                <FormControl size="small">
-                                  <InputLabel sx={{ fontSize: '0.75rem' }}>Batch ID</InputLabel>
-                                  <Select
-                                    value={filterBatchId}
-                                    label="Batch ID"
-                                    onChange={(e) => { setFilterBatchId(e.target.value); setPage(0); }}
-                                    sx={{
-                                      height: 36,
-                                      fontSize: '0.8rem',
-                                      bgcolor: isDarkMode ? '#1e293b' : 'white',
-                                      '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#1e40af' },
-                                      '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#1e40af' }
-                                    }}
-                                  >
-                                    <MenuItem value="">All Batches</MenuItem>
-                                    {batches.map(b => (
-                                      <MenuItem key={b.batch_id} value={b.batch_id} sx={{ fontSize: '0.8rem' }}>{b.batch_id} ({formatNumber(b.count)})</MenuItem>
-                                    ))}
-                                  </Select>
-                                </FormControl>
-
-                                {/* Status Filter */}
-                                <FormControl size="small">
-                                  <InputLabel sx={{ fontSize: '0.75rem' }}>Status</InputLabel>
-                                  <Select
-                                    value={filterStatus}
-                                    label="Status"
-                                    onChange={(e) => { setFilterStatus(e.target.value); setPage(0); }}
-                                    sx={{
-                                      height: 36,
-                                      fontSize: '0.8rem',
-                                      bgcolor: isDarkMode ? '#1e293b' : 'white',
-                                      '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#1e40af' },
-                                      '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#1e40af' }
-                                    }}
-                                  >
-                                    <MenuItem value="All" sx={{ fontSize: '0.8rem' }}>All</MenuItem>
-                                    <MenuItem value="Received" sx={{ fontSize: '0.8rem' }}>✅ Received</MenuItem>
-                                    <MenuItem value="Receiving" sx={{ fontSize: '0.8rem' }}>🔄 Receiving</MenuItem>
-                                    <MenuItem value="Rejected" sx={{ fontSize: '0.8rem' }}>🚫 Rejected</MenuItem>
-                                    <MenuItem value="Pending" sx={{ fontSize: '0.8rem' }}>❌ Pending</MenuItem>
-                                  </Select>
-                                </FormControl>
-
-                                {/* Brand Filter */}
-                                <FormControl size="small">
-                                  <InputLabel sx={{ fontSize: '0.75rem' }}>Brand</InputLabel>
-                                  <Select
-                                    value={filterBrand}
-                                    label="Brand"
-                                    onChange={(e) => { setFilterBrand(e.target.value); setPage(0); }}
-                                    sx={{
-                                      height: 36,
-                                      fontSize: '0.8rem',
-                                      bgcolor: isDarkMode ? '#1e293b' : 'white',
-                                      '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#1e40af' },
-                                      '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#1e40af' }
-                                    }}
-                                  >
-                                    <MenuItem value="">All Brands</MenuItem>
-                                    {brandOptions.map(brand => (
-                                      <MenuItem key={brand} value={brand} sx={{ fontSize: '0.8rem' }}>{brand}</MenuItem>
-                                    ))}
-                                  </Select>
-                                </FormControl>
-
-                                {/* Category Filter */}
-                                <FormControl size="small">
-                                  <InputLabel sx={{ fontSize: '0.75rem' }}>Category</InputLabel>
-                                  <Select
-                                    value={filterCategory}
-                                    label="Category"
-                                    onChange={(e) => { setFilterCategory(e.target.value); setPage(0); }}
-                                    sx={{
-                                      height: 36,
-                                      fontSize: '0.8rem',
-                                      bgcolor: isDarkMode ? '#1e293b' : 'white',
-                                      '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#1e40af' },
-                                      '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#1e40af' }
-                                    }}
-                                  >
-                                    <MenuItem value="">All Categories</MenuItem>
-                                    {categoryOptions.map(category => (
-                                      <MenuItem key={category} value={category} sx={{ fontSize: '0.8rem' }}>{category}</MenuItem>
-                                    ))}
-                                  </Select>
-                                </FormControl>
-                              </Box>
-
-                              {/* ROW 2: All Action Buttons in one row */}
-                              <Box sx={{
-                                display: 'grid',
-                                gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(4, 1fr)', md: 'repeat(8, 1fr)' },
-                                gap: 1
-                              }}>
-
-                                {/* Add Button - Permission controlled */}
-                                {canSeeButton('add') && (
-                                  <Tooltip title={!canAccessButton('add') ? "You don't have permission to use this feature" : "Add Product"} arrow>
-                                    <span style={{ width: '100%' }}>
-                                      <Button
-                                        fullWidth
-                                        size="small"
-                                        startIcon={<AddIcon sx={{ fontSize: '0.9rem' }} />}
-                                        variant="contained"
-                                        disabled={!canAccessButton('add')}
-                                        onClick={() => canAccessButton('add') && handleOpenAddDialog()}
-                                        sx={{
-                                          height: 34,
-                                          fontSize: '0.72rem',
-                                          fontWeight: 700,
-                                          background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                                          boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
-                                          '&:hover': {
-                                            background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
-                                            boxShadow: '0 6px 16px rgba(16, 185, 129, 0.4)'
-                                          }
-                                        }}
-                                      >
-                                        + ADD
-                                      </Button>
-                                    </span>
-                                  </Tooltip>
-                                )}
-
-                                {/* Upload Button */}
-                                {canSeeButton('upload') && (
-                                  <Tooltip title={!canAccessButton('upload') ? "You don't have permission to use this feature" : "Upload Products"} arrow>
-                                    <span style={{ width: '100%' }}>
-                                      <Button
-                                        fullWidth
-                                        size="small"
-                                        startIcon={<UploadIcon sx={{ fontSize: '0.9rem' }} />}
-                                        variant="contained"
-                                        disabled={!canAccessButton('upload')}
-                                        onClick={() => canAccessButton('upload') && setUploadDialogOpen(true)}
-                                        sx={{
-                                          height: 34,
-                                          fontSize: '0.72rem',
-                                          fontWeight: 700,
-                                          background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
-                                          boxShadow: '0 4px 12px rgba(30, 64, 175, 0.3)',
-                                          '&:hover': {
-                                            background: 'linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%)',
-                                            boxShadow: '0 6px 16px rgba(30, 64, 175, 0.4)'
-                                          }
-                                        }}
-                                      >
-                                        UPLOAD
-                                      </Button>
-                                    </span>
-                                  </Tooltip>
-                                )}
-
-                                {/* Export Button */}
-                                {canSeeButton('export') && (
-                                  <Tooltip title={!canAccessButton('export') ? "You don't have permission to use this feature" : "Export Data"} arrow>
-                                    <span style={{ width: '100%' }}>
-                                      <Button
-                                        fullWidth
-                                        size="small"
-                                        startIcon={<ExportIcon sx={{ fontSize: '0.9rem' }} />}
-                                        variant="contained"
-                                        disabled={!canAccessButton('export')}
-                                        onClick={() => canAccessButton('export') && setExportDialogOpen(true)}
-                                        sx={{
-                                          height: 34,
-                                          fontSize: '0.72rem',
-                                          fontWeight: 700,
-                                          background: 'linear-gradient(135deg, #7c3aed 0%, #a855f7 100%)',
-                                          boxShadow: '0 4px 12px rgba(124, 58, 237, 0.3)',
-                                          '&:hover': {
-                                            background: 'linear-gradient(135deg, #6d28d9 0%, #9333ea 100%)',
-                                            boxShadow: '0 6px 16px rgba(124, 58, 237, 0.4)'
-                                          }
-                                        }}
-                                      >
-                                        EXPORT
-                                      </Button>
-                                    </span>
-                                  </Tooltip>
-                                )}
-
-                                {/* Template Button */}
-                                <Button
-                                  fullWidth
-                                  size="small"
-                                  startIcon={<DownloadIcon sx={{ fontSize: '0.9rem' }} />}
-                                  variant="outlined"
-                                  onClick={handleDownloadTemplate}
-                                  sx={{
-                                    height: 34,
-                                    fontSize: '0.72rem',
-                                    fontWeight: 700,
-                                    borderWidth: 2,
-                                    borderColor: isDarkMode ? '#64748b' : '#94a3b8',
-                                    color: isDarkMode ? '#94a3b8' : '#475569',
-                                    '&:hover': {
-                                      borderWidth: 2,
-                                      bgcolor: isDarkMode ? 'rgba(255,255,255,0.05)' : '#f8fafc'
-                                    }
-                                  }}
-                                >
-                                  TEMPLATE
-                                </Button>
-
-                                {/* Columns Button */}
-                                {canSeeButton('columns') && (
-                                  <Tooltip title={!canAccessButton('columns') ? "You don't have permission to use this feature" : "Manage Columns"} arrow>
-                                    <span style={{ width: '100%' }}>
-                                      <Button
-                                        fullWidth
-                                        size="small"
-                                        startIcon={<VisibilityIcon sx={{ fontSize: '0.9rem' }} />}
-                                        variant="outlined"
-                                        disabled={!canAccessButton('columns')}
-                                        onClick={(e) => canAccessButton('columns') && setColumnMenuAnchor(e.currentTarget)}
-                                        sx={{
-                                          height: 34,
-                                          fontSize: '0.72rem',
-                                          fontWeight: 700,
-                                          borderWidth: 2,
-                                          borderColor: '#1e40af',
-                                          color: '#1e40af',
-                                          '&:hover': {
-                                            borderWidth: 2,
-                                            bgcolor: 'rgba(30, 64, 175, 0.1)'
-                                          }
-                                        }}
-                                      >
-                                        COLUMNS
-                                      </Button>
-                                    </span>
-                                  </Tooltip>
-                                )}
-
-                                {/* Grid Button */}
-                                <Button
-                                  fullWidth
-                                  size="small"
-                                  startIcon={<TuneIcon sx={{ fontSize: '0.9rem' }} />}
-                                  variant="outlined"
-                                  onClick={() => setGridSettingsOpen(true)}
-                                  sx={{
-                                    height: 34,
-                                    fontSize: '0.72rem',
-                                    fontWeight: 700,
-                                    borderWidth: 2,
-                                    borderColor: isDarkMode ? '#64748b' : '#94a3b8',
-                                    color: isDarkMode ? '#94a3b8' : '#475569',
-                                    '&:hover': {
-                                      borderWidth: 2,
-                                      bgcolor: isDarkMode ? 'rgba(255,255,255,0.05)' : '#f8fafc'
-                                    }
-                                  }}
-                                >
-                                  GRID
-                                </Button>
-
-
-                                {/* Refresh Button */}
-                                <Button
-                                  fullWidth
-                                  size="small"
-                                  startIcon={refreshing ? <CircularProgress size={14} /> : refreshSuccess ? <CheckCircle sx={{ color: '#10b981' }} /> : <RefreshIcon sx={{ fontSize: '0.9rem' }} />}
-                                  variant="outlined"
-                                  onClick={() => loadMasterData({ buttonRefresh: true })}
-                                  disabled={refreshing}
-                                  sx={{
-                                    display: { xs: 'block', md: 'none' },
-                                    height: 34,
-                                    fontSize: '0.72rem',
-                                    fontWeight: 700,
-                                    borderWidth: 2,
-                                    borderColor: '#3b82f6',
-                                    color: '#3b82f6',
-                                    '&:hover': {
-                                      borderWidth: 2,
-                                      bgcolor: 'rgba(59, 130, 246, 0.1)'
-                                    }
-                                  }}
-                                >
-                                  {refreshing ? '...' : refreshSuccess ? '✓' : 'REFRESH'}
-                                </Button>
-
-                                {/* Reset Button */}
-                                <Button
-                                  fullWidth
-                                  size="small"
-                                  variant="outlined"
-                                  onClick={resetFilters}
-                                  sx={{
-                                    height: 34,
-                                    fontSize: '0.72rem',
-                                    fontWeight: 700,
-                                    borderWidth: 2,
-                                    borderColor: isDarkMode ? '#64748b' : '#94a3b8',
-                                    color: isDarkMode ? '#94a3b8' : '#64748b',
-                                    '&:hover': {
-                                      borderWidth: 2,
-                                      borderColor: isDarkMode ? '#94a3b8' : '#64748b',
-                                      bgcolor: isDarkMode ? 'rgba(255,255,255,0.05)' : '#f8fafc'
-                                    }
-                                  }}
-                                >
-                                  🔄 RESET
-                                </Button>
-
-                              </Box>
-                            </Stack>
-                          </CardContent>
-                        </Card>
-                      </Collapse>
                     </Box>
 
                     {/* AG Grid Table */}
@@ -2846,186 +2476,6 @@ export default function MasterDataPage() {
           </DialogActions>
         </Dialog>
 
-        {/* GRID SETTINGS DIALOG */}
-        <Dialog
-          open={gridSettingsOpen}
-          onClose={() => setGridSettingsOpen(false)}
-          maxWidth="xs"
-          fullWidth
-          PaperProps={{ sx: { borderRadius: 2, boxShadow: '0 8px 32px rgba(0,0,0,0.12)' } }}
-        >
-          <DialogTitle sx={{
-            background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
-            color: 'white',
-            fontWeight: 800,
-            fontSize: '1.1rem',
-            py: 1.5
-          }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <SettingsIcon />
-              Grid Settings
-            </Box>
-          </DialogTitle>
-
-          <DialogContent sx={{ mt: 2, pb: 1 }}>
-            <Stack spacing={2.5}>
-              <Paper sx={{ p: 1.5, bgcolor: '#e0f2fe', borderLeft: '4px solid #0ea5e9' }}>
-                <Typography variant="body2" sx={{ fontSize: '0.8rem', color: '#0369a1' }}>
-                  💾 Settings auto-save and persist after reload
-                </Typography>
-              </Paper>
-
-              {/* SORTABLE */}
-              <Box>
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={enableSorting}
-                      onChange={(e) => setEnableSorting(e.target.checked)}
-                      sx={{ '&.Mui-checked': { color: '#f59e0b' } }}
-                    />
-                  }
-                  label={
-                    <Box>
-                      <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#1e293b' }}>
-                        ⬆️ Enable Sorting
-                      </Typography>
-                      <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem' }}>
-                        Click column headers to sort ascending/descending
-                      </Typography>
-                    </Box>
-                  }
-                />
-              </Box>
-
-              <Divider sx={{ my: 0.5 }} />
-
-              {/* FILTER */}
-              <Box>
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={enableColumnFilters}
-                      onChange={(e) => setEnableColumnFilters(e.target.checked)}
-                      sx={{ '&.Mui-checked': { color: '#f59e0b' } }}
-                    />
-                  }
-                  label={
-                    <Box>
-                      <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#1e293b' }}>
-                        🔍 Enable Column Filters
-                      </Typography>
-                      <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem' }}>
-                        Filter menu icon in column headers
-                      </Typography>
-                    </Box>
-                  }
-                />
-              </Box>
-
-              <Divider sx={{ my: 0.5 }} />
-
-              {/* RESIZABLE */}
-              <Box>
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={enableColumnResize}
-                      onChange={(e) => setEnableColumnResize(e.target.checked)}
-                      sx={{ '&.Mui-checked': { color: '#f59e0b' } }}
-                    />
-                  }
-                  label={
-                    <Box>
-                      <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#1e293b' }}>
-                        ↔️ Enable Column Resize
-                      </Typography>
-                      <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem' }}>
-                        Drag column borders to adjust width
-                      </Typography>
-                    </Box>
-                  }
-                />
-              </Box>
-
-              <Divider sx={{ my: 0.5 }} />
-
-              {/* RESET COLUMN WIDTHS */}
-              <Box>
-                <Button
-                  variant="outlined"
-                  size="small"
-                  onClick={() => {
-                    // Clear saved column state and auto-fit
-                    try {
-                      localStorage.removeItem('masterdata_grid_state');
-                      hasAutoFittedRef.current = false;
-                      if (gridRef.current) {
-                        // Auto-size all columns except actions
-                        const allColIds = gridRef.current.getColumns()
-                          ?.filter((col: any) => col.getColId() !== 'actions')
-                          .map((col: any) => col.getColId()) || [];
-
-                        if (allColIds.length > 0) {
-                          gridRef.current.autoSizeColumns(allColIds);
-                        }
-                      }
-                      toast.success('Column widths reset to auto-fit');
-                    } catch (err) {
-                      console.error('Failed to reset column widths:', err);
-                    }
-                  }}
-                  sx={{
-                    width: '100%',
-                    py: 1,
-                    fontWeight: 600,
-                    color: '#0ea5e9',
-                    borderColor: '#0ea5e9',
-                    '&:hover': { bgcolor: '#e0f2fe', borderColor: '#0284c7' }
-                  }}
-                >
-                  📐 Reset Column Widths (Auto-fit)
-                </Button>
-                <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.7rem', display: 'block', mt: 0.5 }}>
-                  Clears saved column widths and auto-fits to content
-                </Typography>
-              </Box>
-
-            </Stack>
-          </DialogContent>
-
-          <DialogActions sx={{ p: 2, background: '#fef3c7', gap: 1 }}>
-            <Button
-              onClick={() => {
-                setEnableSorting(true);
-                setEnableColumnFilters(true);
-                setEnableColumnResize(true);
-                toast.success('Settings reset to default');
-              }}
-              sx={{
-                fontWeight: 700,
-                color: '#78716c',
-                '&:hover': { bgcolor: 'rgba(120, 113, 108, 0.1)' }
-              }}
-            >
-              🔄 Reset All
-            </Button>
-            <Button
-              onClick={() => setGridSettingsOpen(false)}
-              variant="contained"
-              sx={{
-                fontWeight: 700,
-                background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
-                '&:hover': {
-                  background: 'linear-gradient(135deg, #d97706 0%, #b45309 100%)',
-                }
-              }}
-            >
-              ✓ Done
-            </Button>
-          </DialogActions>
-        </Dialog>
-
         {/* Upload Dialog */}
         <Dialog
           open={uploadDialogOpen}
@@ -3271,187 +2721,6 @@ export default function MasterDataPage() {
               {loading ? 'Uploading...' : 'Upload & Process'}
             </Button>
           </DialogActions>
-        </Dialog>
-
-        {/* Mobile Actions Dialog */}
-        <Dialog fullScreen open={mobileActionsOpen} onClose={() => setMobileActionsOpen(false)} TransitionProps={{}}>
-          <AppBar position="sticky" elevation={1} sx={{ bgcolor: isDarkMode ? '#1e293b' : 'background.paper', color: isDarkMode ? '#f1f5f9' : 'text.primary', borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e0e0e0' }}>
-            <Toolbar>
-              <IconButton edge="start" color="inherit" onClick={() => setMobileActionsOpen(false)} aria-label="close">
-                <CancelIcon />
-              </IconButton>
-              <Typography sx={{ ml: 2, flex: 1, fontWeight: 700 }}>Filters & Actions</Typography>
-              <Button color="primary" onClick={() => setMobileActionsOpen(false)}>Close</Button>
-            </Toolbar>
-          </AppBar>
-
-          <DialogContent sx={{ p: 2, bgcolor: isDarkMode ? '#0f172a' : 'background.default' }}>
-            <Stack spacing={2}>
-              {/* Filters */}
-              <Box>
-                <FormControl fullWidth size="small">
-                  <InputLabel>Batch ID</InputLabel>
-                  <Select
-                    value={filterBatchId}
-                    label="Batch ID"
-                    onChange={(e) => { setFilterBatchId(e.target.value); setPage(0); }}
-                  >
-                    <MenuItem value="">All</MenuItem>
-                    {batches.map(b => (
-                      <MenuItem key={b.batch_id} value={b.batch_id}>{b.batch_id} ({formatNumber(b.count)})</MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              </Box>
-
-              <Box>
-                <FormControl fullWidth size="small">
-                  <InputLabel>Status</InputLabel>
-                  <Select
-                    value={filterStatus}
-                    label="Status"
-                    onChange={(e) => { setFilterStatus(e.target.value); setPage(0); }}
-                  >
-                    <MenuItem value="All">All</MenuItem>
-                    <MenuItem value="Received">✅ Received</MenuItem>
-                    <MenuItem value="Receiving">🔄 Receiving</MenuItem>
-                    <MenuItem value="Rejected">🚫 Rejected</MenuItem>
-                    <MenuItem value="Pending">❌ Pending</MenuItem>
-                  </Select>
-                </FormControl>
-              </Box>
-
-              <Box>
-                <FormControl fullWidth size="small">
-                  <InputLabel>Brand</InputLabel>
-                  <Select
-                    value={filterBrand}
-                    label="Brand"
-                    onChange={(e) => { setFilterBrand(e.target.value); setPage(0); }}
-                  >
-                    <MenuItem value="">All</MenuItem>
-                    {brandOptions.map(brand => (
-                      <MenuItem key={brand} value={brand}>{brand}</MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              </Box>
-
-              <Box>
-                <FormControl fullWidth size="small">
-                  <InputLabel>Category</InputLabel>
-                  <Select
-                    value={filterCategory}
-                    label="Category"
-                    onChange={(e) => { setFilterCategory(e.target.value); setPage(0); }}
-                  >
-                    <MenuItem value="">All</MenuItem>
-                    {categoryOptions.map(category => (
-                      <MenuItem key={category} value={category}>{category}</MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              </Box>
-
-              {/* Action buttons */}
-              <Box sx={{ display: 'grid', gap: 1, mt: 2, gridTemplateColumns: 'repeat(2, 1fr)' }}>
-                {canSeeButton('add') && (
-                  <Tooltip title={!canAccessButton('add') ? "You don't have permission to use this feature" : ""} arrow>
-                    <span style={{ width: '100%' }}>
-                      <Button
-                        variant="contained"
-                        startIcon={<AddIcon />}
-                        disabled={!canAccessButton('add')}
-                        onClick={() => { if (canAccessButton('add')) { handleOpenAddDialog(); setMobileActionsOpen(false); } }}
-                        fullWidth
-                        sx={{
-                          background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                          '&:hover': { background: 'linear-gradient(135deg, #059669 0%, #047857 100%)' }
-                        }}
-                      >
-                        Add Product
-                      </Button>
-                    </span>
-                  </Tooltip>
-                )}
-                {canSeeButton('upload') && (
-                  <Tooltip title={!canAccessButton('upload') ? "You don't have permission to use this feature" : ""} arrow>
-                    <span style={{ width: '100%' }}>
-                      <Button
-                        variant="outlined"
-                        startIcon={<UploadIcon />}
-                        disabled={!canAccessButton('upload')}
-                        onClick={() => { if (canAccessButton('upload')) { setUploadDialogOpen(true); setMobileActionsOpen(false); } }}
-                        fullWidth
-                      >
-                        Upload
-                      </Button>
-                    </span>
-                  </Tooltip>
-                )}
-                <Button
-                  variant="outlined"
-                  startIcon={<DownloadIcon />}
-                  onClick={handleDownloadTemplate}
-                  fullWidth
-                >
-                  Template
-                </Button>
-                {canSeeButton('export') && (
-                  <Tooltip title={!canAccessButton('export') ? "You don't have permission to use this feature" : ""} arrow>
-                    <span style={{ width: '100%' }}>
-                      <Button
-                        variant="outlined"
-                        startIcon={<ExportIcon />}
-                        disabled={!canAccessButton('export')}
-                        onClick={() => { if (canAccessButton('export')) { setExportDialogOpen(true); setMobileActionsOpen(false); } }}
-                        fullWidth
-                      >
-                        Export
-                      </Button>
-                    </span>
-                  </Tooltip>
-                )}
-                {canSeeButton('columns') && (
-                  <Tooltip title={!canAccessButton('columns') ? "You don't have permission to use this feature" : ""} arrow>
-                    <span style={{ width: '100%' }}>
-                      <Button
-                        variant="outlined"
-                        startIcon={<VisibilityIcon />}
-                        disabled={!canAccessButton('columns')}
-                        onClick={() => { if (canAccessButton('columns')) { setColumnMenuAnchor(document.body); setMobileActionsOpen(false); } }}
-                        fullWidth
-                      >
-                        Columns
-                      </Button>
-                    </span>
-                  </Tooltip>
-                )}
-                <Button
-                  variant="outlined"
-                  startIcon={<TuneIcon />}
-                  onClick={() => { setGridSettingsOpen(true); setMobileActionsOpen(false); }}
-                  fullWidth
-                >
-                  Grid
-                </Button>
-                <Button
-                  variant="outlined"
-                  startIcon={<ClearIcon />}
-                  onClick={resetFilters}
-                  fullWidth
-                  color="error"
-                >
-                  Reset
-                </Button>
-              </Box>
-            </Stack>
-          </DialogContent>
-
-          <Box sx={{ position: 'sticky', bottom: 0, left: 0, right: 0, bgcolor: isDarkMode ? '#1e293b' : 'background.paper', p: 1, borderTop: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e0e0e0', display: 'flex', gap: 1 }}>
-            <Button fullWidth variant="outlined" onClick={() => { setFilterBatchId(''); setFilterStatus('All'); setFilterBrand(''); setFilterCategory(''); setSearchQuery(''); setPage(0); }}>Reset All</Button>
-            <Button fullWidth variant="contained" onClick={() => { setPage(0); setMobileActionsOpen(false); }}>Apply</Button>
-          </Box>
         </Dialog>
 
         {/* Export Dialog */}
@@ -4156,6 +3425,488 @@ export default function MasterDataPage() {
             </Button>
           </DialogActions>
         </Dialog>
+
+        {/* ================= OPTIONS PANEL DRAWER ================= */}
+        <Drawer
+          anchor="right"
+          open={optionsPanelOpen}
+          onClose={() => setOptionsPanelOpen(false)}
+          PaperProps={{
+            sx: {
+              width: { xs: '85%', sm: 380 },
+              maxWidth: '100vw',
+              bgcolor: isDarkMode ? '#1e293b' : '#ffffff',
+              borderLeft: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0'
+            }
+          }}
+        >
+          {/* Panel Header */}
+          <Box sx={{
+            p: 2,
+            background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
+            color: 'white',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            position: 'sticky',
+            top: 0,
+            zIndex: 10
+          }}>
+            <Typography sx={{ fontWeight: 700, fontSize: '1rem' }}>🔍 Options</Typography>
+            <IconButton size="small" onClick={() => setOptionsPanelOpen(false)} sx={{ color: 'white' }}>
+              <CloseIcon />
+            </IconButton>
+          </Box>
+
+          {/* Panel Content with Accordions */}
+          <Box sx={{ overflow: 'auto', flex: 1 }}>
+
+            {/* ═══════════ FILTERS ACCORDION ═══════════ */}
+            <Accordion
+              expanded={optionsPanelExpanded === 'filters'}
+              onChange={(_, isExpanded) => setOptionsPanelExpanded(isExpanded ? 'filters' : false)}
+              disableGutters
+              sx={{
+                bgcolor: 'transparent',
+                boxShadow: 'none',
+                '&:before': { display: 'none' },
+                borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0'
+              }}
+            >
+              <AccordionSummary
+                expandIcon={<ExpandMoreIcon sx={{ color: isDarkMode ? '#94a3b8' : '#64748b' }} />}
+                sx={{
+                  px: 2,
+                  minHeight: 56,
+                  '&.Mui-expanded': { minHeight: 56 },
+                  '& .MuiAccordionSummary-content': { my: 1.5 }
+                }}
+              >
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                  <FilterListIcon sx={{ color: '#3b82f6', fontSize: 22 }} />
+                  <Box>
+                    <Typography sx={{ fontWeight: 700, fontSize: '0.9rem', color: isDarkMode ? '#e2e8f0' : '#1e293b' }}>Filters</Typography>
+                    <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>
+                      {filtersActive ? 'Active filters applied' : 'No filters applied'}
+                    </Typography>
+                  </Box>
+                </Box>
+              </AccordionSummary>
+              <AccordionDetails sx={{ px: 2, pb: 2, pt: 0 }}>
+                <Stack spacing={1.5}>
+                  {/* Batch ID Filter */}
+                  <TextField
+                    select
+                    size="small"
+                    label="Batch ID"
+                    value={filterBatchId}
+                    onChange={(e) => { setFilterBatchId(e.target.value); setPage(0); }}
+                    fullWidth
+                    sx={{
+                      '& .MuiOutlinedInput-root': {
+                        height: 40,
+                        bgcolor: isDarkMode ? '#0f172a' : '#f8fafc',
+                      }
+                    }}
+                  >
+                    <MenuItem value="">All Batches</MenuItem>
+                    {batches.map(b => (
+                      <MenuItem key={b.batch_id} value={b.batch_id}>{b.batch_id} ({formatNumber(b.count)})</MenuItem>
+                    ))}
+                  </TextField>
+
+                  {/* Status Filter */}
+                  <TextField
+                    select
+                    size="small"
+                    label="Status"
+                    value={filterStatus}
+                    onChange={(e) => { setFilterStatus(e.target.value); setPage(0); }}
+                    fullWidth
+                    sx={{
+                      '& .MuiOutlinedInput-root': {
+                        height: 40,
+                        bgcolor: isDarkMode ? '#0f172a' : '#f8fafc',
+                      }
+                    }}
+                  >
+                    <MenuItem value="All">All Status</MenuItem>
+                    <MenuItem value="Received">✅ Received</MenuItem>
+                    <MenuItem value="Receiving">🔄 Receiving</MenuItem>
+                    <MenuItem value="Rejected">🚫 Rejected</MenuItem>
+                    <MenuItem value="Pending">❌ Pending</MenuItem>
+                  </TextField>
+
+                  {/* Brand Filter */}
+                  <TextField
+                    select
+                    size="small"
+                    label="Brand"
+                    value={filterBrand}
+                    onChange={(e) => { setFilterBrand(e.target.value); setPage(0); }}
+                    fullWidth
+                    sx={{
+                      '& .MuiOutlinedInput-root': {
+                        height: 40,
+                        bgcolor: isDarkMode ? '#0f172a' : '#f8fafc',
+                      }
+                    }}
+                  >
+                    <MenuItem value="">All Brands</MenuItem>
+                    {brandOptions.map(brand => (
+                      <MenuItem key={brand} value={brand}>{brand}</MenuItem>
+                    ))}
+                  </TextField>
+
+                  {/* Category Filter */}
+                  <TextField
+                    select
+                    size="small"
+                    label="Category"
+                    value={filterCategory}
+                    onChange={(e) => { setFilterCategory(e.target.value); setPage(0); }}
+                    fullWidth
+                    sx={{
+                      '& .MuiOutlinedInput-root': {
+                        height: 40,
+                        bgcolor: isDarkMode ? '#0f172a' : '#f8fafc',
+                      }
+                    }}
+                  >
+                    <MenuItem value="">All Categories</MenuItem>
+                    {categoryOptions.map(category => (
+                      <MenuItem key={category} value={category}>{category}</MenuItem>
+                    ))}
+                  </TextField>
+                </Stack>
+              </AccordionDetails>
+            </Accordion>
+
+            {/* ═══════════ COLUMNS ACCORDION ═══════════ */}
+            {canSeeButton('columns') && (
+              <Accordion
+                expanded={optionsPanelExpanded === 'columns'}
+                onChange={(_, isExpanded) => setOptionsPanelExpanded(isExpanded ? 'columns' : false)}
+                disableGutters
+                sx={{
+                  bgcolor: 'transparent',
+                  boxShadow: 'none',
+                  '&:before': { display: 'none' },
+                  borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0'
+                }}
+              >
+                <AccordionSummary
+                  expandIcon={<ExpandMoreIcon sx={{ color: isDarkMode ? '#94a3b8' : '#64748b' }} />}
+                  sx={{
+                    px: 2,
+                    minHeight: 56,
+                    '&.Mui-expanded': { minHeight: 56 },
+                    '& .MuiAccordionSummary-content': { my: 1.5 }
+                  }}
+                >
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                    <ViewColumnIcon sx={{ color: '#10b981', fontSize: 22 }} />
+                    <Box>
+                      <Typography sx={{ fontWeight: 700, fontSize: '0.9rem', color: isDarkMode ? '#e2e8f0' : '#1e293b' }}>Columns</Typography>
+                      <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>
+                        {Object.values(columnVisibility).filter(Boolean).length} of {columns.length} visible
+                      </Typography>
+                    </Box>
+                  </Box>
+                </AccordionSummary>
+                <AccordionDetails sx={{ px: 2, pb: 2, pt: 0 }}>
+                  {!canAccessButton('columns') ? (
+                    <Paper sx={{ p: 1.5, bgcolor: '#fef3c7', border: '1px solid #fbbf24' }}>
+                      <Typography sx={{ fontSize: '0.8rem', color: '#92400e' }}>
+                        You don't have permission to manage columns
+                      </Typography>
+                    </Paper>
+                  ) : (
+                    <Box sx={{ maxHeight: 280, overflow: 'auto', pr: 1 }}>
+                      <Stack spacing={0.5}>
+                        {columns.map((col) => (
+                          <FormControlLabel
+                            key={col.id}
+                            control={
+                              <Checkbox
+                                size="small"
+                                checked={columnVisibility[col.id as keyof typeof columnVisibility] || false}
+                                onChange={() => {
+                                  setColumnVisibility((prev) => {
+                                    const newVisibility = { ...prev, [col.id]: !prev[col.id as keyof typeof prev] };
+                                    // Update AG Grid column visibility
+                                    if (gridRef.current) {
+                                      gridRef.current.setColumnsVisible([col.id], !prev[col.id as keyof typeof prev]);
+                                    }
+                                    return newVisibility;
+                                  });
+                                }}
+                                sx={{ py: 0.25, '&.Mui-checked': { color: '#10b981' } }}
+                              />
+                            }
+                            label={
+                              <Typography sx={{ fontSize: '0.8rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>
+                                {col.label}
+                              </Typography>
+                            }
+                            sx={{ m: 0 }}
+                          />
+                        ))}
+                      </Stack>
+                    </Box>
+                  )}
+                </AccordionDetails>
+              </Accordion>
+            )}
+
+            {/* ═══════════ GRID SETTINGS ACCORDION ═══════════ */}
+            <Accordion
+              expanded={optionsPanelExpanded === 'grid'}
+              onChange={(_, isExpanded) => setOptionsPanelExpanded(isExpanded ? 'grid' : false)}
+              disableGutters
+              sx={{
+                bgcolor: 'transparent',
+                boxShadow: 'none',
+                '&:before': { display: 'none' },
+                borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0'
+              }}
+            >
+              <AccordionSummary
+                expandIcon={<ExpandMoreIcon sx={{ color: isDarkMode ? '#94a3b8' : '#64748b' }} />}
+                sx={{
+                  px: 2,
+                  minHeight: 56,
+                  '&.Mui-expanded': { minHeight: 56 },
+                  '& .MuiAccordionSummary-content': { my: 1.5 }
+                }}
+              >
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                  <TableChartIcon sx={{ color: '#f59e0b', fontSize: 22 }} />
+                  <Box>
+                    <Typography sx={{ fontWeight: 700, fontSize: '0.9rem', color: isDarkMode ? '#e2e8f0' : '#1e293b' }}>Grid Settings</Typography>
+                    <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>Sorting, filtering, resize</Typography>
+                  </Box>
+                </Box>
+              </AccordionSummary>
+              <AccordionDetails sx={{ px: 2, pb: 2, pt: 0 }}>
+                <Stack spacing={1.5}>
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={enableSorting}
+                        onChange={(e) => setEnableSorting(e.target.checked)}
+                        sx={{ '&.Mui-checked': { color: '#f59e0b' } }}
+                      />
+                    }
+                    label={
+                      <Box>
+                        <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>⬆️ Enable Sorting</Typography>
+                        <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>Click headers to sort</Typography>
+                      </Box>
+                    }
+                  />
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={enableColumnFilters}
+                        onChange={(e) => setEnableColumnFilters(e.target.checked)}
+                        sx={{ '&.Mui-checked': { color: '#f59e0b' } }}
+                      />
+                    }
+                    label={
+                      <Box>
+                        <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>🔍 Enable Filtering</Typography>
+                        <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>Filter in column headers</Typography>
+                      </Box>
+                    }
+                  />
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={enableColumnResize}
+                        onChange={(e) => setEnableColumnResize(e.target.checked)}
+                        sx={{ '&.Mui-checked': { color: '#f59e0b' } }}
+                      />
+                    }
+                    label={
+                      <Box>
+                        <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>↔️ Column Resize</Typography>
+                        <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>Drag borders to resize</Typography>
+                      </Box>
+                    }
+                  />
+                  <Button
+                    size="small"
+                    onClick={() => {
+                      setEnableSorting(true);
+                      setEnableColumnFilters(true);
+                      setEnableColumnResize(true);
+                      toast.success('Grid settings reset');
+                    }}
+                    sx={{ alignSelf: 'flex-start', fontSize: '0.75rem', color: isDarkMode ? '#94a3b8' : '#64748b' }}
+                  >
+                    🔄 Reset to Default
+                  </Button>
+                </Stack>
+              </AccordionDetails>
+            </Accordion>
+
+            {/* ═══════════ ACTIONS SECTION ═══════════ */}
+            <Box sx={{ p: 2, borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0' }}>
+              <Typography sx={{ fontWeight: 700, fontSize: '0.8rem', color: isDarkMode ? '#94a3b8' : '#64748b', mb: 1.5, textTransform: 'uppercase' }}>
+                Actions
+              </Typography>
+              <Stack spacing={1}>
+                {/* Add Product Button */}
+                {canSeeButton('add') && (
+                  <Tooltip title={!canAccessButton('add') ? "You don't have permission to use this feature" : ""} arrow>
+                    <span style={{ width: '100%' }}>
+                      <Button
+                        fullWidth
+                        variant="contained"
+                        startIcon={<AddIcon />}
+                        disabled={!canAccessButton('add')}
+                        onClick={() => {
+                          if (!canAccessButton('add')) return;
+                          handleOpenAddDialog();
+                          setOptionsPanelOpen(false);
+                        }}
+                        sx={{
+                          height: 44,
+                          background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                          fontWeight: 600,
+                          '&:hover': { background: 'linear-gradient(135deg, #059669 0%, #047857 100%)' },
+                          '&.Mui-disabled': { background: '#94a3b8' }
+                        }}
+                      >
+                        Add Product
+                      </Button>
+                    </span>
+                  </Tooltip>
+                )}
+
+                {/* Upload Button */}
+                {canSeeButton('upload') && (
+                  <Tooltip title={!canAccessButton('upload') ? "You don't have permission to use this feature" : ""} arrow>
+                    <span style={{ width: '100%' }}>
+                      <Button
+                        fullWidth
+                        variant="contained"
+                        startIcon={<UploadIcon />}
+                        disabled={!canAccessButton('upload')}
+                        onClick={() => {
+                          if (!canAccessButton('upload')) return;
+                          setUploadDialogOpen(true);
+                          setOptionsPanelOpen(false);
+                        }}
+                        sx={{
+                          height: 44,
+                          background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
+                          fontWeight: 600,
+                          '&:hover': { background: 'linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%)' },
+                          '&.Mui-disabled': { background: '#94a3b8' }
+                        }}
+                      >
+                        Upload Products
+                      </Button>
+                    </span>
+                  </Tooltip>
+                )}
+
+                {/* Export Button */}
+                {canSeeButton('export') && (
+                  <Tooltip title={!canAccessButton('export') ? "You don't have permission to use this feature" : ""} arrow>
+                    <span style={{ width: '100%' }}>
+                      <Button
+                        fullWidth
+                        variant="contained"
+                        startIcon={<DownloadIcon />}
+                        disabled={!canAccessButton('export')}
+                        onClick={() => {
+                          if (!canAccessButton('export')) return;
+                          setExportDialogOpen(true);
+                          setOptionsPanelOpen(false);
+                        }}
+                        sx={{
+                          height: 44,
+                          background: 'linear-gradient(135deg, #7c3aed 0%, #a855f7 100%)',
+                          fontWeight: 600,
+                          '&:hover': { background: 'linear-gradient(135deg, #6d28d9 0%, #9333ea 100%)' },
+                          '&.Mui-disabled': { background: '#94a3b8' }
+                        }}
+                      >
+                        Export to Excel
+                      </Button>
+                    </span>
+                  </Tooltip>
+                )}
+
+                {/* Download Template Button */}
+                <Button
+                  fullWidth
+                  variant="outlined"
+                  startIcon={<DownloadIcon />}
+                  onClick={() => {
+                    handleDownloadTemplate();
+                    setOptionsPanelOpen(false);
+                  }}
+                  sx={{
+                    height: 44,
+                    fontWeight: 600,
+                    borderColor: isDarkMode ? '#64748b' : '#94a3b8',
+                    color: isDarkMode ? '#94a3b8' : '#475569',
+                    '&:hover': { borderColor: isDarkMode ? '#94a3b8' : '#64748b', bgcolor: isDarkMode ? 'rgba(255,255,255,0.05)' : '#f8fafc' }
+                  }}
+                >
+                  Download Template
+                </Button>
+
+                {/* Refresh Data Button */}
+                <Button
+                  fullWidth
+                  variant="outlined"
+                  startIcon={refreshing ? <CircularProgress size={16} /> : <RefreshIcon />}
+                  disabled={refreshing}
+                  onClick={() => {
+                    loadMasterData({ buttonRefresh: true });
+                    setOptionsPanelOpen(false);
+                  }}
+                  sx={{
+                    height: 44,
+                    fontWeight: 600,
+                    borderColor: '#3b82f6',
+                    color: '#3b82f6',
+                    '&:hover': { borderColor: '#2563eb', bgcolor: 'rgba(59, 130, 246, 0.08)' }
+                  }}
+                >
+                  {refreshing ? 'Refreshing...' : 'Refresh Data'}
+                </Button>
+
+                {/* Reset All Filters Button - Only show when filters are active */}
+                {filtersActive && (
+                  <Button
+                    fullWidth
+                    variant="outlined"
+                    startIcon={<FilterListIcon />}
+                    onClick={() => {
+                      resetFilters();
+                      setOptionsPanelOpen(false);
+                    }}
+                    sx={{
+                      height: 44,
+                      fontWeight: 600,
+                      borderColor: '#f59e0b',
+                      color: '#f59e0b',
+                      '&:hover': { borderColor: '#d97706', bgcolor: 'rgba(245, 158, 11, 0.08)' }
+                    }}
+                  >
+                    Reset All Filters
+                  </Button>
+                )}
+              </Stack>
+            </Box>
+          </Box>
+        </Drawer>
       </Box>
     </AppLayout >
   );
