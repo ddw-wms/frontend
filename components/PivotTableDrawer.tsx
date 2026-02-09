@@ -537,74 +537,78 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
                 anchor="right"
                 open={open}
                 onClose={onClose}
+                ModalProps={{
+                    keepMounted: true,
+                }}
                 PaperProps={{
                     sx: {
-                        width: { xs: '100%', md: '50%' },
-                        maxWidth: { xs: '100%', md: '100vw' },
+                        width: { xs: '100vw', md: '50%' },
+                        maxWidth: { xs: '100vw', md: '100vw' },
                         bgcolor: isDarkMode ? '#0f172a' : '#f8fafc',
                     },
                 }}
             >
-                {/* Header */}
+                {/* Header - Compact on mobile */}
                 <Box
                     sx={{
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'space-between',
-                        px: { xs: 1.5, md: 2 },
-                        py: { xs: 1, md: 1.5 },
+                        px: { xs: 1, md: 2 },
+                        py: { xs: 0.75, md: 1.5 },
                         background: 'linear-gradient(135deg, #0d9488 0%, #0f766e 100%)',
                         color: 'white',
                     }}
                 >
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 0.5, md: 1 } }}>
-                        <PivotIcon sx={{ fontSize: { xs: 20, md: 24 } }} />
-                        <Typography variant="h6" sx={{ fontWeight: 700, fontSize: { xs: '0.95rem', md: '1.1rem' } }}>
-                            Inventory Pivot Table
+                        <PivotIcon sx={{ fontSize: { xs: 18, md: 24 } }} />
+                        <Typography variant="h6" sx={{ fontWeight: 700, fontSize: { xs: '0.85rem', md: '1.1rem' } }}>
+                            Pivot Table
                         </Typography>
                     </Box>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
                         <Chip
-                            label={loading ? 'Loading...' : `${formatNumber(grandTotal.qty)} items`}
+                            label={loading ? '...' : `${formatNumber(grandTotal.qty)}`}
                             size="small"
                             sx={{
                                 bgcolor: 'rgba(255,255,255,0.2)',
                                 color: 'white',
-                                fontSize: { xs: '0.7rem', md: '0.75rem' },
-                                height: { xs: 22, md: 24 },
+                                fontSize: { xs: '0.65rem', md: '0.75rem' },
+                                height: { xs: 20, md: 24 },
                                 fontWeight: 600,
                             }}
                         />
                         <Tooltip title="Refresh">
-                            <IconButton onClick={fetchPivotSummary} sx={{ color: 'white', p: { xs: 0.5, md: 1 } }} disabled={loading}>
-                                <RefreshIcon sx={{ fontSize: { xs: 18, md: 20 } }} />
+                            <IconButton onClick={fetchPivotSummary} sx={{ color: 'white', p: { xs: 0.25, md: 1 } }} disabled={loading}>
+                                <RefreshIcon sx={{ fontSize: { xs: 16, md: 20 } }} />
                             </IconButton>
                         </Tooltip>
-                        <IconButton onClick={onClose} sx={{ color: 'white', p: { xs: 0.5, md: 1 } }}>
-                            <CloseIcon sx={{ fontSize: { xs: 20, md: 24 } }} />
+                        <IconButton onClick={onClose} sx={{ color: 'white', p: { xs: 0.25, md: 1 } }}>
+                            <CloseIcon sx={{ fontSize: { xs: 18, md: 24 } }} />
                         </IconButton>
                     </Box>
                 </Box>
 
-                {/* Controls */}
+                {/* Controls - Compact on mobile */}
                 <Box
                     sx={{
-                        p: { xs: 1.5, md: 2 },
+                        p: { xs: 1, md: 2 },
                         bgcolor: isDarkMode ? '#1e293b' : 'white',
                         borderBottom: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)'}`,
                         display: 'flex',
                         flexDirection: { xs: 'column', md: 'row' },
                         alignItems: { xs: 'stretch', md: 'center' },
-                        gap: { xs: 1.5, md: 2 },
+                        gap: { xs: 1, md: 2 },
                     }}
                 >
                     {/* Mobile: Stack filters vertically */}
-                    <FormControl size="small" sx={{ minWidth: { xs: '100%', md: 120 } }}>
-                        <InputLabel>Group By</InputLabel>
+                    <FormControl size="small" sx={{ minWidth: { xs: '100%', md: 120 }, '& .MuiInputBase-root': { height: { xs: 36, md: 40 } } }}>
+                        <InputLabel sx={{ fontSize: { xs: '0.8rem', md: '1rem' } }}>Group By</InputLabel>
                         <Select
                             value={groupBy}
                             label="Group By"
                             onChange={(e) => setGroupBy(e.target.value)}
+                            sx={{ fontSize: { xs: '0.8rem', md: '1rem' } }}
                         >
                             {groupByOptions.map(opt => (
                                 <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
@@ -613,12 +617,13 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
                     </FormControl>
 
                     {/* Brand Filter */}
-                    <FormControl size="small" sx={{ minWidth: { xs: '100%', md: 140 } }}>
-                        <InputLabel>Brand</InputLabel>
+                    <FormControl size="small" sx={{ minWidth: { xs: '100%', md: 140 }, '& .MuiInputBase-root': { height: { xs: 36, md: 40 } } }}>
+                        <InputLabel sx={{ fontSize: { xs: '0.8rem', md: '1rem' } }}>Brand</InputLabel>
                         <Select
                             value={brandFilter}
                             label="Brand"
                             onChange={(e) => setBrandFilter(e.target.value)}
+                            sx={{ fontSize: { xs: '0.8rem', md: '1rem' } }}
                         >
                             <MenuItem value="">All Brands</MenuItem>
                             {allBrands.map(brand => (
@@ -628,12 +633,13 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
                     </FormControl>
 
                     {/* Category Filter */}
-                    <FormControl size="small" sx={{ minWidth: { xs: '100%', md: 140 } }}>
-                        <InputLabel>Category</InputLabel>
+                    <FormControl size="small" sx={{ minWidth: { xs: '100%', md: 140 }, '& .MuiInputBase-root': { height: { xs: 36, md: 40 } } }}>
+                        <InputLabel sx={{ fontSize: { xs: '0.8rem', md: '1rem' } }}>Category</InputLabel>
                         <Select
                             value={categoryFilter}
                             label="Category"
                             onChange={(e) => setCategoryFilter(e.target.value)}
+                            sx={{ fontSize: { xs: '0.8rem', md: '1rem' } }}
                         >
                             <MenuItem value="">All Categories</MenuItem>
                             {allCategories.map(cat => (
@@ -644,14 +650,14 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
 
                     {/* Export buttons - stack on mobile */}
                     <Box sx={{ display: { xs: 'none', md: 'block' }, flex: 1 }} />
-                    <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} sx={{ width: { xs: '100%', md: 'auto' } }}>
+                    <Stack direction={{ xs: 'row', md: 'row' }} spacing={1} sx={{ width: { xs: '100%', md: 'auto' } }}>
                         <Button
                             size="small"
                             variant="outlined"
-                            startIcon={<DownloadIcon />}
+                            startIcon={<DownloadIcon sx={{ fontSize: { xs: 16, md: 20 } }} />}
                             onClick={handleExportPivotSummary}
                             disabled={loading || pivotData.length === 0}
-                            fullWidth={isMobile}
+                            sx={{ flex: { xs: 1, md: 'none' }, fontSize: { xs: '0.7rem', md: '0.875rem' }, py: { xs: 0.5, md: 1 } }}
                         >
                             Export Summary
                         </Button>
@@ -660,10 +666,10 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
                             size="small"
                             variant="contained"
                             color="primary"
-                            startIcon={exportingAllData ? <CircularProgress size={16} color="inherit" /> : <DownloadIcon />}
+                            startIcon={exportingAllData ? <CircularProgress size={14} color="inherit" /> : <DownloadIcon sx={{ fontSize: { xs: 16, md: 20 } }} />}
                             onClick={handleExportAllData}
                             disabled={loading || pivotData.length === 0 || exportingAllData}
-                            fullWidth={isMobile}
+                            sx={{ flex: { xs: 1, md: 'none' }, fontSize: { xs: '0.7rem', md: '0.875rem' }, py: { xs: 0.5, md: 1 } }}
                         >
                             {exportingAllData ? 'Exporting...' : 'Export All Data'}
                         </Button>
@@ -686,7 +692,7 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
 
                 {/* Pivot Table */}
                 {!loading && !error && (
-                    <Box sx={{ flex: 1, overflow: 'auto', p: { xs: 1, md: 2 } }}>
+                    <Box sx={{ flex: 1, overflow: 'auto', p: { xs: 0.75, md: 2 } }}>
                         <TableContainer
                             component={Paper}
                             elevation={0}
@@ -694,7 +700,7 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
                                 bgcolor: isDarkMode ? '#1e293b' : 'white',
                                 border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}`,
                                 borderRadius: { xs: 1, md: 2 },
-                                maxHeight: { xs: 'calc(100vh - 320px)', md: 'calc(100vh - 280px)' },
+                                maxHeight: { xs: 'calc(100vh - 280px)', md: 'calc(100vh - 280px)' },
                                 overflow: 'auto',
                             }}
                         >
@@ -706,10 +712,10 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
                                                 fontWeight: 700,
                                                 bgcolor: '#0f766e !important',
                                                 color: 'white',
-                                                fontSize: { xs: '0.75rem', md: '0.85rem' },
-                                                minWidth: { xs: 120, md: 200 },
-                                                py: { xs: 1, md: 1.5 },
-                                                px: { xs: 1, md: 2 },
+                                                fontSize: { xs: '0.7rem', md: '0.85rem' },
+                                                minWidth: { xs: 100, md: 200 },
+                                                py: { xs: 0.75, md: 1.5 },
+                                                px: { xs: 0.75, md: 2 },
                                                 borderBottom: 'none',
                                                 position: 'sticky',
                                                 top: 0,
@@ -724,9 +730,9 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
                                                 fontWeight: 700,
                                                 bgcolor: '#0f766e !important',
                                                 color: 'white',
-                                                fontSize: { xs: '0.75rem', md: '0.85rem' },
-                                                py: { xs: 1, md: 1.5 },
-                                                px: { xs: 1, md: 2 },
+                                                fontSize: { xs: '0.7rem', md: '0.85rem' },
+                                                py: { xs: 0.75, md: 1.5 },
+                                                px: { xs: 0.75, md: 2 },
                                                 borderBottom: 'none',
                                                 position: 'sticky',
                                                 top: 0,
@@ -741,16 +747,16 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
                                                 fontWeight: 700,
                                                 bgcolor: '#0f766e !important',
                                                 color: 'white',
-                                                fontSize: { xs: '0.75rem', md: '0.85rem' },
-                                                py: { xs: 1, md: 1.5 },
-                                                px: { xs: 1, md: 2 },
+                                                fontSize: { xs: '0.7rem', md: '0.85rem' },
+                                                py: { xs: 0.75, md: 1.5 },
+                                                px: { xs: 0.75, md: 2 },
                                                 borderBottom: 'none',
                                                 position: 'sticky',
                                                 top: 0,
                                                 zIndex: 1,
                                             }}
                                         >
-                                            Total FSP
+                                            FSP
                                         </TableCell>
                                         <TableCell
                                             align="right"
@@ -758,16 +764,16 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
                                                 fontWeight: 700,
                                                 bgcolor: '#0f766e !important',
                                                 color: 'white',
-                                                fontSize: { xs: '0.75rem', md: '0.85rem' },
-                                                py: { xs: 1, md: 1.5 },
-                                                px: { xs: 1, md: 2 },
+                                                fontSize: { xs: '0.7rem', md: '0.85rem' },
+                                                py: { xs: 0.75, md: 1.5 },
+                                                px: { xs: 0.75, md: 2 },
                                                 borderBottom: 'none',
                                                 position: 'sticky',
                                                 top: 0,
                                                 zIndex: 1,
                                             }}
                                         >
-                                            Total MRP
+                                            MRP
                                         </TableCell>
                                     </TableRow>
                                 </TableHead>
@@ -785,25 +791,25 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
                                                 bgcolor: idx % 2 === 0 ? 'transparent' : (isDarkMode ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)'),
                                             }}
                                         >
-                                            <TableCell sx={{ fontWeight: 500, fontSize: { xs: '0.75rem', md: '0.85rem' }, py: { xs: 0.75, md: 1 }, px: { xs: 1, md: 2 } }}>
+                                            <TableCell sx={{ fontWeight: 500, fontSize: { xs: '0.7rem', md: '0.85rem' }, py: { xs: 0.5, md: 1 }, px: { xs: 0.75, md: 2 } }}>
                                                 {row.category}
                                             </TableCell>
                                             <TableCell
                                                 align="right"
                                                 sx={{
-                                                    fontSize: { xs: '0.75rem', md: '0.85rem' },
+                                                    fontSize: { xs: '0.7rem', md: '0.85rem' },
                                                     fontWeight: 600,
                                                     color: isDarkMode ? '#10b981' : '#059669',
-                                                    py: { xs: 0.75, md: 1 },
-                                                    px: { xs: 1, md: 2 },
+                                                    py: { xs: 0.5, md: 1 },
+                                                    px: { xs: 0.75, md: 2 },
                                                 }}
                                             >
                                                 {formatNumber(row.qty)}
                                             </TableCell>
-                                            <TableCell align="right" sx={{ fontSize: { xs: '0.75rem', md: '0.85rem' }, py: { xs: 0.75, md: 1 }, px: { xs: 1, md: 2 } }}>
+                                            <TableCell align="right" sx={{ fontSize: { xs: '0.7rem', md: '0.85rem' }, py: { xs: 0.5, md: 1 }, px: { xs: 0.75, md: 2 } }}>
                                                 {formatCurrency(row.total_fsp)}
                                             </TableCell>
-                                            <TableCell align="right" sx={{ fontSize: { xs: '0.75rem', md: '0.85rem' }, py: { xs: 0.75, md: 1 }, px: { xs: 1, md: 2 } }}>
+                                            <TableCell align="right" sx={{ fontSize: { xs: '0.7rem', md: '0.85rem' }, py: { xs: 0.5, md: 1 }, px: { xs: 0.75, md: 2 } }}>
                                                 {formatCurrency(row.total_mrp)}
                                             </TableCell>
                                         </TableRow>
@@ -813,7 +819,7 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
                                     <TableRow
                                         sx={{
                                             bgcolor: isDarkMode ? '#065f46' : '#047857',
-                                            '& td': { fontWeight: 700, fontSize: { xs: '0.75rem', md: '0.9rem' }, color: 'white', py: { xs: 1, md: 1.5 }, px: { xs: 1, md: 2 } },
+                                            '& td': { fontWeight: 700, fontSize: { xs: '0.7rem', md: '0.9rem' }, color: 'white', py: { xs: 0.75, md: 1.5 }, px: { xs: 0.75, md: 2 } },
                                         }}
                                     >
                                         <TableCell sx={{ color: 'white !important' }}>
