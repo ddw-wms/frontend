@@ -546,6 +546,8 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
                         minWidth: { xs: '100vw', sm: '100vw', md: 'auto' },
                         maxWidth: '100vw',
                         bgcolor: isDarkMode ? '#0f172a' : '#f8fafc',
+                        top: { xs: '50px', sm: '56px', md: '64px' },
+                        height: { xs: 'calc(100% - 42px)', sm: 'calc(100% - 56px)', md: 'calc(100% - 64px)' },
                     },
                 }}
             >
