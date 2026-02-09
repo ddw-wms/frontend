@@ -1030,7 +1030,7 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
                             sx={{
                                 flex: 1,
                                 width: '100%',
-                                mb: { xs: 'calc(env(safe-area-inset-bottom, 8px) + 8px)', md: 0 },
+                                mb: { xs: 'calc(env(safe-area-inset-bottom, 16px) + 20px)', md: 0 },
                                 // Desktop default styles
                                 '--ag-header-height': '42px',
                                 '--ag-row-height': '38px',
