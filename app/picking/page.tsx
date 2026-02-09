@@ -1,4 +1,4 @@
-﻿// File Path = warehouse-frontend\app\picking\page.tsx
+// File Path = warehouse-frontend\app\picking\page.tsx
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo, useRef, useLayoutEffect } from 'react';
@@ -3499,108 +3499,11 @@ export default function PickingPage() {
                 </Box>
               )}
 
-              {/* Full Loading Overlay - shows during initial load OR while columns are being sized */}
-              {(!gridDataRendered || (loading && (!pickingList || pickingList.length === 0))) && (
-                <Box sx={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  bgcolor: isDarkMode ? '#1e293b' : '#ffffff',
-                  zIndex: 100,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  borderRadius: { xs: 0, md: '12px' },
-                  overflow: 'hidden',
-                  border: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(0,0,0,0.06)',
-                }}>
-                  {/* Static header row that matches AG Grid header exactly */}
-                  <Box sx={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    height: 32,
-                    bgcolor: '#1e3a5f',
-                    borderBottom: isDarkMode ? '2px solid #10b981' : '2px solid #059669',
-                  }}>
-                    <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: '#ffffff', minWidth: 50, textTransform: 'uppercase', letterSpacing: '0.02em', px: 1.5, borderRight: '1px solid #3b5998' }}>SR.NO</Typography>
-                    <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: '#ffffff', minWidth: 100, textTransform: 'uppercase', letterSpacing: '0.02em', px: 1.5, borderRight: '1px solid #3b5998' }}>WSN</Typography>
-                    <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: '#ffffff', minWidth: 100, textTransform: 'uppercase', letterSpacing: '0.02em', px: 1.5, borderRight: '1px solid #3b5998' }}>CUSTOMER</Typography>
-                    <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: '#ffffff', flex: 1, textTransform: 'uppercase', letterSpacing: '0.02em', px: 1.5, borderRight: '1px solid #3b5998' }}>PRODUCT TITLE</Typography>
-                    <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: '#ffffff', minWidth: 80, textTransform: 'uppercase', letterSpacing: '0.02em', px: 1.5, borderRight: '1px solid #3b5998' }}>BRAND</Typography>
-                    <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: '#ffffff', minWidth: 100, textTransform: 'uppercase', letterSpacing: '0.02em', px: 1.5 }}>CATEGORY</Typography>
-                  </Box>
-                  {/* Loading body area with centered spinner */}
-                  <Box sx={{
-                    flex: 1,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    bgcolor: isDarkMode ? '#1e293b' : '#ffffff',
-                  }}>
-                    <Box sx={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      gap: 3,
-                      p: 4,
-                      bgcolor: isDarkMode ? '#1e293b' : 'white',
-                      borderRadius: 3,
-                      boxShadow: isDarkMode ? '0 8px 24px rgba(0,0,0,0.4)' : '0 8px 24px rgba(0,0,0,0.12)'
-                    }}>
-                      <Box sx={{ position: 'relative' }}>
-                        <CircularProgress
-                          size={56}
-                          thickness={3.5}
-                          sx={{
-                            color: '#1e40af',
-                            filter: 'drop-shadow(0 2px 8px rgba(25, 118, 210, 0.2))'
-                          }}
-                        />
-                        <Box sx={{
-                          position: 'absolute',
-                          top: '50%',
-                          left: '50%',
-                          transform: 'translate(-50%, -50%)',
-                          width: 44,
-                          height: 44,
-                          borderRadius: '50%',
-                          background: 'linear-gradient(135deg, #1e40af 0%, #60a5fa 100%)',
-                          opacity: 0.15,
-                          animation: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-                          '@keyframes pulse': {
-                            '0%, 100%': {
-                              transform: 'translate(-50%, -50%) scale(1)',
-                              opacity: 0.15
-                            },
-                            '50%': {
-                              transform: 'translate(-50%, -50%) scale(1.15)',
-                              opacity: 0.05
-                            }
-                          }
-                        }} />
-                      </Box>
-                      <Typography
-                        sx={{
-                          fontSize: '0.95rem',
-                          fontWeight: 500,
-                          color: isDarkMode ? '#94a3b8' : '#546e7a',
-                          letterSpacing: 0.3,
-                          textAlign: 'center'
-                        }}
-                      >
-                        Loading data...
-                      </Typography>
-                    </Box>
-                  </Box>
-                </Box>
-              )}
-
               {/* Empty State Overlay */}
-              {!loading && !isFetching && gridDataRendered && (!pickingList || pickingList.length === 0) && (
+              {!loading && !isFetching && (!pickingList || pickingList.length === 0) && (
                 <Box sx={{
                   position: 'absolute',
-                  top: 60,
+                  top: 32,
                   left: 0,
                   right: 0,
                   bottom: 0,
@@ -3623,7 +3526,7 @@ export default function PickingPage() {
                       opacity: 0.3,
                       mb: 1
                     }}>
-                      ðŸ“­
+                      📭
                     </Box>
                     <Typography variant="h5" sx={{ fontWeight: 600, color: isDarkMode ? '#94a3b8' : '#6b7280', mb: 0.5 }}>
                       No Data Found
@@ -3845,6 +3748,29 @@ export default function PickingPage() {
                     />
                   </Box>
                 </div>
+
+                {/* Initial Loading Overlay - positioned below header */}
+                {((loading && (!pickingList || pickingList.length === 0)) || (pickingList && pickingList.length > 0 && !gridDataRendered)) && (
+                  <Box sx={{
+                    position: 'absolute',
+                    top: 32,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    bgcolor: isDarkMode ? '#1e293b' : '#ffffff',
+                    zIndex: 50,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                      <CircularProgress size={40} thickness={4} sx={{ color: '#1e40af' }} />
+                      <Typography sx={{ fontSize: '0.85rem', fontWeight: 500, color: isDarkMode ? '#94a3b8' : '#64748b' }}>
+                        Loading picking data...
+                      </Typography>
+                    </Box>
+                  </Box>
+                )}
               </Box>
             </Box>
 

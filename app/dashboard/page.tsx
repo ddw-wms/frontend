@@ -2084,7 +2084,7 @@ export default function DashboardPage() {
                 {activeWarehouse && (!filteredData || filteredData.length === 0) && !loading && !isBackgroundRefresh && isMounted && (
                   <Box sx={{
                     position: 'absolute',
-                    top: 0,
+                    top: 35, // Start below AG Grid header (35px height)
                     left: 0,
                     right: 0,
                     bottom: 0,
@@ -2307,102 +2307,25 @@ export default function DashboardPage() {
                     />
                   </div>
 
-                  {/* ⚡ Initial Loading Overlay - covers AG Grid completely during first load */}
-                  {/* MUST be AFTER ag-grid in DOM to properly cover it */}
-                  {((gridRowData.length === 0 && activeWarehouse) || (gridRowData.length > 0 && !gridDataRendered)) && (
+                  {/* Initial Loading Overlay - positioned below header */}
+                  {((loading && gridRowData.length === 0 && activeWarehouse) || (gridRowData.length > 0 && !gridDataRendered)) && (
                     <Box sx={{
                       position: 'absolute',
-                      top: 0,
+                      top: 35,
                       left: 0,
                       right: 0,
                       bottom: 0,
                       bgcolor: isDarkMode ? '#1e293b' : '#ffffff',
-                      zIndex: 100, // Very high to ensure it covers AG Grid header
+                      zIndex: 50,
                       display: 'flex',
-                      flexDirection: 'column',
-                      borderRadius: { xs: 0, md: '12px' },
-                      overflow: 'hidden',
-                      border: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(0,0,0,0.06)',
+                      alignItems: 'center',
+                      justifyContent: 'center',
                     }}>
-                      {/* Static header row that matches AG Grid header exactly */}
-                      <Box sx={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        height: 35,
-                        px: 1.5,
-                        gap: 2,
-                        bgcolor: '#1e3a5f',
-                        borderBottom: isDarkMode ? '2px solid #10b981' : '2px solid #059669',
-                      }}>
-                        <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: '#ffffff', minWidth: 50, textTransform: 'uppercase', letterSpacing: '0.02em' }}>SR.NO</Typography>
-                        <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: '#ffffff', minWidth: 80, textTransform: 'uppercase', letterSpacing: '0.02em' }}>WSN</Typography>
-                        <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: '#ffffff', minWidth: 80, textTransform: 'uppercase', letterSpacing: '0.02em' }}>WID</Typography>
-                        <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: '#ffffff', minWidth: 100, textTransform: 'uppercase', letterSpacing: '0.02em' }}>FSN</Typography>
-                        <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: '#ffffff', flex: 1, textTransform: 'uppercase', letterSpacing: '0.02em' }}>PRODUCT TITLE</Typography>
-                        <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: '#ffffff', minWidth: 80, textTransform: 'uppercase', letterSpacing: '0.02em' }}>BRAND</Typography>
-                      </Box>
-                      {/* Loading body area with centered spinner - same style as inbound page */}
-                      <Box sx={{
-                        flex: 1,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        bgcolor: isDarkMode ? '#1e293b' : '#ffffff',
-                      }}>
-                        <Box sx={{
-                          display: 'flex',
-                          flexDirection: 'column',
-                          alignItems: 'center',
-                          gap: 3,
-                          p: 4,
-                          bgcolor: isDarkMode ? '#1e293b' : 'white',
-                          borderRadius: 3,
-                          boxShadow: isDarkMode ? '0 8px 32px rgba(0,0,0,0.4)' : '0 8px 24px rgba(0,0,0,0.12)'
-                        }}>
-                          <Box sx={{ position: 'relative' }}>
-                            <CircularProgress
-                              size={56}
-                              thickness={3.5}
-                              sx={{
-                                color: '#1e40af',
-                                filter: 'drop-shadow(0 2px 8px rgba(25, 118, 210, 0.2))'
-                              }}
-                            />
-                            <Box sx={{
-                              position: 'absolute',
-                              top: '50%',
-                              left: '50%',
-                              transform: 'translate(-50%, -50%)',
-                              width: 44,
-                              height: 44,
-                              borderRadius: '50%',
-                              background: 'linear-gradient(135deg, #1e40af 0%, #60a5fa 100%)',
-                              opacity: 0.15,
-                              animation: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-                              '@keyframes pulse': {
-                                '0%, 100%': {
-                                  transform: 'translate(-50%, -50%) scale(1)',
-                                  opacity: 0.15
-                                },
-                                '50%': {
-                                  transform: 'translate(-50%, -50%) scale(1.15)',
-                                  opacity: 0.05
-                                }
-                              }
-                            }} />
-                          </Box>
-                          <Typography
-                            sx={{
-                              fontSize: '0.95rem',
-                              fontWeight: 500,
-                              color: isDarkMode ? '#94a3b8' : '#546e7a',
-                              letterSpacing: 0.3,
-                              textAlign: 'center'
-                            }}
-                          >
-                            Loading data...
-                          </Typography>
-                        </Box>
+                      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                        <CircularProgress size={40} thickness={4} sx={{ color: '#1e40af' }} />
+                        <Typography sx={{ fontSize: '0.85rem', fontWeight: 500, color: isDarkMode ? '#94a3b8' : '#64748b' }}>
+                          Loading inventory...
+                        </Typography>
                       </Box>
                     </Box>
                   )}
