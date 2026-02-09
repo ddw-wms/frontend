@@ -592,91 +592,127 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
                     </Box>
                 </Box>
 
-                {/* Controls - Compact on mobile */}
+                {/* Controls - Compact 2-row layout on mobile */}
                 <Box
                     sx={{
-                        p: { xs: 1, md: 2 },
+                        p: { xs: 0.75, md: 2 },
                         bgcolor: isDarkMode ? '#1e293b' : 'white',
                         borderBottom: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)'}`,
                         display: 'flex',
-                        flexDirection: { xs: 'column', md: 'row' },
-                        alignItems: { xs: 'stretch', md: 'center' },
-                        gap: { xs: 1, md: 2 },
+                        flexDirection: 'column',
+                        gap: { xs: 0.75, md: 2 },
                     }}
                 >
-                    {/* Mobile: Stack filters vertically */}
-                    <FormControl size="small" sx={{ minWidth: { xs: '100%', md: 120 }, '& .MuiInputBase-root': { height: { xs: 36, md: 40 } } }}>
-                        <InputLabel sx={{ fontSize: { xs: '0.8rem', md: '1rem' } }}>Group By</InputLabel>
-                        <Select
-                            value={groupBy}
-                            label="Group By"
-                            onChange={(e) => setGroupBy(e.target.value)}
-                            sx={{ fontSize: { xs: '0.8rem', md: '1rem' } }}
-                        >
-                            {groupByOptions.map(opt => (
-                                <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
-                            ))}
-                        </Select>
-                    </FormControl>
+                    {/* Row 1: Group By + Brand (mobile) | All in row (desktop) */}
+                    <Box sx={{ display: 'flex', flexDirection: { xs: 'row', md: 'row' }, gap: { xs: 0.75, md: 2 }, alignItems: 'center' }}>
+                        <FormControl size="small" sx={{ flex: { xs: 1, md: 'none' }, minWidth: { md: 120 }, '& .MuiInputBase-root': { height: { xs: 32, md: 40 } } }}>
+                            <InputLabel sx={{ fontSize: { xs: '0.7rem', md: '1rem' } }}>Group By</InputLabel>
+                            <Select
+                                value={groupBy}
+                                label="Group By"
+                                onChange={(e) => setGroupBy(e.target.value)}
+                                sx={{ fontSize: { xs: '0.75rem', md: '1rem' } }}
+                            >
+                                {groupByOptions.map(opt => (
+                                    <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
 
-                    {/* Brand Filter */}
-                    <FormControl size="small" sx={{ minWidth: { xs: '100%', md: 140 }, '& .MuiInputBase-root': { height: { xs: 36, md: 40 } } }}>
-                        <InputLabel sx={{ fontSize: { xs: '0.8rem', md: '1rem' } }}>Brand</InputLabel>
-                        <Select
-                            value={brandFilter}
-                            label="Brand"
-                            onChange={(e) => setBrandFilter(e.target.value)}
-                            sx={{ fontSize: { xs: '0.8rem', md: '1rem' } }}
-                        >
-                            <MenuItem value="">All Brands</MenuItem>
-                            {allBrands.map(brand => (
-                                <MenuItem key={brand} value={brand}>{brand}</MenuItem>
-                            ))}
-                        </Select>
-                    </FormControl>
+                        <FormControl size="small" sx={{ flex: { xs: 1, md: 'none' }, minWidth: { md: 140 }, '& .MuiInputBase-root': { height: { xs: 32, md: 40 } } }}>
+                            <InputLabel sx={{ fontSize: { xs: '0.7rem', md: '1rem' } }}>Brand</InputLabel>
+                            <Select
+                                value={brandFilter}
+                                label="Brand"
+                                onChange={(e) => setBrandFilter(e.target.value)}
+                                sx={{ fontSize: { xs: '0.75rem', md: '1rem' } }}
+                            >
+                                <MenuItem value="">All Brands</MenuItem>
+                                {allBrands.map(brand => (
+                                    <MenuItem key={brand} value={brand}>{brand}</MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
 
-                    {/* Category Filter */}
-                    <FormControl size="small" sx={{ minWidth: { xs: '100%', md: 140 }, '& .MuiInputBase-root': { height: { xs: 36, md: 40 } } }}>
-                        <InputLabel sx={{ fontSize: { xs: '0.8rem', md: '1rem' } }}>Category</InputLabel>
-                        <Select
-                            value={categoryFilter}
-                            label="Category"
-                            onChange={(e) => setCategoryFilter(e.target.value)}
-                            sx={{ fontSize: { xs: '0.8rem', md: '1rem' } }}
-                        >
-                            <MenuItem value="">All Categories</MenuItem>
-                            {allCategories.map(cat => (
-                                <MenuItem key={cat} value={cat}>{cat}</MenuItem>
-                            ))}
-                        </Select>
-                    </FormControl>
+                        {/* Desktop only: Category + spacer + buttons */}
+                        <FormControl size="small" sx={{ display: { xs: 'none', md: 'flex' }, minWidth: 140, '& .MuiInputBase-root': { height: 40 } }}>
+                            <InputLabel>Category</InputLabel>
+                            <Select
+                                value={categoryFilter}
+                                label="Category"
+                                onChange={(e) => setCategoryFilter(e.target.value)}
+                            >
+                                <MenuItem value="">All Categories</MenuItem>
+                                {allCategories.map(cat => (
+                                    <MenuItem key={cat} value={cat}>{cat}</MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
 
-                    {/* Export buttons - stack on mobile */}
-                    <Box sx={{ display: { xs: 'none', md: 'block' }, flex: 1 }} />
-                    <Stack direction={{ xs: 'row', md: 'row' }} spacing={1} sx={{ width: { xs: '100%', md: 'auto' } }}>
+                        <Box sx={{ display: { xs: 'none', md: 'block' }, flex: 1 }} />
+                        <Stack direction="row" spacing={1} sx={{ display: { xs: 'none', md: 'flex' } }}>
+                            <Button
+                                size="small"
+                                variant="outlined"
+                                startIcon={<DownloadIcon sx={{ fontSize: 20 }} />}
+                                onClick={handleExportPivotSummary}
+                                disabled={loading || pivotData.length === 0}
+                                sx={{ fontSize: '0.875rem', py: 1 }}
+                            >
+                                Export Summary
+                            </Button>
+                            <Button
+                                size="small"
+                                variant="contained"
+                                color="primary"
+                                startIcon={exportingAllData ? <CircularProgress size={14} color="inherit" /> : <DownloadIcon sx={{ fontSize: 20 }} />}
+                                onClick={handleExportAllData}
+                                disabled={loading || pivotData.length === 0 || exportingAllData}
+                                sx={{ fontSize: '0.875rem', py: 1 }}
+                            >
+                                {exportingAllData ? 'Exporting...' : 'Export All Data'}
+                            </Button>
+                        </Stack>
+                    </Box>
+
+                    {/* Row 2 (Mobile only): Category + Export buttons */}
+                    <Box sx={{ display: { xs: 'flex', md: 'none' }, flexDirection: 'row', gap: 0.75, alignItems: 'center' }}>
+                        <FormControl size="small" sx={{ flex: 1, '& .MuiInputBase-root': { height: 32 } }}>
+                            <InputLabel sx={{ fontSize: '0.7rem' }}>Category</InputLabel>
+                            <Select
+                                value={categoryFilter}
+                                label="Category"
+                                onChange={(e) => setCategoryFilter(e.target.value)}
+                                sx={{ fontSize: '0.75rem' }}
+                            >
+                                <MenuItem value="">All Categories</MenuItem>
+                                {allCategories.map(cat => (
+                                    <MenuItem key={cat} value={cat}>{cat}</MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
                         <Button
                             size="small"
                             variant="outlined"
-                            startIcon={<DownloadIcon sx={{ fontSize: { xs: 16, md: 20 } }} />}
+                            startIcon={<DownloadIcon sx={{ fontSize: 14 }} />}
                             onClick={handleExportPivotSummary}
                             disabled={loading || pivotData.length === 0}
-                            sx={{ flex: { xs: 1, md: 'none' }, fontSize: { xs: '0.7rem', md: '0.875rem' }, py: { xs: 0.5, md: 1 } }}
+                            sx={{ fontSize: '0.65rem', py: 0.5, px: 1, minWidth: 'auto', whiteSpace: 'nowrap' }}
                         >
-                            Export Summary
+                            Summary
                         </Button>
-
                         <Button
                             size="small"
                             variant="contained"
                             color="primary"
-                            startIcon={exportingAllData ? <CircularProgress size={14} color="inherit" /> : <DownloadIcon sx={{ fontSize: { xs: 16, md: 20 } }} />}
+                            startIcon={exportingAllData ? <CircularProgress size={12} color="inherit" /> : <DownloadIcon sx={{ fontSize: 14 }} />}
                             onClick={handleExportAllData}
                             disabled={loading || pivotData.length === 0 || exportingAllData}
-                            sx={{ flex: { xs: 1, md: 'none' }, fontSize: { xs: '0.7rem', md: '0.875rem' }, py: { xs: 0.5, md: 1 } }}
+                            sx={{ fontSize: '0.65rem', py: 0.5, px: 1, minWidth: 'auto', whiteSpace: 'nowrap' }}
                         >
-                            {exportingAllData ? 'Exporting...' : 'Export All Data'}
+                            {exportingAllData ? '...' : 'All Data'}
                         </Button>
-                    </Stack>
+                    </Box>
                 </Box>
 
                 {/* Loading */}
@@ -868,17 +904,23 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
             <Dialog
                 open={drilldownOpen}
                 onClose={() => setDrilldownOpen(false)}
-                maxWidth={drilldownFullscreen ? false : 'xl'}
-                fullWidth={!drilldownFullscreen}
-                fullScreen={drilldownFullscreen}
+                maxWidth={isMobile ? false : (drilldownFullscreen ? false : 'xl')}
+                fullWidth={isMobile ? true : !drilldownFullscreen}
+                fullScreen={isMobile ? true : drilldownFullscreen}
                 PaperProps={{
                     sx: {
-                        borderRadius: drilldownFullscreen ? 0 : 2,
-                        maxHeight: drilldownFullscreen ? '100vh' : '90vh',
-                        height: drilldownFullscreen ? '100vh' : '90vh',
-                        width: drilldownFullscreen ? '100vw' : undefined,
-                        margin: drilldownFullscreen ? 0 : undefined,
+                        borderRadius: (isMobile || drilldownFullscreen) ? 0 : 2,
+                        maxHeight: (isMobile || drilldownFullscreen) ? '100vh' : '90vh',
+                        height: (isMobile || drilldownFullscreen) ? '100vh' : '90vh',
+                        width: (isMobile || drilldownFullscreen) ? '100vw' : undefined,
+                        margin: (isMobile || drilldownFullscreen) ? 0 : undefined,
                         transition: 'all 0.2s ease-in-out',
+                        // Mobile: position below header
+                        ...(isMobile && {
+                            top: '42px',
+                            height: 'calc(100vh - 42px)',
+                            maxHeight: 'calc(100vh - 42px)',
+                        }),
                     },
                 }}
             >
@@ -889,58 +931,64 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
                         justifyContent: 'space-between',
                         background: 'linear-gradient(135deg, #0d9488 0%, #0f766e 100%)',
                         color: 'white',
-                        py: 1.5,
+                        py: { xs: 0.75, md: 1.5 },
+                        px: { xs: 1.5, md: 3 },
+                        minHeight: { xs: 48, md: 64 },
                     }}
                 >
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <TableIcon />
-                        <Box>
-                            <Typography variant="h6" sx={{ fontSize: '1rem', fontWeight: 700 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 0.75, md: 1 }, minWidth: 0, flex: 1 }}>
+                        <TableIcon sx={{ fontSize: { xs: 20, md: 24 } }} />
+                        <Box sx={{ minWidth: 0 }}>
+                            <Typography variant="h6" sx={{ fontSize: { xs: '0.85rem', md: '1rem' }, fontWeight: 700, lineHeight: 1.2 }} noWrap>
                                 {drilldownCategory}
                             </Typography>
                             <Typography
                                 variant="caption"
                                 sx={{
                                     color: 'rgba(255,255,255,0.95)',
-                                    fontSize: { xs: '0.675rem', sm: '0.75rem' },
+                                    fontSize: { xs: '0.6rem', md: '0.75rem' },
                                     lineHeight: 1.1,
                                     display: 'block',
-                                    mt: 0.25,
                                 }}
                             >
                                 {formatNumber(drilldownTotal)} items • All Master Data Columns
                             </Typography>
                         </Box>
                     </Box>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 0.5, md: 1 }, flexShrink: 0 }}>
                         <Button
                             variant="contained"
                             size="small"
-                            startIcon={exportingExcel ? <CircularProgress size={16} color="inherit" /> : <DownloadIcon />}
+                            startIcon={exportingExcel ? <CircularProgress size={14} color="inherit" /> : <DownloadIcon sx={{ fontSize: { xs: 16, md: 20 } }} />}
                             onClick={handleExportDrilldown}
                             disabled={exportingExcel || drilldownLoading}
                             sx={{
                                 bgcolor: 'rgba(255,255,255,0.2)',
                                 '&:hover': { bgcolor: 'rgba(255,255,255,0.3)' },
+                                fontSize: { xs: '0.65rem', md: '0.875rem' },
+                                py: { xs: 0.5, md: 0.75 },
+                                px: { xs: 1, md: 2 },
+                                minWidth: 'auto',
                             }}
                         >
-                            {exportingExcel ? 'Exporting...' : 'Export to Excel'}
+                            {exportingExcel ? '...' : (isMobile ? 'Export' : 'Export to Excel')}
                         </Button>
+                        {/* Fullscreen button - desktop only */}
                         <Tooltip title={drilldownFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}>
                             <IconButton
                                 onClick={() => setDrilldownFullscreen(!drilldownFullscreen)}
-                                sx={{ color: 'white' }}
+                                sx={{ color: 'white', display: { xs: 'none', md: 'flex' }, p: { xs: 0.5, md: 1 } }}
                             >
                                 {drilldownFullscreen ? <FullscreenExitIcon /> : <FullscreenIcon />}
                             </IconButton>
                         </Tooltip>
-                        <IconButton onClick={() => setDrilldownOpen(false)} sx={{ color: 'white' }}>
-                            <CloseIcon />
+                        <IconButton onClick={() => setDrilldownOpen(false)} sx={{ color: 'white', p: { xs: 0.5, md: 1 } }}>
+                            <CloseIcon sx={{ fontSize: { xs: 20, md: 24 } }} />
                         </IconButton>
                     </Box>
                 </DialogTitle>
 
-                <Box sx={{ p: 2, borderBottom: '1px solid rgba(0,0,0,0.1)', display: 'flex', alignItems: 'center', gap: 2 }}>
+                <Box sx={{ p: { xs: 1, md: 2 }, borderBottom: '1px solid rgba(0,0,0,0.1)', display: 'flex', alignItems: 'center', gap: { xs: 1, md: 2 } }}>
                     <TextField
                         size="small"
                         placeholder="Search WSN, Product, Brand..."
@@ -949,22 +997,23 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
                         InputProps={{
                             startAdornment: (
                                 <InputAdornment position="start">
-                                    <SearchIcon sx={{ fontSize: 20, color: 'text.secondary' }} />
+                                    <SearchIcon sx={{ fontSize: { xs: 18, md: 20 }, color: 'text.secondary' }} />
                                 </InputAdornment>
                             ),
+                            sx: { fontSize: { xs: '0.8rem', md: '1rem' }, height: { xs: 36, md: 40 } },
                         }}
-                        sx={{ width: 300 }}
+                        sx={{ flex: { xs: 1, md: 'none' }, width: { md: 300 } }}
                     />
-                    <Box sx={{ flex: 1 }} />
                     <Tooltip title="Grid Settings">
                         <IconButton
                             onClick={() => setGridSettingsOpen(true)}
                             sx={{
                                 bgcolor: 'rgba(13, 148, 136, 0.1)',
                                 '&:hover': { bgcolor: 'rgba(13, 148, 136, 0.2)' },
+                                p: { xs: 0.75, md: 1 },
                             }}
                         >
-                            <SettingsIcon sx={{ color: '#0d9488' }} />
+                            <SettingsIcon sx={{ color: '#0d9488', fontSize: { xs: 20, md: 24 } }} />
                         </IconButton>
                     </Tooltip>
                 </Box>
@@ -980,19 +1029,22 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
                             sx={{
                                 flex: 1,
                                 width: '100%',
-                                '--ag-header-height': '42px',
-                                '--ag-row-height': '38px',
+                                '--ag-header-height': { xs: '36px', md: '42px' },
+                                '--ag-row-height': { xs: '32px', md: '38px' },
                                 '--ag-header-foreground-color': '#ffffff',
                                 '--ag-header-background-color': '#0f766e',
-                                '--ag-border-color': 'rgba(0,0,0,0.12)',
+                                '--ag-border-color': 'rgba(0,0,0,0.15)',
                                 '--ag-odd-row-background-color': 'rgba(240, 247, 244, 0.5)',
                                 '--ag-row-hover-color': 'rgba(13, 148, 136, 0.08)',
                                 '--ag-selected-row-background-color': 'rgba(13, 148, 136, 0.12)',
-                                '--ag-font-size': '12px',
+                                '--ag-font-size': { xs: '11px', md: '12px' },
                                 '--ag-font-family': 'Inter, -apple-system, sans-serif',
-                                '--ag-cell-horizontal-padding': '8px',
+                                '--ag-cell-horizontal-padding': { xs: '4px', md: '8px' },
+                                '--ag-borders': 'solid 1px',
+                                '--ag-row-border-color': 'rgba(0,0,0,0.15)',
+                                '--ag-cell-horizontal-border': 'solid rgba(0,0,0,0.15)',
                                 '& .ag-root-wrapper': {
-                                    border: 'none',
+                                    border: '1px solid rgba(0,0,0,0.15)',
                                 },
                                 '& .ag-header': {
                                     borderBottom: '2px solid #0d9488',
@@ -1000,8 +1052,9 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
                                 },
                                 '& .ag-header-cell': {
                                     fontWeight: 600,
-                                    fontSize: '11px',
-                                    padding: '0 8px',
+                                    fontSize: { xs: '10px', md: '11px' },
+                                    padding: { xs: '0 4px', md: '0 8px' },
+                                    borderRight: '1px solid rgba(255,255,255,0.2) !important',
                                 },
                                 '& .ag-header-cell-text': {
                                     overflow: 'hidden',
@@ -1010,41 +1063,46 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
                                 },
                                 '& .ag-row': {
                                     transition: 'background-color 0.15s ease',
-                                    borderBottom: '1px solid rgba(0,0,0,0.06)',
+                                    borderBottom: '1px solid rgba(0,0,0,0.15) !important',
                                 },
                                 '& .ag-cell': {
-                                    lineHeight: '36px',
-                                    padding: '0 8px',
+                                    lineHeight: { xs: '30px', md: '36px' },
+                                    padding: { xs: '0 4px', md: '0 8px' },
                                     overflow: 'hidden',
                                     textOverflow: 'ellipsis',
                                     whiteSpace: 'nowrap',
-                                    borderRight: '1px solid rgba(0,0,0,0.06)',
+                                    borderRight: '1px solid rgba(0,0,0,0.15) !important',
                                 },
                                 '& .ag-cell-value': {
                                     overflow: 'hidden',
                                     textOverflow: 'ellipsis',
                                     whiteSpace: 'nowrap',
                                 },
-                                // Pagination Panel Styles
+                                // Pagination Panel Styles - Compact on mobile
                                 '& .ag-paging-panel': {
-                                    height: '52px',
+                                    height: { xs: '40px', md: '52px' },
                                     borderTop: '2px solid #0d9488',
                                     background: '#f0fdfa !important',
                                     color: '#1e293b !important',
                                     fontWeight: 500,
-                                    padding: '0 16px',
+                                    padding: { xs: '0 8px', md: '0 16px' },
+                                    gap: { xs: '4px', md: '8px' },
+                                    fontSize: { xs: '11px', md: '13px' },
+                                    flexWrap: 'nowrap',
+                                    justifyContent: 'center',
                                 },
                                 '& .ag-paging-panel *': {
                                     color: '#1e293b !important',
+                                    fontSize: { xs: '10px', md: '13px' },
                                 },
                                 '& .ag-paging-button': {
                                     cursor: 'pointer',
                                     backgroundColor: '#ffffff !important',
                                     border: '1px solid #0d9488 !important',
                                     borderRadius: '4px !important',
-                                    margin: '0 3px !important',
-                                    minWidth: '32px !important',
-                                    height: '32px !important',
+                                    margin: { xs: '0 2px !important', md: '0 3px !important' },
+                                    minWidth: { xs: '26px !important', md: '32px !important' },
+                                    height: { xs: '26px !important', md: '32px !important' },
                                     display: 'flex !important',
                                     alignItems: 'center !important',
                                     justifyContent: 'center !important',
