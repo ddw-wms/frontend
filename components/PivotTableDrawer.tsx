@@ -915,11 +915,12 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
                         width: (isMobile || drilldownFullscreen) ? '100vw' : undefined,
                         margin: (isMobile || drilldownFullscreen) ? 0 : undefined,
                         transition: 'all 0.2s ease-in-out',
-                        // Mobile: position below header
+                        // Mobile: position below header with safe area padding
                         ...(isMobile && {
                             top: '42px',
                             height: 'calc(100vh - 42px)',
                             maxHeight: 'calc(100vh - 42px)',
+                            paddingBottom: 'env(safe-area-inset-bottom, 0px)',
                         }),
                     },
                 }}
@@ -1018,7 +1019,7 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
                     </Tooltip>
                 </Box>
 
-                <DialogContent sx={{ p: 0, pb: { xs: '44px', md: 0 }, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                <DialogContent sx={{ p: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
                     {drilldownLoading ? (
                         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1 }}>
                             <CircularProgress />
@@ -1029,6 +1030,7 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
                             sx={{
                                 flex: 1,
                                 width: '100%',
+                                mb: { xs: 'calc(env(safe-area-inset-bottom, 8px) + 8px)', md: 0 },
                                 // Desktop default styles
                                 '--ag-header-height': '42px',
                                 '--ag-row-height': '38px',
