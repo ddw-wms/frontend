@@ -436,6 +436,8 @@ export default function InboundPage() {
   // ⚡ INSTANT NAVIGATION: Initialize from cache to prevent empty grid flash
   const [listData, setListData] = useState<any[]>(() => getCachedInboundListData());
   const [listLoading, setListLoading] = useState(() => getCachedInboundListData().length === 0);
+  // Track when we've received actual API response (not just loading finished)
+  const [dataResponseReceived, setDataResponseReceived] = useState(() => getCachedInboundListData().length > 0);
 
   // ⚡ SYNCHRONOUS MOUNT: Load cache BEFORE paint for instant display
   useLayoutEffect(() => {
@@ -443,6 +445,7 @@ export default function InboundPage() {
     if (cached.length > 0) {
       setListData(cached);
       setListLoading(false);
+      setDataResponseReceived(true);
     }
   }, []);
 
@@ -1285,6 +1288,7 @@ export default function InboundPage() {
         setListData(cached.data);
         setTotal(cached.total);
         setLastRefreshTime(new Date(cached.timestamp));
+        setDataResponseReceived(true);
         // Keep spinner visible briefly for consistent UX during filter reset
         setTimeout(() => setListLoading(false), 300);
         setTimeout(() => prefetchNextPage(), 100);
@@ -1339,6 +1343,7 @@ export default function InboundPage() {
         const totalCount = response.data.total;
         setListData(rows);
         setTotal(totalCount);
+        setDataResponseReceived(true); // Mark that we've received actual data response
 
         // ⚡ WINDOW CACHE: Store in window for instant navigation (survives component unmount)
         if (typeof window !== 'undefined' && rows && rows.length > 0) {
@@ -4063,10 +4068,10 @@ export default function InboundPage() {
                   )}
 
                   {/* Empty State Overlay */}
-                  {!listLoading && (!listData || listData.length === 0) && (
+                  {!listLoading && dataResponseReceived && (!listData || listData.length === 0) && (
                     <Box sx={{
                       position: 'absolute',
-                      top: 60,
+                      top: 32,
                       left: 0,
                       right: 0,
                       bottom: 0,

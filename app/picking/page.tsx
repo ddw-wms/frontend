@@ -604,6 +604,7 @@ export default function PickingPage() {
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(100);
   const [loading, setLoading] = useState(() => getCachedPickingListData().length === 0);
+  const [dataResponseReceived, setDataResponseReceived] = useState(() => getCachedPickingListData().length > 0);
   // ⚡ PREVENT COLUMN RESIZE FLASH: Hide grid body until columns are auto-sized
   const [gridDataRendered, setGridDataRendered] = useState(false);
 
@@ -613,6 +614,7 @@ export default function PickingPage() {
     if (cached.length > 0) {
       setPickingList(cached);
       setLoading(false);
+      setDataResponseReceived(true);
     }
   }, []);
 
@@ -2600,6 +2602,7 @@ export default function PickingPage() {
         setPickingList(cached.data);
         setTotal(cached.total);
         setLastRefreshTime(new Date(cached.timestamp));
+        setDataResponseReceived(true);
         // Keep spinner visible briefly for consistent UX during filter reset
         setTimeout(() => { setLoading(false); setIsFetching(false); }, 300);
         setTimeout(() => prefetchNextPage(), 100);
@@ -2684,6 +2687,7 @@ export default function PickingPage() {
         }
 
         setTotal(totalCount);
+        setDataResponseReceived(true); // Mark that we've received API response
 
         // ⚡ WINDOW CACHE: Store in window for instant navigation (survives component unmount)
         if (typeof window !== 'undefined' && data && data.length > 0) {
@@ -3500,7 +3504,7 @@ export default function PickingPage() {
               )}
 
               {/* Empty State Overlay */}
-              {!loading && !isFetching && (!pickingList || pickingList.length === 0) && (
+              {!loading && !isFetching && dataResponseReceived && (!pickingList || pickingList.length === 0) && (
                 <Box sx={{
                   position: 'absolute',
                   top: 32,

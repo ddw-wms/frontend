@@ -376,6 +376,7 @@ export default function QCPage() {
   // ? INSTANT NAVIGATION: Initialize from cache to prevent empty grid flash
   const [qcList, setQcList] = useState<QCItem[]>(() => getCachedQCListData());
   const [listLoading, setListLoading] = useState(() => getCachedQCListData().length === 0);
+  const [dataResponseReceived, setDataResponseReceived] = useState(() => getCachedQCListData().length > 0);
   // ? PREVENT COLUMN RESIZE FLASH: Hide grid body until columns are auto-sized
   const [gridDataRendered, setGridDataRendered] = useState(false);
 
@@ -385,6 +386,7 @@ export default function QCPage() {
     if (cached.length > 0) {
       setQcList(cached);
       setListLoading(false);
+      setDataResponseReceived(true);
     }
   }, []);
 
@@ -1584,6 +1586,7 @@ export default function QCPage() {
         setQcList(cached.data);
         setTotal(cached.total);
         setLastRefreshTime(new Date(cached.timestamp));
+        setDataResponseReceived(true);
         // Keep spinner visible briefly for consistent UX during filter reset
         setTimeout(() => { setListLoading(false); setIsFetching(false); }, 300);
         setTimeout(() => prefetchNextPage(), 100);
@@ -1695,6 +1698,7 @@ export default function QCPage() {
             previousDataRef.current = data;
           }
         }
+        setDataResponseReceived(true); // Mark that we've received API response
 
         // ? WINDOW CACHE: Store in window for instant navigation (survives component unmount)
         if (typeof window !== 'undefined' && data && data.length > 0) {
@@ -2546,7 +2550,7 @@ export default function QCPage() {
                 )}
 
                 {/* Empty State Overlay */}
-                {!listLoading && !isFetching && (!qcList || qcList.length === 0) && (
+                {!listLoading && !isFetching && dataResponseReceived && (!qcList || qcList.length === 0) && (
                   <Box sx={{
                     position: 'absolute',
                     top: 32,
