@@ -476,7 +476,7 @@ export default function PickingPage() {
           setMultiRows(restored);
           setDraftSavedAt(draft.savedAt || Date.now());
           setDraftExists(true);
-          // toast.success('âœ“ Draft restored');
+          // toast.success('Draft restored');
         }
       } catch (err) {
         console.error('Failed to load picking draft', err);
@@ -628,7 +628,11 @@ export default function PickingPage() {
   };
   const [filtersExpanded, setFiltersExpanded] = useState(false);
 
-  // Mobile actions dialog state
+  // ====== LIST OPTIONS PANEL STATE ======
+  const [listOptionsPanelOpen, setListOptionsPanelOpen] = useState(false);
+  const [listSettingsPanelExpanded, setListSettingsPanelExpanded] = useState<string | false>('filters');
+
+  // Mobile actions dialog state (kept for backward compatibility, but now uses Options Panel)
   const [mobileActionsOpen, setMobileActionsOpen] = useState(false);
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -1622,7 +1626,7 @@ export default function PickingPage() {
 
           toast.dismiss(toastId);
           if (successCount > 0) {
-            toast.success(`âœ“ Loaded ${successCount}/${pastedWSNRows.length} WSNs`, { duration: 2000 });
+            toast.success(`Loaded ${successCount}/${pastedWSNRows.length} WSNs`, { duration: 2000 });
           }
           if (failCount > 0) {
             toast.error(`${failCount} WSNs not found`, { duration: 2000 });
@@ -2078,7 +2082,7 @@ export default function PickingPage() {
       XLSX.utils.book_append_sheet(wb, ws, 'Multi Picking');
       const customerSuffix = selectedCustomer ? `_${selectedCustomer.replace(/\s+/g, '_')}` : '';
       XLSX.writeFile(wb, `Picking_MultiEntry${customerSuffix}_${new Date().toISOString().split('T')[0]}_${Date.now()}.xlsx`);
-      toast.success(`âœ“ Exported ${dataToExport.length} rows`);
+      toast.success(`Exported ${dataToExport.length} rows`);
     } catch (error) {
       toast.error('Export failed');
     }
@@ -2316,7 +2320,7 @@ export default function PickingPage() {
       const response = await pickingAPI.multiEntry(fixedRows, activeWarehouse?.id);
 
       if (response.data?.successCount > 0) {
-        toast.success(`âœ“ ${response.data.successCount} entries created`);
+        toast.success(`${response.data.successCount} entries created`);
       }
 
       if (response.data?.errors && response.data.errors.length > 0) {
@@ -2687,7 +2691,7 @@ export default function PickingPage() {
 
         if (buttonRefresh) {
           setRefreshSuccess(true);
-          toast.success('âœ“ List refreshed');
+          toast.success('List refreshed');
           setTimeout(() => setRefreshSuccess(false), 1800);
         }
       }
@@ -2810,7 +2814,7 @@ export default function PickingPage() {
     if (window.confirm(`Delete batch ${batchId}?`)) {
       try {
         await pickingAPI.deleteBatch(batchId);
-        toast.success('âœ“ Batch deleted successfully');
+        toast.success('Batch deleted successfully');
 
         // Reload existing WSNs after deletion
         const res = await pickingAPI.getExistingWSNs(activeWarehouse?.id);
@@ -2920,7 +2924,7 @@ export default function PickingPage() {
       const filename = `${filenameParts.join('_')}_${Date.now()}.xlsx`;
       XLSX.writeFile(wb, filename);
 
-      toast.success(`âœ“ Exported ${exportData.length} records`);
+      toast.success(`Exported ${exportData.length} records`);
       setExportDialogOpen(false);
       setExportStartDate('');
       setExportEndDate('');
@@ -3351,235 +3355,80 @@ export default function PickingPage() {
             {/* FILTERS - REDESIGNED LIKE INBOUND */}
             <Card sx={{ mb: { xs: 0.5, md: 0.5 }, borderRadius: 1.5, boxShadow: isDarkMode ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.06)', background: isDarkMode ? '#1e293b' : 'rgba(255, 255, 255, 0.98)' }}>
               <CardContent sx={{ p: { xs: 1, md: 1.5 }, '&:last-child': { pb: { xs: 1, md: 1.5 } } }}>
-                <Stack spacing={1}>
-                  {/* ROW 1: Search + Filter Toggle + Actions */}
-                  <Stack direction="row" spacing={1} alignItems="center" sx={{ flexWrap: { xs: 'wrap', md: 'nowrap' } }}>
-                    {/* Search Field */}
-                    <TextField
-                      size="small"
-                      placeholder="🔍 Search by WSN, Product, or any field..."
-                      value={searchFilter}
-                      onChange={(e) => { setSearchFilter(e.target.value); setPage(1); }}
-                      sx={{
-                        flex: 1,
-                        minWidth: { xs: '100%', sm: 200, md: 280 },
-                        '& .MuiOutlinedInput-root': {
-                          bgcolor: isDarkMode ? '#1e293b' : 'white',
-                          borderRadius: 1.5,
-                          height: 38,
-                          fontSize: { xs: '0.8rem', sm: '0.875rem' },
-                          fontWeight: 500,
-                          border: isDarkMode ? '2px solid rgba(255,255,255,0.15)' : '2px solid #e2e8f0',
-                          '&:hover': { borderColor: isDarkMode ? 'rgba(255,255,255,0.25)' : '#cbd5e1' },
-                          '&.Mui-focused': { borderColor: '#f59e0b' },
-                          '& fieldset': { border: 'none' }
-                        }
-                      }}
-                    />
-
-                    {/* Mobile: Actions button */}
-                    <Button
-                      variant="contained"
-                      startIcon={<TuneIcon />}
-                      sx={{
-                        display: { xs: 'inline-flex', md: 'none' },
+                {/* ROW 1: Search + Options Button (like Dashboard/Inbound) */}
+                <Stack direction="row" spacing={1} alignItems="center">
+                  {/* Search Field */}
+                  <TextField
+                    size="small"
+                    placeholder="🔍 Search by WSN, Product, or any field..."
+                    value={searchFilter}
+                    onChange={(e) => { setSearchFilter(e.target.value); setPage(1); }}
+                    sx={{
+                      flex: 1,
+                      minWidth: { xs: 150, sm: 200, md: 280 },
+                      '& .MuiOutlinedInput-root': {
+                        bgcolor: isDarkMode ? '#1e293b' : 'white',
+                        borderRadius: 1.5,
                         height: 38,
-                        px: 2,
-                        textTransform: 'none',
-                        fontSize: '0.85rem',
-                        fontWeight: 600,
-                        bgcolor: '#f59e0b',
-                        '&:hover': { bgcolor: '#d97706' }
-                      }}
-                      onClick={() => setMobileActionsOpen(true)}
-                    >
-                      Actions
-                    </Button>
+                        fontSize: { xs: '0.8rem', sm: '0.875rem' },
+                        fontWeight: 500,
+                        border: isDarkMode ? '2px solid rgba(255,255,255,0.15)' : '2px solid #e2e8f0',
+                        '&:hover': { borderColor: isDarkMode ? 'rgba(255,255,255,0.25)' : '#cbd5e1' },
+                        '&.Mui-focused': { borderColor: '#f59e0b' },
+                        '& fieldset': { border: 'none' },
+                        '& input': {
+                          py: 0.75,
+                          color: isDarkMode ? '#f1f5f9' : 'inherit'
+                        }
+                      }
+                    }}
+                  />
 
-                    {/* Desktop: Filter Toggle Button */}
+                  {/* Options Button - Opens Options Panel Drawer (works on both mobile and desktop) */}
+                  <Tooltip title="Open Options Panel">
                     <Button
                       variant="outlined"
-                      onClick={() => setFiltersExpanded(!filtersExpanded)}
+                      onClick={() => setListOptionsPanelOpen(true)}
                       sx={{
-                        display: { xs: 'none', md: 'inline-flex' },
-                        minWidth: 130,
+                        minWidth: { xs: 'auto', sm: 100 },
                         height: 38,
                         borderWidth: 2,
-                        borderColor: filtersExpanded ? '#f59e0b' : (isDarkMode ? 'rgba(255,255,255,0.2)' : '#cbd5e1'),
-                        bgcolor: filtersExpanded ? 'rgba(245, 158, 11, 0.1)' : (isDarkMode ? '#0f172a' : 'white'),
-                        color: filtersExpanded ? '#f59e0b' : (isDarkMode ? '#94a3b8' : '#64748b'),
+                        borderColor: isDarkMode ? '#3b82f6' : '#1e40af',
+                        bgcolor: isDarkMode ? 'rgba(59, 130, 246, 0.08)' : 'rgba(30, 64, 175, 0.04)',
+                        color: isDarkMode ? '#60a5fa' : '#1e40af',
                         fontWeight: 700,
-                        fontSize: '0.78rem',
+                        fontSize: { xs: '0.75rem', sm: '0.78rem' },
                         borderRadius: 1.5,
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
                         transition: 'all 0.2s',
+                        px: { xs: 1.5, sm: 2 },
                         '&:hover': {
                           borderWidth: 2,
-                          borderColor: '#f59e0b',
-                          bgcolor: 'rgba(245, 158, 11, 0.15)'
+                          borderColor: '#3b82f6',
+                          bgcolor: 'rgba(59, 130, 246, 0.12)',
+                          boxShadow: '0 4px 12px rgba(59, 130, 246, 0.2)'
                         },
                         position: 'relative'
                       }}
                     >
-                      <FilterListIcon sx={{ fontSize: '1.15rem', mr: 0.5 }} />
-                      {filtersExpanded ? 'Hide Filters' : 'Show Filters'}
+                      <MenuIcon sx={{ fontSize: '1.1rem', mr: { xs: 0, sm: 0.5 } }} />
+                      <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>Options</Box>
+                      {/* Green dot indicator when filters are active */}
                       {filtersActive && (
                         <Box sx={{
                           position: 'absolute',
-                          top: -5,
-                          right: -5,
-                          width: 14,
-                          height: 14,
+                          top: -4,
+                          right: -4,
+                          width: 12,
+                          height: 12,
                           borderRadius: '50%',
                           bgcolor: '#10b981',
-                          border: '2px solid white'
+                          border: '2px solid white',
+                          boxShadow: '0 2px 4px rgba(16, 185, 129, 0.4)'
                         }} />
                       )}
-                      <ExpandMoreIcon sx={{ ml: 0.5, transform: filtersExpanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 200ms' }} />
                     </Button>
-
-                    {/* Desktop: Action Buttons */}
-                    <Stack direction="row" spacing={0.5} sx={{ display: { xs: 'none', md: 'flex' }, alignItems: 'center' }}>
-                      <Button size="small" variant="outlined" onClick={handleListReset} sx={{ height: 38, minWidth: 60, fontSize: '0.7rem', fontWeight: 700, borderColor: isDarkMode ? 'rgba(255,255,255,0.2)' : '#cbd5e1' }}>Clear</Button>
-                      {canSeeButton('list:columns') && (
-                        <Tooltip title={!canAccessButton('list:columns') ? "You don't have permission" : "Manage Columns"}>
-                          <span>
-                            <Button size="small" variant="outlined" startIcon={<SettingsIcon sx={{ fontSize: 16 }} />} disabled={!canAccessButton('list:columns')} onClick={() => setListColumnSettingsOpen(true)} sx={{ height: 38, fontSize: '0.7rem', fontWeight: 700, borderColor: isDarkMode ? 'rgba(255,255,255,0.2)' : '#cbd5e1' }}>Columns</Button>
-                          </span>
-                        </Tooltip>
-                      )}
-                      <Button size="small" variant="outlined" startIcon={<SettingsIcon sx={{ fontSize: 16 }} />} onClick={() => setGridSettingsOpen(true)} sx={{ height: 38, fontSize: '0.7rem', fontWeight: 700, borderColor: isDarkMode ? 'rgba(255,255,255,0.2)' : '#cbd5e1' }}>Grid</Button>
-                      {canSeeButton('list:export') && (
-                        <Tooltip title={!canAccessButton('list:export') ? "You don't have permission" : "Export Data"}>
-                          <span>
-                            <Button size="small" variant="outlined" startIcon={<DownloadIcon sx={{ fontSize: 16 }} />} disabled={!canAccessButton('list:export')} onClick={() => { loadBatches(); setExportDialogOpen(true); }} sx={{ height: 38, fontSize: '0.7rem', fontWeight: 700, borderColor: isDarkMode ? 'rgba(255,255,255,0.2)' : '#cbd5e1' }}>Export</Button>
-                          </span>
-                        </Tooltip>
-                      )}
-                      <Button
-                        size="small"
-                        variant="outlined"
-                        startIcon={refreshing ? <CircularProgress size={14} /> : refreshSuccess ? <CheckIcon sx={{ color: '#10b981' }} /> : <RefreshIcon sx={{ fontSize: 16 }} />}
-                        onClick={() => loadPickingList({ buttonRefresh: true })}
-                        disabled={refreshing}
-                        sx={{ height: 38, fontSize: '0.7rem', fontWeight: 700, borderColor: isDarkMode ? 'rgba(255,255,255,0.2)' : '#cbd5e1' }}
-                      >
-                        {refreshing ? 'Loading...' : refreshSuccess ? 'Done' : 'Refresh'}
-                      </Button>
-                    </Stack>
-                  </Stack>
-
-                  {/* ROW 2: Collapsible Filters */}
-                  <Collapse in={filtersExpanded} timeout="auto">
-                    <Card sx={{
-                      borderRadius: 1.5,
-                      boxShadow: isDarkMode ? '0 4px 20px rgba(0,0,0,0.4)' : '0 4px 20px rgba(0,0,0,0.1)',
-                      background: isDarkMode ? 'linear-gradient(135deg, #1e293b 0%, #334155 100%)' : 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
-                      border: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e2e8f0',
-                      mt: 1
-                    }}>
-                      <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
-                        <Box sx={{
-                          display: 'grid',
-                          gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', md: 'repeat(6, 1fr)' },
-                          gap: 1
-                        }}>
-                          {/* Brand */}
-                          <TextField
-                            select
-                            size="small"
-                            label="Brand"
-                            value={brandFilter}
-                            onChange={(e) => { setBrandFilter(e.target.value); setPage(1); }}
-                            sx={{
-                              '& .MuiOutlinedInput-root': { height: 36, fontSize: '0.8rem', bgcolor: isDarkMode ? '#1e293b' : 'white' },
-                              '& .MuiInputLabel-root': { fontSize: '0.75rem' }
-                            }}
-                          >
-                            <MenuItem value="">All Brands</MenuItem>
-                            {brandOptions.map(brand => <MenuItem key={brand} value={brand}>{brand}</MenuItem>)}
-                          </TextField>
-
-                          {/* Category */}
-                          <TextField
-                            select
-                            size="small"
-                            label="Category"
-                            value={categoryFilter}
-                            onChange={(e) => { setCategoryFilter(e.target.value); setPage(1); }}
-                            sx={{
-                              '& .MuiOutlinedInput-root': { height: 36, fontSize: '0.8rem', bgcolor: isDarkMode ? '#1e293b' : 'white' },
-                              '& .MuiInputLabel-root': { fontSize: '0.75rem' }
-                            }}
-                          >
-                            <MenuItem value="">All Categories</MenuItem>
-                            {categoryOptions.map(cat => <MenuItem key={cat} value={cat}>{cat}</MenuItem>)}
-                          </TextField>
-
-                          {/* Source */}
-                          <TextField
-                            select
-                            size="small"
-                            label="Source"
-                            value={sourceFilter}
-                            onChange={(e) => { setSourceFilter(e.target.value); setPage(1); }}
-                            sx={{
-                              '& .MuiOutlinedInput-root': { height: 36, fontSize: '0.8rem', bgcolor: isDarkMode ? '#1e293b' : 'white' },
-                              '& .MuiInputLabel-root': { fontSize: '0.75rem' }
-                            }}
-                          >
-                            <MenuItem value="">All Sources</MenuItem>
-                            <MenuItem value="QC">QC</MenuItem>
-                            <MenuItem value="INBOUND">INBOUND</MenuItem>
-                            <MenuItem value="MASTER">MASTER</MenuItem>
-                          </TextField>
-
-                          {/* Customer */}
-                          <TextField
-                            select
-                            size="small"
-                            label="Customer"
-                            value={customerFilter}
-                            onChange={(e) => { setCustomerFilter(e.target.value); setPage(1); }}
-                            sx={{
-                              '& .MuiOutlinedInput-root': { height: 36, fontSize: '0.8rem', bgcolor: isDarkMode ? '#1e293b' : 'white' },
-                              '& .MuiInputLabel-root': { fontSize: '0.75rem' }
-                            }}
-                          >
-                            <MenuItem value="">All Customers</MenuItem>
-                            {pickingCustomers.map(cust => <MenuItem key={cust} value={cust}>{cust}</MenuItem>)}
-                          </TextField>
-
-                          {/* From Date */}
-                          <TextField
-                            type="date"
-                            size="small"
-                            label="From Date"
-                            value={startDateFilter}
-                            onChange={(e) => { setStartDateFilter(e.target.value); setPage(1); }}
-                            InputLabelProps={{ shrink: true }}
-                            sx={{
-                              '& .MuiOutlinedInput-root': { height: 36, fontSize: '0.8rem', bgcolor: isDarkMode ? '#1e293b' : 'white' },
-                              '& .MuiInputLabel-root': { fontSize: '0.75rem' }
-                            }}
-                          />
-
-                          {/* To Date */}
-                          <TextField
-                            type="date"
-                            size="small"
-                            label="To Date"
-                            value={endDateFilter}
-                            onChange={(e) => { setEndDateFilter(e.target.value); setPage(1); }}
-                            InputLabelProps={{ shrink: true }}
-                            sx={{
-                              '& .MuiOutlinedInput-root': { height: 36, fontSize: '0.8rem', bgcolor: isDarkMode ? '#1e293b' : 'white' },
-                              '& .MuiInputLabel-root': { fontSize: '0.75rem' }
-                            }}
-                          />
-                        </Box>
-                      </CardContent>
-                    </Card>
-                  </Collapse>
+                  </Tooltip>
                 </Stack>
               </CardContent>
             </Card>
@@ -4165,337 +4014,6 @@ export default function PickingPage() {
                 )}
               </Box>
             </Fade>
-
-            {/* Column Settings Dialog */}
-            <Dialog open={listColumnSettingsOpen} onClose={() => setListColumnSettingsOpen(false)} maxWidth="sm" fullWidth container={isFullscreen ? multiEntryContainerRef.current : undefined}>
-              <DialogTitle>⚙️ Column Settings</DialogTitle>
-              <DialogContent>
-                <Stack spacing={1} sx={{ mt: 1 }}>
-                  {ALL_LIST_COLUMNS.map((col) => (
-                    <FormControlLabel
-                      key={col}
-                      control={
-                        <Checkbox
-                          checked={listColumns.includes(col)}
-                          onChange={() => {
-                            let next: string[];
-                            if (listColumns.includes(col)) {
-                              next = listColumns.filter((c: string) => c !== col);
-                            } else {
-                              next = [...listColumns, col];
-                            }
-                            // Maintain order using ALL_LIST_COLUMNS
-                            const ordered = ALL_LIST_COLUMNS.filter((c) => next.includes(c));
-                            saveListColumnSettings(ordered);
-                          }}
-                        />
-                      }
-                      label={col.replace(/_/g, ' ').toUpperCase()}
-                    />
-                  ))}
-                </Stack>
-              </DialogContent>
-              <DialogActions sx={{ justifyContent: 'space-between' }}>
-                <Button onClick={() => {
-                  setListColumns(DEFAULT_LIST_COLUMNS);
-                  localStorage.setItem('pickingListColumns', JSON.stringify(DEFAULT_LIST_COLUMNS));
-                }} variant="outlined">Reset</Button>
-                <Button onClick={() => setListColumnSettingsOpen(false)} variant="contained" sx={{ background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)', color: '#fff' }}>DONE</Button>
-              </DialogActions>
-            </Dialog>
-
-            {/* GRID SETTINGS DIALOG */}
-            <Dialog
-              open={gridSettingsOpen}
-              onClose={() => setGridSettingsOpen(false)}
-              maxWidth="xs"
-              fullWidth
-              PaperProps={{ sx: { borderRadius: 2, boxShadow: '0 8px 32px rgba(0,0,0,0.12)' } }}
-            >
-              <DialogTitle sx={{
-                background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
-                color: 'white',
-                fontWeight: 800,
-                fontSize: '1.1rem',
-                py: 1.5
-              }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <SettingsIcon />
-                  Grid Settings
-                </Box>
-              </DialogTitle>
-
-              <DialogContent sx={{ mt: 2, pb: 1 }}>
-                <Stack spacing={2.5}>
-                  <Alert severity="info" sx={{ fontSize: '0.8rem', py: 0.5 }}>
-                    Settings auto-save and persist after reload 💾
-                  </Alert>
-
-                  {/* SORTABLE */}
-                  <Box>
-                    <FormControlLabel
-                      control={
-                        <Checkbox
-                          checked={enableSorting}
-                          onChange={(e) => setEnableSorting(e.target.checked)}
-                          sx={{ '&.Mui-checked': { color: '#f59e0b' } }}
-                        />
-                      }
-                      label={
-                        <Box>
-                          <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#1e293b' }}>
-                            ⬆️ Enable Sorting
-                          </Typography>
-                          <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem' }}>
-                            Click column headers to sort ascending/descending
-                          </Typography>
-                        </Box>
-                      }
-                    />
-                  </Box>
-
-                  <Divider sx={{ my: 0.5 }} />
-
-                  {/* FILTER */}
-                  <Box>
-                    <FormControlLabel
-                      control={
-                        <Checkbox
-                          checked={enableColumnFilters}
-                          onChange={(e) => setEnableColumnFilters(e.target.checked)}
-                          sx={{ '&.Mui-checked': { color: '#f59e0b' } }}
-                        />
-                      }
-                      label={
-                        <Box>
-                          <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#1e293b' }}>
-                            🔍 Enable Column Filters
-                          </Typography>
-                          <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem' }}>
-                            Filter menu icon in column headers
-                          </Typography>
-                        </Box>
-                      }
-                    />
-                  </Box>
-
-                  <Divider sx={{ my: 0.5 }} />
-
-                  {/* RESIZABLE */}
-                  <Box>
-                    <FormControlLabel
-                      control={
-                        <Checkbox
-                          checked={enableColumnResize}
-                          onChange={(e) => setEnableColumnResize(e.target.checked)}
-                          sx={{ '&.Mui-checked': { color: '#f59e0b' } }}
-                        />
-                      }
-                      label={
-                        <Box>
-                          <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#1e293b' }}>
-                            ↔️ Enable Column Resize
-                          </Typography>
-                          <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem' }}>
-                            Drag column borders to adjust width
-                          </Typography>
-                        </Box>
-                      }
-                    />
-                  </Box>
-
-                </Stack>
-              </DialogContent>
-
-              <DialogActions sx={{ p: 2, background: '#fef3c7', gap: 1 }}>
-                <Button
-                  onClick={() => {
-                    setEnableSorting(true);
-                    setEnableColumnFilters(true);
-                    setEnableColumnResize(true);
-                    toast.success('Settings reset to default');
-                  }}
-                  sx={{
-                    fontWeight: 700,
-                    color: '#78716c',
-                    '&:hover': { bgcolor: 'rgba(120, 113, 108, 0.1)' }
-                  }}
-                >
-                  Reset
-                </Button>
-
-                <Box sx={{ flex: 1 }} />
-
-                <Button onClick={() => setGridSettingsOpen(false)} sx={{ fontWeight: 700 }}>Close</Button>
-                <Button onClick={() => setGridSettingsOpen(false)} variant="contained" sx={{ background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)', color: '#fff' }}>Done</Button>
-              </DialogActions>
-            </Dialog>
-
-            {/* MOBILE ACTIONS DIALOG (Filters + Actions combined) */}
-            <Dialog fullScreen open={mobileActionsOpen} onClose={() => setMobileActionsOpen(false)}>
-              <AppBar position="sticky" elevation={1} sx={{ bgcolor: isDarkMode ? '#1e293b' : 'background.paper', color: isDarkMode ? '#f1f5f9' : 'text.primary', borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e0e0e0' }}>
-                <Toolbar>
-                  <IconButton edge="start" color="inherit" onClick={() => setMobileActionsOpen(false)} aria-label="close">
-                    <CloseIcon />
-                  </IconButton>
-                  <Typography sx={{ ml: 2, flex: 1, fontWeight: 700 }}>Filters & Actions</Typography>
-                  <Button color="primary" onClick={() => setMobileActionsOpen(false)}>Close</Button>
-                </Toolbar>
-              </AppBar>
-
-              <DialogContent sx={{ p: 2, bgcolor: isDarkMode ? '#0f172a' : 'background.default' }}>
-                <Stack spacing={2}>
-                  {/* Filters */}
-                  <Box>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1, color: '#6b7280' }}>
-                      🔍 Filters
-                    </Typography>
-
-                    <Stack spacing={1.5}>
-                      <TextField
-                        select
-                        size="small"
-                        label="Brand"
-                        value={brandFilter}
-                        onChange={(e) => { setBrandFilter(e.target.value); setPage(1); }}
-                        fullWidth
-                        sx={{ '& .MuiOutlinedInput-root': { height: 40 } }}
-                      >
-                        <MenuItem value="">All Brands</MenuItem>
-                        {brandOptions.map((brand) => (
-                          <MenuItem key={brand} value={brand}>{brand}</MenuItem>
-                        ))}
-                      </TextField>
-
-                      <TextField
-                        select
-                        size="small"
-                        label="Category"
-                        value={categoryFilter}
-                        onChange={(e) => { setCategoryFilter(e.target.value); setPage(1); }}
-                        fullWidth
-                        sx={{ '& .MuiOutlinedInput-root': { height: 40 } }}
-                      >
-                        <MenuItem value="">All Categories</MenuItem>
-                        {categoryOptions.map((cat) => (
-                          <MenuItem key={cat} value={cat}>{cat}</MenuItem>
-                        ))}
-                      </TextField>
-
-                      <TextField
-                        select
-                        size="small"
-                        label="Source"
-                        value={sourceFilter}
-                        onChange={(e) => { setSourceFilter(e.target.value); setPage(1); }}
-                        fullWidth
-                        sx={{ '& .MuiOutlinedInput-root': { height: 40 } }}
-                      >
-                        <MenuItem value="">All Sources</MenuItem>
-                        <MenuItem value="QC">QC</MenuItem>
-                        <MenuItem value="INBOUND">INBOUND</MenuItem>
-                        <MenuItem value="MASTER">MASTER</MenuItem>
-                      </TextField>
-                    </Stack>
-                  </Box>
-
-                  {/* Action Buttons */}
-                  <Box>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1, color: '#6b7280' }}>
-                      ⚡ Actions
-                    </Typography>
-
-                    <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 1 }}>
-                      <Button
-                        variant="outlined"
-                        startIcon={<FilterListIcon />}
-                        onClick={handleListReset}
-                        sx={{ height: 44, fontSize: '0.85rem' }}
-                      >
-                        Clear
-                      </Button>
-
-                      {canSeeButton('list:columns') && (
-                        <Tooltip title={!canAccessButton('list:columns') ? "You don't have permission to use this feature" : ""} arrow>
-                          <span style={{ width: '100%' }}>
-                            <Button
-                              variant="outlined"
-                              startIcon={<SettingsIcon />}
-                              disabled={!canAccessButton('list:columns')}
-                              onClick={() => { if (canAccessButton('list:columns')) setListColumnSettingsOpen(true); }}
-                              sx={{ height: 44, fontSize: '0.85rem', width: '100%' }}
-                            >
-                              Columns
-                            </Button>
-                          </span>
-                        </Tooltip>
-                      )}
-
-                      <Button
-                        variant="outlined"
-                        startIcon={<SettingsIcon />}
-                        onClick={() => { setGridSettingsOpen(true); }}
-                        sx={{ height: 44, fontSize: '0.85rem' }}
-                      >
-                        Grid
-                      </Button>
-
-                      {canSeeButton('list:export') && (
-                        <Tooltip title={!canAccessButton('list:export') ? "You don't have permission to use this feature" : ""} arrow>
-                          <span style={{ width: '100%' }}>
-                            <Button
-                              variant="outlined"
-                              startIcon={<DownloadIcon />}
-                              disabled={!canAccessButton('list:export')}
-                              onClick={() => { if (canAccessButton('list:export')) { loadBatches(); setExportDialogOpen(true); setMobileActionsOpen(false); } }}
-                              sx={{ height: 44, fontSize: '0.85rem', width: '100%' }}
-                            >
-                              Export
-                            </Button>
-                          </span>
-                        </Tooltip>
-                      )}
-
-                      <Button
-                        variant="outlined"
-                        startIcon={refreshing ? <CircularProgress size={14} /> : refreshSuccess ? <CheckIcon sx={{ color: '#10b981' }} /> : <RefreshIcon />}
-                        onClick={() => loadPickingList({ buttonRefresh: true })}
-                        disabled={refreshing || !true}
-                        sx={{ height: 44, fontSize: '0.85rem', gridColumn: 'span 2' }}
-
-                      >
-                        {refreshing ? 'Refreshing...' : refreshSuccess ? 'Refreshed' : 'Refresh'}
-                      </Button>
-                    </Box>
-                  </Box>
-                </Stack>
-              </DialogContent>
-
-              <Box sx={{ position: 'sticky', bottom: 0, left: 0, right: 0, bgcolor: isDarkMode ? '#1e293b' : 'background.paper', p: 2, borderTop: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e0e0e0', display: 'flex', gap: 1 }}>
-                <Button
-                  fullWidth
-                  variant="outlined"
-                  onClick={() => {
-                    setLoading(true);
-                    setBrandFilter('');
-                    setCategoryFilter('');
-                    setSourceFilter('');
-                    setPage(1);
-                  }}
-                  sx={{ height: 48 }}
-                >
-                  Reset Filters
-                </Button>
-                <Button
-                  fullWidth
-                  variant="contained"
-                  onClick={() => { setPage(1); setMobileActionsOpen(false); }}
-                  sx={{ height: 48 }}
-                >
-                  Apply
-                </Button>
-              </Box>
-            </Dialog>
 
             {/* Export Dialog */}
             <Dialog
@@ -5934,7 +5452,7 @@ export default function PickingPage() {
                           return rows;
                         });
 
-                        toast.success(`âœ“ Source data loaded from Inbound for ${wsn}`);
+                        toast.success(`Source data loaded from Inbound for ${wsn}`);
                         return;
                       } catch (inErr) {
                         console.error('Inbound fallback failed:', inErr);
@@ -6068,7 +5586,7 @@ export default function PickingPage() {
                 Editable Columns
               </Typography>
 
-              {/* Locked S.No column â€” always visible */}
+              {/* Locked S.No column â€always visible */}
               <FormControlLabel
                 key="sno"
                 control={<Checkbox checked={visibleColumns.includes('sno')} disabled />}
@@ -6603,6 +6121,442 @@ export default function PickingPage() {
           />
         )}
 
+        {/* ================= LIST OPTIONS PANEL DRAWER ================= */}
+        <Drawer
+          anchor="right"
+          open={listOptionsPanelOpen}
+          onClose={() => setListOptionsPanelOpen(false)}
+          PaperProps={{
+            sx: {
+              width: { xs: '85%', sm: 380 },
+              maxWidth: '100vw',
+              bgcolor: isDarkMode ? '#1e293b' : '#ffffff',
+              borderLeft: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0'
+            }
+          }}
+        >
+          {/* Panel Header */}
+          <Box sx={{
+            p: 2,
+            background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
+            color: 'white',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            position: 'sticky',
+            top: 0,
+            zIndex: 10
+          }}>
+            <Typography sx={{ fontWeight: 700, fontSize: '1rem' }}>🔍 Options</Typography>
+            <IconButton size="small" onClick={() => setListOptionsPanelOpen(false)} sx={{ color: 'white' }}>
+              <CloseIcon />
+            </IconButton>
+          </Box>
+
+          {/* Panel Content with Accordions */}
+          <Box sx={{ overflow: 'auto', flex: 1 }}>
+
+            {/* ═══════════ FILTERS ACCORDION ═══════════ */}
+            <Accordion
+              expanded={listSettingsPanelExpanded === 'filters'}
+              onChange={(_, isExpanded) => setListSettingsPanelExpanded(isExpanded ? 'filters' : false)}
+              disableGutters
+              sx={{
+                bgcolor: 'transparent',
+                boxShadow: 'none',
+                '&:before': { display: 'none' },
+                borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0'
+              }}
+            >
+              <AccordionSummary
+                expandIcon={<ExpandMoreIcon sx={{ color: isDarkMode ? '#94a3b8' : '#64748b' }} />}
+                sx={{
+                  px: 2,
+                  minHeight: 56,
+                  '&.Mui-expanded': { minHeight: 56 },
+                  '& .MuiAccordionSummary-content': { my: 1.5 }
+                }}
+              >
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                  <FilterListIcon sx={{ color: '#3b82f6', fontSize: 22 }} />
+                  <Box>
+                    <Typography sx={{ fontWeight: 700, fontSize: '0.9rem', color: isDarkMode ? '#e2e8f0' : '#1e293b' }}>Filters</Typography>
+                    <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>
+                      {filtersActive ? 'Active filters applied' : 'No filters applied'}
+                    </Typography>
+                  </Box>
+                </Box>
+              </AccordionSummary>
+              <AccordionDetails sx={{ px: 2, pb: 2, pt: 0 }}>
+                <Stack spacing={1.5}>
+                  {/* Date Filters */}
+                  <Box sx={{ display: 'flex', gap: 1 }}>
+                    <TextField
+                      label="From Date"
+                      type="date"
+                      size="small"
+                      InputLabelProps={{ shrink: true }}
+                      value={startDateFilter || ''}
+                      onChange={(e) => { setStartDateFilter(e.target.value); setPage(1); }}
+                      fullWidth
+                      sx={{
+                        '& .MuiOutlinedInput-root': {
+                          height: 40,
+                          bgcolor: isDarkMode ? '#0f172a' : '#f8fafc',
+                        }
+                      }}
+                    />
+                    <TextField
+                      label="To Date"
+                      type="date"
+                      size="small"
+                      InputLabelProps={{ shrink: true }}
+                      value={endDateFilter || ''}
+                      onChange={(e) => { setEndDateFilter(e.target.value); setPage(1); }}
+                      fullWidth
+                      sx={{
+                        '& .MuiOutlinedInput-root': {
+                          height: 40,
+                          bgcolor: isDarkMode ? '#0f172a' : '#f8fafc',
+                        }
+                      }}
+                    />
+                  </Box>
+
+                  {/* Brand Filter */}
+                  <TextField
+                    select
+                    size="small"
+                    label="Brand"
+                    value={brandFilter}
+                    onChange={(e) => { setBrandFilter(e.target.value); setPage(1); }}
+                    fullWidth
+                    sx={{
+                      '& .MuiOutlinedInput-root': {
+                        height: 40,
+                        bgcolor: isDarkMode ? '#0f172a' : '#f8fafc',
+                      }
+                    }}
+                  >
+                    <MenuItem value="">All Brands</MenuItem>
+                    {brandOptions.map((b) => (
+                      <MenuItem key={b} value={b}>{b}</MenuItem>
+                    ))}
+                  </TextField>
+
+                  {/* Category Filter */}
+                  <TextField
+                    select
+                    size="small"
+                    label="Category"
+                    value={categoryFilter}
+                    onChange={(e) => { setCategoryFilter(e.target.value); setPage(1); }}
+                    fullWidth
+                    sx={{
+                      '& .MuiOutlinedInput-root': {
+                        height: 40,
+                        bgcolor: isDarkMode ? '#0f172a' : '#f8fafc',
+                      }
+                    }}
+                  >
+                    <MenuItem value="">All Categories</MenuItem>
+                    {categoryOptions.map((c) => (
+                      <MenuItem key={c} value={c}>{c}</MenuItem>
+                    ))}
+                  </TextField>
+
+                  {/* Source Filter */}
+                  <TextField
+                    select
+                    size="small"
+                    label="Source"
+                    value={sourceFilter}
+                    onChange={(e) => { setSourceFilter(e.target.value); setPage(1); }}
+                    fullWidth
+                    sx={{
+                      '& .MuiOutlinedInput-root': {
+                        height: 40,
+                        bgcolor: isDarkMode ? '#0f172a' : '#f8fafc',
+                      }
+                    }}
+                  >
+                    <MenuItem value="">All Sources</MenuItem>
+                    <MenuItem value="QC">QC</MenuItem>
+                    <MenuItem value="INBOUND">INBOUND</MenuItem>
+                    <MenuItem value="MASTER">MASTER</MenuItem>
+                  </TextField>
+
+                  {/* Customer Filter */}
+                  <TextField
+                    select
+                    size="small"
+                    label="Customer"
+                    value={customerFilter}
+                    onChange={(e) => { setCustomerFilter(e.target.value); setPage(1); }}
+                    fullWidth
+                    sx={{
+                      '& .MuiOutlinedInput-root': {
+                        height: 40,
+                        bgcolor: isDarkMode ? '#0f172a' : '#f8fafc',
+                      }
+                    }}
+                  >
+                    <MenuItem value="">All Customers</MenuItem>
+                    {pickingCustomers.map((c) => (
+                      <MenuItem key={c} value={c}>{c}</MenuItem>
+                    ))}
+                  </TextField>
+                </Stack>
+              </AccordionDetails>
+            </Accordion>
+
+            {/* ═══════════ COLUMNS ACCORDION ═══════════ */}
+            {canSeeButton('list:columns') && (
+              <Accordion
+                expanded={listSettingsPanelExpanded === 'columns'}
+                onChange={(_, isExpanded) => setListSettingsPanelExpanded(isExpanded ? 'columns' : false)}
+                disableGutters
+                sx={{
+                  bgcolor: 'transparent',
+                  boxShadow: 'none',
+                  '&:before': { display: 'none' },
+                  borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0'
+                }}
+              >
+                <AccordionSummary
+                  expandIcon={<ExpandMoreIcon sx={{ color: isDarkMode ? '#94a3b8' : '#64748b' }} />}
+                  sx={{
+                    px: 2,
+                    minHeight: 56,
+                    '&.Mui-expanded': { minHeight: 56 },
+                    '& .MuiAccordionSummary-content': { my: 1.5 }
+                  }}
+                >
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                    <ViewColumnIcon sx={{ color: '#10b981', fontSize: 22 }} />
+                    <Box>
+                      <Typography sx={{ fontWeight: 700, fontSize: '0.9rem', color: isDarkMode ? '#e2e8f0' : '#1e293b' }}>Columns</Typography>
+                      <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>
+                        {listColumns.length} of {ALL_LIST_COLUMNS.length} visible
+                      </Typography>
+                    </Box>
+                  </Box>
+                </AccordionSummary>
+                <AccordionDetails sx={{ px: 2, pb: 2, pt: 0 }}>
+                  {!canAccessButton('list:columns') ? (
+                    <Alert severity="warning" sx={{ fontSize: '0.8rem' }}>
+                      You don't have permission to manage columns
+                    </Alert>
+                  ) : (
+                    <Box sx={{ maxHeight: 280, overflow: 'auto', pr: 1 }}>
+                      <Stack spacing={0.5}>
+                        {ALL_LIST_COLUMNS.map((col) => (
+                          <FormControlLabel
+                            key={col}
+                            control={
+                              <Checkbox
+                                size="small"
+                                checked={listColumns.includes(col)}
+                                onChange={() => {
+                                  let next: string[];
+                                  if (listColumns.includes(col)) {
+                                    next = listColumns.filter((c: string) => c !== col);
+                                  } else {
+                                    next = [...listColumns, col];
+                                  }
+                                  // Maintain order using ALL_LIST_COLUMNS
+                                  const ordered = ALL_LIST_COLUMNS.filter((c) => next.includes(c));
+                                  saveListColumnSettings(ordered);
+                                }}
+                                sx={{ py: 0.25, '&.Mui-checked': { color: '#10b981' } }}
+                              />
+                            }
+                            label={
+                              <Typography sx={{ fontSize: '0.8rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>
+                                {col.replace(/_/g, ' ').toUpperCase()}
+                              </Typography>
+                            }
+                            sx={{ m: 0 }}
+                          />
+                        ))}
+                      </Stack>
+                    </Box>
+                  )}
+                </AccordionDetails>
+              </Accordion>
+            )}
+
+            {/* ═══════════ GRID SETTINGS ACCORDION ═══════════ */}
+            <Accordion
+              expanded={listSettingsPanelExpanded === 'grid'}
+              onChange={(_, isExpanded) => setListSettingsPanelExpanded(isExpanded ? 'grid' : false)}
+              disableGutters
+              sx={{
+                bgcolor: 'transparent',
+                boxShadow: 'none',
+                '&:before': { display: 'none' },
+                borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0'
+              }}
+            >
+              <AccordionSummary
+                expandIcon={<ExpandMoreIcon sx={{ color: isDarkMode ? '#94a3b8' : '#64748b' }} />}
+                sx={{
+                  px: 2,
+                  minHeight: 56,
+                  '&.Mui-expanded': { minHeight: 56 },
+                  '& .MuiAccordionSummary-content': { my: 1.5 }
+                }}
+              >
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                  <TableChartIcon sx={{ color: '#f59e0b', fontSize: 22 }} />
+                  <Box>
+                    <Typography sx={{ fontWeight: 700, fontSize: '0.9rem', color: isDarkMode ? '#e2e8f0' : '#1e293b' }}>Grid Settings</Typography>
+                    <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>Sorting, filtering, resize</Typography>
+                  </Box>
+                </Box>
+              </AccordionSummary>
+              <AccordionDetails sx={{ px: 2, pb: 2, pt: 0 }}>
+                <Stack spacing={1.5}>
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={enableSorting}
+                        onChange={(e) => setEnableSorting(e.target.checked)}
+                        sx={{ '&.Mui-checked': { color: '#f59e0b' } }}
+                      />
+                    }
+                    label={
+                      <Box>
+                        <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>⬆️ Enable Sorting</Typography>
+                        <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>Click headers to sort</Typography>
+                      </Box>
+                    }
+                  />
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={enableColumnFilters}
+                        onChange={(e) => setEnableColumnFilters(e.target.checked)}
+                        sx={{ '&.Mui-checked': { color: '#f59e0b' } }}
+                      />
+                    }
+                    label={
+                      <Box>
+                        <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>🔍 Enable Filtering</Typography>
+                        <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>Filter in column headers</Typography>
+                      </Box>
+                    }
+                  />
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={enableColumnResize}
+                        onChange={(e) => setEnableColumnResize(e.target.checked)}
+                        sx={{ '&.Mui-checked': { color: '#f59e0b' } }}
+                      />
+                    }
+                    label={
+                      <Box>
+                        <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>↔️ Column Resize</Typography>
+                        <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>Drag borders to resize</Typography>
+                      </Box>
+                    }
+                  />
+                  <Button
+                    size="small"
+                    onClick={() => {
+                      setEnableSorting(true);
+                      setEnableColumnFilters(true);
+                      setEnableColumnResize(true);
+                      toast.success('Grid settings reset');
+                    }}
+                    sx={{ alignSelf: 'flex-start', fontSize: '0.75rem', color: isDarkMode ? '#94a3b8' : '#64748b' }}
+                  >
+                    🔄 Reset to Default
+                  </Button>
+                </Stack>
+              </AccordionDetails>
+            </Accordion>
+
+            {/* ═══════════ ACTIONS SECTION ═══════════ */}
+            <Box sx={{ p: 2, borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0' }}>
+              <Typography sx={{ fontWeight: 700, fontSize: '0.8rem', color: isDarkMode ? '#94a3b8' : '#64748b', mb: 1.5, textTransform: 'uppercase' }}>
+                Actions
+              </Typography>
+              <Stack spacing={1}>
+                {canSeeButton('list:export') && (
+                  <Tooltip title={!canAccessButton('list:export') ? "You don't have permission to use this feature" : ""} arrow>
+                    <span style={{ width: '100%' }}>
+                      <Button
+                        fullWidth
+                        variant="contained"
+                        startIcon={<DownloadIcon />}
+                        disabled={!canAccessButton('list:export')}
+                        onClick={() => {
+                          if (!canAccessButton('list:export')) return;
+                          loadBatches();
+                          setExportDialogOpen(true);
+                          setListOptionsPanelOpen(false);
+                        }}
+                        sx={{
+                          height: 44,
+                          background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                          fontWeight: 600,
+                          '&:hover': { background: 'linear-gradient(135deg, #059669 0%, #047857 100%)' },
+                          '&.Mui-disabled': { background: '#94a3b8' }
+                        }}
+                      >
+                        Export to Excel
+                      </Button>
+                    </span>
+                  </Tooltip>
+                )}
+
+                <Button
+                  fullWidth
+                  variant="outlined"
+                  startIcon={refreshing ? <CircularProgress size={16} /> : <RefreshIcon />}
+                  disabled={refreshing}
+                  onClick={() => {
+                    loadPickingList({ buttonRefresh: true });
+                    setListOptionsPanelOpen(false);
+                  }}
+                  sx={{
+                    height: 44,
+                    fontWeight: 600,
+                    borderColor: '#3b82f6',
+                    color: '#3b82f6',
+                    '&:hover': { borderColor: '#2563eb', bgcolor: 'rgba(59, 130, 246, 0.08)' }
+                  }}
+                >
+                  {refreshing ? 'Refreshing...' : 'Refresh Data'}
+                </Button>
+
+                {filtersActive && (
+                  <Button
+                    fullWidth
+                    variant="outlined"
+                    startIcon={<FilterListIcon />}
+                    onClick={() => {
+                      handleListReset();
+                      setListOptionsPanelOpen(false);
+                    }}
+                    sx={{
+                      height: 44,
+                      fontWeight: 600,
+                      borderColor: '#f59e0b',
+                      color: '#f59e0b',
+                      '&:hover': { borderColor: '#d97706', bgcolor: 'rgba(245, 158, 11, 0.08)' }
+                    }}
+                  >
+                    Reset All Filters
+                  </Button>
+                )}
+              </Stack>
+            </Box>
+          </Box>
+        </Drawer>
+
         {/* WSN Overwrite Warning Dialog */}
         <WSNOverwriteDialog
           data={wsnOverwriteDialog}
@@ -6615,3 +6569,5 @@ export default function PickingPage() {
     </AppLayout >
   );
 }
+
+
