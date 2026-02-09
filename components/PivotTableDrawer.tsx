@@ -183,13 +183,13 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
     const drilldownColumnDefs: ColDef[] = useMemo(() => [
         {
             field: 'srNo',
-            headerName: 'Sr.No',
-            width: 75,
-            minWidth: 75,
-            maxWidth: 75,
+            headerName: 'SR.NO',
+            width: isMobile ? 45 : 75,
+            minWidth: isMobile ? 40 : 75,
+            maxWidth: isMobile ? 50 : 75,
             sortable: false,
             filter: false,
-            pinned: 'left',
+            pinned: isMobile ? undefined : 'left', // Not pinned on mobile
             valueGetter: (params: any) => {
                 if (!params.node) return '';
                 const rowIndex = params.node.rowIndex;
@@ -202,28 +202,28 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
                 return rowIndex + 1;
             }
         },
-        { field: 'wsn', headerName: 'WSN', width: 120, minWidth: 100 },
-        { field: 'wid', headerName: 'WID', width: 110, minWidth: 90 },
-        { field: 'fsn', headerName: 'FSN', width: 130, minWidth: 100 },
-        { field: 'order_id', headerName: 'Order ID', width: 120, minWidth: 100 },
-        { field: 'product_title', headerName: 'Product Title', width: 300, minWidth: 200, tooltipField: 'product_title' },
-        { field: 'brand', headerName: 'Brand', width: 120, minWidth: 90 },
-        { field: 'cms_vertical', headerName: 'Category', width: 130, minWidth: 100 },
-        { field: 'hsn_sac', headerName: 'HSN/SAC', width: 100, minWidth: 80 },
-        { field: 'igst_rate', headerName: 'IGST', width: 70, minWidth: 60 },
-        { field: 'fsp', headerName: 'FSP', width: 100, minWidth: 80, valueFormatter: (params: any) => params.value ? `₹${Number(params.value).toLocaleString('en-IN')}` : '' },
-        { field: 'mrp', headerName: 'MRP', width: 100, minWidth: 80, valueFormatter: (params: any) => params.value ? `₹${Number(params.value).toLocaleString('en-IN')}` : '' },
-        { field: 'vrp', headerName: 'VRP', width: 100, minWidth: 80, valueFormatter: (params: any) => params.value ? `₹${Number(params.value).toLocaleString('en-IN')}` : '' },
-        { field: 'yield_value', headerName: 'Yield', width: 90, minWidth: 70 },
-        { field: 'rack_no', headerName: 'Rack', width: 80, minWidth: 60 },
-        { field: 'wh_location', headerName: 'WH Location', width: 110, minWidth: 90 },
-        { field: 'p_type', headerName: 'P Type', width: 80, minWidth: 70 },
-        { field: 'p_size', headerName: 'P Size', width: 80, minWidth: 70 },
-        { field: 'inbound_date', headerName: 'Inbound Date', width: 115, minWidth: 100, valueFormatter: (params: any) => formatDate(params.value) },
-        { field: 'qc_grade', headerName: 'QC Grade', width: 95, minWidth: 80 },
-        { field: 'qc_date', headerName: 'QC Date', width: 105, minWidth: 90, valueFormatter: (params: any) => formatDate(params.value) },
-        { field: 'current_stage', headerName: 'Stage', width: 100, minWidth: 80 },
-    ], []);
+        { field: 'wsn', headerName: 'WSN', width: isMobile ? 90 : 120, minWidth: isMobile ? 80 : 100 },
+        { field: 'wid', headerName: 'WID', width: isMobile ? 85 : 110, minWidth: isMobile ? 75 : 90 },
+        { field: 'fsn', headerName: 'FSN', width: isMobile ? 95 : 130, minWidth: isMobile ? 85 : 100 },
+        { field: 'order_id', headerName: 'Order ID', width: isMobile ? 90 : 120, minWidth: isMobile ? 80 : 100 },
+        { field: 'product_title', headerName: 'Product Title', width: isMobile ? 180 : 300, minWidth: isMobile ? 150 : 200, tooltipField: 'product_title' },
+        { field: 'brand', headerName: 'Brand', width: isMobile ? 85 : 120, minWidth: isMobile ? 70 : 90 },
+        { field: 'cms_vertical', headerName: 'Category', width: isMobile ? 100 : 130, minWidth: isMobile ? 85 : 100 },
+        { field: 'hsn_sac', headerName: 'HSN/SAC', width: isMobile ? 80 : 100, minWidth: isMobile ? 65 : 80 },
+        { field: 'igst_rate', headerName: 'IGST', width: isMobile ? 55 : 70, minWidth: isMobile ? 45 : 60 },
+        { field: 'fsp', headerName: 'FSP', width: isMobile ? 75 : 100, minWidth: isMobile ? 65 : 80, valueFormatter: (params: any) => params.value ? `₹${Number(params.value).toLocaleString('en-IN')}` : '' },
+        { field: 'mrp', headerName: 'MRP', width: isMobile ? 75 : 100, minWidth: isMobile ? 65 : 80, valueFormatter: (params: any) => params.value ? `₹${Number(params.value).toLocaleString('en-IN')}` : '' },
+        { field: 'vrp', headerName: 'VRP', width: isMobile ? 75 : 100, minWidth: isMobile ? 65 : 80, valueFormatter: (params: any) => params.value ? `₹${Number(params.value).toLocaleString('en-IN')}` : '' },
+        { field: 'yield_value', headerName: 'Yield', width: isMobile ? 65 : 90, minWidth: isMobile ? 55 : 70 },
+        { field: 'rack_no', headerName: 'Rack', width: isMobile ? 60 : 80, minWidth: isMobile ? 50 : 60 },
+        { field: 'wh_location', headerName: 'WH Location', width: isMobile ? 85 : 110, minWidth: isMobile ? 70 : 90 },
+        { field: 'p_type', headerName: 'P Type', width: isMobile ? 65 : 80, minWidth: isMobile ? 55 : 70 },
+        { field: 'p_size', headerName: 'P Size', width: isMobile ? 65 : 80, minWidth: isMobile ? 55 : 70 },
+        { field: 'inbound_date', headerName: 'Inbound Date', width: isMobile ? 90 : 115, minWidth: isMobile ? 80 : 100, valueFormatter: (params: any) => formatDate(params.value) },
+        { field: 'qc_grade', headerName: 'QC Grade', width: isMobile ? 75 : 95, minWidth: isMobile ? 65 : 80 },
+        { field: 'qc_date', headerName: 'QC Date', width: isMobile ? 85 : 105, minWidth: isMobile ? 70 : 90, valueFormatter: (params: any) => formatDate(params.value) },
+        { field: 'current_stage', headerName: 'Stage', width: isMobile ? 75 : 100, minWidth: isMobile ? 65 : 80 },
+    ], [isMobile]);
 
     // Fetch pivot filters (brands, categories) when drawer opens
     useEffect(() => {
@@ -988,7 +988,7 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
                     </Box>
                 </DialogTitle>
 
-                <Box sx={{ p: { xs: 1, md: 2 }, borderBottom: '1px solid rgba(0,0,0,0.1)', display: 'flex', alignItems: 'center', gap: { xs: 1, md: 2 } }}>
+                <Box sx={{ p: { xs: 0.5, md: 2 }, borderBottom: '1px solid rgba(0,0,0,0.1)', display: 'flex', alignItems: 'center', gap: { xs: 0.5, md: 2 } }}>
                     <TextField
                         size="small"
                         placeholder="Search WSN, Product, Brand..."
@@ -997,10 +997,10 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
                         InputProps={{
                             startAdornment: (
                                 <InputAdornment position="start">
-                                    <SearchIcon sx={{ fontSize: { xs: 18, md: 20 }, color: 'text.secondary' }} />
+                                    <SearchIcon sx={{ fontSize: { xs: 16, md: 20 }, color: 'text.secondary' }} />
                                 </InputAdornment>
                             ),
-                            sx: { fontSize: { xs: '0.8rem', md: '1rem' }, height: { xs: 36, md: 40 } },
+                            sx: { fontSize: { xs: '0.75rem', md: '1rem' }, height: { xs: 32, md: 40 } },
                         }}
                         sx={{ flex: { xs: 1, md: 'none' }, width: { md: 300 } }}
                     />
@@ -1010,15 +1010,15 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
                             sx={{
                                 bgcolor: 'rgba(13, 148, 136, 0.1)',
                                 '&:hover': { bgcolor: 'rgba(13, 148, 136, 0.2)' },
-                                p: { xs: 0.75, md: 1 },
+                                p: { xs: 0.5, md: 1 },
                             }}
                         >
-                            <SettingsIcon sx={{ color: '#0d9488', fontSize: { xs: 20, md: 24 } }} />
+                            <SettingsIcon sx={{ color: '#0d9488', fontSize: { xs: 18, md: 24 } }} />
                         </IconButton>
                     </Tooltip>
                 </Box>
 
-                <DialogContent sx={{ p: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                <DialogContent sx={{ p: 0, pb: { xs: '44px', md: 0 }, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
                     {drilldownLoading ? (
                         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1 }}>
                             <CircularProgress />
