@@ -542,8 +542,9 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
                 }}
                 PaperProps={{
                     sx: {
-                        width: { xs: '100vw', sm: '100vw', md: '50%' },
-                        maxWidth: { xs: '100vw', md: '100vw' },
+                        width: { xs: '100%', sm: '100%', md: '50%' },
+                        minWidth: { xs: '100vw', sm: '100vw', md: 'auto' },
+                        maxWidth: '100vw',
                         bgcolor: isDarkMode ? '#0f172a' : '#f8fafc',
                     },
                 }}
