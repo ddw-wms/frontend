@@ -1029,22 +1029,20 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
                             sx={{
                                 flex: 1,
                                 width: '100%',
-                                '--ag-header-height': { xs: '36px', md: '42px' },
-                                '--ag-row-height': { xs: '32px', md: '38px' },
+                                // Desktop default styles
+                                '--ag-header-height': '42px',
+                                '--ag-row-height': '38px',
                                 '--ag-header-foreground-color': '#ffffff',
                                 '--ag-header-background-color': '#0f766e',
-                                '--ag-border-color': 'rgba(0,0,0,0.15)',
+                                '--ag-border-color': 'rgba(0,0,0,0.12)',
                                 '--ag-odd-row-background-color': 'rgba(240, 247, 244, 0.5)',
                                 '--ag-row-hover-color': 'rgba(13, 148, 136, 0.08)',
                                 '--ag-selected-row-background-color': 'rgba(13, 148, 136, 0.12)',
-                                '--ag-font-size': { xs: '11px', md: '12px' },
+                                '--ag-font-size': '12px',
                                 '--ag-font-family': 'Inter, -apple-system, sans-serif',
-                                '--ag-cell-horizontal-padding': { xs: '4px', md: '8px' },
-                                '--ag-borders': 'solid 1px',
-                                '--ag-row-border-color': 'rgba(0,0,0,0.15)',
-                                '--ag-cell-horizontal-border': 'solid rgba(0,0,0,0.15)',
+                                '--ag-cell-horizontal-padding': '8px',
                                 '& .ag-root-wrapper': {
-                                    border: '1px solid rgba(0,0,0,0.15)',
+                                    border: 'none',
                                 },
                                 '& .ag-header': {
                                     borderBottom: '2px solid #0d9488',
@@ -1052,9 +1050,8 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
                                 },
                                 '& .ag-header-cell': {
                                     fontWeight: 600,
-                                    fontSize: { xs: '10px', md: '11px' },
-                                    padding: { xs: '0 4px', md: '0 8px' },
-                                    borderRight: '1px solid rgba(255,255,255,0.2) !important',
+                                    fontSize: '11px',
+                                    padding: '0 8px',
                                 },
                                 '& .ag-header-cell-text': {
                                     overflow: 'hidden',
@@ -1063,46 +1060,41 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
                                 },
                                 '& .ag-row': {
                                     transition: 'background-color 0.15s ease',
-                                    borderBottom: '1px solid rgba(0,0,0,0.15) !important',
+                                    borderBottom: '1px solid rgba(0,0,0,0.06)',
                                 },
                                 '& .ag-cell': {
-                                    lineHeight: { xs: '30px', md: '36px' },
-                                    padding: { xs: '0 4px', md: '0 8px' },
+                                    lineHeight: '36px',
+                                    padding: '0 8px',
                                     overflow: 'hidden',
                                     textOverflow: 'ellipsis',
                                     whiteSpace: 'nowrap',
-                                    borderRight: '1px solid rgba(0,0,0,0.15) !important',
+                                    borderRight: '1px solid rgba(0,0,0,0.06)',
                                 },
                                 '& .ag-cell-value': {
                                     overflow: 'hidden',
                                     textOverflow: 'ellipsis',
                                     whiteSpace: 'nowrap',
                                 },
-                                // Pagination Panel Styles - Compact on mobile
+                                // Pagination Panel Styles
                                 '& .ag-paging-panel': {
-                                    height: { xs: '40px', md: '52px' },
+                                    height: '52px',
                                     borderTop: '2px solid #0d9488',
                                     background: '#f0fdfa !important',
                                     color: '#1e293b !important',
                                     fontWeight: 500,
-                                    padding: { xs: '0 8px', md: '0 16px' },
-                                    gap: { xs: '4px', md: '8px' },
-                                    fontSize: { xs: '11px', md: '13px' },
-                                    flexWrap: 'nowrap',
-                                    justifyContent: 'center',
+                                    padding: '0 16px',
                                 },
                                 '& .ag-paging-panel *': {
                                     color: '#1e293b !important',
-                                    fontSize: { xs: '10px', md: '13px' },
                                 },
                                 '& .ag-paging-button': {
                                     cursor: 'pointer',
                                     backgroundColor: '#ffffff !important',
                                     border: '1px solid #0d9488 !important',
                                     borderRadius: '4px !important',
-                                    margin: { xs: '0 2px !important', md: '0 3px !important' },
-                                    minWidth: { xs: '26px !important', md: '32px !important' },
-                                    height: { xs: '26px !important', md: '32px !important' },
+                                    margin: '0 3px !important',
+                                    minWidth: '32px !important',
+                                    height: '32px !important',
                                     display: 'flex !important',
                                     alignItems: 'center !important',
                                     justifyContent: 'center !important',
@@ -1156,6 +1148,77 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
                                     color: '#475569 !important',
                                     fontWeight: '500 !important',
                                 },
+                                // ======= MOBILE ONLY STYLES (< 900px) =======
+                                '@media (max-width: 899px)': {
+                                    '--ag-header-height': '32px',
+                                    '--ag-row-height': '28px',
+                                    '--ag-font-size': '11px',
+                                    '--ag-cell-horizontal-padding': '4px',
+                                    '--ag-border-color': 'rgba(0,0,0,0.18)',
+                                    '--ag-row-border-color': 'rgba(0,0,0,0.18)',
+                                    '& .ag-root-wrapper': {
+                                        border: '1px solid rgba(0,0,0,0.2)',
+                                    },
+                                    '& .ag-header-cell': {
+                                        fontSize: '10px',
+                                        padding: '0 3px',
+                                        borderRight: '1px solid rgba(255,255,255,0.25) !important',
+                                    },
+                                    '& .ag-row': {
+                                        borderBottom: '1px solid rgba(0,0,0,0.18) !important',
+                                    },
+                                    '& .ag-cell': {
+                                        lineHeight: '26px',
+                                        padding: '0 3px',
+                                        fontSize: '11px',
+                                        borderRight: '1px solid rgba(0,0,0,0.18) !important',
+                                    },
+                                    // Mobile Pagination - Compact & Aligned
+                                    '& .ag-paging-panel': {
+                                        height: '38px !important',
+                                        minHeight: '38px !important',
+                                        padding: '0 6px !important',
+                                        gap: '2px !important',
+                                        justifyContent: 'space-between !important',
+                                        flexWrap: 'nowrap !important',
+                                    },
+                                    '& .ag-paging-panel *': {
+                                        fontSize: '10px !important',
+                                    },
+                                    // Hide row summary on mobile (1 to 100 of 228)
+                                    '& .ag-paging-row-summary-panel': {
+                                        display: 'none !important',
+                                    },
+                                    '& .ag-paging-page-size': {
+                                        marginRight: 'auto !important',
+                                    },
+                                    '& .ag-paging-page-size .ag-picker-field-wrapper': {
+                                        minHeight: '26px !important',
+                                        height: '26px !important',
+                                    },
+                                    '& .ag-paging-page-size .ag-picker-field-display': {
+                                        fontSize: '10px !important',
+                                        padding: '0 4px !important',
+                                    },
+                                    '& .ag-paging-button': {
+                                        minWidth: '24px !important',
+                                        height: '24px !important',
+                                        margin: '0 1px !important',
+                                    },
+                                    '& .ag-paging-button .ag-icon': {
+                                        fontSize: '14px !important',
+                                    },
+                                    '& .ag-paging-page-summary-panel': {
+                                        fontSize: '10px !important',
+                                        gap: '2px !important',
+                                    },
+                                    '& .ag-paging-number': {
+                                        fontSize: '10px !important',
+                                    },
+                                    '& .ag-label': {
+                                        fontSize: '10px !important',
+                                    },
+                                },
                             }}
                         >
                             <AgGridReact
@@ -1176,8 +1239,8 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
                                 alwaysShowVerticalScroll={true}
                                 debounceVerticalScrollbar={true}
                                 suppressScrollOnNewData={true}
-                                headerHeight={44}
-                                rowHeight={40}
+                                headerHeight={isMobile ? 32 : 44}
+                                rowHeight={isMobile ? 28 : 40}
                                 tooltipShowDelay={500}
                             />
                         </Box>
