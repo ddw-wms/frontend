@@ -1,21 +1,27 @@
 'use client';
 
 import React from 'react';
-import { usePermissions } from '@/app/context/PermissionsContext';
+import { usePermissions } from '@/app/context/PermissionContext';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 
 export function usePermissionGuard(requiredPermission: string | string[], redirectPath: string = '/dashboard') {
-    const { hasPermission, hasAnyPermission, loading } = usePermissions();
+    const { canAccess, canSee, isLoading, isAdmin } = usePermissions();
     const router = useRouter();
     const [checked, setChecked] = React.useState(false);
 
     useEffect(() => {
         // Wait for permissions to load before checking access
-        if (!loading && !checked) {
+        if (!isLoading && !checked) {
+            // Admin always has access
+            if (isAdmin) {
+                setChecked(true);
+                return;
+            }
+
             const hasAccess = Array.isArray(requiredPermission)
-                ? hasAnyPermission(requiredPermission)
-                : hasPermission(requiredPermission);
+                ? requiredPermission.some(code => canSee(code))
+                : canSee(requiredPermission);
 
             console.log(`✓ Permission check: ${JSON.stringify(requiredPermission)} = ${hasAccess}`);
 
@@ -26,10 +32,10 @@ export function usePermissionGuard(requiredPermission: string | string[], redire
 
             setChecked(true);
         }
-    }, [loading, requiredPermission, redirectPath, hasPermission, hasAnyPermission, router, checked]);
+    }, [isLoading, requiredPermission, redirectPath, canAccess, canSee, router, checked, isAdmin]);
 
     // Return loading state - components should wait for this to be false
-    return { loading: loading || !checked };
+    return { loading: isLoading || !checked };
 }
 
 interface PermissionGateProps {
@@ -45,19 +51,26 @@ export function PermissionGate({
     fallback = null,
     requireAll = false,
 }: PermissionGateProps) {
-    const { hasPermission, hasAnyPermission, hasAllPermissions, loading } = usePermissions();
+    const { canAccess, canSee, isLoading, isAdmin } = usePermissions();
 
     // Show nothing while loading
-    if (loading) {
+    if (isLoading) {
         return null;
+    }
+
+    // Admin always has access
+    if (isAdmin) {
+        return React.createElement(React.Fragment, null, children);
     }
 
     let hasAccess = false;
 
     if (Array.isArray(permission)) {
-        hasAccess = requireAll ? hasAllPermissions(permission) : hasAnyPermission(permission);
+        hasAccess = requireAll 
+            ? permission.every(code => canSee(code))
+            : permission.some(code => canSee(code));
     } else {
-        hasAccess = hasPermission(permission);
+        hasAccess = canSee(permission);
     }
 
     if (!hasAccess) {

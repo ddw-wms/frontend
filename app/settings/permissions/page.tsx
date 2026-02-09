@@ -183,7 +183,7 @@ const PAGE_ORDER = [
 ];
 
 export default function PermissionsPage() {
-    const { isAdmin, refreshPermissions, canAccessMenu } = usePermissions();
+    const { isAdmin, refreshPermissions, canAccessMenu, canSee } = usePermissions();
     const theme = useTheme();
     const isDarkMode = theme.palette.mode === 'dark';
     const isMobile = useMediaQuery(theme.breakpoints.down('md'));
@@ -197,8 +197,21 @@ export default function PermissionsPage() {
         setUser(storedUser);
     }, []);
 
-    // Only super_admin can access User Overrides and Warehouse Access tabs
+    // Check tab permissions - uses both role-based and user override permissions
     const isSuperAdmin = user?.role === 'super_admin';
+    
+    // Check individual tab access via permission system (respects user overrides)
+    const canSeeApprovalQueue = isSuperAdmin || canSee('tab:approval-queue');
+    const canSeeUserOverrides = isSuperAdmin || canSee('tab:user-overrides');
+    const canSeeWarehouseAccess = isSuperAdmin || canSee('tab:warehouse-access');
+
+    // Compute dynamic tab indices based on which tabs are visible
+    // Tab order: [Role Permissions, Approval Queue?, My Requests, User Overrides?, Warehouse Access?]
+    const TAB_ROLE_PERMISSIONS = 0;
+    const TAB_APPROVAL_QUEUE = canSeeApprovalQueue ? 1 : -1; // -1 = not visible
+    const TAB_MY_REQUESTS = canSeeApprovalQueue ? 2 : 1;
+    const TAB_USER_OVERRIDES = canSeeUserOverrides ? (TAB_MY_REQUESTS + 1) : -1;
+    const TAB_WAREHOUSE_ACCESS = canSeeWarehouseAccess ? (TAB_MY_REQUESTS + (canSeeUserOverrides ? 2 : 1)) : -1;
 
     const [tabValue, setTabValue] = useState(0);
     const [loading, setLoading] = useState(true);
@@ -828,6 +841,7 @@ export default function PermissionsPage() {
                                         />
                                     </Stack>
                                 }
+                                secondaryTypographyProps={{ component: 'div' }}
                             />
                         </ListItemButton>
                     ))}
@@ -1248,30 +1262,22 @@ export default function PermissionsPage() {
                     userName={user?.full_name}
                 />
 
-                {/* Tabs - User Overrides & Warehouse Access only for super_admin */}
+                {/* Tabs - Dynamic based on user permissions (respects user overrides) */}
                 <StandardTabs
                     value={tabValue}
                     onChange={(_, v) => {
-                        // Prevent non-super_admin from accessing restricted tabs (except My Requests)
-                        if (!isSuperAdmin && v > 1) return;
                         setTabValue(v);
                         setSelectedRole(null);
                         setSelectedUser(null);
                         setSelectedRequest(null);
                     }}
-                    tabs={isSuperAdmin
-                        ? [
-                            '👥 Role Permissions',
-                            `🔔 Approval Queue${pendingApprovalCount > 0 ? ` (${pendingApprovalCount})` : ''}`,
-                            '📋 My Requests',
-                            '👤 User Overrides',
-                            '🏢 Warehouse Access'
-                        ]
-                        : [
-                            '👥 Role Permissions',
-                            '📋 My Requests'
-                        ]
-                    }
+                    tabs={[
+                        '👥 Role Permissions',
+                        ...(canSeeApprovalQueue ? [`🔔 Approval Queue${pendingApprovalCount > 0 ? ` (${pendingApprovalCount})` : ''}`] : []),
+                        '📋 My Requests',
+                        ...(canSeeUserOverrides ? ['👤 User Overrides'] : []),
+                        ...(canSeeWarehouseAccess ? ['🏢 Warehouse Access'] : [])
+                    ]}
                     color="#1e40af"
                 />
 
@@ -1393,9 +1399,9 @@ export default function PermissionsPage() {
                         </Box>
                     </TabPanel>
 
-                    {/* TAB 1: Approval Queue - Super Admin Only */}
-                    {isSuperAdmin && (
-                        <TabPanel value={tabValue} index={1}>
+                    {/* TAB: Approval Queue - For users with tab:approval-queue permission */}
+                    {canSeeApprovalQueue && (
+                        <TabPanel value={tabValue} index={TAB_APPROVAL_QUEUE}>
                             <Box sx={{ height: 'calc(100vh - 220px)', display: 'flex', gap: 2, flexDirection: { xs: 'column', md: 'row' } }}>
                                 {/* Request List */}
                                 <Paper sx={{ width: { xs: '100%', md: 300 }, overflow: 'hidden', flexShrink: 0 }}>
@@ -1444,6 +1450,8 @@ export default function PermissionsPage() {
                                                                 </Stack>
                                                             </Stack>
                                                         }
+                                                        primaryTypographyProps={{ component: 'div' }}
+                                                        secondaryTypographyProps={{ component: 'div' }}
                                                     />
                                                 </ListItemButton>
                                             ))
@@ -1686,8 +1694,8 @@ export default function PermissionsPage() {
                         </TabPanel>
                     )}
 
-                    {/* TAB 2 (super_admin) / TAB 1 (others): My Requests */}
-                    <TabPanel value={tabValue} index={isSuperAdmin ? 2 : 1}>
+                    {/* TAB: My Requests - For all users */}
+                    <TabPanel value={tabValue} index={TAB_MY_REQUESTS}>
                         <Box sx={{ height: 'calc(100vh - 220px)', overflow: 'auto' }}>
                             <Paper sx={{ p: 2 }}>
                                 <Typography variant="h6" fontWeight={600} sx={{ mb: 2 }}>
@@ -1783,9 +1791,9 @@ export default function PermissionsPage() {
                         </Box>
                     </TabPanel>
 
-                    {/* TAB 3: User Overrides - Super Admin Only */}
-                    {isSuperAdmin && (
-                        <TabPanel value={tabValue} index={3}>
+                    {/* TAB: User Overrides - For users with tab:user-overrides permission */}
+                    {canSeeUserOverrides && (
+                        <TabPanel value={tabValue} index={TAB_USER_OVERRIDES}>
                             <Box sx={{
                                 display: 'flex',
                                 gap: 2,
@@ -1890,9 +1898,9 @@ export default function PermissionsPage() {
                         </TabPanel>
                     )}
 
-                    {/* TAB 4: Warehouse Access - Super Admin Only */}
-                    {isSuperAdmin && (
-                        <TabPanel value={tabValue} index={4}>
+                    {/* TAB: Warehouse Access - For users with tab:warehouse-access permission */}
+                    {canSeeWarehouseAccess && (
+                        <TabPanel value={tabValue} index={TAB_WAREHOUSE_ACCESS}>
                             <Box sx={{
                                 display: 'flex',
                                 gap: 2,
