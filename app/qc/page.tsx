@@ -780,7 +780,10 @@ export default function QCPage() {
   const [exportEndDate, setExportEndDate] = useState('');
   const [exportStatus, setExportStatus] = useState('');
   const [exportGrade, setExportGrade] = useState('');
-  const [mobileActionsOpen, setMobileActionsOpen] = useState(false);
+
+  // ====== QC LIST OPTIONS PANEL STATE ======
+  const [qcOptionsPanelOpen, setQcOptionsPanelOpen] = useState(false);
+  const [qcSettingsPanelExpanded, setQcSettingsPanelExpanded] = useState<string | false>('filters');
 
   // Persist grid settings to localStorage
   useEffect(() => {
@@ -1698,7 +1701,7 @@ export default function QCPage() {
         setTimeout(() => prefetchNextPage(), 500);
 
         if (buttonRefresh) {
-          toast.success('âœ“ List refreshed');
+          toast.success('List refreshed');
           setRefreshSuccess(true);
           setTimeout(() => setRefreshSuccess(false), 1800);
         }
@@ -2428,551 +2431,53 @@ export default function QCPage() {
                     }}
                   />
 
-                  {!isMobile ? (
+                  {/* Options Button - Opens Options Panel Drawer */}
+                  <Tooltip title="Open Options Panel">
                     <Button
                       variant="outlined"
-                      onClick={() => setFiltersExpanded(!filtersExpanded)}
+                      onClick={() => setQcOptionsPanelOpen(true)}
                       sx={{
-                        minWidth: { xs: 42, sm: 115 },
+                        minWidth: { xs: 'auto', sm: 100 },
                         height: 38,
                         borderWidth: 2,
-                        borderColor: filtersExpanded ? '#1e40af' : (isDarkMode ? 'rgba(255,255,255,0.2)' : '#cbd5e1'),
-                        bgcolor: filtersExpanded ? 'rgba(30, 64, 175, 0.1)' : (isDarkMode ? '#0f172a' : 'white'),
-                        color: filtersExpanded ? '#1e40af' : (isDarkMode ? '#94a3b8' : '#64748b'),
+                        borderColor: isDarkMode ? '#3b82f6' : '#1e40af',
+                        bgcolor: isDarkMode ? 'rgba(59, 130, 246, 0.08)' : 'rgba(30, 64, 175, 0.04)',
+                        color: isDarkMode ? '#60a5fa' : '#1e40af',
                         fontWeight: 700,
-                        fontSize: { xs: '0.7rem', sm: '0.78rem' },
+                        fontSize: { xs: '0.75rem', sm: '0.78rem' },
                         borderRadius: 1.5,
                         boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
                         transition: 'all 0.2s',
-                        px: { xs: 1, sm: 1.5 },
+                        px: { xs: 1.5, sm: 2 },
                         '&:hover': {
                           borderWidth: 2,
-                          borderColor: '#1e40af',
-                          bgcolor: 'rgba(30, 64, 175, 0.15)',
-                          boxShadow: '0 4px 12px rgba(30, 64, 175, 0.2)'
+                          borderColor: '#3b82f6',
+                          bgcolor: 'rgba(59, 130, 246, 0.12)',
+                          boxShadow: '0 4px 12px rgba(59, 130, 246, 0.2)'
                         },
                         position: 'relative'
                       }}
                     >
-                      <FilterListIcon sx={{
-                        fontSize: { xs: '1.1rem', sm: '1.15rem' },
-                        mr: { xs: 0, sm: 0.4 }
-                      }} />
-
-                      <Box component="span" sx={{ mr: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <Box component="span">{filtersExpanded ? "Hide Filters" : "Show Filters"}</Box>
-                        {filtersActive && (
-                          <Tooltip title="Filters active">
-                            <Box sx={{
-                              position: 'absolute',
-                              top: -5,
-                              right: -5,
-                              width: 14,
-                              height: 14,
-                              borderRadius: '50%',
-                              bgcolor: '#10b981',
-                              border: '2px solid white',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center'
-                            }}>
-                              <Typography sx={{ fontSize: '0.5rem', fontWeight: 800, color: 'white' }}>
-                                â—
-                              </Typography>
-                            </Box>
-                          </Tooltip>
-                        )}
-                      </Box>
-
-                      <ExpandMoreIcon sx={{ transform: filtersExpanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 200ms" }} />
+                      <MenuIcon sx={{ fontSize: '1.1rem', mr: { xs: 0, sm: 0.5 } }} />
+                      <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>Options</Box>
+                      {/* Green dot indicator when filters are active */}
+                      {filtersActive && (
+                        <Box sx={{
+                          position: 'absolute',
+                          top: -4,
+                          right: -4,
+                          width: 12,
+                          height: 12,
+                          borderRadius: '50%',
+                          bgcolor: '#10b981',
+                          border: '2px solid white',
+                          boxShadow: '0 2px 4px rgba(16, 185, 129, 0.4)'
+                        }} />
+                      )}
                     </Button>
-                  ) : (
-                    <Button
-                      variant="contained"
-                      color="primary"
-                      startIcon={<TuneIcon />}
-                      onClick={() => setMobileActionsOpen(true)}
-                      sx={{
-                        height: 40,
-                        px: 2,
-                        textTransform: 'none',
-                        flexShrink: 0,
-                        fontSize: '0.85rem',
-                        fontWeight: 600
-                      }}
-                    >
-                      Actions
-                    </Button>
-                  )}
+                  </Tooltip>
                 </Stack>
-
-                {/* Collapsible Filter Content */}
-                <Collapse in={filtersExpanded} timeout="auto">
-                  <Card sx={{
-                    borderRadius: 1.5,
-                    boxShadow: isDarkMode ? '0 4px 20px rgba(0,0,0,0.4)' : '0 4px 20px rgba(0,0,0,0.15)',
-                    background: isDarkMode ? 'linear-gradient(135deg, #1e293b 0%, #334155 100%)' : 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
-                    border: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e2e8f0',
-                    position: 'relative',
-                    zIndex: 95
-                  }}>
-                    <CardContent sx={{ p: 1.25, '&:last-child': { pb: 1.25 } }}>
-                      <Stack spacing={1}>
-                        {/* ROW 1: Date Filters + Status + Grade + Brand + Category */}
-                        <Box sx={{
-                          display: 'grid',
-                          gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', md: 'repeat(5, 1fr)' },
-                          gap: 1
-                        }}>
-                          <TextField
-                            label="From Date"
-                            type="date"
-                            size="small"
-                            InputLabelProps={{ shrink: true }}
-                            value={dateFromFilter}
-                            onChange={(e) => { setDateFromFilter(e.target.value); setPage(1); }}
-                            sx={{
-                              '& .MuiOutlinedInput-root': {
-                                height: 36,
-                                fontSize: '0.8rem',
-                                bgcolor: 'white',
-                                '&:hover fieldset': { borderColor: '#1e40af' },
-                                '&.Mui-focused fieldset': { borderColor: '#1e40af' }
-                              },
-                              '& .MuiInputLabel-root': {
-                                fontSize: '0.75rem'
-                              }
-                            }}
-                          />
-                          <TextField
-                            label="To Date"
-                            type="date"
-                            size="small"
-                            InputLabelProps={{ shrink: true }}
-                            value={dateToFilter}
-                            onChange={(e) => { setDateToFilter(e.target.value); setPage(1); }}
-                            sx={{
-                              '& .MuiOutlinedInput-root': {
-                                height: 36,
-                                fontSize: '0.8rem',
-                                bgcolor: 'white',
-                                '&:hover fieldset': { borderColor: '#1e40af' },
-                                '&.Mui-focused fieldset': { borderColor: '#1e40af' }
-                              },
-                              '& .MuiInputLabel-root': {
-                                fontSize: '0.75rem'
-                              }
-                            }}
-                          />
-
-                          <FormControl size="small">
-                            <InputLabel sx={{ fontSize: '0.75rem' }}>Grade</InputLabel>
-                            <Select
-                              value={gradeFilter}
-                              label="Grade"
-                              onChange={(e) => { setGradeFilter(e.target.value); setPage(1); }}
-                              sx={{
-                                height: 36,
-                                fontSize: '0.8rem',
-                                bgcolor: 'white',
-                                '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#1e40af' },
-                                '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#1e40af' }
-                              }}
-                            >
-                              <MenuItem value="">All Grades</MenuItem>
-                              {QC_GRADES.map(g => <MenuItem key={g} value={g} sx={{ fontSize: '0.8rem' }}>{g}</MenuItem>)}
-                            </Select>
-                          </FormControl>
-                          <FormControl size="small">
-                            <InputLabel sx={{ fontSize: '0.75rem' }}>Brand</InputLabel>
-                            <Select
-                              value={brandFilter}
-                              label="Brand"
-                              onChange={(e) => { setBrandFilter(e.target.value); setPage(1); }}
-                              sx={{
-                                height: 36,
-                                fontSize: '0.8rem',
-                                bgcolor: 'white',
-                                '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#1e40af' },
-                                '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#1e40af' }
-                              }}
-                            >
-                              <MenuItem value="">All Brands</MenuItem>
-                              {brands.map(b => <MenuItem key={b} value={b}>{b}</MenuItem>)}
-                            </Select>
-                          </FormControl>
-                          <FormControl size="small">
-                            <InputLabel sx={{ fontSize: '0.75rem' }}>Category</InputLabel>
-                            <Select
-                              value={categoryFilter}
-                              label="Category"
-                              onChange={(e) => { setCategoryFilter(e.target.value); setPage(1); }}
-                              sx={{
-                                height: 36,
-                                fontSize: '0.8rem',
-                                bgcolor: 'white',
-                                '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#1e40af' },
-                                '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#1e40af' }
-                              }}
-                            >
-                              <MenuItem value="">All Categories</MenuItem>
-                              {categories.map(c => <MenuItem key={c} value={c}>{c}</MenuItem>)}
-                            </Select>
-                          </FormControl>
-                        </Box>
-
-                        {/* ROW 2: Action Buttons */}
-                        <Box sx={{
-                          display: 'grid',
-                          gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(5, 1fr)' },
-                          gap: 1
-                        }}>
-                          <Button
-                            fullWidth
-                            size="small"
-                            variant="outlined"
-                            onClick={() => {
-                              setListLoading(true);
-                              setSearchFilter('');
-                              setStatusFilter('');
-                              setGradeFilter('');
-                              setBrandFilter('');
-                              setCategoryFilter('');
-                              setDateFromFilter('');
-                              setDateToFilter('');
-                              setPage(1);
-                            }}
-                            sx={{
-                              height: 34,
-                              fontSize: '0.72rem',
-                              fontWeight: 700,
-                              borderWidth: 2,
-                              borderColor: '#94a3b8',
-                              color: '#64748b',
-                              '&:hover': {
-                                borderWidth: 2,
-                                borderColor: '#64748b',
-                                bgcolor: '#f8fafc'
-                              }
-                            }}
-                          >
-                            ðŸ”„ RESET
-                          </Button>
-                          {canSeeButton('list:columns') && (
-                            <Tooltip title={!canAccessButton('list:columns') ? "You don't have permission to use this feature" : "Manage Columns"} arrow>
-                              <span style={{ width: '100%' }}>
-                                <Button
-                                  fullWidth
-                                  size="small"
-                                  startIcon={<SettingsIcon sx={{ fontSize: '0.9rem' }} />}
-                                  variant="outlined"
-                                  disabled={!canAccessButton('list:columns')}
-                                  onClick={() => canAccessButton('list:columns') && setListColumnSettingsOpen(true)}
-                                  sx={{
-                                    height: 34,
-                                    fontSize: '0.72rem',
-                                    fontWeight: 700,
-                                    borderWidth: 2,
-                                    borderColor: '#1e40af',
-                                    color: '#1e40af',
-                                    '&:hover': {
-                                      borderWidth: 2,
-                                      bgcolor: 'rgba(30, 64, 175, 0.1)'
-                                    }
-                                  }}
-                                >
-                                  COLUMNS
-                                </Button>
-                              </span>
-                            </Tooltip>
-                          )}
-                          <Button
-                            fullWidth
-                            size="small"
-                            startIcon={<SettingsIcon sx={{ fontSize: '0.9rem' }} />}
-                            variant="outlined"
-                            onClick={() => setGridSettingsOpen(true)}
-                            sx={{
-                              height: 34,
-                              fontSize: '0.72rem',
-                              fontWeight: 700,
-                              borderWidth: 2,
-                              borderColor: '#f59e0b',
-                              color: '#f59e0b',
-                              '&:hover': {
-                                borderWidth: 2,
-                                bgcolor: 'rgba(245, 158, 11, 0.1)'
-                              }
-                            }}
-                          >
-                            GRID
-                          </Button>
-                          {canSeeButton('list:export') && (
-                            <Tooltip title={!canAccessButton('list:export') ? "You don't have permission to use this feature" : "Export Data"} arrow>
-                              <span style={{ width: '100%' }}>
-                                <Button
-                                  fullWidth
-                                  size="small"
-                                  startIcon={<DownloadIcon sx={{ fontSize: '0.9rem' }} />}
-                                  variant="contained"
-                                  disabled={!canAccessButton('list:export')}
-                                  onClick={() => canAccessButton('list:export') && setExportDialogOpen(true)}
-                                  sx={{
-                                    height: 34,
-                                    fontSize: '0.72rem',
-                                    fontWeight: 700,
-                                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                                    boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
-                                    '&:hover': {
-                                      background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
-                                      boxShadow: '0 6px 16px rgba(16, 185, 129, 0.4)'
-                                    }
-                                  }}
-                                >
-                                  EXPORT
-                                </Button>
-                              </span>
-                            </Tooltip>
-                          )}
-                          <Button
-                            fullWidth
-                            size="small"
-                            startIcon={refreshing ? <CircularProgress size={14} /> : refreshSuccess ? <CheckCircle sx={{ color: '#10b981' }} /> : <RefreshIcon sx={{ fontSize: '0.9rem' }} />}
-                            variant="outlined"
-                            onClick={() => loadQCList({ buttonRefresh: true })}
-                            disabled={refreshing}
-                            sx={{
-                              height: 34,
-                              fontSize: '0.72rem',
-                              fontWeight: 700,
-                              borderWidth: 2,
-                              borderColor: '#3b82f6',
-                              color: '#3b82f6',
-                              '&:hover': {
-                                borderWidth: 2,
-                                bgcolor: 'rgba(59, 130, 246, 0.1)'
-                              }
-                            }}
-                          >
-                            {refreshing ? 'Refreshing...' : refreshSuccess ? 'Refreshed' : 'REFRESH'}
-                          </Button>
-                        </Box>
-                      </Stack>
-                    </CardContent>
-                  </Card>
-                </Collapse>
               </Box>
-
-              {/* MOBILE ACTIONS DIALOG */}
-              <Dialog
-                open={mobileActionsOpen}
-                onClose={() => setMobileActionsOpen(false)}
-                fullScreen
-              >
-                <AppBar position="sticky" elevation={1} sx={{ bgcolor: isDarkMode ? '#1e293b' : 'background.paper', color: isDarkMode ? '#f1f5f9' : 'text.primary', borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e0e0e0' }}>
-                  <Toolbar>
-                    <IconButton edge="start" color="inherit" onClick={() => setMobileActionsOpen(false)} aria-label="close">
-                      <CloseIcon />
-                    </IconButton>
-                    <Typography sx={{ ml: 2, flex: 1, fontWeight: 700 }}>Filters & Actions</Typography>
-                    <Button color="primary" onClick={() => setMobileActionsOpen(false)}>Close</Button>
-                  </Toolbar>
-                </AppBar>
-
-                <DialogContent sx={{ p: 2, bgcolor: isDarkMode ? '#0f172a' : 'background.default' }}>
-                  <Stack spacing={2}>
-                    {/* Filters */}
-                    <Box>
-                      <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1, color: isDarkMode ? '#94a3b8' : '#6b7280' }}>
-                        🔍 Filters
-                      </Typography>
-
-                      <Stack spacing={1.5}>
-                        <Box display="flex" gap={1}>
-                          <TextField
-                            label="From Date"
-                            type="date"
-                            size="small"
-                            InputLabelProps={{ shrink: true }}
-                            value={dateFromFilter}
-                            onChange={(e) => { setDateFromFilter(e.target.value); setPage(1); }}
-                            sx={{ flex: 1, '& .MuiOutlinedInput-root': { height: 40 } }}
-                          />
-                          <TextField
-                            label="To Date"
-                            type="date"
-                            size="small"
-                            InputLabelProps={{ shrink: true }}
-                            value={dateToFilter}
-                            onChange={(e) => { setDateToFilter(e.target.value); setPage(1); }}
-                            sx={{ flex: 1, '& .MuiOutlinedInput-root': { height: 40 } }}
-                          />
-                        </Box>
-
-                        <TextField
-                          select
-                          size="small"
-                          label="Status"
-                          value={statusFilter}
-                          onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
-                          fullWidth
-                          sx={{ '& .MuiOutlinedInput-root': { height: 40 } }}
-                        >
-                          <MenuItem value="">All Status</MenuItem>
-                          {QC_STATUSES.map(s => <MenuItem key={s} value={s}>{s}</MenuItem>)}
-                        </TextField>
-
-                        <TextField
-                          select
-                          size="small"
-                          label="Grade"
-                          value={gradeFilter}
-                          onChange={(e) => { setGradeFilter(e.target.value); setPage(1); }}
-                          fullWidth
-                          sx={{ '& .MuiOutlinedInput-root': { height: 40 } }}
-                        >
-                          <MenuItem value="">All Grades</MenuItem>
-                          {QC_GRADES.map(g => <MenuItem key={g} value={g}>{g}</MenuItem>)}
-                        </TextField>
-
-                        <TextField
-                          select
-                          size="small"
-                          label="Brand"
-                          value={brandFilter}
-                          onChange={(e) => { setBrandFilter(e.target.value); setPage(1); }}
-                          fullWidth
-                          sx={{ '& .MuiOutlinedInput-root': { height: 40 } }}
-                        >
-                          <MenuItem value="">All Brands</MenuItem>
-                          {brands.map(b => <MenuItem key={b} value={b}>{b}</MenuItem>)}
-                        </TextField>
-
-                        <TextField
-                          select
-                          size="small"
-                          label="Category"
-                          value={categoryFilter}
-                          onChange={(e) => { setCategoryFilter(e.target.value); setPage(1); }}
-                          fullWidth
-                          sx={{ '& .MuiOutlinedInput-root': { height: 40 } }}
-                        >
-                          <MenuItem value="">All Categories</MenuItem>
-                          {categories.map(c => <MenuItem key={c} value={c}>{c}</MenuItem>)}
-                        </TextField>
-                      </Stack>
-                    </Box>
-
-                    {/* Action Buttons */}
-                    <Box>
-                      <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1, color: isDarkMode ? '#94a3b8' : '#6b7280' }}>
-                        ⚡ Actions
-                      </Typography>
-
-                      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 1 }}>
-                        <Button
-                          variant="outlined"
-                          startIcon={<FilterListIcon />}
-                          onClick={() => {
-                            setListLoading(true);
-                            setSearchFilter('');
-                            setStatusFilter('');
-                            setGradeFilter('');
-                            setBrandFilter('');
-                            setCategoryFilter('');
-                            setDateFromFilter('');
-                            setDateToFilter('');
-                            setPage(1);
-                          }}
-                          sx={{ height: 44, fontSize: '0.85rem' }}
-                        >
-                          Clear
-                        </Button>
-
-                        {canSeeButton('list:columns') && (
-                          <Tooltip title={!canAccessButton('list:columns') ? "You don't have permission to use this feature" : ""} arrow>
-                            <span style={{ width: '100%' }}>
-                              <Button
-                                variant="outlined"
-                                startIcon={<SettingsIcon />}
-                                disabled={!canAccessButton('list:columns')}
-                                onClick={() => { if (canAccessButton('list:columns')) { setListColumnSettingsOpen(true); setMobileActionsOpen(false); } }}
-                                sx={{ height: 44, fontSize: '0.85rem', width: '100%' }}
-                              >
-                                Columns
-                              </Button>
-                            </span>
-                          </Tooltip>
-                        )}
-
-                        <Button
-                          variant="outlined"
-                          startIcon={<SettingsIcon />}
-                          onClick={() => { setGridSettingsOpen(true); setMobileActionsOpen(false); }}
-                          sx={{ height: 44, fontSize: '0.85rem' }}
-                        >
-                          Grid
-                        </Button>
-
-                        {canSeeButton('list:export') && (
-                          <Tooltip title={!canAccessButton('list:export') ? "You don't have permission to use this feature" : ""} arrow>
-                            <span style={{ width: '100%' }}>
-                              <Button
-                                variant="outlined"
-                                startIcon={<DownloadIcon />}
-                                disabled={!canAccessButton('list:export')}
-                                onClick={() => { if (canAccessButton('list:export')) { setExportDialogOpen(true); setMobileActionsOpen(false); } }}
-                                sx={{ height: 44, fontSize: '0.85rem', width: '100%' }}
-                              >
-                                Export
-                              </Button>
-                            </span>
-                          </Tooltip>
-                        )}
-
-                        <Button
-                          variant="outlined"
-                          startIcon={refreshing ? <CircularProgress size={14} /> : refreshSuccess ? <CheckCircle sx={{ color: '#10b981' }} /> : <RefreshIcon />}
-                          onClick={() => { loadQCList({ buttonRefresh: true }); setMobileActionsOpen(false); }}
-                          disabled={refreshing}
-                          sx={{ height: 44, fontSize: '0.85rem', gridColumn: 'span 2' }}
-                        >
-                          {refreshing ? 'Refreshing...' : refreshSuccess ? 'Refreshed' : 'Refresh'}
-                        </Button>
-                      </Box>
-                    </Box>
-                  </Stack>
-                </DialogContent>
-
-                <Box sx={{ position: 'sticky', bottom: 0, left: 0, right: 0, bgcolor: isDarkMode ? '#1e293b' : 'background.paper', p: 2, borderTop: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e0e0e0', display: 'flex', gap: 1 }}>
-                  <Button
-                    fullWidth
-                    variant="outlined"
-                    onClick={() => {
-                      setListLoading(true);
-                      setSearchFilter('');
-                      setStatusFilter('');
-                      setGradeFilter('');
-                      setBrandFilter('');
-                      setCategoryFilter('');
-                      setDateFromFilter('');
-                      setDateToFilter('');
-                      setPage(1);
-                    }}
-                    sx={{ height: 48 }}
-                  >
-                    Reset Filters
-                  </Button>
-                  <Button
-                    fullWidth
-                    variant="contained"
-                    onClick={() => { setPage(1); setMobileActionsOpen(false); loadQCList(); }}
-                    sx={{ height: 48 }}
-                  >
-                    Apply
-                  </Button>
-                </Box>
-              </Dialog>
 
               {/* TABLE - AG GRID (always render grid so header remains visible) */}
               <Box sx={{
@@ -3558,7 +3063,8 @@ export default function QCPage() {
                 </Box>
               </Fade>
             </Box>
-          )}
+          )
+          }
 
           {/* GRID SETTINGS DIALOG (QC) */}
           <Dialog
@@ -3688,2086 +3194,2091 @@ export default function QCPage() {
           </Dialog>
 
           {/* ========== TAB 1: SINGLE QC ========== */}
-          {currentTabCode === 'single' && (
-            <Box sx={{
-              gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' },
-              gap: { xs: 1.5, sm: 2, lg: 2.5 },
-              p: { xs: 1, sm: 1.5, md: 2 },
-              height: '100%',
-              overflow: 'auto'
-            }}
-            >
+          {
+            currentTabCode === 'single' && (
               <Box sx={{
-                display: 'grid',
-                gridTemplateColumns: { xs: '1fr', lg: '1fr 1fr' },
-                gap: { xs: 1, sm: 2 },
-                flex: 1,
-                minHeight: 0
-              }}>
-                {/* LEFT COLUMN - FORM */}
-                <Card sx={{
-                  borderRadius: 1.5,
-                  boxShadow: isDarkMode ? '0 4px 20px rgba(0,0,0,0.4)' : '0 4px 20px rgba(0,0,0,0.15)',
-                  background: isDarkMode ? 'linear-gradient(135deg, #1e293b 0%, #334155 100%)' : 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
-                  border: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e2e8f0',
-                  display: 'flex',
-                  flexDirection: 'column'
+                gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' },
+                gap: { xs: 1.5, sm: 2, lg: 2.5 },
+                p: { xs: 1, sm: 1.5, md: 2 },
+                height: '100%',
+                overflow: 'auto'
+              }}
+              >
+                <Box sx={{
+                  display: 'grid',
+                  gridTemplateColumns: { xs: '1fr', lg: '1fr 1fr' },
+                  gap: { xs: 1, sm: 2 },
+                  flex: 1,
+                  minHeight: 0
                 }}>
-                  <CardContent sx={{ p: { xs: 1.5, sm: 2 }, flex: 1, display: 'flex', flexDirection: 'column' }}>
-                    <Typography
-                      variant="h6"
-                      sx={{
-                        fontWeight: 800,
-                        mb: 2,
-                        color: isDarkMode ? '#f1f5f9' : '#1e293b',
-                        fontSize: { xs: '1rem', sm: '1.1rem' },
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 1
-                      }}
-                    >
-                      📋 Single QC Entry
-                    </Typography>
-
-                    {duplicateQC && (
-                      <Alert
-                        severity="warning"
-                        sx={{
-                          mb: 2,
-                          py: 1,
-                          fontSize: '0.8rem',
-                          fontWeight: 600,
-                          borderRadius: 1,
-                          background: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)',
-                          border: '1px solid #f59e0b'
-                        }}
-                      >
-                        âš ï¸ QC already exists. Click "Update" to modify existing entry.
-                      </Alert>
-                    )}
-
-                    <Box sx={{ flex: 1, overflow: 'auto' }}>
-                      <Stack spacing={1.5}>
-                        <TextField
-                          fullWidth
-                          size="small"
-                          label="WSN *"
-                          value={singleWSN}
-                          onChange={(e) => {
-                            const value = e.target.value.toUpperCase(); // Auto uppercase
-                            setSingleWSN(value);
-
-                            // Debounce fetch for scanner support (scanners send chars rapidly)
-                            if (singleWSNDebounceRef.current) {
-                              clearTimeout(singleWSNDebounceRef.current);
-                            }
-                            singleWSNDebounceRef.current = setTimeout(() => {
-                              fetchProductDetails(value);
-                            }, 150); // Short debounce for rapid scanner input
-                          }}
-                          onKeyDown={(e) => {
-                            // Scanner sends Enter after scan - immediately fetch on Enter
-                            if (e.key === 'Enter') {
-                              e.preventDefault();
-                              if (singleWSNDebounceRef.current) {
-                                clearTimeout(singleWSNDebounceRef.current);
-                              }
-                              const value = singleWSN.trim().toUpperCase();
-                              if (value) {
-                                fetchProductDetails(value);
-                              }
-                            }
-                          }}
-                          placeholder="Enter WSN to auto-fetch product details"
-                          sx={{
-                            '& .MuiOutlinedInput-root': {
-                              height: 40,
-                              fontSize: '0.85rem',
-                              bgcolor: 'white',
-                              '&:hover fieldset': { borderColor: '#1e40af' },
-                              '&.Mui-focused fieldset': { borderColor: '#1e40af' }
-                            },
-                            '& .MuiInputLabel-root': {
-                              fontSize: '0.8rem',
-                              fontWeight: 600
-                            }
-                          }}
-                        />
-
-                        <TextField
-                          fullWidth
-                          size="small"
-                          label="QC By Name"
-                          value={singleForm.qc_by_name}
-                          onChange={(e) => setSingleForm({ ...singleForm, qc_by_name: e.target.value })}
-                          sx={{
-                            '& .MuiOutlinedInput-root': {
-                              height: 40,
-                              fontSize: '0.85rem',
-                              bgcolor: 'white',
-                              '&:hover fieldset': { borderColor: '#1e40af' },
-                              '&.Mui-focused fieldset': { borderColor: '#1e40af' }
-                            },
-                            '& .MuiInputLabel-root': {
-                              fontSize: '0.8rem',
-                              fontWeight: 600
-                            }
-                          }}
-                        />
-
-                        <TextField
-                          fullWidth
-                          size="small"
-                          label="QC Date"
-                          type="date"
-                          InputLabelProps={{ shrink: true }}
-                          value={singleForm.qc_date}
-                          onChange={(e) => setSingleForm({ ...singleForm, qc_date: e.target.value })}
-                          sx={{
-                            '& .MuiOutlinedInput-root': {
-                              height: 40,
-                              fontSize: '0.85rem',
-                              bgcolor: 'white',
-                              '&:hover fieldset': { borderColor: '#1e40af' },
-                              '&.Mui-focused fieldset': { borderColor: '#1e40af' }
-                            },
-                            '& .MuiInputLabel-root': {
-                              fontSize: '0.8rem',
-                              fontWeight: 600
-                            }
-                          }}
-                        />
-
-                        <TextField
-                          fullWidth
-                          size="small"
-                          label="Product Serial Number"
-                          value={singleForm.product_serial_number}
-                          onChange={(e) => setSingleForm({ ...singleForm, product_serial_number: e.target.value })}
-                          sx={{
-                            '& .MuiOutlinedInput-root': {
-                              height: 40,
-                              fontSize: '0.85rem',
-                              bgcolor: 'white',
-                              '&:hover fieldset': { borderColor: '#1e40af' },
-                              '&.Mui-focused fieldset': { borderColor: '#1e40af' }
-                            },
-                            '& .MuiInputLabel-root': {
-                              fontSize: '0.8rem',
-                              fontWeight: 600
-                            }
-                          }}
-                        />
-
-                        <FormControl fullWidth size="small">
-                          <InputLabel sx={{ fontSize: '0.8rem', fontWeight: 600 }}>QC Grade</InputLabel>
-                          <Select
-                            value={singleForm.qc_grade}
-                            label="QC Grade"
-                            onChange={(e) => setSingleForm({ ...singleForm, qc_grade: e.target.value })}
-                            sx={{
-                              height: 40,
-                              fontSize: '0.85rem',
-                              bgcolor: 'white',
-                              '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#1e40af' },
-                              '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#1e40af' }
-                            }}
-                          >
-                            <MenuItem value="" sx={{ fontSize: '0.85rem' }}>Select Grade</MenuItem>
-                            {QC_GRADES.map((g) => (
-                              <MenuItem key={g} value={g} sx={{ fontSize: '0.85rem' }}>
-                                {g}
-                              </MenuItem>
-                            ))}
-                          </Select>
-                        </FormControl>
-
-                        <FormControl fullWidth size="small">
-                          <InputLabel sx={{ fontSize: '0.8rem', fontWeight: 600 }}>Rack Location</InputLabel>
-                          <Select
-                            value={singleForm.rack_no}
-                            label="Rack Location"
-                            onChange={(e) => setSingleForm({ ...singleForm, rack_no: e.target.value })}
-                            sx={{
-                              height: 40,
-                              fontSize: '0.85rem',
-                              bgcolor: 'white',
-                              '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#1e40af' },
-                              '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#1e40af' }
-                            }}
-                          >
-                            <MenuItem value="" sx={{ fontSize: '0.85rem' }}>Select Rack</MenuItem>
-                            {racks.map((r) => (
-                              <MenuItem key={r.id} value={r.rack_name} sx={{ fontSize: '0.85rem' }}>
-                                {r.rack_name}
-                              </MenuItem>
-                            ))}
-                          </Select>
-                        </FormControl>
-
-                        <TextField
-                          fullWidth
-                          size="small"
-                          multiline
-                          rows={3}
-                          label="QC Remarks"
-                          value={singleForm.qc_remarks}
-                          onChange={(e) => setSingleForm({ ...singleForm, qc_remarks: e.target.value })}
-                          sx={{
-                            '& .MuiOutlinedInput-root': {
-                              fontSize: '0.85rem',
-                              bgcolor: 'white',
-                              '&:hover fieldset': { borderColor: '#1e40af' },
-                              '&.Mui-focused fieldset': { borderColor: '#1e40af' }
-                            },
-                            '& .MuiInputLabel-root': {
-                              fontSize: '0.8rem',
-                              fontWeight: 600
-                            }
-                          }}
-                        />
-
-                        <TextField
-                          fullWidth
-                          size="small"
-                          multiline
-                          rows={2}
-                          label="Other Remarks"
-                          value={singleForm.other_remarks}
-                          onChange={(e) => setSingleForm({ ...singleForm, other_remarks: e.target.value })}
-                          sx={{
-                            '& .MuiOutlinedInput-root': {
-                              fontSize: '0.85rem',
-                              bgcolor: 'white',
-                              '&:hover fieldset': { borderColor: '#1e40af' },
-                              '&.Mui-focused fieldset': { borderColor: '#1e40af' }
-                            },
-                            '& .MuiInputLabel-root': {
-                              fontSize: '0.8rem',
-                              fontWeight: 600
-                            }
-                          }}
-                        />
-                      </Stack>
-                    </Box>
-
-                    {/* ACTION BUTTONS */}
-                    <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid #e2e8f0' }}>
-                      {duplicateQC ? (
-                        <Stack direction="row" spacing={1}>
-                          <Button
-                            fullWidth
-                            variant="contained"
-                            size="small"
-                            onClick={handleSingleSubmit}
-                            disabled={singleLoading}
-                            sx={{
-                              background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
-                              py: 1,
-                              fontSize: '0.85rem',
-                              fontWeight: 700,
-                              borderRadius: 1,
-                              boxShadow: '0 4px 12px rgba(245, 158, 11, 0.3)',
-                              '&:hover': {
-                                background: 'linear-gradient(135deg, #d97706 0%, #b45309 100%)',
-                                boxShadow: '0 6px 16px rgba(245, 158, 11, 0.4)'
-                              }
-                            }}
-                          >
-                            ðŸ”„ Update Existing QC
-                          </Button>
-                          <Button
-                            fullWidth
-                            variant="outlined"
-                            size="small"
-                            onClick={() => setGradeDialogOpen(true)}
-                            sx={{
-                              py: 1,
-                              fontSize: '0.85rem',
-                              fontWeight: 700,
-                              borderWidth: 2,
-                              borderColor: '#1e40af',
-                              color: '#1e40af',
-                              '&:hover': {
-                                borderWidth: 2,
-                                bgcolor: 'rgba(30, 64, 175, 0.1)'
-                              }
-                            }}
-                          >
-                            ⚙️ Manage Grades
-                          </Button>
-                        </Stack>
-                      ) : (
-                        <Stack direction="row" spacing={1}>
-                          <Button
-                            fullWidth
-                            variant="contained"
-                            size="small"
-                            onClick={handleSingleSubmit}
-                            disabled={singleLoading}
-                            sx={{
-                              background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                              py: 1,
-                              fontSize: '0.85rem',
-                              fontWeight: 700,
-                              height: 36,
-                              borderRadius: 1,
-                              boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
-                              '&:hover': {
-                                background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
-                                boxShadow: '0 6px 16px rgba(16, 185, 129, 0.4)'
-                              }
-                            }}
-                          >
-                            ✅ Submit QC Entry
-                          </Button>
-
-                          <Button
-                            variant="outlined"
-                            size="small"
-                            onClick={() => setGradeDialogOpen(true)}
-                            sx={{
-                              py: 1,
-                              fontSize: '0.85rem',
-                              fontWeight: 700,
-                              borderWidth: 2,
-                              height: 36,
-                              minWidth: 100,
-                              borderColor: '#1e40af',
-                              color: '#1e40af',
-                              '&:hover': {
-                                borderWidth: 2,
-                                bgcolor: 'rgba(30, 64, 175, 0.1)'
-                              }
-                            }}
-                          >
-                            ⚙️ Grades
-                          </Button>
-                        </Stack>
-                      )}
-                    </Box>
-                  </CardContent>
-                </Card>
-
-                {/* RIGHT COLUMN - PRODUCT DETAILS */}
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: { xs: 1, sm: 2 } }}>
-                  {singleProduct.product_title && (
-                    <Card sx={{
-                      borderRadius: 1.5,
-                      background: isDarkMode
-                        ? 'linear-gradient(135deg, #064e3b 0%, #065f46 100%)'
-                        : 'linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%)',
-                      border: '2px solid #10b981',
-                      boxShadow: isDarkMode ? '0 4px 20px rgba(16, 185, 129, 0.3)' : '0 4px 20px rgba(16, 185, 129, 0.2)',
-                      flex: 1
-                    }}>
-                      <CardContent sx={{ p: { xs: 1.5, sm: 2 }, height: '100%', display: 'flex', flexDirection: 'column' }}>
-                        <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
-                          <CheckCircle sx={{ color: isDarkMode ? '#4ade80' : '#10b981', fontSize: { xs: 24, sm: 28 } }} />
-                          <Typography
-                            variant="h6"
-                            sx={{
-                              fontWeight: 800,
-                              color: isDarkMode ? '#a7f3d0' : '#065f46',
-                              fontSize: { xs: '0.95rem', sm: '1rem' }
-                            }}
-                          >
-                            Master Data Found
-                          </Typography>
-                        </Stack>
-
-                        <Divider sx={{ mb: 2, borderColor: isDarkMode ? 'rgba(167, 243, 208, 0.3)' : 'rgba(5, 150, 105, 0.3)' }} />
-
-                        <Box sx={{ flex: 1, overflow: 'auto' }}>
-                          <Stack spacing={2}>
-                            <Box>
-                              <Typography
-                                variant="caption"
-                                sx={{
-                                  color: isDarkMode ? '#a7f3d0' : '#065f46',
-                                  fontWeight: 700,
-                                  fontSize: '0.7rem',
-                                  textTransform: 'uppercase',
-                                  letterSpacing: 0.5
-                                }}
-                              >
-                                FSN
-                              </Typography>
-                              <Typography sx={{
-                                fontWeight: 700,
-                                color: isDarkMode ? '#ecfdf5' : '#047857',
-                                fontSize: '0.9rem',
-                                wordBreak: 'break-all'
-                              }}>
-                                {singleProduct.fsn || 'N/A'}
-                              </Typography>
-                            </Box>
-
-                            <Box>
-                              <Typography
-                                variant="caption"
-                                sx={{
-                                  color: isDarkMode ? '#a7f3d0' : '#065f46',
-                                  fontWeight: 700,
-                                  fontSize: '0.7rem',
-                                  textTransform: 'uppercase'
-                                }}
-                              >
-                                PRODUCT TITLE
-                              </Typography>
-                              <Typography sx={{
-                                fontWeight: 600,
-                                color: isDarkMode ? '#d1fae5' : '#047857',
-                                fontSize: '0.85rem',
-                                lineHeight: 1.3
-                              }}>
-                                {singleProduct.product_title || 'N/A'}
-                              </Typography>
-                            </Box>
-
-                            <Box sx={{
-                              display: 'grid',
-                              gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' },
-                              gap: 1.5
-                            }}>
-                              <Box>
-                                <Typography
-                                  variant="caption"
-                                  sx={{
-                                    color: isDarkMode ? '#a7f3d0' : '#065f46',
-                                    fontWeight: 700,
-                                    fontSize: '0.7rem'
-                                  }}
-                                >
-                                  BRAND
-                                </Typography>
-                                <Typography sx={{ fontWeight: 700, color: isDarkMode ? '#ecfdf5' : '#047857' }}>
-                                  {singleProduct.brand || 'N/A'}
-                                </Typography>
-                              </Box>
-                              <Box>
-                                <Typography
-                                  variant="caption"
-                                  sx={{
-                                    color: isDarkMode ? '#a7f3d0' : '#065f46',
-                                    fontWeight: 700,
-                                    fontSize: '0.7rem'
-                                  }}
-                                >
-                                  CATEGORY
-                                </Typography>
-                                <Typography sx={{ fontWeight: 700, color: isDarkMode ? '#ecfdf5' : '#047857' }}>
-                                  {singleProduct.cms_vertical || 'N/A'}
-                                </Typography>
-                              </Box>
-                            </Box>
-
-                            <Box sx={{
-                              display: 'grid',
-                              gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' },
-                              gap: 1.5
-                            }}>
-                              <Box>
-                                <Typography
-                                  variant="caption"
-                                  sx={{
-                                    color: isDarkMode ? '#a7f3d0' : '#065f46',
-                                    fontWeight: 700,
-                                    fontSize: '0.7rem'
-                                  }}
-                                >
-                                  MRP
-                                </Typography>
-                                <Typography sx={{ fontWeight: 700, color: isDarkMode ? '#ecfdf5' : '#047857' }}>
-                                  â‚¹{singleProduct.mrp || 'N/A'}
-                                </Typography>
-                              </Box>
-                              <Box>
-                                <Typography
-                                  variant="caption"
-                                  sx={{
-                                    color: isDarkMode ? '#a7f3d0' : '#065f46',
-                                    fontWeight: 700,
-                                    fontSize: '0.7rem'
-                                  }}
-                                >
-                                  FSP
-                                </Typography>
-                                <Typography sx={{ fontWeight: 700, color: isDarkMode ? '#ecfdf5' : '#047857' }}>
-                                  â‚¹{singleProduct.fsp || 'N/A'}
-                                </Typography>
-                              </Box>
-                            </Box>
-
-                            {singleProduct.fkt_link && (
-                              <Box>
-                                <Typography
-                                  variant="caption"
-                                  sx={{
-                                    color: isDarkMode ? '#a7f3d0' : '#065f46',
-                                    fontWeight: 700,
-                                    fontSize: '0.7rem'
-                                  }}
-                                >
-                                  PRODUCT LINK
-                                </Typography>
-                                <Typography
-                                  sx={{
-                                    fontWeight: 600,
-                                    color: isDarkMode ? '#38bdf8' : '#047857',
-                                    fontSize: '0.8rem',
-                                    cursor: 'pointer',
-                                    textDecoration: 'underline',
-                                    '&:hover': { color: isDarkMode ? '#7dd3fc' : '#065f46' }
-                                  }}
-                                  onClick={() => window.open(singleProduct.fkt_link, '_blank')}
-                                >
-                                  View Product Details â†’
-                                </Typography>
-                              </Box>
-                            )}
-                          </Stack>
-                        </Box>
-                      </CardContent>
-                    </Card>
-                  )}
-
-                  {/* STATS CARD */}
+                  {/* LEFT COLUMN - FORM */}
                   <Card sx={{
                     borderRadius: 1.5,
                     boxShadow: isDarkMode ? '0 4px 20px rgba(0,0,0,0.4)' : '0 4px 20px rgba(0,0,0,0.15)',
                     background: isDarkMode ? 'linear-gradient(135deg, #1e293b 0%, #334155 100%)' : 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
-                    border: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e2e8f0'
+                    border: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e2e8f0',
+                    display: 'flex',
+                    flexDirection: 'column'
                   }}>
-                    <CardContent sx={{ p: { xs: 1.5, sm: 2 } }}>
+                    <CardContent sx={{ p: { xs: 1.5, sm: 2 }, flex: 1, display: 'flex', flexDirection: 'column' }}>
                       <Typography
                         variant="h6"
                         sx={{
                           fontWeight: 800,
                           mb: 2,
                           color: isDarkMode ? '#f1f5f9' : '#1e293b',
-                          fontSize: { xs: '0.95rem', sm: '1rem' },
+                          fontSize: { xs: '1rem', sm: '1.1rem' },
                           display: 'flex',
                           alignItems: 'center',
                           gap: 1
                         }}
                       >
-                        📊 Today's QC Stats
+                        📋 Single QC Entry
                       </Typography>
 
-                      <Stack spacing={1}>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <Typography sx={{ fontWeight: 600, color: '#64748b', fontSize: '0.85rem' }}>Pending:</Typography>
-                          <Chip
-                            label={stats.pending}
+                      {duplicateQC && (
+                        <Alert
+                          severity="warning"
+                          sx={{
+                            mb: 2,
+                            py: 1,
+                            fontSize: '0.8rem',
+                            fontWeight: 600,
+                            borderRadius: 1,
+                            background: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)',
+                            border: '1px solid #f59e0b'
+                          }}
+                        >
+                          âš ï¸ QC already exists. Click "Update" to modify existing entry.
+                        </Alert>
+                      )}
+
+                      <Box sx={{ flex: 1, overflow: 'auto' }}>
+                        <Stack spacing={1.5}>
+                          <TextField
+                            fullWidth
+                            size="small"
+                            label="WSN *"
+                            value={singleWSN}
+                            onChange={(e) => {
+                              const value = e.target.value.toUpperCase(); // Auto uppercase
+                              setSingleWSN(value);
+
+                              // Debounce fetch for scanner support (scanners send chars rapidly)
+                              if (singleWSNDebounceRef.current) {
+                                clearTimeout(singleWSNDebounceRef.current);
+                              }
+                              singleWSNDebounceRef.current = setTimeout(() => {
+                                fetchProductDetails(value);
+                              }, 150); // Short debounce for rapid scanner input
+                            }}
+                            onKeyDown={(e) => {
+                              // Scanner sends Enter after scan - immediately fetch on Enter
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                if (singleWSNDebounceRef.current) {
+                                  clearTimeout(singleWSNDebounceRef.current);
+                                }
+                                const value = singleWSN.trim().toUpperCase();
+                                if (value) {
+                                  fetchProductDetails(value);
+                                }
+                              }
+                            }}
+                            placeholder="Enter WSN to auto-fetch product details"
                             sx={{
-                              bgcolor: '#fef3c7',
-                              color: '#92400e',
-                              fontWeight: 700,
-                              fontSize: '0.75rem',
-                              height: 24
+                              '& .MuiOutlinedInput-root': {
+                                height: 40,
+                                fontSize: '0.85rem',
+                                bgcolor: 'white',
+                                '&:hover fieldset': { borderColor: '#1e40af' },
+                                '&.Mui-focused fieldset': { borderColor: '#1e40af' }
+                              },
+                              '& .MuiInputLabel-root': {
+                                fontSize: '0.8rem',
+                                fontWeight: 600
+                              }
                             }}
                           />
-                        </Box>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <Typography sx={{ fontWeight: 600, color: '#64748b', fontSize: '0.85rem' }}>Pass:</Typography>
-                          <Chip
-                            label={stats.pass}
+
+                          <TextField
+                            fullWidth
+                            size="small"
+                            label="QC By Name"
+                            value={singleForm.qc_by_name}
+                            onChange={(e) => setSingleForm({ ...singleForm, qc_by_name: e.target.value })}
                             sx={{
-                              bgcolor: '#d1fae5',
-                              color: '#065f46',
-                              fontWeight: 700,
-                              fontSize: '0.75rem',
-                              height: 24
+                              '& .MuiOutlinedInput-root': {
+                                height: 40,
+                                fontSize: '0.85rem',
+                                bgcolor: 'white',
+                                '&:hover fieldset': { borderColor: '#1e40af' },
+                                '&.Mui-focused fieldset': { borderColor: '#1e40af' }
+                              },
+                              '& .MuiInputLabel-root': {
+                                fontSize: '0.8rem',
+                                fontWeight: 600
+                              }
                             }}
                           />
-                        </Box>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <Typography sx={{ fontWeight: 600, color: '#64748b', fontSize: '0.85rem' }}>Fail:</Typography>
-                          <Chip
-                            label={stats.fail}
+
+                          <TextField
+                            fullWidth
+                            size="small"
+                            label="QC Date"
+                            type="date"
+                            InputLabelProps={{ shrink: true }}
+                            value={singleForm.qc_date}
+                            onChange={(e) => setSingleForm({ ...singleForm, qc_date: e.target.value })}
                             sx={{
-                              bgcolor: '#fee2e2',
-                              color: '#991b1b',
-                              fontWeight: 700,
-                              fontSize: '0.75rem',
-                              height: 24
+                              '& .MuiOutlinedInput-root': {
+                                height: 40,
+                                fontSize: '0.85rem',
+                                bgcolor: 'white',
+                                '&:hover fieldset': { borderColor: '#1e40af' },
+                                '&.Mui-focused fieldset': { borderColor: '#1e40af' }
+                              },
+                              '& .MuiInputLabel-root': {
+                                fontSize: '0.8rem',
+                                fontWeight: 600
+                              }
                             }}
                           />
-                        </Box>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <Typography sx={{ fontWeight: 600, color: '#64748b', fontSize: '0.85rem' }}>Hold:</Typography>
-                          <Chip
-                            label={stats.hold}
+
+                          <TextField
+                            fullWidth
+                            size="small"
+                            label="Product Serial Number"
+                            value={singleForm.product_serial_number}
+                            onChange={(e) => setSingleForm({ ...singleForm, product_serial_number: e.target.value })}
                             sx={{
-                              bgcolor: '#fed7d7',
-                              color: '#9b2c2c',
-                              fontWeight: 700,
-                              fontSize: '0.75rem',
-                              height: 24
+                              '& .MuiOutlinedInput-root': {
+                                height: 40,
+                                fontSize: '0.85rem',
+                                bgcolor: 'white',
+                                '&:hover fieldset': { borderColor: '#1e40af' },
+                                '&.Mui-focused fieldset': { borderColor: '#1e40af' }
+                              },
+                              '& .MuiInputLabel-root': {
+                                fontSize: '0.8rem',
+                                fontWeight: 600
+                              }
                             }}
                           />
-                        </Box>
-                        <Divider sx={{ my: 1 }} />
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <Typography sx={{ fontWeight: 700, color: '#1e293b', fontSize: '0.9rem' }}>Total:</Typography>
-                          <Chip
-                            label={stats.total}
+
+                          <FormControl fullWidth size="small">
+                            <InputLabel sx={{ fontSize: '0.8rem', fontWeight: 600 }}>QC Grade</InputLabel>
+                            <Select
+                              value={singleForm.qc_grade}
+                              label="QC Grade"
+                              onChange={(e) => setSingleForm({ ...singleForm, qc_grade: e.target.value })}
+                              sx={{
+                                height: 40,
+                                fontSize: '0.85rem',
+                                bgcolor: 'white',
+                                '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#1e40af' },
+                                '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#1e40af' }
+                              }}
+                            >
+                              <MenuItem value="" sx={{ fontSize: '0.85rem' }}>Select Grade</MenuItem>
+                              {QC_GRADES.map((g) => (
+                                <MenuItem key={g} value={g} sx={{ fontSize: '0.85rem' }}>
+                                  {g}
+                                </MenuItem>
+                              ))}
+                            </Select>
+                          </FormControl>
+
+                          <FormControl fullWidth size="small">
+                            <InputLabel sx={{ fontSize: '0.8rem', fontWeight: 600 }}>Rack Location</InputLabel>
+                            <Select
+                              value={singleForm.rack_no}
+                              label="Rack Location"
+                              onChange={(e) => setSingleForm({ ...singleForm, rack_no: e.target.value })}
+                              sx={{
+                                height: 40,
+                                fontSize: '0.85rem',
+                                bgcolor: 'white',
+                                '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#1e40af' },
+                                '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#1e40af' }
+                              }}
+                            >
+                              <MenuItem value="" sx={{ fontSize: '0.85rem' }}>Select Rack</MenuItem>
+                              {racks.map((r) => (
+                                <MenuItem key={r.id} value={r.rack_name} sx={{ fontSize: '0.85rem' }}>
+                                  {r.rack_name}
+                                </MenuItem>
+                              ))}
+                            </Select>
+                          </FormControl>
+
+                          <TextField
+                            fullWidth
+                            size="small"
+                            multiline
+                            rows={3}
+                            label="QC Remarks"
+                            value={singleForm.qc_remarks}
+                            onChange={(e) => setSingleForm({ ...singleForm, qc_remarks: e.target.value })}
                             sx={{
-                              bgcolor: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
-                              color: 'white',
-                              fontWeight: 800,
-                              fontSize: '0.8rem',
-                              height: 26
+                              '& .MuiOutlinedInput-root': {
+                                fontSize: '0.85rem',
+                                bgcolor: 'white',
+                                '&:hover fieldset': { borderColor: '#1e40af' },
+                                '&.Mui-focused fieldset': { borderColor: '#1e40af' }
+                              },
+                              '& .MuiInputLabel-root': {
+                                fontSize: '0.8rem',
+                                fontWeight: 600
+                              }
                             }}
                           />
-                        </Box>
-                      </Stack>
+
+                          <TextField
+                            fullWidth
+                            size="small"
+                            multiline
+                            rows={2}
+                            label="Other Remarks"
+                            value={singleForm.other_remarks}
+                            onChange={(e) => setSingleForm({ ...singleForm, other_remarks: e.target.value })}
+                            sx={{
+                              '& .MuiOutlinedInput-root': {
+                                fontSize: '0.85rem',
+                                bgcolor: 'white',
+                                '&:hover fieldset': { borderColor: '#1e40af' },
+                                '&.Mui-focused fieldset': { borderColor: '#1e40af' }
+                              },
+                              '& .MuiInputLabel-root': {
+                                fontSize: '0.8rem',
+                                fontWeight: 600
+                              }
+                            }}
+                          />
+                        </Stack>
+                      </Box>
+
+                      {/* ACTION BUTTONS */}
+                      <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid #e2e8f0' }}>
+                        {duplicateQC ? (
+                          <Stack direction="row" spacing={1}>
+                            <Button
+                              fullWidth
+                              variant="contained"
+                              size="small"
+                              onClick={handleSingleSubmit}
+                              disabled={singleLoading}
+                              sx={{
+                                background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                                py: 1,
+                                fontSize: '0.85rem',
+                                fontWeight: 700,
+                                borderRadius: 1,
+                                boxShadow: '0 4px 12px rgba(245, 158, 11, 0.3)',
+                                '&:hover': {
+                                  background: 'linear-gradient(135deg, #d97706 0%, #b45309 100%)',
+                                  boxShadow: '0 6px 16px rgba(245, 158, 11, 0.4)'
+                                }
+                              }}
+                            >
+                              ðŸ”„ Update Existing QC
+                            </Button>
+                            <Button
+                              fullWidth
+                              variant="outlined"
+                              size="small"
+                              onClick={() => setGradeDialogOpen(true)}
+                              sx={{
+                                py: 1,
+                                fontSize: '0.85rem',
+                                fontWeight: 700,
+                                borderWidth: 2,
+                                borderColor: '#1e40af',
+                                color: '#1e40af',
+                                '&:hover': {
+                                  borderWidth: 2,
+                                  bgcolor: 'rgba(30, 64, 175, 0.1)'
+                                }
+                              }}
+                            >
+                              ⚙️ Manage Grades
+                            </Button>
+                          </Stack>
+                        ) : (
+                          <Stack direction="row" spacing={1}>
+                            <Button
+                              fullWidth
+                              variant="contained"
+                              size="small"
+                              onClick={handleSingleSubmit}
+                              disabled={singleLoading}
+                              sx={{
+                                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                                py: 1,
+                                fontSize: '0.85rem',
+                                fontWeight: 700,
+                                height: 36,
+                                borderRadius: 1,
+                                boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
+                                '&:hover': {
+                                  background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+                                  boxShadow: '0 6px 16px rgba(16, 185, 129, 0.4)'
+                                }
+                              }}
+                            >
+                              ✅ Submit QC Entry
+                            </Button>
+
+                            <Button
+                              variant="outlined"
+                              size="small"
+                              onClick={() => setGradeDialogOpen(true)}
+                              sx={{
+                                py: 1,
+                                fontSize: '0.85rem',
+                                fontWeight: 700,
+                                borderWidth: 2,
+                                height: 36,
+                                minWidth: 100,
+                                borderColor: '#1e40af',
+                                color: '#1e40af',
+                                '&:hover': {
+                                  borderWidth: 2,
+                                  bgcolor: 'rgba(30, 64, 175, 0.1)'
+                                }
+                              }}
+                            >
+                              ⚙️ Grades
+                            </Button>
+                          </Stack>
+                        )}
+                      </Box>
                     </CardContent>
                   </Card>
+
+                  {/* RIGHT COLUMN - PRODUCT DETAILS */}
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: { xs: 1, sm: 2 } }}>
+                    {singleProduct.product_title && (
+                      <Card sx={{
+                        borderRadius: 1.5,
+                        background: isDarkMode
+                          ? 'linear-gradient(135deg, #064e3b 0%, #065f46 100%)'
+                          : 'linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%)',
+                        border: '2px solid #10b981',
+                        boxShadow: isDarkMode ? '0 4px 20px rgba(16, 185, 129, 0.3)' : '0 4px 20px rgba(16, 185, 129, 0.2)',
+                        flex: 1
+                      }}>
+                        <CardContent sx={{ p: { xs: 1.5, sm: 2 }, height: '100%', display: 'flex', flexDirection: 'column' }}>
+                          <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
+                            <CheckCircle sx={{ color: isDarkMode ? '#4ade80' : '#10b981', fontSize: { xs: 24, sm: 28 } }} />
+                            <Typography
+                              variant="h6"
+                              sx={{
+                                fontWeight: 800,
+                                color: isDarkMode ? '#a7f3d0' : '#065f46',
+                                fontSize: { xs: '0.95rem', sm: '1rem' }
+                              }}
+                            >
+                              Master Data Found
+                            </Typography>
+                          </Stack>
+
+                          <Divider sx={{ mb: 2, borderColor: isDarkMode ? 'rgba(167, 243, 208, 0.3)' : 'rgba(5, 150, 105, 0.3)' }} />
+
+                          <Box sx={{ flex: 1, overflow: 'auto' }}>
+                            <Stack spacing={2}>
+                              <Box>
+                                <Typography
+                                  variant="caption"
+                                  sx={{
+                                    color: isDarkMode ? '#a7f3d0' : '#065f46',
+                                    fontWeight: 700,
+                                    fontSize: '0.7rem',
+                                    textTransform: 'uppercase',
+                                    letterSpacing: 0.5
+                                  }}
+                                >
+                                  FSN
+                                </Typography>
+                                <Typography sx={{
+                                  fontWeight: 700,
+                                  color: isDarkMode ? '#ecfdf5' : '#047857',
+                                  fontSize: '0.9rem',
+                                  wordBreak: 'break-all'
+                                }}>
+                                  {singleProduct.fsn || 'N/A'}
+                                </Typography>
+                              </Box>
+
+                              <Box>
+                                <Typography
+                                  variant="caption"
+                                  sx={{
+                                    color: isDarkMode ? '#a7f3d0' : '#065f46',
+                                    fontWeight: 700,
+                                    fontSize: '0.7rem',
+                                    textTransform: 'uppercase'
+                                  }}
+                                >
+                                  PRODUCT TITLE
+                                </Typography>
+                                <Typography sx={{
+                                  fontWeight: 600,
+                                  color: isDarkMode ? '#d1fae5' : '#047857',
+                                  fontSize: '0.85rem',
+                                  lineHeight: 1.3
+                                }}>
+                                  {singleProduct.product_title || 'N/A'}
+                                </Typography>
+                              </Box>
+
+                              <Box sx={{
+                                display: 'grid',
+                                gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' },
+                                gap: 1.5
+                              }}>
+                                <Box>
+                                  <Typography
+                                    variant="caption"
+                                    sx={{
+                                      color: isDarkMode ? '#a7f3d0' : '#065f46',
+                                      fontWeight: 700,
+                                      fontSize: '0.7rem'
+                                    }}
+                                  >
+                                    BRAND
+                                  </Typography>
+                                  <Typography sx={{ fontWeight: 700, color: isDarkMode ? '#ecfdf5' : '#047857' }}>
+                                    {singleProduct.brand || 'N/A'}
+                                  </Typography>
+                                </Box>
+                                <Box>
+                                  <Typography
+                                    variant="caption"
+                                    sx={{
+                                      color: isDarkMode ? '#a7f3d0' : '#065f46',
+                                      fontWeight: 700,
+                                      fontSize: '0.7rem'
+                                    }}
+                                  >
+                                    CATEGORY
+                                  </Typography>
+                                  <Typography sx={{ fontWeight: 700, color: isDarkMode ? '#ecfdf5' : '#047857' }}>
+                                    {singleProduct.cms_vertical || 'N/A'}
+                                  </Typography>
+                                </Box>
+                              </Box>
+
+                              <Box sx={{
+                                display: 'grid',
+                                gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' },
+                                gap: 1.5
+                              }}>
+                                <Box>
+                                  <Typography
+                                    variant="caption"
+                                    sx={{
+                                      color: isDarkMode ? '#a7f3d0' : '#065f46',
+                                      fontWeight: 700,
+                                      fontSize: '0.7rem'
+                                    }}
+                                  >
+                                    MRP
+                                  </Typography>
+                                  <Typography sx={{ fontWeight: 700, color: isDarkMode ? '#ecfdf5' : '#047857' }}>
+                                    â‚¹{singleProduct.mrp || 'N/A'}
+                                  </Typography>
+                                </Box>
+                                <Box>
+                                  <Typography
+                                    variant="caption"
+                                    sx={{
+                                      color: isDarkMode ? '#a7f3d0' : '#065f46',
+                                      fontWeight: 700,
+                                      fontSize: '0.7rem'
+                                    }}
+                                  >
+                                    FSP
+                                  </Typography>
+                                  <Typography sx={{ fontWeight: 700, color: isDarkMode ? '#ecfdf5' : '#047857' }}>
+                                    â‚¹{singleProduct.fsp || 'N/A'}
+                                  </Typography>
+                                </Box>
+                              </Box>
+
+                              {singleProduct.fkt_link && (
+                                <Box>
+                                  <Typography
+                                    variant="caption"
+                                    sx={{
+                                      color: isDarkMode ? '#a7f3d0' : '#065f46',
+                                      fontWeight: 700,
+                                      fontSize: '0.7rem'
+                                    }}
+                                  >
+                                    PRODUCT LINK
+                                  </Typography>
+                                  <Typography
+                                    sx={{
+                                      fontWeight: 600,
+                                      color: isDarkMode ? '#38bdf8' : '#047857',
+                                      fontSize: '0.8rem',
+                                      cursor: 'pointer',
+                                      textDecoration: 'underline',
+                                      '&:hover': { color: isDarkMode ? '#7dd3fc' : '#065f46' }
+                                    }}
+                                    onClick={() => window.open(singleProduct.fkt_link, '_blank')}
+                                  >
+                                    View Product Details â†’
+                                  </Typography>
+                                </Box>
+                              )}
+                            </Stack>
+                          </Box>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {/* STATS CARD */}
+                    <Card sx={{
+                      borderRadius: 1.5,
+                      boxShadow: isDarkMode ? '0 4px 20px rgba(0,0,0,0.4)' : '0 4px 20px rgba(0,0,0,0.15)',
+                      background: isDarkMode ? 'linear-gradient(135deg, #1e293b 0%, #334155 100%)' : 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
+                      border: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e2e8f0'
+                    }}>
+                      <CardContent sx={{ p: { xs: 1.5, sm: 2 } }}>
+                        <Typography
+                          variant="h6"
+                          sx={{
+                            fontWeight: 800,
+                            mb: 2,
+                            color: isDarkMode ? '#f1f5f9' : '#1e293b',
+                            fontSize: { xs: '0.95rem', sm: '1rem' },
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 1
+                          }}
+                        >
+                          📊 Today's QC Stats
+                        </Typography>
+
+                        <Stack spacing={1}>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <Typography sx={{ fontWeight: 600, color: '#64748b', fontSize: '0.85rem' }}>Pending:</Typography>
+                            <Chip
+                              label={stats.pending}
+                              sx={{
+                                bgcolor: '#fef3c7',
+                                color: '#92400e',
+                                fontWeight: 700,
+                                fontSize: '0.75rem',
+                                height: 24
+                              }}
+                            />
+                          </Box>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <Typography sx={{ fontWeight: 600, color: '#64748b', fontSize: '0.85rem' }}>Pass:</Typography>
+                            <Chip
+                              label={stats.pass}
+                              sx={{
+                                bgcolor: '#d1fae5',
+                                color: '#065f46',
+                                fontWeight: 700,
+                                fontSize: '0.75rem',
+                                height: 24
+                              }}
+                            />
+                          </Box>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <Typography sx={{ fontWeight: 600, color: '#64748b', fontSize: '0.85rem' }}>Fail:</Typography>
+                            <Chip
+                              label={stats.fail}
+                              sx={{
+                                bgcolor: '#fee2e2',
+                                color: '#991b1b',
+                                fontWeight: 700,
+                                fontSize: '0.75rem',
+                                height: 24
+                              }}
+                            />
+                          </Box>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <Typography sx={{ fontWeight: 600, color: '#64748b', fontSize: '0.85rem' }}>Hold:</Typography>
+                            <Chip
+                              label={stats.hold}
+                              sx={{
+                                bgcolor: '#fed7d7',
+                                color: '#9b2c2c',
+                                fontWeight: 700,
+                                fontSize: '0.75rem',
+                                height: 24
+                              }}
+                            />
+                          </Box>
+                          <Divider sx={{ my: 1 }} />
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <Typography sx={{ fontWeight: 700, color: '#1e293b', fontSize: '0.9rem' }}>Total:</Typography>
+                            <Chip
+                              label={stats.total}
+                              sx={{
+                                bgcolor: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
+                                color: 'white',
+                                fontWeight: 800,
+                                fontSize: '0.8rem',
+                                height: 26
+                              }}
+                            />
+                          </Box>
+                        </Stack>
+                      </CardContent>
+                    </Card>
+                  </Box>
                 </Box>
               </Box>
-            </Box>
-          )
+            )
           }
 
           {/* ========== TAB 2: MULTI QC ========== */}
-          {currentTabCode === 'multi' && (() => {
-            // Column definitions for AG Grid
-            const columnDefs = visibleColumns.map((field: string) => {
-              // Normalize the field (remove underscores and lowercase) to match COLUMN_WIDTHS / ALL_MASTER_COLUMNS keys
-              const key = String(field).replace(/_/g, '').toLowerCase();
-              const isEditable = EDITABLE_COLUMNS.includes(field);
+          {
+            currentTabCode === 'multi' && (() => {
+              // Column definitions for AG Grid
+              const columnDefs = visibleColumns.map((field: string) => {
+                // Normalize the field (remove underscores and lowercase) to match COLUMN_WIDTHS / ALL_MASTER_COLUMNS keys
+                const key = String(field).replace(/_/g, '').toLowerCase();
+                const isEditable = EDITABLE_COLUMNS.includes(field);
 
-              // Use default column widths from COLUMN_WIDTHS config
-              const widthConfig = COLUMN_WIDTHS[key] || {};
+                // Use default column widths from COLUMN_WIDTHS config
+                const widthConfig = COLUMN_WIDTHS[key] || {};
 
-              const baseColDef: any = {
-                field,
-                // prettier header for underscore-field names
-                headerName: field === 'sno' ? 'S.No' : String(field).replace(/_/g, ' ').toUpperCase(),
-                ...widthConfig,
-                cellStyle: (params: any) => {
-                  const styles: any = {};
+                const baseColDef: any = {
+                  field,
+                  // prettier header for underscore-field names
+                  headerName: field === 'sno' ? 'S.No' : String(field).replace(/_/g, ' ').toUpperCase(),
+                  ...widthConfig,
+                  cellStyle: (params: any) => {
+                    const styles: any = {};
 
-                  // ✅ SERIAL NUMBER STYLING - centered with bold text
-                  if (field === 'sno') {
-                    styles.fontWeight = 700;
-                    styles.color = isDarkMode ? '#94a3b8' : '#64748b';
-                    styles.textAlign = 'center';
-                  }
-                  return styles;
-                },
-              };
+                    // ✅ SERIAL NUMBER STYLING - centered with bold text
+                    if (field === 'sno') {
+                      styles.fontWeight = 700;
+                      styles.color = isDarkMode ? '#94a3b8' : '#64748b';
+                      styles.textAlign = 'center';
+                    }
+                    return styles;
+                  },
+                };
 
-              // ✅ SERIAL NUMBER COLUMN (Auto-numbered, non-editable)
-              if (field === 'sno') {
-                baseColDef.valueGetter = (params: any) => params.node.rowIndex + 1;
-                baseColDef.editable = false;
+                // ✅ SERIAL NUMBER COLUMN (Auto-numbered, non-editable)
+                if (field === 'sno') {
+                  baseColDef.valueGetter = (params: any) => params.node.rowIndex + 1;
+                  baseColDef.editable = false;
+                  return baseColDef;
+                }
+
+
+
+                //  Visual indicators for WSN column with icons
+                if (field === 'wsn') {
+                  baseColDef.cellRenderer = (params: any) => {
+                    return params.value || '';
+                  };
+                }
+
+                // Special handling for specific columns (use normalized key)
+                if (key === 'qcgrade' || field === 'qc_grade') {
+                  baseColDef.cellEditor = 'agSelectCellEditor';
+                  baseColDef.cellEditorParams = {
+                    values: ['', ...QC_GRADES],
+                  };
+                } else if (key === 'rackno' || field === 'rack_no') {
+                  baseColDef.cellEditor = 'agSelectCellEditor';
+                  baseColDef.cellEditorParams = {
+                    values: ['', ...racks.map((r) => r.rack_name)],
+                  };
+                }
+
+                // Read-only for master data columns
+                if (ALL_MASTER_COLUMNS.includes(key)) {
+                  baseColDef.editable = false;
+                }
+
                 return baseColDef;
-              }
+              });
+
+              return (
+                <Box
+                  ref={multiEntryContainerRef}
+                  sx={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 1, mt: 0, bgcolor: isDarkMode ? '#0f172a' : '#f5f7fa' }}>
+                  {/* HEADER */}
+                  <Card sx={{ borderRadius: 1, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', bgcolor: isDarkMode ? '#1e293b' : 'white' }}>
+                    <CardContent sx={{ p: 1.2, '&:last-child': { pb: 1.2 } }}>
+
+                      {/* ===== MOBILE: 2 ROWS ===== */}
+                      <Box sx={{ display: { xs: 'block', md: 'none' } }}>
+                        {/* ROW 1: Date + Name Fields */}
+                        <Stack
+                          direction="row"
+                          spacing={0.8}
+                          alignItems="center"
+                          sx={{ mb: 1 }}
+                        >
+                          <TextField
+                            label="QC Date"
+                            type="date"
+                            value={commonQcDate}
+                            onChange={(e) => setCommonQcDate(e.target.value)}
+                            size="small"
+                            sx={{
+                              width: '48%',
+                              '& .MuiInputBase-root': {
+                                height: 32,
+                                fontSize: '0.75rem'
+                              },
+                              '& .MuiInputLabel-root': {
+                                fontSize: '0.7rem'
+                              }
+                            }}
+                            InputLabelProps={{ shrink: true }}
+                          />
+                          <TextField
+                            label="QC By Name"
+                            value={commonQcByName}
+                            onChange={(e) => setCommonQcByName(e.target.value)}
+                            size="small"
+                            sx={{
+                              width: '48%',
+                              '& .MuiInputBase-root': {
+                                height: 32,
+                                fontSize: '0.75rem'
+                              },
+                              '& .MuiInputLabel-root': {
+                                fontSize: '0.7rem'
+                              }
+                            }}
+                          />
+                        </Stack>
+
+                        {/* ROW 2: Chips + Buttons (NO WRAP) */}
+                        <Stack
+                          direction="row"
+                          spacing={0.4}
+                          alignItems="center"
+                          sx={{
+                            flexWrap: 'nowrap',
+                            overflowX: 'auto',
+                            '&::-webkit-scrollbar': { display: 'none' },
+                            scrollbarWidth: 'none'
+                          }}
+                        >
+
+                          {/* Buttons */}
+                          <Stack direction="row" spacing={1} sx={{ flexShrink: 0, paddingRight: 5, ml: 'auto !important' }}>
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              onClick={add500Rows}
+                              sx={{
+                                fontSize: '0.7rem',
+                                fontWeight: 700,
+                                width: 110,
+                                '&:hover': {
+                                  borderWidth: 2,
+                                  bgcolor: 'rgba(245, 158, 11, 0.1)'
+                                }
+                              }}
+                            >
+                              +500 Rows
+                            </Button>
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              startIcon={<DownloadIcon sx={{ fontSize: '0.85rem' }} />}
+                              onClick={exportMultiEntryToExcel}
+                              disabled={!multiRows.some((r: any) => r.wsn?.trim())}
+                              sx={{
+                                fontSize: '0.7rem',
+                                fontWeight: 700,
+                                width: 100,
+                                borderColor: '#10b981',
+                                color: '#10b981',
+                                '&:hover': { bgcolor: 'rgba(16, 185, 129, 0.1)', borderColor: '#10b981' },
+                                '&.Mui-disabled': { borderColor: '#94a3b8', color: '#94a3b8' }
+                              }}
+                            >
+                              Export
+                            </Button>
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              startIcon={<SettingsIcon sx={{ fontSize: '0.85rem' }} />}
+                              onClick={() => setColumnSettingsOpen(true)}
+                              sx={{
+                                fontSize: '0.6rem',
+                                fontWeight: 700,
+                                width: 110,
+                                height: 26,
+                                px: 0.8,
+                                borderWidth: 2,
+                                '&:hover': { borderWidth: 2 }
+                              }}
+                            >
+                              Columns
+                            </Button>
 
 
 
-              //  Visual indicators for WSN column with icons
-              if (field === 'wsn') {
-                baseColDef.cellRenderer = (params: any) => {
-                  return params.value || '';
-                };
-              }
+                            {/* ✅ NEW: Grid Settings Button */}
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              startIcon={<SettingsIcon sx={{ fontSize: '0.85rem' }} />}
+                              onClick={() => setGridSettingsOpen(true)}
+                              sx={{
+                                fontSize: '0.7rem',
+                                fontWeight: 700,
+                                width: 110,
+                                '&:hover': {
+                                  borderWidth: 2,
+                                  bgcolor: 'rgba(245, 158, 11, 0.1)'
+                                }
+                              }}
+                            >
+                              Grid
+                            </Button>
 
-              // Special handling for specific columns (use normalized key)
-              if (key === 'qcgrade' || field === 'qc_grade') {
-                baseColDef.cellEditor = 'agSelectCellEditor';
-                baseColDef.cellEditorParams = {
-                  values: ['', ...QC_GRADES],
-                };
-              } else if (key === 'rackno' || field === 'rack_no') {
-                baseColDef.cellEditor = 'agSelectCellEditor';
-                baseColDef.cellEditorParams = {
-                  values: ['', ...racks.map((r) => r.rack_name)],
-                };
-              }
+                          </Stack>
+                        </Stack>
+                      </Box>
 
-              // Read-only for master data columns
-              if (ALL_MASTER_COLUMNS.includes(key)) {
-                baseColDef.editable = false;
-              }
-
-              return baseColDef;
-            });
-
-            return (
-              <Box
-                ref={multiEntryContainerRef}
-                sx={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 1, mt: 0, bgcolor: isDarkMode ? '#0f172a' : '#f5f7fa' }}>
-                {/* HEADER */}
-                <Card sx={{ borderRadius: 1, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', bgcolor: isDarkMode ? '#1e293b' : 'white' }}>
-                  <CardContent sx={{ p: 1.2, '&:last-child': { pb: 1.2 } }}>
-
-                    {/* ===== MOBILE: 2 ROWS ===== */}
-                    <Box sx={{ display: { xs: 'block', md: 'none' } }}>
-                      {/* ROW 1: Date + Name Fields */}
+                      {/* ===== DESKTOP: Clean Single Row Layout ===== */}
                       <Stack
                         direction="row"
-                        spacing={0.8}
-                        alignItems="center"
-                        sx={{ mb: 1 }}
-                      >
-                        <TextField
-                          label="QC Date"
-                          type="date"
-                          value={commonQcDate}
-                          onChange={(e) => setCommonQcDate(e.target.value)}
-                          size="small"
-                          sx={{
-                            width: '48%',
-                            '& .MuiInputBase-root': {
-                              height: 32,
-                              fontSize: '0.75rem'
-                            },
-                            '& .MuiInputLabel-root': {
-                              fontSize: '0.7rem'
-                            }
-                          }}
-                          InputLabelProps={{ shrink: true }}
-                        />
-                        <TextField
-                          label="QC By Name"
-                          value={commonQcByName}
-                          onChange={(e) => setCommonQcByName(e.target.value)}
-                          size="small"
-                          sx={{
-                            width: '48%',
-                            '& .MuiInputBase-root': {
-                              height: 32,
-                              fontSize: '0.75rem'
-                            },
-                            '& .MuiInputLabel-root': {
-                              fontSize: '0.7rem'
-                            }
-                          }}
-                        />
-                      </Stack>
-
-                      {/* ROW 2: Chips + Buttons (NO WRAP) */}
-                      <Stack
-                        direction="row"
-                        spacing={0.4}
-                        alignItems="center"
                         sx={{
-                          flexWrap: 'nowrap',
-                          overflowX: 'auto',
-                          '&::-webkit-scrollbar': { display: 'none' },
-                          scrollbarWidth: 'none'
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          width: '100%',
+                          display: { xs: 'none', md: 'flex' }
                         }}
                       >
-
-                        {/* Buttons */}
-                        <Stack direction="row" spacing={1} sx={{ flexShrink: 0, paddingRight: 5, ml: 'auto !important' }}>
-                          <Button
+                        {/* LEFT: Date + Name Fields */}
+                        <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
+                          <TextField
+                            label="QC Date"
+                            type="date"
+                            value={commonQcDate}
+                            onChange={(e) => setCommonQcDate(e.target.value)}
                             size="small"
-                            variant="outlined"
-                            onClick={add500Rows}
                             sx={{
-                              fontSize: '0.7rem',
-                              fontWeight: 700,
-                              width: 110,
-                              '&:hover': {
-                                borderWidth: 2,
-                                bgcolor: 'rgba(245, 158, 11, 0.1)'
+                              width: 150,
+                              '& .MuiInputBase-root': {
+                                height: 38,
+                                bgcolor: isDarkMode ? '#0f172a' : '#f8fafc',
+                                borderRadius: 1.5
                               }
                             }}
-                          >
-                            +500 Rows
-                          </Button>
-                          <Button
+                            InputLabelProps={{ shrink: true }}
+                          />
+                          <TextField
+                            label="QC By Name"
+                            value={commonQcByName}
+                            onChange={(e) => setCommonQcByName(e.target.value)}
                             size="small"
-                            variant="outlined"
-                            startIcon={<DownloadIcon sx={{ fontSize: '0.85rem' }} />}
-                            onClick={exportMultiEntryToExcel}
-                            disabled={!multiRows.some((r: any) => r.wsn?.trim())}
                             sx={{
-                              fontSize: '0.7rem',
-                              fontWeight: 700,
-                              width: 100,
-                              borderColor: '#10b981',
-                              color: '#10b981',
-                              '&:hover': { bgcolor: 'rgba(16, 185, 129, 0.1)', borderColor: '#10b981' },
-                              '&.Mui-disabled': { borderColor: '#94a3b8', color: '#94a3b8' }
-                            }}
-                          >
-                            Export
-                          </Button>
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            startIcon={<SettingsIcon sx={{ fontSize: '0.85rem' }} />}
-                            onClick={() => setColumnSettingsOpen(true)}
-                            sx={{
-                              fontSize: '0.6rem',
-                              fontWeight: 700,
-                              width: 110,
-                              height: 26,
-                              px: 0.8,
-                              borderWidth: 2,
-                              '&:hover': { borderWidth: 2 }
-                            }}
-                          >
-                            Columns
-                          </Button>
-
-
-
-                          {/* ✅ NEW: Grid Settings Button */}
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            startIcon={<SettingsIcon sx={{ fontSize: '0.85rem' }} />}
-                            onClick={() => setGridSettingsOpen(true)}
-                            sx={{
-                              fontSize: '0.7rem',
-                              fontWeight: 700,
-                              width: 110,
-                              '&:hover': {
-                                borderWidth: 2,
-                                bgcolor: 'rgba(245, 158, 11, 0.1)'
+                              width: 180,
+                              '& .MuiInputBase-root': {
+                                height: 38,
+                                bgcolor: isDarkMode ? '#0f172a' : '#f8fafc',
+                                borderRadius: 1.5
                               }
                             }}
-                          >
-                            Grid
-                          </Button>
+                          />
+                        </Stack>
 
+                        {/* RIGHT: Menu Button + Fullscreen + Live View */}
+                        <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                          {/* Settings Menu Button */}
+                          <Tooltip title="Open Settings Panel" placement="top">
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              startIcon={<MenuIcon sx={{ fontSize: 18 }} />}
+                              onClick={() => setQcSettingsPanelOpen(true)}
+                              sx={{
+                                height: 38,
+                                px: 2,
+                                borderRadius: 1.5,
+                                fontWeight: 600,
+                                fontSize: '0.8rem',
+                                textTransform: 'none',
+                                borderColor: isDarkMode ? '#3b82f6' : '#1e40af',
+                                color: isDarkMode ? '#60a5fa' : '#1e40af',
+                                bgcolor: isDarkMode ? 'rgba(59, 130, 246, 0.08)' : 'rgba(30, 64, 175, 0.04)',
+                                '&:hover': {
+                                  borderColor: '#3b82f6',
+                                  bgcolor: 'rgba(59, 130, 246, 0.12)'
+                                }
+                              }}
+                            >
+                              Menu
+                            </Button>
+                          </Tooltip>
+
+                          {/* Fullscreen Button */}
+                          <Tooltip title={isFullscreen ? "Exit fullscreen (Esc)" : "Enter fullscreen mode"} placement="top">
+                            <IconButton
+                              size="small"
+                              onClick={toggleFullscreen}
+                              sx={{
+                                width: 38,
+                                height: 38,
+                                borderRadius: 1.5,
+                                border: '1.5px solid',
+                                borderColor: isFullscreen ? '#f59e0b' : (isDarkMode ? '#475569' : '#d1d5db'),
+                                color: isFullscreen ? '#f59e0b' : (isDarkMode ? '#94a3b8' : '#64748b'),
+                                bgcolor: isFullscreen ? 'rgba(245, 158, 11, 0.1)' : 'transparent',
+                                '&:hover': {
+                                  borderColor: '#f59e0b',
+                                  bgcolor: 'rgba(245, 158, 11, 0.1)',
+                                  color: '#f59e0b'
+                                }
+                              }}
+                            >
+                              {isFullscreen ? <FullscreenExitIcon sx={{ fontSize: 20 }} /> : <FullscreenIcon sx={{ fontSize: 20 }} />}
+                            </IconButton>
+                          </Tooltip>
+
+                          {/* Live View Panel */}
+                          <LiveViewPanel
+                            warehouseId={activeWarehouse?.id}
+                            pageType="qc"
+                            isDarkMode={isDarkMode}
+                            container={multiEntryContainerRef.current}
+                          />
                         </Stack>
                       </Stack>
-                    </Box>
 
-                    {/* ===== DESKTOP: Clean Single Row Layout ===== */}
-                    <Stack
-                      direction="row"
-                      sx={{
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        width: '100%',
-                        display: { xs: 'none', md: 'flex' }
-                      }}
-                    >
-                      {/* LEFT: Date + Name Fields */}
-                      <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
-                        <TextField
-                          label="QC Date"
-                          type="date"
-                          value={commonQcDate}
-                          onChange={(e) => setCommonQcDate(e.target.value)}
-                          size="small"
-                          sx={{
-                            width: 150,
-                            '& .MuiInputBase-root': {
-                              height: 38,
-                              bgcolor: isDarkMode ? '#0f172a' : '#f8fafc',
-                              borderRadius: 1.5
-                            }
-                          }}
-                          InputLabelProps={{ shrink: true }}
-                        />
-                        <TextField
-                          label="QC By Name"
-                          value={commonQcByName}
-                          onChange={(e) => setCommonQcByName(e.target.value)}
-                          size="small"
-                          sx={{
-                            width: 180,
-                            '& .MuiInputBase-root': {
-                              height: 38,
-                              bgcolor: isDarkMode ? '#0f172a' : '#f8fafc',
-                              borderRadius: 1.5
-                            }
-                          }}
-                        />
-                      </Stack>
-
-                      {/* RIGHT: Menu Button + Fullscreen + Live View */}
-                      <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-                        {/* Settings Menu Button */}
-                        <Tooltip title="Open Settings Panel" placement="top">
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            startIcon={<MenuIcon sx={{ fontSize: 18 }} />}
-                            onClick={() => setQcSettingsPanelOpen(true)}
-                            sx={{
-                              height: 38,
-                              px: 2,
-                              borderRadius: 1.5,
-                              fontWeight: 600,
-                              fontSize: '0.8rem',
-                              textTransform: 'none',
-                              borderColor: isDarkMode ? '#3b82f6' : '#1e40af',
-                              color: isDarkMode ? '#60a5fa' : '#1e40af',
-                              bgcolor: isDarkMode ? 'rgba(59, 130, 246, 0.08)' : 'rgba(30, 64, 175, 0.04)',
-                              '&:hover': {
-                                borderColor: '#3b82f6',
-                                bgcolor: 'rgba(59, 130, 246, 0.12)'
-                              }
-                            }}
-                          >
-                            Menu
-                          </Button>
-                        </Tooltip>
-
-                        {/* Fullscreen Button */}
-                        <Tooltip title={isFullscreen ? "Exit fullscreen (Esc)" : "Enter fullscreen mode"} placement="top">
-                          <IconButton
-                            size="small"
-                            onClick={toggleFullscreen}
-                            sx={{
-                              width: 38,
-                              height: 38,
-                              borderRadius: 1.5,
-                              border: '1.5px solid',
-                              borderColor: isFullscreen ? '#f59e0b' : (isDarkMode ? '#475569' : '#d1d5db'),
-                              color: isFullscreen ? '#f59e0b' : (isDarkMode ? '#94a3b8' : '#64748b'),
-                              bgcolor: isFullscreen ? 'rgba(245, 158, 11, 0.1)' : 'transparent',
-                              '&:hover': {
-                                borderColor: '#f59e0b',
-                                bgcolor: 'rgba(245, 158, 11, 0.1)',
-                                color: '#f59e0b'
-                              }
-                            }}
-                          >
-                            {isFullscreen ? <FullscreenExitIcon sx={{ fontSize: 20 }} /> : <FullscreenIcon sx={{ fontSize: 20 }} />}
+                      {/* SETTINGS DRAWER - Right Side Panel with Accordions */}
+                      <Drawer
+                        anchor="right"
+                        open={qcSettingsPanelOpen}
+                        onClose={() => setQcSettingsPanelOpen(false)}
+                        container={multiEntryContainerRef.current}
+                        ModalProps={{
+                          container: multiEntryContainerRef.current,
+                          keepMounted: false,
+                        }}
+                        PaperProps={{
+                          sx: {
+                            width: { xs: '100%', sm: 380 },
+                            maxWidth: '100vw',
+                            bgcolor: isDarkMode ? '#1e293b' : '#ffffff',
+                            borderLeft: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0'
+                          }
+                        }}
+                      >
+                        {/* Panel Header */}
+                        <Box sx={{
+                          p: 2,
+                          background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
+                          color: 'white',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          position: 'sticky',
+                          top: 0,
+                          zIndex: 10
+                        }}>
+                          <Typography sx={{ fontWeight: 700, fontSize: '1rem' }}>⚙️ Settings</Typography>
+                          <IconButton size="small" onClick={() => setQcSettingsPanelOpen(false)} sx={{ color: 'white' }}>
+                            <CloseIcon />
                           </IconButton>
-                        </Tooltip>
+                        </Box>
 
-                        {/* Live View Panel */}
-                        <LiveViewPanel
-                          warehouseId={activeWarehouse?.id}
-                          pageType="qc"
-                          isDarkMode={isDarkMode}
-                          container={multiEntryContainerRef.current}
-                        />
-                      </Stack>
-                    </Stack>
+                        {/* Panel Content with Accordions */}
+                        <Box sx={{ overflow: 'auto', flex: 1 }}>
 
-                    {/* SETTINGS DRAWER - Right Side Panel with Accordions */}
-                    <Drawer
-                      anchor="right"
-                      open={qcSettingsPanelOpen}
-                      onClose={() => setQcSettingsPanelOpen(false)}
-                      container={multiEntryContainerRef.current}
-                      ModalProps={{
-                        container: multiEntryContainerRef.current,
-                        keepMounted: false,
-                      }}
-                      PaperProps={{
-                        sx: {
-                          width: { xs: '100%', sm: 380 },
-                          maxWidth: '100vw',
-                          bgcolor: isDarkMode ? '#1e293b' : '#ffffff',
-                          borderLeft: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0'
-                        }
-                      }}
-                    >
-                      {/* Panel Header */}
-                      <Box sx={{
-                        p: 2,
-                        background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
-                        color: 'white',
+                          {/* â•â•â•â•â•â•â•â•â•â•â• COLUMNS ACCORDION â•â•â•â•â•â•â•â•â•â•â• */}
+                          <Accordion
+                            expanded={settingsPanelExpanded === 'columns'}
+                            onChange={(_, isExpanded) => setSettingsPanelExpanded(isExpanded ? 'columns' : false)}
+                            disableGutters
+                            sx={{
+                              bgcolor: 'transparent',
+                              boxShadow: 'none',
+                              '&:before': { display: 'none' },
+                              borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0'
+                            }}
+                          >
+                            <AccordionSummary
+                              expandIcon={<ExpandMoreIcon sx={{ color: isDarkMode ? '#94a3b8' : '#64748b' }} />}
+                              sx={{
+                                px: 2,
+                                minHeight: 56,
+                                '&.Mui-expanded': { minHeight: 56 },
+                                '& .MuiAccordionSummary-content': { my: 1.5 }
+                              }}
+                            >
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                                <ViewColumnIcon sx={{ color: '#3b82f6', fontSize: 22 }} />
+                                <Box>
+                                  <Typography sx={{ fontWeight: 700, fontSize: '0.9rem', color: isDarkMode ? '#e2e8f0' : '#1e293b' }}>Columns</Typography>
+                                  <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>
+                                    {visibleColumns.length} columns visible
+                                  </Typography>
+                                </Box>
+                              </Box>
+                            </AccordionSummary>
+                            <AccordionDetails sx={{ px: 2, pb: 2, pt: 0 }}>
+                              <Box sx={{ maxHeight: 280, overflow: 'auto', pr: 1 }}>
+                                <Typography sx={{ fontWeight: 700, fontSize: '0.7rem', color: '#3b82f6', mb: 1, textTransform: 'uppercase' }}>Editable Fields</Typography>
+                                <Stack spacing={0.5} sx={{ mb: 2 }}>
+                                  {EDITABLE_COLUMNS.map((col) => (
+                                    <FormControlLabel
+                                      key={col}
+                                      control={
+                                        <Checkbox
+                                          size="small"
+                                          checked={visibleColumns.includes(col)}
+                                          onChange={(e) => {
+                                            if (e.target.checked) {
+                                              setVisibleColumns([...visibleColumns, col]);
+                                            } else {
+                                              setVisibleColumns(visibleColumns.filter((c: string) => c !== col));
+                                            }
+                                          }}
+                                          sx={{ py: 0.25, '&.Mui-checked': { color: '#3b82f6' } }}
+                                        />
+                                      }
+                                      label={<Typography sx={{ fontSize: '0.8rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>{col.replace(/_/g, ' ').toUpperCase()}</Typography>}
+                                      sx={{ m: 0 }}
+                                    />
+                                  ))}
+                                </Stack>
+                                <Typography sx={{ fontWeight: 700, fontSize: '0.7rem', color: '#10b981', mb: 1, textTransform: 'uppercase' }}>Master Data Fields</Typography>
+                                <Stack spacing={0.5}>
+                                  {ALL_MASTER_COLUMNS.map((col) => (
+                                    <FormControlLabel
+                                      key={col}
+                                      control={
+                                        <Checkbox
+                                          size="small"
+                                          checked={visibleColumns.includes(col)}
+                                          onChange={(e) => {
+                                            if (e.target.checked) {
+                                              setVisibleColumns([...visibleColumns, col]);
+                                            } else {
+                                              setVisibleColumns(visibleColumns.filter((c: string) => c !== col));
+                                            }
+                                          }}
+                                          sx={{ py: 0.25, '&.Mui-checked': { color: '#10b981' } }}
+                                        />
+                                      }
+                                      label={<Typography sx={{ fontSize: '0.8rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>{col.replace(/_/g, ' ').toUpperCase()}</Typography>}
+                                      sx={{ m: 0 }}
+                                    />
+                                  ))}
+                                </Stack>
+                              </Box>
+                            </AccordionDetails>
+                          </Accordion>
+
+                          {/* â•â•â•â•â•â•â•â•â•â•â• GRID SETTINGS ACCORDION â•â•â•â•â•â•â•â•â•â•â• */}
+                          <Accordion
+                            expanded={settingsPanelExpanded === 'grid'}
+                            onChange={(_, isExpanded) => setSettingsPanelExpanded(isExpanded ? 'grid' : false)}
+                            disableGutters
+                            sx={{
+                              bgcolor: 'transparent',
+                              boxShadow: 'none',
+                              '&:before': { display: 'none' },
+                              borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0'
+                            }}
+                          >
+                            <AccordionSummary
+                              expandIcon={<ExpandMoreIcon sx={{ color: isDarkMode ? '#94a3b8' : '#64748b' }} />}
+                              sx={{
+                                px: 2,
+                                minHeight: 56,
+                                '&.Mui-expanded': { minHeight: 56 },
+                                '& .MuiAccordionSummary-content': { my: 1.5 }
+                              }}
+                            >
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                                <TableChartIcon sx={{ color: '#f59e0b', fontSize: 22 }} />
+                                <Box>
+                                  <Typography sx={{ fontWeight: 700, fontSize: '0.9rem', color: isDarkMode ? '#e2e8f0' : '#1e293b' }}>Grid Settings</Typography>
+                                  <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>Sorting, filtering, resize</Typography>
+                                </Box>
+                              </Box>
+                            </AccordionSummary>
+                            <AccordionDetails sx={{ px: 2, pb: 2, pt: 0 }}>
+                              <Stack spacing={1.5}>
+                                <FormControlLabel
+                                  control={
+                                    <Checkbox
+                                      checked={enableSorting}
+                                      onChange={(e) => {
+                                        setEnableSorting(e.target.checked);
+                                        localStorage.setItem('qc_enableSorting', String(e.target.checked));
+                                      }}
+                                      sx={{ '&.Mui-checked': { color: '#f59e0b' } }}
+                                    />
+                                  }
+                                  label={
+                                    <Box>
+                                      <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>⬆️ Enable Sorting</Typography>
+                                      <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>Click headers to sort</Typography>
+                                    </Box>
+                                  }
+                                />
+                                <FormControlLabel
+                                  control={
+                                    <Checkbox
+                                      checked={enableColumnFilters}
+                                      onChange={(e) => {
+                                        setEnableColumnFilters(e.target.checked);
+                                        localStorage.setItem('qc_enableColumnFilters', String(e.target.checked));
+                                      }}
+                                      sx={{ '&.Mui-checked': { color: '#f59e0b' } }}
+                                    />
+                                  }
+                                  label={
+                                    <Box>
+                                      <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>🔍 Enable Filtering</Typography>
+                                      <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>Filter in column headers</Typography>
+                                    </Box>
+                                  }
+                                />
+                                <FormControlLabel
+                                  control={
+                                    <Checkbox
+                                      checked={enableColumnResize}
+                                      onChange={(e) => {
+                                        setEnableColumnResize(e.target.checked);
+                                        localStorage.setItem('qc_enableColumnResize', String(e.target.checked));
+                                      }}
+                                      sx={{ '&.Mui-checked': { color: '#f59e0b' } }}
+                                    />
+                                  }
+                                  label={
+                                    <Box>
+                                      <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>↔️ Column Resize</Typography>
+                                      <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>Drag borders to resize</Typography>
+                                    </Box>
+                                  }
+                                />
+                                <Button
+                                  size="small"
+                                  onClick={() => {
+                                    setEnableSorting(true);
+                                    setEnableColumnFilters(true);
+                                    setEnableColumnResize(true);
+                                    localStorage.setItem('qc_enableSorting', 'true');
+                                    localStorage.setItem('qc_enableColumnFilters', 'true');
+                                    localStorage.setItem('qc_enableColumnResize', 'true');
+                                    toast.success('Grid settings reset');
+                                  }}
+                                  sx={{ alignSelf: 'flex-start', fontSize: '0.75rem', color: isDarkMode ? '#94a3b8' : '#64748b' }}
+                                >
+                                  🔄 Reset to Default
+                                </Button>
+                              </Stack>
+                            </AccordionDetails>
+                          </Accordion>
+
+                          {/* â•â•â•â•â•â•â•â•â•â•â• EXPORT BUTTON â•â•â•â•â•â•â•â•â•â•â• */}
+                          <Box sx={{ p: 2, borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0' }}>
+                            <Button
+                              fullWidth
+                              variant="contained"
+                              startIcon={<DownloadIcon />}
+                              onClick={() => { exportMultiEntryToExcel(); setQcSettingsPanelOpen(false); }}
+                              disabled={!multiRows.some((r: any) => r.wsn?.trim())}
+                              sx={{
+                                height: 44,
+                                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                                fontWeight: 600,
+                                '&:hover': { background: 'linear-gradient(135deg, #059669 0%, #047857 100%)' },
+                                '&.Mui-disabled': { background: '#94a3b8' }
+                              }}
+                            >
+                              Export to Excel
+                            </Button>
+                          </Box>
+                        </Box>
+                      </Drawer>
+
+                    </CardContent>
+                  </Card>
+
+
+                  {/* AG GRID - Professional Excel-like styling */}
+                  <Box
+                    sx={{
+                      flex: 1,
+                      minHeight: 0,
+                      border: isDarkMode ? '1px solid #334155' : '2px solid #94a3b8',
+                      borderRadius: '6px',
+                      overflow: 'hidden',
+                      bgcolor: isDarkMode ? '#1e293b' : '#ffffff',
+                      boxShadow: isDarkMode ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.12)',
+                      '& .ag-root-wrapper': { borderRadius: 0, backgroundColor: isDarkMode ? '#1e293b' : '#ffffff', border: 'none' },
+
+                      // Professional dark header
+                      '& .ag-header': {
+                        backgroundColor: isDarkMode ? '#1e3a5f' : '#1e3a5f',
+                        borderBottom: isDarkMode ? '2px solid #2563eb' : '2px solid #1e40af',
+                      },
+                      '& .ag-header-cell': {
+                        backgroundColor: isDarkMode ? '#1e3a5f' : '#1e3a5f',
+                        color: '#ffffff',
+                        fontWeight: 700,
+                        fontSize: '11px',
+                        padding: '0 8px',
+                        borderRight: '1px solid #3b5998',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.02em',
+                      },
+                      '& .ag-header-cell:last-child': { borderRight: 'none' },
+                      '& .ag-header-cell-label': { color: '#ffffff' },
+                      '& .ag-icon': { color: '#94a3b8' },
+                      '& .ag-header-icon': { color: '#94a3b8' },
+
+                      // Excel-style cells with visible borders
+                      '& .ag-cell': {
+                        borderRight: isDarkMode ? '1px solid #334155' : '1px solid #cbd5e1',
+                        fontSize: '12px',
+                        padding: '0 8px',
                         display: 'flex',
                         alignItems: 'center',
-                        justifyContent: 'space-between',
-                        position: 'sticky',
-                        top: 0,
-                        zIndex: 10
-                      }}>
-                        <Typography sx={{ fontWeight: 700, fontSize: '1rem' }}>⚙️ Settings</Typography>
-                        <IconButton size="small" onClick={() => setQcSettingsPanelOpen(false)} sx={{ color: 'white' }}>
-                          <CloseIcon />
-                        </IconButton>
+                        color: isDarkMode ? '#f1f5f9' : '#1e293b',
+                        overflow: 'hidden',
+                        whiteSpace: 'nowrap',
+                        textOverflow: 'ellipsis',
+                      },
+                      '& .ag-cell:last-child': { borderRight: isDarkMode ? 'none' : '1px solid #cbd5e1' },
+
+                      // Error cell styling
+                      '& .wsn-cross-error': {
+                        backgroundColor: isDarkMode ? '#7f1d1d !important' : '#fee2e2 !important',
+                        fontWeight: 700,
+                      },
+                      '& .wsn-dup-error': {
+                        backgroundColor: isDarkMode ? '#78350f !important' : '#fef3c7 !important',
+                        fontWeight: 700,
+                      },
+
+                      // Professional rows with visible borders
+                      '& .ag-row': {
+                        height: 36,
+                        overflow: 'visible',
+                        borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #cbd5e1',
+                      },
+                      '& .ag-row-even': { backgroundColor: isDarkMode ? '#1e293b' : '#ffffff' },
+                      '& .ag-row-odd': { backgroundColor: isDarkMode ? '#1a2536' : '#f1f5f9' },
+
+                      // Active cell focus - Enhanced for dark mode
+                      '& .ag-cell-focus': {
+                        border: isDarkMode ? '2px solid #22d3ee !important' : '2px solid #2563eb !important',
+                        outline: 'none',
+                        boxShadow: isDarkMode ? '0 0 8px rgba(34, 211, 238, 0.4)' : '0 0 0 1px rgba(37, 99, 235, 0.3)',
+                      },
+
+                      // Range selection
+                      '& .ag-cell-range-selected': {
+                        backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.25) !important' : '#dbeafe !important',
+                      },
+                      '& .ag-cell-range-single-cell': {
+                        backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.2) !important' : '#eff6ff !important',
+                      },
+
+                      // âš¡ EXCEL-LIKE: Custom range selection CSS classes
+                      '& .custom-range-selected': {
+                        backgroundColor: isDarkMode ? 'rgba(96, 165, 250, 0.4) !important' : 'rgba(37, 99, 235, 0.2) !important',
+                      },
+                      '& .custom-range-top': {
+                        borderTop: isDarkMode ? '3px solid #60a5fa !important' : '3px solid #2563eb !important',
+                      },
+                      '& .custom-range-bottom': {
+                        borderBottom: isDarkMode ? '3px solid #60a5fa !important' : '3px solid #2563eb !important',
+                      },
+                      '& .custom-range-left': {
+                        borderLeft: isDarkMode ? '3px solid #60a5fa !important' : '3px solid #2563eb !important',
+                      },
+                      '& .custom-range-right': {
+                        borderRight: isDarkMode ? '3px solid #60a5fa !important' : '3px solid #2563eb !important',
+                      },
+
+                      // Hover effects
+                      '& .ag-row-hover': {
+                        backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.12) !important' : '#e0f2fe !important',
+                      },
+                    }}
+                  >
+                    <AgGridReact
+                      rowData={multiRows}
+                      columnDefs={columnDefs}
+                      rowHeight={tableRowHeight}
+                      headerHeight={32}
+                      getRowId={(params: any) => String(params.data?.id || params.node?.rowIndex || Math.random())}
+
+                      onGridReady={(params: any) => {
+                        gridRef.current = params.api;
+                        columnApiRef.current = params.columnApi;
+                        // Restore column state from localStorage
+                        try {
+                          const savedState = localStorage.getItem('qc_multi_grid_state');
+                          if (savedState && params.api) {
+                            params.api.applyColumnState({ state: JSON.parse(savedState), applyOrder: true });
+                          }
+                        } catch { /* ignore */ }
+                      }}
+
+                      defaultColDef={{
+                        sortable: gridSettings.sortable,
+                        filter: gridSettings.filter,
+                        resizable: gridSettings.resizable,
+                        editable: (params: any) => {
+                          if (!gridSettings.editable) return false;
+                          const field = params.colDef.field as string;
+                          return EDITABLE_COLUMNS.includes(field);
+                        },
+                        // âš¡ EXCEL-LIKE: Optimized cell style for selection
+                        cellStyle: (params: any) => {
+                          const bounds = selectionBoundsRef.current;
+                          if (!bounds) return undefined;
+
+                          const rowIndex = params.rowIndex;
+                          const colId = params.colDef?.field;
+                          if (rowIndex === null || rowIndex === undefined || !colId) return undefined;
+
+                          const currentColIndex = bounds.colIndexMap.get(colId);
+                          if (currentColIndex === undefined) return undefined;
+
+                          const isInRowRange = rowIndex >= bounds.minRow && rowIndex <= bounds.maxRow;
+                          const isInColRange = currentColIndex >= bounds.minCol && currentColIndex <= bounds.maxCol;
+
+                          if (isInRowRange && isInColRange) {
+                            const borderColor = isDarkMode ? '#60a5fa' : '#2563eb';
+                            const bgColor = isDarkMode ? 'rgba(96, 165, 250, 0.35)' : 'rgba(37, 99, 235, 0.2)';
+
+                            const style: any = { backgroundColor: bgColor };
+                            if (rowIndex === bounds.minRow) style.borderTop = `3px solid ${borderColor}`;
+                            if (rowIndex === bounds.maxRow) style.borderBottom = `3px solid ${borderColor}`;
+                            if (currentColIndex === bounds.minCol) style.borderLeft = `3px solid ${borderColor}`;
+                            if (currentColIndex === bounds.maxCol) style.borderRight = `3px solid ${borderColor}`;
+                            return style;
+                          }
+                          return undefined;
+                        },
+                        cellClass: (params: any) => {
+                          const bounds = selectionBoundsRef.current;
+                          if (!bounds) return '';
+
+                          const rowIndex = params.rowIndex;
+                          const colId = params.colDef?.field;
+                          if (rowIndex === null || rowIndex === undefined || !colId) return '';
+
+                          const currentColIndex = bounds.colIndexMap.get(colId);
+                          if (currentColIndex === undefined) return '';
+
+                          const isInRowRange = rowIndex >= bounds.minRow && rowIndex <= bounds.maxRow;
+                          const isInColRange = currentColIndex >= bounds.minCol && currentColIndex <= bounds.maxCol;
+
+                          if (isInRowRange && isInColRange) {
+                            const classes = ['custom-range-selected'];
+                            if (rowIndex === bounds.minRow) classes.push('custom-range-top');
+                            if (rowIndex === bounds.maxRow) classes.push('custom-range-bottom');
+                            if (currentColIndex === bounds.minCol) classes.push('custom-range-left');
+                            if (currentColIndex === bounds.maxCol) classes.push('custom-range-right');
+                            return classes.join(' ');
+                          }
+                          return '';
+                        },
+                      }}
+
+                      // âš¡ EXCEL-LIKE: Mouse events for drag selection
+                      onCellMouseDown={(event) => {
+                        const rowIndex = event.rowIndex;
+                        const colId = event.column?.getColId();
+                        if (rowIndex === null || rowIndex === undefined || !colId) return;
+                        const browserEvent = event.event as MouseEvent;
+                        handleCellMouseDown(rowIndex, colId, browserEvent?.shiftKey || false);
+                      }}
+                      onCellMouseOver={(event) => {
+                        const rowIndex = event.rowIndex;
+                        const colId = event.column?.getColId();
+                        if (rowIndex === null || rowIndex === undefined || !colId) return;
+                        handleCellMouseOver(rowIndex, colId);
+                      }}
+                      onCellClicked={(event) => {
+                        const rowIndex = event.rowIndex;
+                        const colId = event.column?.getColId();
+                        if (rowIndex === null || rowIndex === undefined || !colId) return;
+                        const browserEvent = event.event as MouseEvent;
+                        handleCellClick(rowIndex, colId, browserEvent?.shiftKey || false);
+                      }}
+
+                      // âš¡ SMOOTH SCROLL: Detect user manual scroll
+                      onBodyScroll={(event) => {
+                        if (!isAutoScrollingRef.current) {
+                          const currentScrollTop = event.top;
+                          const scrollDelta = Math.abs(currentScrollTop - lastGridScrollTopRef.current);
+                          if (scrollDelta > 10) {
+                            userScrolledRef.current = true;
+                            if (userScrollTimeoutRef.current) window.clearTimeout(userScrollTimeoutRef.current);
+                            userScrollTimeoutRef.current = setTimeout(() => {
+                              userScrolledRef.current = false;
+                            }, 1500) as unknown as number;
+                            lastGridScrollTopRef.current = currentScrollTop;
+                          }
+                        }
+                      }}
+
+                      stopEditingWhenCellsLoseFocus={true}
+                      enterNavigatesVertically={true}
+                      enterNavigatesVerticallyAfterEdit={true}
+                      navigateToNextCell={navigateToNextCell}
+                      ensureDomOrder={true}
+                      suppressMovableColumns={true}
+                      // ⚡ PERFORMANCE: Optimizations for smooth fast scrolling
+                      rowBuffer={100}
+                      suppressRowTransform={true}
+                      suppressAnimationFrame={true}
+                      alwaysShowVerticalScroll={true}
+                      animateRows={false}
+                      suppressScrollOnNewData={true}
+                      debounceVerticalScrollbar={true}
+                      suppressPropertyNamesCheck={true}
+                      valueCache={true}
+                      className="ag-theme-quartz"
+                      containerStyle={{ height: '100%', width: '100%' }}
+                      // ✅ Save column state when resized
+                      onColumnResized={(params: any) => {
+                        if (params.finished && params.api) {
+                          try {
+                            const columnState = params.api.getColumnState();
+                            localStorage.setItem('qc_multi_grid_state', JSON.stringify(columnState));
+                          } catch { /* ignore */ }
+                        }
+                      }}
+                      onCellValueChanged={(event: any) => {
+                        const { colDef, newValue, rowIndex, oldValue } = event;
+                        const field = colDef?.field;
+                        if (!field) return;
+
+                        // âš ï¸ WSN OVERWRITE WARNING: Check if replacing an existing WSN with a different one
+                        if (field === 'wsn') {
+                          const existingWSN = oldValue?.trim()?.toUpperCase();
+                          const newWSN = newValue?.trim()?.toUpperCase();
+
+                          // If row had a valid WSN and user is entering a DIFFERENT valid WSN
+                          if (existingWSN && newWSN && existingWSN !== newWSN) {
+                            // Store pending WSN and show dialog
+                            pendingWSNRef.current = { rowIndex, newWSN, event };
+
+                            // Get existing row data for display
+                            const existingData = multiRowsRef.current[rowIndex] || {};
+
+                            setWsnOverwriteDialog({
+                              open: true,
+                              rowIndex,
+                              existingWSN,
+                              existingData: {
+                                product_title: existingData.producttitle,
+                                brand: existingData.brand,
+                                mrp: existingData.mrp,
+                                fsp: existingData.fsp,
+                                fsn: existingData.fsn,
+                                cms_vertical: existingData.cmsvertical,
+                              },
+                              newWSN,
+                            });
+
+                            // REVERT the cell value to old WSN (user hasn't confirmed yet)
+                            setTimeout(() => {
+                              const node = event.api.getRowNode(String(rowIndex));
+                              if (node) {
+                                node.setDataValue('wsn', existingWSN);
+                              }
+                            }, 10);
+
+                            return; // Don't process further until user confirms
+                          }
+                        }
+
+                        const newRows = [...multiRows];
+
+                        // ===== WSN FIELD LOGIC =====
+                        if (field === 'wsn') {
+                          const wsn = newValue?.trim()?.toUpperCase();
+
+                          // ðŸ”´ WSN cleared - clear master data
+                          if (!newValue || !newValue.trim()) {
+                            newRows[rowIndex] = { ...newRows[rowIndex], [field]: newValue };
+                            ALL_MASTER_COLUMNS.forEach((col) => {
+                              newRows[rowIndex][col] = null;
+                            });
+                            setMultiRows(newRows);
+                            return;
+                          }
+
+                          // Calculate duplicates inline for immediate feedback
+                          const wsnCounts = new Map<string, number>();
+                          newRows.forEach((row: any) => {
+                            const rowWsn = row.wsn?.trim()?.toUpperCase();
+                            if (rowWsn) {
+                              wsnCounts.set(rowWsn, (wsnCounts.get(rowWsn) || 0) + 1);
+                            }
+                          });
+
+                          const isGridDuplicate = (wsnCounts.get(wsn) || 0) > 1;
+
+                          // Check against database
+                          const existingRecord = existingQCWSNs.find((item) => item.wsn === wsn);
+                          const isSameWarehouseDup = existingRecord?.warehouseid === activeWarehouse?.id;
+                          const isCrossWarehouse = existingRecord && existingRecord.warehouseid !== activeWarehouse?.id;
+
+                          // ðŸ”´ CROSS-WAREHOUSE ERROR (different warehouse)
+                          if (isCrossWarehouse) {
+                            toast.error(`WSN ${wsn} already QC'd in another warehouse`, {
+                              duration: 3000,
+                              style: {
+                                background: '#ffffff',
+                                color: '#dc2626',
+                                border: '2px solid #dc2626',
+                                borderRadius: '8px',
+                                padding: '12px 16px',
+                                fontWeight: 600,
+                                fontSize: '14px',
+                                boxShadow: '0 4px 12px rgba(220, 38, 38, 0.15)',
+                              },
+                              icon: '🚫',
+                            });
+
+
+                            // Clear cell
+                            newRows[rowIndex].wsn = '';
+                            ALL_MASTER_COLUMNS.forEach((col) => {
+                              newRows[rowIndex][col] = null;
+                            });
+                            setMultiRows(newRows);
+                            return;
+                          }
+
+                          // ðŸŸ¡ SAME WAREHOUSE DUPLICATE
+                          if (isSameWarehouseDup) {
+                            toast(`WSN ${wsn} already QC'd in this warehouse`, {
+                              duration: 2500,
+                              style: {
+                                background: '#ffffff',
+                                color: '#d97706',
+                                border: '2px solid #f59e0b',
+                                borderRadius: '8px',
+                                padding: '12px 16px',
+                                fontWeight: 600,
+                                fontSize: '14px',
+                                boxShadow: '0 4px 12px rgba(245, 158, 11, 0.15)',
+                              },
+                              icon: '🚫',
+                            });
+
+
+                            // Clear cell
+                            newRows[rowIndex].wsn = '';
+                            ALL_MASTER_COLUMNS.forEach((col) => {
+                              newRows[rowIndex][col] = null;
+                            });
+                            setMultiRows(newRows);
+
+                            return;
+                          }
+
+                          // ðŸŸ¡ GRID DUPLICATE
+                          if (isGridDuplicate) {
+                            toast(`Duplicate WSN in grid: ${wsn}`, {
+                              duration: 2500,
+                              style: {
+                                background: '#ffffff',
+                                color: '#d97706',
+                                border: '2px solid #f59e0b',
+                                borderRadius: '8px',
+                                padding: '12px 16px',
+                                fontWeight: 600,
+                                fontSize: '14px',
+                                boxShadow: '0 4px 12px rgba(245, 158, 11, 0.15)',
+                              },
+                              icon: '🚫',
+                            });
+
+
+                            // Clear cell
+                            newRows[rowIndex].wsn = '';
+                            ALL_MASTER_COLUMNS.forEach((col) => {
+                              newRows[rowIndex][col] = null;
+                            });
+                            setMultiRows(newRows);
+
+                            // ✅ UPDATE CHIPS AFTER CLEARING
+                            setTimeout(() => {
+                              event.api.startEditingCell({
+                                rowIndex: rowIndex,
+                                colKey: 'wsn',
+                              });
+                            }, 100);
+                            return;
+                          }
+
+                          // ✅ VALID WSN - Update row and chips (store uppercase)
+                          newRows[rowIndex] = { ...newRows[rowIndex], [field]: wsn }; // Use uppercase wsn
+                          setMultiRows(newRows);
+
+
+
+                          // Auto add new rows at last row
+                          if (rowIndex === event.api.getDisplayedRowCount() - 1) {
+                            add500Rows();
+                          }
+
+                          // Fetch master data
+                          if (wsn) {
+                            setTimeout(async () => {
+                              try {
+                                const response = await qcAPI.getPendingInbound(activeWarehouse?.id, wsn);
+
+                                // ✅ ADD DEBUG
+                                console.log('📝 API Response for WSN:', wsn, response.data[0]);
+
+                                if (response.data.length > 0) {
+                                  const item = response.data[0];
+                                  setMultiRows((prevRows) => {
+                                    const updatedRows = [...prevRows];
+                                    updatedRows[rowIndex] = {
+                                      ...updatedRows[rowIndex],
+                                      // ✅ EXACT MAPPING FROM CONSOLE OUTPUT
+                                      fsn: item.fsn || '',
+                                      producttitle: item.product_title || '',
+                                      brand: item.brand || '',
+                                      cmsvertical: item.cms_vertical || '',
+                                      hsnsac: item.hsn_sac || '',
+                                      igstrate: item.igst_rate || '',
+                                      mrp: item.mrp || '',
+                                      fsp: item.fsp || '',
+                                      vrp: item.vrp || '',
+                                      yieldvalue: item.yield_value || '',
+                                      psize: item.p_size || '',
+                                      ptype: item.p_type || '',
+                                      fktlink: item.fkt_link || '',
+                                      whlocation: item.wh_location || '',
+                                      orderid: item.order_id || '',
+                                      fkqcremark: item.fkqc_remark || '',
+                                      fkgrade: item.fk_grade || '',
+                                      invoicedate: item.invoice_date || '',
+                                    };
+                                    return updatedRows;
+                                  });
+                                }
+
+                              } catch (error) {
+                                console.log('WSN not found in pending inbound');
+                              }
+                            }, 500);
+                          }
+
+                          return;
+                        }
+
+                        // ===== OTHER FIELDS (non-WSN) =====
+                        newRows[rowIndex] = { ...newRows[rowIndex], [field]: newValue };
+                        setMultiRows(newRows);
+                      }}
+
+                    />
+                  </Box>
+
+                  {/* ======================== GRID SETTINGS DIALOG ======================== */}
+                  <Dialog
+                    open={gridSettingsOpen}
+                    onClose={() => setGridSettingsOpen(false)}
+                    maxWidth="xs"
+                    fullWidth
+                    PaperProps={{
+                      sx: {
+                        borderRadius: 2,
+                        boxShadow: '0 8px 32px rgba(0,0,0,0.15)'
+                      }
+                    }}
+                  >
+                    <DialogTitle sx={{
+                      background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                      color: 'white',
+                      fontWeight: 800,
+                      fontSize: '1.1rem',
+                      py: 1.5
+                    }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <SettingsIcon />
+                        Grid Settings
                       </Box>
+                    </DialogTitle>
 
-                      {/* Panel Content with Accordions */}
-                      <Box sx={{ overflow: 'auto', flex: 1 }}>
+                    <DialogContent sx={{ mt: 2, pb: 1 }}>
+                      <Stack spacing={2.5}>
+                        <Alert severity="info" sx={{ fontSize: '0.8rem', py: 0.5 }}>
+                          Settings auto-save and persist after reload 💾
+                        </Alert>
 
-                        {/* â•â•â•â•â•â•â•â•â•â•â• COLUMNS ACCORDION â•â•â•â•â•â•â•â•â•â•â• */}
-                        <Accordion
-                          expanded={settingsPanelExpanded === 'columns'}
-                          onChange={(_, isExpanded) => setSettingsPanelExpanded(isExpanded ? 'columns' : false)}
-                          disableGutters
-                          sx={{
-                            bgcolor: 'transparent',
-                            boxShadow: 'none',
-                            '&:before': { display: 'none' },
-                            borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0'
-                          }}
-                        >
-                          <AccordionSummary
-                            expandIcon={<ExpandMoreIcon sx={{ color: isDarkMode ? '#94a3b8' : '#64748b' }} />}
-                            sx={{
-                              px: 2,
-                              minHeight: 56,
-                              '&.Mui-expanded': { minHeight: 56 },
-                              '& .MuiAccordionSummary-content': { my: 1.5 }
-                            }}
-                          >
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                              <ViewColumnIcon sx={{ color: '#3b82f6', fontSize: 22 }} />
+                        {/* SORTABLE */}
+                        <Box>
+                          <FormControlLabel
+                            control={
+                              <Checkbox
+                                checked={gridSettings.sortable}
+                                onChange={(e) => updateGridSettings({ ...gridSettings, sortable: e.target.checked })}
+                                sx={{
+                                  '&.Mui-checked': { color: '#f59e0b' }
+                                }}
+                              />
+                            }
+                            label={
                               <Box>
-                                <Typography sx={{ fontWeight: 700, fontSize: '0.9rem', color: isDarkMode ? '#e2e8f0' : '#1e293b' }}>Columns</Typography>
-                                <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>
-                                  {visibleColumns.length} columns visible
+                                <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#1e293b' }}>
+                                  ⬆️ Enable Sorting
+                                </Typography>
+                                <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem' }}>
+                                  Click column headers to sort ascending/descending
                                 </Typography>
                               </Box>
-                            </Box>
-                          </AccordionSummary>
-                          <AccordionDetails sx={{ px: 2, pb: 2, pt: 0 }}>
-                            <Box sx={{ maxHeight: 280, overflow: 'auto', pr: 1 }}>
-                              <Typography sx={{ fontWeight: 700, fontSize: '0.7rem', color: '#3b82f6', mb: 1, textTransform: 'uppercase' }}>Editable Fields</Typography>
-                              <Stack spacing={0.5} sx={{ mb: 2 }}>
-                                {EDITABLE_COLUMNS.map((col) => (
-                                  <FormControlLabel
-                                    key={col}
-                                    control={
-                                      <Checkbox
-                                        size="small"
-                                        checked={visibleColumns.includes(col)}
-                                        onChange={(e) => {
-                                          if (e.target.checked) {
-                                            setVisibleColumns([...visibleColumns, col]);
-                                          } else {
-                                            setVisibleColumns(visibleColumns.filter((c: string) => c !== col));
-                                          }
-                                        }}
-                                        sx={{ py: 0.25, '&.Mui-checked': { color: '#3b82f6' } }}
-                                      />
-                                    }
-                                    label={<Typography sx={{ fontSize: '0.8rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>{col.replace(/_/g, ' ').toUpperCase()}</Typography>}
-                                    sx={{ m: 0 }}
-                                  />
-                                ))}
-                              </Stack>
-                              <Typography sx={{ fontWeight: 700, fontSize: '0.7rem', color: '#10b981', mb: 1, textTransform: 'uppercase' }}>Master Data Fields</Typography>
-                              <Stack spacing={0.5}>
-                                {ALL_MASTER_COLUMNS.map((col) => (
-                                  <FormControlLabel
-                                    key={col}
-                                    control={
-                                      <Checkbox
-                                        size="small"
-                                        checked={visibleColumns.includes(col)}
-                                        onChange={(e) => {
-                                          if (e.target.checked) {
-                                            setVisibleColumns([...visibleColumns, col]);
-                                          } else {
-                                            setVisibleColumns(visibleColumns.filter((c: string) => c !== col));
-                                          }
-                                        }}
-                                        sx={{ py: 0.25, '&.Mui-checked': { color: '#10b981' } }}
-                                      />
-                                    }
-                                    label={<Typography sx={{ fontSize: '0.8rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>{col.replace(/_/g, ' ').toUpperCase()}</Typography>}
-                                    sx={{ m: 0 }}
-                                  />
-                                ))}
-                              </Stack>
-                            </Box>
-                          </AccordionDetails>
-                        </Accordion>
-
-                        {/* â•â•â•â•â•â•â•â•â•â•â• GRID SETTINGS ACCORDION â•â•â•â•â•â•â•â•â•â•â• */}
-                        <Accordion
-                          expanded={settingsPanelExpanded === 'grid'}
-                          onChange={(_, isExpanded) => setSettingsPanelExpanded(isExpanded ? 'grid' : false)}
-                          disableGutters
-                          sx={{
-                            bgcolor: 'transparent',
-                            boxShadow: 'none',
-                            '&:before': { display: 'none' },
-                            borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0'
-                          }}
-                        >
-                          <AccordionSummary
-                            expandIcon={<ExpandMoreIcon sx={{ color: isDarkMode ? '#94a3b8' : '#64748b' }} />}
-                            sx={{
-                              px: 2,
-                              minHeight: 56,
-                              '&.Mui-expanded': { minHeight: 56 },
-                              '& .MuiAccordionSummary-content': { my: 1.5 }
-                            }}
-                          >
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                              <TableChartIcon sx={{ color: '#f59e0b', fontSize: 22 }} />
-                              <Box>
-                                <Typography sx={{ fontWeight: 700, fontSize: '0.9rem', color: isDarkMode ? '#e2e8f0' : '#1e293b' }}>Grid Settings</Typography>
-                                <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>Sorting, filtering, resize</Typography>
-                              </Box>
-                            </Box>
-                          </AccordionSummary>
-                          <AccordionDetails sx={{ px: 2, pb: 2, pt: 0 }}>
-                            <Stack spacing={1.5}>
-                              <FormControlLabel
-                                control={
-                                  <Checkbox
-                                    checked={enableSorting}
-                                    onChange={(e) => {
-                                      setEnableSorting(e.target.checked);
-                                      localStorage.setItem('qc_enableSorting', String(e.target.checked));
-                                    }}
-                                    sx={{ '&.Mui-checked': { color: '#f59e0b' } }}
-                                  />
-                                }
-                                label={
-                                  <Box>
-                                    <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>⬆️ Enable Sorting</Typography>
-                                    <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>Click headers to sort</Typography>
-                                  </Box>
-                                }
-                              />
-                              <FormControlLabel
-                                control={
-                                  <Checkbox
-                                    checked={enableColumnFilters}
-                                    onChange={(e) => {
-                                      setEnableColumnFilters(e.target.checked);
-                                      localStorage.setItem('qc_enableColumnFilters', String(e.target.checked));
-                                    }}
-                                    sx={{ '&.Mui-checked': { color: '#f59e0b' } }}
-                                  />
-                                }
-                                label={
-                                  <Box>
-                                    <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>🔍 Enable Filtering</Typography>
-                                    <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>Filter in column headers</Typography>
-                                  </Box>
-                                }
-                              />
-                              <FormControlLabel
-                                control={
-                                  <Checkbox
-                                    checked={enableColumnResize}
-                                    onChange={(e) => {
-                                      setEnableColumnResize(e.target.checked);
-                                      localStorage.setItem('qc_enableColumnResize', String(e.target.checked));
-                                    }}
-                                    sx={{ '&.Mui-checked': { color: '#f59e0b' } }}
-                                  />
-                                }
-                                label={
-                                  <Box>
-                                    <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>↔️ Column Resize</Typography>
-                                    <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>Drag borders to resize</Typography>
-                                  </Box>
-                                }
-                              />
-                              <Button
-                                size="small"
-                                onClick={() => {
-                                  setEnableSorting(true);
-                                  setEnableColumnFilters(true);
-                                  setEnableColumnResize(true);
-                                  localStorage.setItem('qc_enableSorting', 'true');
-                                  localStorage.setItem('qc_enableColumnFilters', 'true');
-                                  localStorage.setItem('qc_enableColumnResize', 'true');
-                                  toast.success('Grid settings reset');
-                                }}
-                                sx={{ alignSelf: 'flex-start', fontSize: '0.75rem', color: isDarkMode ? '#94a3b8' : '#64748b' }}
-                              >
-                                🔄 Reset to Default
-                              </Button>
-                            </Stack>
-                          </AccordionDetails>
-                        </Accordion>
-
-                        {/* â•â•â•â•â•â•â•â•â•â•â• EXPORT BUTTON â•â•â•â•â•â•â•â•â•â•â• */}
-                        <Box sx={{ p: 2, borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0' }}>
-                          <Button
-                            fullWidth
-                            variant="contained"
-                            startIcon={<DownloadIcon />}
-                            onClick={() => { exportMultiEntryToExcel(); setQcSettingsPanelOpen(false); }}
-                            disabled={!multiRows.some((r: any) => r.wsn?.trim())}
-                            sx={{
-                              height: 44,
-                              background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                              fontWeight: 600,
-                              '&:hover': { background: 'linear-gradient(135deg, #059669 0%, #047857 100%)' },
-                              '&.Mui-disabled': { background: '#94a3b8' }
-                            }}
-                          >
-                            Export to Excel
-                          </Button>
+                            }
+                          />
                         </Box>
-                      </Box>
-                    </Drawer>
 
-                  </CardContent>
-                </Card>
+                        <Divider sx={{ my: 0.5 }} />
 
-
-                {/* AG GRID - Professional Excel-like styling */}
-                <Box
-                  sx={{
-                    flex: 1,
-                    minHeight: 0,
-                    border: isDarkMode ? '1px solid #334155' : '2px solid #94a3b8',
-                    borderRadius: '6px',
-                    overflow: 'hidden',
-                    bgcolor: isDarkMode ? '#1e293b' : '#ffffff',
-                    boxShadow: isDarkMode ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.12)',
-                    '& .ag-root-wrapper': { borderRadius: 0, backgroundColor: isDarkMode ? '#1e293b' : '#ffffff', border: 'none' },
-
-                    // Professional dark header
-                    '& .ag-header': {
-                      backgroundColor: isDarkMode ? '#1e3a5f' : '#1e3a5f',
-                      borderBottom: isDarkMode ? '2px solid #2563eb' : '2px solid #1e40af',
-                    },
-                    '& .ag-header-cell': {
-                      backgroundColor: isDarkMode ? '#1e3a5f' : '#1e3a5f',
-                      color: '#ffffff',
-                      fontWeight: 700,
-                      fontSize: '11px',
-                      padding: '0 8px',
-                      borderRight: '1px solid #3b5998',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.02em',
-                    },
-                    '& .ag-header-cell:last-child': { borderRight: 'none' },
-                    '& .ag-header-cell-label': { color: '#ffffff' },
-                    '& .ag-icon': { color: '#94a3b8' },
-                    '& .ag-header-icon': { color: '#94a3b8' },
-
-                    // Excel-style cells with visible borders
-                    '& .ag-cell': {
-                      borderRight: isDarkMode ? '1px solid #334155' : '1px solid #cbd5e1',
-                      fontSize: '12px',
-                      padding: '0 8px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      color: isDarkMode ? '#f1f5f9' : '#1e293b',
-                      overflow: 'hidden',
-                      whiteSpace: 'nowrap',
-                      textOverflow: 'ellipsis',
-                    },
-                    '& .ag-cell:last-child': { borderRight: isDarkMode ? 'none' : '1px solid #cbd5e1' },
-
-                    // Error cell styling
-                    '& .wsn-cross-error': {
-                      backgroundColor: isDarkMode ? '#7f1d1d !important' : '#fee2e2 !important',
-                      fontWeight: 700,
-                    },
-                    '& .wsn-dup-error': {
-                      backgroundColor: isDarkMode ? '#78350f !important' : '#fef3c7 !important',
-                      fontWeight: 700,
-                    },
-
-                    // Professional rows with visible borders
-                    '& .ag-row': {
-                      height: 36,
-                      overflow: 'visible',
-                      borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #cbd5e1',
-                    },
-                    '& .ag-row-even': { backgroundColor: isDarkMode ? '#1e293b' : '#ffffff' },
-                    '& .ag-row-odd': { backgroundColor: isDarkMode ? '#1a2536' : '#f1f5f9' },
-
-                    // Active cell focus - Enhanced for dark mode
-                    '& .ag-cell-focus': {
-                      border: isDarkMode ? '2px solid #22d3ee !important' : '2px solid #2563eb !important',
-                      outline: 'none',
-                      boxShadow: isDarkMode ? '0 0 8px rgba(34, 211, 238, 0.4)' : '0 0 0 1px rgba(37, 99, 235, 0.3)',
-                    },
-
-                    // Range selection
-                    '& .ag-cell-range-selected': {
-                      backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.25) !important' : '#dbeafe !important',
-                    },
-                    '& .ag-cell-range-single-cell': {
-                      backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.2) !important' : '#eff6ff !important',
-                    },
-
-                    // âš¡ EXCEL-LIKE: Custom range selection CSS classes
-                    '& .custom-range-selected': {
-                      backgroundColor: isDarkMode ? 'rgba(96, 165, 250, 0.4) !important' : 'rgba(37, 99, 235, 0.2) !important',
-                    },
-                    '& .custom-range-top': {
-                      borderTop: isDarkMode ? '3px solid #60a5fa !important' : '3px solid #2563eb !important',
-                    },
-                    '& .custom-range-bottom': {
-                      borderBottom: isDarkMode ? '3px solid #60a5fa !important' : '3px solid #2563eb !important',
-                    },
-                    '& .custom-range-left': {
-                      borderLeft: isDarkMode ? '3px solid #60a5fa !important' : '3px solid #2563eb !important',
-                    },
-                    '& .custom-range-right': {
-                      borderRight: isDarkMode ? '3px solid #60a5fa !important' : '3px solid #2563eb !important',
-                    },
-
-                    // Hover effects
-                    '& .ag-row-hover': {
-                      backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.12) !important' : '#e0f2fe !important',
-                    },
-                  }}
-                >
-                  <AgGridReact
-                    rowData={multiRows}
-                    columnDefs={columnDefs}
-                    rowHeight={tableRowHeight}
-                    headerHeight={32}
-                    getRowId={(params: any) => String(params.data?.id || params.node?.rowIndex || Math.random())}
-
-                    onGridReady={(params: any) => {
-                      gridRef.current = params.api;
-                      columnApiRef.current = params.columnApi;
-                      // Restore column state from localStorage
-                      try {
-                        const savedState = localStorage.getItem('qc_multi_grid_state');
-                        if (savedState && params.api) {
-                          params.api.applyColumnState({ state: JSON.parse(savedState), applyOrder: true });
-                        }
-                      } catch { /* ignore */ }
-                    }}
-
-                    defaultColDef={{
-                      sortable: gridSettings.sortable,
-                      filter: gridSettings.filter,
-                      resizable: gridSettings.resizable,
-                      editable: (params: any) => {
-                        if (!gridSettings.editable) return false;
-                        const field = params.colDef.field as string;
-                        return EDITABLE_COLUMNS.includes(field);
-                      },
-                      // âš¡ EXCEL-LIKE: Optimized cell style for selection
-                      cellStyle: (params: any) => {
-                        const bounds = selectionBoundsRef.current;
-                        if (!bounds) return undefined;
-
-                        const rowIndex = params.rowIndex;
-                        const colId = params.colDef?.field;
-                        if (rowIndex === null || rowIndex === undefined || !colId) return undefined;
-
-                        const currentColIndex = bounds.colIndexMap.get(colId);
-                        if (currentColIndex === undefined) return undefined;
-
-                        const isInRowRange = rowIndex >= bounds.minRow && rowIndex <= bounds.maxRow;
-                        const isInColRange = currentColIndex >= bounds.minCol && currentColIndex <= bounds.maxCol;
-
-                        if (isInRowRange && isInColRange) {
-                          const borderColor = isDarkMode ? '#60a5fa' : '#2563eb';
-                          const bgColor = isDarkMode ? 'rgba(96, 165, 250, 0.35)' : 'rgba(37, 99, 235, 0.2)';
-
-                          const style: any = { backgroundColor: bgColor };
-                          if (rowIndex === bounds.minRow) style.borderTop = `3px solid ${borderColor}`;
-                          if (rowIndex === bounds.maxRow) style.borderBottom = `3px solid ${borderColor}`;
-                          if (currentColIndex === bounds.minCol) style.borderLeft = `3px solid ${borderColor}`;
-                          if (currentColIndex === bounds.maxCol) style.borderRight = `3px solid ${borderColor}`;
-                          return style;
-                        }
-                        return undefined;
-                      },
-                      cellClass: (params: any) => {
-                        const bounds = selectionBoundsRef.current;
-                        if (!bounds) return '';
-
-                        const rowIndex = params.rowIndex;
-                        const colId = params.colDef?.field;
-                        if (rowIndex === null || rowIndex === undefined || !colId) return '';
-
-                        const currentColIndex = bounds.colIndexMap.get(colId);
-                        if (currentColIndex === undefined) return '';
-
-                        const isInRowRange = rowIndex >= bounds.minRow && rowIndex <= bounds.maxRow;
-                        const isInColRange = currentColIndex >= bounds.minCol && currentColIndex <= bounds.maxCol;
-
-                        if (isInRowRange && isInColRange) {
-                          const classes = ['custom-range-selected'];
-                          if (rowIndex === bounds.minRow) classes.push('custom-range-top');
-                          if (rowIndex === bounds.maxRow) classes.push('custom-range-bottom');
-                          if (currentColIndex === bounds.minCol) classes.push('custom-range-left');
-                          if (currentColIndex === bounds.maxCol) classes.push('custom-range-right');
-                          return classes.join(' ');
-                        }
-                        return '';
-                      },
-                    }}
-
-                    // âš¡ EXCEL-LIKE: Mouse events for drag selection
-                    onCellMouseDown={(event) => {
-                      const rowIndex = event.rowIndex;
-                      const colId = event.column?.getColId();
-                      if (rowIndex === null || rowIndex === undefined || !colId) return;
-                      const browserEvent = event.event as MouseEvent;
-                      handleCellMouseDown(rowIndex, colId, browserEvent?.shiftKey || false);
-                    }}
-                    onCellMouseOver={(event) => {
-                      const rowIndex = event.rowIndex;
-                      const colId = event.column?.getColId();
-                      if (rowIndex === null || rowIndex === undefined || !colId) return;
-                      handleCellMouseOver(rowIndex, colId);
-                    }}
-                    onCellClicked={(event) => {
-                      const rowIndex = event.rowIndex;
-                      const colId = event.column?.getColId();
-                      if (rowIndex === null || rowIndex === undefined || !colId) return;
-                      const browserEvent = event.event as MouseEvent;
-                      handleCellClick(rowIndex, colId, browserEvent?.shiftKey || false);
-                    }}
-
-                    // âš¡ SMOOTH SCROLL: Detect user manual scroll
-                    onBodyScroll={(event) => {
-                      if (!isAutoScrollingRef.current) {
-                        const currentScrollTop = event.top;
-                        const scrollDelta = Math.abs(currentScrollTop - lastGridScrollTopRef.current);
-                        if (scrollDelta > 10) {
-                          userScrolledRef.current = true;
-                          if (userScrollTimeoutRef.current) window.clearTimeout(userScrollTimeoutRef.current);
-                          userScrollTimeoutRef.current = setTimeout(() => {
-                            userScrolledRef.current = false;
-                          }, 1500) as unknown as number;
-                          lastGridScrollTopRef.current = currentScrollTop;
-                        }
-                      }
-                    }}
-
-                    stopEditingWhenCellsLoseFocus={true}
-                    enterNavigatesVertically={true}
-                    enterNavigatesVerticallyAfterEdit={true}
-                    navigateToNextCell={navigateToNextCell}
-                    ensureDomOrder={true}
-                    suppressMovableColumns={true}
-                    // ⚡ PERFORMANCE: Optimizations for smooth fast scrolling
-                    rowBuffer={100}
-                    suppressRowTransform={true}
-                    suppressAnimationFrame={true}
-                    alwaysShowVerticalScroll={true}
-                    animateRows={false}
-                    suppressScrollOnNewData={true}
-                    debounceVerticalScrollbar={true}
-                    suppressPropertyNamesCheck={true}
-                    valueCache={true}
-                    className="ag-theme-quartz"
-                    containerStyle={{ height: '100%', width: '100%' }}
-                    // ✅ Save column state when resized
-                    onColumnResized={(params: any) => {
-                      if (params.finished && params.api) {
-                        try {
-                          const columnState = params.api.getColumnState();
-                          localStorage.setItem('qc_multi_grid_state', JSON.stringify(columnState));
-                        } catch { /* ignore */ }
-                      }
-                    }}
-                    onCellValueChanged={(event: any) => {
-                      const { colDef, newValue, rowIndex, oldValue } = event;
-                      const field = colDef?.field;
-                      if (!field) return;
-
-                      // âš ï¸ WSN OVERWRITE WARNING: Check if replacing an existing WSN with a different one
-                      if (field === 'wsn') {
-                        const existingWSN = oldValue?.trim()?.toUpperCase();
-                        const newWSN = newValue?.trim()?.toUpperCase();
-
-                        // If row had a valid WSN and user is entering a DIFFERENT valid WSN
-                        if (existingWSN && newWSN && existingWSN !== newWSN) {
-                          // Store pending WSN and show dialog
-                          pendingWSNRef.current = { rowIndex, newWSN, event };
-
-                          // Get existing row data for display
-                          const existingData = multiRowsRef.current[rowIndex] || {};
-
-                          setWsnOverwriteDialog({
-                            open: true,
-                            rowIndex,
-                            existingWSN,
-                            existingData: {
-                              product_title: existingData.producttitle,
-                              brand: existingData.brand,
-                              mrp: existingData.mrp,
-                              fsp: existingData.fsp,
-                              fsn: existingData.fsn,
-                              cms_vertical: existingData.cmsvertical,
-                            },
-                            newWSN,
-                          });
-
-                          // REVERT the cell value to old WSN (user hasn't confirmed yet)
-                          setTimeout(() => {
-                            const node = event.api.getRowNode(String(rowIndex));
-                            if (node) {
-                              node.setDataValue('wsn', existingWSN);
+                        {/* FILTER */}
+                        <Box>
+                          <FormControlLabel
+                            control={
+                              <Checkbox
+                                checked={gridSettings.filter}
+                                onChange={(e) => updateGridSettings({ ...gridSettings, filter: e.target.checked })}
+                                sx={{
+                                  '&.Mui-checked': { color: '#f59e0b' }
+                                }}
+                              />
                             }
-                          }, 10);
+                            label={
+                              <Box>
+                                <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#1e293b' }}>
+                                  🔍 Enable Column Filters
+                                </Typography>
+                                <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem' }}>
+                                  Filter menu icon in column headers
+                                </Typography>
+                              </Box>
+                            }
+                          />
+                        </Box>
 
-                          return; // Don't process further until user confirms
-                        }
-                      }
+                        <Divider sx={{ my: 0.5 }} />
 
-                      const newRows = [...multiRows];
+                        {/* RESIZABLE */}
+                        <Box>
+                          <FormControlLabel
+                            control={
+                              <Checkbox
+                                checked={gridSettings.resizable}
+                                onChange={(e) => updateGridSettings({ ...gridSettings, resizable: e.target.checked })}
+                                sx={{
+                                  '&.Mui-checked': { color: '#f59e0b' }
+                                }}
+                              />
+                            }
+                            label={
+                              <Box>
+                                <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#1e293b' }}>
+                                  ↔️ Enable Column Resize
+                                </Typography>
+                                <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem' }}>
+                                  Drag column borders to adjust width
+                                </Typography>
+                              </Box>
+                            }
+                          />
+                        </Box>
+                      </Stack>
+                    </DialogContent>
 
-                      // ===== WSN FIELD LOGIC =====
-                      if (field === 'wsn') {
-                        const wsn = newValue?.trim()?.toUpperCase();
-
-                        // ðŸ”´ WSN cleared - clear master data
-                        if (!newValue || !newValue.trim()) {
-                          newRows[rowIndex] = { ...newRows[rowIndex], [field]: newValue };
-                          ALL_MASTER_COLUMNS.forEach((col) => {
-                            newRows[rowIndex][col] = null;
-                          });
-                          setMultiRows(newRows);
-                          return;
-                        }
-
-                        // Calculate duplicates inline for immediate feedback
-                        const wsnCounts = new Map<string, number>();
-                        newRows.forEach((row: any) => {
-                          const rowWsn = row.wsn?.trim()?.toUpperCase();
-                          if (rowWsn) {
-                            wsnCounts.set(rowWsn, (wsnCounts.get(rowWsn) || 0) + 1);
+                    <DialogActions sx={{ p: 2, background: '#fef3c7', gap: 1 }}>
+                      <Button
+                        onClick={() => {
+                          const defaultSettings = {
+                            sortable: true,
+                            filter: true,
+                            resizable: true,
+                            editable: true,
+                          };
+                          updateGridSettings(defaultSettings);
+                          toast.success('Settings reset to default');
+                        }}
+                        sx={{
+                          fontWeight: 700,
+                          color: '#78716c',
+                          '&:hover': {
+                            bgcolor: 'rgba(120, 113, 108, 0.1)'
                           }
-                        });
-
-                        const isGridDuplicate = (wsnCounts.get(wsn) || 0) > 1;
-
-                        // Check against database
-                        const existingRecord = existingQCWSNs.find((item) => item.wsn === wsn);
-                        const isSameWarehouseDup = existingRecord?.warehouseid === activeWarehouse?.id;
-                        const isCrossWarehouse = existingRecord && existingRecord.warehouseid !== activeWarehouse?.id;
-
-                        // ðŸ”´ CROSS-WAREHOUSE ERROR (different warehouse)
-                        if (isCrossWarehouse) {
-                          toast.error(`WSN ${wsn} already QC'd in another warehouse`, {
-                            duration: 3000,
-                            style: {
-                              background: '#ffffff',
-                              color: '#dc2626',
-                              border: '2px solid #dc2626',
-                              borderRadius: '8px',
-                              padding: '12px 16px',
-                              fontWeight: 600,
-                              fontSize: '14px',
-                              boxShadow: '0 4px 12px rgba(220, 38, 38, 0.15)',
-                            },
-                            icon: '🚫',
-                          });
-
-
-                          // Clear cell
-                          newRows[rowIndex].wsn = '';
-                          ALL_MASTER_COLUMNS.forEach((col) => {
-                            newRows[rowIndex][col] = null;
-                          });
-                          setMultiRows(newRows);
-                          return;
-                        }
-
-                        // ðŸŸ¡ SAME WAREHOUSE DUPLICATE
-                        if (isSameWarehouseDup) {
-                          toast(`WSN ${wsn} already QC'd in this warehouse`, {
-                            duration: 2500,
-                            style: {
-                              background: '#ffffff',
-                              color: '#d97706',
-                              border: '2px solid #f59e0b',
-                              borderRadius: '8px',
-                              padding: '12px 16px',
-                              fontWeight: 600,
-                              fontSize: '14px',
-                              boxShadow: '0 4px 12px rgba(245, 158, 11, 0.15)',
-                            },
-                            icon: '🚫',
-                          });
-
-
-                          // Clear cell
-                          newRows[rowIndex].wsn = '';
-                          ALL_MASTER_COLUMNS.forEach((col) => {
-                            newRows[rowIndex][col] = null;
-                          });
-                          setMultiRows(newRows);
-
-                          return;
-                        }
-
-                        // ðŸŸ¡ GRID DUPLICATE
-                        if (isGridDuplicate) {
-                          toast(`Duplicate WSN in grid: ${wsn}`, {
-                            duration: 2500,
-                            style: {
-                              background: '#ffffff',
-                              color: '#d97706',
-                              border: '2px solid #f59e0b',
-                              borderRadius: '8px',
-                              padding: '12px 16px',
-                              fontWeight: 600,
-                              fontSize: '14px',
-                              boxShadow: '0 4px 12px rgba(245, 158, 11, 0.15)',
-                            },
-                            icon: '🚫',
-                          });
-
-
-                          // Clear cell
-                          newRows[rowIndex].wsn = '';
-                          ALL_MASTER_COLUMNS.forEach((col) => {
-                            newRows[rowIndex][col] = null;
-                          });
-                          setMultiRows(newRows);
-
-                          // ✅ UPDATE CHIPS AFTER CLEARING
-                          setTimeout(() => {
-                            event.api.startEditingCell({
-                              rowIndex: rowIndex,
-                              colKey: 'wsn',
-                            });
-                          }, 100);
-                          return;
-                        }
-
-                        // ✅ VALID WSN - Update row and chips (store uppercase)
-                        newRows[rowIndex] = { ...newRows[rowIndex], [field]: wsn }; // Use uppercase wsn
-                        setMultiRows(newRows);
+                        }}
+                      >
+                        ðŸ”„ Reset All
+                      </Button>
+                      <Box sx={{ flex: 1 }} />
+                      <Button
+                        variant="contained"
+                        onClick={() => setGridSettingsOpen(false)}
+                        sx={{
+                          background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                          fontWeight: 700,
+                          boxShadow: '0 4px 12px rgba(245, 158, 11, 0.3)',
+                          '&:hover': {
+                            background: 'linear-gradient(135deg, #d97706 0%, #b45309 100)',
+                          }
+                        }}
+                      >
+                        Done
+                      </Button>
+                    </DialogActions>
+                  </Dialog>
 
 
 
-                        // Auto add new rows at last row
-                        if (rowIndex === event.api.getDisplayedRowCount() - 1) {
-                          add500Rows();
-                        }
-
-                        // Fetch master data
-                        if (wsn) {
-                          setTimeout(async () => {
-                            try {
-                              const response = await qcAPI.getPendingInbound(activeWarehouse?.id, wsn);
-
-                              // ✅ ADD DEBUG
-                              console.log('📝 API Response for WSN:', wsn, response.data[0]);
-
-                              if (response.data.length > 0) {
-                                const item = response.data[0];
-                                setMultiRows((prevRows) => {
-                                  const updatedRows = [...prevRows];
-                                  updatedRows[rowIndex] = {
-                                    ...updatedRows[rowIndex],
-                                    // ✅ EXACT MAPPING FROM CONSOLE OUTPUT
-                                    fsn: item.fsn || '',
-                                    producttitle: item.product_title || '',
-                                    brand: item.brand || '',
-                                    cmsvertical: item.cms_vertical || '',
-                                    hsnsac: item.hsn_sac || '',
-                                    igstrate: item.igst_rate || '',
-                                    mrp: item.mrp || '',
-                                    fsp: item.fsp || '',
-                                    vrp: item.vrp || '',
-                                    yieldvalue: item.yield_value || '',
-                                    psize: item.p_size || '',
-                                    ptype: item.p_type || '',
-                                    fktlink: item.fkt_link || '',
-                                    whlocation: item.wh_location || '',
-                                    orderid: item.order_id || '',
-                                    fkqcremark: item.fkqc_remark || '',
-                                    fkgrade: item.fk_grade || '',
-                                    invoicedate: item.invoice_date || '',
-                                  };
-                                  return updatedRows;
-                                });
-                              }
-
-                            } catch (error) {
-                              console.log('WSN not found in pending inbound');
-                            }
-                          }, 500);
-                        }
-
-                        return;
-                      }
-
-                      // ===== OTHER FIELDS (non-WSN) =====
-                      newRows[rowIndex] = { ...newRows[rowIndex], [field]: newValue };
-                      setMultiRows(newRows);
-                    }}
-
-                  />
-                </Box>
-
-                {/* ======================== GRID SETTINGS DIALOG ======================== */}
-                <Dialog
-                  open={gridSettingsOpen}
-                  onClose={() => setGridSettingsOpen(false)}
-                  maxWidth="xs"
-                  fullWidth
-                  PaperProps={{
-                    sx: {
-                      borderRadius: 2,
-                      boxShadow: '0 8px 32px rgba(0,0,0,0.15)'
-                    }
-                  }}
-                >
-                  <DialogTitle sx={{
-                    background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
-                    color: 'white',
-                    fontWeight: 800,
-                    fontSize: '1.1rem',
-                    py: 1.5
+                  {/* DRAFT STATUS + ACTIONS + SUBMIT - Single Row */}
+                  <Box sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: { xs: 0.5, sm: 1 },
+                    flexWrap: 'wrap',
+                    py: 0.5,
+                    flexShrink: 0
                   }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <SettingsIcon />
-                      Grid Settings
-                    </Box>
-                  </DialogTitle>
-
-                  <DialogContent sx={{ mt: 2, pb: 1 }}>
-                    <Stack spacing={2.5}>
-                      <Alert severity="info" sx={{ fontSize: '0.8rem', py: 0.5 }}>
-                        Settings auto-save and persist after reload 💾
-                      </Alert>
-
-                      {/* SORTABLE */}
-                      <Box>
-                        <FormControlLabel
-                          control={
-                            <Checkbox
-                              checked={gridSettings.sortable}
-                              onChange={(e) => updateGridSettings({ ...gridSettings, sortable: e.target.checked })}
-                              sx={{
-                                '&.Mui-checked': { color: '#f59e0b' }
-                              }}
-                            />
-                          }
-                          label={
-                            <Box>
-                              <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#1e293b' }}>
-                                ⬆️ Enable Sorting
-                              </Typography>
-                              <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem' }}>
-                                Click column headers to sort ascending/descending
-                              </Typography>
-                            </Box>
-                          }
-                        />
-                      </Box>
-
-                      <Divider sx={{ my: 0.5 }} />
-
-                      {/* FILTER */}
-                      <Box>
-                        <FormControlLabel
-                          control={
-                            <Checkbox
-                              checked={gridSettings.filter}
-                              onChange={(e) => updateGridSettings({ ...gridSettings, filter: e.target.checked })}
-                              sx={{
-                                '&.Mui-checked': { color: '#f59e0b' }
-                              }}
-                            />
-                          }
-                          label={
-                            <Box>
-                              <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#1e293b' }}>
-                                🔍 Enable Column Filters
-                              </Typography>
-                              <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem' }}>
-                                Filter menu icon in column headers
-                              </Typography>
-                            </Box>
-                          }
-                        />
-                      </Box>
-
-                      <Divider sx={{ my: 0.5 }} />
-
-                      {/* RESIZABLE */}
-                      <Box>
-                        <FormControlLabel
-                          control={
-                            <Checkbox
-                              checked={gridSettings.resizable}
-                              onChange={(e) => updateGridSettings({ ...gridSettings, resizable: e.target.checked })}
-                              sx={{
-                                '&.Mui-checked': { color: '#f59e0b' }
-                              }}
-                            />
-                          }
-                          label={
-                            <Box>
-                              <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#1e293b' }}>
-                                ↔️ Enable Column Resize
-                              </Typography>
-                              <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem' }}>
-                                Drag column borders to adjust width
-                              </Typography>
-                            </Box>
-                          }
-                        />
-                      </Box>
-                    </Stack>
-                  </DialogContent>
-
-                  <DialogActions sx={{ p: 2, background: '#fef3c7', gap: 1 }}>
+                    <Chip
+                      label={draftSavedAt ? `Draft saved ${new Date(draftSavedAt).toLocaleTimeString()}` : 'No draft'}
+                      color={draftExists ? 'success' : 'default'}
+                      size="small"
+                      sx={{ height: 28 }}
+                    />
                     <Button
-                      onClick={() => {
-                        const defaultSettings = {
-                          sortable: true,
-                          filter: true,
-                          resizable: true,
-                          editable: true,
-                        };
-                        updateGridSettings(defaultSettings);
-                        toast.success('Settings reset to default');
-                      }}
+                      size="small"
+                      variant="outlined"
+                      onClick={() => saveDraftImmediate()}
+                      disabled={draftSaving}
+                      sx={{ height: 32, fontSize: '0.75rem' }}
+                    >
+                      Save Draft
+                    </Button>
+                    <Button
+                      size="small"
+                      variant="text"
+                      onClick={clearDraft}
+                      disabled={!draftExists}
+                      sx={{ height: 32, fontSize: '0.75rem' }}
+                    >
+                      Clear Draft
+                    </Button>
+
+                    {/* +500 ROWS BUTTON - Desktop only */}
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      onClick={add500Rows}
                       sx={{
+                        display: { xs: 'none', md: 'flex' },
+                        height: 32,
+                        fontSize: '0.75rem',
                         fontWeight: 700,
-                        color: '#78716c',
+                        borderColor: '#f59e0b',
+                        color: '#f59e0b',
                         '&:hover': {
-                          bgcolor: 'rgba(120, 113, 108, 0.1)'
+                          borderColor: '#d97706',
+                          bgcolor: 'rgba(245, 158, 11, 0.1)'
                         }
                       }}
                     >
-                      ðŸ”„ Reset All
+                      +500 Rows
                     </Button>
-                    <Box sx={{ flex: 1 }} />
+
+                    {/* SUBMIT BUTTON */}
                     <Button
                       variant="contained"
-                      onClick={() => setGridSettingsOpen(false)}
+                      onClick={handleMultiSubmit}
+                      disabled={multiLoading}
+                      startIcon={multiLoading ? <CircularProgress size={18} sx={{ color: 'white' }} /> : <CheckCircle sx={{ fontSize: 18 }} />}
                       sx={{
-                        background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
-                        fontWeight: 700,
-                        boxShadow: '0 4px 12px rgba(245, 158, 11, 0.3)',
-                        '&:hover': {
-                          background: 'linear-gradient(135deg, #d97706 0%, #b45309 100)',
-                        }
+                        ml: 'auto',
+                        height: 38,
+                        fontSize: '0.75rem',
+                        fontWeight: 600,
+                        minWidth: { xs: 150, sm: 200 },
+                        background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
                       }}
                     >
-                      Done
+                      SUBMIT ALL ({multiRows.filter((r) => r.wsn?.trim()).length} rows)
                     </Button>
-                  </DialogActions>
-                </Dialog>
+                  </Box>
 
-
-
-                {/* DRAFT STATUS + ACTIONS + SUBMIT - Single Row */}
-                <Box sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: { xs: 0.5, sm: 1 },
-                  flexWrap: 'wrap',
-                  py: 0.5,
-                  flexShrink: 0
-                }}>
-                  <Chip
-                    label={draftSavedAt ? `Draft saved ${new Date(draftSavedAt).toLocaleTimeString()}` : 'No draft'}
-                    color={draftExists ? 'success' : 'default'}
-                    size="small"
-                    sx={{ height: 28 }}
-                  />
-                  <Button
-                    size="small"
-                    variant="outlined"
-                    onClick={() => saveDraftImmediate()}
-                    disabled={draftSaving}
-                    sx={{ height: 32, fontSize: '0.75rem' }}
+                  {/* COLUMN SETTINGS DIALOG */}
+                  <Dialog
+                    open={columnSettingsOpen}
+                    onClose={() => setColumnSettingsOpen(false)}
+                    maxWidth="sm"
+                    fullWidth
+                    PaperProps={{ sx: { borderRadius: 2 } }}
                   >
-                    Save Draft
-                  </Button>
-                  <Button
-                    size="small"
-                    variant="text"
-                    onClick={clearDraft}
-                    disabled={!draftExists}
-                    sx={{ height: 32, fontSize: '0.75rem' }}
-                  >
-                    Clear Draft
-                  </Button>
+                    <DialogTitle
+                      sx={{
+                        fontWeight: 800,
+                        background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
+                        color: 'white',
+                        py: 2,
+                      }}
+                    >
+                      ⚙️ Column View Settings
+                    </DialogTitle>
+                    <DialogContent sx={{ py: 3, maxHeight: 600, overflow: 'auto' }}>
+                      <Typography
+                        variant="subtitle2"
+                        sx={{
+                          mb: 2,
+                          fontWeight: 800,
+                          color: '#1e40af',
+                          textTransform: 'uppercase',
+                          fontSize: '0.75rem',
+                        }}
+                      >
+                        Editable Fields
+                      </Typography>
+                      <Stack spacing={1} sx={{ mb: 3 }}>
+                        {EDITABLE_COLUMNS.map((col) => (
+                          <FormControlLabel
+                            key={col}
+                            control={
+                              <Checkbox
+                                checked={visibleColumns.includes(col)}
+                                disabled={col === 'sno'}  // ✅ Can't uncheck serial number
+                                onChange={(e) => {
+                                  if (col === 'sno') return;  // ✅ Safety check
 
-                  {/* +500 ROWS BUTTON - Desktop only */}
-                  <Button
-                    size="small"
-                    variant="outlined"
-                    onClick={add500Rows}
-                    sx={{
-                      display: { xs: 'none', md: 'flex' },
-                      height: 32,
-                      fontSize: '0.75rem',
-                      fontWeight: 700,
-                      borderColor: '#f59e0b',
-                      color: '#f59e0b',
-                      '&:hover': {
-                        borderColor: '#d97706',
-                        bgcolor: 'rgba(245, 158, 11, 0.1)'
-                      }
-                    }}
-                  >
-                    +500 Rows
-                  </Button>
+                                  let next: string[];
+                                  if (e.target.checked) {
+                                    // Add column
+                                    next = [...visibleColumns, col];
+                                  } else {
+                                    // Remove column
+                                    next = visibleColumns.filter((c: string) => c !== col);
+                                  }
 
-                  {/* SUBMIT BUTTON */}
-                  <Button
-                    variant="contained"
-                    onClick={handleMultiSubmit}
-                    disabled={multiLoading}
-                    startIcon={multiLoading ? <CircularProgress size={18} sx={{ color: 'white' }} /> : <CheckCircle sx={{ fontSize: 18 }} />}
-                    sx={{
-                      ml: 'auto',
-                      height: 38,
-                      fontSize: '0.75rem',
-                      fontWeight: 600,
-                      minWidth: { xs: 150, sm: 200 },
-                      background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
-                    }}
-                  >
-                    SUBMIT ALL ({multiRows.filter((r) => r.wsn?.trim()).length} rows)
-                  </Button>
+                                  // ✅ Build ordered array respecting user's choices
+                                  const ordered = [
+                                    'sno',  // Always first
+                                    ...EDITABLE_COLUMNS.filter(c => c !== 'sno' && next.includes(c)),  // User-selected editable columns
+                                    ...ALL_MASTER_COLUMNS.filter(c => next.includes(c))  // User-selected master columns
+                                  ];
+
+                                  saveColumnSettings(ordered);
+                                }}
+                              />
+                            }
+                            label={col === 'sno' ? 'S.No' : col.replace(/([A-Z])/g, ' $1').toUpperCase()}
+                          />
+                        ))}
+
+
+                      </Stack>
+
+                      <Divider sx={{ my: 2 }} />
+                      <Typography
+                        variant="subtitle2"
+                        sx={{
+                          mb: 2,
+                          fontWeight: 800,
+                          color: '#3b82f6',
+                          textTransform: 'uppercase',
+                          fontSize: '0.75rem',
+                        }}
+                      >
+                        Read-Only Master Data
+                      </Typography>
+                      <Stack spacing={1}>
+                        {ALL_MASTER_COLUMNS.map((col) => (
+                          <FormControlLabel
+                            key={col}
+                            control={
+                              <Checkbox
+                                checked={visibleColumns.includes(col)}
+                                onChange={(e) => {
+                                  let next: string[];
+                                  if (e.target.checked) {
+                                    // Add column
+                                    next = [...visibleColumns, col];
+                                  } else {
+                                    // Remove column
+                                    next = visibleColumns.filter((c: string) => c !== col);
+                                  }
+
+                                  // ✅ Build ordered array respecting user's choices
+                                  const ordered = [
+                                    'sno',  // Always first
+                                    ...EDITABLE_COLUMNS.filter(c => c !== 'sno' && next.includes(c)),  // User-selected editable columns
+                                    ...ALL_MASTER_COLUMNS.filter(c => next.includes(c))  // User-selected master columns
+                                  ];
+
+                                  saveColumnSettings(ordered);
+                                }}
+                              />
+                            }
+                            label={col.replace(/([A-Z])/g, ' $1').toUpperCase()}
+                          />
+                        ))}
+
+                      </Stack>
+                    </DialogContent>
+                    <DialogActions sx={{ p: 2, background: '#f9fafb' }}>
+                      <Button onClick={() => setColumnSettingsOpen(false)} sx={{ fontWeight: 700 }}>
+                        Close
+                      </Button>
+                      <Button
+                        variant="contained"
+                        onClick={() => setColumnSettingsOpen(false)}
+                        sx={{ background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)', fontWeight: 700 }}
+                      >
+                        Done
+                      </Button>
+                    </DialogActions>
+                  </Dialog>
                 </Box>
-
-                {/* COLUMN SETTINGS DIALOG */}
-                <Dialog
-                  open={columnSettingsOpen}
-                  onClose={() => setColumnSettingsOpen(false)}
-                  maxWidth="sm"
-                  fullWidth
-                  PaperProps={{ sx: { borderRadius: 2 } }}
-                >
-                  <DialogTitle
-                    sx={{
-                      fontWeight: 800,
-                      background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
-                      color: 'white',
-                      py: 2,
-                    }}
-                  >
-                    ⚙️ Column View Settings
-                  </DialogTitle>
-                  <DialogContent sx={{ py: 3, maxHeight: 600, overflow: 'auto' }}>
-                    <Typography
-                      variant="subtitle2"
-                      sx={{
-                        mb: 2,
-                        fontWeight: 800,
-                        color: '#1e40af',
-                        textTransform: 'uppercase',
-                        fontSize: '0.75rem',
-                      }}
-                    >
-                      Editable Fields
-                    </Typography>
-                    <Stack spacing={1} sx={{ mb: 3 }}>
-                      {EDITABLE_COLUMNS.map((col) => (
-                        <FormControlLabel
-                          key={col}
-                          control={
-                            <Checkbox
-                              checked={visibleColumns.includes(col)}
-                              disabled={col === 'sno'}  // ✅ Can't uncheck serial number
-                              onChange={(e) => {
-                                if (col === 'sno') return;  // ✅ Safety check
-
-                                let next: string[];
-                                if (e.target.checked) {
-                                  // Add column
-                                  next = [...visibleColumns, col];
-                                } else {
-                                  // Remove column
-                                  next = visibleColumns.filter((c: string) => c !== col);
-                                }
-
-                                // ✅ Build ordered array respecting user's choices
-                                const ordered = [
-                                  'sno',  // Always first
-                                  ...EDITABLE_COLUMNS.filter(c => c !== 'sno' && next.includes(c)),  // User-selected editable columns
-                                  ...ALL_MASTER_COLUMNS.filter(c => next.includes(c))  // User-selected master columns
-                                ];
-
-                                saveColumnSettings(ordered);
-                              }}
-                            />
-                          }
-                          label={col === 'sno' ? 'S.No' : col.replace(/([A-Z])/g, ' $1').toUpperCase()}
-                        />
-                      ))}
-
-
-                    </Stack>
-
-                    <Divider sx={{ my: 2 }} />
-                    <Typography
-                      variant="subtitle2"
-                      sx={{
-                        mb: 2,
-                        fontWeight: 800,
-                        color: '#3b82f6',
-                        textTransform: 'uppercase',
-                        fontSize: '0.75rem',
-                      }}
-                    >
-                      Read-Only Master Data
-                    </Typography>
-                    <Stack spacing={1}>
-                      {ALL_MASTER_COLUMNS.map((col) => (
-                        <FormControlLabel
-                          key={col}
-                          control={
-                            <Checkbox
-                              checked={visibleColumns.includes(col)}
-                              onChange={(e) => {
-                                let next: string[];
-                                if (e.target.checked) {
-                                  // Add column
-                                  next = [...visibleColumns, col];
-                                } else {
-                                  // Remove column
-                                  next = visibleColumns.filter((c: string) => c !== col);
-                                }
-
-                                // ✅ Build ordered array respecting user's choices
-                                const ordered = [
-                                  'sno',  // Always first
-                                  ...EDITABLE_COLUMNS.filter(c => c !== 'sno' && next.includes(c)),  // User-selected editable columns
-                                  ...ALL_MASTER_COLUMNS.filter(c => next.includes(c))  // User-selected master columns
-                                ];
-
-                                saveColumnSettings(ordered);
-                              }}
-                            />
-                          }
-                          label={col.replace(/([A-Z])/g, ' $1').toUpperCase()}
-                        />
-                      ))}
-
-                    </Stack>
-                  </DialogContent>
-                  <DialogActions sx={{ p: 2, background: '#f9fafb' }}>
-                    <Button onClick={() => setColumnSettingsOpen(false)} sx={{ fontWeight: 700 }}>
-                      Close
-                    </Button>
-                    <Button
-                      variant="contained"
-                      onClick={() => setColumnSettingsOpen(false)}
-                      sx={{ background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)', fontWeight: 700 }}
-                    >
-                      Done
-                    </Button>
-                  </DialogActions>
-                </Dialog>
-              </Box>
-            );
-          })()}
+              );
+            })()
+          }
 
           {/* ========== TAB 3: BULK UPLOAD ========== */}
-          {currentTabCode === 'bulk' && (
-            <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', p: { xs: 1, sm: 1.5, md: 2 }, overflow: 'auto' }}>
-              <BulkUploadCard
-                module="qc"
-                warehouseId={activeWarehouse?.id || 0}
-                userId={user?.id}
-                onUploadComplete={() => {
-                  loadQCList();
-                  loadStats();
-                  loadBatches();
-                }}
-                onDownloadTemplate={handleConfirmDownload}
-                templateColumns={['WSN', 'QCBYNAME', 'QCDATE', 'GRADE', 'QCREMARKS', 'OTHERREMARKS', 'PRODUCTSERIALNUMBER', 'RACKNO']}
-                title="🔍 Bulk QC Upload"
-              />
-            </Box>
-          )}
+          {
+            currentTabCode === 'bulk' && (
+              <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', p: { xs: 1, sm: 1.5, md: 2 }, overflow: 'auto' }}>
+                <BulkUploadCard
+                  module="qc"
+                  warehouseId={activeWarehouse?.id || 0}
+                  userId={user?.id}
+                  onUploadComplete={() => {
+                    loadQCList();
+                    loadStats();
+                    loadBatches();
+                  }}
+                  onDownloadTemplate={handleConfirmDownload}
+                  templateColumns={['WSN', 'QCBYNAME', 'QCDATE', 'GRADE', 'QCREMARKS', 'OTHERREMARKS', 'PRODUCTSERIALNUMBER', 'RACKNO']}
+                  title="🔍 Bulk QC Upload"
+                />
+              </Box>
+            )
+          }
 
           {/* ========== TAB 4: BATCH MANAGER ========== */}
           {
@@ -5784,10 +5295,10 @@ export default function QCPage() {
               />
             )
           }
-        </Paper>
+        </Paper >
 
         {/* EXPORT DIALOG */}
-        <Dialog open={exportDialogOpen} onClose={() => setExportDialogOpen(false)} maxWidth="sm" fullWidth container={isFullscreen ? multiEntryContainerRef.current : undefined}>
+        < Dialog open={exportDialogOpen} onClose={() => setExportDialogOpen(false)} maxWidth="sm" fullWidth container={isFullscreen ? multiEntryContainerRef.current : undefined} >
           <DialogTitle>📥 Export QC Data</DialogTitle>
           <DialogContent>
             <Stack spacing={2} sx={{ mt: 2 }}>
@@ -5816,10 +5327,10 @@ export default function QCPage() {
               Export
             </Button>
           </DialogActions>
-        </Dialog>
+        </Dialog >
 
         {/* GRADE MANAGEMENT DIALOG */}
-        <Dialog open={gradeDialogOpen} onClose={() => { setGradeDialogOpen(false); setNewGrade(''); setEditingGradeIndex(null); }} maxWidth="sm" fullWidth container={isFullscreen ? multiEntryContainerRef.current : undefined}>
+        < Dialog open={gradeDialogOpen} onClose={() => { setGradeDialogOpen(false); setNewGrade(''); setEditingGradeIndex(null); }} maxWidth="sm" fullWidth container={isFullscreen ? multiEntryContainerRef.current : undefined} >
           <DialogTitle>⚙️ Manage QC Grades</DialogTitle>
           <DialogContent>
             <Stack spacing={2} sx={{ mt: 2 }}>
@@ -5856,10 +5367,10 @@ export default function QCPage() {
           <DialogActions>
             <Button onClick={() => { setGradeDialogOpen(false); setNewGrade(''); setEditingGradeIndex(null); }}>Done</Button>
           </DialogActions>
-        </Dialog>
+        </Dialog >
 
         {/* COLUMN SETTINGS - LIST */}
-        <Dialog open={listColumnSettingsOpen} onClose={() => setListColumnSettingsOpen(false)} maxWidth="sm" fullWidth container={isFullscreen ? multiEntryContainerRef.current : undefined}>
+        < Dialog open={listColumnSettingsOpen} onClose={() => setListColumnSettingsOpen(false)} maxWidth="sm" fullWidth container={isFullscreen ? multiEntryContainerRef.current : undefined} >
           <DialogTitle>⚙️ Column Settings</DialogTitle>
           <DialogContent>
             <Stack spacing={1} sx={{ mt: 2 }}>
@@ -5881,17 +5392,410 @@ export default function QCPage() {
           <DialogActions>
             <Button onClick={() => setListColumnSettingsOpen(false)}>Done</Button>
           </DialogActions>
-        </Dialog>
+        </Dialog >
 
         {/* WSN Overwrite Warning Dialog */}
-        <WSNOverwriteDialog
+        < WSNOverwriteDialog
           data={wsnOverwriteDialog}
           onCancel={handleOverwriteCancel}
           onReplace={handleOverwriteReplace}
           onAddToNextRow={handleOverwriteAddToNextRow}
           container={isFullscreen ? multiEntryContainerRef.current : undefined}
         />
+
+        {/* ================= QC LIST OPTIONS PANEL DRAWER ================= */}
+        <Drawer
+          anchor="right"
+          open={qcOptionsPanelOpen}
+          onClose={() => setQcOptionsPanelOpen(false)}
+          PaperProps={{
+            sx: {
+              width: { xs: '85%', sm: 380 },
+              maxWidth: '100vw',
+              bgcolor: isDarkMode ? '#1e293b' : '#ffffff',
+              borderLeft: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0'
+            }
+          }}
+        >
+          {/* Panel Header */}
+          <Box sx={{
+            p: 2,
+            background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
+            color: 'white',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            position: 'sticky',
+            top: 0,
+            zIndex: 10
+          }}>
+            <Typography sx={{ fontWeight: 700, fontSize: '1rem' }}>🔍 Options</Typography>
+            <IconButton size="small" onClick={() => setQcOptionsPanelOpen(false)} sx={{ color: 'white' }}>
+              <CloseIcon />
+            </IconButton>
+          </Box>
+
+          {/* Panel Content with Accordions */}
+          <Box sx={{ overflow: 'auto', flex: 1 }}>
+
+            {/* ═══════════ FILTERS ACCORDION ═══════════ */}
+            <Accordion
+              expanded={qcSettingsPanelExpanded === 'filters'}
+              onChange={(_, isExpanded) => setQcSettingsPanelExpanded(isExpanded ? 'filters' : false)}
+              disableGutters
+              sx={{
+                bgcolor: 'transparent',
+                boxShadow: 'none',
+                '&:before': { display: 'none' },
+                borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0'
+              }}
+            >
+              <AccordionSummary
+                expandIcon={<ExpandMoreIcon sx={{ color: isDarkMode ? '#94a3b8' : '#64748b' }} />}
+                sx={{
+                  px: 2,
+                  minHeight: 56,
+                  '&.Mui-expanded': { minHeight: 56 },
+                  '& .MuiAccordionSummary-content': { my: 1.5 }
+                }}
+              >
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                  <FilterListIcon sx={{ color: '#3b82f6', fontSize: 22 }} />
+                  <Box>
+                    <Typography sx={{ fontWeight: 700, fontSize: '0.9rem', color: isDarkMode ? '#e2e8f0' : '#1e293b' }}>Filters</Typography>
+                    <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>
+                      {filtersActive ? 'Active filters applied' : 'No filters applied'}
+                    </Typography>
+                  </Box>
+                </Box>
+              </AccordionSummary>
+              <AccordionDetails sx={{ px: 2, pb: 2, pt: 0 }}>
+                <Stack spacing={1.5}>
+                  {/* Date Filters */}
+                  <Box sx={{ display: 'flex', gap: 1 }}>
+                    <TextField
+                      label="From Date"
+                      type="date"
+                      size="small"
+                      InputLabelProps={{ shrink: true }}
+                      value={dateFromFilter || ''}
+                      onChange={(e) => { setDateFromFilter(e.target.value); setPage(1); }}
+                      fullWidth
+                      sx={{
+                        '& .MuiOutlinedInput-root': {
+                          height: 40,
+                          bgcolor: isDarkMode ? '#0f172a' : '#f8fafc',
+                        }
+                      }}
+                    />
+                    <TextField
+                      label="To Date"
+                      type="date"
+                      size="small"
+                      InputLabelProps={{ shrink: true }}
+                      value={dateToFilter || ''}
+                      onChange={(e) => { setDateToFilter(e.target.value); setPage(1); }}
+                      fullWidth
+                      sx={{
+                        '& .MuiOutlinedInput-root': {
+                          height: 40,
+                          bgcolor: isDarkMode ? '#0f172a' : '#f8fafc',
+                        }
+                      }}
+                    />
+                  </Box>
+
+                  {/* Grade Filter */}
+                  <FormControl size="small" fullWidth>
+                    <InputLabel>Grade</InputLabel>
+                    <Select
+                      value={gradeFilter}
+                      label="Grade"
+                      onChange={(e) => { setGradeFilter(e.target.value); setPage(1); }}
+                      sx={{ height: 40, bgcolor: isDarkMode ? '#0f172a' : '#f8fafc' }}
+                    >
+                      <MenuItem value="">All Grades</MenuItem>
+                      {QC_GRADES.map(g => <MenuItem key={g} value={g}>{g}</MenuItem>)}
+                    </Select>
+                  </FormControl>
+
+                  {/* Brand Filter */}
+                  <FormControl size="small" fullWidth>
+                    <InputLabel>Brand</InputLabel>
+                    <Select
+                      value={brandFilter}
+                      label="Brand"
+                      onChange={(e) => { setBrandFilter(e.target.value); setPage(1); }}
+                      sx={{ height: 40, bgcolor: isDarkMode ? '#0f172a' : '#f8fafc' }}
+                    >
+                      <MenuItem value="">All Brands</MenuItem>
+                      {brands.map(b => <MenuItem key={b} value={b}>{b}</MenuItem>)}
+                    </Select>
+                  </FormControl>
+
+                  {/* Category Filter */}
+                  <FormControl size="small" fullWidth>
+                    <InputLabel>Category</InputLabel>
+                    <Select
+                      value={categoryFilter}
+                      label="Category"
+                      onChange={(e) => { setCategoryFilter(e.target.value); setPage(1); }}
+                      sx={{ height: 40, bgcolor: isDarkMode ? '#0f172a' : '#f8fafc' }}
+                    >
+                      <MenuItem value="">All Categories</MenuItem>
+                      {categories.map(c => <MenuItem key={c} value={c}>{c}</MenuItem>)}
+                    </Select>
+                  </FormControl>
+                </Stack>
+              </AccordionDetails>
+            </Accordion>
+
+            {/* ═══════════ COLUMNS ACCORDION ═══════════ */}
+            {canSeeButton('list:columns') && (
+              <Accordion
+                expanded={qcSettingsPanelExpanded === 'columns'}
+                onChange={(_, isExpanded) => setQcSettingsPanelExpanded(isExpanded ? 'columns' : false)}
+                disableGutters
+                sx={{
+                  bgcolor: 'transparent',
+                  boxShadow: 'none',
+                  '&:before': { display: 'none' },
+                  borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0'
+                }}
+              >
+                <AccordionSummary
+                  expandIcon={<ExpandMoreIcon sx={{ color: isDarkMode ? '#94a3b8' : '#64748b' }} />}
+                  sx={{
+                    px: 2,
+                    minHeight: 56,
+                    '&.Mui-expanded': { minHeight: 56 },
+                    '& .MuiAccordionSummary-content': { my: 1.5 }
+                  }}
+                >
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                    <ViewColumnIcon sx={{ color: '#10b981', fontSize: 22 }} />
+                    <Box>
+                      <Typography sx={{ fontWeight: 700, fontSize: '0.9rem', color: isDarkMode ? '#e2e8f0' : '#1e293b' }}>Columns</Typography>
+                      <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>
+                        {listColumns.filter(c => c.visible).length} of {ALL_LIST_COLUMNS.length} visible
+                      </Typography>
+                    </Box>
+                  </Box>
+                </AccordionSummary>
+                <AccordionDetails sx={{ px: 2, pb: 2, pt: 0 }}>
+                  {!canAccessButton('list:columns') ? (
+                    <Alert severity="warning" sx={{ fontSize: '0.8rem' }}>
+                      You don't have permission to manage columns
+                    </Alert>
+                  ) : (
+                    <Box sx={{ maxHeight: 280, overflow: 'auto', pr: 1 }}>
+                      <Stack spacing={0.5}>
+                        {ALL_LIST_COLUMNS.map((col) => (
+                          <FormControlLabel
+                            key={col}
+                            control={
+                              <Checkbox
+                                size="small"
+                                checked={listColumns.find(c => c.key === col)?.visible || false}
+                                onChange={() => handleListColumnToggle(col)}
+                                sx={{ py: 0.25, '&.Mui-checked': { color: '#10b981' } }}
+                              />
+                            }
+                            label={
+                              <Typography sx={{ fontSize: '0.8rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>
+                                {col.replace(/_/g, ' ').toUpperCase()}
+                              </Typography>
+                            }
+                            sx={{ m: 0 }}
+                          />
+                        ))}
+                      </Stack>
+                    </Box>
+                  )}
+                </AccordionDetails>
+              </Accordion>
+            )}
+
+            {/* ═══════════ GRID SETTINGS ACCORDION ═══════════ */}
+            <Accordion
+              expanded={qcSettingsPanelExpanded === 'grid'}
+              onChange={(_, isExpanded) => setQcSettingsPanelExpanded(isExpanded ? 'grid' : false)}
+              disableGutters
+              sx={{
+                bgcolor: 'transparent',
+                boxShadow: 'none',
+                '&:before': { display: 'none' },
+                borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0'
+              }}
+            >
+              <AccordionSummary
+                expandIcon={<ExpandMoreIcon sx={{ color: isDarkMode ? '#94a3b8' : '#64748b' }} />}
+                sx={{
+                  px: 2,
+                  minHeight: 56,
+                  '&.Mui-expanded': { minHeight: 56 },
+                  '& .MuiAccordionSummary-content': { my: 1.5 }
+                }}
+              >
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                  <TableChartIcon sx={{ color: '#f59e0b', fontSize: 22 }} />
+                  <Box>
+                    <Typography sx={{ fontWeight: 700, fontSize: '0.9rem', color: isDarkMode ? '#e2e8f0' : '#1e293b' }}>Grid Settings</Typography>
+                    <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>Sorting, filtering, resize</Typography>
+                  </Box>
+                </Box>
+              </AccordionSummary>
+              <AccordionDetails sx={{ px: 2, pb: 2, pt: 0 }}>
+                <Stack spacing={1.5}>
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={enableSorting}
+                        onChange={(e) => setEnableSorting(e.target.checked)}
+                        sx={{ '&.Mui-checked': { color: '#f59e0b' } }}
+                      />
+                    }
+                    label={
+                      <Box>
+                        <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>⬆️ Enable Sorting</Typography>
+                        <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>Click headers to sort</Typography>
+                      </Box>
+                    }
+                  />
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={enableColumnFilters}
+                        onChange={(e) => setEnableColumnFilters(e.target.checked)}
+                        sx={{ '&.Mui-checked': { color: '#f59e0b' } }}
+                      />
+                    }
+                    label={
+                      <Box>
+                        <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>🔍 Enable Filtering</Typography>
+                        <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>Filter in column headers</Typography>
+                      </Box>
+                    }
+                  />
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={enableColumnResize}
+                        onChange={(e) => setEnableColumnResize(e.target.checked)}
+                        sx={{ '&.Mui-checked': { color: '#f59e0b' } }}
+                      />
+                    }
+                    label={
+                      <Box>
+                        <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>↔️ Column Resize</Typography>
+                        <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>Drag borders to resize</Typography>
+                      </Box>
+                    }
+                  />
+                  <Button
+                    size="small"
+                    onClick={() => {
+                      setEnableSorting(true);
+                      setEnableColumnFilters(true);
+                      setEnableColumnResize(true);
+                      toast.success('Grid settings reset');
+                    }}
+                    sx={{ alignSelf: 'flex-start', fontSize: '0.75rem', color: isDarkMode ? '#94a3b8' : '#64748b' }}
+                  >
+                    🔄 Reset to Default
+                  </Button>
+                </Stack>
+              </AccordionDetails>
+            </Accordion>
+
+            {/* ═══════════ ACTIONS SECTION ═══════════ */}
+            <Box sx={{ p: 2, borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0' }}>
+              <Typography sx={{ fontWeight: 700, fontSize: '0.8rem', color: isDarkMode ? '#94a3b8' : '#64748b', mb: 1.5, textTransform: 'uppercase' }}>
+                Actions
+              </Typography>
+              <Stack spacing={1}>
+                {canSeeButton('list:export') && (
+                  <Tooltip title={!canAccessButton('list:export') ? "You don't have permission to use this feature" : ""} arrow>
+                    <span style={{ width: '100%' }}>
+                      <Button
+                        fullWidth
+                        variant="contained"
+                        startIcon={<DownloadIcon />}
+                        disabled={!canAccessButton('list:export')}
+                        onClick={() => {
+                          if (!canAccessButton('list:export')) return;
+                          setExportDialogOpen(true);
+                          setQcOptionsPanelOpen(false);
+                        }}
+                        sx={{
+                          height: 44,
+                          background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                          fontWeight: 600,
+                          '&:hover': { background: 'linear-gradient(135deg, #059669 0%, #047857 100%)' },
+                          '&.Mui-disabled': { background: '#94a3b8' }
+                        }}
+                      >
+                        Export to Excel
+                      </Button>
+                    </span>
+                  </Tooltip>
+                )}
+
+                <Button
+                  fullWidth
+                  variant="outlined"
+                  startIcon={refreshing ? <CircularProgress size={16} /> : <RefreshIcon />}
+                  disabled={refreshing}
+                  onClick={() => {
+                    loadQCList({ buttonRefresh: true });
+                    setQcOptionsPanelOpen(false);
+                  }}
+                  sx={{
+                    height: 44,
+                    fontWeight: 600,
+                    borderColor: '#3b82f6',
+                    color: '#3b82f6',
+                    '&:hover': { borderColor: '#2563eb', bgcolor: 'rgba(59, 130, 246, 0.08)' }
+                  }}
+                >
+                  {refreshing ? 'Refreshing...' : 'Refresh Data'}
+                </Button>
+
+                {filtersActive && (
+                  <Button
+                    fullWidth
+                    variant="outlined"
+                    startIcon={<FilterListIcon />}
+                    onClick={() => {
+                      setListLoading(true);
+                      setSearchFilter('');
+                      setStatusFilter('');
+                      setGradeFilter('');
+                      setBrandFilter('');
+                      setCategoryFilter('');
+                      setDateFromFilter('');
+                      setDateToFilter('');
+                      setPage(1);
+                      setQcOptionsPanelOpen(false);
+                    }}
+                    sx={{
+                      height: 44,
+                      fontWeight: 600,
+                      borderColor: '#f59e0b',
+                      color: '#f59e0b',
+                      '&:hover': { borderColor: '#d97706', bgcolor: 'rgba(245, 158, 11, 0.08)' }
+                    }}
+                  >
+                    Reset All Filters
+                  </Button>
+                )}
+              </Stack>
+            </Box>
+          </Box>
+        </Drawer>
+
       </Box >
     </AppLayout >
   );
 }
+

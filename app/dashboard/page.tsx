@@ -1909,74 +1909,57 @@ export default function DashboardPage() {
                 </Button>
               </Tooltip>
 
-              {/* Menu / Reset Button - Shows Reset when filters are active */}
-              {filtersActive ? (
-                <Tooltip title="Reset all filters">
-                  <Button
-                    variant="contained"
-                    size="small"
-                    onClick={() => {
-                      resetFilters();
-                      // Close settings panel if open
-                      setSettingsPanelOpen(false);
-                    }}
-                    sx={{
-                      height: { xs: 40, md: 42 },
-                      minWidth: { xs: 'auto', md: 100 },
-                      px: { xs: 1.5, md: 2 },
-                      fontSize: "0.75rem",
-                      fontWeight: 700,
-                      whiteSpace: "nowrap",
-                      borderRadius: 2,
-                      flexShrink: 0,
-                      background: "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)",
-                      color: 'white',
-                      "&:hover": {
-                        background: "linear-gradient(135deg, #d97706 0%, #b45309 100%)",
-                      },
-                    }}
-                  >
-                    <RestartAltIcon sx={{ fontSize: '1.1rem', mr: { xs: 0, md: 0.5 } }} />
-                    <Box component="span" sx={{ display: { xs: 'none', md: 'inline' } }}>Reset</Box>
-                  </Button>
-                </Tooltip>
-              ) : (
-                <Tooltip title="Open Options Panel">
-                  <Button
-                    variant="outlined"
-                    size="small"
-                    onClick={() => {
-                      setSettingsPanelOpen(true);
-                      // ⚡ LAZY LOAD: Load filter options when settings panel opens
-                      if (!filtersLoaded) {
-                        loadFilterOptions();
-                      }
-                    }}
-                    sx={{
-                      height: { xs: 40, md: 42 },
-                      minWidth: { xs: 'auto', md: 100 },
-                      px: { xs: 1.5, md: 2 },
-                      fontSize: "0.75rem",
-                      fontWeight: 600,
-                      whiteSpace: "nowrap",
-                      borderRadius: 2,
-                      flexShrink: 0,
-                      borderColor: isDarkMode ? '#3b82f6' : '#1e40af',
-                      color: isDarkMode ? '#60a5fa' : '#1e40af',
-                      bgcolor: isDarkMode ? 'rgba(59, 130, 246, 0.08)' : 'rgba(30, 64, 175, 0.04)',
+              {/* Options Button - Always visible with green dot indicator when filters active */}
+              <Tooltip title="Open Options Panel">
+                <Button
+                  variant="outlined"
+                  size="small"
+                  onClick={() => {
+                    setSettingsPanelOpen(true);
+                    // ⚡ LAZY LOAD: Load filter options when settings panel opens
+                    if (!filtersLoaded) {
+                      loadFilterOptions();
+                    }
+                  }}
+                  sx={{
+                    height: { xs: 40, md: 42 },
+                    minWidth: { xs: 'auto', md: 100 },
+                    px: { xs: 1.5, md: 2 },
+                    fontSize: "0.75rem",
+                    fontWeight: 600,
+                    whiteSpace: "nowrap",
+                    borderRadius: 2,
+                    flexShrink: 0,
+                    borderColor: isDarkMode ? '#3b82f6' : '#1e40af',
+                    color: isDarkMode ? '#60a5fa' : '#1e40af',
+                    bgcolor: isDarkMode ? 'rgba(59, 130, 246, 0.08)' : 'rgba(30, 64, 175, 0.04)',
+                    borderWidth: 1.5,
+                    position: 'relative',
+                    "&:hover": {
                       borderWidth: 1.5,
-                      "&:hover": {
-                        borderWidth: 1.5,
-                        borderColor: '#3b82f6',
-                        bgcolor: 'rgba(59, 130, 246, 0.12)',
-                      },
-                    }}
-                  >
-                    <MenuIcon sx={{ fontSize: '1.1rem', mr: { xs: 0, md: 0.5 } }} />
-                    <Box component="span" sx={{ display: { xs: 'none', md: 'inline' } }}>Options</Box>
-                  </Button>
-                </Tooltip>
-              )}
+                      borderColor: '#3b82f6',
+                      bgcolor: 'rgba(59, 130, 246, 0.12)',
+                    },
+                  }}
+                >
+                  <MenuIcon sx={{ fontSize: '1.1rem', mr: { xs: 0, md: 0.5 } }} />
+                  <Box component="span" sx={{ display: { xs: 'none', md: 'inline' } }}>Options</Box>
+                  {/* Green dot indicator when filters are active */}
+                  {filtersActive && (
+                    <Box sx={{
+                      position: 'absolute',
+                      top: -4,
+                      right: -4,
+                      width: 12,
+                      height: 12,
+                      borderRadius: '50%',
+                      bgcolor: '#10b981',
+                      border: '2px solid white',
+                      boxShadow: '0 2px 4px rgba(16, 185, 129, 0.4)'
+                    }} />
+                  )}
+                </Button>
+              </Tooltip>
             </Box>
           </Box>
 
@@ -3067,10 +3050,12 @@ export default function DashboardPage() {
                 variant="outlined"
                 startIcon={loading ? <CircularProgress size={16} /> : <RefreshIcon />}
                 disabled={loading}
-                onClick={() => {
-                  loadInventoryData();
-                  loadMetrics();
+                onClick={async () => {
                   setSettingsPanelOpen(false);
+                  await loadInventoryData(true, false);
+                  loadMetrics();
+                  loadInventorySummary();
+                  toast.success('Data refreshed');
                 }}
                 sx={{
                   height: 44,
