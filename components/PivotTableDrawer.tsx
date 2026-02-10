@@ -37,6 +37,9 @@ import {
     FormControlLabel,
     Stack,
     Divider,
+    Menu,
+    ListItemIcon,
+    ListItemText,
 } from '@mui/material';
 import {
     Close as CloseIcon,
@@ -48,6 +51,9 @@ import {
     Settings as SettingsIcon,
     Fullscreen as FullscreenIcon,
     FullscreenExit as FullscreenExitIcon,
+    KeyboardArrowDown as ArrowDownIcon,
+    Summarize as SummaryIcon,
+    TableView as AllDataIcon,
 } from '@mui/icons-material';
 import { dashboardAPI } from '@/lib/api';
 import { AgGridReact } from 'ag-grid-react';
@@ -141,6 +147,9 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
     const [exportingExcel, setExportingExcel] = useState(false);
     const [exportingAllData, setExportingAllData] = useState(false);
     const [drilldownLimit, setDrilldownLimit] = useState(100);
+
+    // Export menu state (for smaller screens)
+    const [exportMenuAnchor, setExportMenuAnchor] = useState<null | HTMLElement>(null);
 
     // Grid settings state
     const [gridSettingsOpen, setGridSettingsOpen] = useState(false);
@@ -592,127 +601,187 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
                     </Box>
                 </Box>
 
-                {/* Controls - Compact 2-row layout on mobile */}
+                {/* Controls - Single compact row */}
                 <Box
                     sx={{
-                        p: { xs: 0.75, md: 2 },
-                        bgcolor: isDarkMode ? '#1e293b' : 'white',
+                        bgcolor: isDarkMode ? '#1e293b' : '#f8fafc',
                         borderBottom: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)'}`,
+                        px: { xs: 1, md: 1.5 },
+                        py: { xs: 0.75, md: 1 },
                         display: 'flex',
-                        flexDirection: 'column',
-                        gap: { xs: 0.75, md: 2 },
+                        alignItems: 'center',
+                        gap: { xs: 0.75, md: 1 },
+                        flexWrap: 'wrap',
                     }}
                 >
-                    {/* Row 1: Group By + Brand (mobile) | All in row (desktop) */}
-                    <Box sx={{ display: 'flex', flexDirection: { xs: 'row', md: 'row' }, gap: { xs: 0.75, md: 2 }, alignItems: 'center' }}>
-                        <FormControl size="small" sx={{ flex: { xs: 1, md: 'none' }, minWidth: { md: 120 }, '& .MuiInputBase-root': { height: { xs: 32, md: 40 } } }}>
-                            <InputLabel sx={{ fontSize: { xs: '0.7rem', md: '1rem' } }}>Group By</InputLabel>
-                            <Select
-                                value={groupBy}
-                                label="Group By"
-                                onChange={(e) => setGroupBy(e.target.value)}
-                                sx={{ fontSize: { xs: '0.75rem', md: '1rem' } }}
-                            >
-                                {groupByOptions.map(opt => (
-                                    <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
-                                ))}
-                            </Select>
-                        </FormControl>
-
-                        <FormControl size="small" sx={{ flex: { xs: 1, md: 'none' }, minWidth: { md: 140 }, '& .MuiInputBase-root': { height: { xs: 32, md: 40 } } }}>
-                            <InputLabel sx={{ fontSize: { xs: '0.7rem', md: '1rem' } }}>Brand</InputLabel>
-                            <Select
-                                value={brandFilter}
-                                label="Brand"
-                                onChange={(e) => setBrandFilter(e.target.value)}
-                                sx={{ fontSize: { xs: '0.75rem', md: '1rem' } }}
-                            >
-                                <MenuItem value="">All Brands</MenuItem>
-                                {allBrands.map(brand => (
-                                    <MenuItem key={brand} value={brand}>{brand}</MenuItem>
-                                ))}
-                            </Select>
-                        </FormControl>
-
-                        {/* Desktop only: Category + spacer + buttons */}
-                        <FormControl size="small" sx={{ display: { xs: 'none', md: 'flex' }, minWidth: 140, '& .MuiInputBase-root': { height: 40 } }}>
-                            <InputLabel>Category</InputLabel>
-                            <Select
-                                value={categoryFilter}
-                                label="Category"
-                                onChange={(e) => setCategoryFilter(e.target.value)}
-                            >
-                                <MenuItem value="">All Categories</MenuItem>
-                                {allCategories.map(cat => (
-                                    <MenuItem key={cat} value={cat}>{cat}</MenuItem>
-                                ))}
-                            </Select>
-                        </FormControl>
-
-                        <Box sx={{ display: { xs: 'none', md: 'block' }, flex: 1 }} />
-                        <Stack direction="row" spacing={1} sx={{ display: { xs: 'none', md: 'flex' } }}>
-                            <Button
-                                size="small"
-                                variant="outlined"
-                                startIcon={<DownloadIcon sx={{ fontSize: 20 }} />}
-                                onClick={handleExportPivotSummary}
-                                disabled={loading || pivotData.length === 0}
-                                sx={{ fontSize: '0.875rem', py: 1 }}
-                            >
-                                Export Summary
-                            </Button>
-                            <Button
-                                size="small"
-                                variant="contained"
-                                color="primary"
-                                startIcon={exportingAllData ? <CircularProgress size={14} color="inherit" /> : <DownloadIcon sx={{ fontSize: 20 }} />}
-                                onClick={handleExportAllData}
-                                disabled={loading || pivotData.length === 0 || exportingAllData}
-                                sx={{ fontSize: '0.875rem', py: 1 }}
-                            >
-                                {exportingAllData ? 'Exporting...' : 'Export All Data'}
-                            </Button>
-                        </Stack>
-                    </Box>
-
-                    {/* Row 2 (Mobile only): Category + Export buttons */}
-                    <Box sx={{ display: { xs: 'flex', md: 'none' }, flexDirection: 'row', gap: 0.75, alignItems: 'center' }}>
-                        <FormControl size="small" sx={{ flex: 1, '& .MuiInputBase-root': { height: 32 } }}>
-                            <InputLabel sx={{ fontSize: '0.7rem' }}>Category</InputLabel>
-                            <Select
-                                value={categoryFilter}
-                                label="Category"
-                                onChange={(e) => setCategoryFilter(e.target.value)}
-                                sx={{ fontSize: '0.75rem' }}
-                            >
-                                <MenuItem value="">All Categories</MenuItem>
-                                {allCategories.map(cat => (
-                                    <MenuItem key={cat} value={cat}>{cat}</MenuItem>
-                                ))}
-                            </Select>
-                        </FormControl>
-                        <Button
-                            size="small"
-                            variant="outlined"
-                            startIcon={<DownloadIcon sx={{ fontSize: 14 }} />}
-                            onClick={handleExportPivotSummary}
-                            disabled={loading || pivotData.length === 0}
-                            sx={{ fontSize: '0.65rem', py: 0.5, px: 1, minWidth: 'auto', whiteSpace: 'nowrap' }}
+                    {/* Group By - Compact Select */}
+                    <FormControl
+                        size="small"
+                        sx={{
+                            minWidth: { xs: 90, md: 110 },
+                            '& .MuiInputBase-root': {
+                                height: { xs: 28, md: 32 },
+                                bgcolor: isDarkMode ? '#0f172a' : 'white',
+                                borderRadius: 1,
+                            },
+                            '& .MuiInputLabel-root': {
+                                fontSize: { xs: '0.7rem', md: '0.8rem' },
+                            },
+                            '& .MuiSelect-select': {
+                                fontSize: { xs: '0.7rem', md: '0.8rem' },
+                                py: { xs: '4px', md: '6px' },
+                            }
+                        }}
+                    >
+                        <InputLabel>Group By</InputLabel>
+                        <Select
+                            value={groupBy}
+                            label="Group By"
+                            onChange={(e) => setGroupBy(e.target.value)}
                         >
-                            Summary
-                        </Button>
-                        <Button
-                            size="small"
-                            variant="contained"
-                            color="primary"
-                            startIcon={exportingAllData ? <CircularProgress size={12} color="inherit" /> : <DownloadIcon sx={{ fontSize: 14 }} />}
-                            onClick={handleExportAllData}
-                            disabled={loading || pivotData.length === 0 || exportingAllData}
-                            sx={{ fontSize: '0.65rem', py: 0.5, px: 1, minWidth: 'auto', whiteSpace: 'nowrap' }}
+                            {groupByOptions.map(opt => (
+                                <MenuItem key={opt.value} value={opt.value} sx={{ fontSize: '0.85rem' }}>{opt.label}</MenuItem>
+                            ))}
+                        </Select>
+                    </FormControl>
+
+                    {/* Brand - Compact Select */}
+                    <FormControl
+                        size="small"
+                        sx={{
+                            minWidth: { xs: 80, md: 100 },
+                            '& .MuiInputBase-root': {
+                                height: { xs: 28, md: 32 },
+                                bgcolor: isDarkMode ? '#0f172a' : 'white',
+                                borderRadius: 1,
+                            },
+                            '& .MuiInputLabel-root': {
+                                fontSize: { xs: '0.7rem', md: '0.8rem' },
+                            },
+                            '& .MuiSelect-select': {
+                                fontSize: { xs: '0.7rem', md: '0.8rem' },
+                                py: { xs: '4px', md: '6px' },
+                            }
+                        }}
+                    >
+                        <InputLabel>Brand</InputLabel>
+                        <Select
+                            value={brandFilter}
+                            label="Brand"
+                            onChange={(e) => setBrandFilter(e.target.value)}
                         >
-                            {exportingAllData ? '...' : 'All Data'}
-                        </Button>
-                    </Box>
+                            <MenuItem value="" sx={{ fontSize: '0.85rem' }}>All</MenuItem>
+                            {allBrands.map(brand => (
+                                <MenuItem key={brand} value={brand} sx={{ fontSize: '0.85rem' }}>{brand}</MenuItem>
+                            ))}
+                        </Select>
+                    </FormControl>
+
+                    {/* Category - Compact Select */}
+                    <FormControl
+                        size="small"
+                        sx={{
+                            minWidth: { xs: 80, md: 100 },
+                            '& .MuiInputBase-root': {
+                                height: { xs: 28, md: 32 },
+                                bgcolor: isDarkMode ? '#0f172a' : 'white',
+                                borderRadius: 1,
+                            },
+                            '& .MuiInputLabel-root': {
+                                fontSize: { xs: '0.7rem', md: '0.8rem' },
+                            },
+                            '& .MuiSelect-select': {
+                                fontSize: { xs: '0.7rem', md: '0.8rem' },
+                                py: { xs: '4px', md: '6px' },
+                            }
+                        }}
+                    >
+                        <InputLabel>Category</InputLabel>
+                        <Select
+                            value={categoryFilter}
+                            label="Category"
+                            onChange={(e) => setCategoryFilter(e.target.value)}
+                        >
+                            <MenuItem value="" sx={{ fontSize: '0.85rem' }}>All</MenuItem>
+                            {allCategories.map(cat => (
+                                <MenuItem key={cat} value={cat} sx={{ fontSize: '0.85rem' }}>{cat}</MenuItem>
+                            ))}
+                        </Select>
+                    </FormControl>
+
+                    {/* Spacer */}
+                    <Box sx={{ flex: 1 }} />
+
+                    {/* Export Button */}
+                    <Button
+                        size="small"
+                        variant="contained"
+                        startIcon={<DownloadIcon sx={{ fontSize: { xs: 14, md: 16 } }} />}
+                        endIcon={<ArrowDownIcon sx={{ fontSize: { xs: 14, md: 16 } }} />}
+                        onClick={(e) => setExportMenuAnchor(e.currentTarget)}
+                        disabled={loading || pivotData.length === 0}
+                        sx={{
+                            fontSize: { xs: '0.7rem', md: '0.8rem' },
+                            py: { xs: 0.5, md: 0.65 },
+                            px: { xs: 1, md: 1.5 },
+                            minWidth: 'auto',
+                            background: 'linear-gradient(135deg, #0d9488 0%, #0f766e 100%)',
+                            boxShadow: '0 2px 8px rgba(13, 148, 136, 0.3)',
+                            '&:hover': {
+                                background: 'linear-gradient(135deg, #0f766e 0%, #115e59 100%)',
+                                boxShadow: '0 4px 12px rgba(13, 148, 136, 0.4)',
+                            }
+                        }}
+                    >
+                        Export
+                    </Button>
+                    <Menu
+                        anchorEl={exportMenuAnchor}
+                        open={Boolean(exportMenuAnchor)}
+                        onClose={() => setExportMenuAnchor(null)}
+                        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+                        transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+                        PaperProps={{
+                            sx: {
+                                mt: 0.5,
+                                minWidth: 180,
+                                bgcolor: isDarkMode ? '#1e293b' : 'white',
+                                border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}`,
+                                boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+                            }
+                        }}
+                    >
+                        <MenuItem
+                            onClick={() => { handleExportPivotSummary(); setExportMenuAnchor(null); }}
+                            sx={{ py: 1, gap: 1.5 }}
+                        >
+                            <ListItemIcon sx={{ minWidth: 'auto' }}>
+                                <SummaryIcon fontSize="small" sx={{ color: '#0d9488' }} />
+                            </ListItemIcon>
+                            <ListItemText
+                                primary="Export Summary"
+                                primaryTypographyProps={{ fontSize: '0.85rem', fontWeight: 500 }}
+                            />
+                        </MenuItem>
+                        <Divider sx={{ my: 0.5 }} />
+                        <MenuItem
+                            onClick={() => { handleExportAllData(); setExportMenuAnchor(null); }}
+                            disabled={exportingAllData}
+                            sx={{ py: 1, gap: 1.5 }}
+                        >
+                            <ListItemIcon sx={{ minWidth: 'auto' }}>
+                                {exportingAllData ? (
+                                    <CircularProgress size={18} />
+                                ) : (
+                                    <AllDataIcon fontSize="small" sx={{ color: '#7c3aed' }} />
+                                )}
+                            </ListItemIcon>
+                            <ListItemText
+                                primary={exportingAllData ? 'Exporting...' : 'Export All Data'}
+                                primaryTypographyProps={{ fontSize: '0.85rem', fontWeight: 500 }}
+                            />
+                        </MenuItem>
+                    </Menu>
                 </Box>
 
                 {/* Loading */}
