@@ -75,6 +75,7 @@ export default function PrinterSettingsPage() {
   });
 
   const [printers, setPrinters] = useState<PrinterInfo[]>([]);
+  const [printerFetchError, setPrinterFetchError] = useState<string>('');
   const [agentStatus, setAgentStatus] = useState<'connected' | 'disconnected' | 'checking'>('checking');
   const [loading, setLoading] = useState(true);
   const [saveMessage, setSaveMessage] = useState('');
@@ -89,6 +90,13 @@ export default function PrinterSettingsPage() {
   useEffect(() => {
     if (settings.agentPort) {
       checkAgentStatus();
+
+      // Periodic status check every 30 seconds
+      const interval = setInterval(() => {
+        checkAgentStatus();
+      }, 30000);
+
+      return () => clearInterval(interval);
     }
   }, [settings.agentPort]);
 
@@ -97,6 +105,7 @@ export default function PrinterSettingsPage() {
     if (!agentPort) return;
 
     setAgentStatus('checking');
+    console.log(`🔍 Checking agent health at http://127.0.0.1:${agentPort}/health`);
 
     try {
       const controller = new AbortController();
@@ -112,14 +121,18 @@ export default function PrinterSettingsPage() {
 
       if (response.ok) {
         const data = await response.json();
+        console.log('✅ Agent health OK:', data);
         setAgentStatus('connected');
         setAgentVersion(data.version || '1.0.0');
         await fetchPrinters(agentPort);
       } else {
+        console.error('❌ Agent health check failed:', response.status);
         setAgentStatus('disconnected');
       }
     } catch (err: any) {
+      console.error('❌ Agent not reachable:', err.message || err);
       setAgentStatus('disconnected');
+      setPrinterFetchError('Print Agent not running - install from below');
     }
   };
 
@@ -127,9 +140,13 @@ export default function PrinterSettingsPage() {
     const agentPort = port || settings.agentPort;
     if (!agentPort) return;
 
+    setPrinterFetchError('');
+
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3000);
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+      console.log(`🔍 Fetching printers from http://127.0.0.1:${agentPort}/printers`);
 
       const response = await fetch(`http://127.0.0.1:${agentPort}/printers`, {
         method: 'GET',
@@ -141,10 +158,45 @@ export default function PrinterSettingsPage() {
 
       if (response.ok) {
         const data = await response.json();
-        setPrinters(data.printers || []);
-        console.log('📋 Printers loaded:', data.printers);
+        console.log('📋 Raw printer response:', JSON.stringify(data, null, 2));
+
+        // Handle different response formats
+        const printerList = data.printers || data.list || data || [];
+        const normalizedPrinters = Array.isArray(printerList)
+          ? printerList.map((p: any) => typeof p === 'string' ? { name: p } : p)
+          : [];
+
+        setPrinters(normalizedPrinters);
+        console.log('✅ Printers loaded:', normalizedPrinters.length, 'printers');
+
+        if (normalizedPrinters.length === 0) {
+          setPrinterFetchError('No printers found - check USB connection');
+          console.warn('⚠️ Agent connected but no printers found.');
+        }
+      } else {
+        const errorMsg = `HTTP ${response.status}: ${response.statusText}`;
+        setPrinterFetchError(errorMsg);
+        console.error('❌ Printer fetch failed:', errorMsg);
+        setPrinters([]);
       }
-    } catch (err) {
+    } catch (err: any) {
+      let errorMsg = err.message || 'Unknown error';
+
+      // More detailed error logging
+      if (err.name === 'TypeError' && err.message.includes('Failed to fetch')) {
+        errorMsg = 'Connection Refused - Print Agent not running';
+        console.error('❌ ERR_CONNECTION_REFUSED: Print Agent is NOT running on this system!');
+        // Also update agent status since connection is refused
+        setAgentStatus('disconnected');
+      } else if (err.name === 'AbortError') {
+        errorMsg = 'Timeout - Agent not responding';
+        console.error('❌ Timeout: Print Agent took too long to respond');
+        setAgentStatus('disconnected');
+      } else {
+        console.error('❌ Error fetching printers:', err.name, err.message);
+      }
+
+      setPrinterFetchError(errorMsg);
       setPrinters([]);
     }
   };
@@ -430,6 +482,16 @@ export default function PrinterSettingsPage() {
                       sx={{ ml: 1, mt: { xs: 0.5, sm: 0 }, fontWeight: 600 }}
                     />
                   )}
+                  {agentStatus === 'connected' && printers.length === 0 && (
+                    <Chip
+                      icon={<ErrorIcon fontSize="small" />}
+                      label="No printers detected"
+                      size="small"
+                      color="warning"
+                      variant="outlined"
+                      sx={{ ml: 1, mt: { xs: 0.5, sm: 0 }, fontWeight: 600 }}
+                    />
+                  )}
                 </Box>
 
                 {/* RIGHT - Actions */}
@@ -475,6 +537,44 @@ export default function PrinterSettingsPage() {
               onClose={() => setSaveMessage('')}
             >
               {saveMessage}
+            </Alert>
+          )}
+
+          {/* Warning when agent connected but no printers found */}
+          {agentStatus === 'connected' && printers.length === 0 && (
+            <Alert
+              severity="warning"
+              variant="outlined"
+              sx={{
+                mt: 1.5,
+                fontWeight: 500,
+                '& .MuiAlert-message': { width: '100%' }
+              }}
+              icon={<PrintIcon />}
+            >
+              <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
+                ⚠️ Agent Connected - No Printers Detected
+              </Typography>
+              <Typography variant="body2" sx={{ mb: 1.5 }}>
+                The print agent is running but no printers were found. Please check:
+              </Typography>
+              <Box component="ul" sx={{ pl: 2, m: 0 }}>
+                <li><Typography variant="caption">Printer is connected via <strong>USB cable</strong></Typography></li>
+                <li><Typography variant="caption">Printer is <strong>powered ON</strong></Typography></li>
+                <li><Typography variant="caption">Printer driver is <strong>installed</strong> (check Windows Settings → Printers & scanners)</Typography></li>
+                <li><Typography variant="caption">Try <strong>restarting the Print Agent</strong> from system tray</Typography></li>
+                <li><Typography variant="caption">Press <strong>F12 → Console</strong> to see debug logs</Typography></li>
+              </Box>
+              <Button
+                variant="outlined"
+                color="warning"
+                size="small"
+                startIcon={<RefreshIcon />}
+                onClick={() => fetchPrinters(settings.agentPort)}
+                sx={{ mt: 1.5, fontWeight: 600 }}
+              >
+                Retry Printer Detection
+              </Button>
             </Alert>
           )}
 
@@ -611,7 +711,7 @@ export default function PrinterSettingsPage() {
 
                   <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
                     <Box sx={{ flex: { xs: '1 1 100%', sm: '1 1 calc(65% - 8px)' } }}>
-                      <FormControl fullWidth>
+                      <FormControl fullWidth error={!!printerFetchError}>
                         <InputLabel>Default Thermal Printer</InputLabel>
                         <Select
                           value={settings.defaultPrinter}
@@ -628,6 +728,23 @@ export default function PrinterSettingsPage() {
                             </MenuItem>
                           ))}
                         </Select>
+                        {/* Show printer count or error */}
+                        {agentStatus === 'connected' && (
+                          <Typography
+                            variant="caption"
+                            sx={{
+                              mt: 0.5,
+                              color: printerFetchError ? 'error.main' : (printers.length > 0 ? 'success.main' : 'warning.main'),
+                              fontWeight: 500
+                            }}
+                          >
+                            {printerFetchError
+                              ? `⚠️ ${printerFetchError}`
+                              : printers.length > 0
+                                ? `✅ ${printers.length} printer(s) found`
+                                : '⏳ Loading printers...'}
+                          </Typography>
+                        )}
                       </FormControl>
                     </Box>
 
