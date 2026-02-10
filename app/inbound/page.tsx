@@ -2416,7 +2416,11 @@ export default function InboundPage() {
   const dragStartCellRef = useRef<{ rowIndex: number; colId: string } | null>(null);
 
   // ✅ EXCEL ENHANCEMENT: Handle cell mouse down - start drag selection
-  const handleCellMouseDown = useCallback((rowIndex: number, colId: string, shiftKey: boolean) => {
+  // FIXED: Only allow left mouse button (button === 0) for drag selection
+  const handleCellMouseDown = useCallback((rowIndex: number, colId: string, shiftKey: boolean, mouseButton: number) => {
+    // Only allow left mouse button (button === 0) for selection
+    if (mouseButton !== 0) return;
+
     if (shiftKey && rangeStartCellRef.current) {
       // Shift+Click: Extend selection from start cell to this cell
       setSelectedRange({
@@ -2436,14 +2440,25 @@ export default function InboundPage() {
   }, []);
 
   // ✅ EXCEL ENHANCEMENT: Handle cell mouse over - extend selection while dragging
+  // FIXED: Only create selection when mouse moves to a DIFFERENT cell (Excel behavior)
   const handleCellMouseOver = useCallback((rowIndex: number, colId: string) => {
     if (!isDraggingRef.current || !dragStartCellRef.current) return;
 
-    // Update selection range while dragging
+    // ✅ EXCEL FIX: Only create selection if target cell is DIFFERENT from start cell
+    // This prevents accidental selection when clicking a single cell with slight mouse movement
+    const startRow = dragStartCellRef.current.rowIndex;
+    const startCol = dragStartCellRef.current.colId;
+
+    if (rowIndex === startRow && colId === startCol) {
+      // Same cell - don't create selection (Excel behavior: single click = no range)
+      return;
+    }
+
+    // Update selection range while dragging to a different cell
     setSelectedRange({
-      startRow: dragStartCellRef.current.rowIndex,
+      startRow: startRow,
       endRow: rowIndex,
-      startCol: dragStartCellRef.current.colId,
+      startCol: startCol,
       endCol: colId,
     });
   }, []);
@@ -6785,7 +6800,8 @@ export default function InboundPage() {
                       if (rowIndex === null || rowIndex === undefined || !colId) return;
 
                       const browserEvent = event.event as MouseEvent;
-                      handleCellMouseDown(rowIndex, colId, browserEvent?.shiftKey || false);
+                      // Pass mouse button to handler (0 = left, 1 = middle, 2 = right)
+                      handleCellMouseDown(rowIndex, colId, browserEvent?.shiftKey || false, browserEvent?.button ?? 0);
                     }}
 
                     // ⚡ EXCEL-LIKE: Handle cell mouse over for drag selection extend
