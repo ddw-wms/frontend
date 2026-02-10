@@ -606,30 +606,34 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
                     sx={{
                         bgcolor: isDarkMode ? '#1e293b' : '#f8fafc',
                         borderBottom: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)'}`,
-                        px: { xs: 1, md: 1.5 },
-                        py: { xs: 0.75, md: 1 },
+                        px: { xs: 0.75, md: 1.5 },
+                        py: { xs: 0.5, md: 1 },
                         display: 'flex',
                         alignItems: 'center',
-                        gap: { xs: 0.75, md: 1 },
-                        flexWrap: 'wrap',
+                        gap: { xs: 0.5, md: 1 },
+                        overflowX: 'auto',
+                        '&::-webkit-scrollbar': { display: 'none' },
+                        scrollbarWidth: 'none',
                     }}
                 >
                     {/* Group By - Compact Select */}
                     <FormControl
                         size="small"
                         sx={{
-                            minWidth: { xs: 90, md: 110 },
+                            minWidth: { xs: 75, md: 110 },
+                            flexShrink: 0,
                             '& .MuiInputBase-root': {
-                                height: { xs: 28, md: 32 },
+                                height: { xs: 26, md: 32 },
                                 bgcolor: isDarkMode ? '#0f172a' : 'white',
                                 borderRadius: 1,
                             },
                             '& .MuiInputLabel-root': {
-                                fontSize: { xs: '0.7rem', md: '0.8rem' },
+                                fontSize: { xs: '0.65rem', md: '0.8rem' },
                             },
                             '& .MuiSelect-select': {
-                                fontSize: { xs: '0.7rem', md: '0.8rem' },
-                                py: { xs: '4px', md: '6px' },
+                                fontSize: { xs: '0.65rem', md: '0.8rem' },
+                                py: { xs: '3px', md: '6px' },
+                                px: { xs: '8px', md: '14px' },
                             }
                         }}
                     >
@@ -649,18 +653,20 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
                     <FormControl
                         size="small"
                         sx={{
-                            minWidth: { xs: 80, md: 100 },
+                            minWidth: { xs: 65, md: 100 },
+                            flexShrink: 0,
                             '& .MuiInputBase-root': {
-                                height: { xs: 28, md: 32 },
+                                height: { xs: 26, md: 32 },
                                 bgcolor: isDarkMode ? '#0f172a' : 'white',
                                 borderRadius: 1,
                             },
                             '& .MuiInputLabel-root': {
-                                fontSize: { xs: '0.7rem', md: '0.8rem' },
+                                fontSize: { xs: '0.65rem', md: '0.8rem' },
                             },
                             '& .MuiSelect-select': {
-                                fontSize: { xs: '0.7rem', md: '0.8rem' },
-                                py: { xs: '4px', md: '6px' },
+                                fontSize: { xs: '0.65rem', md: '0.8rem' },
+                                py: { xs: '3px', md: '6px' },
+                                px: { xs: '8px', md: '14px' },
                             }
                         }}
                     >
@@ -681,18 +687,20 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
                     <FormControl
                         size="small"
                         sx={{
-                            minWidth: { xs: 80, md: 100 },
+                            minWidth: { xs: 70, md: 100 },
+                            flexShrink: 0,
                             '& .MuiInputBase-root': {
-                                height: { xs: 28, md: 32 },
+                                height: { xs: 26, md: 32 },
                                 bgcolor: isDarkMode ? '#0f172a' : 'white',
                                 borderRadius: 1,
                             },
                             '& .MuiInputLabel-root': {
-                                fontSize: { xs: '0.7rem', md: '0.8rem' },
+                                fontSize: { xs: '0.65rem', md: '0.8rem' },
                             },
                             '& .MuiSelect-select': {
-                                fontSize: { xs: '0.7rem', md: '0.8rem' },
-                                py: { xs: '4px', md: '6px' },
+                                fontSize: { xs: '0.65rem', md: '0.8rem' },
+                                py: { xs: '3px', md: '6px' },
+                                px: { xs: '8px', md: '14px' },
                             }
                         }}
                     >
@@ -710,21 +718,22 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
                     </FormControl>
 
                     {/* Spacer */}
-                    <Box sx={{ flex: 1 }} />
+                    <Box sx={{ flex: 1, minWidth: { xs: 4, md: 8 } }} />
 
                     {/* Export Button */}
                     <Button
                         size="small"
                         variant="contained"
-                        startIcon={<DownloadIcon sx={{ fontSize: { xs: 14, md: 16 } }} />}
-                        endIcon={<ArrowDownIcon sx={{ fontSize: { xs: 14, md: 16 } }} />}
+                        startIcon={<DownloadIcon sx={{ fontSize: { xs: 12, md: 16 } }} />}
+                        endIcon={<ArrowDownIcon sx={{ fontSize: { xs: 12, md: 16 } }} />}
                         onClick={(e) => setExportMenuAnchor(e.currentTarget)}
                         disabled={loading || pivotData.length === 0}
                         sx={{
-                            fontSize: { xs: '0.7rem', md: '0.8rem' },
-                            py: { xs: 0.5, md: 0.65 },
-                            px: { xs: 1, md: 1.5 },
+                            fontSize: { xs: '0.6rem', md: '0.8rem' },
+                            py: { xs: 0.35, md: 0.65 },
+                            px: { xs: 0.75, md: 1.5 },
                             minWidth: 'auto',
+                            flexShrink: 0,
                             background: 'linear-gradient(135deg, #0d9488 0%, #0f766e 100%)',
                             boxShadow: '0 2px 8px rgba(13, 148, 136, 0.3)',
                             '&:hover': {
