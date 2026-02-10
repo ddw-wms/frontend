@@ -832,6 +832,19 @@ export default function InboundPage() {
     const key = getDraftKey();
     if (!key) return;
     try {
+      // 1. Cancel any pending sync timeout FIRST to prevent stale data sync
+      if (receivingSyncTimeoutRef.current) {
+        clearTimeout(receivingSyncTimeoutRef.current);
+        receivingSyncTimeoutRef.current = null;
+      }
+
+      // 2. Clear receiving WSNs from database (removes undone WSNs too)
+      await clearReceivingWSNs();
+
+      // 3. Reset the sync tracking ref so next sync starts fresh
+      lastSyncedWSNsRef.current = '';
+
+      // 4. Clear draft from IndexedDB
       await localforage.removeItem(key);
       setDraftSavedAt(null);
       setDraftExists(false);
