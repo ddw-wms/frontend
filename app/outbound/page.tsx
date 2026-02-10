@@ -8217,13 +8217,15 @@ export default function OutboundPage() {
                                                                 size="small"
                                                                 checked={listColumns.includes(col)}
                                                                 onChange={() => {
-                                                                    setListColumns((prev: string[]) => {
-                                                                        const newCols = prev.includes(col)
-                                                                            ? prev.filter((c: string) => c !== col)
-                                                                            : [...prev, col];
-                                                                        localStorage.setItem('outboundListColumns', JSON.stringify(newCols));
-                                                                        return newCols;
-                                                                    });
+                                                                    let next: string[];
+                                                                    if (listColumns.includes(col)) {
+                                                                        next = listColumns.filter((c: string) => c !== col);
+                                                                    } else {
+                                                                        next = [...listColumns, col];
+                                                                    }
+                                                                    // Maintain order using ALL_LIST_COLUMNS
+                                                                    const ordered = ALL_LIST_COLUMNS.filter((c) => next.includes(c));
+                                                                    saveListColumnSettings(ordered);
                                                                 }}
                                                                 sx={{ py: 0.25, '&.Mui-checked': { color: '#10b981' } }}
                                                             />

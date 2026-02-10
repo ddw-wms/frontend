@@ -8185,13 +8185,17 @@ export default function InboundPage() {
                               size="small"
                               checked={listColumns.includes(col)}
                               onChange={() => {
-                                setListColumns((prev: string[]) => {
-                                  const newCols = prev.includes(col)
-                                    ? prev.filter((c: string) => c !== col)
-                                    : [...prev, col];
-                                  localStorage.setItem('inboundListColumns', JSON.stringify(newCols));
-                                  return newCols;
-                                });
+                                let next: string[];
+                                if (listColumns.includes(col)) {
+                                  next = listColumns.filter((c: string) => c !== col);
+                                } else {
+                                  next = [...listColumns, col];
+                                }
+                                // Maintain order using INBOUND_LIST_COLUMNS
+                                const ordered = INBOUND_LIST_COLUMNS
+                                  .concat(ALL_MASTER_COLUMNS.filter((c) => !INBOUND_LIST_COLUMNS.includes(c)))
+                                  .filter((c) => next.includes(c));
+                                saveListColumnSettings(ordered);
                               }}
                               sx={{ py: 0.25, '&.Mui-checked': { color: '#10b981' } }}
                             />
