@@ -601,7 +601,7 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
                     </Box>
                 </Box>
 
-                {/* Controls - Single compact row */}
+                {/* Controls - Responsive layout */}
                 <Box
                     sx={{
                         bgcolor: isDarkMode ? '#1e293b' : '#f8fafc',
@@ -611,37 +611,44 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
                         display: 'flex',
                         alignItems: 'center',
                         gap: { xs: 0.5, md: 1 },
-                        overflowX: 'auto',
-                        '&::-webkit-scrollbar': { display: 'none' },
-                        scrollbarWidth: 'none',
                     }}
                 >
-                    {/* Group By - Compact Select */}
+                    {/* Group By Select */}
                     <FormControl
                         size="small"
+                        variant={isMobile ? 'standard' : 'outlined'}
                         sx={{
-                            minWidth: { xs: 75, md: 110 },
+                            minWidth: { xs: 'auto', md: 110 },
                             flexShrink: 0,
                             '& .MuiInputBase-root': {
-                                height: { xs: 26, md: 32 },
-                                bgcolor: isDarkMode ? '#0f172a' : 'white',
+                                height: { xs: 28, md: 32 },
+                                bgcolor: { xs: 'transparent', md: isDarkMode ? '#0f172a' : 'white' },
                                 borderRadius: 1,
-                            },
-                            '& .MuiInputLabel-root': {
-                                fontSize: { xs: '0.65rem', md: '0.8rem' },
+                                '&:before, &:after': { display: { xs: 'none', md: 'block' } },
                             },
                             '& .MuiSelect-select': {
-                                fontSize: { xs: '0.65rem', md: '0.8rem' },
-                                py: { xs: '3px', md: '6px' },
-                                px: { xs: '8px', md: '14px' },
-                            }
+                                fontSize: { xs: '0.7rem', md: '0.8rem' },
+                                py: { xs: '4px', md: '6px' },
+                                px: { xs: '4px', md: '14px' },
+                                fontWeight: { xs: 500, md: 400 },
+                                color: isDarkMode ? 'white' : 'inherit',
+                            },
+                            '& .MuiInputLabel-root': {
+                                display: { xs: 'none', md: 'block' },
+                                fontSize: '0.8rem',
+                            },
                         }}
                     >
-                        <InputLabel>Group By</InputLabel>
+                        {!isMobile && <InputLabel>Group By</InputLabel>}
                         <Select
                             value={groupBy}
-                            label="Group By"
+                            label={isMobile ? '' : 'Group By'}
                             onChange={(e) => setGroupBy(e.target.value)}
+                            displayEmpty
+                            renderValue={(value) => {
+                                const opt = groupByOptions.find(o => o.value === value);
+                                return opt?.label || 'Group By';
+                            }}
                         >
                             {groupByOptions.map(opt => (
                                 <MenuItem key={opt.value} value={opt.value} sx={{ fontSize: '0.85rem' }}>{opt.label}</MenuItem>
@@ -649,68 +656,88 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
                         </Select>
                     </FormControl>
 
-                    {/* Brand - Compact Select */}
+                    {/* Divider on mobile */}
+                    {isMobile && <Box sx={{ width: 1, height: 16, bgcolor: 'rgba(255,255,255,0.2)' }} />}
+
+                    {/* Brand Select */}
                     <FormControl
                         size="small"
+                        variant={isMobile ? 'standard' : 'outlined'}
                         sx={{
-                            minWidth: { xs: 65, md: 100 },
+                            minWidth: { xs: 'auto', md: 100 },
                             flexShrink: 0,
                             '& .MuiInputBase-root': {
-                                height: { xs: 26, md: 32 },
-                                bgcolor: isDarkMode ? '#0f172a' : 'white',
+                                height: { xs: 28, md: 32 },
+                                bgcolor: { xs: 'transparent', md: isDarkMode ? '#0f172a' : 'white' },
                                 borderRadius: 1,
-                            },
-                            '& .MuiInputLabel-root': {
-                                fontSize: { xs: '0.65rem', md: '0.8rem' },
+                                '&:before, &:after': { display: { xs: 'none', md: 'block' } },
                             },
                             '& .MuiSelect-select': {
-                                fontSize: { xs: '0.65rem', md: '0.8rem' },
-                                py: { xs: '3px', md: '6px' },
-                                px: { xs: '8px', md: '14px' },
-                            }
+                                fontSize: { xs: '0.7rem', md: '0.8rem' },
+                                py: { xs: '4px', md: '6px' },
+                                px: { xs: '4px', md: '14px' },
+                                fontWeight: { xs: 500, md: 400 },
+                                color: isDarkMode ? 'white' : 'inherit',
+                            },
+                            '& .MuiInputLabel-root': {
+                                display: { xs: 'none', md: 'block' },
+                                fontSize: '0.8rem',
+                            },
                         }}
                     >
-                        <InputLabel>Brand</InputLabel>
+                        {!isMobile && <InputLabel>Brand</InputLabel>}
                         <Select
                             value={brandFilter}
-                            label="Brand"
+                            label={isMobile ? '' : 'Brand'}
                             onChange={(e) => setBrandFilter(e.target.value)}
+                            displayEmpty
+                            renderValue={(value) => value || 'Brand'}
                         >
-                            <MenuItem value="" sx={{ fontSize: '0.85rem' }}>All</MenuItem>
+                            <MenuItem value="" sx={{ fontSize: '0.85rem' }}>All Brands</MenuItem>
                             {allBrands.map(brand => (
                                 <MenuItem key={brand} value={brand} sx={{ fontSize: '0.85rem' }}>{brand}</MenuItem>
                             ))}
                         </Select>
                     </FormControl>
 
-                    {/* Category - Compact Select */}
+                    {/* Divider on mobile */}
+                    {isMobile && <Box sx={{ width: 1, height: 16, bgcolor: 'rgba(255,255,255,0.2)' }} />}
+
+                    {/* Category Select */}
                     <FormControl
                         size="small"
+                        variant={isMobile ? 'standard' : 'outlined'}
                         sx={{
-                            minWidth: { xs: 70, md: 100 },
+                            minWidth: { xs: 'auto', md: 100 },
                             flexShrink: 0,
                             '& .MuiInputBase-root': {
-                                height: { xs: 26, md: 32 },
-                                bgcolor: isDarkMode ? '#0f172a' : 'white',
+                                height: { xs: 28, md: 32 },
+                                bgcolor: { xs: 'transparent', md: isDarkMode ? '#0f172a' : 'white' },
                                 borderRadius: 1,
-                            },
-                            '& .MuiInputLabel-root': {
-                                fontSize: { xs: '0.65rem', md: '0.8rem' },
+                                '&:before, &:after': { display: { xs: 'none', md: 'block' } },
                             },
                             '& .MuiSelect-select': {
-                                fontSize: { xs: '0.65rem', md: '0.8rem' },
-                                py: { xs: '3px', md: '6px' },
-                                px: { xs: '8px', md: '14px' },
-                            }
+                                fontSize: { xs: '0.7rem', md: '0.8rem' },
+                                py: { xs: '4px', md: '6px' },
+                                px: { xs: '4px', md: '14px' },
+                                fontWeight: { xs: 500, md: 400 },
+                                color: isDarkMode ? 'white' : 'inherit',
+                            },
+                            '& .MuiInputLabel-root': {
+                                display: { xs: 'none', md: 'block' },
+                                fontSize: '0.8rem',
+                            },
                         }}
                     >
-                        <InputLabel>Category</InputLabel>
+                        {!isMobile && <InputLabel>Category</InputLabel>}
                         <Select
                             value={categoryFilter}
-                            label="Category"
+                            label={isMobile ? '' : 'Category'}
                             onChange={(e) => setCategoryFilter(e.target.value)}
+                            displayEmpty
+                            renderValue={(value) => value || 'Category'}
                         >
-                            <MenuItem value="" sx={{ fontSize: '0.85rem' }}>All</MenuItem>
+                            <MenuItem value="" sx={{ fontSize: '0.85rem' }}>All Categories</MenuItem>
                             {allCategories.map(cat => (
                                 <MenuItem key={cat} value={cat} sx={{ fontSize: '0.85rem' }}>{cat}</MenuItem>
                             ))}
@@ -718,20 +745,20 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
                     </FormControl>
 
                     {/* Spacer */}
-                    <Box sx={{ flex: 1, minWidth: { xs: 4, md: 8 } }} />
+                    <Box sx={{ flex: 1 }} />
 
                     {/* Export Button */}
                     <Button
                         size="small"
                         variant="contained"
-                        startIcon={<DownloadIcon sx={{ fontSize: { xs: 12, md: 16 } }} />}
-                        endIcon={<ArrowDownIcon sx={{ fontSize: { xs: 12, md: 16 } }} />}
+                        startIcon={!isMobile ? <DownloadIcon sx={{ fontSize: 16 }} /> : undefined}
+                        endIcon={<ArrowDownIcon sx={{ fontSize: { xs: 14, md: 16 } }} />}
                         onClick={(e) => setExportMenuAnchor(e.currentTarget)}
                         disabled={loading || pivotData.length === 0}
                         sx={{
-                            fontSize: { xs: '0.6rem', md: '0.8rem' },
-                            py: { xs: 0.35, md: 0.65 },
-                            px: { xs: 0.75, md: 1.5 },
+                            fontSize: { xs: '0.75rem', md: '0.8rem' },
+                            py: { xs: 0.5, md: 0.65 },
+                            px: { xs: 1.25, md: 1.5 },
                             minWidth: 'auto',
                             flexShrink: 0,
                             background: 'linear-gradient(135deg, #0d9488 0%, #0f766e 100%)',

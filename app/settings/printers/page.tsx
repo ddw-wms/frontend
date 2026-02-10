@@ -91,21 +91,24 @@ export default function PrinterSettingsPage() {
     if (settings.agentPort) {
       checkAgentStatus();
 
-      // Periodic status check every 30 seconds
+      // Periodic status check every 30 seconds (silent - no flicker)
       const interval = setInterval(() => {
-        checkAgentStatus();
+        checkAgentStatus(undefined, true); // silent mode
       }, 30000);
 
       return () => clearInterval(interval);
     }
   }, [settings.agentPort]);
 
-  const checkAgentStatus = async (port?: number) => {
+  const checkAgentStatus = async (port?: number, silent: boolean = false) => {
     const agentPort = port || settings.agentPort;
     if (!agentPort) return;
 
-    setAgentStatus('checking');
-    console.log(`🔍 Checking agent health at http://127.0.0.1:${agentPort}/health`);
+    // Only show 'checking' status if not silent (prevents flicker)
+    if (!silent) {
+      setAgentStatus('checking');
+      console.log(`🔍 Checking agent health at http://127.0.0.1:${agentPort}/health`);
+    }
 
     try {
       const controller = new AbortController();
@@ -121,16 +124,20 @@ export default function PrinterSettingsPage() {
 
       if (response.ok) {
         const data = await response.json();
-        console.log('✅ Agent health OK:', data);
+        if (!silent) console.log('✅ Agent health OK:', data);
         setAgentStatus('connected');
         setAgentVersion(data.version || '1.0.0');
-        await fetchPrinters(agentPort);
+
+        // Only fetch printers if status changed or not silent
+        if (!silent || printers.length === 0) {
+          await fetchPrinters(agentPort);
+        }
       } else {
-        console.error('❌ Agent health check failed:', response.status);
+        if (!silent) console.error('❌ Agent health check failed:', response.status);
         setAgentStatus('disconnected');
       }
     } catch (err: any) {
-      console.error('❌ Agent not reachable:', err.message || err);
+      if (!silent) console.error('❌ Agent not reachable:', err.message || err);
       setAgentStatus('disconnected');
       setPrinterFetchError('Print Agent not running - install from below');
     }
