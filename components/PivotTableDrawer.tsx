@@ -606,43 +606,41 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
                     sx={{
                         bgcolor: isDarkMode ? '#1e293b' : '#f8fafc',
                         borderBottom: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)'}`,
-                        px: { xs: 0.75, md: 1.5 },
-                        py: { xs: 0.5, md: 1 },
+                        px: { xs: 1, md: 1.5 },
+                        py: { xs: 0.75, md: 1 },
                         display: 'flex',
                         alignItems: 'center',
-                        gap: { xs: 0.5, md: 1 },
+                        gap: { xs: 1, md: 1.5 },
+                        flexWrap: { xs: 'wrap', md: 'nowrap' },
                     }}
                 >
                     {/* Group By Select */}
                     <FormControl
                         size="small"
-                        variant={isMobile ? 'standard' : 'outlined'}
+                        variant="outlined"
                         sx={{
-                            minWidth: { xs: 'auto', md: 110 },
-                            flexShrink: 0,
+                            minWidth: { xs: 90, md: 110 },
+                            flex: { xs: '1 1 auto', md: '0 0 auto' },
                             '& .MuiInputBase-root': {
-                                height: { xs: 28, md: 32 },
-                                bgcolor: { xs: 'transparent', md: isDarkMode ? '#0f172a' : 'white' },
+                                height: { xs: 32, md: 32 },
+                                bgcolor: isDarkMode ? '#0f172a' : 'white',
                                 borderRadius: 1,
-                                '&:before, &:after': { display: { xs: 'none', md: 'block' } },
                             },
                             '& .MuiSelect-select': {
-                                fontSize: { xs: '0.7rem', md: '0.8rem' },
-                                py: { xs: '4px', md: '6px' },
-                                px: { xs: '4px', md: '14px' },
-                                fontWeight: { xs: 500, md: 400 },
+                                fontSize: { xs: '0.75rem', md: '0.8rem' },
+                                py: '6px',
+                                px: '10px',
+                                pr: '28px !important',
+                                fontWeight: 500,
                                 color: isDarkMode ? 'white' : 'inherit',
                             },
-                            '& .MuiInputLabel-root': {
-                                display: { xs: 'none', md: 'block' },
-                                fontSize: '0.8rem',
+                            '& .MuiOutlinedInput-notchedOutline': {
+                                borderColor: isDarkMode ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.15)',
                             },
                         }}
                     >
-                        {!isMobile && <InputLabel>Group By</InputLabel>}
                         <Select
                             value={groupBy}
-                            label={isMobile ? '' : 'Group By'}
                             onChange={(e) => setGroupBy(e.target.value)}
                             displayEmpty
                             renderValue={(value) => {
@@ -656,33 +654,31 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
                         </Select>
                     </FormControl>
 
-                    {/* Divider on mobile */}
-                    {isMobile && <Box sx={{ width: 1, height: 16, bgcolor: 'rgba(255,255,255,0.2)' }} />}
-
                     {/* Brand Select */}
                     <FormControl
                         size="small"
-                        variant={isMobile ? 'standard' : 'outlined'}
+                        variant="outlined"
                         sx={{
-                            minWidth: { xs: 'auto', md: 120 },
-                            maxWidth: { xs: 80, md: 150 },
-                            flexShrink: 0,
+                            minWidth: { xs: 80, md: 120 },
+                            flex: { xs: '1 1 auto', md: '0 0 auto' },
                             '& .MuiInputBase-root': {
-                                height: { xs: 28, md: 32 },
-                                bgcolor: { xs: 'transparent', md: isDarkMode ? '#0f172a' : 'white' },
+                                height: { xs: 32, md: 32 },
+                                bgcolor: isDarkMode ? '#0f172a' : 'white',
                                 borderRadius: 1,
-                                '&:before, &:after': { display: { xs: 'none', md: 'block' } },
                             },
                             '& .MuiSelect-select': {
-                                fontSize: { xs: '0.7rem', md: '0.8rem' },
-                                py: { xs: '4px', md: '6px' },
-                                px: { xs: '4px', md: '14px' },
-                                pr: { xs: '20px', md: '32px' },
-                                fontWeight: { xs: 500, md: 400 },
+                                fontSize: { xs: '0.75rem', md: '0.8rem' },
+                                py: '6px',
+                                px: '10px',
+                                pr: '28px !important',
+                                fontWeight: 500,
                                 color: isDarkMode ? 'white' : 'inherit',
                                 overflow: 'hidden',
                                 textOverflow: 'ellipsis',
                                 whiteSpace: 'nowrap',
+                            },
+                            '& .MuiOutlinedInput-notchedOutline': {
+                                borderColor: isDarkMode ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.15)',
                             },
                         }}
                     >
@@ -699,33 +695,31 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
                         </Select>
                     </FormControl>
 
-                    {/* Divider on mobile */}
-                    {isMobile && <Box sx={{ width: 1, height: 16, bgcolor: 'rgba(255,255,255,0.2)' }} />}
-
                     {/* Category Select */}
                     <FormControl
                         size="small"
-                        variant={isMobile ? 'standard' : 'outlined'}
+                        variant="outlined"
                         sx={{
-                            minWidth: { xs: 'auto', md: 120 },
-                            maxWidth: { xs: 80, md: 150 },
-                            flexShrink: 0,
+                            minWidth: { xs: 80, md: 120 },
+                            flex: { xs: '1 1 auto', md: '0 0 auto' },
                             '& .MuiInputBase-root': {
-                                height: { xs: 28, md: 32 },
-                                bgcolor: { xs: 'transparent', md: isDarkMode ? '#0f172a' : 'white' },
+                                height: { xs: 32, md: 32 },
+                                bgcolor: isDarkMode ? '#0f172a' : 'white',
                                 borderRadius: 1,
-                                '&:before, &:after': { display: { xs: 'none', md: 'block' } },
                             },
                             '& .MuiSelect-select': {
-                                fontSize: { xs: '0.7rem', md: '0.8rem' },
-                                py: { xs: '4px', md: '6px' },
-                                px: { xs: '4px', md: '14px' },
-                                pr: { xs: '20px', md: '32px' },
-                                fontWeight: { xs: 500, md: 400 },
+                                fontSize: { xs: '0.75rem', md: '0.8rem' },
+                                py: '6px',
+                                px: '10px',
+                                pr: '28px !important',
+                                fontWeight: 500,
                                 color: isDarkMode ? 'white' : 'inherit',
                                 overflow: 'hidden',
                                 textOverflow: 'ellipsis',
                                 whiteSpace: 'nowrap',
+                            },
+                            '& .MuiOutlinedInput-notchedOutline': {
+                                borderColor: isDarkMode ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.15)',
                             },
                         }}
                     >
@@ -743,7 +737,7 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
                     </FormControl>
 
                     {/* Spacer */}
-                    <Box sx={{ flex: 1 }} />
+                    <Box sx={{ flex: 1, display: { xs: 'none', md: 'block' } }} />
 
                     {/* Export Button */}
                     <Button
@@ -758,7 +752,7 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
                             py: { xs: 0.5, md: 0.65 },
                             px: { xs: 1.25, md: 1.5 },
                             minWidth: 'auto',
-                            flexShrink: 0,
+                            ml: { xs: 'auto', md: 0 },
                             background: 'linear-gradient(135deg, #0d9488 0%, #0f766e 100%)',
                             boxShadow: '0 2px 8px rgba(13, 148, 136, 0.3)',
                             '&:hover': {
