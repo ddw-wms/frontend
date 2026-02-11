@@ -1975,7 +1975,7 @@ export default function OutboundPage() {
         // ✅ EXCEL FIX: Only create selection if target cell is DIFFERENT from start cell
         const startRow = dragStartCellRef.current.rowIndex;
         const startCol = dragStartCellRef.current.colId;
-        
+
         if (rowIndex === startRow && colId === startCol) {
             // Same cell - don't create selection (Excel behavior: single click = no range)
             return;
@@ -2020,6 +2020,14 @@ export default function OutboundPage() {
         const api = gridRef.current?.api;
         if (!api) return;
 
+        // Master data columns to clear when WSN is cleared
+        const MASTER_DATA_COLUMNS = [
+            'source', 'product_title', 'brand', 'cms_vertical', 'wid', 'fsn',
+            'order_id', 'fkqc_remark', 'fk_grade', 'hsn_sac', 'igst_rate',
+            'fsp', 'mrp', 'vrp', 'yield_value', 'invoice_date', 'fkt_link',
+            'wh_location', 'p_type', 'p_size', 'quantity'
+        ];
+
         const range = selectedRangeRef.current;
         if (!range) {
             const focusedCell = api.getFocusedCell();
@@ -2034,7 +2042,16 @@ export default function OutboundPage() {
             }
 
             const newRows = [...multiRowsRef.current];
-            newRows[rowIndex] = { ...newRows[rowIndex], [colId]: '' };
+
+            // If WSN is being cleared, also clear all master data columns
+            if (colId === 'wsn') {
+                const clearedRow = { ...newRows[rowIndex], wsn: '' };
+                MASTER_DATA_COLUMNS.forEach(col => { clearedRow[col] = ''; });
+                newRows[rowIndex] = clearedRow;
+            } else {
+                newRows[rowIndex] = { ...newRows[rowIndex], [colId]: '' };
+            }
+
             setMultiRows(newRows);
             api.refreshCells({ force: true });
             return;
@@ -2053,6 +2070,9 @@ export default function OutboundPage() {
         const newRows = [...multiRowsRef.current];
         let cleared = 0;
 
+        // Track which rows have WSN cleared so we can clear their master data
+        const rowsWithWsnCleared = new Set<number>();
+
         for (let r = minRow; r <= maxRow; r++) {
             for (let c = minCol; c <= maxCol; c++) {
                 const colId = colIds[c];
@@ -2063,9 +2083,21 @@ export default function OutboundPage() {
                     }
                     newRows[r] = { ...newRows[r], [colId]: '' };
                     cleared++;
+
+                    // Track if WSN was cleared for this row
+                    if (colId === 'wsn') {
+                        rowsWithWsnCleared.add(r);
+                    }
                 }
             }
         }
+
+        // Clear master data columns for rows where WSN was cleared
+        rowsWithWsnCleared.forEach(r => {
+            MASTER_DATA_COLUMNS.forEach(col => {
+                newRows[r] = { ...newRows[r], [col]: '' };
+            });
+        });
 
         if (cleared > 0) {
             setMultiRows(newRows);
