@@ -575,7 +575,7 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 0.5, md: 1 } }}>
                         <PivotIcon sx={{ fontSize: { xs: 18, md: 24 } }} />
                         <Typography variant="h6" sx={{ fontWeight: 700, fontSize: { xs: '0.85rem', md: '1.1rem' } }}>
-                            Pivot Table
+                            Available Inventory Pivot Table
                         </Typography>
                     </Box>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
@@ -664,7 +664,8 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
                         size="small"
                         variant={isMobile ? 'standard' : 'outlined'}
                         sx={{
-                            minWidth: { xs: 'auto', md: 100 },
+                            minWidth: { xs: 'auto', md: 120 },
+                            maxWidth: { xs: 80, md: 150 },
                             flexShrink: 0,
                             '& .MuiInputBase-root': {
                                 height: { xs: 28, md: 32 },
@@ -676,19 +677,17 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
                                 fontSize: { xs: '0.7rem', md: '0.8rem' },
                                 py: { xs: '4px', md: '6px' },
                                 px: { xs: '4px', md: '14px' },
+                                pr: { xs: '20px', md: '32px' },
                                 fontWeight: { xs: 500, md: 400 },
                                 color: isDarkMode ? 'white' : 'inherit',
-                            },
-                            '& .MuiInputLabel-root': {
-                                display: { xs: 'none', md: 'block' },
-                                fontSize: '0.8rem',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
                             },
                         }}
                     >
-                        {!isMobile && <InputLabel>Brand</InputLabel>}
                         <Select
                             value={brandFilter}
-                            label={isMobile ? '' : 'Brand'}
                             onChange={(e) => setBrandFilter(e.target.value)}
                             displayEmpty
                             renderValue={(value) => value || 'Brand'}
@@ -708,7 +707,8 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
                         size="small"
                         variant={isMobile ? 'standard' : 'outlined'}
                         sx={{
-                            minWidth: { xs: 'auto', md: 100 },
+                            minWidth: { xs: 'auto', md: 120 },
+                            maxWidth: { xs: 80, md: 150 },
                             flexShrink: 0,
                             '& .MuiInputBase-root': {
                                 height: { xs: 28, md: 32 },
@@ -720,19 +720,17 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
                                 fontSize: { xs: '0.7rem', md: '0.8rem' },
                                 py: { xs: '4px', md: '6px' },
                                 px: { xs: '4px', md: '14px' },
+                                pr: { xs: '20px', md: '32px' },
                                 fontWeight: { xs: 500, md: 400 },
                                 color: isDarkMode ? 'white' : 'inherit',
-                            },
-                            '& .MuiInputLabel-root': {
-                                display: { xs: 'none', md: 'block' },
-                                fontSize: '0.8rem',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
                             },
                         }}
                     >
-                        {!isMobile && <InputLabel>Category</InputLabel>}
                         <Select
                             value={categoryFilter}
-                            label={isMobile ? '' : 'Category'}
                             onChange={(e) => setCategoryFilter(e.target.value)}
                             displayEmpty
                             renderValue={(value) => value || 'Category'}
