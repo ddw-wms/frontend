@@ -478,7 +478,7 @@ export default function OutboundPage() {
                 'WSN': row.wsn || '',
                 'Dispatch Date': row.dispatch_date || dateForExport,
                 'Customer Name': row.customer_name || customerForExport,
-                'Vehicle No': row.vehicle_no || vehicleForExport,
+                'Vehicle No': vehicleForExport, // Use only common vehicle field, not row data (which may have inbound vehicle)
                 'Dispatch Remarks': row.dispatch_remarks || '',
                 'Other Remarks': row.other_remarks || '',
                 'Quantity': row.quantity || 1,
@@ -3095,7 +3095,9 @@ export default function OutboundPage() {
                 try {
                     const data = await getAvailableInventoryByWSN(wsn, activeWarehouse.id);
                     if (data) {
-                        const updatedData = { ...rowNode.data, ...data, wsn };
+                        // Exclude vehicle_no/inbound_vehicle_no from spread - these are inbound vehicle, not dispatch vehicle
+                        const { vehicle_no: _v, inbound_vehicle_no: _iv, ...safeData } = data;
+                        const updatedData = { ...rowNode.data, ...safeData, wsn };
                         rowNode.setData(updatedData);
                         // Sync to React state
                         const updatedRows: any[] = [];
@@ -3134,7 +3136,9 @@ export default function OutboundPage() {
                     try {
                         const data = await getAvailableInventoryByWSN(wsn, activeWarehouse.id);
                         if (data) {
-                            const updatedData = { ...rowNode.data, ...data, wsn };
+                            // Exclude vehicle_no/inbound_vehicle_no from spread - these are inbound vehicle, not dispatch vehicle
+                            const { vehicle_no: _v, inbound_vehicle_no: _iv, ...safeData } = data;
+                            const updatedData = { ...rowNode.data, ...safeData, wsn };
                             rowNode.setData(updatedData);
                             // Sync to React state
                             const updatedRows: any[] = [];
