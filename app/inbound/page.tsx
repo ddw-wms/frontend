@@ -1601,6 +1601,7 @@ export default function InboundPage() {
         mrp: masterData?.mrp || '',
         fsp: masterData?.fsp || '',
         fsn: masterData?.fsn || masterData?.fsn_code || '',
+        wid: masterData?.wid || '',
         product_serial_number: masterData?.product_serial_number || '',
         copies: copies,
       });
@@ -1634,6 +1635,7 @@ export default function InboundPage() {
       const printPayload = {
         wsn: wsnUpper,
         fsn: rowData.fsn || '',
+        wid: rowData.wid || '',
         product_title: rowData.product_title || '',
         brand: rowData.brand || '',
         mrp: rowData.mrp || '',
@@ -7167,6 +7169,7 @@ export default function InboundPage() {
                                   const printPayload = {
                                     wsn: wsnUpper,
                                     fsn: masterInfo.fsn || '',
+                                    wid: masterInfo.wid || '',
                                     product_title: masterInfo.product_title || '',
                                     brand: masterInfo.brand || '',
                                     mrp: String(masterInfo.mrp || ''),

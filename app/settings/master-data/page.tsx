@@ -744,6 +744,7 @@ export default function MasterDataPage() {
       const printPayload = {
         wsn: wsnUpper,
         fsn: rowData.fsn || '',
+        wid: rowData.wid || '',
         product_title: rowData.product_title || '',
         brand: rowData.brand || '',
         mrp: String(rowData.mrp || ''),

@@ -5,6 +5,7 @@ interface PrintPayload {
     mrp?: string;
     fsp?: string;
     fsn?: string;
+    wid?: string;
     product_serial_number?: string;
     copies?: number;
 }
@@ -93,20 +94,25 @@ export async function printLabel(payload: PrintPayload): Promise<boolean> {
 
         console.log(`🖨️ Sending print job: ${payload.wsn}`);
 
+        // DEBUG: Log full payload being sent
+        const printBody = {
+            wsn: payload.wsn,
+            product_title: payload.product_title || '',
+            brand: payload.brand || '',
+            mrp: payload.mrp || '',
+            fsp: payload.fsp || '',
+            fsn: payload.fsn || '',
+            wid: payload.wid || '',
+            product_serial_number: payload.product_serial_number || '',
+            copies: Math.max(1, Math.min(payload.copies || 1, 10)),
+        };
+        console.log(`📋 Print payload:`, printBody);
+
         // Send print job with LONG timeout (printer takes time)
         const response = await fetch(`${AGENT_URL}/print-label`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                wsn: payload.wsn,
-                product_title: payload.product_title || '',
-                brand: payload.brand || '',
-                mrp: payload.mrp || '',
-                fsp: payload.fsp || '',
-                fsn: payload.fsn || '',
-                product_serial_number: payload.product_serial_number || '',
-                copies: Math.max(1, Math.min(payload.copies || 1, 10)),
-            }),
+            body: JSON.stringify(printBody),
             signal: AbortSignal.timeout(TIMEOUT_MS), // 65 seconds
         });
 

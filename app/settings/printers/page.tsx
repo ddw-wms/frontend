@@ -30,6 +30,7 @@ interface PrinterSettings {
   defaultPrinter: string;
   printingEnabled: boolean;
   pageSize: string;
+  qualityPreset: string;
   dpi: number;
   copies: number;
   autoRetry: boolean;
@@ -43,7 +44,13 @@ interface PrinterSettings {
   autoPrintOnScan: boolean;
   showPrintDialog: boolean;
   barcodeHeight: number;
+  barcodeWidth: number;
   fontSize: number;
+  // Configurable label margins in mm
+  marginTop: number;
+  marginBottom: number;
+  marginLeft: number;
+  marginRight: number;
 }
 
 interface PrinterInfo {
@@ -58,6 +65,7 @@ export default function PrinterSettingsPage() {
     defaultPrinter: '',
     printingEnabled: true,
     pageSize: '50x30mm',
+    qualityPreset: 'standard',
     dpi: 203,
     copies: 1,
     autoRetry: true,
@@ -71,7 +79,13 @@ export default function PrinterSettingsPage() {
     autoPrintOnScan: true,
     showPrintDialog: false,
     barcodeHeight: 55,
+    barcodeWidth: 2,
     fontSize: 2,
+    // Default margins in mm (backward-compatible)
+    marginTop: 1.5,
+    marginBottom: 1.5,
+    marginLeft: 2,
+    marginRight: 2,
   });
 
   const [printers, setPrinters] = useState<PrinterInfo[]>([]);
@@ -82,6 +96,13 @@ export default function PrinterSettingsPage() {
   const [testPrinting, setTestPrinting] = useState(false);
   const [agentVersion, setAgentVersion] = useState('');
   const [printHistory, setPrintHistory] = useState<any[]>([]);
+  const [linkMargins, setLinkMargins] = useState(true); // Link all margins together
+
+  // Local state for label dimension inputs (allows free typing)
+  const [labelWidthInput, setLabelWidthInput] = useState('50');
+  const [labelHeightInput, setLabelHeightInput] = useState('30');
+  const [labelWidthError, setLabelWidthError] = useState('');
+  const [labelHeightError, setLabelHeightError] = useState('');
 
   useEffect(() => {
     loadSettings();
@@ -214,6 +235,7 @@ export default function PrinterSettingsPage() {
         defaultPrinter: '',
         printingEnabled: true,
         pageSize: '50x30mm',
+        qualityPreset: 'standard',
         dpi: 203,
         copies: 1,
         autoRetry: true,
@@ -227,7 +249,12 @@ export default function PrinterSettingsPage() {
         autoPrintOnScan: true,
         showPrintDialog: false,
         barcodeHeight: 55,
+        barcodeWidth: 2,
         fontSize: 2,
+        marginTop: 1.5,
+        marginBottom: 1.5,
+        marginLeft: 2,
+        marginRight: 2,
       };
 
       const saved = localStorage.getItem('wms-printer-settings');
@@ -281,6 +308,7 @@ export default function PrinterSettingsPage() {
         defaultPrinter: '',
         printingEnabled: true,
         pageSize: '50x30mm',
+        qualityPreset: 'standard',
         dpi: 203,
         copies: 1,
         autoRetry: true,
@@ -294,7 +322,12 @@ export default function PrinterSettingsPage() {
         autoPrintOnScan: true,
         showPrintDialog: false,
         barcodeHeight: 55,
+        barcodeWidth: 2,
         fontSize: 2,
+        marginTop: 1.5,
+        marginBottom: 1.5,
+        marginLeft: 2,
+        marginRight: 2,
       };
       setSettings(defaults);
       localStorage.removeItem('wms-printer-settings');
@@ -369,6 +402,54 @@ export default function PrinterSettingsPage() {
       ...prev,
       [field]: value,
     }));
+  };
+
+  // Sync local label inputs when settings change (e.g., from preset selection)
+  useEffect(() => {
+    setLabelWidthInput(String(settings.labelWidth));
+    setLabelHeightInput(String(settings.labelHeight));
+  }, [settings.labelWidth, settings.labelHeight]);
+
+  // Validate and apply label width on blur
+  const handleLabelWidthBlur = () => {
+    const value = parseInt(labelWidthInput);
+    if (isNaN(value) || labelWidthInput.trim() === '') {
+      setLabelWidthError('Please enter a number');
+      setLabelWidthInput(String(settings.labelWidth));
+      setTimeout(() => setLabelWidthError(''), 2000);
+      return;
+    }
+    if (value < 20 || value > 200) {
+      setLabelWidthError('Must be 20-200mm');
+      const clamped = Math.max(20, Math.min(200, value));
+      setLabelWidthInput(String(clamped));
+      handleChange('labelWidth', clamped);
+      setTimeout(() => setLabelWidthError(''), 2000);
+      return;
+    }
+    setLabelWidthError('');
+    handleChange('labelWidth', value);
+  };
+
+  // Validate and apply label height on blur
+  const handleLabelHeightBlur = () => {
+    const value = parseInt(labelHeightInput);
+    if (isNaN(value) || labelHeightInput.trim() === '') {
+      setLabelHeightError('Please enter a number');
+      setLabelHeightInput(String(settings.labelHeight));
+      setTimeout(() => setLabelHeightError(''), 2000);
+      return;
+    }
+    if (value < 20 || value > 200) {
+      setLabelHeightError('Must be 20-200mm');
+      const clamped = Math.max(20, Math.min(200, value));
+      setLabelHeightInput(String(clamped));
+      handleChange('labelHeight', clamped);
+      setTimeout(() => setLabelHeightError(''), 2000);
+      return;
+    }
+    setLabelHeightError('');
+    handleChange('labelHeight', value);
   };
 
   const StatusBadge = () => {
@@ -830,9 +911,16 @@ export default function PrinterSettingsPage() {
                   <Divider sx={{ mb: 3 }} />
 
                   <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: { xs: 2, sm: 3 } }}>
-                    <Box sx={{ flex: { xs: '1 1 100%', sm: '1 1 calc(33.33% - 16px)' } }}>
+                    <Box sx={{ flex: { xs: '1 1 100%', sm: '1 1 calc(50% - 12px)' }, minWidth: { xs: 'auto', sm: '200px' } }}>
                       <FormControl fullWidth>
-                        <InputLabel>Label Size Preset</InputLabel>
+                        <InputLabel
+                          sx={{
+                            bgcolor: isDarkMode ? '#1e293b' : 'background.paper',
+                            px: 0.5
+                          }}
+                        >
+                          Label Size Preset
+                        </InputLabel>
                         <Select
                           value={settings.pageSize}
                           onChange={(e) => {
@@ -849,36 +937,97 @@ export default function PrinterSettingsPage() {
                             }
                           }}
                           label="Label Size Preset"
+                          sx={{ '& .MuiSelect-select': { minWidth: '160px' } }}
                         >
-                          <MenuItem value="50x30mm">50mm × 30mm (Standard)</MenuItem>
-                          <MenuItem value="58x40mm">58mm × 40mm (Medium)</MenuItem>
-                          <MenuItem value="80x60mm">80mm × 60mm (Large)</MenuItem>
+                          <MenuItem value="50x30mm">50 × 30mm (Standard)</MenuItem>
+                          <MenuItem value="58x40mm">58 × 40mm (Medium)</MenuItem>
+                          <MenuItem value="80x60mm">80 × 60mm (Large)</MenuItem>
                           <MenuItem value="custom">Custom Size</MenuItem>
                         </Select>
                       </FormControl>
                     </Box>
 
-                    <Box sx={{ flex: { xs: '1 1 calc(50% - 8px)', sm: '1 1 calc(33.33% - 16px)' } }}>
+                    <Box sx={{ flex: { xs: '1 1 100%', sm: '1 1 calc(50% - 12px)' }, minWidth: { xs: 'auto', sm: '200px' } }}>
+                      <FormControl fullWidth>
+                        <InputLabel
+                          sx={{
+                            bgcolor: isDarkMode ? '#1e293b' : 'background.paper',
+                            px: 0.5
+                          }}
+                        >
+                          Quality Preset
+                        </InputLabel>
+                        <Select
+                          value={settings.qualityPreset}
+                          onChange={(e) => {
+                            handleChange('qualityPreset', e.target.value);
+                            if (e.target.value === 'standard') {
+                              handleChange('barcodeHeight', 55);
+                              handleChange('barcodeWidth', 2);
+                              handleChange('printDensity', 12);
+                              handleChange('printSpeed', 4);
+                            } else if (e.target.value === 'high') {
+                              handleChange('barcodeHeight', 100);
+                              handleChange('barcodeWidth', 3);
+                              handleChange('printDensity', 16);
+                              handleChange('printSpeed', 3);
+                            } else if (e.target.value === 'maximum') {
+                              handleChange('barcodeHeight', 120);
+                              handleChange('barcodeWidth', 4);
+                              handleChange('printDensity', 18);
+                              handleChange('printSpeed', 2);
+                            }
+                          }}
+                          label="Quality Preset"
+                          sx={{ '& .MuiSelect-select': { minWidth: '160px' } }}
+                        >
+                          <MenuItem value="standard">⚡ Standard (Fast)</MenuItem>
+                          <MenuItem value="high">🛡️ High Durability</MenuItem>
+                          <MenuItem value="maximum">💎 Maximum Durability</MenuItem>
+                          <MenuItem value="custom">🔧 Custom</MenuItem>
+                        </Select>
+                        <Typography variant="caption" color="textSecondary" sx={{ mt: 0.5 }}>
+                          {settings.qualityPreset === 'standard' && 'Fast printing, normal fade resistance'}
+                          {settings.qualityPreset === 'high' && 'Larger barcode, better fade resistance'}
+                          {settings.qualityPreset === 'maximum' && 'Maximum barcode size, best durability'}
+                          {settings.qualityPreset === 'custom' && 'Manually adjust settings below'}
+                        </Typography>
+                      </FormControl>
+                    </Box>
+
+                    <Box sx={{ flex: { xs: '1 1 calc(50% - 8px)', sm: '1 1 calc(25% - 12px)' } }}>
                       <TextField
                         fullWidth
-                        type="number"
+                        type="text"
+                        inputMode="numeric"
                         label="Label Width (mm)"
-                        value={settings.labelWidth}
-                        onChange={(e) => handleChange('labelWidth', Math.max(20, parseInt(e.target.value) || 50))}
-                        inputProps={{ min: 20, max: 200 }}
-                        helperText="20-200mm"
+                        value={labelWidthInput}
+                        onChange={(e) => setLabelWidthInput(e.target.value)}
+                        onBlur={handleLabelWidthBlur}
+                        onKeyDown={(e) => e.key === 'Enter' && handleLabelWidthBlur()}
+                        error={!!labelWidthError}
+                        helperText={labelWidthError || '20-200mm'}
+                        InputLabelProps={{
+                          sx: { bgcolor: isDarkMode ? '#1e293b' : 'background.paper', px: 0.5 }
+                        }}
                       />
                     </Box>
 
-                    <Box sx={{ flex: { xs: '1 1 calc(50% - 8px)', sm: '1 1 calc(33.33% - 16px)' } }}>
+                    <Box sx={{ flex: { xs: '1 1 calc(50% - 8px)', sm: '1 1 calc(25% - 12px)' } }}>
                       <TextField
                         fullWidth
-                        type="number"
+                        type="text"
+                        inputMode="numeric"
                         label="Label Height (mm)"
-                        value={settings.labelHeight}
-                        onChange={(e) => handleChange('labelHeight', Math.max(20, parseInt(e.target.value) || 30))}
-                        inputProps={{ min: 20, max: 200 }}
-                        helperText="20-200mm"
+                        value={labelHeightInput}
+                        onChange={(e) => setLabelHeightInput(e.target.value)}
+                        onBlur={handleLabelHeightBlur}
+                        onKeyDown={(e) => e.key === 'Enter' && handleLabelHeightBlur()}
+                        error={!!labelHeightError}
+                        helperText={labelHeightError || '20-200mm'}
+                        InputLabelProps={{
+                          sx: { bgcolor: isDarkMode ? '#1e293b' : 'background.paper', px: 0.5 }
+                        }}
                       />
                     </Box>
 
@@ -890,13 +1039,36 @@ export default function PrinterSettingsPage() {
                         value={settings.barcodeHeight}
                         onChange={(_, val) => handleChange('barcodeHeight', val)}
                         min={20}
-                        max={70}
-                        step={1}
-                        marks
+                        max={200}
+                        step={5}
                         valueLabelDisplay="auto"
                       />
                       <Typography variant="caption" color="textSecondary">
-                        Adjust for scanner readability (20-70 dots)
+                        Adjust for scanner readability (20-200 dots)
+                      </Typography>
+                    </Box>
+
+                    <Box sx={{ flex: { xs: '1 1 100%', sm: '1 1 calc(50% - 12px)' } }}>
+                      <Typography variant="body2" gutterBottom sx={{ fontWeight: 600 }}>
+                        Barcode Width: {settings.barcodeWidth}
+                      </Typography>
+                      <Slider
+                        value={settings.barcodeWidth}
+                        onChange={(_, val) => handleChange('barcodeWidth', val)}
+                        min={1}
+                        max={5}
+                        step={1}
+                        marks={[
+                          { value: 1, label: '1' },
+                          { value: 2, label: '2' },
+                          { value: 3, label: '3' },
+                          { value: 4, label: '4' },
+                          { value: 5, label: '5' },
+                        ]}
+                        valueLabelDisplay="auto"
+                      />
+                      <Typography variant="caption" color="textSecondary">
+                        Barcode module width (1-5)
                       </Typography>
                     </Box>
 
@@ -919,6 +1091,134 @@ export default function PrinterSettingsPage() {
                         valueLabelDisplay="auto"
                       />
                     </Box>
+
+                    {/* Label Margins Section - Compact Design */}
+                    <Box sx={{ flex: '1 1 100%', mt: 2 }}>
+                      <Divider sx={{ mb: 2 }} />
+                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2, flexWrap: 'wrap', gap: 1 }}>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 600, color: 'primary.main' }}>
+                          📐 Label Margins
+                        </Typography>
+                        <FormControlLabel
+                          control={
+                            <Switch
+                              checked={linkMargins}
+                              onChange={(e) => setLinkMargins(e.target.checked)}
+                              size="small"
+                              color="primary"
+                            />
+                          }
+                          label={
+                            <Typography variant="caption" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                              🔗 Equal on all sides
+                            </Typography>
+                          }
+                        />
+                      </Box>
+
+                      {/* Preset Buttons */}
+                      <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
+                        {[
+                          { label: 'None', value: 0 },
+                          { label: 'Tight', value: 1 },
+                          { label: 'Normal', value: 2 },
+                          { label: 'Wide', value: 4 },
+                        ].map((preset) => (
+                          <Chip
+                            key={preset.label}
+                            label={preset.label}
+                            size="small"
+                            variant={settings.marginTop === preset.value && settings.marginBottom === preset.value &&
+                              settings.marginLeft === preset.value && settings.marginRight === preset.value ? 'filled' : 'outlined'}
+                            color={settings.marginTop === preset.value && settings.marginBottom === preset.value &&
+                              settings.marginLeft === preset.value && settings.marginRight === preset.value ? 'primary' : 'default'}
+                            onClick={() => {
+                              handleChange('marginTop', preset.value);
+                              handleChange('marginBottom', preset.value);
+                              handleChange('marginLeft', preset.value);
+                              handleChange('marginRight', preset.value);
+                            }}
+                            sx={{ cursor: 'pointer' }}
+                          />
+                        ))}
+                      </Stack>
+
+                      {linkMargins ? (
+                        /* Linked mode - single slider */
+                        <Box sx={{ maxWidth: 300 }}>
+                          <Typography variant="body2" gutterBottom sx={{ fontWeight: 600 }}>
+                            All Margins: {settings.marginTop} mm
+                          </Typography>
+                          <Slider
+                            value={settings.marginTop}
+                            onChange={(_, val) => {
+                              handleChange('marginTop', val);
+                              handleChange('marginBottom', val);
+                              handleChange('marginLeft', val);
+                              handleChange('marginRight', val);
+                            }}
+                            min={0}
+                            max={10}
+                            step={0.5}
+                            valueLabelDisplay="auto"
+                            size="small"
+                          />
+                        </Box>
+                      ) : (
+                        /* Unlinked mode - 2x2 compact grid with inputs */
+                        <Box sx={{
+                          display: 'grid',
+                          gridTemplateColumns: 'repeat(4, 1fr)',
+                          gap: 1.5,
+                          maxWidth: 500
+                        }}>
+                          <TextField
+                            size="small"
+                            type="number"
+                            label="Top"
+                            value={settings.marginTop}
+                            onChange={(e) => handleChange('marginTop', Math.max(0, Math.min(10, parseFloat(e.target.value) || 0)))}
+                            inputProps={{ min: 0, max: 10, step: 0.5 }}
+                            InputProps={{ endAdornment: <Typography variant="caption" color="textSecondary">mm</Typography> }}
+                            InputLabelProps={{ sx: { bgcolor: isDarkMode ? '#1e293b' : 'background.paper', px: 0.5 } }}
+                          />
+                          <TextField
+                            size="small"
+                            type="number"
+                            label="Bottom"
+                            value={settings.marginBottom}
+                            onChange={(e) => handleChange('marginBottom', Math.max(0, Math.min(10, parseFloat(e.target.value) || 0)))}
+                            inputProps={{ min: 0, max: 10, step: 0.5 }}
+                            InputProps={{ endAdornment: <Typography variant="caption" color="textSecondary">mm</Typography> }}
+                            InputLabelProps={{ sx: { bgcolor: isDarkMode ? '#1e293b' : 'background.paper', px: 0.5 } }}
+                          />
+                          <TextField
+                            size="small"
+                            type="number"
+                            label="Left"
+                            value={settings.marginLeft}
+                            onChange={(e) => handleChange('marginLeft', Math.max(0, Math.min(10, parseFloat(e.target.value) || 0)))}
+                            inputProps={{ min: 0, max: 10, step: 0.5 }}
+                            InputProps={{ endAdornment: <Typography variant="caption" color="textSecondary">mm</Typography> }}
+                            InputLabelProps={{ sx: { bgcolor: isDarkMode ? '#1e293b' : 'background.paper', px: 0.5 } }}
+                          />
+                          <TextField
+                            size="small"
+                            type="number"
+                            label="Right"
+                            value={settings.marginRight}
+                            onChange={(e) => handleChange('marginRight', Math.max(0, Math.min(10, parseFloat(e.target.value) || 0)))}
+                            inputProps={{ min: 0, max: 10, step: 0.5 }}
+                            InputProps={{ endAdornment: <Typography variant="caption" color="textSecondary">mm</Typography> }}
+                            InputLabelProps={{ sx: { bgcolor: isDarkMode ? '#1e293b' : 'background.paper', px: 0.5 } }}
+                          />
+                        </Box>
+                      )}
+
+                      <Typography variant="caption" color="textSecondary" sx={{ display: 'block', mt: 1 }}>
+                        💡 Margins define the printable area. Content is auto-centered within.
+                      </Typography>
+                    </Box>
                   </Box>
                 </Paper>
 
@@ -940,7 +1240,14 @@ export default function PrinterSettingsPage() {
                   <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: { xs: 2, sm: 3 } }}>
                     <Box sx={{ flex: { xs: '1 1 100%', sm: '1 1 calc(33.33% - 16px)' } }}>
                       <FormControl fullWidth>
-                        <InputLabel>Print Resolution (DPI)</InputLabel>
+                        <InputLabel
+                          sx={{
+                            bgcolor: isDarkMode ? '#1e293b' : 'background.paper',
+                            px: 0.5
+                          }}
+                        >
+                          Print Resolution (DPI)
+                        </InputLabel>
                         <Select
                           value={settings.dpi}
                           onChange={(e) => handleChange('dpi', e.target.value as any)}
@@ -962,6 +1269,9 @@ export default function PrinterSettingsPage() {
                         onChange={(e) => handleChange('copies', Math.max(1, Math.min(10, parseInt(e.target.value) || 1)))}
                         inputProps={{ min: 1, max: 10 }}
                         helperText="Copies per print (1-10)"
+                        InputLabelProps={{
+                          sx: { bgcolor: isDarkMode ? '#1e293b' : 'background.paper', px: 0.5 }
+                        }}
                       />
                     </Box>
 
@@ -974,6 +1284,9 @@ export default function PrinterSettingsPage() {
                         onChange={(e) => handleChange('timeout', Math.max(5000, parseInt(e.target.value) || 60000))}
                         inputProps={{ min: 5000, max: 120000, step: 1000 }}
                         helperText="5000-120000ms"
+                        InputLabelProps={{
+                          sx: { bgcolor: isDarkMode ? '#1e293b' : 'background.paper', px: 0.5 }
+                        }}
                       />
                     </Box>
 
@@ -993,6 +1306,7 @@ export default function PrinterSettingsPage() {
                           { value: 8, label: 'Fast' },
                         ]}
                         valueLabelDisplay="auto"
+                        sx={{ '& .MuiSlider-markLabel': { fontSize: '0.7rem' } }}
                       />
                       <Typography variant="caption" color="textSecondary">
                         Lower = better quality, Higher = faster printing
@@ -1015,6 +1329,7 @@ export default function PrinterSettingsPage() {
                           { value: 20, label: 'Dark' },
                         ]}
                         valueLabelDisplay="auto"
+                        sx={{ '& .MuiSlider-markLabel': { fontSize: '0.7rem' } }}
                       />
                       <Typography variant="caption" color="textSecondary">
                         Adjust ink/ribbon darkness
