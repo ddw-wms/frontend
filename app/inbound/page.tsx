@@ -5724,7 +5724,7 @@ export default function InboundPage() {
                     overflow: 'visible', // Allow content to overflow for scrolling
                   }}
                 >
-                  <CardContent sx={{ p: { xs: 1, sm: 1.5 }, '&:last-child': { pb: { xs: 1, sm: 1.5 } }, overflow: 'visible' }}>
+                  <CardContent sx={{ p: { xs: 1.5, sm: 1.5 }, pt: { xs: 2, sm: 1.5 }, '&:last-child': { pb: { xs: 1.5, sm: 1.5 } }, overflow: 'visible' }}>
                     {/* DESKTOP: Clean Single Row Layout */}
                     <Box sx={{ display: { xs: 'none', md: 'block' } }}>
                       <Stack
@@ -7309,9 +7309,82 @@ export default function InboundPage() {
 
 
 
-                {/* DRAFT STATUS + ACTIONS + SUBMIT - Single Row */}
+                {/* DRAFT STATUS + ACTIONS + SUBMIT */}
+                {/* MOBILE: Scrollable Actions + Fixed Submit */}
+                <Box sx={{ display: { xs: 'flex', md: 'none' }, alignItems: 'center', gap: 0.5, py: 0.5, flexShrink: 0 }}>
+                  {/* Left: Scrollable Actions */}
+                  <Box
+                    sx={{
+                      flex: 1,
+                      minWidth: 0,
+                      overflowX: 'auto',
+                      overflowY: 'hidden',
+                      WebkitOverflowScrolling: 'touch',
+                      scrollbarWidth: 'none',
+                      '&::-webkit-scrollbar': { display: 'none' },
+                    }}
+                  >
+                    <Stack direction="row" spacing={0.5} sx={{ width: 'max-content', alignItems: 'center' }}>
+                      <Chip
+                        icon={<AccessTime sx={{ fontSize: 14 }} />}
+                        label={draftSavedAt ? new Date(draftSavedAt).toLocaleTimeString() : 'No draft'}
+                        color={draftExists ? 'success' : 'default'}
+                        size="small"
+                        sx={{ height: 32, fontSize: '0.7rem', '& .MuiChip-icon': { ml: 0.5 } }}
+                      />
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        onClick={() => saveDraftImmediate()}
+                        disabled={draftSaving}
+                        sx={{ height: 32, minWidth: 'auto', px: 1, fontSize: '0.7rem', fontWeight: 600 }}
+                      >
+                        💾 Save
+                      </Button>
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        onClick={clearDraft}
+                        disabled={!draftExists}
+                        sx={{ height: 32, minWidth: 'auto', px: 1, fontSize: '0.7rem', fontWeight: 600, borderColor: '#ef4444', color: '#ef4444', '&:hover': { borderColor: '#dc2626', bgcolor: 'rgba(239,68,68,0.08)' } }}
+                      >
+                        🗑️ Clear
+                      </Button>
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        onClick={add500Rows}
+                        sx={{ height: 32, minWidth: 'auto', px: 1, fontSize: '0.7rem', fontWeight: 600, borderColor: '#3b82f6', color: '#3b82f6', '&:hover': { borderColor: '#2563eb', bgcolor: 'rgba(59,130,246,0.08)' } }}
+                      >
+                        ➕ 500
+                      </Button>
+                    </Stack>
+                  </Box>
+                  {/* Right: Fixed Submit Button */}
+                  <Button
+                    variant="contained"
+                    onClick={handleMultiSubmit}
+                    disabled={multiLoading || gridDuplicateWSNs.size > 0 || crossWarehouseWSNs.size > 0}
+                    startIcon={multiLoading ? <CircularProgress size={16} sx={{ color: 'white' }} /> : <CheckCircle sx={{ fontSize: 16 }} />}
+                    sx={{
+                      flexShrink: 0,
+                      height: 36,
+                      fontSize: '0.7rem',
+                      fontWeight: 700,
+                      px: 1.5,
+                      minWidth: 100,
+                      background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                      boxShadow: 'none',
+                      '&:hover': { boxShadow: 'none' }
+                    }}
+                  >
+                    SUBMIT ({multiRows.filter(r => r.wsn?.trim()).length})
+                  </Button>
+                </Box>
+
+                {/* DESKTOP: Original Layout */}
                 <Box sx={{
-                  display: 'flex',
+                  display: { xs: 'none', md: 'flex' },
                   alignItems: 'center',
                   gap: { xs: 0.5, sm: 1 },
                   flexWrap: 'wrap',
