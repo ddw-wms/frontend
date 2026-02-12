@@ -2442,8 +2442,18 @@ export default function InboundPage() {
   }, []);
 
   // ✅ EXCEL ENHANCEMENT: Handle cell mouse over - extend selection while dragging
-  // FIXED: Only create selection when mouse moves to a DIFFERENT cell (Excel behavior)
-  const handleCellMouseOver = useCallback((rowIndex: number, colId: string) => {
+  // FIXED: Only create selection when mouse moves to a DIFFERENT cell AND left button is still pressed
+  const handleCellMouseOver = useCallback((rowIndex: number, colId: string, mouseButtons: number) => {
+    // ✅ CRITICAL FIX: Check if left mouse button is STILL pressed (buttons & 1)
+    // This prevents unwanted selection when mouse moves without button pressed
+    const isLeftButtonPressed = (mouseButtons & 1) === 1;
+
+    if (!isLeftButtonPressed) {
+      // Mouse button was released - stop dragging
+      isDraggingRef.current = false;
+      return;
+    }
+
     if (!isDraggingRef.current || !dragStartCellRef.current) return;
 
     // ✅ EXCEL FIX: Only create selection if target cell is DIFFERENT from start cell
@@ -6812,7 +6822,9 @@ export default function InboundPage() {
                       const colId = event.column?.getColId();
                       if (rowIndex === null || rowIndex === undefined || !colId) return;
 
-                      handleCellMouseOver(rowIndex, colId);
+                      const browserEvent = event.event as MouseEvent;
+                      // Pass buttons (bitmask of currently pressed buttons: 1=left, 2=right, 4=middle)
+                      handleCellMouseOver(rowIndex, colId, browserEvent?.buttons ?? 0);
                     }}
 
                     // ⚡ EXCEL-LIKE: Handle cell click for shift+click selection
