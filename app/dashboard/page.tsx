@@ -1690,7 +1690,7 @@ export default function DashboardPage() {
                 md: "repeat(6, 1fr)",
               },
               gap: { xs: 0.75, sm: 1.5, md: 2 },
-              p: { xs: 1, sm: 2, md: 2 },
+              p: { xs: 1, sm: 1, md: 1 },
               overflowX: "visible",
               bgcolor: isDarkMode ? '#0f172a' : 'transparent',
               flexShrink: 0,

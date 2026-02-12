@@ -4324,19 +4324,19 @@ export default function PickingPage() {
               <CardContent sx={{ p: { xs: 1.5, md: 1.2 }, pt: { xs: 2, md: 1.2 }, '&:last-child': { pb: { xs: 1.5, md: 1.2 } } }}>
 
                 {/* ===== MOBILE: Single Row - Scrollable Inputs + Fixed Buttons ===== */}
-                <Box sx={{ display: { xs: 'flex', md: 'none' }, alignItems: 'flex-end', gap: 0.5, width: '100%', pt: 1 }}>
+                <Box sx={{ display: { xs: 'flex', md: 'none' }, alignItems: 'center', gap: 0.5, width: '100%', mt: 1 }}>
                   {/* LEFT: Scrollable Input Fields with Arrow Indicators */}
-                  <Box sx={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'flex-end', gap: 0.5 }}>
+                  <Box sx={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 0.5 }}>
                     {/* Left Arrow Indicator */}
                     <Box
                       sx={{
-                        width: 20,
-                        height: 36,
+                        width: 16,
+                        height: 40,
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                         color: isDarkMode ? '#64748b' : '#94a3b8',
-                        fontSize: '0.75rem',
+                        fontSize: '0.7rem',
                         flexShrink: 0,
                       }}
                     >
@@ -4349,13 +4349,13 @@ export default function PickingPage() {
                         flex: 1,
                         minWidth: 0,
                         overflowX: 'auto',
-                        overflowY: 'hidden',
+                        overflowY: 'visible',
                         WebkitOverflowScrolling: 'touch',
                         scrollbarWidth: 'none',
                         '&::-webkit-scrollbar': { display: 'none' },
                       }}
                     >
-                      <Stack direction="row" spacing={1} sx={{ width: 'max-content', py: 0.5 }}>
+                      <Stack direction="row" spacing={1} sx={{ width: 'max-content', pt: 1 }}>
                         <TextField
                           label="Date"
                           type="date"
@@ -4417,26 +4417,26 @@ export default function PickingPage() {
                   </Box>
 
                   {/* RIGHT: Fixed Action Buttons */}
-                  <Stack direction="row" spacing={0.5} sx={{ flexShrink: 0, alignItems: 'center', pt: 1 }}>
-                    {/* Menu Button */}
-                    <Tooltip title="Open Settings">
-                      <IconButton
-                        size="small"
-                        onClick={() => setPickingSettingsPanelOpen(true)}
-                        sx={{
-                          width: 36,
-                          height: 36,
-                          borderRadius: 1,
-                          border: '1.5px solid',
-                          borderColor: isDarkMode ? '#3b82f6' : '#1e40af',
-                          color: isDarkMode ? '#60a5fa' : '#1e40af',
-                          bgcolor: isDarkMode ? 'rgba(59, 130, 246, 0.08)' : 'rgba(30, 64, 175, 0.04)',
-                          '&:hover': { borderColor: '#3b82f6', bgcolor: 'rgba(59, 130, 246, 0.12)' }
-                        }}
-                      >
-                        <MenuIcon sx={{ fontSize: 18 }} />
-                      </IconButton>
-                    </Tooltip>
+                  <Stack direction="row" spacing={0.5} sx={{ flexShrink: 0, alignItems: 'center' }}>
+                    {/* Menu Button */
+                      <Tooltip title="Open Settings">
+                        <IconButton
+                          size="small"
+                          onClick={() => setPickingSettingsPanelOpen(true)}
+                          sx={{
+                            width: 36,
+                            height: 36,
+                            borderRadius: 1,
+                            border: '1.5px solid',
+                            borderColor: isDarkMode ? '#3b82f6' : '#1e40af',
+                            color: isDarkMode ? '#60a5fa' : '#1e40af',
+                            bgcolor: isDarkMode ? 'rgba(59, 130, 246, 0.08)' : 'rgba(30, 64, 175, 0.04)',
+                            '&:hover': { borderColor: '#3b82f6', bgcolor: 'rgba(59, 130, 246, 0.12)' }
+                          }}
+                        >
+                          <MenuIcon sx={{ fontSize: 18 }} />
+                        </IconButton>
+                      </Tooltip>
 
                     {/* Fullscreen Button */}
                     <Tooltip title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}>
