@@ -4090,25 +4090,25 @@ export default function QCPage() {
 
                         {/* RIGHT: Fixed Action Buttons */}
                         <Stack direction="row" spacing={0.5} sx={{ flexShrink: 0, alignItems: 'center' }}>
-                          {/* Menu Button */
-                            <Tooltip title="Open Settings">
-                              <IconButton
-                                size="small"
-                                onClick={() => setQcSettingsPanelOpen(true)}
-                                sx={{
-                                  width: 36,
-                                  height: 36,
-                                  borderRadius: 1,
-                                  border: '1.5px solid',
-                                  borderColor: isDarkMode ? '#3b82f6' : '#1e40af',
-                                  color: isDarkMode ? '#60a5fa' : '#1e40af',
-                                  bgcolor: isDarkMode ? 'rgba(59, 130, 246, 0.08)' : 'rgba(30, 64, 175, 0.04)',
-                                  '&:hover': { borderColor: '#3b82f6', bgcolor: 'rgba(59, 130, 246, 0.12)' }
-                                }}
-                              >
-                                <MenuIcon sx={{ fontSize: 18 }} />
-                              </IconButton>
-                            </Tooltip>
+                          {/* Menu Button */}
+                          <Tooltip title="Open Settings">
+                            <IconButton
+                              size="small"
+                              onClick={() => setQcSettingsPanelOpen(true)}
+                              sx={{
+                                width: 36,
+                                height: 36,
+                                borderRadius: 1,
+                                border: '1.5px solid',
+                                borderColor: isDarkMode ? '#3b82f6' : '#1e40af',
+                                color: isDarkMode ? '#60a5fa' : '#1e40af',
+                                bgcolor: isDarkMode ? 'rgba(59, 130, 246, 0.08)' : 'rgba(30, 64, 175, 0.04)',
+                                '&:hover': { borderColor: '#3b82f6', bgcolor: 'rgba(59, 130, 246, 0.12)' }
+                              }}
+                            >
+                              <MenuIcon sx={{ fontSize: 18 }} />
+                            </IconButton>
+                          </Tooltip>
 
                           {/* Fullscreen Button */}
                           <Tooltip title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}>
