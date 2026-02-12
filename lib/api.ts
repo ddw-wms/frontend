@@ -972,5 +972,20 @@ export const liveViewAPI = {
     api.post('/live-view/cleanup'),
 };
 
+// ============================ CACHE API ============================
+export const cacheAPI = {
+  // Get pending inventory for Inbound (master_data not yet received, not rejected)
+  getPending: (warehouseId: number) =>
+    api.get('/cache/pending', { params: { warehouseId } }),
+
+  // Get available inventory for QC/Picking/Outbound
+  getAvailable: (warehouseId: number) =>
+    api.get('/cache/available', { params: { warehouseId } }),
+
+  // Get cache statistics
+  getStats: (warehouseId: number) =>
+    api.get('/cache/stats', { params: { warehouseId } }),
+};
+
 
 export default api;

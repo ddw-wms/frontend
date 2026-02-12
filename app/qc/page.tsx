@@ -75,10 +75,19 @@ import {
   Menu as MenuIcon,
   ViewColumn as ViewColumnIcon,
   TableChart as TableChartIcon,
+  Inventory as InventoryIcon,
 } from '@mui/icons-material';
 import { qcAPI } from '@/lib/api';
 import { useWarehouse } from '@/app/context/WarehouseContext';
 import { getStoredUser } from '@/lib/auth';
+import {
+  updateAvailableCacheSource,
+  isCacheEnabled as isWMSCacheEnabled,
+  enableCache as enableWMSCache,
+  disableCache as disableWMSCache,
+  loadAvailableInventory,
+  getCacheStats
+} from '@/lib/wmsCache';
 import AppLayout from '@/components/AppLayout';
 import { StandardPageHeader, StandardTabs, BatchManagementTab, WSNOverwriteDialog } from '@/components';
 import type { WSNOverwriteDialogData } from '@/components';
@@ -476,6 +485,12 @@ export default function QCPage() {
   const [qcSettingsPanelOpen, setQcSettingsPanelOpen] = useState(false);
   const [settingsPanelExpanded, setSettingsPanelExpanded] = useState<string | false>('columns');
 
+  // ====== AVAILABLE CACHE STATE (wmsCache - for QC) ======
+  const [availableCacheEnabled, setAvailableCacheEnabled] = useState(false);
+  const [availableCacheStats, setAvailableCacheStats] = useState<{ count: number; lastSync: number | null } | null>(null);
+  const [availableCacheLoading, setAvailableCacheLoading] = useState(false);
+  const [availableCacheProgress, setAvailableCacheProgress] = useState('');
+
   // SINGLE ENTRY STATE
   const [singleWSN, setSingleWSN] = useState('');
   const [singleProduct, setSingleProduct] = useState({
@@ -645,7 +660,7 @@ export default function QCPage() {
       try {
         const parsed = JSON.parse(savedSettings);
         setGridSettings(parsed);
-        console.log('?? Grid settings loaded:', parsed);
+        console.log('[QC] Grid settings loaded:', parsed);
       } catch (e) {
         console.log('Failed to parse grid settings');
       }
@@ -656,7 +671,7 @@ export default function QCPage() {
   const updateGridSettings = (newSettings: typeof gridSettings) => {
     setGridSettings(newSettings);
     localStorage.setItem('qc_grid_settings', JSON.stringify(newSettings));
-    console.log('?? Grid settings saved:', newSettings);
+    console.log('[QC] Grid settings saved:', newSettings);
   };
 
 
@@ -820,6 +835,56 @@ export default function QCPage() {
   useEffect(() => {
     try { localStorage.setItem('qc_enableColumnResize', String(enableColumnResize)); } catch { }
   }, [enableColumnResize]);
+
+  // ====== AVAILABLE CACHE INIT ======
+  useEffect(() => {
+    setAvailableCacheEnabled(isWMSCacheEnabled());
+    if (isWMSCacheEnabled() && activeWarehouse?.id) {
+      getCacheStats(activeWarehouse.id).then(stats => {
+        setAvailableCacheStats({
+          count: stats.available.count,
+          lastSync: stats.available.lastSync
+        });
+      }).catch(console.error);
+    }
+  }, [activeWarehouse?.id]);
+
+  // Load available cache function
+  const handleLoadAvailableCache = async () => {
+    if (!activeWarehouse?.id) {
+      toast.error('No warehouse selected');
+      return;
+    }
+
+    setAvailableCacheLoading(true);
+    setAvailableCacheProgress('Loading...');
+
+    try {
+      // Auto-enable cache if not enabled
+      if (!isWMSCacheEnabled()) {
+        enableWMSCache();
+        setAvailableCacheEnabled(true);
+      }
+
+      const result = await loadAvailableInventory(
+        activeWarehouse.id,
+        (loaded, total, message) => setAvailableCacheProgress(message)
+      );
+
+      if (result.success) {
+        setAvailableCacheStats({ count: result.count, lastSync: Date.now() });
+        toast.success(`Cache loaded: ${result.count.toLocaleString()} items`);
+      } else {
+        toast.error('Failed to load available cache');
+      }
+    } catch (error) {
+      console.error('Available cache error:', error);
+      toast.error('Failed to load available cache');
+    } finally {
+      setAvailableCacheLoading(false);
+      setAvailableCacheProgress('');
+    }
+  };
 
 
   // AUTH CHECK
@@ -1127,7 +1192,7 @@ export default function QCPage() {
     });
 
     rangeStartCellRef.current = { rowIndex: 0, colId: firstCol };
-    toast('All rows selected', { icon: '??', duration: 1500 });
+    toast('All rows selected', { icon: '✓', duration: 1500 });
   }, []);
 
   // ⚡ EXCEL-LIKE: Smooth scroll to row
@@ -2241,9 +2306,64 @@ export default function QCPage() {
   }, [activeWarehouse?.id, ensureRowVisible, add500Rows]);
 
   const handleMultiSubmit = async () => {
+    // ⚡ VALIDATION: Warehouse check
+    if (!activeWarehouse?.id) {
+      toast.error('Select warehouse first');
+      return;
+    }
+
+    // ⚡ VALIDATION: Offline check
+    const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+    if (!isOnline) {
+      toast.error('Cannot submit while offline. Data is saved locally - submit when back online.', {
+        duration: 4000,
+        icon: '📴'
+      });
+      return;
+    }
+
     const validRows = multiRows.filter((r) => r.wsn?.trim());
     if (validRows.length === 0) {
       toast.error('At least 1 WSN required');
+      return;
+    }
+
+    // ⚡ VALIDATION: Check for grid duplicates
+    const wsnCounts = new Map<string, number>();
+    validRows.forEach((row) => {
+      const wsn = row.wsn?.trim()?.toUpperCase();
+      if (wsn) wsnCounts.set(wsn, (wsnCounts.get(wsn) || 0) + 1);
+    });
+    const hasGridDuplicates = Array.from(wsnCounts.values()).some(count => count > 1);
+    if (hasGridDuplicates) {
+      toast.error('Remove duplicate WSNs in grid before submitting');
+      return;
+    }
+
+    // ⚡ VALIDATION: Check for cross-warehouse and same-warehouse duplicates
+    const crossWarehouseFound: string[] = [];
+    const sameWarehouseFound: string[] = [];
+    validRows.forEach((row) => {
+      const wsn = row.wsn?.trim()?.toUpperCase();
+      if (wsn) {
+        const existingRecord = existingQCWSNs.find((item) => item.wsn === wsn);
+        if (existingRecord) {
+          if (existingRecord.warehouseid !== activeWarehouse.id) {
+            crossWarehouseFound.push(wsn);
+          } else {
+            sameWarehouseFound.push(wsn);
+          }
+        }
+      }
+    });
+
+    if (crossWarehouseFound.length > 0) {
+      toast.error(`${crossWarehouseFound.length} WSN(s) already QC'd in other warehouse`);
+      return;
+    }
+
+    if (sameWarehouseFound.length > 0) {
+      toast.error(`${sameWarehouseFound.length} WSN(s) already QC'd in this warehouse`);
       return;
     }
 
@@ -2273,6 +2393,14 @@ export default function QCPage() {
 
       // Clear saved draft after successful submit
       await clearDraft();
+
+      // ⚡ CACHE UPDATE: Update source to QC in available cache
+      if (isWMSCacheEnabled()) {
+        const submittedWSNs = fixedRows.map((r: any) => r.wsn?.trim()?.toUpperCase()).filter(Boolean);
+        submittedWSNs.forEach((wsn: string) => {
+          updateAvailableCacheSource(wsn, 'QC').catch(() => { });
+        });
+      }
 
       loadQCList();
       loadStats();
@@ -2393,7 +2521,7 @@ export default function QCPage() {
         <StandardPageHeader
           title="QC Management"
           subtitle="Quality control operations"
-          icon="?"
+          icon="🔍"
           warehouseName={activeWarehouse?.name}
           userName={user?.full_name}
         />
@@ -2440,7 +2568,7 @@ export default function QCPage() {
                   <TextField
                     fullWidth
                     size="small"
-                    placeholder="?? Search by WSN, Product Title, or any field..."
+                    placeholder="Search by WSN, Product Title, or any field..."
                     value={searchFilter}
                     onChange={(e) => {
                       setSearchFilter(e.target.value);
@@ -3067,7 +3195,7 @@ export default function QCPage() {
             <DialogContent sx={{ mt: 2, pb: 1 }}>
               <Stack spacing={2.5}>
                 <Alert severity="info" sx={{ fontSize: '0.8rem', py: 0.5 }}>
-                  Settings auto-save and persist after reload ??
+                  Settings auto-save and persist after reload
                 </Alert>
 
                 {/* SORTABLE */}
@@ -3082,8 +3210,7 @@ export default function QCPage() {
                     }
                     label={
                       <Box>
-                        <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#1e293b' }}>
-                          ?? Enable Sorting
+                        <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#1e293b' }}>Enable Sorting
                         </Typography>
                         <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem' }}>
                           Click column headers to sort ascending/descending
@@ -3107,8 +3234,7 @@ export default function QCPage() {
                     }
                     label={
                       <Box>
-                        <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#1e293b' }}>
-                          ?? Enable Column Filters
+                        <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#1e293b' }}>Enable Column Filters
                         </Typography>
                         <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem' }}>
                           Filter menu icon in column headers
@@ -3132,8 +3258,7 @@ export default function QCPage() {
                     }
                     label={
                       <Box>
-                        <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#1e293b' }}>
-                          ?? Enable Column Resize
+                        <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#1e293b' }}>Enable Column Resize
                         </Typography>
                         <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem' }}>
                           Drag column borders to adjust width
@@ -3209,8 +3334,7 @@ export default function QCPage() {
                           alignItems: 'center',
                           gap: 1
                         }}
-                      >
-                        ?? Single QC Entry
+                      >Single QC Entry
                       </Typography>
 
                       {duplicateQC && (
@@ -3477,8 +3601,7 @@ export default function QCPage() {
                                   bgcolor: 'rgba(30, 64, 175, 0.1)'
                                 }
                               }}
-                            >
-                              ?? Manage Grades
+                            >Manage Grades
                             </Button>
                           </Stack>
                         ) : (
@@ -3524,8 +3647,7 @@ export default function QCPage() {
                                   bgcolor: 'rgba(30, 64, 175, 0.1)'
                                 }
                               }}
-                            >
-                              ?? Grades
+                            >Grades
                             </Button>
                           </Stack>
                         )}
@@ -3735,8 +3857,7 @@ export default function QCPage() {
                             alignItems: 'center',
                             gap: 1
                           }}
-                        >
-                          ?? Today's QC Stats
+                        >Today's QC Stats
                         </Typography>
 
                         <Stack spacing={1}>
@@ -4165,7 +4286,7 @@ export default function QCPage() {
                           top: 0,
                           zIndex: 10
                         }}>
-                          <Typography sx={{ fontWeight: 700, fontSize: '1rem' }}>?? Settings</Typography>
+                          <Typography sx={{ fontWeight: 700, fontSize: '1rem' }}>Settings</Typography>
                           <IconButton size="small" onClick={() => setQcSettingsPanelOpen(false)} sx={{ color: 'white' }}>
                             <CloseIcon />
                           </IconButton>
@@ -4303,7 +4424,7 @@ export default function QCPage() {
                                   }
                                   label={
                                     <Box>
-                                      <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>?? Enable Sorting</Typography>
+                                      <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>Enable Sorting</Typography>
                                       <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>Click headers to sort</Typography>
                                     </Box>
                                   }
@@ -4321,7 +4442,7 @@ export default function QCPage() {
                                   }
                                   label={
                                     <Box>
-                                      <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>?? Enable Filtering</Typography>
+                                      <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>Enable Filtering</Typography>
                                       <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>Filter in column headers</Typography>
                                     </Box>
                                   }
@@ -4339,7 +4460,7 @@ export default function QCPage() {
                                   }
                                   label={
                                     <Box>
-                                      <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>?? Column Resize</Typography>
+                                      <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>Column Resize</Typography>
                                       <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>Drag borders to resize</Typography>
                                     </Box>
                                   }
@@ -4357,8 +4478,101 @@ export default function QCPage() {
                                   }}
                                   sx={{ alignSelf: 'flex-start', fontSize: '0.75rem', color: isDarkMode ? '#94a3b8' : '#64748b' }}
                                 >
-                                  ?? Reset to Default
+                                  Reset to Default
                                 </Button>
+                              </Stack>
+                            </AccordionDetails>
+                          </Accordion>
+
+                          {/* ═══════════ AVAILABLE CACHE ACCORDION ═══════════ */}
+                          <Accordion
+                            expanded={settingsPanelExpanded === 'cache'}
+                            onChange={(_, isExpanded) => setSettingsPanelExpanded(isExpanded ? 'cache' : false)}
+                            disableGutters
+                            sx={{
+                              bgcolor: 'transparent',
+                              boxShadow: 'none',
+                              '&:before': { display: 'none' },
+                              borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0'
+                            }}
+                          >
+                            <AccordionSummary
+                              expandIcon={<ExpandMoreIcon sx={{ color: isDarkMode ? '#94a3b8' : '#64748b' }} />}
+                              sx={{
+                                px: 2,
+                                minHeight: 56,
+                                '&.Mui-expanded': { minHeight: 56 },
+                                '& .MuiAccordionSummary-content': { my: 1.5 }
+                              }}
+                            >
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, width: '100%' }}>
+                                <InventoryIcon sx={{ color: '#8b5cf6', fontSize: 22 }} />
+                                <Box sx={{ flex: 1 }}>
+                                  <Typography sx={{ fontWeight: 700, fontSize: '0.9rem', color: isDarkMode ? '#e2e8f0' : '#1e293b' }}>Available Cache</Typography>
+                                  <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>
+                                    {availableCacheLoading ? availableCacheProgress || 'Loading...' : availableCacheStats?.count ? `${availableCacheStats.count.toLocaleString()} items` : availableCacheEnabled ? 'Not loaded' : 'Disabled'}
+                                  </Typography>
+                                </Box>
+                                <Chip
+                                  size="small"
+                                  label={availableCacheLoading ? '🔄' : availableCacheStats?.count ? '✅' : '⚪'}
+                                  sx={{ height: 24, fontSize: '0.8rem', bgcolor: availableCacheStats?.count ? '#10b981' : '#64748b', color: 'white' }}
+                                />
+                              </Box>
+                            </AccordionSummary>
+                            <AccordionDetails sx={{ px: 2, pb: 2, pt: 0 }}>
+                              <Stack spacing={1.5}>
+                                <Alert severity="info" sx={{ fontSize: '0.75rem', py: 0.5 }}>
+                                  Cache available inventory for instant WSN lookup during QC.
+                                </Alert>
+                                <Box sx={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between',
+                                  p: 1.5,
+                                  borderRadius: 1.5,
+                                  bgcolor: availableCacheEnabled ? 'rgba(139, 92, 246, 0.1)' : (isDarkMode ? '#0f172a' : '#f8fafc'),
+                                  border: `1px solid ${availableCacheEnabled ? '#8b5cf6' : (isDarkMode ? '#334155' : '#e2e8f0')}`
+                                }}>
+                                  <Box>
+                                    <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>Enable Cache</Typography>
+                                    <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>Instant WSN lookups</Typography>
+                                  </Box>
+                                  <Switch
+                                    checked={availableCacheEnabled}
+                                    onChange={(e) => {
+                                      const newValue = e.target.checked;
+                                      if (newValue) {
+                                        enableWMSCache();
+                                      } else {
+                                        disableWMSCache();
+                                      }
+                                      setAvailableCacheEnabled(newValue);
+                                      toast.success(`Cache ${newValue ? 'enabled' : 'disabled'}`);
+                                    }}
+                                    sx={{ '& .MuiSwitch-switchBase.Mui-checked': { color: '#8b5cf6' }, '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { backgroundColor: '#8b5cf6' } }}
+                                  />
+                                </Box>
+                                <Button
+                                  fullWidth
+                                  variant="contained"
+                                  disabled={availableCacheLoading || !activeWarehouse?.id}
+                                  onClick={handleLoadAvailableCache}
+                                  sx={{
+                                    height: 44,
+                                    background: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
+                                    fontWeight: 600,
+                                    '&:hover': { background: 'linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)' },
+                                    '&.Mui-disabled': { bgcolor: '#64748b' }
+                                  }}
+                                >
+                                  {availableCacheLoading ? '🔄 Loading...' : '⚡ Load Available Cache'}
+                                </Button>
+                                {availableCacheStats?.lastSync && (
+                                  <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8', textAlign: 'center' }}>
+                                    Last sync: {new Date(availableCacheStats.lastSync).toLocaleTimeString()}
+                                  </Typography>
+                                )}
                               </Stack>
                             </AccordionDetails>
                           </Accordion>
@@ -4747,7 +4961,7 @@ export default function QCPage() {
                                 fontSize: '14px',
                                 boxShadow: '0 4px 12px rgba(220, 38, 38, 0.15)',
                               },
-                              icon: '??',
+                              icon: '✓',
                             });
 
 
@@ -4774,7 +4988,7 @@ export default function QCPage() {
                                 fontSize: '14px',
                                 boxShadow: '0 4px 12px rgba(245, 158, 11, 0.15)',
                               },
-                              icon: '??',
+                              icon: '✓',
                             });
 
 
@@ -4802,7 +5016,7 @@ export default function QCPage() {
                                 fontSize: '14px',
                                 boxShadow: '0 4px 12px rgba(245, 158, 11, 0.15)',
                               },
-                              icon: '??',
+                              icon: '✓',
                             });
 
 
@@ -4841,7 +5055,7 @@ export default function QCPage() {
                                 const response = await qcAPI.getPendingInbound(activeWarehouse?.id, wsn);
 
                                 // ? ADD DEBUG
-                                console.log('?? API Response for WSN:', wsn, response.data[0]);
+                                console.log('[QC] API Response for WSN:', wsn, response.data[0]);
 
                                 if (response.data.length > 0) {
                                   const item = response.data[0];
@@ -4919,7 +5133,7 @@ export default function QCPage() {
                     <DialogContent sx={{ mt: 2, pb: 1 }}>
                       <Stack spacing={2.5}>
                         <Alert severity="info" sx={{ fontSize: '0.8rem', py: 0.5 }}>
-                          Settings auto-save and persist after reload ??
+                          Settings auto-save and persist after reload
                         </Alert>
 
                         {/* SORTABLE */}
@@ -4936,8 +5150,7 @@ export default function QCPage() {
                             }
                             label={
                               <Box>
-                                <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#1e293b' }}>
-                                  ?? Enable Sorting
+                                <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#1e293b' }}>Enable Sorting
                                 </Typography>
                                 <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem' }}>
                                   Click column headers to sort ascending/descending
@@ -4963,8 +5176,7 @@ export default function QCPage() {
                             }
                             label={
                               <Box>
-                                <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#1e293b' }}>
-                                  ?? Enable Column Filters
+                                <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#1e293b' }}>Enable Column Filters
                                 </Typography>
                                 <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem' }}>
                                   Filter menu icon in column headers
@@ -4990,8 +5202,7 @@ export default function QCPage() {
                             }
                             label={
                               <Box>
-                                <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#1e293b' }}>
-                                  ?? Enable Column Resize
+                                <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#1e293b' }}>Enable Column Resize
                                 </Typography>
                                 <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.75rem' }}>
                                   Drag column borders to adjust width
@@ -5134,8 +5345,7 @@ export default function QCPage() {
                         color: 'white',
                         py: 2,
                       }}
-                    >
-                      ?? Column View Settings
+                    >Column View Settings
                     </DialogTitle>
                     <DialogContent sx={{ py: 3, maxHeight: 600, overflow: 'auto' }}>
                       <Typography
@@ -5268,7 +5478,7 @@ export default function QCPage() {
                   }}
                   onDownloadTemplate={handleConfirmDownload}
                   templateColumns={['WSN', 'QCBYNAME', 'QCDATE', 'GRADE', 'QCREMARKS', 'OTHERREMARKS', 'PRODUCTSERIALNUMBER', 'RACKNO']}
-                  title="?? Bulk QC Upload"
+                  title="Bulk QC Upload"
                 />
               </Box>
             )
@@ -5293,7 +5503,7 @@ export default function QCPage() {
 
         {/* EXPORT DIALOG */}
         < Dialog open={exportDialogOpen} onClose={() => setExportDialogOpen(false)} maxWidth="sm" fullWidth container={isFullscreen ? multiEntryContainerRef.current : undefined} >
-          <DialogTitle>?? Export QC Data</DialogTitle>
+          <DialogTitle>Export QC Data</DialogTitle>
           <DialogContent>
             <Stack spacing={2} sx={{ mt: 2 }}>
               <TextField type="date" label="Start Date" value={exportStartDate} onChange={(e) => setExportStartDate(e.target.value)} InputLabelProps={{ shrink: true }} fullWidth />
@@ -5325,7 +5535,7 @@ export default function QCPage() {
 
         {/* GRADE MANAGEMENT DIALOG */}
         < Dialog open={gradeDialogOpen} onClose={() => { setGradeDialogOpen(false); setNewGrade(''); setEditingGradeIndex(null); }} maxWidth="sm" fullWidth container={isFullscreen ? multiEntryContainerRef.current : undefined} >
-          <DialogTitle>?? Manage QC Grades</DialogTitle>
+          <DialogTitle>Manage QC Grades</DialogTitle>
           <DialogContent>
             <Stack spacing={2} sx={{ mt: 2 }}>
               <Stack direction="row" spacing={1}>
@@ -5365,7 +5575,7 @@ export default function QCPage() {
 
         {/* COLUMN SETTINGS - LIST */}
         < Dialog open={listColumnSettingsOpen} onClose={() => setListColumnSettingsOpen(false)} maxWidth="sm" fullWidth container={isFullscreen ? multiEntryContainerRef.current : undefined} >
-          <DialogTitle>?? Column Settings</DialogTitle>
+          <DialogTitle>Column Settings</DialogTitle>
           <DialogContent>
             <Stack spacing={1} sx={{ mt: 2 }}>
               {ALL_LIST_COLUMNS.map((col) => (
@@ -5423,7 +5633,7 @@ export default function QCPage() {
             top: 0,
             zIndex: 10
           }}>
-            <Typography sx={{ fontWeight: 700, fontSize: '1rem' }}>?? Options</Typography>
+            <Typography sx={{ fontWeight: 700, fontSize: '1rem' }}>Options</Typography>
             <IconButton size="small" onClick={() => setQcOptionsPanelOpen(false)} sx={{ color: 'white' }}>
               <CloseIcon />
             </IconButton>
@@ -5651,7 +5861,7 @@ export default function QCPage() {
                     }
                     label={
                       <Box>
-                        <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>?? Enable Sorting</Typography>
+                        <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>↕ Enable Sorting</Typography>
                         <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>Click headers to sort</Typography>
                       </Box>
                     }
@@ -5666,7 +5876,7 @@ export default function QCPage() {
                     }
                     label={
                       <Box>
-                        <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>?? Enable Filtering</Typography>
+                        <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>Enable Filtering</Typography>
                         <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>Filter in column headers</Typography>
                       </Box>
                     }
@@ -5681,7 +5891,7 @@ export default function QCPage() {
                     }
                     label={
                       <Box>
-                        <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>?? Column Resize</Typography>
+                        <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>Column Resize</Typography>
                         <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>Drag borders to resize</Typography>
                       </Box>
                     }
@@ -5695,8 +5905,7 @@ export default function QCPage() {
                       toast.success('Grid settings reset');
                     }}
                     sx={{ alignSelf: 'flex-start', fontSize: '0.75rem', color: isDarkMode ? '#94a3b8' : '#64748b' }}
-                  >
-                    ?? Reset to Default
+                  >Reset to Default
                   </Button>
                 </Stack>
               </AccordionDetails>

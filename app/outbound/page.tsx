@@ -78,6 +78,10 @@ import {
 import { outboundAPI, customerAPI } from '@/lib/api';
 import { useWarehouse } from '@/app/context/WarehouseContext';
 import { getStoredUser } from '@/lib/auth';
+import {
+    removeMultipleFromAvailableCache,
+    isCacheEnabled as isWMSCacheEnabled
+} from '@/lib/wmsCache';
 
 import AppLayout from '@/components/AppLayout';
 import localforage from 'localforage';
@@ -3177,6 +3181,16 @@ export default function OutboundPage() {
             return;
         }
 
+        // ⚡ VALIDATION: Offline check
+        const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+        if (!isOnline) {
+            toast.error('Cannot submit while offline. Data is saved locally - submit when back online.', {
+                duration: 4000,
+                icon: '📴'
+            });
+            return;
+        }
+
         // Get customer from either selectedCustomer or commonCustomer
         const customerName = selectedCustomer || commonCustomer;
 
@@ -3201,6 +3215,18 @@ export default function OutboundPage() {
 
         if (duplicateWSNs.size > 0) {
             toast.error('Remove duplicate WSNs before submitting');
+            return;
+        }
+
+        // ⚡ VALIDATION: Grid duplicate check
+        if (gridDuplicateWSNs.size > 0) {
+            toast.error('Remove duplicate WSNs in grid before submitting');
+            return;
+        }
+
+        // ⚡ VALIDATION: Cross-warehouse check
+        if (crossWarehouseWSNs.size > 0) {
+            toast.error('Some WSNs already dispatched from other warehouses');
             return;
         }
 
@@ -3243,6 +3269,12 @@ export default function OutboundPage() {
 
             // Clear saved draft after successful submit
             await clearDraft();
+
+            // ⚡ CACHE UPDATE: Remove dispatched WSNs from available cache
+            if (isWMSCacheEnabled()) {
+                const dispatchedWSNs = entriesWithCommonFields.map((r: any) => r.wsn?.trim()?.toUpperCase()).filter(Boolean);
+                removeMultipleFromAvailableCache(dispatchedWSNs).catch(() => { });
+            }
         } catch (err: any) {
             toast.error(err.response?.data?.error || 'Multi entry failed');
             setMultiErrorMessage(err.response?.data?.error || 'Failed to submit');

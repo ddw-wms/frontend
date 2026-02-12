@@ -125,6 +125,15 @@ import {
   getBatchCacheStats,
   BatchInfo
 } from '@/lib/masterDataCache';
+import {
+  removeMultipleFromPendingCache,
+  isCacheEnabled as isWMSCacheEnabled,
+  getPendingByWSN,
+  loadPendingInventory,
+  getCacheStats as getPendingCacheStats,
+  enableCache as enableWMSCache,
+  disableCache as disableWMSCache
+} from '@/lib/wmsCache';
 
 // Register AG Grid modules ONCE
 ModuleRegistry.registerModules([AllCommunityModule]);
@@ -611,6 +620,12 @@ export default function InboundPage() {
   const [cacheLoading, setCacheLoading] = useState(false);
   const [gridDataRendered, setGridDataRendered] = useState(false);
 
+  // ====== NEW PENDING CACHE STATE (wmsCache - only pending items) ======
+  const [pendingCacheEnabled, setPendingCacheEnabled] = useState(false);
+  const [pendingCacheStats, setPendingCacheStats] = useState<{ count: number; lastSync: number | null } | null>(null);
+  const [pendingCacheLoading, setPendingCacheLoading] = useState(false);
+  const [pendingCacheProgress, setPendingCacheProgress] = useState<string | null>(null);
+
   // ====== BATCH-SPECIFIC CACHING STATE ======
   const [availableBatches, setAvailableBatches] = useState<BatchInfo[]>([]);
   const [selectedBatchIds, setSelectedBatchIds] = useState<string[]>([]);
@@ -726,6 +741,61 @@ export default function InboundPage() {
 
     return () => clearInterval(interval);
   }, [selectedBatchIds.length]);
+
+  // ====== PENDING CACHE INIT (NEW - wmsCache) ======
+  useEffect(() => {
+    // Check if pending cache is enabled
+    setPendingCacheEnabled(isWMSCacheEnabled());
+
+    // Load stats if enabled and warehouse is selected
+    const loadStats = async () => {
+      if (!activeWarehouse?.id) return;
+      try {
+        const stats = await getPendingCacheStats(activeWarehouse.id);
+        setPendingCacheStats(stats.pending);
+      } catch (e) {
+        console.error('Failed to load pending cache stats:', e);
+      }
+    };
+    loadStats();
+  }, [activeWarehouse?.id]);
+
+  // Load pending cache function
+  const handleLoadPendingCache = async () => {
+    if (!activeWarehouse?.id) {
+      toast.error('Select warehouse first');
+      return;
+    }
+
+    setPendingCacheLoading(true);
+    setPendingCacheProgress('Loading pending inventory...');
+
+    try {
+      // Enable cache if not already
+      if (!isWMSCacheEnabled()) {
+        enableWMSCache();
+        setPendingCacheEnabled(true);
+      }
+
+      const result = await loadPendingInventory(activeWarehouse.id, (loaded, total, message) => {
+        setPendingCacheProgress(message);
+      });
+
+      if (result.success) {
+        toast.success(`✅ Cached ${result.count.toLocaleString()} pending items`);
+        const stats = await getPendingCacheStats(activeWarehouse.id);
+        setPendingCacheStats(stats.pending);
+      } else {
+        toast.error('Failed to load pending cache');
+      }
+    } catch (error) {
+      console.error('Pending cache error:', error);
+      toast.error('Failed to load pending cache');
+    } finally {
+      setPendingCacheLoading(false);
+      setPendingCacheProgress(null);
+    }
+  };
 
   useEffect(() => {
     async function fetchExistingWSNs() {
@@ -1700,7 +1770,18 @@ export default function InboundPage() {
     try {
       const wsnUpper = singleWSN.trim().toUpperCase();
       setSingleLoading(true);
-      // ⚡ Use cached version for faster response when network is slow
+
+      // ⚡ TRY PENDING CACHE FIRST (new wmsCache - only pending items)
+      if (isWMSCacheEnabled() && activeWarehouse?.id) {
+        const pendingData = await getPendingByWSN(wsnUpper, activeWarehouse.id);
+        if (pendingData) {
+          setMasterData(pendingData);
+          setDuplicateWSN(null);
+          return;
+        }
+      }
+
+      // ⚡ FALLBACK: Use old batch cache
       const data = await getLocalMasterData(wsnUpper);
       if (data) {
         setMasterData(data);
@@ -1730,7 +1811,18 @@ export default function InboundPage() {
 
     try {
       const wsnUpper = wsn.trim().toUpperCase();
-      // ⚡ Use cached version for faster response when network is slow
+
+      // ⚡ TRY PENDING CACHE FIRST (new wmsCache - only pending items)
+      if (isWMSCacheEnabled() && activeWarehouse?.id) {
+        const pendingData = await getPendingByWSN(wsnUpper, activeWarehouse.id);
+        if (pendingData) {
+          setMasterData(pendingData);
+          setDuplicateWSN(null);
+          return;
+        }
+      }
+
+      // ⚡ FALLBACK: Use old batch cache
       const data = await getLocalMasterData(wsnUpper);
       if (data) {
         setMasterData(data);
@@ -3119,8 +3211,17 @@ export default function InboundPage() {
       debounceTimerRef.current = setTimeout(async () => {
         try {
           const wsnUpper = value.trim().toUpperCase();
-          // ⚡ Use cached version for faster response when network is slow
-          const masterInfo = await getLocalMasterData(wsnUpper);
+          let masterInfo = null;
+
+          // ⚡ TRY PENDING CACHE FIRST (new wmsCache - only pending items)
+          if (isWMSCacheEnabled() && activeWarehouse?.id) {
+            masterInfo = await getPendingByWSN(wsnUpper, activeWarehouse.id);
+          }
+
+          // ⚡ FALLBACK: Use old batch cache
+          if (!masterInfo) {
+            masterInfo = await getLocalMasterData(wsnUpper);
+          }
 
           if (masterInfo) {
             setMultiRows(prevRows => {
@@ -3292,7 +3393,18 @@ export default function InboundPage() {
 
     // Fetch new master data
     try {
-      const masterData = await getLocalMasterData(newWSN);
+      let masterData = null;
+
+      // ⚡ TRY PENDING CACHE FIRST (new wmsCache)
+      if (isWMSCacheEnabled() && activeWarehouse?.id) {
+        masterData = await getPendingByWSN(newWSN, activeWarehouse.id);
+      }
+
+      // ⚡ FALLBACK: Use old batch cache
+      if (!masterData) {
+        masterData = await getLocalMasterData(newWSN);
+      }
+
       if (masterData) {
         setMultiRows(prevRows => {
           const updatedRows = [...prevRows];
@@ -3351,7 +3463,18 @@ export default function InboundPage() {
 
     // Fetch master data for new WSN
     try {
-      const masterData = await getLocalMasterData(newWSN);
+      let masterData = null;
+
+      // ⚡ TRY PENDING CACHE FIRST (new wmsCache)
+      if (isWMSCacheEnabled() && activeWarehouse?.id) {
+        masterData = await getPendingByWSN(newWSN, activeWarehouse.id);
+      }
+
+      // ⚡ FALLBACK: Use old batch cache
+      if (!masterData) {
+        masterData = await getLocalMasterData(newWSN);
+      }
+
       if (masterData) {
         setMultiRows(prevRows => {
           const updatedRows = [...prevRows];
@@ -3495,6 +3618,14 @@ export default function InboundPage() {
 
         // Clear saved draft after successful submit
         await clearDraft();
+
+        // ⚡ CACHE UPDATE: Remove submitted WSNs from pending cache
+        if (isWMSCacheEnabled()) {
+          const submittedWSNs = filtered.map((r: any) => r.wsn?.trim()?.toUpperCase()).filter(Boolean);
+          removeMultipleFromPendingCache(submittedWSNs).catch(() => {
+            // Silently fail - cache cleanup is not critical
+          });
+        }
       }
 
       // Clear receiving WSNs from server (they are now inbound)
@@ -5932,7 +6063,7 @@ export default function InboundPage() {
                           </AccordionDetails>
                         </Accordion>
 
-                        {/* ═══════════ BATCH SELECTION ACCORDION ═══════════ */}
+                        {/* ═══════════ PENDING CACHE ACCORDION (NEW) ═══════════ */}
                         <Accordion
                           expanded={settingsPanelExpanded === 'batch'}
                           onChange={(_, isExpanded) => setSettingsPanelExpanded(isExpanded ? 'batch' : false)}
@@ -5956,50 +6087,62 @@ export default function InboundPage() {
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, width: '100%' }}>
                               <InventoryIcon sx={{ color: '#8b5cf6', fontSize: 22 }} />
                               <Box sx={{ flex: 1 }}>
-                                <Typography sx={{ fontWeight: 700, fontSize: '0.9rem', color: isDarkMode ? '#e2e8f0' : '#1e293b' }}>Batch & Cache</Typography>
+                                <Typography sx={{ fontWeight: 700, fontSize: '0.9rem', color: isDarkMode ? '#e2e8f0' : '#1e293b' }}>Pending Cache</Typography>
                                 <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>
-                                  {batchCacheLoading ? 'Loading...' : selectedBatchIds.length > 0 ? `${selectedBatchIds.length} batch selected` : cacheStats ? `${cacheStats.totalRecords.toLocaleString()} WSN cached` : 'Loading...'}
+                                  {pendingCacheLoading ? pendingCacheProgress || 'Loading...' : pendingCacheStats?.count ? `${pendingCacheStats.count.toLocaleString()} pending items` : pendingCacheEnabled ? 'Not loaded' : 'Disabled'}
                                 </Typography>
                               </Box>
                               <Chip
                                 size="small"
-                                label={batchCacheLoading || cacheLoading ? '🔄' : selectedBatchIds.length > 0 ? '📦' : '✅'}
-                                sx={{ height: 24, fontSize: '0.8rem', bgcolor: selectedBatchIds.length > 0 ? '#8b5cf6' : '#10b981', color: 'white' }}
+                                label={pendingCacheLoading ? '🔄' : pendingCacheStats?.count ? '✅' : '⚪'}
+                                sx={{ height: 24, fontSize: '0.8rem', bgcolor: pendingCacheStats?.count ? '#10b981' : '#64748b', color: 'white' }}
                               />
                             </Box>
                           </AccordionSummary>
                           <AccordionDetails sx={{ px: 2, pb: 2, pt: 0 }}>
                             <Stack spacing={1.5}>
                               <Alert severity="info" sx={{ fontSize: '0.75rem', py: 0.5 }}>
-                                Select specific batches to validate WSN against, or use all cached data.
+                                Cache pending items (not yet received) for instant WSN lookup.
                               </Alert>
                               <Button
                                 fullWidth
-                                variant="outlined"
-                                onClick={() => { setBatchSelectorOpen(true); setMultiSettingsPanelOpen(false); }}
+                                variant="contained"
+                                disabled={pendingCacheLoading || !activeWarehouse?.id}
+                                onClick={handleLoadPendingCache}
                                 sx={{
                                   height: 44,
-                                  borderColor: '#8b5cf6',
-                                  color: '#8b5cf6',
+                                  background: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
                                   fontWeight: 600,
-                                  '&:hover': { bgcolor: 'rgba(139, 92, 246, 0.08)' }
+                                  '&:hover': { background: 'linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)' },
+                                  '&.Mui-disabled': { bgcolor: '#64748b' }
+                                }}
+                              >
+                                {pendingCacheLoading ? '🔄 Loading...' : '⚡ Load Pending Cache'}
+                              </Button>
+                              {pendingCacheStats?.lastSync && (
+                                <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8', textAlign: 'center' }}>
+                                  Last sync: {new Date(pendingCacheStats.lastSync).toLocaleTimeString()}
+                                </Typography>
+                              )}
+                              <Divider sx={{ my: 1 }} />
+                              <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>
+                                Or use batch-based cache:
+                              </Typography>
+                              <Button
+                                fullWidth
+                                variant="outlined"
+                                size="small"
+                                onClick={() => { setBatchSelectorOpen(true); setMultiSettingsPanelOpen(false); }}
+                                sx={{
+                                  height: 36,
+                                  borderColor: isDarkMode ? '#475569' : '#cbd5e1',
+                                  color: isDarkMode ? '#94a3b8' : '#64748b',
+                                  fontWeight: 500,
+                                  fontSize: '0.8rem'
                                 }}
                               >
                                 📦 Open Batch Selector
                               </Button>
-                              {selectedBatchIds.length > 0 && (
-                                <Button
-                                  size="small"
-                                  onClick={() => {
-                                    setSelectedBatchIds([]);
-                                    localStorage.removeItem('inbound_selectedBatchIds');
-                                    toast.success('Batch selection cleared');
-                                  }}
-                                  sx={{ alignSelf: 'flex-start', fontSize: '0.75rem', color: '#dc2626' }}
-                                >
-                                  ✕ Clear Selection
-                                </Button>
-                              )}
                             </Stack>
                           </AccordionDetails>
                         </Accordion>
@@ -7079,8 +7222,17 @@ export default function InboundPage() {
                           ])
                           : Promise.resolve(null); // Skip API when offline
 
-                        // Use LOCAL CACHE for master data (instant if cached)
-                        const masterDataPromise = getLocalMasterData(wsnUpper).catch(() => null);
+                        // ⚡ Use LOCAL CACHE for master data (instant if cached)
+                        // Try pending cache first (new wmsCache), then fallback to old batch cache
+                        const masterDataPromise = (async () => {
+                          // TRY PENDING CACHE FIRST (new wmsCache - only pending items)
+                          if (isWMSCacheEnabled() && activeWarehouse?.id) {
+                            const pendingData = await getPendingByWSN(wsnUpper, activeWarehouse.id);
+                            if (pendingData) return pendingData;
+                          }
+                          // FALLBACK: Use old batch cache
+                          return getLocalMasterData(wsnUpper).catch(() => null);
+                        })();
 
                         // Process results as they come
                         (async () => {
