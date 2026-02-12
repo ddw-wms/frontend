@@ -46,6 +46,9 @@ import {
   enableCache as enableWMSCache,
   disableCache as disableWMSCache,
   getCacheStats,
+  getAvailableByWSNFast,
+  warmupMemoryCache,
+  clearMemoryCache
 } from '@/lib/wmsCache';
 
 // Register AG Grid modules ONCE (include ClientSideRowModel for client-side features)
@@ -198,6 +201,9 @@ export default function PickingPage() {
   const lastGridScrollTopRef = useRef(0);
   const isAutoScrollingRef = useRef(false);
   const multiRowsRef = useRef([] as any[]);
+
+  // ⚡ OFFLINE: Track if offline warning has been shown
+  const offlineWarningShownRef = useRef<boolean>(false);
 
   // ⚡ EXCEL-LIKE: Track selected cell range for multi-cell operations
   const [selectedRange, setSelectedRange] = useState<{
@@ -353,6 +359,10 @@ export default function PickingPage() {
   useEffect(() => {
     if (isOnMultiTab && activeWarehouse?.id && !isLiveSessionActive) {
       startLiveSession();
+      // ⚡ Warm up memory cache for ultra-fast WSN lookups
+      warmupMemoryCache(activeWarehouse.id).catch(err => {
+        console.warn('Memory cache warmup failed:', err);
+      });
     } else if (!isOnMultiTab && isLiveSessionActive) {
       endLiveSession();
     }
@@ -1232,6 +1242,7 @@ export default function PickingPage() {
   }, []);
 
   // ⚡ EXCEL-LIKE: Clear selected cells (Delete/Backspace)
+  // FIX: Also clears master data columns when WSN is cleared
   const handleClearCells = useCallback(() => {
     const api = gridRef.current;
     if (!api) return;
@@ -1246,7 +1257,17 @@ export default function PickingPage() {
 
       const newRows = [...multiRowsRef.current];
       newRows[rowIndex] = { ...newRows[rowIndex], [colId]: '' };
+
+      // ⚡ FIX: When WSN is cleared, also clear all master data columns
+      if (colId === 'wsn') {
+        ALL_MASTER_COLUMNS.forEach((col) => {
+          newRows[rowIndex][col] = '';
+        });
+        newRows[rowIndex]['product_serial_number'] = '';
+      }
+
       setMultiRows(newRows);
+      checkDuplicates(newRows);
       api.refreshCells({ force: true });
       return;
     }
@@ -1263,6 +1284,7 @@ export default function PickingPage() {
 
     const newRows = [...multiRowsRef.current];
     let cleared = 0;
+    const clearedWsnRows = new Set<number>();
 
     for (let r = minRow; r <= maxRow; r++) {
       for (let c = minCol; c <= maxCol; c++) {
@@ -1270,16 +1292,30 @@ export default function PickingPage() {
         if (EDITABLE_COLUMNS.includes(colId)) {
           newRows[r] = { ...newRows[r], [colId]: '' };
           cleared++;
+
+          // ⚡ FIX: Track rows where WSN was cleared
+          if (colId === 'wsn') {
+            clearedWsnRows.add(r);
+          }
         }
       }
     }
 
+    // ⚡ FIX: Clear master data columns for all rows where WSN was cleared
+    clearedWsnRows.forEach((r) => {
+      ALL_MASTER_COLUMNS.forEach((col) => {
+        newRows[r][col] = '';
+      });
+      newRows[r]['product_serial_number'] = '';
+    });
+
     if (cleared > 0) {
       setMultiRows(newRows);
+      checkDuplicates(newRows);
       api.refreshCells({ force: true });
       toast.success(`Cleared ${cleared} cells`, { duration: 1500 });
     }
-  }, []);
+  }, [checkDuplicates]);
 
   // ⚡ EXCEL-LIKE: Select All (Ctrl+A)
   const handleSelectAll = useCallback(() => {
@@ -5502,8 +5538,34 @@ export default function PickingPage() {
                     return;
                   }
 
-                  if (existingPickingWSNs.has(wsn)) {
-                    // Determine whether it's in this warehouse or another warehouse
+                  // ⚡ OFFLINE CHECK
+                  const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+
+                  // Show offline warning once per session
+                  if (!isOnline && !offlineWarningShownRef.current) {
+                    offlineWarningShownRef.current = true;
+                    toast('📴 Offline Mode - Cross-warehouse duplicate check skipped. Will validate on submit.', {
+                      duration: 5000,
+                      style: {
+                        background: '#fef3c7',
+                        color: '#92400e',
+                        border: '1px solid #f59e0b',
+                        borderRadius: '8px',
+                        padding: '12px 16px',
+                        fontWeight: 500,
+                        fontSize: '13px',
+                      },
+                      icon: '⚠️',
+                    });
+                  }
+
+                  // Reset warning flag when back online
+                  if (isOnline && offlineWarningShownRef.current) {
+                    offlineWarningShownRef.current = false;
+                  }
+
+                  if (existingPickingWSNs.has(wsn) && isOnline) {
+                    // Determine whether it's in this warehouse or another warehouse (only if online)
                     try {
                       const resp = await pickingAPI.checkWSNExists(wsn, activeWarehouse?.id);
                       const existsHere = resp.data?.exists;
@@ -5568,14 +5630,44 @@ export default function PickingPage() {
                     }
                   }
 
+                  // ⚡ CACHE FIRST + API FALLBACK for master data
                   try {
-                    const res = await pickingAPI.getSourceByWSN(
-                      wsn,
-                      activeWarehouse?.id
-                    );
+                    let d = null;
+                    let fromCache = false;
 
-                    const d = res.data;
-                    console.log('BACKEND DATA:', d);
+                    // TRY AVAILABLE CACHE FIRST (ultra-fast memory + IndexedDB, works offline)
+                    if (isWMSCacheEnabled() && activeWarehouse?.id) {
+                      try {
+                        const cached = await getAvailableByWSNFast(wsn, activeWarehouse.id);
+                        if (cached) {
+                          d = cached;
+                          fromCache = true;
+                          console.log('⚡ Memory/Cache HIT for picking WSN:', wsn);
+                        }
+                      } catch { /* cache miss */ }
+                    }
+
+                    // FALL BACK TO API (only if online and not cached)
+                    if (!d && isOnline) {
+                      const res = await pickingAPI.getSourceByWSN(
+                        wsn,
+                        activeWarehouse?.id
+                      );
+                      d = res.data;
+                      console.log('BACKEND DATA:', d);
+                    }
+
+                    // If still no data (offline with no cache), show message
+                    if (!d) {
+                      toast.error(`WSN ${wsn} not in cache. Enable cache refresh when online.`, {
+                        duration: 3000,
+                      });
+                      node.setDataValue('wsn', '');
+                      setTimeout(() => {
+                        event.api.startEditingCell({ rowIndex: rowIndex, colKey: 'wsn' });
+                      }, 100);
+                      return;
+                    }
 
                     // GUARD: ensure cell wasn't cleared in the meantime
                     const currentWsn = node?.data?.wsn?.trim()?.toUpperCase();
@@ -5642,11 +5734,16 @@ export default function PickingPage() {
                       checkDuplicates(rows);
                       return rows;
                     });
+
+                    // Show success feedback
+                    if (fromCache) {
+                      toast.success(`✓ (Cache) Loaded ${wsn}`, { duration: 1500 });
+                    }
                   } catch (err: any) {
                     console.error('Picking source fetch error:', err);
 
-                    // If not found in picking sources, try inbound master data as a fallback
-                    if (err?.response?.status === 404) {
+                    // If not found in picking sources, try inbound master data as a fallback (only if online)
+                    if (err?.response?.status === 404 && isOnline) {
                       try {
                         const inboundResp = await inboundAPI.getMasterDataByWSN(wsn);
                         const md = inboundResp.data;

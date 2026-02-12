@@ -163,11 +163,14 @@ import LiveViewPanel from '@/components/LiveViewPanel';
 // ⚡ OUTBOUND INVENTORY CACHE - for instant WSN lookups
 import {
     getAvailableInventoryByWSN,
+    getAvailableInventoryByWSNFast,
     loadAvailableInventory,
     getOutboundCacheStats,
     clearOutboundCache,
     removeFromCache,
-    needsCacheRefresh
+    needsCacheRefresh,
+    warmupOutboundMemoryCache,
+    clearOutboundMemoryCache
 } from '@/lib/outboundInventoryCache';
 
 // Tab definitions with permission codes
@@ -551,6 +554,10 @@ export default function OutboundPage() {
     useEffect(() => {
         if (isOnMultiTab && activeWarehouse?.id && !isLiveSessionActive) {
             startLiveSession();
+            // ⚡ Warm up memory cache for ultra-fast WSN lookups
+            warmupOutboundMemoryCache(activeWarehouse.id).catch(err => {
+                console.warn('Outbound memory cache warmup failed:', err);
+            });
         } else if (!isOnMultiTab && isLiveSessionActive) {
             endLiveSession();
         }
@@ -2296,10 +2303,10 @@ export default function OutboundPage() {
                     // Helper function to lookup a single WSN
                     const lookupWSN = async (rowIndex: number, wsn: string): Promise<{ rowIndex: number; data: any | null }> => {
                         try {
-                            // Try cache first
+                            // Try ultra-fast memory + IndexedDB cache first
                             if (cacheEnabled && cacheStats?.isReady) {
                                 try {
-                                    const cached = await getAvailableInventoryByWSN(wsn, activeWarehouse.id);
+                                    const cached = await getAvailableInventoryByWSNFast(wsn, activeWarehouse.id);
                                     if (cached) return { rowIndex, data: cached };
                                 } catch { /* cache miss */ }
                             }
@@ -2965,19 +2972,19 @@ export default function OutboundPage() {
                 }
 
                 // If we reach here, proceed to fetch source/master data
-                // ⚡ CACHE + OFFLINE: Try local cache first, fall back to API, support offline mode (Issue #7)
+                // ⚡ CACHE + OFFLINE: Try ultra-fast memory cache first, fall back to API, support offline mode (Issue #7)
                 try {
                     let data = null;
                     let fromCache = false;
 
-                    // Try local cache first (works offline)
+                    // Try ultra-fast memory + IndexedDB cache first (works offline)
                     if (cacheEnabled && cacheStats?.isReady) {
                         try {
-                            const cached = await getAvailableInventoryByWSN(wsn, activeWarehouse.id);
+                            const cached = await getAvailableInventoryByWSNFast(wsn, activeWarehouse.id);
                             if (cached) {
                                 data = cached;
                                 fromCache = true;
-                                console.log(`⚡ Cache HIT for ${wsn}`);
+                                console.log(`⚡ Memory/Cache HIT for ${wsn}`);
                             }
                         } catch (cacheErr) {
                             console.log(`📡 Cache miss for ${wsn}`);
@@ -3105,9 +3112,9 @@ export default function OutboundPage() {
             const rowNode = params?.api?.getDisplayedRowAtIndex(rowIndex);
             if (rowNode) {
                 rowNode.setDataValue('wsn', wsn);
-                // Fetch and apply master data (cache function handles API fallback)
+                // Fetch and apply master data (ultra-fast cache function handles API fallback)
                 try {
-                    const data = await getAvailableInventoryByWSN(wsn, activeWarehouse.id);
+                    const data = await getAvailableInventoryByWSNFast(wsn, activeWarehouse.id);
                     if (data) {
                         // Exclude vehicle_no/inbound_vehicle_no from spread - these are inbound vehicle, not dispatch vehicle
                         const { vehicle_no: _v, inbound_vehicle_no: _iv, ...safeData } = data;
@@ -3146,9 +3153,9 @@ export default function OutboundPage() {
                 const rowNode = params?.api?.getDisplayedRowAtIndex(nextEmptyIndex);
                 if (rowNode) {
                     rowNode.setDataValue('wsn', wsn);
-                    // Fetch master data (cache function handles API fallback)
+                    // Fetch master data (ultra-fast cache function handles API fallback)
                     try {
-                        const data = await getAvailableInventoryByWSN(wsn, activeWarehouse.id);
+                        const data = await getAvailableInventoryByWSNFast(wsn, activeWarehouse.id);
                         if (data) {
                             // Exclude vehicle_no/inbound_vehicle_no from spread - these are inbound vehicle, not dispatch vehicle
                             const { vehicle_no: _v, inbound_vehicle_no: _iv, ...safeData } = data;

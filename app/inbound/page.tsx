@@ -129,10 +129,16 @@ import {
   removeMultipleFromPendingCache,
   isCacheEnabled as isWMSCacheEnabled,
   getPendingByWSN,
+  getPendingByWSNFast,
   loadPendingInventory,
   getCacheStats as getPendingCacheStats,
   enableCache as enableWMSCache,
-  disableCache as disableWMSCache
+  disableCache as disableWMSCache,
+  warmupMemoryCache,
+  clearMemoryCache,
+  isMemoryCacheReady,
+  removeFromPendingMemoryCache,
+  removeMultipleFromPendingMemoryCache
 } from '@/lib/wmsCache';
 
 // Register AG Grid modules ONCE
@@ -393,6 +399,10 @@ export default function InboundPage() {
   useEffect(() => {
     if (isOnMultiTab && activeWarehouse?.id && !isLiveSessionActive) {
       startLiveSession();
+      // ⚡ Warm up memory cache for ultra-fast WSN lookups
+      warmupMemoryCache(activeWarehouse.id).catch(err => {
+        console.warn('Memory cache warmup failed:', err);
+      });
     } else if (!isOnMultiTab && isLiveSessionActive) {
       endLiveSession();
     }
@@ -1771,9 +1781,9 @@ export default function InboundPage() {
       const wsnUpper = singleWSN.trim().toUpperCase();
       setSingleLoading(true);
 
-      // ⚡ TRY PENDING CACHE FIRST (new wmsCache - only pending items)
+      // ⚡ TRY PENDING CACHE FIRST (ultra-fast memory + IndexedDB)
       if (isWMSCacheEnabled() && activeWarehouse?.id) {
-        const pendingData = await getPendingByWSN(wsnUpper, activeWarehouse.id);
+        const pendingData = await getPendingByWSNFast(wsnUpper, activeWarehouse.id);
         if (pendingData) {
           setMasterData(pendingData);
           setDuplicateWSN(null);
@@ -1812,9 +1822,9 @@ export default function InboundPage() {
     try {
       const wsnUpper = wsn.trim().toUpperCase();
 
-      // ⚡ TRY PENDING CACHE FIRST (new wmsCache - only pending items)
+      // ⚡ TRY PENDING CACHE FIRST (ultra-fast memory + IndexedDB)
       if (isWMSCacheEnabled() && activeWarehouse?.id) {
-        const pendingData = await getPendingByWSN(wsnUpper, activeWarehouse.id);
+        const pendingData = await getPendingByWSNFast(wsnUpper, activeWarehouse.id);
         if (pendingData) {
           setMasterData(pendingData);
           setDuplicateWSN(null);
@@ -3213,9 +3223,9 @@ export default function InboundPage() {
           const wsnUpper = value.trim().toUpperCase();
           let masterInfo = null;
 
-          // ⚡ TRY PENDING CACHE FIRST (new wmsCache - only pending items)
+          // ⚡ TRY PENDING CACHE FIRST (ultra-fast memory + IndexedDB)
           if (isWMSCacheEnabled() && activeWarehouse?.id) {
-            masterInfo = await getPendingByWSN(wsnUpper, activeWarehouse.id);
+            masterInfo = await getPendingByWSNFast(wsnUpper, activeWarehouse.id);
           }
 
           // ⚡ FALLBACK: Use old batch cache
@@ -3395,9 +3405,9 @@ export default function InboundPage() {
     try {
       let masterData = null;
 
-      // ⚡ TRY PENDING CACHE FIRST (new wmsCache)
+      // ⚡ TRY PENDING CACHE FIRST (ultra-fast memory + IndexedDB)
       if (isWMSCacheEnabled() && activeWarehouse?.id) {
-        masterData = await getPendingByWSN(newWSN, activeWarehouse.id);
+        masterData = await getPendingByWSNFast(newWSN, activeWarehouse.id);
       }
 
       // ⚡ FALLBACK: Use old batch cache
@@ -3465,9 +3475,9 @@ export default function InboundPage() {
     try {
       let masterData = null;
 
-      // ⚡ TRY PENDING CACHE FIRST (new wmsCache)
+      // ⚡ TRY PENDING CACHE FIRST (ultra-fast memory + IndexedDB)
       if (isWMSCacheEnabled() && activeWarehouse?.id) {
-        masterData = await getPendingByWSN(newWSN, activeWarehouse.id);
+        masterData = await getPendingByWSNFast(newWSN, activeWarehouse.id);
       }
 
       // ⚡ FALLBACK: Use old batch cache
@@ -7030,12 +7040,12 @@ export default function InboundPage() {
                           ])
                           : Promise.resolve(null); // Skip API when offline
 
-                        // ⚡ Use LOCAL CACHE for master data (instant if cached)
+                        // ⚡ Use LOCAL CACHE for master data (ultra-fast memory + IndexedDB)
                         // Try pending cache first (new wmsCache), then fallback to old batch cache
                         const masterDataPromise = (async () => {
-                          // TRY PENDING CACHE FIRST (new wmsCache - only pending items)
+                          // TRY PENDING CACHE FIRST (ultra-fast memory + IndexedDB)
                           if (isWMSCacheEnabled() && activeWarehouse?.id) {
-                            const pendingData = await getPendingByWSN(wsnUpper, activeWarehouse.id);
+                            const pendingData = await getPendingByWSNFast(wsnUpper, activeWarehouse.id);
                             if (pendingData) return pendingData;
                           }
                           // FALLBACK: Use old batch cache

@@ -81,7 +81,172 @@ const CACHE_CONFIG = {
     STALE_THRESHOLD_MS: 30 * 60 * 1000,  // 30 minutes - available inventory changes frequently
     CHUNK_SIZE: 1000,  // Records per IndexedDB write
     YIELD_DELAY_MS: 10,  // Time to yield between chunks
+    MEMORY_CACHE_ENABLED: true,  // Enable ultra-fast in-memory layer
 };
+
+// ======================== IN-MEMORY CACHE (ULTRA FAST) ========================
+
+/**
+ * In-memory Map for sub-millisecond WSN lookups
+ * Populated from IndexedDB on page load
+ */
+let outboundMemoryMap: Map<string, AvailableInventoryRecord> | null = null;
+let memoryWarehouseId: number | null = null;
+let isMemoryWarmedUp = false;
+let isMemoryWarming = false;
+let warmupPromise: Promise<void> | null = null;
+
+/**
+ * Check if memory cache is ready for a warehouse
+ */
+export function isOutboundMemoryCacheReady(warehouseId: number): boolean {
+    return isMemoryWarmedUp && memoryWarehouseId === warehouseId;
+}
+
+/**
+ * Get memory cache stats
+ */
+export function getOutboundMemoryCacheStats(): {
+    isWarmedUp: boolean;
+    isWarming: boolean;
+    warehouseId: number | null;
+    count: number;
+} {
+    return {
+        isWarmedUp: isMemoryWarmedUp,
+        isWarming: isMemoryWarming,
+        warehouseId: memoryWarehouseId,
+        count: outboundMemoryMap?.size || 0,
+    };
+}
+
+/**
+ * Warm up in-memory cache from IndexedDB (background task)
+ * Call this when entering Multi Entry tab
+ */
+export async function warmupOutboundMemoryCache(
+    warehouseId: number,
+    onProgress?: (message: string, count: number) => void
+): Promise<void> {
+    // If already warmed for this warehouse, skip
+    if (isMemoryWarmedUp && memoryWarehouseId === warehouseId) {
+        console.log('⚡ Outbound memory cache already warm');
+        return;
+    }
+
+    // If currently warming, wait for it
+    if (isMemoryWarming && warmupPromise) {
+        console.log('⏳ Waiting for ongoing outbound warmup...');
+        return warmupPromise;
+    }
+
+    isMemoryWarming = true;
+    memoryWarehouseId = warehouseId;
+
+    warmupPromise = (async () => {
+        try {
+            const database = getDB();
+            const startTime = performance.now();
+
+            if (onProgress) onProgress('Loading available inventory...', 0);
+
+            // Load all available inventory for this warehouse into Map
+            const records = await database.availableInventory
+                .where('warehouse_id')
+                .equals(warehouseId)
+                .toArray();
+
+            outboundMemoryMap = new Map(records.map(r => [r.wsn, r]));
+
+            const elapsed = Math.round(performance.now() - startTime);
+            isMemoryWarmedUp = true;
+
+            console.log(`⚡ Outbound memory cache warmed in ${elapsed}ms: ${outboundMemoryMap.size} records`);
+
+            if (onProgress) {
+                onProgress(`Ready! (${elapsed}ms)`, outboundMemoryMap.size);
+            }
+        } catch (error) {
+            console.error('❌ Outbound memory warmup failed:', error);
+            // Reset state on error
+            outboundMemoryMap = null;
+            isMemoryWarmedUp = false;
+        } finally {
+            isMemoryWarming = false;
+            warmupPromise = null;
+        }
+    })();
+
+    return warmupPromise;
+}
+
+/**
+ * Clear memory cache (call on warehouse change or page unmount)
+ */
+export function clearOutboundMemoryCache(): void {
+    outboundMemoryMap = null;
+    memoryWarehouseId = null;
+    isMemoryWarmedUp = false;
+    isMemoryWarming = false;
+    warmupPromise = null;
+    console.log('🗑️ Outbound memory cache cleared');
+}
+
+/**
+ * ULTRA FAST - Get available inventory by WSN
+ * Tier 1: Memory Map (sync, ~0.001ms)
+ * Tier 2: IndexedDB (async, 1-5ms)
+ * Tier 3: API (async, 100-500ms)
+ */
+export async function getAvailableInventoryByWSNFast(
+    wsn: string,
+    warehouseId: number
+): Promise<AvailableInventoryRecord | null> {
+    if (!wsn || !warehouseId) return null;
+
+    const normalizedWSN = wsn.trim().toUpperCase();
+
+    // TIER 1: Memory Map (INSTANT - sub-millisecond)
+    if (CACHE_CONFIG.MEMORY_CACHE_ENABLED && isMemoryWarmedUp && outboundMemoryMap && memoryWarehouseId === warehouseId) {
+        const cached = outboundMemoryMap.get(normalizedWSN);
+        if (cached) {
+            // Check if not stale
+            const age = Date.now() - (cached.cached_at || 0);
+            if (age < CACHE_CONFIG.STALE_THRESHOLD_MS) {
+                console.log(`⚡ Outbound Memory HIT: ${normalizedWSN}`);
+                return cached;
+            }
+        }
+    }
+
+    // TIER 2 & 3: IndexedDB + API fallback (existing function)
+    const result = await getAvailableInventoryByWSN(wsn, warehouseId);
+
+    // If found, add to memory Map for future lookups
+    if (result && outboundMemoryMap && memoryWarehouseId === warehouseId) {
+        outboundMemoryMap.set(normalizedWSN, result);
+    }
+
+    return result;
+}
+
+/**
+ * Update item in memory cache
+ */
+export function updateOutboundMemoryCache(wsn: string, data: AvailableInventoryRecord): void {
+    if (!outboundMemoryMap || !wsn) return;
+    const normalizedWSN = wsn.trim().toUpperCase();
+    outboundMemoryMap.set(normalizedWSN, { ...data, wsn: normalizedWSN, cached_at: Date.now() });
+}
+
+/**
+ * Remove item from memory cache
+ */
+export function removeFromOutboundMemoryCache(wsn: string): void {
+    if (!outboundMemoryMap || !wsn) return;
+    const normalizedWSN = wsn.trim().toUpperCase();
+    outboundMemoryMap.delete(normalizedWSN);
+}
 
 /**
  * Get available inventory by WSN - LOCAL FIRST, then API fallback

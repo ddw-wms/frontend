@@ -127,8 +127,263 @@ const CACHE_CONFIG = {
     // Feature flag - defaults to OFF for safety
     ENABLED: typeof window !== 'undefined'
         ? localStorage.getItem('WMS_CACHE_ENABLED') === 'true'
-        : false
+        : false,
+
+    // In-memory cache settings
+    MEMORY_CACHE_ENABLED: true,  // Enable ultra-fast in-memory layer
+    MEMORY_WARMUP_CHUNK: 5000,   // Records per chunk during warmup
 };
+
+// ======================== IN-MEMORY CACHE (ULTRA FAST) ========================
+
+/**
+ * In-memory Maps for sub-millisecond WSN lookups
+ * These are populated from IndexedDB on page load
+ */
+let pendingMemoryMap: Map<string, PendingInventoryRecord> | null = null;
+let availableMemoryMap: Map<string, AvailableInventoryRecord> | null = null;
+let memoryWarehouseId: number | null = null;
+let isMemoryWarmedUp = false;
+let isMemoryWarming = false;
+let warmupPromise: Promise<void> | null = null;
+
+/**
+ * Check if memory cache is ready for a warehouse
+ */
+export function isMemoryCacheReady(warehouseId: number): boolean {
+    return isMemoryWarmedUp && memoryWarehouseId === warehouseId;
+}
+
+/**
+ * Get memory cache stats
+ */
+export function getMemoryCacheStats(): {
+    isWarmedUp: boolean;
+    isWarming: boolean;
+    warehouseId: number | null;
+    pendingCount: number;
+    availableCount: number;
+} {
+    return {
+        isWarmedUp: isMemoryWarmedUp,
+        isWarming: isMemoryWarming,
+        warehouseId: memoryWarehouseId,
+        pendingCount: pendingMemoryMap?.size || 0,
+        availableCount: availableMemoryMap?.size || 0,
+    };
+}
+
+/**
+ * Warm up in-memory cache from IndexedDB (background task)
+ * Call this when entering Multi Entry tab
+ */
+export async function warmupMemoryCache(
+    warehouseId: number,
+    onProgress?: (message: string, pendingCount: number, availableCount: number) => void
+): Promise<void> {
+    // If already warmed for this warehouse, skip
+    if (isMemoryWarmedUp && memoryWarehouseId === warehouseId) {
+        console.log('⚡ Memory cache already warm');
+        return;
+    }
+
+    // If currently warming, wait for it
+    if (isMemoryWarming && warmupPromise) {
+        console.log('⏳ Waiting for ongoing warmup...');
+        return warmupPromise;
+    }
+
+    // If cache feature is disabled, skip
+    if (!isCacheEnabled()) {
+        console.log('⚠️ Cache disabled, skipping memory warmup');
+        return;
+    }
+
+    isMemoryWarming = true;
+    memoryWarehouseId = warehouseId;
+
+    warmupPromise = (async () => {
+        try {
+            const database = getDB();
+            const startTime = performance.now();
+
+            if (onProgress) onProgress('Loading pending inventory...', 0, 0);
+
+            // Load pending inventory into Map
+            const pendingRecords = await database.pendingInventory
+                .where('warehouse_id')
+                .equals(warehouseId)
+                .toArray();
+
+            pendingMemoryMap = new Map(pendingRecords.map(r => [r.wsn, r]));
+
+            if (onProgress) onProgress('Loading available inventory...', pendingMemoryMap.size, 0);
+
+            // Load available inventory into Map
+            const availableRecords = await database.availableInventory
+                .where('warehouse_id')
+                .equals(warehouseId)
+                .toArray();
+
+            availableMemoryMap = new Map(availableRecords.map(r => [r.wsn, r]));
+
+            const elapsed = Math.round(performance.now() - startTime);
+            isMemoryWarmedUp = true;
+
+            console.log(`⚡ Memory cache warmed in ${elapsed}ms: ${pendingMemoryMap.size} pending, ${availableMemoryMap.size} available`);
+
+            if (onProgress) {
+                onProgress(`Ready! (${elapsed}ms)`, pendingMemoryMap.size, availableMemoryMap.size);
+            }
+        } catch (error) {
+            console.error('❌ Memory warmup failed:', error);
+            // Reset state on error
+            pendingMemoryMap = null;
+            availableMemoryMap = null;
+            isMemoryWarmedUp = false;
+        } finally {
+            isMemoryWarming = false;
+            warmupPromise = null;
+        }
+    })();
+
+    return warmupPromise;
+}
+
+/**
+ * Clear memory cache (call on warehouse change or page unmount)
+ */
+export function clearMemoryCache(): void {
+    pendingMemoryMap = null;
+    availableMemoryMap = null;
+    memoryWarehouseId = null;
+    isMemoryWarmedUp = false;
+    isMemoryWarming = false;
+    warmupPromise = null;
+    console.log('🗑️ Memory cache cleared');
+}
+
+/**
+ * ULTRA FAST - Get pending item by WSN
+ * Tier 1: Memory Map (sync, ~0.001ms)
+ * Tier 2: IndexedDB (async, 1-5ms)
+ */
+export async function getPendingByWSNFast(
+    wsn: string,
+    warehouseId: number
+): Promise<PendingInventoryRecord | null> {
+    if (!wsn || !warehouseId) return null;
+
+    const normalizedWSN = wsn.trim().toUpperCase();
+
+    // TIER 1: Memory Map (INSTANT - sub-millisecond)
+    if (CACHE_CONFIG.MEMORY_CACHE_ENABLED && isMemoryWarmedUp && pendingMemoryMap && memoryWarehouseId === warehouseId) {
+        const cached = pendingMemoryMap.get(normalizedWSN);
+        if (cached) {
+            // Check if not stale
+            const age = Date.now() - (cached.cached_at || 0);
+            if (age < CACHE_CONFIG.PENDING_STALE_MS) {
+                console.log(`⚡ Memory HIT (pending): ${normalizedWSN}`);
+                return cached;
+            }
+        }
+    }
+
+    // TIER 2: IndexedDB fallback (existing function)
+    const indexedDbResult = await getPendingByWSN(wsn, warehouseId);
+
+    // If found in IndexedDB but not in Map, add to Map for future lookups
+    if (indexedDbResult && pendingMemoryMap && memoryWarehouseId === warehouseId) {
+        pendingMemoryMap.set(normalizedWSN, indexedDbResult);
+    }
+
+    return indexedDbResult;
+}
+
+/**
+ * ULTRA FAST - Get available item by WSN
+ * Tier 1: Memory Map (sync, ~0.001ms)
+ * Tier 2: IndexedDB (async, 1-5ms)
+ */
+export async function getAvailableByWSNFast(
+    wsn: string,
+    warehouseId: number
+): Promise<AvailableInventoryRecord | null> {
+    if (!wsn || !warehouseId) return null;
+
+    const normalizedWSN = wsn.trim().toUpperCase();
+
+    // TIER 1: Memory Map (INSTANT - sub-millisecond)
+    if (CACHE_CONFIG.MEMORY_CACHE_ENABLED && isMemoryWarmedUp && availableMemoryMap && memoryWarehouseId === warehouseId) {
+        const cached = availableMemoryMap.get(normalizedWSN);
+        if (cached) {
+            // Check if not stale
+            const age = Date.now() - (cached.cached_at || 0);
+            if (age < CACHE_CONFIG.AVAILABLE_STALE_MS) {
+                console.log(`⚡ Memory HIT (available): ${normalizedWSN}`);
+                return cached;
+            }
+        }
+    }
+
+    // TIER 2: IndexedDB fallback (existing function)
+    const indexedDbResult = await getAvailableByWSN(wsn, warehouseId);
+
+    // If found in IndexedDB but not in Map, add to Map for future lookups
+    if (indexedDbResult && availableMemoryMap && memoryWarehouseId === warehouseId) {
+        availableMemoryMap.set(normalizedWSN, indexedDbResult);
+    }
+
+    return indexedDbResult;
+}
+
+/**
+ * Add/Update item in pending memory cache
+ */
+export function updatePendingMemoryCache(wsn: string, data: PendingInventoryRecord): void {
+    if (!pendingMemoryMap || !wsn) return;
+    const normalizedWSN = wsn.trim().toUpperCase();
+    pendingMemoryMap.set(normalizedWSN, { ...data, wsn: normalizedWSN, cached_at: Date.now() });
+}
+
+/**
+ * Add/Update item in available memory cache
+ */
+export function updateAvailableMemoryCache(wsn: string, data: AvailableInventoryRecord): void {
+    if (!availableMemoryMap || !wsn) return;
+    const normalizedWSN = wsn.trim().toUpperCase();
+    availableMemoryMap.set(normalizedWSN, { ...data, wsn: normalizedWSN, cached_at: Date.now() });
+}
+
+/**
+ * Remove item from pending memory cache
+ */
+export function removeFromPendingMemoryCache(wsn: string): void {
+    if (!pendingMemoryMap || !wsn) return;
+    const normalizedWSN = wsn.trim().toUpperCase();
+    pendingMemoryMap.delete(normalizedWSN);
+}
+
+/**
+ * Remove item from available memory cache
+ */
+export function removeFromAvailableMemoryCache(wsn: string): void {
+    if (!availableMemoryMap || !wsn) return;
+    const normalizedWSN = wsn.trim().toUpperCase();
+    availableMemoryMap.delete(normalizedWSN);
+}
+
+/**
+ * Bulk remove from pending memory cache
+ */
+export function removeMultipleFromPendingMemoryCache(wsns: string[]): void {
+    if (!pendingMemoryMap || !wsns?.length) return;
+    wsns.forEach(wsn => {
+        const normalizedWSN = wsn.trim().toUpperCase();
+        pendingMemoryMap!.delete(normalizedWSN);
+    });
+}
+
 
 // ======================== FEATURE FLAG ========================
 

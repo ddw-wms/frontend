@@ -86,7 +86,10 @@ import {
   enableCache as enableWMSCache,
   disableCache as disableWMSCache,
   loadAvailableInventory,
-  getCacheStats
+  getCacheStats,
+  getAvailableByWSNFast,
+  warmupMemoryCache,
+  clearMemoryCache
 } from '@/lib/wmsCache';
 import AppLayout from '@/components/AppLayout';
 import { StandardPageHeader, StandardTabs, BatchManagementTab, WSNOverwriteDialog } from '@/components';
@@ -353,6 +356,10 @@ export default function QCPage() {
   const scanningModeRef = useRef(false);
   const multiRowsRef = useRef([] as any[]);
 
+  // ⚡ OFFLINE: Track if offline warning has been shown
+  const offlineWarningShownRef = useRef<boolean>(false);
+  const wsnFetchMapRef = useRef<Map<number, string>>(new Map());
+
   // ⚡ EXCEL-LIKE: Track selected cell range for multi-cell operations
   const [selectedRange, setSelectedRange] = useState<{
     startRow: number;
@@ -575,6 +582,10 @@ export default function QCPage() {
   useEffect(() => {
     if (isOnMultiTab && activeWarehouse?.id && !isLiveSessionActive) {
       startLiveSession();
+      // ⚡ Warm up memory cache for ultra-fast WSN lookups
+      warmupMemoryCache(activeWarehouse.id).catch(err => {
+        console.warn('Memory cache warmup failed:', err);
+      });
     } else if (!isOnMultiTab && isLiveSessionActive) {
       endLiveSession();
     }
@@ -5040,49 +5051,133 @@ export default function QCPage() {
                             add500Rows();
                           }
 
+                          // ⚡ SCANNER: Move to next row after WSN entry
+                          const moveToNextRow = () => {
+                            setTimeout(() => {
+                              try {
+                                const nextIndex = (rowIndex ?? 0) + 1;
+                                if (nextIndex < event.api.getDisplayedRowCount()) {
+                                  desiredRowIndexRef.current = nextIndex;
+                                  ensureRowVisible(nextIndex, 'bottom');
+                                  event.api.startEditingCell({
+                                    rowIndex: nextIndex,
+                                    colKey: 'wsn',
+                                  });
+                                } else {
+                                  add500Rows();
+                                  setTimeout(() => {
+                                    desiredRowIndexRef.current = nextIndex;
+                                    ensureRowVisible(nextIndex, 'bottom');
+                                    event.api.startEditingCell({
+                                      rowIndex: nextIndex,
+                                      colKey: 'wsn',
+                                    });
+                                  }, 50);
+                                }
+                              } catch (e) { /* ignore */ }
+                            }, 30);
+                          };
+
                           // Fetch master data
                           if (wsn) {
-                            setTimeout(async () => {
+                            // Track this fetch request
+                            wsnFetchMapRef.current.set(rowIndex, wsn);
+
+                            // ⚡ OFFLINE CHECK
+                            const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+
+                            // Show offline warning once per session
+                            if (!isOnline && !offlineWarningShownRef.current) {
+                              offlineWarningShownRef.current = true;
+                              toast('📴 Offline Mode - Using cached data. Will validate on submit.', {
+                                duration: 5000,
+                                style: {
+                                  background: '#fef3c7',
+                                  color: '#92400e',
+                                  border: '1px solid #f59e0b',
+                                  borderRadius: '8px',
+                                  padding: '12px 16px',
+                                  fontWeight: 500,
+                                  fontSize: '13px',
+                                },
+                                icon: '⚠️',
+                              });
+                            }
+
+                            // Reset warning flag when back online
+                            if (isOnline && offlineWarningShownRef.current) {
+                              offlineWarningShownRef.current = false;
+                            }
+
+                            // ⚡ CACHE FIRST + API FALLBACK
+                            (async () => {
                               try {
-                                const response = await qcAPI.getPendingInbound(activeWarehouse?.id, wsn);
+                                let masterInfo = null;
 
-                                // ? ADD DEBUG
-                                console.log('[QC] API Response for WSN:', wsn, response.data[0]);
+                                // TRY AVAILABLE CACHE FIRST (ultra-fast memory + IndexedDB)
+                                if (isWMSCacheEnabled() && activeWarehouse?.id) {
+                                  try {
+                                    masterInfo = await getAvailableByWSNFast(wsn, activeWarehouse.id);
+                                    if (masterInfo) {
+                                      console.log('[QC] ⚡ Memory/Cache HIT for WSN:', wsn);
+                                    }
+                                  } catch { /* cache miss */ }
+                                }
 
-                                if (response.data.length > 0) {
-                                  const item = response.data[0];
+                                // FALLBACK TO API (only if online)
+                                if (!masterInfo && isOnline) {
+                                  const response = await qcAPI.getPendingInbound(activeWarehouse?.id, wsn);
+                                  console.log('[QC] API Response for WSN:', wsn, response.data[0]);
+                                  if (response.data.length > 0) {
+                                    masterInfo = response.data[0];
+                                  }
+                                }
+
+                                // Check if this is still the latest fetch for this row
+                                const latestWSN = wsnFetchMapRef.current.get(rowIndex);
+                                if (latestWSN !== wsn) {
+                                  console.log(`⏭️ Skipping stale fetch for row ${rowIndex}: ${wsn} (latest: ${latestWSN})`);
+                                  return;
+                                }
+
+                                if (masterInfo) {
                                   setMultiRows((prevRows) => {
                                     const updatedRows = [...prevRows];
                                     updatedRows[rowIndex] = {
                                       ...updatedRows[rowIndex],
-                                      // ? EXACT MAPPING FROM CONSOLE OUTPUT
-                                      fsn: item.fsn || '',
-                                      producttitle: item.product_title || '',
-                                      brand: item.brand || '',
-                                      cmsvertical: item.cms_vertical || '',
-                                      hsnsac: item.hsn_sac || '',
-                                      igstrate: item.igst_rate || '',
-                                      mrp: item.mrp || '',
-                                      fsp: item.fsp || '',
-                                      vrp: item.vrp || '',
-                                      yieldvalue: item.yield_value || '',
-                                      psize: item.p_size || '',
-                                      ptype: item.p_type || '',
-                                      fktlink: item.fkt_link || '',
-                                      whlocation: item.wh_location || '',
-                                      orderid: item.order_id || '',
-                                      fkqcremark: item.fkqc_remark || '',
-                                      fkgrade: item.fk_grade || '',
-                                      invoicedate: item.invoice_date || '',
+                                      // EXACT MAPPING FROM API/CACHE
+                                      fsn: masterInfo.fsn || '',
+                                      producttitle: masterInfo.product_title || '',
+                                      brand: masterInfo.brand || '',
+                                      cmsvertical: masterInfo.cms_vertical || '',
+                                      hsnsac: masterInfo.hsn_sac || '',
+                                      igstrate: masterInfo.igst_rate || '',
+                                      mrp: masterInfo.mrp || '',
+                                      fsp: masterInfo.fsp || '',
+                                      vrp: masterInfo.vrp || '',
+                                      yieldvalue: masterInfo.yield_value || '',
+                                      psize: masterInfo.p_size || '',
+                                      ptype: masterInfo.p_type || '',
+                                      fktlink: masterInfo.fkt_link || '',
+                                      whlocation: masterInfo.wh_location || '',
+                                      orderid: masterInfo.order_id || '',
+                                      fkqcremark: masterInfo.fkqc_remark || '',
+                                      fkgrade: masterInfo.fk_grade || '',
+                                      invoicedate: masterInfo.invoice_date || '',
                                     };
                                     return updatedRows;
                                   });
                                 }
 
+                                // ⚡ SCANNER: Move to next row after processing
+                                moveToNextRow();
+
                               } catch (error) {
                                 console.log('WSN not found in pending inbound');
+                                // Still move to next row even if not found
+                                moveToNextRow();
                               }
-                            }, 500);
+                            })();
                           }
 
                           return;
