@@ -4620,8 +4620,10 @@ export default function OutboundPage() {
 
             <Box sx={{
                 p: { xs: 0.75, md: 1 },
-                background: isDarkMode ? 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)' : 'linear-gradient(135deg, #f0f4f8 0%, #d9e2ec 100%)', minHeight: '100vh', width: '100%',
-                display: 'flex', flexDirection: 'column'
+                background: isDarkMode ? 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)' : 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
+                height: '100%', width: '100%',
+                display: 'flex', flexDirection: 'column',
+                overflow: 'hidden'
             }}>
                 {/* HEADER */}
                 <StandardPageHeader
@@ -4643,9 +4645,9 @@ export default function OutboundPage() {
 
                 {/* TAB: OUTBOUND LIST */}
                 {currentTabCode === 'list' && (
-                    <Box sx={{ display: 'flex', flexDirection: 'column', height: 'calc(110vh - 200px)', transition: 'opacity 0.15s ease-in-out' }}>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden', background: isDarkMode ? '#0f172a' : '#f8fafc', py: { xs: 0.25, sm: 0.50 }, transition: 'opacity 0.15s ease-in-out' }}>
                         {/* SEARCH + OPTIONS BUTTON */}
-                        <Box sx={{ mb: 0.5, mt: 0.5 }}>
+                        <Box sx={{ mb: 1 }}>
                             <Stack direction="row" spacing={1} alignItems="center">
                                 <TextField
                                     size="small"
@@ -4657,7 +4659,7 @@ export default function OutboundPage() {
                                         minWidth: 0,
                                         '& .MuiOutlinedInput-root': {
                                             height: 38,
-                                            bgcolor: isDarkMode ? '#0f172a' : '#f8fafc',
+                                            bgcolor: isDarkMode ? '#1e293b' : 'white',
                                             borderRadius: 1.5,
                                             '& fieldset': {
                                                 borderWidth: 2,
@@ -4667,7 +4669,7 @@ export default function OutboundPage() {
                                                 borderColor: isDarkMode ? 'rgba(255,255,255,0.2)' : '#cbd5e1'
                                             },
                                             '&.Mui-focused fieldset': {
-                                                borderColor: '#3b82f6'
+                                                borderColor: '#1e40af'
                                             },
                                             '& input': {
                                                 py: 0.75,
@@ -4730,7 +4732,11 @@ export default function OutboundPage() {
                             flex: 1,
                             minHeight: 0,
                             border: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #d1d5db',
-                            position: 'relative'
+                            borderBottom: 'none',
+                            position: 'relative',
+                            borderRadius: '12px 12px 0 0',
+                            boxShadow: isDarkMode ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.06)',
+                            overflow: 'hidden',
                         }}>
 
                             {/* Loading Spinner Overlay - semi-transparent so data stays visible */}
@@ -4809,7 +4815,7 @@ export default function OutboundPage() {
                             )}
 
                             <Box sx={{ height: '100%', width: '100%', bgcolor: isDarkMode ? '#1e293b' : '#ffffff', position: 'relative' }}>
-                                <div className="ag-theme-quartz" style={{ height: '100%', width: '100%', position: 'relative', backgroundColor: isDarkMode ? '#1e293b' : '#ffffff' }}>
+                                <div className="ag-theme-quartz" style={{ height: '100%', width: '100%', position: 'relative' }}>
                                     <Box sx={{
                                         height: '100%',
                                         width: '100%',
@@ -5054,7 +5060,11 @@ export default function OutboundPage() {
                                     display: "flex",
                                     alignItems: "center",
                                     justifyContent: "space-between",
-                                    borderTop: isDarkMode ? "1px solid rgba(255,255,255,0.1)" : "1px solid #ddd",
+                                    borderTop: isDarkMode ? "1px solid rgba(255,255,255,0.1)" : "1px solid #d1d5db",
+                                    borderLeft: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #d1d5db',
+                                    borderRight: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #d1d5db',
+                                    borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #d1d5db',
+                                    borderRadius: '0 0 12px 12px',
                                     bgcolor: isDarkMode ? '#1e293b' : "white",
                                     flexShrink: 0,
                                     minHeight: { xs: 44, sm: 52 },

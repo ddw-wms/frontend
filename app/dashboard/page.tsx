@@ -1653,11 +1653,10 @@ export default function DashboardPage() {
         p: { xs: 0.75, md: 1 },
         background: isDarkMode ? 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)' : 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
         height: '100%',
+        width: '100%',
         display: "flex",
         flexDirection: "column",
-        flex: 1,
         overflow: "hidden",
-        bgcolor: isDarkMode ? '#0f172a' : '#f5f7fa',
       }}
       >
         {/* ================= HEADER ================= */}
@@ -1675,7 +1674,7 @@ export default function DashboardPage() {
             flex: 1,
             display: "flex",
             flexDirection: "column",
-            overflow: { xs: "hidden", md: "auto" },
+            overflow: "auto",
             position: "relative",
           }}
         >
@@ -1690,7 +1689,7 @@ export default function DashboardPage() {
                 md: "repeat(6, 1fr)",
               },
               gap: { xs: 0.75, sm: 1.5, md: 2 },
-              p: { xs: 1, sm: 1, md: 1 },
+              py: { xs: 0.75, sm: 0.75, md: 0.75 },
               overflowX: "visible",
               bgcolor: isDarkMode ? '#0f172a' : 'transparent',
               flexShrink: 0,
@@ -1804,17 +1803,15 @@ export default function DashboardPage() {
           <Box
             sx={{
               background: isDarkMode ? '#0f172a' : '#f8fafc',
-              px: { xs: 1, sm: 2, md: 2 },
-              py: { xs: 0.5, sm: 0.75, md: 1 },
+              py: { xs: 0.5, sm: 0.75, md: 0.75 },
               display: "flex",
               flexDirection: "column",
               gap: { xs: 0.1, md: 1.0 },
               flexShrink: 0,
               borderBottom: 'transparent',
-              // Sticky filter bar on desktop
-              position: { xs: 'static', gap: '0.1rem', md: '1rem' },
-              top: { md: 0 },
-              zIndex: { md: 10 },
+              position: 'sticky',
+              top: 0,
+              zIndex: 10,
               boxShadow: { md: isDarkMode ? '0 4px 12px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.08)' },
 
               // Paste inside the existing sx object
@@ -1986,16 +1983,15 @@ export default function DashboardPage() {
           </Box>
 
 
-          {/* ================= TABLE AREA (SCROLLABLE) ================= */}
+          {/* ================= TABLE AREA ================= */}
           <Box
             sx={{
-              flex: 1,
+              height: 'calc(100vh - 180px)',
+              minHeight: 400,
               display: "flex",
               flexDirection: "column",
               overflow: "hidden",
-              pb: { xs: 0, md: 2 },
               bgcolor: isDarkMode ? '#0f172a' : 'transparent',
-              minHeight: { md: 'calc(100vh - 180px)' }, // Ensure table has minimum height for proper scrolling
             }}
           >
             <Paper
@@ -2004,7 +2000,7 @@ export default function DashboardPage() {
                 display: "flex",
                 flexDirection: "column",
                 overflow: "hidden",
-                bgcolor: isDarkMode ? '#1e293b' : 'background.paper',
+                bgcolor: isDarkMode ? '#0f172a' : '#f8fafc',
               }}
             >
               {/* Table Container - AG Grid */}
@@ -2126,13 +2122,16 @@ export default function DashboardPage() {
                   overflow: 'hidden',
                   display: 'flex',
                   flexDirection: 'column',
-                  position: 'relative', // ⚡ FLASH FIX: Required for absolute overlay positioning
+                  position: 'relative',
+                  border: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #d1d5db',
+                  borderBottom: 'none',
+                  borderRadius: '12px 12px 0 0',
+                  boxShadow: isDarkMode ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.06)',
                   bgcolor: isDarkMode ? '#1e293b' : 'transparent',
                   '& .ag-root-wrapper': {
                     height: '100%',
-                    borderRadius: { xs: 0, md: '12px' },
                     overflow: 'hidden',
-                    border: { xs: 'none', md: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(0,0,0,0.06)' },
+                    border: 'none',
                     backgroundColor: isDarkMode ? '#1e293b' : 'transparent',
                   },
                   '& .ag-header': {
@@ -2195,13 +2194,13 @@ export default function DashboardPage() {
                   '& .ag-row': {
                     height: { xs: 44, md: 44 },
                     overflow: 'visible',
-                    borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.06)' : '1px solid rgba(0,0,0,0.06)',
+                    borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #e5e7eb',
                   },
                   '& .ag-row-even': {
-                    backgroundColor: isDarkMode ? '#1a2536' : '#ffffff',
+                    backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
                   },
                   '& .ag-row-odd': {
-                    backgroundColor: isDarkMode ? '#1e293b' : 'rgba(248,250,252,0.5)',
+                    backgroundColor: isDarkMode ? '#1a2536' : '#f8fafc',
                   },
                   '& .ag-cell': {
                     display: 'flex',
@@ -2209,18 +2208,22 @@ export default function DashboardPage() {
                     lineHeight: { xs: '44px', md: '44px' },
                     fontSize: '0.875rem',
                     padding: '0 12px',
-                    color: isDarkMode ? '#f1f5f9' : 'inherit',
+                    color: isDarkMode ? '#f1f5f9' : '#1e293b',
+                    borderRight: isDarkMode ? '1px solid #334155' : '1px solid #e5e7eb',
+                  },
+                  '& .ag-cell:last-child': {
+                    borderRight: 'none',
                   },
                   '& .ag-cell-focus': {
-                    border: '2px solid #1e40af !important',
+                    border: isDarkMode ? '2px solid #38bdf8 !important' : '2px solid #2563eb !important',
                     boxSizing: 'border-box',
                     outline: 'none'
                   },
                   '& .ag-cell-range-selected': {
-                    backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.2) !important' : 'rgba(30,64,175,0.08) !important',
+                    backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.25) !important' : '#dbeafe !important',
                   },
                   '& .ag-row-hover': {
-                    backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.15) !important' : 'rgba(30,64,175,0.04) !important',
+                    backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.15) !important' : '#eff6ff !important',
                   },
                 }}>
                   <div className="ag-theme-quartz" style={{ height: '100%', width: '100%', position: 'relative', zIndex: 1 }}>
@@ -2376,7 +2379,11 @@ export default function DashboardPage() {
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "space-between",
-                    borderTop: isDarkMode ? "1px solid rgba(255,255,255,0.1)" : "1px solid #ddd",
+                    borderTop: isDarkMode ? "1px solid rgba(255,255,255,0.1)" : "1px solid #d1d5db",
+                    borderLeft: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #d1d5db',
+                    borderRight: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #d1d5db',
+                    borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #d1d5db',
+                    borderRadius: '0 0 12px 12px',
                     bgcolor: isDarkMode ? '#1e293b' : "white",
                     flexShrink: 0,
                     minHeight: { xs: 44, sm: 52 },

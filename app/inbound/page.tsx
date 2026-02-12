@@ -4067,6 +4067,9 @@ export default function InboundPage() {
           overflow: 'auto',
           display: 'flex',
           flexDirection: 'column',
+          gap: { xs: 0.75, sm: 1.5, md: 2 },
+          py: { xs: 0.5, sm: 0.5, md: 0.5 },
+          background: isDarkMode ? '#0f172a' : '#f8fafc',
         }}>
 
           {/* ==================== MAIN CONTENT AREA ==================== */}
@@ -4076,7 +4079,7 @@ export default function InboundPage() {
               borderRadius: 2,
               boxShadow: isDarkMode ? '0 4px 20px rgba(0,0,0,0.3)' : '0 4px 20px rgba(0,0,0,0.08)',
               transition: 'opacity 0.15s ease-in-out',
-              background: isDarkMode ? '#1e293b' : 'white',
+              background: isDarkMode ? '#0f172a' : '#f8fafc',
               flex: 1,
               display: 'flex',
               flexDirection: 'column',
@@ -4087,17 +4090,64 @@ export default function InboundPage() {
             {visibleTabCodes[tabValue] === 'list' && (
               <Box
                 sx={{
+                  background: isDarkMode ? '#0f172a' : '#f8fafc',
                   display: 'flex',
                   flexDirection: 'column',
                   flex: 1,
                   minHeight: 0,
                   overflow: 'hidden',
-                  p: { xs: 0.25, sm: 0.50 },
+                  py: { xs: 0.25, sm: 0.50 },
+                  borderRadius: 2,
+
+
+                  // Paste inside the existing sx object
+                  '& .MuiOutlinedInput-root': {
+                    bgcolor: 'transparent !important',
+                    boxShadow: 'none !important',
+                    '&:hover': { bgcolor: 'transparent !important' },
+                    '&.Mui-focused': { bgcolor: 'transparent !important', boxShadow: 'none !important' },
+                  },
+                  '& .MuiOutlinedInput-input': {
+                    background: 'transparent !important',
+                  },
+                  '& input[type="date"], & .MuiOutlinedInput-input[type="date"], & .MuiInputBase-input[type="date"]': {
+                    background: 'transparent !important',
+                    color: 'inherit !important',
+                    WebkitAppearance: 'none !important',
+                    MozAppearance: 'textfield !important',
+                    appearance: 'none !important',
+                    borderRadius: '6px !important',
+                    padding: '0 6px !important',
+                  },
+                  '& input[type="date"]::-webkit-datetime-edit, & input[type="date"]::-webkit-datetime-edit-text, & input[type="date"]::-webkit-datetime-edit-month-field, & input[type="date"]::-webkit-datetime-edit-day-field, & input[type="date"]::-webkit-datetime-edit-year-field': {
+                    background: 'transparent !important',
+                    color: 'inherit !important',
+                  },
+                  '& input[type="date"]::-webkit-calendar-picker-indicator': {
+                    WebkitAppearance: 'none',
+                    appearance: 'none',
+                    background: 'transparent',
+                    padding: 0,
+                    margin: 0,
+                  },
+                  '& input:-webkit-autofill': {
+                    WebkitBoxShadow: '0 0 0 1000px transparent inset',
+                    boxShadow: '0 0 0 1000px transparent inset',
+                    WebkitTextFillColor: 'inherit',
+                  },
+
                 }}
               >
                 {/* SEARCH BAR + FILTERS TOGGLE */}
-                <Box sx={{ flexShrink: 0, mb: 1, position: 'relative', zIndex: 95 }}>
-                  <Stack direction="row" spacing={1} alignItems="stretch" sx={{ mb: 1 }}>
+                <Box sx={{
+                  flexShrink: 0,
+                  mb: 1,
+                  background: isDarkMode ? '#0f172a' : '#f8fafc',
+                  borderBottom: 'transparent',
+                  position: 'relative',
+                  zIndex: 95
+                }}>
+                  <Stack direction="row" spacing={1} alignItems="stretch" sx={{ mb: 1, }}>
                     <TextField
                       fullWidth
                       size="small"
@@ -4207,8 +4257,9 @@ export default function InboundPage() {
                   flex: 1,
                   overflow: 'hidden',
                   minHeight: 0,
-                  border: isDarkMode ? '2px solid rgba(255,255,255,0.1)' : '2px solid #e2e8f0',
-                  borderRadius: 1.5,
+                  border: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #d1d5db',
+                  borderBottom: 'none',
+                  borderRadius: '12px 12px 0 0',
                   boxShadow: isDarkMode ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.06)',
                 }}>
 
@@ -4511,13 +4562,19 @@ export default function InboundPage() {
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "space-between",
-                      borderTop: isDarkMode ? "1px solid rgba(255,255,255,0.1)" : "1px solid #ddd",
+                      borderTop: isDarkMode ? "1px solid rgba(255,255,255,0.1)" : "1px solid #d1d5db",
+                      borderLeft: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #d1d5db',
+                      borderRight: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #d1d5db',
+                      borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #d1d5db',
+                      borderRadius: '0 0 12px 12px',
                       bgcolor: isDarkMode ? '#1e293b' : "white",
                       flexShrink: 0,
                       minHeight: { xs: 44, sm: 52 },
                       gap: { xs: 0.5, sm: 1 },
                       flexWrap: 'wrap',
                     }}
+
+
                   >
                     {/* Left Section: Per Page + Last Refresh */}
                     <Stack direction="row" spacing={{ xs: 0.5, sm: 1.5 }} alignItems="center">

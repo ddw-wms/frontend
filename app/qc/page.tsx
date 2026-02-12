@@ -2525,8 +2525,7 @@ export default function QCPage() {
         width: '100%',
         display: 'flex',
         flexDirection: 'column',
-        overflowY: 'auto',
-        overflowX: 'hidden'
+        overflow: 'hidden'
       }}>
         {/* ==================== HEADER SECTION ==================== */}
         <StandardPageHeader
@@ -2550,14 +2549,14 @@ export default function QCPage() {
         <Paper
           sx={{
             p: 0,
-            borderRadius: 2,
             boxShadow: isDarkMode ? '0 4px 20px rgba(0,0,0,0.3)' : '0 4px 20px rgba(0,0,0,0.08)',
-            background: isDarkMode ? '#1e293b' : 'white',
+            background: isDarkMode ? '#0f172a' : '#f8fafc',
             flex: 1,
             display: 'flex',
             flexDirection: 'column',
             overflow: 'hidden',
             transition: 'opacity 0.15s ease-in-out',
+
           }}
         >
 
@@ -2565,16 +2564,59 @@ export default function QCPage() {
           {currentTabCode === 'list' && (
             <Box
               sx={{
+                background: isDarkMode ? '#0f172a' : '#f8fafc',
                 display: 'flex',
                 flexDirection: 'column',
                 flex: 1,
                 minHeight: 0,
                 overflow: 'hidden',
-                p: { xs: 0.25, sm: 0.50 },
+                py: { xs: 0.25, sm: 0.50 },
+
               }}
             >
               {/* SEARCH BAR + FILTERS TOGGLE */}
-              <Box sx={{ flexShrink: 0, mb: 1, position: 'relative', zIndex: 95 }}>
+              <Box sx={{
+                flexShrink: 0,
+                mb: 1, position: 'relative',
+                zIndex: 95,
+                // Paste inside the existing sx object
+                '& .MuiOutlinedInput-root': {
+                  bgcolor: 'transparent !important',
+                  boxShadow: 'none !important',
+                  '&:hover': { bgcolor: 'transparent !important' },
+                  '&.Mui-focused': { bgcolor: 'transparent !important', boxShadow: 'none !important' },
+                },
+                '& .MuiOutlinedInput-input': {
+                  background: 'transparent !important',
+                },
+                '& input[type="date"], & .MuiOutlinedInput-input[type="date"], & .MuiInputBase-input[type="date"]': {
+                  background: 'transparent !important',
+                  color: 'inherit !important',
+                  WebkitAppearance: 'none !important',
+                  MozAppearance: 'textfield !important',
+                  appearance: 'none !important',
+                  borderRadius: '6px !important',
+                  padding: '0 6px !important',
+                },
+                '& input[type="date"]::-webkit-datetime-edit, & input[type="date"]::-webkit-datetime-edit-text, & input[type="date"]::-webkit-datetime-edit-month-field, & input[type="date"]::-webkit-datetime-edit-day-field, & input[type="date"]::-webkit-datetime-edit-year-field': {
+                  background: 'transparent !important',
+                  color: 'inherit !important',
+                },
+                '& input[type="date"]::-webkit-calendar-picker-indicator': {
+                  WebkitAppearance: 'none',
+                  appearance: 'none',
+                  background: 'transparent',
+                  padding: 0,
+                  margin: 0,
+                },
+                '& input:-webkit-autofill': {
+                  WebkitBoxShadow: '0 0 0 1000px transparent inset',
+                  boxShadow: '0 0 0 1000px transparent inset',
+                  WebkitTextFillColor: 'inherit',
+                },
+
+
+              }}>
                 <Stack direction="row" spacing={1} alignItems="stretch" sx={{ mb: 1 }}>
                   <TextField
                     fullWidth
@@ -2670,12 +2712,17 @@ export default function QCPage() {
               </Box>
 
               {/* TABLE - AG GRID (always render grid so header remains visible) */}
-              <Box sx={{
-                flex: 1,
-                minHeight: 0,
-                border: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #d1d5db',
-                position: 'relative'
-              }}>
+              <Box
+                sx={{
+                  flex: 1,
+                  minHeight: 0,
+                  border: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #d1d5db',
+                  borderBottom: 'none',
+                  position: 'relative',
+                  borderRadius: '12px 12px 0 0',
+                  boxShadow: isDarkMode ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.06)',
+                  overflow: 'hidden',
+                }}>
 
                 {/* Loading Spinner Overlay - semi-transparent so data stays visible */}
                 {(listLoading || isFetching) && qcList && qcList.length > 0 && gridDataRendered && (
@@ -2999,7 +3046,11 @@ export default function QCPage() {
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "space-between",
-                    borderTop: isDarkMode ? "1px solid rgba(255,255,255,0.1)" : "1px solid #ddd",
+                    borderTop: isDarkMode ? "1px solid rgba(255,255,255,0.1)" : "1px solid #d1d5db",
+                    borderLeft: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #d1d5db',
+                    borderRight: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #d1d5db',
+                    borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #d1d5db',
+                    borderRadius: '0 0 12px 12px',
                     bgcolor: isDarkMode ? '#1e293b' : "white",
                     flexShrink: 0,
                     minHeight: { xs: 44, sm: 52 },
