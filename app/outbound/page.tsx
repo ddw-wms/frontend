@@ -4388,11 +4388,16 @@ export default function OutboundPage() {
                 const isInColRange = currentColIndex >= bounds.minCol && currentColIndex <= bounds.maxCol;
 
                 if (isInRowRange && isInColRange) {
-                    // Enhanced visibility for dark mode - use cyan for better contrast
-                    const borderColor = isDarkMode ? '#22d3ee' : '#2563eb';
-                    const bgColor = isDarkMode ? 'rgba(34, 211, 238, 0.25)' : 'rgba(37, 99, 235, 0.15)';
+                    // Use consistent blue color matching CSS rules
+                    const borderColor = isDarkMode ? '#60a5fa' : '#2563eb';
+                    const bgColor = isDarkMode ? 'rgba(96, 165, 250, 0.35)' : 'rgba(37, 99, 235, 0.2)';
 
-                    const style: any = { backgroundColor: bgColor };
+                    const style: any = {
+                        backgroundColor: bgColor,
+                        boxShadow: isDarkMode
+                            ? 'inset 0 0 0 1px rgba(96, 165, 250, 0.6)'
+                            : 'inset 0 0 0 1px rgba(37, 99, 235, 0.4)',
+                    };
                     if (rowIndex === bounds.minRow) style.borderTop = `3px solid ${borderColor}`;
                     if (rowIndex === bounds.maxRow) style.borderBottom = `3px solid ${borderColor}`;
                     if (currentColIndex === bounds.minCol) style.borderLeft = `3px solid ${borderColor}`;
@@ -7773,7 +7778,6 @@ export default function OutboundPage() {
                                 getRowStyle={getRowStyle}
                                 getRowId={(params: any) => params.data._rowId}
                                 navigateToNextCell={navigateToNextCell}
-                                singleClickEdit={true}
                                 stopEditingWhenCellsLoseFocus={true}
                                 enterNavigatesVertically={true}
                                 enterNavigatesVerticallyAfterEdit={true}

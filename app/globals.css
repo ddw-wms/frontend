@@ -1189,6 +1189,60 @@ html[data-theme="dark"] .ag-row-even .ag-cell,
   background-color: #1a2536 !important;
 }
 
+/* ⚡ EXCEL-LIKE: Custom Range Selection Styles - Override dark mode cell backgrounds */
+html[data-theme="dark"] .ag-cell.custom-range-selected,
+[data-theme="dark"] .ag-cell.custom-range-selected,
+html[data-theme="dark"] .ag-row-odd .ag-cell.custom-range-selected,
+html[data-theme="dark"] .ag-row-even .ag-cell.custom-range-selected,
+[data-theme="dark"] .ag-row-odd .ag-cell.custom-range-selected,
+[data-theme="dark"] .ag-row-even .ag-cell.custom-range-selected {
+  background-color: rgba(34, 211, 238, 0.25) !important;
+  box-shadow: inset 0 0 0 1px rgba(34, 211, 238, 0.6) !important;
+}
+
+/* Selection border edges - Dark Mode */
+html[data-theme="dark"] .ag-cell.custom-range-top,
+[data-theme="dark"] .ag-cell.custom-range-top {
+  border-top: 3px solid #22d3ee !important;
+}
+
+html[data-theme="dark"] .ag-cell.custom-range-bottom,
+[data-theme="dark"] .ag-cell.custom-range-bottom {
+  border-bottom: 3px solid #22d3ee !important;
+}
+
+html[data-theme="dark"] .ag-cell.custom-range-left,
+[data-theme="dark"] .ag-cell.custom-range-left {
+  border-left: 3px solid #22d3ee !important;
+}
+
+html[data-theme="dark"] .ag-cell.custom-range-right,
+[data-theme="dark"] .ag-cell.custom-range-right {
+  border-right: 3px solid #22d3ee !important;
+}
+
+/* Light Mode Selection Styles */
+.ag-cell.custom-range-selected {
+  background-color: rgba(37, 99, 235, 0.2) !important;
+  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.4) !important;
+}
+
+.ag-cell.custom-range-top {
+  border-top: 3px solid #2563eb !important;
+}
+
+.ag-cell.custom-range-bottom {
+  border-bottom: 3px solid #2563eb !important;
+}
+
+.ag-cell.custom-range-left {
+  border-left: 3px solid #2563eb !important;
+}
+
+.ag-cell.custom-range-right {
+  border-right: 3px solid #2563eb !important;
+}
+
 /* Cell wrapper and value backgrounds */
 html[data-theme="dark"] .ag-cell-wrapper,
 html[data-theme="dark"] .ag-cell-value,

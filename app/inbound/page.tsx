@@ -6523,25 +6523,20 @@ export default function InboundPage() {
                       '100%': { backgroundColor: isDarkMode ? '#14532d' : '#dcfce7' },
                     },
 
-                    // Active cell focus - ENHANCED for dark mode visibility
-                    '& .ag-cell-focus': {
-                      border: isDarkMode ? '2px solid #22d3ee !important' : '2px solid #10b981 !important',
-                      outline: 'none',
-                      boxShadow: isDarkMode ? '0 0 0 2px rgba(34, 211, 238, 0.4), inset 0 0 8px rgba(34, 211, 238, 0.15)' : '0 0 0 1px rgba(16, 185, 129, 0.3)',
-                      backgroundColor: isDarkMode ? 'rgba(34, 211, 238, 0.12) !important' : 'rgba(16, 185, 129, 0.08) !important',
+                    // Active cell focus - Enhanced for dark mode with strong visibility (matching Outbound)
+                    '& .ag-cell-focus, & .ag-cell.ag-cell-focus': {
+                      border: isDarkMode ? '2px solid #22d3ee !important' : '2px solid #2563eb !important',
+                      outline: 'none !important',
+                      boxShadow: isDarkMode ? '0 0 12px rgba(34, 211, 238, 0.6), inset 0 0 8px rgba(34, 211, 238, 0.15)' : '0 0 0 2px rgba(37, 99, 235, 0.3)',
+                      backgroundColor: isDarkMode ? 'rgba(34, 211, 238, 0.15) !important' : 'rgba(37, 99, 235, 0.08) !important',
+                      zIndex: 1,
                     },
 
-                    // Selected cell (clicked but not editing)
-                    '& .ag-cell.ag-cell-focus:not(.ag-cell-inline-editing)': {
-                      border: isDarkMode ? '2px solid #22d3ee !important' : '2px solid #10b981 !important',
-                      backgroundColor: isDarkMode ? 'rgba(34, 211, 238, 0.15) !important' : 'rgba(16, 185, 129, 0.1) !important',
-                    },
-
-                    // Editing cell - even more prominent
+                    // Cell being edited
                     '& .ag-cell-inline-editing': {
-                      border: isDarkMode ? '2px solid #fbbf24 !important' : '2px solid #f59e0b !important',
-                      boxShadow: isDarkMode ? '0 0 0 3px rgba(251, 191, 36, 0.3), inset 0 0 12px rgba(251, 191, 36, 0.1)' : '0 0 0 2px rgba(245, 158, 11, 0.25)',
-                      backgroundColor: isDarkMode ? 'rgba(251, 191, 36, 0.1) !important' : 'rgba(245, 158, 11, 0.08) !important',
+                      border: isDarkMode ? '2px solid #22d3ee !important' : '2px solid #2563eb !important',
+                      backgroundColor: isDarkMode ? '#1e293b !important' : '#ffffff !important',
+                      boxShadow: isDarkMode ? '0 0 16px rgba(34, 211, 238, 0.5)' : '0 0 8px rgba(37, 99, 235, 0.3)',
                     },
 
                     // ⚡ ENHANCED: Custom range selection styles via data attributes
@@ -6549,41 +6544,41 @@ export default function InboundPage() {
                       borderTop: isDarkMode ? '3px solid #60a5fa !important' : '3px solid #2563eb !important',
                     },
                     '& .ag-cell[style*="border-bottom: 3px"]': {
-                      borderBottom: isDarkMode ? '3px solid #60a5fa !important' : '3px solid #2563eb !important',
+                      borderBottom: isDarkMode ? '3px solid #22d3ee !important' : '3px solid #2563eb !important',
                     },
                     '& .ag-cell[style*="border-left: 3px"]': {
-                      borderLeft: isDarkMode ? '3px solid #60a5fa !important' : '3px solid #2563eb !important',
+                      borderLeft: isDarkMode ? '3px solid #22d3ee !important' : '3px solid #2563eb !important',
                     },
                     '& .ag-cell[style*="border-right: 3px"]': {
-                      borderRight: isDarkMode ? '3px solid #60a5fa !important' : '3px solid #2563eb !important',
+                      borderRight: isDarkMode ? '3px solid #22d3ee !important' : '3px solid #2563eb !important',
                     },
 
-                    // ⚡ EXCEL-LIKE: Custom range selection CSS classes - VERY VISIBLE
+                    // ⚡ EXCEL-LIKE: Custom range selection CSS classes - Enhanced visibility for dark mode
                     '& .custom-range-selected': {
-                      backgroundColor: isDarkMode ? 'rgba(96, 165, 250, 0.4) !important' : 'rgba(37, 99, 235, 0.2) !important',
+                      backgroundColor: isDarkMode ? 'rgba(34, 211, 238, 0.25) !important' : 'rgba(37, 99, 235, 0.15) !important',
                       boxShadow: isDarkMode
-                        ? 'inset 0 0 0 1px rgba(96, 165, 250, 0.7)'
+                        ? 'inset 0 0 0 1px rgba(34, 211, 238, 0.6)'
                         : 'inset 0 0 0 1px rgba(37, 99, 235, 0.5)',
                     },
                     '& .custom-range-top': {
-                      borderTop: isDarkMode ? '3px solid #60a5fa !important' : '3px solid #2563eb !important',
+                      borderTop: isDarkMode ? '3px solid #22d3ee !important' : '3px solid #2563eb !important',
                     },
                     '& .custom-range-bottom': {
-                      borderBottom: isDarkMode ? '3px solid #60a5fa !important' : '3px solid #2563eb !important',
+                      borderBottom: isDarkMode ? '3px solid #22d3ee !important' : '3px solid #2563eb !important',
                     },
                     '& .custom-range-left': {
-                      borderLeft: isDarkMode ? '3px solid #60a5fa !important' : '3px solid #2563eb !important',
+                      borderLeft: isDarkMode ? '3px solid #22d3ee !important' : '3px solid #2563eb !important',
                     },
                     '& .custom-range-right': {
-                      borderRight: isDarkMode ? '3px solid #60a5fa !important' : '3px solid #2563eb !important',
+                      borderRight: isDarkMode ? '3px solid #22d3ee !important' : '3px solid #2563eb !important',
                     },
 
                     // Range selection
                     '& .ag-cell-range-selected': {
-                      backgroundColor: isDarkMode ? 'rgba(16, 185, 129, 0.25) !important' : '#d1fae5 !important',
+                      backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.25) !important' : '#dbeafe !important',
                     },
                     '& .ag-cell-range-single-cell': {
-                      backgroundColor: isDarkMode ? 'rgba(16, 185, 129, 0.2) !important' : '#ecfdf5 !important',
+                      backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.2) !important' : '#eff6ff !important',
                     },
 
                     // ⚡ EXCEL-LIKE: Cell range selection highlight (specific column only)
@@ -6701,13 +6696,14 @@ export default function InboundPage() {
                         const isInColRange = currentColIndex >= bounds.minCol && currentColIndex <= bounds.maxCol;
 
                         if (isInRowRange && isInColRange) {
-                          const borderColor = isDarkMode ? '#60a5fa' : '#2563eb';
-                          const bgColor = isDarkMode ? 'rgba(96, 165, 250, 0.35)' : 'rgba(37, 99, 235, 0.2)';
+                          // Use consistent cyan color matching Outbound
+                          const borderColor = isDarkMode ? '#22d3ee' : '#2563eb';
+                          const bgColor = isDarkMode ? 'rgba(34, 211, 238, 0.25)' : 'rgba(37, 99, 235, 0.15)';
 
                           const style: any = {
                             backgroundColor: bgColor,
                             boxShadow: isDarkMode
-                              ? 'inset 0 0 0 1px rgba(96, 165, 250, 0.6)'
+                              ? 'inset 0 0 0 1px rgba(34, 211, 238, 0.6)'
                               : 'inset 0 0 0 1px rgba(37, 99, 235, 0.4)',
                           };
 

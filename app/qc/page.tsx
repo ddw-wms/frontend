@@ -4454,11 +4454,19 @@ export default function QCPage() {
                       '& .ag-row-even': { backgroundColor: isDarkMode ? '#1e293b' : '#ffffff' },
                       '& .ag-row-odd': { backgroundColor: isDarkMode ? '#1a2536' : '#f1f5f9' },
 
-                      // Active cell focus - Enhanced for dark mode
-                      '& .ag-cell-focus': {
+                      // Active cell focus - Enhanced for dark mode with strong visibility (matching Outbound)
+                      '& .ag-cell-focus, & .ag-cell.ag-cell-focus': {
                         border: isDarkMode ? '2px solid #22d3ee !important' : '2px solid #2563eb !important',
-                        outline: 'none',
-                        boxShadow: isDarkMode ? '0 0 8px rgba(34, 211, 238, 0.4)' : '0 0 0 1px rgba(37, 99, 235, 0.3)',
+                        outline: 'none !important',
+                        boxShadow: isDarkMode ? '0 0 12px rgba(34, 211, 238, 0.6), inset 0 0 8px rgba(34, 211, 238, 0.15)' : '0 0 0 2px rgba(37, 99, 235, 0.3)',
+                        backgroundColor: isDarkMode ? 'rgba(34, 211, 238, 0.15) !important' : 'rgba(37, 99, 235, 0.08) !important',
+                        zIndex: 1,
+                      },
+                      // Cell being edited
+                      '& .ag-cell-inline-editing': {
+                        border: isDarkMode ? '2px solid #22d3ee !important' : '2px solid #2563eb !important',
+                        backgroundColor: isDarkMode ? '#1e293b !important' : '#ffffff !important',
+                        boxShadow: isDarkMode ? '0 0 16px rgba(34, 211, 238, 0.5)' : '0 0 8px rgba(37, 99, 235, 0.3)',
                       },
 
                       // Range selection
@@ -4469,21 +4477,21 @@ export default function QCPage() {
                         backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.2) !important' : '#eff6ff !important',
                       },
 
-                      // ⚡ EXCEL-LIKE: Custom range selection CSS classes
+                      // ⚡ EXCEL-LIKE: Custom range selection CSS classes - Enhanced visibility for dark mode
                       '& .custom-range-selected': {
-                        backgroundColor: isDarkMode ? 'rgba(96, 165, 250, 0.4) !important' : 'rgba(37, 99, 235, 0.2) !important',
+                        backgroundColor: isDarkMode ? 'rgba(34, 211, 238, 0.25) !important' : 'rgba(37, 99, 235, 0.15) !important',
                       },
                       '& .custom-range-top': {
-                        borderTop: isDarkMode ? '3px solid #60a5fa !important' : '3px solid #2563eb !important',
+                        borderTop: isDarkMode ? '3px solid #22d3ee !important' : '3px solid #2563eb !important',
                       },
                       '& .custom-range-bottom': {
-                        borderBottom: isDarkMode ? '3px solid #60a5fa !important' : '3px solid #2563eb !important',
+                        borderBottom: isDarkMode ? '3px solid #22d3ee !important' : '3px solid #2563eb !important',
                       },
                       '& .custom-range-left': {
-                        borderLeft: isDarkMode ? '3px solid #60a5fa !important' : '3px solid #2563eb !important',
+                        borderLeft: isDarkMode ? '3px solid #22d3ee !important' : '3px solid #2563eb !important',
                       },
                       '& .custom-range-right': {
-                        borderRight: isDarkMode ? '3px solid #60a5fa !important' : '3px solid #2563eb !important',
+                        borderRight: isDarkMode ? '3px solid #22d3ee !important' : '3px solid #2563eb !important',
                       },
 
                       // Hover effects
@@ -4536,10 +4544,16 @@ export default function QCPage() {
                           const isInColRange = currentColIndex >= bounds.minCol && currentColIndex <= bounds.maxCol;
 
                           if (isInRowRange && isInColRange) {
-                            const borderColor = isDarkMode ? '#60a5fa' : '#2563eb';
-                            const bgColor = isDarkMode ? 'rgba(96, 165, 250, 0.35)' : 'rgba(37, 99, 235, 0.2)';
+                            // Use consistent cyan color matching Outbound
+                            const borderColor = isDarkMode ? '#22d3ee' : '#2563eb';
+                            const bgColor = isDarkMode ? 'rgba(34, 211, 238, 0.25)' : 'rgba(37, 99, 235, 0.15)';
 
-                            const style: any = { backgroundColor: bgColor };
+                            const style: any = {
+                              backgroundColor: bgColor,
+                              boxShadow: isDarkMode
+                                ? 'inset 0 0 0 1px rgba(34, 211, 238, 0.6)'
+                                : 'inset 0 0 0 1px rgba(37, 99, 235, 0.4)',
+                            };
                             if (rowIndex === bounds.minRow) style.borderTop = `3px solid ${borderColor}`;
                             if (rowIndex === bounds.maxRow) style.borderBottom = `3px solid ${borderColor}`;
                             if (currentColIndex === bounds.minCol) style.borderLeft = `3px solid ${borderColor}`;
