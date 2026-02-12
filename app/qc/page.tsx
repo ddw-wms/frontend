@@ -4012,39 +4012,38 @@ export default function QCPage() {
                     <CardContent sx={{ p: { xs: 1.5, md: 1.2 }, pt: { xs: 2, md: 1.2 }, '&:last-child': { pb: { xs: 1.5, md: 1.2 } } }}>
 
                       {/* ===== MOBILE: Single Row - Scrollable Inputs + Fixed Buttons ===== */}
-                      <Box sx={{ display: { xs: 'flex', md: 'none' }, alignItems: 'flex-end', gap: 1, width: '100%' }}>
-                        {/* LEFT: Scrollable Input Fields with scroll indicator */}
-                        <Box
-                          sx={{
-                            flex: 1,
-                            minWidth: 0,
-                            position: 'relative',
-                            '&::after': {
-                              content: '""',
-                              position: 'absolute',
-                              right: 0,
-                              top: 0,
-                              bottom: 0,
-                              width: 24,
-                              background: isDarkMode
-                                ? 'linear-gradient(to right, transparent, rgba(30,41,59,0.95))'
-                                : 'linear-gradient(to right, transparent, rgba(255,255,255,0.95))',
-                              pointerEvents: 'none',
-                              zIndex: 1,
-                            }
-                          }}
-                        >
+                      <Box sx={{ display: { xs: 'flex', md: 'none' }, alignItems: 'center', gap: 0.5, width: '100%' }}>
+                        {/* LEFT: Scrollable Input Fields with Arrow Indicators */}
+                        <Box sx={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          {/* Left Arrow Indicator */}
                           <Box
                             sx={{
+                              width: 20,
+                              height: 36,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              color: isDarkMode ? '#64748b' : '#94a3b8',
+                              fontSize: '0.75rem',
+                              flexShrink: 0,
+                            }}
+                          >
+                            ◀
+                          </Box>
+
+                          {/* Scrollable Container */}
+                          <Box
+                            sx={{
+                              flex: 1,
+                              minWidth: 0,
                               overflowX: 'auto',
                               overflowY: 'hidden',
                               WebkitOverflowScrolling: 'touch',
                               scrollbarWidth: 'none',
                               '&::-webkit-scrollbar': { display: 'none' },
-                              pr: 2,
                             }}
                           >
-                            <Stack direction="row" spacing={1} sx={{ width: 'max-content', minWidth: '100%' }}>
+                            <Stack direction="row" spacing={1} sx={{ width: 'max-content', py: 0.5 }}>
                               <TextField
                                 label="QC Date"
                                 type="date"
@@ -4070,6 +4069,22 @@ export default function QCPage() {
                                 }}
                               />
                             </Stack>
+                          </Box>
+
+                          {/* Right Arrow Indicator */}
+                          <Box
+                            sx={{
+                              width: 20,
+                              height: 36,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              color: isDarkMode ? '#64748b' : '#94a3b8',
+                              fontSize: '0.75rem',
+                              flexShrink: 0,
+                            }}
+                          >
+                            ▶
                           </Box>
                         </Box>
 
@@ -5236,35 +5251,21 @@ export default function QCPage() {
                   {/* DRAFT STATUS + ACTIONS + SUBMIT */}
                   {/* MOBILE: Scrollable Actions + Fixed Submit */}
                   <Box sx={{ display: { xs: 'flex', md: 'none' }, alignItems: 'center', gap: 0.5, py: 0.5, flexShrink: 0 }}>
-                    {/* Left: Scrollable Actions with scroll indicator */}
-                    <Box
-                      sx={{
-                        flex: 1,
-                        minWidth: 0,
-                        position: 'relative',
-                        '&::after': {
-                          content: '""',
-                          position: 'absolute',
-                          right: 0,
-                          top: 0,
-                          bottom: 0,
-                          width: 20,
-                          background: isDarkMode
-                            ? 'linear-gradient(to right, transparent, rgba(30,41,59,0.95))'
-                            : 'linear-gradient(to right, transparent, rgba(255,255,255,0.95))',
-                          pointerEvents: 'none',
-                          zIndex: 1,
-                        }
-                      }}
-                    >
+                    {/* Left: Scrollable Actions with Arrow Indicators */}
+                    <Box sx={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 0.25 }}>
+                      {/* Left Arrow */}
+                      <Box sx={{ width: 16, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', color: isDarkMode ? '#64748b' : '#94a3b8', fontSize: '0.65rem', flexShrink: 0 }}>◀</Box>
+
+                      {/* Scrollable Container */}
                       <Box
                         sx={{
+                          flex: 1,
+                          minWidth: 0,
                           overflowX: 'auto',
                           overflowY: 'hidden',
                           WebkitOverflowScrolling: 'touch',
                           scrollbarWidth: 'none',
                           '&::-webkit-scrollbar': { display: 'none' },
-                          pr: 2,
                         }}
                       >
                         <Stack direction="row" spacing={0.5} sx={{ width: 'max-content', alignItems: 'center' }}>
@@ -5303,6 +5304,9 @@ export default function QCPage() {
                           </Button>
                         </Stack>
                       </Box>
+
+                      {/* Right Arrow */}
+                      <Box sx={{ width: 16, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', color: isDarkMode ? '#64748b' : '#94a3b8', fontSize: '0.65rem', flexShrink: 0 }}>▶</Box>
                     </Box>
                     {/* Right: Fixed Submit Button */}
                     <Button
