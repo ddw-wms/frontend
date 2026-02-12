@@ -6257,19 +6257,19 @@ export default function InboundPage() {
                     </Drawer>
 
                     {/* MOBILE: Single Row - Scrollable Inputs + Fixed Buttons */}
-                    <Box sx={{ display: { xs: 'flex', md: 'none' }, alignItems: 'flex-end', gap: 0.5, width: '100%', pt: 1 }}>
+                    <Box sx={{ display: { xs: 'flex', md: 'none' }, alignItems: 'center', gap: 0.5, width: '100%', mt: 1 }}>
                       {/* LEFT: Scrollable Input Fields with Arrow Indicators */}
-                      <Box sx={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'flex-end', gap: 0.5 }}>
+                      <Box sx={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 0.5 }}>
                         {/* Left Arrow Indicator */}
                         <Box
                           sx={{
-                            width: 20,
-                            height: 36,
+                            width: 16,
+                            height: 40,
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
                             color: isDarkMode ? '#64748b' : '#94a3b8',
-                            fontSize: '0.75rem',
+                            fontSize: '0.7rem',
                             flexShrink: 0,
                           }}
                         >
@@ -6282,13 +6282,13 @@ export default function InboundPage() {
                             flex: 1,
                             minWidth: 0,
                             overflowX: 'auto',
-                            overflowY: 'hidden',
+                            overflowY: 'visible',
                             WebkitOverflowScrolling: 'touch',
                             scrollbarWidth: 'none',
                             '&::-webkit-scrollbar': { display: 'none' },
                           }}
                         >
-                          <Stack direction="row" spacing={1} sx={{ width: 'max-content', py: 0.5 }}>
+                          <Stack direction="row" spacing={1} sx={{ width: 'max-content', pt: 1 }}>
                             <TextField
                               size="small"
                               label="Date"
@@ -6321,13 +6321,13 @@ export default function InboundPage() {
                         {/* Right Arrow Indicator */}
                         <Box
                           sx={{
-                            width: 20,
-                            height: 36,
+                            width: 16,
+                            height: 40,
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
                             color: isDarkMode ? '#64748b' : '#94a3b8',
-                            fontSize: '0.75rem',
+                            fontSize: '0.7rem',
                             flexShrink: 0,
                           }}
                         >
@@ -6336,7 +6336,7 @@ export default function InboundPage() {
                       </Box>
 
                       {/* RIGHT: Fixed Action Buttons */}
-                      <Stack direction="row" spacing={0.5} sx={{ flexShrink: 0, alignItems: 'flex-end', height: 36 }}>
+                      <Stack direction="row" spacing={0.5} sx={{ flexShrink: 0, alignItems: 'center', pt: 1 }}>
                         {/* Menu Button */}
                         <Tooltip title="Open Settings">
                           <IconButton

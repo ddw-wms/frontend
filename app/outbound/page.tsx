@@ -5807,13 +5807,13 @@ export default function OutboundPage() {
                                             {/* Right Arrow Indicator */}
                                             <Box
                                                 sx={{
-                                                    width: 20,
-                                                    height: 36,
+                                                    width: 16,
+                                                    height: 40,
                                                     display: 'flex',
                                                     alignItems: 'center',
                                                     justifyContent: 'center',
                                                     color: isDarkMode ? '#64748b' : '#94a3b8',
-                                                    fontSize: '0.75rem',
+                                                    fontSize: '0.7rem',
                                                     flexShrink: 0,
                                                 }}
                                             >
@@ -5822,7 +5822,7 @@ export default function OutboundPage() {
                                         </Box>
 
                                         {/* RIGHT: Fixed Action Buttons */}
-                                        <Stack direction="row" spacing={0.5} sx={{ flexShrink: 0, alignItems: 'flex-end', height: 36 }}>
+                                        <Stack direction="row" spacing={0.5} sx={{ flexShrink: 0, alignItems: 'center', pt: 1 }}>
                                             {/* Menu Button */}
                                             <Tooltip title="Open Settings">
                                                 <IconButton
