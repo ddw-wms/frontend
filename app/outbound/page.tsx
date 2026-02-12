@@ -5727,63 +5727,83 @@ export default function OutboundPage() {
                             <CardContent sx={{ p: { xs: 1.5, md: 1 }, pt: { xs: 2, md: 1 }, '&:last-child': { pb: { xs: 1.5, md: 1 } } }}>
                                 {isMobile ? (
                                     /* MOBILE: Single Row - Scrollable Inputs + Fixed Buttons */
-                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
-                                        {/* LEFT: Scrollable Input Fields */}
+                                    <Box sx={{ display: 'flex', alignItems: 'flex-end', gap: 1, width: '100%' }}>
+                                        {/* LEFT: Scrollable Input Fields with scroll indicator */}
                                         <Box
                                             sx={{
                                                 flex: 1,
                                                 minWidth: 0,
-                                                overflowX: 'auto',
-                                                overflowY: 'hidden',
-                                                WebkitOverflowScrolling: 'touch',
-                                                scrollbarWidth: 'none',
-                                                '&::-webkit-scrollbar': { display: 'none' },
+                                                position: 'relative',
+                                                '&::after': {
+                                                    content: '""',
+                                                    position: 'absolute',
+                                                    right: 0,
+                                                    top: 0,
+                                                    bottom: 0,
+                                                    width: 24,
+                                                    background: isDarkMode
+                                                        ? 'linear-gradient(to right, transparent, rgba(30,41,59,0.95))'
+                                                        : 'linear-gradient(to right, transparent, rgba(255,255,255,0.95))',
+                                                    pointerEvents: 'none',
+                                                    zIndex: 1,
+                                                }
                                             }}
                                         >
-                                            <Stack direction="row" spacing={1} sx={{ width: 'max-content', minWidth: '100%' }}>
-                                                <TextField
-                                                    label="Date *"
-                                                    type="date"
-                                                    value={commonDate}
-                                                    onChange={(e) => setCommonDate(e.target.value)}
-                                                    InputLabelProps={{ shrink: true }}
-                                                    size="small"
-                                                    required
-                                                    sx={{
-                                                        minWidth: 120,
-                                                        '& .MuiInputBase-root': { height: 36, fontSize: '0.8rem' },
-                                                        '& .MuiInputLabel-root': { fontSize: '0.75rem' }
-                                                    }}
-                                                />
-                                                <Box sx={{ minWidth: 130 }}>
-                                                    <CustomerAutocomplete
-                                                        value={selectedCustomer}
-                                                        onChange={(newValue) => setSelectedCustomer(newValue)}
-                                                        customers={customers}
-                                                        warehouseId={activeWarehouse?.id}
-                                                        onCustomerAdded={loadCustomers}
+                                            <Box
+                                                sx={{
+                                                    overflowX: 'auto',
+                                                    overflowY: 'hidden',
+                                                    WebkitOverflowScrolling: 'touch',
+                                                    scrollbarWidth: 'none',
+                                                    '&::-webkit-scrollbar': { display: 'none' },
+                                                    pr: 2,
+                                                }}
+                                            >
+                                                <Stack direction="row" spacing={1} sx={{ width: 'max-content', minWidth: '100%' }}>
+                                                    <TextField
+                                                        label="Date *"
+                                                        type="date"
+                                                        value={commonDate}
+                                                        onChange={(e) => setCommonDate(e.target.value)}
+                                                        InputLabelProps={{ shrink: true }}
                                                         size="small"
-                                                        label="Customer *"
-                                                        placeholder="Select..."
+                                                        required
                                                         sx={{
+                                                            minWidth: 120,
                                                             '& .MuiInputBase-root': { height: 36, fontSize: '0.8rem' },
                                                             '& .MuiInputLabel-root': { fontSize: '0.75rem' }
                                                         }}
                                                     />
-                                                </Box>
-                                                <TextField
-                                                    label="Vehicle"
-                                                    value={commonVehicle}
-                                                    onChange={(e) => setCommonVehicle(e.target.value.toUpperCase())}
-                                                    size="small"
-                                                    placeholder="Optional"
-                                                    sx={{
-                                                        minWidth: 90,
-                                                        '& .MuiInputBase-root': { height: 36, fontSize: '0.8rem' },
-                                                        '& .MuiInputLabel-root': { fontSize: '0.75rem' }
-                                                    }}
-                                                />
-                                            </Stack>
+                                                    <Box sx={{ minWidth: 130 }}>
+                                                        <CustomerAutocomplete
+                                                            value={selectedCustomer}
+                                                            onChange={(newValue) => setSelectedCustomer(newValue)}
+                                                            customers={customers}
+                                                            warehouseId={activeWarehouse?.id}
+                                                            onCustomerAdded={loadCustomers}
+                                                            size="small"
+                                                            label="Customer *"
+                                                            placeholder="Select..."
+                                                            sx={{
+                                                                '& .MuiInputBase-root': { height: 36, fontSize: '0.8rem' },
+                                                                '& .MuiInputLabel-root': { fontSize: '0.75rem' }
+                                                            }}
+                                                        />
+                                                    </Box>
+                                                    <TextField
+                                                        label="Vehicle"
+                                                        value={commonVehicle}
+                                                        onChange={(e) => setCommonVehicle(e.target.value.toUpperCase())}
+                                                        size="small"
+                                                        placeholder="Optional"
+                                                        sx={{
+                                                            minWidth: 90,
+                                                            '& .MuiInputBase-root': { height: 36, fontSize: '0.8rem' },
+                                                            '& .MuiInputLabel-root': { fontSize: '0.75rem' }
+                                                        }}
+                                                    />
+                                                </Stack>
+                                            </Box>
                                         </Box>
 
                                         {/* RIGHT: Fixed Action Buttons */}
@@ -7943,53 +7963,73 @@ export default function OutboundPage() {
                         {/* DRAFT STATUS + ACTIONS + SUBMIT */}
                         {/* MOBILE: Scrollable Actions + Fixed Submit */}
                         <Box sx={{ display: { xs: 'flex', md: 'none' }, alignItems: 'center', gap: 0.5, py: 0.5, flexShrink: 0 }}>
-                            {/* Left: Scrollable Actions */}
+                            {/* Left: Scrollable Actions with scroll indicator */}
                             <Box
                                 sx={{
                                     flex: 1,
                                     minWidth: 0,
-                                    overflowX: 'auto',
-                                    overflowY: 'hidden',
-                                    WebkitOverflowScrolling: 'touch',
-                                    scrollbarWidth: 'none',
-                                    '&::-webkit-scrollbar': { display: 'none' },
+                                    position: 'relative',
+                                    '&::after': {
+                                        content: '""',
+                                        position: 'absolute',
+                                        right: 0,
+                                        top: 0,
+                                        bottom: 0,
+                                        width: 20,
+                                        background: isDarkMode
+                                            ? 'linear-gradient(to right, transparent, rgba(30,41,59,0.95))'
+                                            : 'linear-gradient(to right, transparent, rgba(255,255,255,0.95))',
+                                        pointerEvents: 'none',
+                                        zIndex: 1,
+                                    }
                                 }}
                             >
-                                <Stack direction="row" spacing={0.5} sx={{ width: 'max-content', alignItems: 'center' }}>
-                                    <Chip
-                                        icon={<AccessTime sx={{ fontSize: 14 }} />}
-                                        label={draftSavedAt ? new Date(draftSavedAt).toLocaleTimeString() : 'No draft'}
-                                        color={draftExists ? 'success' : 'default'}
-                                        size="small"
-                                        sx={{ height: 32, fontSize: '0.7rem', '& .MuiChip-icon': { ml: 0.5 } }}
-                                    />
-                                    <Button
-                                        size="small"
-                                        variant="outlined"
-                                        onClick={() => saveDraftImmediate()}
-                                        disabled={draftSaving}
-                                        sx={{ height: 32, minWidth: 'auto', px: 1, fontSize: '0.7rem', fontWeight: 600 }}
-                                    >
-                                        💾 Save
-                                    </Button>
-                                    <Button
-                                        size="small"
-                                        variant="outlined"
-                                        onClick={clearDraft}
-                                        disabled={!draftExists}
-                                        sx={{ height: 32, minWidth: 'auto', px: 1, fontSize: '0.7rem', fontWeight: 600, borderColor: '#ef4444', color: '#ef4444', '&:hover': { borderColor: '#dc2626', bgcolor: 'rgba(239,68,68,0.08)' } }}
-                                    >
-                                        🗑️ Clear
-                                    </Button>
-                                    <Button
-                                        size="small"
-                                        variant="outlined"
-                                        onClick={add500Rows}
-                                        sx={{ height: 32, minWidth: 'auto', px: 1, fontSize: '0.7rem', fontWeight: 600, borderColor: '#3b82f6', color: '#3b82f6', '&:hover': { borderColor: '#2563eb', bgcolor: 'rgba(59,130,246,0.08)' } }}
-                                    >
-                                        ➕ 500
-                                    </Button>
-                                </Stack>
+                                <Box
+                                    sx={{
+                                        overflowX: 'auto',
+                                        overflowY: 'hidden',
+                                        WebkitOverflowScrolling: 'touch',
+                                        scrollbarWidth: 'none',
+                                        '&::-webkit-scrollbar': { display: 'none' },
+                                        pr: 2,
+                                    }}
+                                >
+                                    <Stack direction="row" spacing={0.5} sx={{ width: 'max-content', alignItems: 'center' }}>
+                                        <Chip
+                                            icon={<AccessTime sx={{ fontSize: 14 }} />}
+                                            label={draftSavedAt ? new Date(draftSavedAt).toLocaleTimeString() : 'No draft'}
+                                            color={draftExists ? 'success' : 'default'}
+                                            size="small"
+                                            sx={{ height: 32, fontSize: '0.7rem', '& .MuiChip-icon': { ml: 0.5 } }}
+                                        />
+                                        <Button
+                                            size="small"
+                                            variant="outlined"
+                                            onClick={() => saveDraftImmediate()}
+                                            disabled={draftSaving}
+                                            sx={{ height: 32, minWidth: 'auto', px: 1, fontSize: '0.7rem', fontWeight: 600 }}
+                                        >
+                                            💾 Save
+                                        </Button>
+                                        <Button
+                                            size="small"
+                                            variant="outlined"
+                                            onClick={clearDraft}
+                                            disabled={!draftExists}
+                                            sx={{ height: 32, minWidth: 'auto', px: 1, fontSize: '0.7rem', fontWeight: 600, borderColor: '#ef4444', color: '#ef4444', '&:hover': { borderColor: '#dc2626', bgcolor: 'rgba(239,68,68,0.08)' } }}
+                                        >
+                                            🗑️ Clear
+                                        </Button>
+                                        <Button
+                                            size="small"
+                                            variant="outlined"
+                                            onClick={add500Rows}
+                                            sx={{ height: 32, minWidth: 'auto', px: 1, fontSize: '0.7rem', fontWeight: 600, borderColor: '#3b82f6', color: '#3b82f6', '&:hover': { borderColor: '#2563eb', bgcolor: 'rgba(59,130,246,0.08)' } }}
+                                        >
+                                            ➕ 500
+                                        </Button>
+                                    </Stack>
+                                </Box>
                             </Box>
                             {/* Right: Fixed Submit Button */}
                             <Button
