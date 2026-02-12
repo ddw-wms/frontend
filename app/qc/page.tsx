@@ -4012,9 +4012,9 @@ export default function QCPage() {
                     <CardContent sx={{ p: { xs: 1.5, md: 1.2 }, pt: { xs: 2, md: 1.2 }, '&:last-child': { pb: { xs: 1.5, md: 1.2 } } }}>
 
                       {/* ===== MOBILE: Single Row - Scrollable Inputs + Fixed Buttons ===== */}
-                      <Box sx={{ display: { xs: 'flex', md: 'none' }, alignItems: 'center', gap: 0.5, width: '100%' }}>
+                      <Box sx={{ display: { xs: 'flex', md: 'none' }, alignItems: 'flex-end', gap: 0.5, width: '100%', pt: 1 }}>
                         {/* LEFT: Scrollable Input Fields with Arrow Indicators */}
-                        <Box sx={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                        <Box sx={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'flex-end', gap: 0.5 }}>
                           {/* Left Arrow Indicator */}
                           <Box
                             sx={{
@@ -4089,7 +4089,7 @@ export default function QCPage() {
                         </Box>
 
                         {/* RIGHT: Fixed Action Buttons */}
-                        <Stack direction="row" spacing={0.5} sx={{ flexShrink: 0, alignItems: 'center' }}>
+                        <Stack direction="row" spacing={0.5} sx={{ flexShrink: 0, alignItems: 'flex-end', height: 36 }}>
                           {/* Menu Button */}
                           <Tooltip title="Open Settings">
                             <IconButton
