@@ -4011,140 +4011,97 @@ export default function QCPage() {
                   <Card sx={{ borderRadius: 1, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', bgcolor: isDarkMode ? '#1e293b' : 'white' }}>
                     <CardContent sx={{ p: 1.2, '&:last-child': { pb: 1.2 } }}>
 
-                      {/* ===== MOBILE: 2 ROWS ===== */}
-                      <Box sx={{ display: { xs: 'block', md: 'none' } }}>
-                        {/* ROW 1: Date + Name Fields */}
-                        <Stack
-                          direction="row"
-                          spacing={0.8}
-                          alignItems="center"
-                          sx={{ mb: 1 }}
-                        >
-                          <TextField
-                            label="QC Date"
-                            type="date"
-                            value={commonQcDate}
-                            onChange={(e) => setCommonQcDate(e.target.value)}
-                            size="small"
-                            sx={{
-                              width: '48%',
-                              '& .MuiInputBase-root': {
-                                height: 32,
-                                fontSize: '0.75rem'
-                              },
-                              '& .MuiInputLabel-root': {
-                                fontSize: '0.7rem'
-                              }
-                            }}
-                            InputLabelProps={{ shrink: true }}
-                          />
-                          <TextField
-                            label="QC By Name"
-                            value={commonQcByName}
-                            onChange={(e) => setCommonQcByName(e.target.value)}
-                            size="small"
-                            sx={{
-                              width: '48%',
-                              '& .MuiInputBase-root': {
-                                height: 32,
-                                fontSize: '0.75rem'
-                              },
-                              '& .MuiInputLabel-root': {
-                                fontSize: '0.7rem'
-                              }
-                            }}
-                          />
-                        </Stack>
-
-                        {/* ROW 2: Chips + Buttons (NO WRAP) */}
-                        <Stack
-                          direction="row"
-                          spacing={0.4}
-                          alignItems="center"
+                      {/* ===== MOBILE: Single Row - Scrollable Inputs + Fixed Buttons ===== */}
+                      <Box sx={{ display: { xs: 'flex', md: 'none' }, alignItems: 'center', gap: 1, width: '100%' }}>
+                        {/* LEFT: Scrollable Input Fields */}
+                        <Box
                           sx={{
-                            flexWrap: 'nowrap',
+                            flex: 1,
+                            minWidth: 0,
                             overflowX: 'auto',
+                            overflowY: 'hidden',
+                            WebkitOverflowScrolling: 'touch',
+                            scrollbarWidth: 'none',
                             '&::-webkit-scrollbar': { display: 'none' },
-                            scrollbarWidth: 'none'
                           }}
                         >
-
-                          {/* Buttons */}
-                          <Stack direction="row" spacing={1} sx={{ flexShrink: 0, paddingRight: 5, ml: 'auto !important' }}>
-                            <Button
+                          <Stack direction="row" spacing={1} sx={{ width: 'max-content', minWidth: '100%' }}>
+                            <TextField
+                              label="QC Date"
+                              type="date"
+                              value={commonQcDate}
+                              onChange={(e) => setCommonQcDate(e.target.value)}
                               size="small"
-                              variant="outlined"
-                              onClick={add500Rows}
                               sx={{
-                                fontSize: '0.7rem',
-                                fontWeight: 700,
-                                width: 110,
-                                '&:hover': {
-                                  borderWidth: 2,
-                                  bgcolor: 'rgba(245, 158, 11, 0.1)'
-                                }
+                                minWidth: 130,
+                                '& .MuiInputBase-root': { height: 36, fontSize: '0.8rem' },
+                                '& .MuiInputLabel-root': { fontSize: '0.75rem' }
                               }}
-                            >
-                              +500 Rows
-                            </Button>
-                            <Button
+                              InputLabelProps={{ shrink: true }}
+                            />
+                            <TextField
+                              label="QC By"
+                              value={commonQcByName}
+                              onChange={(e) => setCommonQcByName(e.target.value)}
                               size="small"
-                              variant="outlined"
-                              startIcon={<DownloadIcon sx={{ fontSize: '0.85rem' }} />}
-                              onClick={exportMultiEntryToExcel}
-                              disabled={!multiRows.some((r: any) => r.wsn?.trim())}
                               sx={{
-                                fontSize: '0.7rem',
-                                fontWeight: 700,
-                                width: 100,
-                                borderColor: '#10b981',
-                                color: '#10b981',
-                                '&:hover': { bgcolor: 'rgba(16, 185, 129, 0.1)', borderColor: '#10b981' },
-                                '&.Mui-disabled': { borderColor: '#94a3b8', color: '#94a3b8' }
+                                minWidth: 100,
+                                '& .MuiInputBase-root': { height: 36, fontSize: '0.8rem' },
+                                '& .MuiInputLabel-root': { fontSize: '0.75rem' }
                               }}
-                            >
-                              Export
-                            </Button>
-                            <Button
-                              size="small"
-                              variant="outlined"
-                              startIcon={<SettingsIcon sx={{ fontSize: '0.85rem' }} />}
-                              onClick={() => setColumnSettingsOpen(true)}
-                              sx={{
-                                fontSize: '0.6rem',
-                                fontWeight: 700,
-                                width: 110,
-                                height: 26,
-                                px: 0.8,
-                                borderWidth: 2,
-                                '&:hover': { borderWidth: 2 }
-                              }}
-                            >
-                              Columns
-                            </Button>
-
-
-
-                            {/* ? NEW: Grid Settings Button */}
-                            <Button
-                              size="small"
-                              variant="outlined"
-                              startIcon={<SettingsIcon sx={{ fontSize: '0.85rem' }} />}
-                              onClick={() => setGridSettingsOpen(true)}
-                              sx={{
-                                fontSize: '0.7rem',
-                                fontWeight: 700,
-                                width: 110,
-                                '&:hover': {
-                                  borderWidth: 2,
-                                  bgcolor: 'rgba(245, 158, 11, 0.1)'
-                                }
-                              }}
-                            >
-                              Grid
-                            </Button>
-
+                            />
                           </Stack>
+                        </Box>
+
+                        {/* RIGHT: Fixed Action Buttons */}
+                        <Stack direction="row" spacing={0.5} sx={{ flexShrink: 0, alignItems: 'center' }}>
+                          {/* Menu Button */}
+                          <Tooltip title="Open Settings">
+                            <IconButton
+                              size="small"
+                              onClick={() => setQcSettingsPanelOpen(true)}
+                              sx={{
+                                width: 36,
+                                height: 36,
+                                borderRadius: 1,
+                                border: '1.5px solid',
+                                borderColor: isDarkMode ? '#3b82f6' : '#1e40af',
+                                color: isDarkMode ? '#60a5fa' : '#1e40af',
+                                bgcolor: isDarkMode ? 'rgba(59, 130, 246, 0.08)' : 'rgba(30, 64, 175, 0.04)',
+                                '&:hover': { borderColor: '#3b82f6', bgcolor: 'rgba(59, 130, 246, 0.12)' }
+                              }}
+                            >
+                              <MenuIcon sx={{ fontSize: 18 }} />
+                            </IconButton>
+                          </Tooltip>
+
+                          {/* Fullscreen Button */}
+                          <Tooltip title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}>
+                            <IconButton
+                              size="small"
+                              onClick={toggleFullscreen}
+                              sx={{
+                                width: 36,
+                                height: 36,
+                                borderRadius: 1,
+                                border: '1.5px solid',
+                                borderColor: isFullscreen ? '#f59e0b' : (isDarkMode ? '#475569' : '#d1d5db'),
+                                color: isFullscreen ? '#f59e0b' : (isDarkMode ? '#94a3b8' : '#64748b'),
+                                bgcolor: isFullscreen ? 'rgba(245, 158, 11, 0.1)' : 'transparent',
+                                '&:hover': { borderColor: '#f59e0b', bgcolor: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b' }
+                              }}
+                            >
+                              {isFullscreen ? <FullscreenExitIcon sx={{ fontSize: 18 }} /> : <FullscreenIcon sx={{ fontSize: 18 }} />}
+                            </IconButton>
+                          </Tooltip>
+
+                          {/* Live View Panel */}
+                          <LiveViewPanel
+                            warehouseId={activeWarehouse?.id}
+                            pageType="qc"
+                            isDarkMode={isDarkMode}
+                            container={multiEntryContainerRef.current}
+                          />
                         </Stack>
                       </Box>
 

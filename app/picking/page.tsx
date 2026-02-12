@@ -4323,50 +4323,114 @@ export default function PickingPage() {
             <Card sx={{ borderRadius: 1, boxShadow: isDarkMode ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.06)', bgcolor: isDarkMode ? '#1e293b' : 'white' }}>
               <CardContent sx={{ p: 1.2, '&:last-child': { pb: 1.2 } }}>
 
-                {/* ===== MOBILE LAYOUT ===== */}
-                <Box sx={{ display: { xs: 'block', md: 'none' } }}>
-                  <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, alignItems: 'center', width: '100%' }}>
-                    <Box sx={{ gridColumn: '1 / span 2', display: 'flex', gap: 0.5, alignItems: 'center', width: '100%' }}>
+                {/* ===== MOBILE: Single Row - Scrollable Inputs + Fixed Buttons ===== */}
+                <Box sx={{ display: { xs: 'flex', md: 'none' }, alignItems: 'center', gap: 1, width: '100%' }}>
+                  {/* LEFT: Scrollable Input Fields */}
+                  <Box
+                    sx={{
+                      flex: 1,
+                      minWidth: 0,
+                      overflowX: 'auto',
+                      overflowY: 'hidden',
+                      WebkitOverflowScrolling: 'touch',
+                      scrollbarWidth: 'none',
+                      '&::-webkit-scrollbar': { display: 'none' },
+                    }}
+                  >
+                    <Stack direction="row" spacing={1} sx={{ width: 'max-content', minWidth: '100%' }}>
                       <TextField
-                        label="Picking Date"
+                        label="Date"
                         type="date"
                         value={pickingDate}
                         onChange={(e) => setPickingDate(e.target.value)}
                         size="small"
-                        sx={{ flex: '0 0 45%', minWidth: '45%' }}
+                        sx={{
+                          minWidth: 120,
+                          '& .MuiInputBase-root': { height: 36, fontSize: '0.8rem' },
+                          '& .MuiInputLabel-root': { fontSize: '0.75rem' }
+                        }}
                         InputLabelProps={{ shrink: true }}
                       />
                       <TextField
-                        label="Picker Name"
+                        label="Picker"
                         value={pickerName}
                         onChange={(e) => setPickerName(e.target.value)}
                         size="small"
-                        sx={{ flex: '1 1 55%', minWidth: 100 }}
+                        sx={{
+                          minWidth: 90,
+                          '& .MuiInputBase-root': { height: 36, fontSize: '0.8rem' },
+                          '& .MuiInputLabel-root': { fontSize: '0.75rem' }
+                        }}
                       />
-                    </Box>
-                    <Box sx={{ gridColumn: '1 / span 1', width: '100%', mt: 1 }}>
-                      <CustomerAutocomplete
-                        value={selectedCustomer}
-                        onChange={(newValue) => setSelectedCustomer(newValue)}
-                        customers={customers}
-                        warehouseId={activeWarehouse?.id}
-                        onCustomerAdded={loadCustomers}
-                        size="small"
-                        label="Customer Name"
-                        placeholder="Type to search or select..."
-                        sx={{ width: '100%' }}
-                      />
-                    </Box>
-                    <Box sx={{ gridColumn: '2 / span 1', display: 'flex', gap: 0.5, justifyContent: 'flex-end', alignItems: 'center', pt: 0.5, flexWrap: 'wrap' }}>
-                      <Button size="small" variant="outlined" onClick={() => setPickingSettingsPanelOpen(true)} startIcon={<MenuIcon sx={{ fontSize: 14 }} />} sx={{ fontSize: '0.7rem', fontWeight: 700, height: 40 }}>Menu</Button>
-                      <Tooltip title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}>
-                        <IconButton size="small" onClick={toggleFullscreen} sx={{ width: 36, height: 36, borderRadius: 1, border: '1.5px solid', borderColor: isFullscreen ? '#f59e0b' : (isDarkMode ? '#475569' : '#d1d5db'), color: isFullscreen ? '#f59e0b' : (isDarkMode ? '#94a3b8' : '#64748b'), bgcolor: isFullscreen ? 'rgba(245, 158, 11, 0.1)' : 'transparent' }}>
-                          {isFullscreen ? <FullscreenExitIcon sx={{ fontSize: 18 }} /> : <FullscreenIcon sx={{ fontSize: 18 }} />}
-                        </IconButton>
-                      </Tooltip>
-                      <LiveViewPanel warehouseId={activeWarehouse?.id} pageType="picking" isDarkMode={isDarkMode} container={multiEntryContainerRef.current} />
-                    </Box>
+                      <Box sx={{ minWidth: 140 }}>
+                        <CustomerAutocomplete
+                          value={selectedCustomer}
+                          onChange={(newValue) => setSelectedCustomer(newValue)}
+                          customers={customers}
+                          warehouseId={activeWarehouse?.id}
+                          onCustomerAdded={loadCustomers}
+                          size="small"
+                          label="Customer"
+                          placeholder="Select..."
+                          sx={{
+                            '& .MuiInputBase-root': { height: 36, fontSize: '0.8rem' },
+                            '& .MuiInputLabel-root': { fontSize: '0.75rem' }
+                          }}
+                        />
+                      </Box>
+                    </Stack>
                   </Box>
+
+                  {/* RIGHT: Fixed Action Buttons */}
+                  <Stack direction="row" spacing={0.5} sx={{ flexShrink: 0, alignItems: 'center' }}>
+                    {/* Menu Button */}
+                    <Tooltip title="Open Settings">
+                      <IconButton
+                        size="small"
+                        onClick={() => setPickingSettingsPanelOpen(true)}
+                        sx={{
+                          width: 36,
+                          height: 36,
+                          borderRadius: 1,
+                          border: '1.5px solid',
+                          borderColor: isDarkMode ? '#3b82f6' : '#1e40af',
+                          color: isDarkMode ? '#60a5fa' : '#1e40af',
+                          bgcolor: isDarkMode ? 'rgba(59, 130, 246, 0.08)' : 'rgba(30, 64, 175, 0.04)',
+                          '&:hover': { borderColor: '#3b82f6', bgcolor: 'rgba(59, 130, 246, 0.12)' }
+                        }}
+                      >
+                        <MenuIcon sx={{ fontSize: 18 }} />
+                      </IconButton>
+                    </Tooltip>
+
+                    {/* Fullscreen Button */}
+                    <Tooltip title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}>
+                      <IconButton
+                        size="small"
+                        onClick={toggleFullscreen}
+                        sx={{
+                          width: 36,
+                          height: 36,
+                          borderRadius: 1,
+                          border: '1.5px solid',
+                          borderColor: isFullscreen ? '#f59e0b' : (isDarkMode ? '#475569' : '#d1d5db'),
+                          color: isFullscreen ? '#f59e0b' : (isDarkMode ? '#94a3b8' : '#64748b'),
+                          bgcolor: isFullscreen ? 'rgba(245, 158, 11, 0.1)' : 'transparent',
+                          '&:hover': { borderColor: '#f59e0b', bgcolor: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b' }
+                        }}
+                      >
+                        {isFullscreen ? <FullscreenExitIcon sx={{ fontSize: 18 }} /> : <FullscreenIcon sx={{ fontSize: 18 }} />}
+                      </IconButton>
+                    </Tooltip>
+
+                    {/* Live View Panel */}
+                    <LiveViewPanel
+                      warehouseId={activeWarehouse?.id}
+                      pageType="picking"
+                      isDarkMode={isDarkMode}
+                      container={multiEntryContainerRef.current}
+                    />
+                  </Stack>
                 </Box>
 
                 {/* ===== DESKTOP: Clean Single Row Layout ===== */}

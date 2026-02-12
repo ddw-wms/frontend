@@ -5726,72 +5726,116 @@ export default function OutboundPage() {
                         <Card sx={{ mb: 0.5, borderRadius: 1, boxShadow: isDarkMode ? '0 1px 3px rgba(0,0,0,0.3)' : '0 1px 3px rgba(0,0,0,0.05)', bgcolor: isDarkMode ? '#1e293b' : 'white' }}>
                             <CardContent sx={{ p: 1, '&:last-child': { pb: 1 } }}>
                                 {isMobile ? (
-                                    <Box sx={{ display: 'grid', gap: 1 }}>
-                                        <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1 }}>
-                                            <TextField
-                                                label="Dispatch Date *"
-                                                type="date"
-                                                value={commonDate}
-                                                onChange={(e) => setCommonDate(e.target.value)}
-                                                InputLabelProps={{ shrink: true }}
-                                                size="small"
-                                                required
-                                                sx={{ '& .MuiOutlinedInput-root': { height: 36 } }}
-                                            />
+                                    /* MOBILE: Single Row - Scrollable Inputs + Fixed Buttons */
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
+                                        {/* LEFT: Scrollable Input Fields */}
+                                        <Box
+                                            sx={{
+                                                flex: 1,
+                                                minWidth: 0,
+                                                overflowX: 'auto',
+                                                overflowY: 'hidden',
+                                                WebkitOverflowScrolling: 'touch',
+                                                scrollbarWidth: 'none',
+                                                '&::-webkit-scrollbar': { display: 'none' },
+                                            }}
+                                        >
+                                            <Stack direction="row" spacing={1} sx={{ width: 'max-content', minWidth: '100%' }}>
+                                                <TextField
+                                                    label="Date *"
+                                                    type="date"
+                                                    value={commonDate}
+                                                    onChange={(e) => setCommonDate(e.target.value)}
+                                                    InputLabelProps={{ shrink: true }}
+                                                    size="small"
+                                                    required
+                                                    sx={{
+                                                        minWidth: 120,
+                                                        '& .MuiInputBase-root': { height: 36, fontSize: '0.8rem' },
+                                                        '& .MuiInputLabel-root': { fontSize: '0.75rem' }
+                                                    }}
+                                                />
+                                                <Box sx={{ minWidth: 130 }}>
+                                                    <CustomerAutocomplete
+                                                        value={selectedCustomer}
+                                                        onChange={(newValue) => setSelectedCustomer(newValue)}
+                                                        customers={customers}
+                                                        warehouseId={activeWarehouse?.id}
+                                                        onCustomerAdded={loadCustomers}
+                                                        size="small"
+                                                        label="Customer *"
+                                                        placeholder="Select..."
+                                                        sx={{
+                                                            '& .MuiInputBase-root': { height: 36, fontSize: '0.8rem' },
+                                                            '& .MuiInputLabel-root': { fontSize: '0.75rem' }
+                                                        }}
+                                                    />
+                                                </Box>
+                                                <TextField
+                                                    label="Vehicle"
+                                                    value={commonVehicle}
+                                                    onChange={(e) => setCommonVehicle(e.target.value.toUpperCase())}
+                                                    size="small"
+                                                    placeholder="Optional"
+                                                    sx={{
+                                                        minWidth: 90,
+                                                        '& .MuiInputBase-root': { height: 36, fontSize: '0.8rem' },
+                                                        '& .MuiInputLabel-root': { fontSize: '0.75rem' }
+                                                    }}
+                                                />
+                                            </Stack>
+                                        </Box>
 
-                                            <CustomerAutocomplete
-                                                value={selectedCustomer}
-                                                onChange={(newValue) => setSelectedCustomer(newValue)}
-                                                customers={customers}
+                                        {/* RIGHT: Fixed Action Buttons */}
+                                        <Stack direction="row" spacing={0.5} sx={{ flexShrink: 0, alignItems: 'center' }}>
+                                            {/* Menu Button */}
+                                            <Tooltip title="Open Settings">
+                                                <IconButton
+                                                    size="small"
+                                                    onClick={() => setOutboundSettingsPanelOpen(true)}
+                                                    sx={{
+                                                        width: 36,
+                                                        height: 36,
+                                                        borderRadius: 1,
+                                                        border: '1.5px solid',
+                                                        borderColor: isDarkMode ? '#3b82f6' : '#1e40af',
+                                                        color: isDarkMode ? '#60a5fa' : '#1e40af',
+                                                        bgcolor: isDarkMode ? 'rgba(59, 130, 246, 0.08)' : 'rgba(30, 64, 175, 0.04)',
+                                                        '&:hover': { borderColor: '#3b82f6', bgcolor: 'rgba(59, 130, 246, 0.12)' }
+                                                    }}
+                                                >
+                                                    <MenuIcon sx={{ fontSize: 18 }} />
+                                                </IconButton>
+                                            </Tooltip>
+
+                                            {/* Fullscreen Button */}
+                                            <Tooltip title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}>
+                                                <IconButton
+                                                    size="small"
+                                                    onClick={toggleFullscreen}
+                                                    sx={{
+                                                        width: 36,
+                                                        height: 36,
+                                                        borderRadius: 1,
+                                                        border: '1.5px solid',
+                                                        borderColor: isFullscreen ? '#f59e0b' : (isDarkMode ? '#475569' : '#d1d5db'),
+                                                        color: isFullscreen ? '#f59e0b' : (isDarkMode ? '#94a3b8' : '#64748b'),
+                                                        bgcolor: isFullscreen ? 'rgba(245, 158, 11, 0.1)' : 'transparent',
+                                                        '&:hover': { borderColor: '#f59e0b', bgcolor: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b' }
+                                                    }}
+                                                >
+                                                    {isFullscreen ? <FullscreenExitIcon sx={{ fontSize: 18 }} /> : <FullscreenIcon sx={{ fontSize: 18 }} />}
+                                                </IconButton>
+                                            </Tooltip>
+
+                                            {/* Live View Panel */}
+                                            <LiveViewPanel
                                                 warehouseId={activeWarehouse?.id}
-                                                onCustomerAdded={loadCustomers}
-                                                size="small"
-                                                label="Customer Name *"
-                                                placeholder="Type or select..."
-                                                sx={{ '& .MuiOutlinedInput-root': { height: 36 } }}
+                                                pageType="outbound"
+                                                isDarkMode={isDarkMode}
+                                                container={multiEntryContainerRef.current}
                                             />
-                                        </Box>
-
-                                        <Box sx={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto', gap: 1, alignItems: 'center' }}>
-                                            <TextField
-                                                label="Vehicle Number"
-                                                value={commonVehicle}
-                                                onChange={(e) => setCommonVehicle(e.target.value.toUpperCase())}
-                                                size="small"
-                                                placeholder="Optional"
-                                                sx={{ '& .MuiOutlinedInput-root': { height: 36 } }}
-                                            />
-
-
-                                            <Button
-                                                size="small"
-                                                variant="contained"
-                                                onClick={add500Rows}
-                                                sx={{ height: 32, fontSize: '0.7rem', fontWeight: 600, background: '#ec4899' }}
-                                            >
-                                                +500
-                                            </Button>
-
-                                            <Button
-                                                size="small"
-                                                onClick={() => setCategoryPivotOpen(true)}
-                                                disabled={!multiRows.some((r: any) => r.wsn?.trim())}
-                                                variant="outlined"
-                                                sx={{ height: 32, fontSize: '0.7rem', fontWeight: 600, px: 1, borderColor: '#8b5cf6', color: '#8b5cf6' }}
-                                            >
-                                                📊
-                                            </Button>
-
-                                            <Button
-                                                size="small"
-                                                onClick={() => setColumnSettingsOpen(true)}
-                                                startIcon={<SettingsIcon sx={{ fontSize: 16 }} />}
-                                                variant="outlined"
-                                                sx={{ height: 32, fontSize: '0.7rem', fontWeight: 600, px: 1 }}
-                                            >
-                                                COLUMNS
-                                            </Button>
-                                        </Box>
+                                        </Stack>
                                     </Box>
                                 ) : (
                                     /* Desktop: Clean Single Row Layout - like Inbound */

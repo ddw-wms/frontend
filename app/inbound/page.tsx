@@ -6256,33 +6256,32 @@ export default function InboundPage() {
                       </Box>
                     </Drawer>
 
-                    {/* MOBILE: Two rows layout */}
-                    <Box sx={{ display: { xs: 'block', md: 'none' } }}>
-                      <Stack
-                        spacing={1.5}
+                    {/* MOBILE: Single Row - Scrollable Inputs + Fixed Buttons */}
+                    <Box sx={{ display: { xs: 'flex', md: 'none' }, alignItems: 'center', gap: 1, width: '100%' }}>
+                      {/* LEFT: Scrollable Input Fields */}
+                      <Box
                         sx={{
-                          width: '100%'
+                          flex: 1,
+                          minWidth: 0,
+                          overflowX: 'auto',
+                          overflowY: 'hidden',
+                          WebkitOverflowScrolling: 'touch',
+                          scrollbarWidth: 'none',
+                          '&::-webkit-scrollbar': { display: 'none' },
                         }}
                       >
-                        {/* ROW 1: Date and Vehicle */}
-                        <Stack
-                          direction="row"
-                          spacing={1}
-                          sx={{
-                            width: '100%',
-                            alignItems: 'center'
-                          }}
-                        >
+                        <Stack direction="row" spacing={1} sx={{ width: 'max-content', minWidth: '100%' }}>
                           <TextField
                             size="small"
-                            label="Common Date"
+                            label="Date"
                             type="date"
                             InputLabelProps={{ shrink: true }}
                             value={commonDate}
                             onChange={(e) => setCommonDate(e.target.value)}
                             sx={{
-                              flex: 1,
-                              '& .MuiInputBase-root': { height: 36 }
+                              minWidth: 130,
+                              '& .MuiInputBase-root': { height: 36, fontSize: '0.8rem' },
+                              '& .MuiInputLabel-root': { fontSize: '0.75rem' }
                             }}
                           />
                           <TextField
@@ -6291,291 +6290,65 @@ export default function InboundPage() {
                             value={commonVehicle}
                             onChange={(e) => setCommonVehicle(e.target.value)}
                             onBlur={saveMultiVehicleNumber}
-                            sx={{
-                              flex: 1,
-                              '& .MuiInputBase-root': { height: 36 }
-                            }}
                             placeholder="Auto-fill"
+                            sx={{
+                              minWidth: 100,
+                              '& .MuiInputBase-root': { height: 36, fontSize: '0.8rem' },
+                              '& .MuiInputLabel-root': { fontSize: '0.75rem' }
+                            }}
                           />
                         </Stack>
+                      </Box>
 
-                        {/* ROW 2: Status Chips + Action Buttons - Horizontally Scrollable */}
-                        <Box
-                          sx={{
-                            width: '100%',
-                            maxWidth: '100%',
-                            overflowX: 'scroll',
-                            overflowY: 'hidden',
-                            WebkitOverflowScrolling: 'touch',
-                            scrollbarWidth: 'thin',
-                            '&::-webkit-scrollbar': { height: 6 },
-                            '&::-webkit-scrollbar-thumb': { bgcolor: '#94a3b8', borderRadius: 3 },
-                            '&::-webkit-scrollbar-track': { bgcolor: isDarkMode ? '#334155' : '#e2e8f0', borderRadius: 3 },
-                            pb: 0.5,
-                            mx: -1, // Negative margin to extend scroll area
-                            px: 1,  // Padding to compensate
-                          }}
-                        >
-                          {/* Action Buttons */}
-                          <Stack direction="row" spacing={1} sx={{ flexShrink: 0, width: 'fit-content', minWidth: 'max-content' }}>
-                            <Button
-                              size="small"
-                              variant="outlined"
-                              onClick={() => setColumnSettingsOpen(true)}
-                              sx={{
-                                fontSize: '0.6rem',
-                                fontWeight: 700,
-                                minWidth: 85,
-                                height: 28,
-                                px: 0.75,
-                                borderColor: '#1e40af',
-                                color: '#1e40af',
-                                whiteSpace: 'nowrap',
-                                '&:hover': {
-                                  borderColor: '#1e40af',
-                                  bgcolor: 'rgba(30, 64, 175, 0.08)'
-                                }
-                              }}
-                            >
-                              <SettingsIcon sx={{ fontSize: '0.85rem', mr: 0.25 }} /> COLUMNS
-                            </Button>
-                            <Button
-                              size="small"
-                              variant="outlined"
-                              onClick={add500Rows}
-                              sx={{
-                                fontSize: '0.6rem',
-                                fontWeight: 700,
-                                minWidth: 80,
-                                height: 28,
-                                px: 0.75,
-                                borderColor: '#1e40af',
-                                color: '#1e40af',
-                                whiteSpace: 'nowrap',
-                                '&:hover': {
-                                  borderColor: '#1e40af',
-                                  bgcolor: 'rgba(30, 64, 175, 0.08)'
-                                }
-                              }}
+                      {/* RIGHT: Fixed Action Buttons */}
+                      <Stack direction="row" spacing={0.5} sx={{ flexShrink: 0, alignItems: 'center' }}>
+                        {/* Menu Button */}
+                        <Tooltip title="Open Settings">
+                          <IconButton
+                            size="small"
+                            onClick={() => setMultiSettingsPanelOpen(true)}
+                            sx={{
+                              width: 36,
+                              height: 36,
+                              borderRadius: 1,
+                              border: '1.5px solid',
+                              borderColor: isDarkMode ? '#3b82f6' : '#1e40af',
+                              color: isDarkMode ? '#60a5fa' : '#1e40af',
+                              bgcolor: isDarkMode ? 'rgba(59, 130, 246, 0.08)' : 'rgba(30, 64, 175, 0.04)',
+                              '&:hover': { borderColor: '#3b82f6', bgcolor: 'rgba(59, 130, 246, 0.12)' }
+                            }}
+                          >
+                            <MenuIcon sx={{ fontSize: 18 }} />
+                          </IconButton>
+                        </Tooltip>
 
-                            >
-                              +500 Rows
-                            </Button>
-                            {/* ✅ Multi Entry Grid Settings Button (Mobile) */}
-                            <Button
-                              type="button"
-                              size="small"
-                              variant="outlined"
-                              onClick={(e) => { e.stopPropagation(); setMultiGridSettingsOpen(true); }}
-                              sx={{
-                                fontSize: '0.6rem',
-                                fontWeight: 700,
-                                minWidth: 55,
-                                height: 28,
-                                px: 0.75,
-                                borderColor: '#f59e0b',
-                                color: '#f59e0b',
-                                whiteSpace: 'nowrap',
-                                '&:hover': {
-                                  borderColor: '#f59e0b',
-                                  bgcolor: 'rgba(245, 158, 11, 0.08)'
-                                }
-                              }}
-                            >
-                              <SettingsIcon sx={{ fontSize: '0.85rem', mr: 0.25 }} /> Grid
-                            </Button>
+                        {/* Fullscreen Button */}
+                        <Tooltip title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}>
+                          <IconButton
+                            size="small"
+                            onClick={toggleFullscreen}
+                            sx={{
+                              width: 36,
+                              height: 36,
+                              borderRadius: 1,
+                              border: '1.5px solid',
+                              borderColor: isFullscreen ? '#f59e0b' : (isDarkMode ? '#475569' : '#d1d5db'),
+                              color: isFullscreen ? '#f59e0b' : (isDarkMode ? '#94a3b8' : '#64748b'),
+                              bgcolor: isFullscreen ? 'rgba(245, 158, 11, 0.1)' : 'transparent',
+                              '&:hover': { borderColor: '#f59e0b', bgcolor: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b' }
+                            }}
+                          >
+                            {isFullscreen ? <FullscreenExitIcon sx={{ fontSize: 18 }} /> : <FullscreenIcon sx={{ fontSize: 18 }} />}
+                          </IconButton>
+                        </Tooltip>
 
-                            {/* Print Toggle (Mobile) */}
-                            <Box
-                              onClick={() => setMultiPrintEnabled(!multiPrintEnabled)}
-                              sx={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                border: `2px solid ${multiPrintEnabled ? '#16a34a' : '#dc2626'}`,
-                                borderRadius: 1,
-                                px: 0.75,
-                                height: 28,
-                                minWidth: 55,
-                                cursor: 'pointer',
-                                flexShrink: 0,
-                                '&:hover': { opacity: 0.8 }
-                              }}
-                            >
-                              <Typography
-                                variant="caption"
-                                sx={{
-                                  color: multiPrintEnabled ? '#16a34a' : '#dc2626',
-                                  fontWeight: 700,
-                                  fontSize: '0.6rem',
-                                  whiteSpace: 'nowrap'
-                                }}
-                              >
-                                🖨️ {multiPrintEnabled ? 'ON' : 'OFF'}
-                              </Typography>
-                            </Box>
-
-                            {/* Ctrl+P Reprint Toggle (Mobile) */}
-                            <Box
-                              onClick={() => setCtrlPPrintEnabled(!ctrlPPrintEnabled)}
-                              sx={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                border: `2px solid ${ctrlPPrintEnabled ? '#2563eb' : '#9ca3af'}`,
-                                borderRadius: 1,
-                                px: 0.75,
-                                height: 28,
-                                minWidth: 50,
-                                flexShrink: 0,
-                                cursor: 'pointer',
-                                '&:hover': { opacity: 0.8 }
-                              }}
-                            >
-                              <Typography
-                                variant="caption"
-                                sx={{
-                                  color: ctrlPPrintEnabled ? '#2563eb' : '#9ca3af',
-                                  fontWeight: 700,
-                                  fontSize: '0.55rem'
-                                }}
-                              >
-                                Ctrl+P {ctrlPPrintEnabled ? 'ON' : 'OFF'}
-                              </Typography>
-                            </Box>
-
-                            {/* Ctrl+O Product Link Toggle (Mobile) */}
-                            <Box
-                              onClick={() => setCtrlOProductLinkEnabled(!ctrlOProductLinkEnabled)}
-                              sx={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                border: `2px solid ${ctrlOProductLinkEnabled ? '#a855f7' : '#9ca3af'}`,
-                                borderRadius: 1,
-                                px: 0.75,
-                                height: 28,
-                                minWidth: 50,
-                                flexShrink: 0,
-                                cursor: 'pointer',
-                                '&:hover': { opacity: 0.8 }
-                              }}
-                            >
-                              <Typography
-                                variant="caption"
-                                sx={{
-                                  color: ctrlOProductLinkEnabled ? '#a855f7' : '#9ca3af',
-                                  fontWeight: 700,
-                                  fontSize: '0.55rem'
-                                }}
-                              >
-                                Ctrl+O {ctrlOProductLinkEnabled ? 'ON' : 'OFF'}
-                              </Typography>
-                            </Box>
-
-                            {/* Cache Status Indicator (Mobile) */}
-                            <Chip
-                              size="small"
-                              onClick={() => setBatchSelectorOpen(true)}
-                              label={
-                                batchCacheLoading
-                                  ? '🔄'
-                                  : selectedBatchIds.length > 0
-                                    ? `📦 ${cacheStats?.totalRecords?.toLocaleString() || 0}`
-                                    : cacheStats
-                                      ? `✅ ${cacheStats.totalRecords.toLocaleString()}`
-                                      : '⏳'
-                              }
-                              sx={{
-                                height: 24,
-                                fontSize: '0.55rem',
-                                fontWeight: 600,
-                                minWidth: 40,
-                                flexShrink: 0,
-                                cursor: 'pointer',
-                                bgcolor: selectedBatchIds.length > 0
-                                  ? 'rgba(139, 92, 246, 0.1)'
-                                  : batchCacheLoading || cacheLoading
-                                    ? 'rgba(59, 130, 246, 0.1)'
-                                    : cacheStats && cacheStats.totalRecords > 0
-                                      ? 'rgba(16, 185, 129, 0.1)'
-                                      : 'rgba(156, 163, 175, 0.1)',
-                                color: selectedBatchIds.length > 0
-                                  ? '#8b5cf6'
-                                  : batchCacheLoading || cacheLoading
-                                    ? '#3b82f6'
-                                    : cacheStats && cacheStats.totalRecords > 0
-                                      ? '#10b981'
-                                      : '#6b7280',
-                                border: `1px solid ${selectedBatchIds.length > 0
-                                  ? '#8b5cf6'
-                                  : batchCacheLoading || cacheLoading
-                                    ? '#3b82f6'
-                                    : cacheStats && cacheStats.totalRecords > 0
-                                      ? '#10b981'
-                                      : '#9ca3af'}`,
-                              }}
-                            />
-
-                            {/* ⚡ EXCEL SHORTCUTS HELP */}
-                            <Tooltip
-                              title={
-                                <Box sx={{ p: 1, fontSize: '11px', lineHeight: 1.6 }}>
-                                  <Typography sx={{ fontWeight: 700, mb: 1, fontSize: '13px', borderBottom: '1px solid #444', pb: 0.5 }}>⌨️ Excel-Like Shortcuts</Typography>
-                                  <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0.75, mb: 1 }}>
-                                    <span><b>Ctrl+Z</b> Undo</span>
-                                    <span><b>Ctrl+Y</b> Redo</span>
-                                    <span><b>Ctrl+C</b> Copy</span>
-                                    <span><b>Ctrl+V</b> Paste</span>
-                                    <span><b>Ctrl+X</b> Cut</span>
-                                    <span><b>Ctrl+D</b> Fill Down</span>
-                                    <span><b>Ctrl+R</b> Fill Right</span>
-                                    <span><b>Ctrl+A</b> Select All</span>
-                                    <span><b>Delete</b> Clear Cells</span>
-                                    <span><b>F2</b> Edit Cell</span>
-                                    <span><b>Escape</b> Clear Selection</span>
-                                    <span><b>Enter</b> Next Row</span>
-                                    <span><b>Tab</b> Next Cell</span>
-                                    <span><b>Shift+Tab</b> Prev Cell</span>
-                                    <span><b>Ctrl+Home</b> Go First</span>
-                                    <span><b>Ctrl+End</b> Go Last</span>
-                                  </Box>
-                                  <Typography sx={{ fontWeight: 600, fontSize: '11px', color: '#93c5fd' }}>📊 Range Selection:</Typography>
-                                  <Box sx={{ display: 'grid', gridTemplateColumns: '1fr', gap: 0.5, mt: 0.5 }}>
-                                    <span><b>Shift+Click</b> Select range</span>
-                                    <span><b>Shift+Arrow</b> Extend selection</span>
-                                  </Box>
-                                </Box>
-                              }
-                              arrow
-                              placement="bottom"
-                            >
-                              <Button
-                                type="button"
-                                size="small"
-                                variant="outlined"
-                                sx={{
-                                  fontSize: '0.6rem',
-                                  fontWeight: 700,
-                                  minWidth: 32,
-                                  width: 32,
-                                  height: 28,
-                                  px: 0,
-                                  flexShrink: 0,
-                                  borderColor: '#10b981',
-                                  color: '#10b981',
-                                  '&:hover': {
-                                    borderColor: '#10b981',
-                                    bgcolor: 'rgba(16, 185, 129, 0.08)'
-                                  }
-                                }}
-                              >
-                                ⌨️
-                              </Button>
-                            </Tooltip>
-
-                          </Stack>
-                        </Box>
+                        {/* Live View Panel */}
+                        <LiveViewPanel
+                          warehouseId={activeWarehouse?.id}
+                          pageType="inbound"
+                          isDarkMode={isDarkMode}
+                          container={multiEntryContainerRef.current}
+                        />
                       </Stack>
                     </Box>
                   </CardContent>
