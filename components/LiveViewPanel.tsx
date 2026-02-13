@@ -37,7 +37,10 @@ import {
   Inventory as InventoryIcon,
   TableChart as TableChartIcon,
   PieChart as PieChartIcon,
+  Fullscreen as FullscreenIcon,
+  FullscreenExit as FullscreenExitIcon,
 } from '@mui/icons-material';
+import useMediaQuery from '@mui/material/useMediaQuery';
 import { liveViewAPI } from '@/lib/api';
 import toast from 'react-hot-toast';
 
@@ -94,7 +97,9 @@ interface LiveViewPanelProps {
 
 export default function LiveViewPanel({ warehouseId, pageType, isDarkMode = false, container }: LiveViewPanelProps) {
   const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [open, setOpen] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
   const [sessions, setSessions] = useState<LiveSession[]>([]);
   const [selectedSession, setSelectedSession] = useState<LiveSession | null>(null);
   const [entries, setEntries] = useState<LiveEntry[]>([]);
@@ -105,12 +110,17 @@ export default function LiveViewPanel({ warehouseId, pageType, isDarkMode = fals
   const initialLoadDoneRef = useRef(false);
   const initialEntriesLoadDoneRef = useRef(false);
 
+  // Reset expanded state when drawer closes
+  useEffect(() => {
+    if (!open) setIsExpanded(false);
+  }, [open]);
+
   // Pivot data computation
   const pivotData = useMemo(() => {
     if (entries.length === 0) return { rows: [], grandTotal: { qty: 0, fsp: 0, mrp: 0 } };
-    
+
     const grouped: Record<string, { qty: number; fsp: number; mrp: number }> = {};
-    
+
     entries.forEach(entry => {
       const category = entry.cms_vertical || 'Uncategorized';
       if (!grouped[category]) {
@@ -120,16 +130,16 @@ export default function LiveViewPanel({ warehouseId, pageType, isDarkMode = fals
       grouped[category].fsp += Number(entry.fsp) || 0;
       grouped[category].mrp += Number(entry.mrp) || 0;
     });
-    
+
     const rows = Object.entries(grouped)
       .map(([category, data]) => ({ category, ...data }))
       .sort((a, b) => b.qty - a.qty);
-    
+
     const grandTotal = rows.reduce(
       (acc, row) => ({ qty: acc.qty + row.qty, fsp: acc.fsp + row.fsp, mrp: acc.mrp + row.mrp }),
       { qty: 0, fsp: 0, mrp: 0 }
     );
-    
+
     return { rows, grandTotal };
   }, [entries]);
 
@@ -372,52 +382,67 @@ export default function LiveViewPanel({ warehouseId, pageType, isDarkMode = fals
         }}
         PaperProps={{
           sx: {
-            width: { xs: '100%', sm: '50vw', md: '50vw' },
-            maxWidth: { sm: 800 },
+            width: isMobile || isExpanded ? '100%' : { sm: '65vw', md: '60vw' },
+            maxWidth: isExpanded ? '100%' : { sm: 1100 },
             minWidth: { sm: 400 },
             bgcolor: isDarkMode ? '#0f172a' : '#f8fafc',
+            transition: 'width 0.3s ease, max-width 0.3s ease',
           }
         }}
       >
         {/* Header */}
         <Box
           sx={{
-            p: 2,
+            px: { xs: 1.5, sm: 2 },
+            py: { xs: 1, sm: 1.5 },
             background: `linear-gradient(135deg, ${pageColor} 0%, ${alpha(pageColor, 0.8)} 100%)`,
             color: 'white',
           }}
         >
           <Stack direction="row" alignItems="center" justifyContent="space-between">
             <Stack direction="row" alignItems="center" spacing={1}>
-              <VisibilityIcon />
-              <Typography variant="h6" fontWeight={700}>
+              <VisibilityIcon sx={{ fontSize: { xs: 20, sm: 24 } }} />
+              <Typography variant={isMobile ? 'subtitle1' : 'h6'} fontWeight={700}>
                 Live View
               </Typography>
             </Stack>
-            <Stack direction="row" spacing={1}>
-              <IconButton size="small" onClick={() => fetchSessions(false)} sx={{ color: 'white' }}>
-                <RefreshIcon />
-              </IconButton>
-              <IconButton size="small" onClick={() => setOpen(false)} sx={{ color: 'white' }}>
-                <CloseIcon />
-              </IconButton>
+            <Stack direction="row" spacing={0.5}>
+              <Tooltip title="Refresh">
+                <IconButton size="small" onClick={() => fetchSessions(false)} sx={{ color: 'white' }}>
+                  <RefreshIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+              {!isMobile && (
+                <Tooltip title={isExpanded ? 'Exit fullscreen' : 'Fullscreen'}>
+                  <IconButton size="small" onClick={() => setIsExpanded(!isExpanded)} sx={{ color: 'white' }}>
+                    {isExpanded ? <FullscreenExitIcon fontSize="small" /> : <FullscreenIcon fontSize="small" />}
+                  </IconButton>
+                </Tooltip>
+              )}
+              <Tooltip title="Close">
+                <IconButton size="small" onClick={() => setOpen(false)} sx={{ color: 'white' }}>
+                  <CloseIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
             </Stack>
           </Stack>
-          <Typography variant="body2" sx={{ opacity: 0.9, mt: 0.5 }}>
-            See entries being made by other users in real-time
-          </Typography>
+          {!isMobile && (
+            <Typography variant="caption" sx={{ opacity: 0.85, mt: 0.25, display: 'block' }}>
+              See entries being made by other users in real-time
+            </Typography>
+          )}
         </Box>
 
-        <Box sx={{ p: 2, height: '100%', overflow: 'auto' }}>
+        <Box sx={{ px: { xs: 1, sm: 1.5 }, py: { xs: 0.75, sm: 1 }, height: '100%', overflow: 'auto' }}>
           {/* Active Sessions List */}
           {!selectedSession ? (
             <>
-              <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1.5, color: isDarkMode ? '#94a3b8' : '#64748b' }}>
+              <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1, color: isDarkMode ? '#94a3b8' : '#64748b' }}>
                 Active Users ({sessions.length})
               </Typography>
 
               {loading ? (
-                <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}>
                   <CircularProgress size={24} />
                 </Box>
               ) : sessions.length === 0 ? (
@@ -478,7 +503,7 @@ export default function LiveViewPanel({ warehouseId, pageType, isDarkMode = fals
           ) : (
             /* Selected Session Entries */
             <>
-              <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
+              <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
                 <Button
                   size="small"
                   onClick={() => {
@@ -486,18 +511,19 @@ export default function LiveViewPanel({ warehouseId, pageType, isDarkMode = fals
                     setEntries([]);
                     initialEntriesLoadDoneRef.current = false;
                   }}
-                  sx={{ textTransform: 'none' }}
+                  sx={{ textTransform: 'none', minWidth: 'auto', px: 1 }}
                 >
                   ← Back to sessions
                 </Button>
                 <Button
                   size="small"
                   variant="contained"
-                  startIcon={<DownloadIcon />}
+                  startIcon={<DownloadIcon sx={{ fontSize: 16 }} />}
                   onClick={handleExport}
                   disabled={entries.length === 0}
                   sx={{
                     bgcolor: pageColor,
+                    px: { xs: 1.5, sm: 2 },
                     '&:hover': { bgcolor: alpha(pageColor, 0.9) }
                   }}
                 >
@@ -505,22 +531,22 @@ export default function LiveViewPanel({ warehouseId, pageType, isDarkMode = fals
                 </Button>
               </Stack>
 
-              <Paper sx={{ p: 2, mb: 2, bgcolor: isDarkMode ? '#1e293b' : 'white', borderRadius: 2 }}>
-                <Stack direction="row" alignItems="center" justifyContent="space-between">
-                  <Stack direction="row" alignItems="center" spacing={2}>
-                    <Avatar sx={{ bgcolor: pageColor }}>
-                      <PersonIcon />
+              <Paper sx={{ px: { xs: 1, sm: 1.5 }, py: { xs: 0.75, sm: 1 }, mb: 1, bgcolor: isDarkMode ? '#1e293b' : 'white', borderRadius: 2 }}>
+                <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1}>
+                  <Stack direction="row" alignItems="center" spacing={1} sx={{ minWidth: 0 }}>
+                    <Avatar sx={{ bgcolor: pageColor, width: { xs: 28, sm: 36 }, height: { xs: 28, sm: 36 } }}>
+                      <PersonIcon sx={{ fontSize: { xs: 16, sm: 20 } }} />
                     </Avatar>
-                    <Box>
-                      <Typography fontWeight={700} sx={{ color: isDarkMode ? '#f1f5f9' : '#1e293b' }}>
+                    <Box sx={{ minWidth: 0 }}>
+                      <Typography fontWeight={700} sx={{ color: isDarkMode ? '#f1f5f9' : '#1e293b', fontSize: { xs: '0.8rem', sm: '0.875rem' } }} noWrap>
                         {selectedSession.user_name}
                       </Typography>
-                      <Typography variant="caption" color="textSecondary">
+                      <Typography variant="caption" color="textSecondary" sx={{ fontSize: { xs: '0.65rem', sm: '0.75rem' } }}>
                         {entries.length} entries • Last update: {formatTimeAgo(selectedSession.last_activity_at)}
                       </Typography>
                     </Box>
                   </Stack>
-                  
+
                   {/* View Toggle */}
                   <ToggleButtonGroup
                     value={viewMode}
@@ -528,13 +554,13 @@ export default function LiveViewPanel({ warehouseId, pageType, isDarkMode = fals
                     onChange={(_, val) => val && setViewMode(val)}
                     size="small"
                   >
-                    <ToggleButton value="table" sx={{ px: 2 }}>
-                      <TableChartIcon fontSize="small" sx={{ mr: 0.5 }} />
-                      Table
+                    <ToggleButton value="table" sx={{ px: { xs: 1, sm: 1.5 }, py: 0.5 }}>
+                      <TableChartIcon sx={{ fontSize: { xs: 16, sm: 20 }, mr: { xs: 0, sm: 0.5 } }} />
+                      {!isMobile && 'Table'}
                     </ToggleButton>
-                    <ToggleButton value="pivot" sx={{ px: 2 }}>
-                      <PieChartIcon fontSize="small" sx={{ mr: 0.5 }} />
-                      Pivot
+                    <ToggleButton value="pivot" sx={{ px: { xs: 1, sm: 1.5 }, py: 0.5 }}>
+                      <PieChartIcon sx={{ fontSize: { xs: 16, sm: 20 }, mr: { xs: 0, sm: 0.5 } }} />
+                      {!isMobile && 'Pivot'}
                     </ToggleButton>
                   </ToggleButtonGroup>
                 </Stack>
@@ -575,7 +601,7 @@ export default function LiveViewPanel({ warehouseId, pageType, isDarkMode = fals
                   <TableContainer
                     component={Paper}
                     sx={{
-                      maxHeight: 'calc(100vh - 360px)',
+                      maxHeight: { xs: 'calc(100vh - 200px)', sm: 'calc(100vh - 220px)' },
                       bgcolor: isDarkMode ? '#1e293b' : 'white',
                     }}
                   >
@@ -591,27 +617,27 @@ export default function LiveViewPanel({ warehouseId, pageType, isDarkMode = fals
                       <TableBody>
                         {pivotData.rows.map((row) => (
                           <TableRow key={row.category} hover>
-                            <TableCell sx={{ 
-                              fontWeight: 600, 
-                              color: isDarkMode ? '#f1f5f9' : '#1e293b' 
+                            <TableCell sx={{
+                              fontWeight: 600,
+                              color: isDarkMode ? '#f1f5f9' : '#1e293b'
                             }}>
                               {row.category}
                             </TableCell>
-                            <TableCell sx={{ 
+                            <TableCell sx={{
                               textAlign: 'center',
-                              color: isDarkMode ? '#cbd5e1' : '#475569' 
+                              color: isDarkMode ? '#cbd5e1' : '#475569'
                             }}>
                               {row.qty}
                             </TableCell>
-                            <TableCell sx={{ 
+                            <TableCell sx={{
                               textAlign: 'right',
-                              color: isDarkMode ? '#cbd5e1' : '#475569' 
+                              color: isDarkMode ? '#cbd5e1' : '#475569'
                             }}>
                               ₹{row.fsp.toLocaleString('en-IN')}
                             </TableCell>
-                            <TableCell sx={{ 
+                            <TableCell sx={{
                               textAlign: 'right',
-                              color: isDarkMode ? '#cbd5e1' : '#475569' 
+                              color: isDarkMode ? '#cbd5e1' : '#475569'
                             }}>
                               ₹{row.mrp.toLocaleString('en-IN')}
                             </TableCell>
@@ -640,7 +666,7 @@ export default function LiveViewPanel({ warehouseId, pageType, isDarkMode = fals
                   <TableContainer
                     component={Paper}
                     sx={{
-                      maxHeight: 'calc(100vh - 360px)',
+                      maxHeight: { xs: 'calc(100vh - 200px)', sm: 'calc(100vh - 220px)' },
                       bgcolor: isDarkMode ? '#1e293b' : 'white',
                     }}
                   >
