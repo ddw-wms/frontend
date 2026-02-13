@@ -401,6 +401,24 @@ export const masterDataAPI = {
   delete: (id: number) => api.delete(`master-data/${id}`),
   deleteBatch: (batchId: string) => api.delete(`master-data/batch/${batchId}`),
   getActiveUploads: () => api.get('master-data/upload/active'),
+  // Phase 3: Upload history & duplicate details
+  getUploadHistory: (page = 1, limit = 20, filters?: { status?: string; search?: string; dateFrom?: string; dateTo?: string }) =>
+    api.get('master-data/upload/history', {
+      params: { page, limit, status: filters?.status, search: filters?.search, dateFrom: filters?.dateFrom, dateTo: filters?.dateTo }
+    }),
+  getUploadDuplicates: (jobId: string) => api.get(`master-data/upload/duplicates/${jobId}`),
+  // Phase 5: Advanced features
+  restoreBatch: (batchId: string) => api.post(`master-data/batch/${batchId}/restore`),
+  getSnapshots: (page = 1, limit = 20, filters?: { batchId?: string; includeRestored?: boolean }) =>
+    api.get('master-data/snapshots', {
+      params: { page, limit, batchId: filters?.batchId, includeRestored: filters?.includeRestored }
+    }),
+  getDeletedRecords: (page = 1, limit = 50, filters?: { search?: string; batchId?: string }) =>
+    api.get('master-data/deleted', {
+      params: { page, limit, search: filters?.search, batchId: filters?.batchId }
+    }),
+  purgeDeletedRecord: (id: number) => api.delete(`master-data/deleted/purge/${id}`),
+  cleanupStaleData: () => api.delete('master-data/cleanup/stale'),
   // Helper to trigger template download in browser
   downloadTemplate: () => {
     if (typeof window !== 'undefined') {

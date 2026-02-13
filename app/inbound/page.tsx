@@ -47,8 +47,6 @@ import { printLabel, isAgentRunning } from '@/lib/printAgent';
 // Constants
 const DEFAULT_MULTI_COLUMNS = [
   'wsn',
-  'product_serial_number',
-  'rack_no',
   'unload_remarks',
   'product_title',
   'brand',
@@ -56,7 +54,7 @@ const DEFAULT_MULTI_COLUMNS = [
   'fsp',
   'mrp',
   'fkqc_remark',
-  'fk_grade',
+  'p_type',
 ];
 
 const DEFAULT_LIST_COLUMNS = [
@@ -140,6 +138,7 @@ import {
   removeFromPendingMemoryCache,
   removeMultipleFromPendingMemoryCache
 } from '@/lib/wmsCache';
+import { width } from '@mui/system';
 
 // Register AG Grid modules ONCE
 ModuleRegistry.registerModules([AllCommunityModule]);
@@ -3751,34 +3750,33 @@ export default function InboundPage() {
     }
   };
 
+  //multi entry column width config - default widths for each column, can be overridden by user resizing (saved in multiColumnWidths)
   const COLUMN_WIDTHS: Record<string, any> = useMemo(() => ({
-    wsn: { width: 60 },
-    product_serial_number: { width: 160 },
+    wsn: { width: 80 },
+    product_serial_number: { width: 120 },
     rack_no: { width: 30 },
-    unload_remarks: { flex: 1, minWidth: 160 },
+    unload_remarks: { width: 120 },
 
     // ---- MASTER / READ ONLY COLUMNS ----
-    wid: { width: 60 },
-    fsn: { width: 120 },
-    order_id: { width: 60 },
+    wid: { width: 80 },
+    fsn: { width: 100 },
+    order_id: { width: 70 },
 
     product_title: { flex: 2, minWidth: 220 },
-    brand: { width: 60 },
-
-    mrp: { width: 30 },
-    fsp: { width: 30 },
-    hsn_sac: { width: 90 },
-    igst_rate: { width: 20 },
-
-    cms_vertical: { width: 120 },
-    p_type: { width: 90 },
+    brand: { width: 100 },
+    cms_vertical: { width: 100 },
+    mrp: { width: 60 },
+    fsp: { width: 60 },
+    hsn_sac: { width: 80 },
+    igst_rate: { width: 40 },
+    fkqc_remark: { width: 50 },
+    p_type: { width: 100 },
     p_size: { width: 80 },
     vrp: { width: 70 },
     yield_value: { width: 60 },
-    fk_grade: { width: 80 },
+    fk_grade: { width: 50 },
     inbound_date: { width: 90 },
     fkt_link: { width: 50 },
-    fkqc_remark: { flex: 1, minWidth: 40 },
   }), []);
 
 

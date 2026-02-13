@@ -19,7 +19,8 @@ import {
   Speed as SpeedIcon, Clear as ClearIcon, CheckCircle, Settings as SettingsIcon,
   Tune as TuneIcon, Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon,
   ExpandMore as ExpandMoreIcon, Close as CloseIcon, KeyboardArrowLeft, KeyboardArrowRight, FirstPage, LastPage, AccessTime,
-  Print as PrintIcon, Menu as MenuIcon, ViewColumn as ViewColumnIcon, TableChart as TableChartIcon
+  Print as PrintIcon, Menu as MenuIcon, ViewColumn as ViewColumnIcon, TableChart as TableChartIcon,
+  History as HistoryIcon
 } from '@mui/icons-material';
 import toast, { Toaster } from 'react-hot-toast';
 import { getStoredUser, logout } from '@/lib/auth';
@@ -402,7 +403,25 @@ export default function MasterDataPage() {
   const [lastRefreshTime, setLastRefreshTime] = useState<Date | null>(null);
   const [uploadError, setUploadError] = useState<string>('');
   const [fileValidationError, setFileValidationError] = useState<string>('');
+  const [duplicateStrategy, setDuplicateStrategy] = useState<'skip' | 'update' | 'replace'>('skip');
 
+  // Upload history
+  const [uploadHistory, setUploadHistory] = useState<any[]>([]);
+  const [uploadHistoryTotal, setUploadHistoryTotal] = useState(0);
+  const [uploadHistoryPage, setUploadHistoryPage] = useState(1);
+  const [uploadHistoryLoading, setUploadHistoryLoading] = useState(false);
+
+  // Phase 5: Deleted records & snapshots
+  const [deletedRecords, setDeletedRecords] = useState<any[]>([]);
+  const [deletedRecordsTotal, setDeletedRecordsTotal] = useState(0);
+  const [deletedRecordsPage, setDeletedRecordsPage] = useState(1);
+  const [deletedRecordsLoading, setDeletedRecordsLoading] = useState(false);
+  const [deletedSearch, setDeletedSearch] = useState('');
+  const [snapshots, setSnapshots] = useState<any[]>([]);
+  const [snapshotsTotal, setSnapshotsTotal] = useState(0);
+  const [snapshotsPage, setSnapshotsPage] = useState(1);
+  const [snapshotsLoading, setSnapshotsLoading] = useState(false);
+  const [restoringBatchId, setRestoringBatchId] = useState<string | null>(null);
   // Upload progress
   const [uploadProgress, setUploadProgress] = useState({
     show: false,
@@ -411,6 +430,7 @@ export default function MasterDataPage() {
     total: 0,
     successCount: 0,
     errorCount: 0,
+    duplicateCount: 0,
     batchId: ''
   });
 
@@ -1131,6 +1151,7 @@ export default function MasterDataPage() {
           total: job.total || 0,
           successCount: job.successCount || 0,
           errorCount: job.errorCount || 0,
+          duplicateCount: job.duplicateCount || 0,
           batchId: job.batchId || ''
         });
 
@@ -1159,6 +1180,7 @@ export default function MasterDataPage() {
           processed: prog.processed || 0,
           successCount: prog.successCount || 0,
           errorCount: prog.errorCount || 0,
+          duplicateCount: prog.duplicateCount || 0,
           total: prog.total || prev.total
         }));
 
@@ -1171,7 +1193,8 @@ export default function MasterDataPage() {
           setUploadProgress(prev => ({ ...prev, show: false }));
 
           if (prog.status === 'completed') {
-            toast.success(`✓ Upload complete! ${formatNumber(prog.successCount)} records added`, { duration: 5000 });
+            const dupInfo = prog.duplicateCount > 0 ? ` | ${formatNumber(prog.duplicateCount)} duplicates` : '';
+            toast.success(`✓ Upload complete! ${formatNumber(prog.successCount)} records added${dupInfo}`, { duration: 5000 });
             loadMasterData();
             loadBatches();
           } else {
@@ -1194,6 +1217,110 @@ export default function MasterDataPage() {
         }
       }
     }, 2000);
+  };
+
+  // ✅ Phase 4: Load upload history
+  const loadUploadHistory = useCallback(async () => {
+    setUploadHistoryLoading(true);
+    try {
+      const response = await masterDataAPI.getUploadHistory(uploadHistoryPage, 20);
+      setUploadHistory(response.data?.data || []);
+      setUploadHistoryTotal(response.data?.total || 0);
+    } catch (error) {
+      console.log('⚠️ Upload history load error:', error);
+    } finally {
+      setUploadHistoryLoading(false);
+    }
+  }, [uploadHistoryPage]);
+
+  // Load upload history when page changes or tab switches to it
+  useEffect(() => {
+    // The tab index logic: 0=Master Data, 1=Batches, 2=Upload History
+    if (tabValue === 2) {
+      loadUploadHistory();
+    }
+  }, [tabValue, loadUploadHistory]);
+
+  // ✅ Phase 5: Load deleted records
+  const loadDeletedRecords = useCallback(async () => {
+    setDeletedRecordsLoading(true);
+    try {
+      const response = await masterDataAPI.getDeletedRecords(deletedRecordsPage, 50, { search: deletedSearch });
+      setDeletedRecords(response.data?.data || []);
+      setDeletedRecordsTotal(response.data?.total || 0);
+    } catch (error) {
+      console.log('⚠️ Deleted records load error:', error);
+    } finally {
+      setDeletedRecordsLoading(false);
+    }
+  }, [deletedRecordsPage, deletedSearch]);
+
+  // ✅ Phase 5: Load snapshots
+  const loadSnapshots = useCallback(async () => {
+    setSnapshotsLoading(true);
+    try {
+      const response = await masterDataAPI.getSnapshots(snapshotsPage, 20);
+      setSnapshots(response.data?.data || []);
+      setSnapshotsTotal(response.data?.total || 0);
+    } catch (error) {
+      console.log('⚠️ Snapshots load error:', error);
+    } finally {
+      setSnapshotsLoading(false);
+    }
+  }, [snapshotsPage]);
+
+  // Load deleted/snapshots when their tab is active
+  useEffect(() => {
+    if (tabValue === 3) loadDeletedRecords();
+  }, [tabValue, loadDeletedRecords]);
+
+  useEffect(() => {
+    if (tabValue === 4) loadSnapshots();
+  }, [tabValue, loadSnapshots]);
+
+  // ✅ Phase 5: Restore batch from snapshot
+  const handleRestoreBatch = async (batchId: string) => {
+    if (!confirm(`Restore all soft-deleted records in batch "${batchId}" from snapshot?`)) return;
+    setRestoringBatchId(batchId);
+    try {
+      const response = await masterDataAPI.restoreBatch(batchId);
+      const data = response.data;
+      toast.success(`✅ Restored ${data.restoredCount} records${data.conflictCount > 0 ? ` (${data.conflictCount} WSN conflicts skipped)` : ''}`);
+      loadSnapshots();
+      loadDeletedRecords();
+      loadMasterData();
+      loadBatches();
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || 'Restore failed');
+    } finally {
+      setRestoringBatchId(null);
+    }
+  };
+
+  // ✅ Phase 5: Purge single deleted record permanently
+  const handlePurgeRecord = async (id: number, wsn: string) => {
+    if (!confirm(`Permanently delete record WSN "${wsn}"? This CANNOT be undone.`)) return;
+    try {
+      await masterDataAPI.purgeDeletedRecord(id);
+      toast.success('Record permanently deleted');
+      loadDeletedRecords();
+    } catch (error) {
+      toast.error('Failed to purge record');
+    }
+  };
+
+  // ✅ Phase 5: Cleanup stale data
+  const handleCleanupStale = async () => {
+    if (!confirm('This will permanently remove:\n• Expired snapshots\n• Old upload progress entries\n• Records deleted 90+ days ago\n\nProceed?')) return;
+    try {
+      const response = await masterDataAPI.cleanupStaleData();
+      const r = response.data?.results || {};
+      toast.success(`Cleanup complete: ${r.expiredSnapshots || 0} snapshots, ${r.oldProgressEntries || 0} progress entries, ${r.purgedRecords || 0} records purged`);
+      loadSnapshots();
+      loadDeletedRecords();
+    } catch (error) {
+      toast.error('Cleanup failed');
+    }
   };
 
 
@@ -1408,6 +1535,7 @@ export default function MasterDataPage() {
     setLoading(true);
     const formData = new FormData();
     formData.append('file', selectedFile);
+    formData.append('duplicateStrategy', duplicateStrategy);
 
     try {
       const response = await fetch(
@@ -1445,6 +1573,7 @@ export default function MasterDataPage() {
         total: data.totalRows || 0,
         successCount: 0,
         errorCount: 0,
+        duplicateCount: 0,
         batchId: data.batchId
       });
 
@@ -1489,11 +1618,11 @@ export default function MasterDataPage() {
   };
 
   const handleDeleteBatch = async (batchId: string) => {
-    if (!confirm(`Delete all records in batch ${batchId}?`)) return;
+    if (!confirm(`Delete all records in batch ${batchId}?\n\nA snapshot will be created so you can restore later from the Snapshots tab.`)) return;
 
     try {
       await masterDataAPI.deleteBatch(batchId);
-      toast.success('✓ Batch deleted');
+      toast.success('✓ Batch deleted (snapshot saved for 90 days)');
       loadMasterData();
       loadBatches();
     } catch (error) {
@@ -1706,6 +1835,7 @@ export default function MasterDataPage() {
                 </Stack>
                 <Stack direction="row" spacing={0.5} alignItems="center">
                   <Chip label={`✓${formatNumber(uploadProgress.successCount)}`} color="success" size="small" sx={{ height: 20, fontSize: '0.7rem' }} />
+                  {uploadProgress.duplicateCount > 0 && <Chip label={`⊘${formatNumber(uploadProgress.duplicateCount)}`} size="small" sx={{ height: 20, fontSize: '0.7rem', bgcolor: '#fff3e0', color: '#e65100' }} />}
                   {uploadProgress.errorCount > 0 && <Chip label={`✗${formatNumber(uploadProgress.errorCount)}`} color="error" size="small" sx={{ height: 20, fontSize: '0.7rem' }} />}
                   <IconButton size="small" onClick={handleCancelUpload} color="error" sx={{ p: 0.5 }}><CancelIcon fontSize="small" /></IconButton>
                 </Stack>
@@ -1726,16 +1856,33 @@ export default function MasterDataPage() {
             // Define all tabs with their permission codes
             const allTabs = [
               { label: '📋 Master Data', code: 'list' },
-              { label: '📦 Batches', code: 'batches' }
+              { label: '📦 Batches', code: 'batches' },
+              { label: '📜 Upload History', code: 'list' },
+              { label: '🗑️ Deleted Records', code: 'list' },
+              { label: '📸 Snapshots', code: 'batches' }
             ];
 
             // Filter visible tabs based on permissions
             const visibleTabs = allTabs.filter(tab => canSeeTab(tab.code));
 
-            // Map visible tab index to actual tab index
+            // Map visible tab index to actual tab index — use index-based matching for duplicate codes
             const getActualTabIndex = (visibleIndex: number) => {
+              if (visibleIndex < 0 || visibleIndex >= visibleTabs.length) return -1;
               const visibleTab = visibleTabs[visibleIndex];
-              return allTabs.findIndex(t => t.code === visibleTab?.code);
+              // Count how many tabs with the same code appear before this one in visibleTabs
+              let sameCodeCount = 0;
+              for (let i = 0; i < visibleIndex; i++) {
+                if (visibleTabs[i].code === visibleTab.code) sameCodeCount++;
+              }
+              // Find the nth occurrence of this code in allTabs
+              let found = 0;
+              for (let i = 0; i < allTabs.length; i++) {
+                if (allTabs[i].code === visibleTab.code) {
+                  if (found === sameCodeCount) return i;
+                  found++;
+                }
+              }
+              return -1;
             };
 
             // Current actual tab index
@@ -1746,7 +1893,7 @@ export default function MasterDataPage() {
                 <Paper elevation={0} sx={{ borderBottom: '1px solid #e0e0e0' }}>
                   <Tabs value={tabValue} onChange={(e, v) => setTabValue(v)} sx={{ minHeight: 42 }}>
                     {visibleTabs.map((tab, idx) => (
-                      <Tab key={tab.code} label={tab.label} sx={{ minHeight: 42, py: 0 }} />
+                      <Tab key={idx} label={tab.label} sx={{ minHeight: 42, py: 0 }} />
                     ))}
                   </Tabs>
                 </Paper>
@@ -2443,6 +2590,367 @@ export default function MasterDataPage() {
                     emptySubMessage="Batches will appear here after master data uploads"
                   />
                 )}
+
+                {/* Tab 3: Upload History */}
+                {actualTabIndex === 2 && (
+                  <Box sx={{ p: 2 }}>
+                    <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+                      <Typography variant="h6" fontWeight={700}>
+                        <HistoryIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
+                        Upload History
+                      </Typography>
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        startIcon={<RefreshIcon />}
+                        onClick={loadUploadHistory}
+                        disabled={uploadHistoryLoading}
+                      >
+                        Refresh
+                      </Button>
+                    </Stack>
+
+                    {uploadHistoryLoading && <LinearProgress sx={{ mb: 2 }} />}
+
+                    {uploadHistory.length === 0 && !uploadHistoryLoading ? (
+                      <Paper sx={{ p: 4, textAlign: 'center', bgcolor: '#f8fafc' }}>
+                        <HistoryIcon sx={{ fontSize: 48, color: '#94a3b8', mb: 1 }} />
+                        <Typography color="text.secondary">No upload history yet</Typography>
+                        <Typography variant="caption" color="text.secondary">Upload history will appear here after your first file upload</Typography>
+                      </Paper>
+                    ) : (
+                      <>
+                        <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2 }}>
+                          <Table size="small">
+                            <TableHead>
+                              <TableRow sx={{ bgcolor: '#f1f5f9' }}>
+                                <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem' }}>Filename</TableCell>
+                                <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem' }}>Batch</TableCell>
+                                <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem' }}>Status</TableCell>
+                                <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem' }} align="right">Total</TableCell>
+                                <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem' }} align="right">Success</TableCell>
+                                <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem' }} align="right">Duplicates</TableCell>
+                                <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem' }}>Strategy</TableCell>
+                                <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem' }}>Date</TableCell>
+                              </TableRow>
+                            </TableHead>
+                            <TableBody>
+                              {uploadHistory.map((entry: any) => (
+                                <TableRow key={entry.id} hover>
+                                  <TableCell>
+                                    <Tooltip title={entry.filename}>
+                                      <Typography variant="caption" sx={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>
+                                        📄 {entry.filename}
+                                      </Typography>
+                                    </Tooltip>
+                                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem' }}>
+                                      {(entry.fileSizeBytes / 1024 / 1024).toFixed(2)} MB · {entry.fileType?.toUpperCase()}
+                                    </Typography>
+                                  </TableCell>
+                                  <TableCell>
+                                    <Typography variant="caption" sx={{ fontFamily: 'monospace', fontSize: '0.7rem' }}>
+                                      {entry.batchId}
+                                    </Typography>
+                                  </TableCell>
+                                  <TableCell>
+                                    <Chip
+                                      label={entry.status}
+                                      size="small"
+                                      color={
+                                        entry.status === 'completed' ? 'success' :
+                                        entry.status === 'failed' ? 'error' :
+                                        entry.status === 'processing' ? 'info' :
+                                        entry.status === 'cancelled' ? 'warning' : 'default'
+                                      }
+                                      sx={{ height: 22, fontSize: '0.7rem', fontWeight: 600 }}
+                                    />
+                                  </TableCell>
+                                  <TableCell align="right">
+                                    <Typography variant="caption">{formatNumber(entry.totalRows)}</Typography>
+                                  </TableCell>
+                                  <TableCell align="right">
+                                    <Typography variant="caption" color="success.main" fontWeight={600}>{formatNumber(entry.successCount)}</Typography>
+                                  </TableCell>
+                                  <TableCell align="right">
+                                    <Typography variant="caption" color={entry.duplicateCount > 0 ? 'warning.main' : 'text.secondary'} fontWeight={entry.duplicateCount > 0 ? 600 : 400}>
+                                      {formatNumber(entry.duplicateCount)}
+                                    </Typography>
+                                  </TableCell>
+                                  <TableCell>
+                                    <Chip
+                                      label={entry.duplicateStrategy || 'skip'}
+                                      size="small"
+                                      variant="outlined"
+                                      sx={{ height: 20, fontSize: '0.65rem' }}
+                                    />
+                                  </TableCell>
+                                  <TableCell>
+                                    <Typography variant="caption" sx={{ fontSize: '0.7rem' }}>
+                                      {formatDateToIST(entry.uploadedAt)}
+                                    </Typography>
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </TableContainer>
+
+                        {uploadHistoryTotal > 20 && (
+                          <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
+                            <Pagination
+                              count={Math.ceil(uploadHistoryTotal / 20)}
+                              page={uploadHistoryPage}
+                              onChange={(_, p) => { setUploadHistoryPage(p); }}
+                              size="small"
+                              color="primary"
+                            />
+                          </Box>
+                        )}
+                      </>
+                    )}
+                  </Box>
+                )}
+
+                {/* Tab 4: Deleted Records (Trash) */}
+                {actualTabIndex === 3 && (
+                  <Box sx={{ p: 2 }}>
+                    <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+                      <Typography variant="h6" fontWeight={700}>
+                        🗑️ Deleted Records
+                      </Typography>
+                      <Stack direction="row" spacing={1}>
+                        <TextField
+                          size="small"
+                          placeholder="Search deleted..."
+                          value={deletedSearch}
+                          onChange={(e) => { setDeletedSearch(e.target.value); setDeletedRecordsPage(1); }}
+                          sx={{ width: 200, '& .MuiOutlinedInput-root': { height: 32, fontSize: '0.8rem' } }}
+                        />
+                        <Button size="small" variant="outlined" startIcon={<RefreshIcon />} onClick={loadDeletedRecords} disabled={deletedRecordsLoading}>
+                          Refresh
+                        </Button>
+                      </Stack>
+                    </Stack>
+
+                    {deletedRecordsLoading && <LinearProgress sx={{ mb: 2 }} />}
+
+                    {deletedRecords.length === 0 && !deletedRecordsLoading ? (
+                      <Paper sx={{ p: 4, textAlign: 'center', bgcolor: '#f8fafc' }}>
+                        <DeleteIcon sx={{ fontSize: 48, color: '#94a3b8', mb: 1 }} />
+                        <Typography color="text.secondary">No deleted records</Typography>
+                        <Typography variant="caption" color="text.secondary">Soft-deleted records will appear here</Typography>
+                      </Paper>
+                    ) : (
+                      <>
+                        <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2 }}>
+                          <Table size="small">
+                            <TableHead>
+                              <TableRow sx={{ bgcolor: '#fef2f2' }}>
+                                <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem' }}>WSN</TableCell>
+                                <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem' }}>WID</TableCell>
+                                <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem' }}>Product</TableCell>
+                                <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem' }}>Batch</TableCell>
+                                <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem' }}>Deleted At</TableCell>
+                                <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem' }}>Deleted By</TableCell>
+                                <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem' }} align="right">Actions</TableCell>
+                              </TableRow>
+                            </TableHead>
+                            <TableBody>
+                              {deletedRecords.map((record: any) => (
+                                <TableRow key={record.id} hover>
+                                  <TableCell>
+                                    <Typography variant="caption" sx={{ fontFamily: 'monospace', fontSize: '0.7rem', fontWeight: 600 }}>
+                                      {record.wsn}
+                                    </Typography>
+                                  </TableCell>
+                                  <TableCell>
+                                    <Typography variant="caption" sx={{ fontSize: '0.7rem' }}>{record.wid || '-'}</Typography>
+                                  </TableCell>
+                                  <TableCell>
+                                    <Tooltip title={record.product_title || ''}>
+                                      <Typography variant="caption" sx={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block', fontSize: '0.7rem' }}>
+                                        {record.product_title || '-'}
+                                      </Typography>
+                                    </Tooltip>
+                                  </TableCell>
+                                  <TableCell>
+                                    <Typography variant="caption" sx={{ fontFamily: 'monospace', fontSize: '0.7rem' }}>
+                                      {record.batch_id}
+                                    </Typography>
+                                  </TableCell>
+                                  <TableCell>
+                                    <Typography variant="caption" sx={{ fontSize: '0.7rem' }}>
+                                      {formatDateToIST(record.deleted_at)}
+                                    </Typography>
+                                  </TableCell>
+                                  <TableCell>
+                                    <Typography variant="caption" sx={{ fontSize: '0.7rem' }}>
+                                      {record.deleted_by || '-'}
+                                    </Typography>
+                                  </TableCell>
+                                  <TableCell align="right">
+                                    <Tooltip title="Permanently delete">
+                                      <IconButton size="small" color="error" onClick={() => handlePurgeRecord(record.id, record.wsn)}>
+                                        <DeleteIcon sx={{ fontSize: 16 }} />
+                                      </IconButton>
+                                    </Tooltip>
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </TableContainer>
+
+                        {deletedRecordsTotal > 50 && (
+                          <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
+                            <Pagination
+                              count={Math.ceil(deletedRecordsTotal / 50)}
+                              page={deletedRecordsPage}
+                              onChange={(_, p) => setDeletedRecordsPage(p)}
+                              size="small"
+                              color="primary"
+                            />
+                          </Box>
+                        )}
+
+                        <Box sx={{ mt: 1, textAlign: 'right' }}>
+                          <Typography variant="caption" color="text.secondary">
+                            {deletedRecordsTotal} deleted record{deletedRecordsTotal !== 1 ? 's' : ''}
+                          </Typography>
+                        </Box>
+                      </>
+                    )}
+                  </Box>
+                )}
+
+                {/* Tab 5: Snapshots */}
+                {actualTabIndex === 4 && (
+                  <Box sx={{ p: 2 }}>
+                    <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+                      <Typography variant="h6" fontWeight={700}>
+                        📸 Batch Snapshots
+                      </Typography>
+                      <Stack direction="row" spacing={1}>
+                        <Button size="small" variant="outlined" color="warning" onClick={handleCleanupStale}>
+                          🧹 Cleanup Stale
+                        </Button>
+                        <Button size="small" variant="outlined" startIcon={<RefreshIcon />} onClick={loadSnapshots} disabled={snapshotsLoading}>
+                          Refresh
+                        </Button>
+                      </Stack>
+                    </Stack>
+
+                    {snapshotsLoading && <LinearProgress sx={{ mb: 2 }} />}
+
+                    {snapshots.length === 0 && !snapshotsLoading ? (
+                      <Paper sx={{ p: 4, textAlign: 'center', bgcolor: '#f8fafc' }}>
+                        <HistoryIcon sx={{ fontSize: 48, color: '#94a3b8', mb: 1 }} />
+                        <Typography color="text.secondary">No active snapshots</Typography>
+                        <Typography variant="caption" color="text.secondary">Snapshots are created automatically before batch deletions and expire after 90 days</Typography>
+                      </Paper>
+                    ) : (
+                      <>
+                        <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2 }}>
+                          <Table size="small">
+                            <TableHead>
+                              <TableRow sx={{ bgcolor: '#f0f9ff' }}>
+                                <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem' }}>Batch ID</TableCell>
+                                <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem' }} align="right">Records</TableCell>
+                                <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem' }}>Size</TableCell>
+                                <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem' }}>Reason</TableCell>
+                                <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem' }}>Created</TableCell>
+                                <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem' }}>Expires</TableCell>
+                                <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem' }}>Status</TableCell>
+                                <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem' }} align="right">Actions</TableCell>
+                              </TableRow>
+                            </TableHead>
+                            <TableBody>
+                              {snapshots.map((snap: any) => (
+                                <TableRow key={snap.id} hover>
+                                  <TableCell>
+                                    <Typography variant="caption" sx={{ fontFamily: 'monospace', fontSize: '0.7rem', fontWeight: 600 }}>
+                                      {snap.batchId}
+                                    </Typography>
+                                  </TableCell>
+                                  <TableCell align="right">
+                                    <Typography variant="caption" fontWeight={600}>{formatNumber(snap.recordCount)}</Typography>
+                                  </TableCell>
+                                  <TableCell>
+                                    <Typography variant="caption" sx={{ fontSize: '0.7rem' }}>
+                                      {snap.snapshotSizeBytes ? `${(snap.snapshotSizeBytes / 1024 / 1024).toFixed(2)} MB` : '-'}
+                                    </Typography>
+                                  </TableCell>
+                                  <TableCell>
+                                    <Chip
+                                      label={snap.reason}
+                                      size="small"
+                                      color={snap.reason === 'pre_delete' ? 'warning' : 'info'}
+                                      sx={{ height: 20, fontSize: '0.65rem' }}
+                                    />
+                                  </TableCell>
+                                  <TableCell>
+                                    <Typography variant="caption" sx={{ fontSize: '0.7rem' }}>
+                                      {formatDateToIST(snap.createdAt)}
+                                    </Typography>
+                                    {snap.createdByName && (
+                                      <Typography variant="caption" display="block" color="text.secondary" sx={{ fontSize: '0.6rem' }}>
+                                        by {snap.createdByName}
+                                      </Typography>
+                                    )}
+                                  </TableCell>
+                                  <TableCell>
+                                    <Typography variant="caption" sx={{ fontSize: '0.7rem' }}>
+                                      {formatDateToIST(snap.expiresAt, 'date')}
+                                    </Typography>
+                                  </TableCell>
+                                  <TableCell>
+                                    {snap.restored ? (
+                                      <Chip label="Restored" size="small" color="success" sx={{ height: 20, fontSize: '0.65rem' }} />
+                                    ) : (
+                                      <Chip label="Available" size="small" color="primary" variant="outlined" sx={{ height: 20, fontSize: '0.65rem' }} />
+                                    )}
+                                  </TableCell>
+                                  <TableCell align="right">
+                                    {!snap.restored && (
+                                      <Button
+                                        size="small"
+                                        variant="contained"
+                                        color="success"
+                                        onClick={() => handleRestoreBatch(snap.batchId)}
+                                        disabled={restoringBatchId === snap.batchId}
+                                        sx={{ height: 26, fontSize: '0.7rem', textTransform: 'none' }}
+                                      >
+                                        {restoringBatchId === snap.batchId ? 'Restoring...' : '♻️ Restore'}
+                                      </Button>
+                                    )}
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </TableContainer>
+
+                        {snapshotsTotal > 20 && (
+                          <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
+                            <Pagination
+                              count={Math.ceil(snapshotsTotal / 20)}
+                              page={snapshotsPage}
+                              onChange={(_, p) => setSnapshotsPage(p)}
+                              size="small"
+                              color="primary"
+                            />
+                          </Box>
+                        )}
+
+                        <Box sx={{ mt: 1, textAlign: 'right' }}>
+                          <Typography variant="caption" color="text.secondary">
+                            {snapshotsTotal} snapshot{snapshotsTotal !== 1 ? 's' : ''} · Snapshots expire after 90 days
+                          </Typography>
+                        </Box>
+                      </>
+                    )}
+                  </Box>
+                )}
               </>
             );
           })()}
@@ -2487,6 +2995,7 @@ export default function MasterDataPage() {
               setSelectedFile(null);
               setUploadError('');
               setFileValidationError('');
+              setDuplicateStrategy('skip');
             }
           }}
           maxWidth="sm"
@@ -2517,6 +3026,36 @@ export default function MasterDataPage() {
                   </Typography>
                 </Stack>
               </Paper>
+
+              {/* Duplicate Strategy Selector */}
+              <FormControl fullWidth size="small">
+                <InputLabel id="duplicate-strategy-label">Duplicate Handling</InputLabel>
+                <Select
+                  labelId="duplicate-strategy-label"
+                  value={duplicateStrategy}
+                  label="Duplicate Handling"
+                  onChange={(e) => setDuplicateStrategy(e.target.value as 'skip' | 'update' | 'replace')}
+                >
+                  <MenuItem value="skip">
+                    <Stack>
+                      <Typography variant="body2" fontWeight={600}>Skip Duplicates</Typography>
+                      <Typography variant="caption" color="text.secondary">Existing WSNs are ignored — only new records inserted</Typography>
+                    </Stack>
+                  </MenuItem>
+                  <MenuItem value="update">
+                    <Stack>
+                      <Typography variant="body2" fontWeight={600}>Update Duplicates</Typography>
+                      <Typography variant="caption" color="text.secondary">Overwrite all columns for existing WSNs with new data</Typography>
+                    </Stack>
+                  </MenuItem>
+                  <MenuItem value="replace">
+                    <Stack>
+                      <Typography variant="body2" fontWeight={600}>Replace (Soft-Delete + Re-insert)</Typography>
+                      <Typography variant="caption" color="text.secondary">Old records archived, fresh insert — full audit trail</Typography>
+                    </Stack>
+                  </MenuItem>
+                </Select>
+              </FormControl>
 
               {/* File Validation Error Display */}
               {fileValidationError && (
@@ -2701,6 +3240,7 @@ export default function MasterDataPage() {
                 setSelectedFile(null);
                 setUploadError('');
                 setFileValidationError('');
+                setDuplicateStrategy('skip');
               }}
               disabled={loading}
               variant="outlined"
