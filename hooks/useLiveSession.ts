@@ -35,6 +35,22 @@ export function useLiveSession({
     const entriesRef = useRef<LiveSessionEntry[]>([]);
     const pendingUpdateRef = useRef(false);
     const updateTimerRef = useRef<NodeJS.Timeout | null>(null);
+    const sessionIdRef = useRef<string | null>(null);
+    const isRestartingRef = useRef(false);
+
+    // Keep ref in sync with state (for use in intervals/cleanup)
+    useEffect(() => {
+        sessionIdRef.current = sessionId;
+    }, [sessionId]);
+
+    // Reset session state (used for recovery)
+    const resetSession = useCallback(() => {
+        setSessionId(null);
+        setIsActive(false);
+        setLastSync(null);
+        sessionIdRef.current = null;
+        isRestartingRef.current = false;
+    }, []);
 
     // Start a new live session
     const startSession = useCallback(async () => {
@@ -47,6 +63,7 @@ export function useLiveSession({
                 setSessionId(res.data.sessionId);
                 setIsActive(true);
                 setLastSync(new Date());
+                isRestartingRef.current = false;
             }
         } catch (error) {
             // Silently ignore - not critical if live session fails to start
@@ -62,12 +79,10 @@ export function useLiveSession({
         } catch (error) {
             console.debug('Live session end skipped:', error);
         } finally {
-            setSessionId(null);
-            setIsActive(false);
-            setLastSync(null);
+            resetSession();
             entriesRef.current = [];
         }
-    }, [sessionId]);
+    }, [sessionId, resetSession]);
 
     // Update entries (debounced)
     const updateEntries = useCallback((entries: LiveSessionEntry[]) => {
@@ -77,22 +92,39 @@ export function useLiveSession({
         pendingUpdateRef.current = true;
     }, [sessionId, enabled]);
 
-    // Sync entries to server
+    // Sync entries to server (also acts as heartbeat)
     const syncEntries = useCallback(async () => {
-        if (!sessionId || !pendingUpdateRef.current) return;
+        if (!sessionId) return;
 
         try {
-            await liveViewAPI.updateEntries(sessionId, entriesRef.current);
+            // Always send current entries as heartbeat (even if no changes)
+            const res = await liveViewAPI.updateEntries(sessionId, entriesRef.current);
+
+            // Check if server says session expired
+            if (res.data?.sessionExpired) {
+                console.debug('Live session expired on server, will restart...');
+                // Clear session so startSession can re-fire
+                resetSession();
+                return;
+            }
+
             setLastSync(new Date());
             pendingUpdateRef.current = false;
-        } catch (error) {
-            console.debug('Live entries sync skipped:', error);
+        } catch (error: any) {
+            // If server returns error (session gone), trigger recovery
+            if (error?.response?.status === 404 || error?.response?.status === 400) {
+                console.debug('Live session error, resetting for recovery...');
+                resetSession();
+            } else {
+                console.debug('Live entries sync skipped:', error);
+            }
         }
-    }, [sessionId]);
+    }, [sessionId, resetSession]);
 
-    // Set up periodic sync
+    // Set up periodic sync (acts as both data sync + heartbeat)
     useEffect(() => {
         if (sessionId && enabled) {
+            // Sync every updateInterval — this keeps last_activity_at fresh even without edits
             updateTimerRef.current = setInterval(syncEntries, updateInterval);
         }
 
@@ -103,18 +135,45 @@ export function useLiveSession({
         };
     }, [sessionId, enabled, updateInterval, syncEntries]);
 
+    // Auto-restart session if it gets cleared while still enabled (recovery)
+    useEffect(() => {
+        if (enabled && warehouseId && !sessionId && !isRestartingRef.current) {
+            // Small delay to avoid rapid restart loops
+            const timer = setTimeout(() => {
+                if (!sessionIdRef.current && enabled) {
+                    isRestartingRef.current = true;
+                    // We can't call startSession directly (it checks sessionId),
+                    // so we call the API directly for restart
+                    liveViewAPI.startSession(warehouseId, pageType)
+                        .then(res => {
+                            if (res.data.success && res.data.sessionId) {
+                                setSessionId(res.data.sessionId);
+                                setIsActive(true);
+                                setLastSync(new Date());
+                            }
+                            isRestartingRef.current = false;
+                        })
+                        .catch(() => {
+                            isRestartingRef.current = false;
+                        });
+                }
+            }, 2000);
+            return () => clearTimeout(timer);
+        }
+    }, [enabled, warehouseId, sessionId, pageType]);
+
     // End session on unmount
     useEffect(() => {
         return () => {
-            if (sessionId) {
+            if (sessionIdRef.current) {
                 // Fire and forget - don't await on unmount
-                liveViewAPI.endSession(sessionId).catch(() => { });
+                liveViewAPI.endSession(sessionIdRef.current).catch(() => { });
             }
         };
-    }, [sessionId]);
+    }, []); // Empty deps - only runs on unmount
 
     // Note: We don't use sendBeacon because the /end endpoint requires auth headers.
-    // Sessions will auto-cleanup after 5 minutes of inactivity via server-side cleanup.
+    // Sessions will auto-cleanup after inactivity via server-side cleanup.
 
     return {
         sessionId,
