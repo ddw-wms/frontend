@@ -1803,7 +1803,7 @@ export default function DashboardPage() {
           <Box
             sx={{
               background: isDarkMode ? '#0f172a' : '#f8fafc',
-              py: { xs: 0.5, sm: 0.75, md: 0.75 },
+              py: { xs: 0.5, sm: 0.75, md: 0.95 },
               display: "flex",
               flexDirection: "column",
               gap: { xs: 0.1, md: 1.0 },

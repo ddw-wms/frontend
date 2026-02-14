@@ -4139,7 +4139,7 @@ export default function InboundPage() {
                 {/* SEARCH BAR + FILTERS TOGGLE */}
                 <Box sx={{
                   flexShrink: 0,
-                  mb: 1,
+                  mb: 0.10,
                   background: isDarkMode ? '#0f172a' : '#f8fafc',
                   borderBottom: 'transparent',
                   position: 'relative',
@@ -5292,7 +5292,7 @@ export default function InboundPage() {
                 display: 'grid',
                 gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' },
                 gap: { xs: 1.5, sm: 2, lg: 2.5 },
-                p: { xs: 1, sm: 1.5, md: 2 },
+                p: { xs: 1, sm: 1.5, md: 0.25 },
                 height: '100%',
                 overflow: 'auto'
               }}>
@@ -5772,7 +5772,7 @@ export default function InboundPage() {
                   display: 'flex',
                   flexDirection: 'column',
                   height: '100%', overflow: 'hidden',
-                  p: { xs: 1, sm: 1, md: 1 },
+
                   bgcolor: isDarkMode ? '#0f172a' : '#f5f7fa',
                   // Prevent white flash during tab switch
                   '& *': { transition: 'none !important' },
@@ -5791,7 +5791,11 @@ export default function InboundPage() {
                 >
                   <CardContent sx={{ p: { xs: 1.5, sm: 1.5 }, pt: { xs: 2, sm: 1.5 }, '&:last-child': { pb: { xs: 1.5, sm: 1.5 } }, overflow: 'visible' }}>
                     {/* DESKTOP: Clean Single Row Layout */}
-                    <Box sx={{ display: { xs: 'none', md: 'block' } }}>
+                    <Box sx={{
+                      mb: 0.2,
+                      mt: 0,
+                      display: { xs: 'none', md: 'block' }
+                    }}>
                       <Stack
                         direction="row"
                         sx={{
@@ -6473,7 +6477,7 @@ export default function InboundPage() {
                     flex: 1,
                     minHeight: 300,
                     border: isDarkMode ? '1px solid #334155' : '2px solid #94a3b8',
-                    borderRadius: '6px',
+                    borderRadius: '9px',
                     overflow: 'hidden',
                     bgcolor: isDarkMode ? '#1e293b' : '#ffffff',
                     boxShadow: isDarkMode ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.12)',
