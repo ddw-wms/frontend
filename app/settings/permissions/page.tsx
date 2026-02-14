@@ -665,21 +665,45 @@ export default function PermissionsPage() {
 
     const handleSaveUserOverrides = async () => {
         if (!selectedUser) return;
+
+        const overrides = userOverrides
+            .filter(p => p.override_enabled !== null || p.override_visible !== null)
+            .map(p => ({
+                code: p.code,
+                is_enabled: p.override_enabled ?? null,
+                is_visible: p.override_visible ?? null
+            }));
+
+        // Super admin: Direct save
+        if (isSuperAdmin) {
+            try {
+                setSaving(true);
+                await permissionsAPI.updateUserOverrides(selectedUser.id, overrides);
+                showSnackbar('User overrides saved successfully', 'success');
+                await refreshPermissions();
+            } catch (error: any) {
+                console.error('Save user overrides error:', error);
+                const errorMsg = error?.response?.data?.error || error?.message || 'Network error';
+                showSnackbar(`Failed to save: ${errorMsg}`, 'error');
+            } finally {
+                setSaving(false);
+            }
+            return;
+        }
+
+        // Non-super_admin (admin): Create approval request
         try {
             setSaving(true);
-            const overrides = userOverrides
-                .filter(p => p.override_enabled !== null || p.override_visible !== null)
-                .map(p => ({
-                    code: p.code,
-                    is_enabled: p.override_enabled ?? null,
-                    is_visible: p.override_visible ?? null
-                }));
-            await permissionsAPI.updateUserOverrides(selectedUser.id, overrides);
-            showSnackbar('User overrides saved successfully', 'success');
+            await permissionsAPI.createUserOverrideRequest(selectedUser.id, overrides);
+            showSnackbar('Override change request submitted for approval', 'success');
+            // Reload original overrides
+            const overridesRes = await permissionsAPI.getUserOverrides(selectedUser.id);
+            setUserOverrides(overridesRes.data.permissions || []);
+            await loadApprovalData();
         } catch (error: any) {
-            console.error('Save user overrides error:', error);
+            console.error('Create user override request error:', error);
             const errorMsg = error?.response?.data?.error || error?.message || 'Network error';
-            showSnackbar(`Failed to save: ${errorMsg}`, 'error');
+            showSnackbar(`Failed to submit: ${errorMsg}`, 'error');
         } finally {
             setSaving(false);
         }
@@ -1880,15 +1904,31 @@ export default function PermissionsPage() {
                                                         )}
                                                     </Stack>
                                                 </Box>
+                                                {!isSuperAdmin && (
+                                                    <Chip
+                                                        label="Needs Super Admin Approval"
+                                                        color="warning"
+                                                        size="small"
+                                                        icon={<PendingIcon />}
+                                                        sx={{ mr: 1 }}
+                                                    />
+                                                )}
                                                 <Button
                                                     variant="contained"
-                                                    startIcon={saving ? <CircularProgress size={14} color="inherit" /> : <SaveIcon sx={{ fontSize: { xs: 16, sm: 20 } }} />}
+                                                    color={isSuperAdmin ? "primary" : "warning"}
+                                                    startIcon={saving ? <CircularProgress size={14} color="inherit" /> : (isSuperAdmin ? <SaveIcon sx={{ fontSize: { xs: 16, sm: 20 } }} /> : <SendIcon sx={{ fontSize: { xs: 16, sm: 20 } }} />)}
                                                     onClick={handleSaveUserOverrides}
                                                     disabled={saving}
                                                     size="small"
                                                     sx={{ fontSize: { xs: '0.7rem', sm: '0.875rem' }, px: { xs: 1, sm: 2 }, flexShrink: 0 }}
                                                 >
-                                                    {saving ? 'Saving...' : (isSmall ? 'Save' : 'Save Overrides')}
+                                                    {saving
+                                                        ? (isSuperAdmin ? 'Saving...' : 'Submitting...')
+                                                        : (isSuperAdmin
+                                                            ? (isSmall ? 'Save' : 'Save Overrides')
+                                                            : (isSmall ? 'Submit' : 'Submit for Approval')
+                                                        )
+                                                    }
                                                 </Button>
                                             </Box>
                                             <Box sx={{ flex: 1, overflow: 'auto', p: { xs: 0.5, sm: 2 } }}>
