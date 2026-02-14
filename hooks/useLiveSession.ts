@@ -37,6 +37,7 @@ export function useLiveSession({
     const updateTimerRef = useRef<NodeJS.Timeout | null>(null);
     const sessionIdRef = useRef<string | null>(null);
     const isRestartingRef = useRef(false);
+    const isSyncingRef = useRef(false); // Guard against overlapping sync calls
 
     // Keep ref in sync with state (for use in intervals/cleanup)
     useEffect(() => {
@@ -95,6 +96,9 @@ export function useLiveSession({
     // Sync entries to server (also acts as heartbeat)
     const syncEntries = useCallback(async () => {
         if (!sessionId) return;
+        // Prevent overlapping sync calls (race condition guard)
+        if (isSyncingRef.current) return;
+        isSyncingRef.current = true;
 
         try {
             // Always send current entries as heartbeat (even if no changes)
@@ -118,6 +122,8 @@ export function useLiveSession({
             } else {
                 console.debug('Live entries sync skipped:', error);
             }
+        } finally {
+            isSyncingRef.current = false;
         }
     }, [sessionId, resetSession]);
 
