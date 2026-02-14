@@ -159,8 +159,7 @@ const ALL_MASTER_COLUMNS = [
 ];
 // DEFAULT VISIBLE COLUMNS FOR MULTI ENTRY
 const DEFAULT_MULTI_COLUMNS = [
-  'sno', 'wsn', 'product_serial_number', 'rack_no', 'picking_remarks', 'product_title', 'brand', 'cms_vertical',
-  'fsp', 'mrp'
+  'sno', 'wsn', 'picking_remarks', 'product_title', 'brand', 'cms_vertical', 'fsp', 'mrp', 'fkqc_remark', 'p_type'
 ];
 
 // EDITABLE COLUMNS IN MULTI ENTRY
@@ -181,8 +180,6 @@ const DEFAULT_LIST_COLUMNS = [
 ];
 
 export default function PickingPage() {
-
-
   const router = useRouter();
   const { activeWarehouse } = useWarehouse();
   const [user, setUser] = useState<any>(null);
