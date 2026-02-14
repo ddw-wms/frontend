@@ -211,10 +211,23 @@ export const refreshPermissions = async (): Promise<void> => {
   try {
     const { permissionsAPI } = await import('./api');
     const response = await permissionsAPI.getMyPermissions();
-    const { permissions, warehouses } = response.data;
+    const { permissions: rawPermissions, warehouses } = response.data;
+
+    // Map API shape {is_enabled, is_visible} → localStorage shape {can_access, is_visible}
+    // The API (getMyPermissions) returns is_enabled, but localStorage/hasPermission expects can_access
+    const mappedPermissions: Record<string, Permission> = {};
+    if (rawPermissions) {
+      for (const [code, perm] of Object.entries(rawPermissions)) {
+        const p = perm as any;
+        mappedPermissions[code] = {
+          can_access: p.is_enabled ?? p.can_access ?? false,
+          is_visible: p.is_visible ?? false
+        };
+      }
+    }
 
     if (typeof window !== 'undefined') {
-      localStorage.setItem('permissions', JSON.stringify(permissions));
+      localStorage.setItem('permissions', JSON.stringify(mappedPermissions));
       if (warehouses) {
         localStorage.setItem('warehouses', JSON.stringify(warehouses));
       }
@@ -222,7 +235,7 @@ export const refreshPermissions = async (): Promise<void> => {
       // Update user object
       const user = getStoredUser();
       if (user) {
-        user.permissions = permissions;
+        user.permissions = mappedPermissions;
         user.warehouses = warehouses;
         localStorage.setItem('user', JSON.stringify(user));
       }

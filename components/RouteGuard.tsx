@@ -66,7 +66,7 @@ export default function RouteGuard({
 }: RouteGuardProps) {
     const router = useRouter();
     const pathname = usePathname();
-    const { canAccess, canSee, isAdmin, isLoading } = usePermissions();
+    const { canAccess, isAdmin, isLoading } = usePermissions();
 
     // ⚡ FLICKER FIX: Initialize optimistically for authenticated users
     // This prevents full-page loading spinner when navigating between pages
@@ -128,14 +128,17 @@ export default function RouteGuard({
             return;
         }
 
-        // Check if user can see this menu item
-        if (canSee(menuCode)) {
+        // Check if user has access to this route (is_enabled)
+        // canAccess checks is_enabled — the feature is functionally available
+        // canSee checks is_visible — whether the menu item appears in sidebar
+        // For route authorization, we check canAccess (the user has the permission enabled)
+        if (canAccess(menuCode)) {
             setAuthorized(true);
         } else {
             setAuthorized(false);
         }
         setCheckingAuth(false);
-    }, [pathname, canSee, isAdmin, isLoading, router, requiredPermission]);
+    }, [pathname, canAccess, isAdmin, isLoading, router, requiredPermission]);
 
     // Loading state - only show loader briefly on initial mount, not during permission check
     // This prevents the app from feeling unresponsive
@@ -215,13 +218,13 @@ export function withRouteGuard<P extends object>(
  */
 export function useRouteAccess() {
     const pathname = usePathname();
-    const { canAccess, canSee, isAdmin, isLoading } = usePermissions();
+    const { canAccess, isAdmin, isLoading } = usePermissions();
 
     const requiredMenuCode = getRequiredMenuCode(pathname);
 
     const hasAccess = isAdmin ||
         !requiredMenuCode ||
-        (canAccess(requiredMenuCode) && canSee(requiredMenuCode));
+        canAccess(requiredMenuCode);
 
     return {
         canAccess: hasAccess,
