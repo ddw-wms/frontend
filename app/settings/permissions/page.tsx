@@ -199,7 +199,7 @@ export default function PermissionsPage() {
 
     // Check tab permissions - uses both role-based and user override permissions
     const isSuperAdmin = user?.role === 'super_admin';
-    
+
     // Check individual tab access via permission system (respects user overrides)
     const canSeeApprovalQueue = isSuperAdmin || canSee('tab:approval-queue');
     const canSeeUserOverrides = isSuperAdmin || canSee('tab:user-overrides');
@@ -270,17 +270,32 @@ export default function PermissionsPage() {
     const loadData = async () => {
         try {
             setLoading(true);
-            const [rolesRes, permRes, usersRes, whRes] = await Promise.all([
+            // Use Promise.allSettled so one failed API call doesn't block the entire page
+            const [rolesRes, permRes, usersRes, whRes] = await Promise.allSettled([
                 permissionsAPI.getRoles(),
                 permissionsAPI.getAll(),
                 usersAPI.getAll(),
                 warehousesAPI.getAll(),
             ]);
 
-            setRoles(rolesRes.data || []);
-            setAllPermissions(permRes.data?.permissions || []);
-            setUsers(usersRes.data || []);
-            setWarehouses(whRes.data || []);
+            setRoles(rolesRes.status === 'fulfilled' ? (rolesRes.value.data || []) : []);
+            setAllPermissions(permRes.status === 'fulfilled' ? (permRes.value.data?.permissions || []) : []);
+            setUsers(usersRes.status === 'fulfilled' ? (usersRes.value.data || []) : []);
+            setWarehouses(whRes.status === 'fulfilled' ? (whRes.value.data || []) : []);
+
+            // Log individual failures for debugging
+            const results = [rolesRes, permRes, usersRes, whRes];
+            const names = ['roles', 'permissions', 'users', 'warehouses'];
+            results.forEach((r, i) => {
+                if (r.status === 'rejected') {
+                    console.warn(`[Permissions] Failed to load ${names[i]}:`, r.reason?.response?.status || r.reason?.message);
+                }
+            });
+
+            // Only show error if critical data (roles + permissions) failed
+            if (rolesRes.status === 'rejected' && permRes.status === 'rejected') {
+                showSnackbar('Failed to load permissions data', 'error');
+            }
 
             // Load approval data
             await loadApprovalData();
