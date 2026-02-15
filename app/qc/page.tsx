@@ -1248,6 +1248,118 @@ export default function QCPage() {
         return;
       }
 
+      // ⚡ EXCEL-LIKE: Ctrl+Arrow - Jump to last cell with data in direction
+      if (ctrlKey && !shiftKey && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key) && !isEditing) {
+        const api = gridRef.current;
+        if (!api) return;
+        const focusedCell = api.getFocusedCell();
+        if (!focusedCell) return;
+
+        e.preventDefault();
+        e.stopImmediatePropagation();
+
+        const { rowIndex, column } = focusedCell;
+        const colId = column.getColId();
+        const allColumns = api.getAllDisplayedColumns() || [];
+        const colIds = allColumns.map((c: any) => c.getColId());
+        const currentColIndex = colIds.indexOf(colId);
+
+        let targetRow = rowIndex;
+        let targetColIndex = currentColIndex;
+
+        if (e.key === 'ArrowDown') {
+          for (let r = multiRowsRef.current.length - 1; r > rowIndex; r--) {
+            if (multiRowsRef.current[r]?.[colId]?.toString().trim()) {
+              targetRow = r;
+              break;
+            }
+          }
+          if (targetRow === rowIndex) targetRow = multiRowsRef.current.length - 1;
+        } else if (e.key === 'ArrowUp') {
+          for (let r = 0; r < rowIndex; r++) {
+            if (multiRowsRef.current[r]?.[colId]?.toString().trim()) {
+              targetRow = r;
+              break;
+            }
+          }
+          if (targetRow === rowIndex) targetRow = 0;
+        } else if (e.key === 'ArrowRight') {
+          targetColIndex = colIds.length - 1;
+        } else if (e.key === 'ArrowLeft') {
+          targetColIndex = 1;
+        }
+
+        setSelectedRange(null);
+        rangeStartCellRef.current = null;
+        api.setFocusedCell(targetRow, colIds[targetColIndex]);
+        api.ensureIndexVisible(targetRow, 'middle');
+        api.refreshCells({ force: true });
+        return;
+      }
+
+      // ⚡ EXCEL-LIKE: Ctrl+Shift+Arrow - Select to last cell with data in direction
+      if (ctrlKey && shiftKey && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key) && !isEditing) {
+        const api = gridRef.current;
+        if (!api) return;
+        const focusedCell = api.getFocusedCell();
+        if (!focusedCell) return;
+
+        e.preventDefault();
+        e.stopImmediatePropagation();
+
+        const { rowIndex, column } = focusedCell;
+        const colId = column.getColId();
+        const allColumns = api.getAllDisplayedColumns() || [];
+        const colIds = allColumns.map((c: any) => c.getColId());
+
+        if (!rangeStartCellRef.current) {
+          rangeStartCellRef.current = { rowIndex, colId };
+        }
+
+        const currentRange = selectedRangeRef.current;
+        let endRow = currentRange ? currentRange.endRow : rowIndex;
+        let endCol = currentRange ? currentRange.endCol : colId;
+        let endColIndex = colIds.indexOf(endCol);
+
+        if (e.key === 'ArrowDown') {
+          for (let r = multiRowsRef.current.length - 1; r > endRow; r--) {
+            if (multiRowsRef.current[r]?.[colId]?.toString().trim()) {
+              endRow = r;
+              break;
+            }
+          }
+          if (endRow === (currentRange?.endRow ?? rowIndex)) endRow = multiRowsRef.current.length - 1;
+        } else if (e.key === 'ArrowUp') {
+          endRow = 0;
+        } else if (e.key === 'ArrowRight') {
+          endColIndex = colIds.length - 1;
+          endCol = colIds[endColIndex];
+        } else if (e.key === 'ArrowLeft') {
+          endColIndex = 1;
+          endCol = colIds[endColIndex];
+        }
+
+        setSelectedRange({
+          startRow: rangeStartCellRef.current.rowIndex,
+          endRow,
+          startCol: rangeStartCellRef.current.colId,
+          endCol,
+        });
+
+        api.setFocusedCell(endRow, endCol);
+        api.ensureIndexVisible(endRow, 'middle');
+        return;
+      }
+
+      // Arrow keys without Shift - Clear selection and move
+      if (!shiftKey && !ctrlKey && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key) && !isEditing) {
+        if (selectedRangeRef.current) {
+          setSelectedRange(null);
+          rangeStartCellRef.current = null;
+        }
+        return;
+      }
+
       // Shift+Arrow keys - Extend selection
       if (shiftKey && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key) && !isEditing) {
         const api = gridRef.current;
@@ -2396,19 +2508,47 @@ export default function QCPage() {
         warehouse_id: activeWarehouse?.id,
       });
 
-      setMultiResults(response.data?.results || []);
-      toast.success(`✓ ${response.data?.successCount || 0} entries created`);
+      const results = response.data?.results || [];
+      const successCount = response.data?.successCount || 0;
+      const totalCount = validRows.length;
+      setMultiResults(results);
 
-      // Reset rows
-      setMultiRows(generateEmptyRows(500));
+      // ⚡ DATA SAFETY: Collect successfully processed WSNs
+      const successWSNs = new Set(
+        results
+          .filter((r: any) => r.status === 'SUCCESS')
+          .map((r: any) => r.wsn?.trim()?.toUpperCase())
+          .filter(Boolean)
+      );
 
-      // Clear saved draft after successful submit
-      await clearDraft();
+      if (successCount === totalCount) {
+        // All succeeded — full reset
+        toast.success(`✓ ${successCount} entries created`);
+        setMultiRows(generateEmptyRows(500));
+        await clearDraft();
+      } else if (successCount > 0) {
+        // Partial success — remove only successful rows, keep failed rows editable
+        toast.success(`✓ ${successCount}/${totalCount} entries created. ${totalCount - successCount} rows kept for review.`);
+        setMultiRows(prevRows => {
+          const remaining = prevRows.filter(row => {
+            const wsn = row.wsn?.trim()?.toUpperCase();
+            if (!wsn) return true; // Keep empty rows
+            return !successWSNs.has(wsn); // Keep rows that did NOT succeed
+          });
+          // Ensure at least 500 rows
+          const emptyNeeded = Math.max(0, 500 - remaining.length);
+          return emptyNeeded > 0 ? [...remaining, ...generateEmptyRows(emptyNeeded)] : remaining;
+        });
+        // Re-save draft with remaining failed rows
+        saveDraftImmediate();
+      } else {
+        // All failed — keep ALL rows, no clearing
+        toast.error('No entries were saved. Rows kept for retry.');
+      }
 
-      // ⚡ CACHE UPDATE: Update source to QC in available cache
-      if (isWMSCacheEnabled()) {
-        const submittedWSNs = fixedRows.map((r: any) => r.wsn?.trim()?.toUpperCase()).filter(Boolean);
-        submittedWSNs.forEach((wsn: string) => {
+      // ⚡ CACHE UPDATE: Update source to QC in available cache (only for successful ones)
+      if (isWMSCacheEnabled() && successWSNs.size > 0) {
+        successWSNs.forEach((wsn: string) => {
           updateAvailableCacheSource(wsn, 'QC').catch(() => { });
         });
       }
@@ -2417,7 +2557,8 @@ export default function QCPage() {
       loadStats();
       loadBatches();
     } catch (error: any) {
-      toast.error(error.response?.data?.error || 'Submission failed');
+      // ⚡ DATA SAFETY: On network/API failure, grid data is preserved (no clearing)
+      toast.error(error.response?.data?.error || 'Submission failed. Data preserved — retry when ready.');
     } finally {
       setMultiLoading(false);
     }
@@ -5097,8 +5238,8 @@ export default function QCPage() {
 
 
 
-                          // Auto add new rows at last row
-                          if (rowIndex === event.api.getDisplayedRowCount() - 1) {
+                          // ⚡ AUTO-EXTEND: Add 500 rows when entering data near the end
+                          if (rowIndex != null && rowIndex >= event.api.getDisplayedRowCount() - 2) {
                             add500Rows();
                           }
 

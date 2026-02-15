@@ -2253,66 +2253,47 @@ export default function PickingPage() {
     pendingWSNRef.current = null;
   };
 
+  // ⚡ PERF: Helper to build master data object from API response (avoids 21x setDataValue)
+  const buildMasterDataFromResponse = (d: any) => ({
+    product_title: d.product_title ?? '',
+    brand: d.brand ?? '',
+    cms_vertical: d.cms_vertical ?? '',
+    fsp: d.fsp ?? '',
+    mrp: d.mrp ?? '',
+    rack_no: d.rack_no ?? '',
+    hsn_sac: d.hsn_sac ?? '',
+    igst_rate: d.igst_rate ?? '',
+    p_type: d.p_type ?? '',
+    p_size: d.p_size ?? '',
+    vrp: d.vrp ?? '',
+    wid: d.wid ?? '',
+    fsn: d.fsn ?? '',
+    order_id: d.order_id ?? '',
+    fkqc_remark: d.fkqc_remark ?? '',
+    fk_grade: d.fk_grade ?? '',
+    invoice_date: d.invoice_date ?? '',
+    fkt_link: d.fkt_link ?? '',
+    wh_location: d.wh_location ?? '',
+    yield_value: d.yield_value ?? '',
+    source: d.source ?? '',
+  });
+
   const handleOverwriteReplace = async () => {
     // User chose to replace - proceed with new WSN
     if (pendingWSNRef.current) {
       const { wsn, rowIndex, event } = pendingWSNRef.current;
       const node = event?.api?.getDisplayedRowAtIndex(rowIndex);
       if (node) {
-        node.setDataValue('wsn', wsn);
         // Fetch and apply master data for new WSN
         try {
           const res = await pickingAPI.getSourceByWSN(wsn, activeWarehouse?.id);
-          const d = res.data;
-          node.setDataValue('product_title', d.product_title ?? '');
-          node.setDataValue('brand', d.brand ?? '');
-          node.setDataValue('cms_vertical', d.cms_vertical ?? '');
-          node.setDataValue('fsp', d.fsp ?? '');
-          node.setDataValue('mrp', d.mrp ?? '');
-          node.setDataValue('rack_no', d.rack_no ?? '');
-          node.setDataValue('hsn_sac', d.hsn_sac ?? '');
-          node.setDataValue('igst_rate', d.igst_rate ?? '');
-          node.setDataValue('p_type', d.p_type ?? '');
-          node.setDataValue('p_size', d.p_size ?? '');
-          node.setDataValue('vrp', d.vrp ?? '');
-          node.setDataValue('wid', d.wid ?? '');
-          node.setDataValue('fsn', d.fsn ?? '');
-          node.setDataValue('order_id', d.order_id ?? '');
-          node.setDataValue('fkqc_remark', d.fkqc_remark ?? '');
-          node.setDataValue('fk_grade', d.fk_grade ?? '');
-          node.setDataValue('invoice_date', d.invoice_date ?? '');
-          node.setDataValue('fkt_link', d.fkt_link ?? '');
-          node.setDataValue('wh_location', d.wh_location ?? '');
-          node.setDataValue('yield_value', d.yield_value ?? '');
-          node.setDataValue('source', d.source ?? '');
+          const masterData = buildMasterDataFromResponse(res.data);
+          // ⚡ PERF: Single setData() instead of 21x setDataValue()
+          node.setData({ ...node.data, wsn, ...masterData });
 
           setMultiRows((prev) => {
             const rows = [...prev];
-            rows[rowIndex] = {
-              ...rows[rowIndex],
-              wsn,
-              product_title: d.product_title ?? '',
-              brand: d.brand ?? '',
-              cms_vertical: d.cms_vertical ?? '',
-              fsp: d.fsp ?? '',
-              mrp: d.mrp ?? '',
-              rack_no: d.rack_no ?? '',
-              hsn_sac: d.hsn_sac ?? '',
-              igst_rate: d.igst_rate ?? '',
-              p_type: d.p_type ?? '',
-              p_size: d.p_size ?? '',
-              vrp: d.vrp ?? '',
-              wid: d.wid ?? '',
-              fsn: d.fsn ?? '',
-              order_id: d.order_id ?? '',
-              fkqc_remark: d.fkqc_remark ?? '',
-              fk_grade: d.fk_grade ?? '',
-              invoice_date: d.invoice_date ?? '',
-              fkt_link: d.fkt_link ?? '',
-              wh_location: d.wh_location ?? '',
-              yield_value: d.yield_value ?? '',
-              source: d.source ?? ''
-            };
+            rows[rowIndex] = { ...rows[rowIndex], wsn, ...masterData };
             checkDuplicates(rows);
             return rows;
           });
@@ -2321,11 +2302,14 @@ export default function PickingPage() {
           try {
             const inboundResp = await inboundAPI.getMasterDataByWSN(wsn);
             const md = inboundResp.data;
-            node.setDataValue('product_title', md.product_title ?? '');
-            node.setDataValue('brand', md.brand ?? '');
-            node.setDataValue('cms_vertical', md.cms_vertical ?? '');
-            node.setDataValue('fsp', md.fsp ?? '');
-            node.setDataValue('mrp', md.mrp ?? '');
+            const fallbackData = {
+              product_title: md.product_title ?? '',
+              brand: md.brand ?? '',
+              cms_vertical: md.cms_vertical ?? '',
+              fsp: md.fsp ?? '',
+              mrp: md.mrp ?? '',
+            };
+            node.setData({ ...node.data, wsn, ...fallbackData });
             setMultiRows((prev) => {
               const rows = [...prev];
               rows[rowIndex] = { ...rows[rowIndex], wsn, product_title: md.product_title ?? '', brand: md.brand ?? '' };
@@ -2359,60 +2343,16 @@ export default function PickingPage() {
       if (nextEmptyIndex >= 0) {
         const node = event?.api?.getDisplayedRowAtIndex(nextEmptyIndex);
         if (node) {
-          node.setDataValue('wsn', wsn);
           // Fetch master data
           try {
             const res = await pickingAPI.getSourceByWSN(wsn, activeWarehouse?.id);
-            const d = res.data;
-            node.setDataValue('product_title', d.product_title ?? '');
-            node.setDataValue('brand', d.brand ?? '');
-            node.setDataValue('cms_vertical', d.cms_vertical ?? '');
-            node.setDataValue('fsp', d.fsp ?? '');
-            node.setDataValue('mrp', d.mrp ?? '');
-            node.setDataValue('rack_no', d.rack_no ?? '');
-            node.setDataValue('hsn_sac', d.hsn_sac ?? '');
-            node.setDataValue('igst_rate', d.igst_rate ?? '');
-            node.setDataValue('p_type', d.p_type ?? '');
-            node.setDataValue('p_size', d.p_size ?? '');
-            node.setDataValue('vrp', d.vrp ?? '');
-            node.setDataValue('wid', d.wid ?? '');
-            node.setDataValue('fsn', d.fsn ?? '');
-            node.setDataValue('order_id', d.order_id ?? '');
-            node.setDataValue('fkqc_remark', d.fkqc_remark ?? '');
-            node.setDataValue('fk_grade', d.fk_grade ?? '');
-            node.setDataValue('invoice_date', d.invoice_date ?? '');
-            node.setDataValue('fkt_link', d.fkt_link ?? '');
-            node.setDataValue('wh_location', d.wh_location ?? '');
-            node.setDataValue('yield_value', d.yield_value ?? '');
-            node.setDataValue('source', d.source ?? '');
+            const masterData = buildMasterDataFromResponse(res.data);
+            // ⚡ PERF: Single setData() instead of 22x setDataValue()
+            node.setData({ ...node.data, wsn, ...masterData });
 
             setMultiRows((prev) => {
               const rows = [...prev];
-              rows[nextEmptyIndex] = {
-                ...rows[nextEmptyIndex],
-                wsn,
-                product_title: d.product_title ?? '',
-                brand: d.brand ?? '',
-                cms_vertical: d.cms_vertical ?? '',
-                fsp: d.fsp ?? '',
-                mrp: d.mrp ?? '',
-                rack_no: d.rack_no ?? '',
-                hsn_sac: d.hsn_sac ?? '',
-                igst_rate: d.igst_rate ?? '',
-                p_type: d.p_type ?? '',
-                p_size: d.p_size ?? '',
-                vrp: d.vrp ?? '',
-                wid: d.wid ?? '',
-                fsn: d.fsn ?? '',
-                order_id: d.order_id ?? '',
-                fkqc_remark: d.fkqc_remark ?? '',
-                fk_grade: d.fk_grade ?? '',
-                invoice_date: d.invoice_date ?? '',
-                fkt_link: d.fkt_link ?? '',
-                wh_location: d.wh_location ?? '',
-                yield_value: d.yield_value ?? '',
-                source: d.source ?? ''
-              };
+              rows[nextEmptyIndex] = { ...rows[nextEmptyIndex], wsn, ...masterData };
               checkDuplicates(rows);
               return rows;
             });
@@ -2432,6 +2372,16 @@ export default function PickingPage() {
 
   // Submit multi entry
   const handleMultiSubmit = async () => {
+    // ⚡ OFFLINE CHECK: Prevent submit when offline
+    const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+    if (!isOnline) {
+      toast.error('Cannot submit while offline. Data is saved locally - submit when back online.', {
+        duration: 4000,
+        icon: '📴'
+      });
+      return;
+    }
+
     const validRows = multiRows.filter(r => r.wsn?.trim());
 
     if (validRows.length === 0) {
@@ -2470,28 +2420,47 @@ export default function PickingPage() {
     try {
       const response = await pickingAPI.multiEntry(fixedRows, activeWarehouse?.id);
 
-      if (response.data?.successCount > 0) {
-        toast.success(`${response.data.successCount} entries created`);
-      }
+      const successCount = response.data?.successCount || 0;
+      const totalSubmitted = fixedRows.length;
+      const errorEntries: Array<{ wsn: string; error: string }> = response.data?.errors || [];
 
-      if (response.data?.errors && response.data.errors.length > 0) {
-        console.error('Errors:', response.data.errors);
-        toast.error(`❌ ${response.data.errors.length} entries failed. Check console.`);
-      }
-
-      if (response.data?.successCount === 0 && response.data?.errors?.length === 0) {
+      // --- Toasts ---
+      if (successCount > 0 && errorEntries.length > 0) {
+        toast.success(`${successCount} entries created, ${errorEntries.length} failed — failed rows kept in grid`);
+      } else if (successCount > 0) {
+        toast.success(`${successCount} entries created`);
+      } else {
         toast.error('No entries were saved. Check data.');
       }
+      if (errorEntries.length > 0) {
+        console.error('Picking multi-entry errors:', errorEntries);
+      }
 
-      // Reset rows
-      setMultiRows(generateEmptyRows(500));
-      setGridDuplicateWSNs(new Set());
-      setCrossWarehouseWSNs(new Set());
+      // --- Smart 3-way clearing ---
+      if (successCount === totalSubmitted) {
+        // All succeeded → full clear
+        setMultiRows(generateEmptyRows(500));
+        setGridDuplicateWSNs(new Set());
+        setCrossWarehouseWSNs(new Set());
+        await clearDraft();
+      } else if (successCount > 0) {
+        // Partial success → remove only successful WSNs, keep failed rows
+        const failedWSNs = new Set(errorEntries.map(e => e.wsn?.toUpperCase()));
+        const survivingRows = multiRows.filter(r => {
+          const wsn = r.wsn?.trim()?.toUpperCase();
+          if (!wsn) return false;          // drop empty rows
+          return failedWSNs.has(wsn);       // keep only failed
+        });
+        // Pad back to 500
+        const padding = generateEmptyRows(Math.max(500 - survivingRows.length, 0));
+        const newRows = [...survivingRows, ...padding];
+        setMultiRows(newRows);
+        // Re-save draft with surviving rows so user doesn't lose them
+        await saveDraftImmediate(newRows);
+      }
+      // else: successCount === 0 → keep all rows as-is, don't touch draft
 
-      // Clear saved draft after successful submit
-      await clearDraft();
-
-      // Reload data
+      // Reload server-side data (always, so cache stays fresh)
       const res = await pickingAPI.getExistingWSNs(activeWarehouse?.id);
       setExistingPickingWSNs(new Set(res.data));
       loadPickingList();
@@ -5430,61 +5399,21 @@ export default function PickingPage() {
 
                   // If WSN is cleared/deleted, reset all product fields
                   if (!wsn) {
-                    // Clear all product and master data fields
-                    node.setDataValue('product_title', '');
-                    node.setDataValue('brand', '');
-                    node.setDataValue('cms_vertical', '');
-                    node.setDataValue('fsp', '');
-                    node.setDataValue('mrp', '');
-                    node.setDataValue('rack_no', '');
-                    node.setDataValue('source', '');
-                    node.setDataValue('batch_id', '');
-                    node.setDataValue('hsn_sac', '');
-                    node.setDataValue('igst_rate', '');
-                    node.setDataValue('p_type', '');
-                    node.setDataValue('p_size', '');
-                    node.setDataValue('vrp', '');
-                    node.setDataValue('wid', '');
-                    node.setDataValue('fsn', '');
-                    node.setDataValue('order_id', '');
-                    node.setDataValue('fkqc_remark', '');
-                    node.setDataValue('fk_grade', '');
-                    node.setDataValue('invoice_date', '');
-                    node.setDataValue('fkt_link', '');
-                    node.setDataValue('wh_location', '');
-                    node.setDataValue('yield_value', '');
-                    node.setDataValue('product_serial_number', '');
+                    // ⚡ PERF: Single setData() to clear all fields
+                    const clearFields: any = {
+                      wsn: '', product_title: '', brand: '', cms_vertical: '',
+                      fsp: '', mrp: '', rack_no: '', source: '', batch_id: '',
+                      hsn_sac: '', igst_rate: '', p_type: '', p_size: '', vrp: '',
+                      wid: '', fsn: '', order_id: '', fkqc_remark: '', fk_grade: '',
+                      invoice_date: '', fkt_link: '', wh_location: '', yield_value: '',
+                      product_serial_number: ''
+                    };
+                    node.setData({ ...node.data, ...clearFields });
 
                     // Also update React state
                     setMultiRows((prev) => {
                       const rows = [...prev];
-                      rows[rowIndex] = {
-                        ...rows[rowIndex],
-                        wsn: '',
-                        product_title: '',
-                        brand: '',
-                        cms_vertical: '',
-                        fsp: '',
-                        mrp: '',
-                        rack_no: '',
-                        source: '',
-                        batch_id: '',
-                        hsn_sac: '',
-                        igst_rate: '',
-                        p_type: '',
-                        p_size: '',
-                        vrp: '',
-                        wid: '',
-                        fsn: '',
-                        order_id: '',
-                        fkqc_remark: '',
-                        fk_grade: '',
-                        invoice_date: '',
-                        fkt_link: '',
-                        wh_location: '',
-                        yield_value: '',
-                        product_serial_number: ''
-                      };
+                      rows[rowIndex] = { ...rows[rowIndex], ...clearFields };
                       checkDuplicates(rows);
                       return rows;
                     });
@@ -5516,12 +5445,10 @@ export default function PickingPage() {
                       icon: '🚫',
                     });
 
-                    // Clear the cell and master columns
-                    node.setDataValue('wsn', '');
-                    ALL_MASTER_COLUMNS.forEach((col) => {
-                      node.setDataValue(col, null);
-                    });
-                    node.setDataValue('product_serial_number', null);
+                    // ⚡ PERF: Clear cell + master fields with single setData()
+                    const clearData: any = { wsn: '', product_serial_number: null };
+                    ALL_MASTER_COLUMNS.forEach(col => { clearData[col] = null; });
+                    node.setData({ ...node.data, ...clearData });
 
                     // Update react state
                     setMultiRows((prev) => {
@@ -5542,6 +5469,11 @@ export default function PickingPage() {
                     }, 100);
 
                     return;
+                  }
+
+                  // ⚡ AUTO-EXTEND: Add 500 rows when entering data near the end
+                  if (rowIndex != null && rowIndex >= event.api.getDisplayedRowCount() - 2) {
+                    add500Rows();
                   }
 
                   // ⚡ OFFLINE CHECK
@@ -5609,12 +5541,10 @@ export default function PickingPage() {
                         });
                       }
 
-                      // Clear cell + master fields and update state
-                      node.setDataValue('wsn', '');
-                      ALL_MASTER_COLUMNS.forEach((col) => {
-                        node.setDataValue(col, null);
-                      });
-                      node.setDataValue('product_serial_number', null);
+                      // ⚡ PERF: Clear cell + master fields with single setData()
+                      const clearData: any = { wsn: '', product_serial_number: null };
+                      ALL_MASTER_COLUMNS.forEach(col => { clearData[col] = null; });
+                      node.setData({ ...node.data, ...clearData });
 
                       setMultiRows((prev) => {
                         const rows = [...prev];
@@ -5678,65 +5608,21 @@ export default function PickingPage() {
                     // GUARD: ensure cell wasn't cleared in the meantime
                     const currentWsn = node?.data?.wsn?.trim()?.toUpperCase();
                     if (!currentWsn || currentWsn !== wsn) return;
+                    // PERF: Single setData() instead of 21x setDataValue()
+                    const masterData = buildMasterDataFromResponse(d);
+                    node.setData({ ...node.data, ...masterData });
 
-                    // ðŸ”¥ UPDATE AG GRID CELLS DIRECTLY
-                    node.setDataValue('product_title', d.product_title ?? '');
-                    node.setDataValue('brand', d.brand ?? '');
-                    node.setDataValue('cms_vertical', d.cms_vertical ?? '');
-                    node.setDataValue('fsp', d.fsp ?? '');
-                    node.setDataValue('mrp', d.mrp ?? '');
-                    node.setDataValue('rack_no', d.rack_no ?? '');
-                    node.setDataValue('hsn_sac', d.hsn_sac ?? '');
-                    node.setDataValue('igst_rate', d.igst_rate ?? '');
-                    node.setDataValue('p_type', d.p_type ?? '');
-                    node.setDataValue('p_size', d.p_size ?? '');
-                    node.setDataValue('vrp', d.vrp ?? '');
-                    node.setDataValue('wid', d.wid ?? '');
-                    node.setDataValue('fsn', d.fsn ?? '');
-                    node.setDataValue('order_id', d.order_id ?? '');
-                    node.setDataValue('fkqc_remark', d.fkqc_remark ?? '');
-                    node.setDataValue('fk_grade', d.fk_grade ?? '');
-                    node.setDataValue('invoice_date', d.invoice_date ?? '');
-                    node.setDataValue('fkt_link', d.fkt_link ?? '');
-                    node.setDataValue('wh_location', d.wh_location ?? '');
-                    node.setDataValue('yield_value', d.yield_value ?? '');
-                    node.setDataValue('source', d.source ?? '');
-
-                    // ⚡ Track last scanned row for Ctrl+O product link
+                    // Track last scanned row for Ctrl+O product link
                     lastScannedRowRef.current = {
                       wsn,
                       fkt_link: d.fkt_link ?? '',
                       product_title: d.product_title ?? '',
                     };
 
-                    // ðŸ”¥ ALSO UPDATE REACT STATE FOR CONSISTENCY
+                    // Also update React state for consistency
                     setMultiRows((prev) => {
                       const rows = [...prev];
-                      rows[rowIndex] = {
-                        ...rows[rowIndex],
-                        wsn,
-                        product_title: d.product_title ?? '',
-                        brand: d.brand ?? '',
-                        cms_vertical: d.cms_vertical ?? '',
-                        fsp: d.fsp ?? '',
-                        mrp: d.mrp ?? '',
-                        rack_no: d.rack_no ?? '',
-                        hsn_sac: d.hsn_sac ?? '',
-                        igst_rate: d.igst_rate ?? '',
-                        p_type: d.p_type ?? '',
-                        p_size: d.p_size ?? '',
-                        vrp: d.vrp ?? '',
-                        wid: d.wid ?? '',
-                        fsn: d.fsn ?? '',
-                        order_id: d.order_id ?? '',
-                        fkqc_remark: d.fkqc_remark ?? '',
-                        fk_grade: d.fk_grade ?? '',
-                        invoice_date: d.invoice_date ?? '',
-                        fkt_link: d.fkt_link ?? '',
-                        wh_location: d.wh_location ?? '',
-                        yield_value: d.yield_value ?? '',
-                        source: d.source ?? ''
-                      };
+                      rows[rowIndex] = { ...rows[rowIndex], wsn, ...masterData };
                       checkDuplicates(rows);
                       return rows;
                     });
@@ -5754,57 +5640,14 @@ export default function PickingPage() {
                         const inboundResp = await inboundAPI.getMasterDataByWSN(wsn);
                         const md = inboundResp.data;
 
-                        // Update grid cells from inbound master data
-                        node.setDataValue('product_title', md.product_title ?? '');
-                        node.setDataValue('brand', md.brand ?? '');
-                        node.setDataValue('cms_vertical', md.cms_vertical ?? '');
-                        node.setDataValue('fsp', md.fsp ?? '');
-                        node.setDataValue('mrp', md.mrp ?? '');
-                        node.setDataValue('rack_no', md.rack_no ?? '');
-                        node.setDataValue('hsn_sac', md.hsn_sac ?? '');
-                        node.setDataValue('igst_rate', md.igst_rate ?? '');
-                        node.setDataValue('p_type', md.p_type ?? '');
-                        node.setDataValue('p_size', md.p_size ?? '');
-                        node.setDataValue('vrp', md.vrp ?? '');
-                        node.setDataValue('wid', md.wid ?? '');
-                        node.setDataValue('fsn', md.fsn ?? '');
-                        node.setDataValue('order_id', md.order_id ?? '');
-                        node.setDataValue('fkqc_remark', md.fkqc_remark ?? '');
-                        node.setDataValue('fk_grade', md.fk_grade ?? '');
-                        node.setDataValue('invoice_date', md.invoice_date ?? '');
-                        node.setDataValue('fkt_link', md.fkt_link ?? '');
-                        node.setDataValue('wh_location', md.wh_location ?? '');
-                        node.setDataValue('yield_value', md.yield_value ?? '');
-                        node.setDataValue('source', md.source ?? '');
+                        // ⚡ PERF: Single setData() for inbound fallback
+                        const fallbackMaster = buildMasterDataFromResponse(md);
+                        node.setData({ ...node.data, ...fallbackMaster });
 
                         // Also update React state
                         setMultiRows((prev) => {
                           const rows = [...prev];
-                          rows[rowIndex] = {
-                            ...rows[rowIndex],
-                            wsn,
-                            product_title: md.product_title ?? '',
-                            brand: md.brand ?? '',
-                            cms_vertical: md.cms_vertical ?? '',
-                            fsp: md.fsp ?? '',
-                            mrp: md.mrp ?? '',
-                            rack_no: md.rack_no ?? '',
-                            hsn_sac: md.hsn_sac ?? '',
-                            igst_rate: md.igst_rate ?? '',
-                            p_type: md.p_type ?? '',
-                            p_size: md.p_size ?? '',
-                            vrp: md.vrp ?? '',
-                            wid: md.wid ?? '',
-                            fsn: md.fsn ?? '',
-                            order_id: md.order_id ?? '',
-                            fkqc_remark: md.fkqc_remark ?? '',
-                            fk_grade: md.fk_grade ?? '',
-                            invoice_date: md.invoice_date ?? '',
-                            fkt_link: md.fkt_link ?? '',
-                            wh_location: md.wh_location ?? '',
-                            yield_value: md.yield_value ?? '',
-                            source: md.source ?? ''
-                          };
+                          rows[rowIndex] = { ...rows[rowIndex], wsn, ...fallbackMaster };
                           checkDuplicates(rows);
                           return rows;
                         });

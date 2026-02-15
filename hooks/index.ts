@@ -41,3 +41,6 @@ export { useLiveSession } from './useLiveSession';
 
 // Fast Submit (Optimistic batched submission)
 export { useFastSubmit } from './useFastSubmit';
+
+// Offline Guard (Submit protection when offline)
+export { useOfflineGuard } from './useOfflineGuard';

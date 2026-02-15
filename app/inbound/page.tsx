@@ -3057,7 +3057,6 @@ export default function InboundPage() {
       vehicle_no: commonVehicle
     }));
     setMultiRows([...multiRows, ...newRows]);
-    //toast.success('✓ Added 500 rows');
   };
 
   // Export Multi Entry grid data to Excel
@@ -3589,23 +3588,23 @@ export default function InboundPage() {
 
       setMultiResults(results);
 
-      // ⚡ ENHANCED FEEDBACK: Show detailed results
+      // ⚡ ENHANCED FEEDBACK: Single consolidated toast
       if (duplicateResults.length > 0) {
-        // Some duplicates found (cross-warehouse or same warehouse)
         const crossWhDuplicates = duplicateResults.filter((r: any) =>
           r.message?.includes('warehouse') && !r.message?.includes('this warehouse')
         );
 
-        if (crossWhDuplicates.length > 0) {
-          toast.error(`❌ ${crossWhDuplicates.length} WSN(s) already inbound in other warehouse(s)`, {
-            duration: 5000,
-          });
-        }
-
         if (successCount > 0) {
-          toast.success(`✓ Saved ${successCount}/${totalCount} rows (${duplicateResults.length} duplicates skipped)`);
+          const parts: string[] = [`✓ Saved ${successCount}/${totalCount} rows`];
+          if (crossWhDuplicates.length > 0) parts.push(`${crossWhDuplicates.length} cross-warehouse`);
+          parts.push(`${duplicateResults.length} duplicates skipped`);
+          toast.success(parts.join(' · '), { duration: 5000 });
         } else {
-          toast.error(`All ${totalCount} WSNs were duplicates`);
+          if (crossWhDuplicates.length > 0) {
+            toast.error(`All ${totalCount} WSNs were duplicates (${crossWhDuplicates.length} cross-warehouse)`, { duration: 5000 });
+          } else {
+            toast.error(`All ${totalCount} WSNs were duplicates`);
+          }
         }
       } else if (errorResults.length > 0) {
         toast(`⚠️ Saved ${successCount}/${totalCount} rows (${errorResults.length} errors)`, {
@@ -3616,26 +3615,44 @@ export default function InboundPage() {
         toast.success(`✓ Saved ${successCount} rows`);
       }
 
-      // Only reset grid if we had some success
-      if (successCount > 0) {
-        // Reset grid to 500 rows
+      // --- Smart 3-way clearing: preserve failed/duplicate rows ---
+      if (successCount === totalCount) {
+        // All succeeded → full clear
         setMultiRows(generateEmptyRows(500));
-
-        // Clear vehicle number after successful submit (both state and localStorage)
         setCommonVehicle('');
         localStorage.removeItem('inbound_multiVehicleNumber');
-
-        // Clear saved draft after successful submit
         await clearDraft();
 
-        // ⚡ CACHE UPDATE: Remove submitted WSNs from pending cache
         if (isWMSCacheEnabled()) {
           const submittedWSNs = filtered.map((r: any) => r.wsn?.trim()?.toUpperCase()).filter(Boolean);
-          removeMultipleFromPendingCache(submittedWSNs).catch(() => {
-            // Silently fail - cache cleanup is not critical
-          });
+          removeMultipleFromPendingCache(submittedWSNs).catch(() => {});
+        }
+      } else if (successCount > 0) {
+        // Partial success → remove only successful WSNs, keep failed/duplicate rows
+        const failedWSNs = new Set(
+          results.filter((r: any) => r.status !== 'SUCCESS').map((r: any) => r.wsn?.toUpperCase())
+        );
+        const survivingRows = multiRows.filter(r => {
+          const wsn = r.wsn?.trim()?.toUpperCase();
+          if (!wsn) return false;          // drop empty rows
+          return failedWSNs.has(wsn);       // keep only failed/duplicate
+        });
+        const padding = generateEmptyRows(Math.max(500 - survivingRows.length, 0));
+        const newRows = [...survivingRows, ...padding];
+        setMultiRows(newRows);
+        // Re-save draft with surviving rows
+        await saveDraftImmediate(newRows);
+
+        // Still update cache for successful WSNs
+        if (isWMSCacheEnabled()) {
+          const successWSNs = results
+            .filter((r: any) => r.status === 'SUCCESS')
+            .map((r: any) => r.wsn?.trim()?.toUpperCase())
+            .filter(Boolean);
+          removeMultipleFromPendingCache(successWSNs).catch(() => {});
         }
       }
+      // else: successCount === 0 → keep all rows as-is, don't touch draft
 
       // Clear receiving WSNs from server (they are now inbound)
       await clearReceivingWSNs();
@@ -7059,6 +7076,11 @@ export default function InboundPage() {
                           }, 100);
 
                           return;
+                        }
+
+                        // ⚡ AUTO-EXTEND: Add 500 rows when entering data near the end
+                        if (rowIndex != null && rowIndex >= event.api.getDisplayedRowCount() - 2) {
+                          add500Rows();
                         }
 
                         // ⚡ FAST FETCH: Use LOCAL CACHE first, then API fallback

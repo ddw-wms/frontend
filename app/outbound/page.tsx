@@ -2852,6 +2852,11 @@ export default function OutboundPage() {
 
                 if (!activeWarehouse) return;
 
+                // ⚡ AUTO-EXTEND: Add 500 rows when entering data near the end
+                if (rowIndex != null && rowIndex >= params.api.getDisplayedRowCount() - 2) {
+                    add500Rows();
+                }
+
                 // Build current grid snapshot
                 const allRows: any[] = [];
                 gridRef.current?.api.forEachNode((node: any) => { if (node.data) allRows.push(node.data); });
@@ -3257,31 +3262,64 @@ export default function OutboundPage() {
 
             const res = await outboundAPI.multiEntry(payload);
 
+            const results = res.data?.results || [];
+            const successCount = res.data?.successCount || 0;
+            const totalCount = res.data?.totalCount || entriesWithCommonFields.length;
 
-            toast.success(`✓ ${res.data.successCount}/${res.data.totalCount} entries created (Batch: ${res.data.batchId})`);
-
-            // Reset grid and common fields
-            setMultiRows(generateEmptyRows(500) as OutboundItem[]);
-            setDuplicateWSNs(new Set());
-            setGridDuplicateWSNs(new Set());
-            setCrossWarehouseWSNs(new Set());
-            setCommonDate(new Date().toISOString().split('T')[0]);
-            setCommonCustomer('');
-            setSelectedCustomer('');
-            setCommonVehicle('');
-            loadExistingWSNs();
-
-            // Clear saved draft after successful submit
-            await clearDraft();
-
-            // Clear saved draft after successful submit
-            await clearDraft();
-
-            // ⚡ CACHE UPDATE: Remove dispatched WSNs from available cache
-            if (isWMSCacheEnabled()) {
-                const dispatchedWSNs = entriesWithCommonFields.map((r: any) => r.wsn?.trim()?.toUpperCase()).filter(Boolean);
-                removeMultipleFromAvailableCache(dispatchedWSNs).catch(() => { });
+            // --- Toasts ---
+            if (successCount === totalCount) {
+                toast.success(`✓ ${successCount} entries created (Batch: ${res.data.batchId})`);
+            } else if (successCount > 0) {
+                const failedCount = totalCount - successCount;
+                toast.success(`${successCount}/${totalCount} entries created, ${failedCount} failed — failed rows kept in grid`);
+            } else {
+                toast.error('No entries were saved. Check data.');
             }
+
+            // --- Smart 3-way clearing ---
+            if (successCount === totalCount) {
+                // All succeeded → full clear
+                setMultiRows(generateEmptyRows(500) as OutboundItem[]);
+                setDuplicateWSNs(new Set());
+                setGridDuplicateWSNs(new Set());
+                setCrossWarehouseWSNs(new Set());
+                setCommonDate(new Date().toISOString().split('T')[0]);
+                setCommonCustomer('');
+                setSelectedCustomer('');
+                setCommonVehicle('');
+                await clearDraft();
+
+                if (isWMSCacheEnabled()) {
+                    const dispatchedWSNs = entriesWithCommonFields.map((r: any) => r.wsn?.trim()?.toUpperCase()).filter(Boolean);
+                    removeMultipleFromAvailableCache(dispatchedWSNs).catch(() => { });
+                }
+            } else if (successCount > 0) {
+                // Partial success → remove only successful WSNs, keep failed rows
+                const failedWSNs = new Set(
+                    results.filter((r: any) => r.status !== 'SUCCESS').map((r: any) => r.wsn?.toUpperCase())
+                );
+                const survivingRows = multiRows.filter((r: any) => {
+                    const wsn = r.wsn?.trim()?.toUpperCase();
+                    if (!wsn) return false;
+                    return failedWSNs.has(wsn);
+                });
+                const padding = generateEmptyRows(Math.max(500 - survivingRows.length, 0)) as OutboundItem[];
+                const newRows = [...survivingRows, ...padding];
+                setMultiRows(newRows);
+                await saveDraftImmediate(newRows);
+
+                // Cache update for successful WSNs only
+                if (isWMSCacheEnabled()) {
+                    const successWSNs = results
+                        .filter((r: any) => r.status === 'SUCCESS')
+                        .map((r: any) => r.wsn?.trim()?.toUpperCase())
+                        .filter(Boolean);
+                    removeMultipleFromAvailableCache(successWSNs).catch(() => { });
+                }
+            }
+            // else: successCount === 0 → keep all rows as-is
+
+            loadExistingWSNs();
         } catch (err: any) {
             toast.error(err.response?.data?.error || 'Multi entry failed');
             setMultiErrorMessage(err.response?.data?.error || 'Failed to submit');

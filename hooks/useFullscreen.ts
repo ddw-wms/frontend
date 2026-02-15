@@ -32,19 +32,8 @@ export function useFullscreen(elementRef: RefObject<HTMLElement | null>): UseFul
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [originalStyles, setOriginalStyles] = useState<OriginalStyles | null>(null);
 
-    // Handle Escape key to exit maximized mode
-    useEffect(() => {
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key === 'Escape' && isFullscreen) {
-                exitFullscreen();
-            }
-        };
-
-        if (isFullscreen) {
-            document.addEventListener('keydown', handleKeyDown);
-        }
-        return () => document.removeEventListener('keydown', handleKeyDown);
-    }, [isFullscreen]);
+    // ESC key listener removed — ESC is used by AG Grid for cell editing.
+    // Users exit fullscreen via the toggle button in the toolbar.
 
     const enterFullscreen = useCallback(() => {
         const element = elementRef.current;
