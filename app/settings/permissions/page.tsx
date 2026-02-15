@@ -727,6 +727,13 @@ export default function PermissionsPage() {
 
     const handleSaveUserWarehouses = async () => {
         if (!selectedUser) return;
+
+        // Only super_admin can save warehouse access directly
+        if (!isSuperAdmin) {
+            showSnackbar('Only Super Admin can update warehouse access. Please contact your super admin.', 'error');
+            return;
+        }
+
         try {
             setSaving(true);
             await permissionsAPI.updateUserWarehouses(
@@ -2014,16 +2021,26 @@ export default function PermissionsPage() {
                                                 <Typography variant="h6" fontWeight={600} sx={{ fontSize: { xs: '0.8rem', sm: '1.25rem' } }}>
                                                     {isSmall ? 'Warehouses' : `Warehouse Access for ${selectedUser.full_name || selectedUser.username}`}
                                                 </Typography>
-                                                <Button
-                                                    variant="contained"
-                                                    startIcon={saving ? <CircularProgress size={14} color="inherit" /> : <SaveIcon sx={{ fontSize: { xs: 16, sm: 20 } }} />}
-                                                    onClick={handleSaveUserWarehouses}
-                                                    disabled={saving}
-                                                    size="small"
-                                                    sx={{ fontSize: { xs: '0.7rem', sm: '0.875rem' }, px: { xs: 1, sm: 2 } }}
-                                                >
-                                                    {saving ? 'Saving...' : 'Save'}
-                                                </Button>
+                                                <Stack direction="row" spacing={1} alignItems="center">
+                                                    {!isSuperAdmin && (
+                                                        <Chip
+                                                            label="Super Admin Only"
+                                                            color="warning"
+                                                            size="small"
+                                                            icon={<LockIcon />}
+                                                        />
+                                                    )}
+                                                    <Button
+                                                        variant="contained"
+                                                        startIcon={saving ? <CircularProgress size={14} color="inherit" /> : <SaveIcon sx={{ fontSize: { xs: 16, sm: 20 } }} />}
+                                                        onClick={handleSaveUserWarehouses}
+                                                        disabled={saving || !isSuperAdmin}
+                                                        size="small"
+                                                        sx={{ fontSize: { xs: '0.7rem', sm: '0.875rem' }, px: { xs: 1, sm: 2 } }}
+                                                    >
+                                                        {saving ? 'Saving...' : 'Save'}
+                                                    </Button>
+                                                </Stack>
                                             </Box>
                                             <Box sx={{ flex: 1, overflow: 'auto', p: 2 }}>
                                                 <Alert severity="info" sx={{ mb: 2 }}>
