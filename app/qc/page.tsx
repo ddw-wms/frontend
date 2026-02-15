@@ -2514,7 +2514,7 @@ export default function QCPage() {
       setMultiResults(results);
 
       // ⚡ DATA SAFETY: Collect successfully processed WSNs
-      const successWSNs = new Set(
+      const successWSNs = new Set<string>(
         results
           .filter((r: any) => r.status === 'SUCCESS')
           .map((r: any) => r.wsn?.trim()?.toUpperCase())
@@ -2548,7 +2548,7 @@ export default function QCPage() {
 
       // ⚡ CACHE UPDATE: Update source to QC in available cache (only for successful ones)
       if (isWMSCacheEnabled() && successWSNs.size > 0) {
-        successWSNs.forEach((wsn: string) => {
+        successWSNs.forEach((wsn) => {
           updateAvailableCacheSource(wsn, 'QC').catch(() => { });
         });
       }
