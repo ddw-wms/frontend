@@ -663,6 +663,97 @@ export default function PermissionsPage() {
         }));
     };
 
+    // =====================================================
+    // BULK ACTIONS FOR USER OVERRIDES
+    // =====================================================
+
+    // Override all enabled to a value (true/false)
+    const handleOverrideAllEnabled = (enabled: boolean) => {
+        setUserOverrides(prev => prev.map(p => ({
+            ...p,
+            override_enabled: enabled,
+            effective_enabled: enabled
+        })));
+    };
+
+    // Override all visible to a value (true/false)
+    const handleOverrideAllVisible = (visible: boolean) => {
+        setUserOverrides(prev => prev.map(p => ({
+            ...p,
+            override_visible: visible,
+            effective_visible: visible
+        })));
+    };
+
+    // Reset all overrides back to role defaults (null)
+    const handleResetAllOverrides = () => {
+        setUserOverrides(prev => prev.map(p => ({
+            ...p,
+            override_enabled: null,
+            override_visible: null,
+            effective_enabled: p.role_enabled,
+            effective_visible: p.role_visible
+        })));
+    };
+
+    // Override all for a specific page
+    const handleOverridePageEnabled = (page: string, enabled: boolean) => {
+        setUserOverrides(prev => prev.map(p => {
+            let normalizedPage = p.page;
+            if (p.page === 'warehouses') normalizedPage = 'settings-warehouses';
+            if (p.page === 'racks') normalizedPage = 'settings-racks';
+            if (normalizedPage !== page) return p;
+            return { ...p, override_enabled: enabled, effective_enabled: enabled };
+        }));
+    };
+
+    const handleOverridePageVisible = (page: string, visible: boolean) => {
+        setUserOverrides(prev => prev.map(p => {
+            let normalizedPage = p.page;
+            if (p.page === 'warehouses') normalizedPage = 'settings-warehouses';
+            if (p.page === 'racks') normalizedPage = 'settings-racks';
+            if (normalizedPage !== page) return p;
+            return { ...p, override_visible: visible, effective_visible: visible };
+        }));
+    };
+
+    // Reset page overrides back to role defaults
+    const handleResetPageOverrides = (page: string) => {
+        setUserOverrides(prev => prev.map(p => {
+            let normalizedPage = p.page;
+            if (p.page === 'warehouses') normalizedPage = 'settings-warehouses';
+            if (p.page === 'racks') normalizedPage = 'settings-racks';
+            if (normalizedPage !== page) return p;
+            return { ...p, override_enabled: null, override_visible: null, effective_enabled: p.role_enabled, effective_visible: p.role_visible };
+        }));
+    };
+
+    // Check page-level override states
+    const isOverridePageAllEnabled = (page: string): boolean => {
+        const pagePerms = userOverrides.filter(p => {
+            let np = p.page;
+            if (p.page === 'warehouses') np = 'settings-warehouses';
+            if (p.page === 'racks') np = 'settings-racks';
+            return np === page;
+        });
+        return pagePerms.length > 0 && pagePerms.every(p => p.effective_enabled);
+    };
+
+    const isOverridePageAllVisible = (page: string): boolean => {
+        const pagePerms = userOverrides.filter(p => {
+            let np = p.page;
+            if (p.page === 'warehouses') np = 'settings-warehouses';
+            if (p.page === 'racks') np = 'settings-racks';
+            return np === page;
+        });
+        return pagePerms.length > 0 && pagePerms.every(p => p.effective_visible);
+    };
+
+    // Count overrides for display
+    const getOverrideCount = (): number => {
+        return userOverrides.filter(p => p.override_enabled !== null || p.override_visible !== null).length;
+    };
+
     const handleSaveUserOverrides = async () => {
         if (!selectedUser) return;
 
@@ -1179,85 +1270,282 @@ export default function PermissionsPage() {
         const grouped = mergePagePermissions(userOverrides);
         const sortedPages = PAGE_ORDER.filter(p => grouped[p]?.length > 0);
 
+        // Calculate totals
+        const totalEnabled = userOverrides.filter(p => p.effective_enabled).length;
+        const totalVisible = userOverrides.filter(p => p.effective_visible).length;
+        const totalOverrides = getOverrideCount();
+        const totalPermissions = userOverrides.length;
+
         return (
             <Box>
-                {sortedPages.map((page) => (
-                    <Accordion
-                        key={page}
-                        expanded={expandedAccordions[`user_${page}`] || false}
-                        onChange={handleAccordionChange(`user_${page}`)}
-                        sx={{
-                            '&:before': { display: 'none' },
-                            boxShadow: 'none',
-                            border: '1px solid',
-                            borderColor: 'divider',
-                            mb: 1,
-                            borderRadius: '8px !important',
-                            overflow: 'hidden'
-                        }}
-                    >
-                        <AccordionSummary
-                            expandIcon={<ExpandMoreIcon />}
+                {/* Global Quick Actions */}
+                <Paper sx={{
+                    p: { xs: 1, sm: 1.5 },
+                    mb: 2,
+                    bgcolor: isDarkMode ? alpha(theme.palette.secondary.main, 0.1) : alpha(theme.palette.secondary.main, 0.05),
+                    border: '1px solid',
+                    borderColor: isDarkMode ? alpha(theme.palette.secondary.main, 0.3) : alpha(theme.palette.secondary.main, 0.2),
+                    borderRadius: 2
+                }}>
+                    <Stack direction="column" spacing={1}>
+                        <Box sx={{
+                            display: 'grid',
+                            gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(5, auto) 1fr auto' },
+                            gap: { xs: 0.5, sm: 1 },
+                            alignItems: 'center'
+                        }}>
+                            <Tooltip title="Override: Enable all permissions">
+                                <Button
+                                    size="small"
+                                    variant="outlined"
+                                    color="success"
+                                    startIcon={!isSmall && <SelectAllIcon />}
+                                    onClick={() => handleOverrideAllEnabled(true)}
+                                    sx={{ fontSize: { xs: '0.65rem', sm: '0.75rem' }, px: { xs: 0.5, sm: 1 }, minWidth: 0 }}
+                                >
+                                    {isSmall ? '✓ All' : 'Enable All'}
+                                </Button>
+                            </Tooltip>
+                            <Tooltip title="Override: Disable all permissions">
+                                <Button
+                                    size="small"
+                                    variant="outlined"
+                                    color="error"
+                                    startIcon={!isSmall && <DeselectIcon />}
+                                    onClick={() => handleOverrideAllEnabled(false)}
+                                    sx={{ fontSize: { xs: '0.65rem', sm: '0.75rem' }, px: { xs: 0.5, sm: 1 }, minWidth: 0 }}
+                                >
+                                    {isSmall ? '✗ All' : 'Disable All'}
+                                </Button>
+                            </Tooltip>
+                            <Tooltip title="Override: Show all in UI">
+                                <Button
+                                    size="small"
+                                    variant="outlined"
+                                    color="info"
+                                    startIcon={!isSmall && <VisibilityIcon />}
+                                    onClick={() => handleOverrideAllVisible(true)}
+                                    sx={{ fontSize: { xs: '0.65rem', sm: '0.75rem' }, px: { xs: 0.5, sm: 1 }, minWidth: 0 }}
+                                >
+                                    {isSmall ? '👁 All' : 'Show All'}
+                                </Button>
+                            </Tooltip>
+                            <Tooltip title="Override: Hide all from UI">
+                                <Button
+                                    size="small"
+                                    variant="outlined"
+                                    startIcon={!isSmall && <VisibilityOffIcon />}
+                                    onClick={() => handleOverrideAllVisible(false)}
+                                    sx={{ fontSize: { xs: '0.65rem', sm: '0.75rem' }, px: { xs: 0.5, sm: 1 }, minWidth: 0 }}
+                                >
+                                    {isSmall ? '🚫 All' : 'Hide All'}
+                                </Button>
+                            </Tooltip>
+                            <Tooltip title="Reset all overrides to role defaults">
+                                <Button
+                                    size="small"
+                                    variant="contained"
+                                    color="warning"
+                                    startIcon={!isSmall && <RefreshIcon />}
+                                    onClick={handleResetAllOverrides}
+                                    sx={{ fontSize: { xs: '0.65rem', sm: '0.75rem' }, px: { xs: 0.5, sm: 1 }, minWidth: 0 }}
+                                >
+                                    {isSmall ? 'Reset' : 'Reset All'}
+                                </Button>
+                            </Tooltip>
+                            <Box sx={{ display: { xs: 'none', sm: 'block' } }} />
+                            <Tooltip title="Full Access: Override enable & show everything">
+                                <Button
+                                    size="small"
+                                    variant="contained"
+                                    color="success"
+                                    startIcon={!isSmall && <FullAccessIcon />}
+                                    onClick={() => { handleOverrideAllEnabled(true); handleOverrideAllVisible(true); }}
+                                    sx={{ fontSize: { xs: '0.65rem', sm: '0.75rem' }, px: { xs: 0.5, sm: 1 }, minWidth: 0 }}
+                                >
+                                    {isSmall ? 'Full' : 'Full Access'}
+                                </Button>
+                            </Tooltip>
+                        </Box>
+                    </Stack>
+                    <Stack direction="row" spacing={{ xs: 1, sm: 2 }} mt={1} flexWrap="wrap" useFlexGap>
+                        <Chip
+                            label={`Enabled: ${totalEnabled}/${totalPermissions}`}
+                            size="small"
+                            color="success"
+                            variant="outlined"
+                            sx={{ fontSize: { xs: '0.6rem', sm: '0.7rem' } }}
+                        />
+                        <Chip
+                            label={`Visible: ${totalVisible}/${totalPermissions}`}
+                            size="small"
+                            color="info"
+                            variant="outlined"
+                            sx={{ fontSize: { xs: '0.6rem', sm: '0.7rem' } }}
+                        />
+                        <Chip
+                            label={`Overrides: ${totalOverrides}`}
+                            size="small"
+                            color={totalOverrides > 0 ? 'secondary' : 'default'}
+                            variant="outlined"
+                            sx={{ fontSize: { xs: '0.6rem', sm: '0.7rem' } }}
+                        />
+                    </Stack>
+                </Paper>
+
+                {sortedPages.map((page) => {
+                    const pageAllEnabled = isOverridePageAllEnabled(page);
+                    const pageAllVisible = isOverridePageAllVisible(page);
+
+                    return (
+                        <Accordion
+                            key={page}
+                            expanded={expandedAccordions[`user_${page}`] || false}
+                            onChange={handleAccordionChange(`user_${page}`)}
                             sx={{
-                                bgcolor: isDarkMode ? '#1e293b' : 'grey.50',
-                                minHeight: { xs: 40, sm: 48 },
-                                px: { xs: 1, sm: 2 },
-                                '&.Mui-expanded': { minHeight: { xs: 40, sm: 48 } },
-                                '& .MuiAccordionSummary-content': { my: { xs: 0.5, sm: 1 } }
+                                '&:before': { display: 'none' },
+                                boxShadow: 'none',
+                                border: '1px solid',
+                                borderColor: 'divider',
+                                mb: 1,
+                                borderRadius: '8px !important',
+                                overflow: 'hidden'
                             }}
                         >
-                            <Typography fontWeight={600} fontSize={{ xs: '0.75rem', sm: '0.9rem' }} noWrap>
-                                {PAGE_LABELS[page] || page}
-                            </Typography>
-                        </AccordionSummary>
-                        <AccordionDetails sx={{ p: 0 }}>
-                            <TableContainer>
-                                <Table size="small" sx={{ tableLayout: 'fixed' }}>
-                                    <TableHead>
-                                        <TableRow sx={{ bgcolor: isDarkMode ? '#334155' : 'grey.100' }}>
-                                            <TableCell sx={{ fontWeight: 600, py: { xs: 0.5, sm: 1 }, fontSize: { xs: '0.7rem', sm: '0.875rem' } }}>Permission</TableCell>
-                                            <TableCell align="center" sx={{ fontWeight: 600, py: { xs: 0.5, sm: 1 }, width: { xs: 50, sm: 90 }, px: { xs: 0.25, sm: 1 }, fontSize: { xs: '0.65rem', sm: '0.875rem' } }}>Enable</TableCell>
-                                            <TableCell align="center" sx={{ fontWeight: 600, py: { xs: 0.5, sm: 1 }, width: { xs: 50, sm: 90 }, px: { xs: 0.25, sm: 1 }, fontSize: { xs: '0.65rem', sm: '0.875rem' } }}>Show</TableCell>
-                                        </TableRow>
-                                    </TableHead>
-                                    <TableBody>
-                                        {grouped[page].map(p => (
-                                            <TableRow key={p.code} hover>
-                                                <TableCell sx={{ py: { xs: 0.25, sm: 0.75 }, px: { xs: 0.5, sm: 2 } }}>
-                                                    <Typography variant="body2" fontWeight={500} sx={{ fontSize: { xs: '0.7rem', sm: '0.875rem' }, wordBreak: 'break-word' }}>{p.name}</Typography>
-                                                </TableCell>
-                                                <TableCell align="center" sx={{ py: { xs: 0.25, sm: 0.75 }, px: { xs: 0, sm: 1 } }}>
-                                                    <Checkbox
-                                                        checked={p.effective_enabled || false}
-                                                        indeterminate={p.override_enabled === null}
-                                                        onChange={() => handleToggleUserOverrideEnabled(p.code)}
-                                                        size="small"
-                                                        sx={{
-                                                            p: { xs: 0.25, sm: 0.5 },
-                                                            color: p.override_enabled === null ? 'grey.400' : undefined
-                                                        }}
-                                                    />
-                                                </TableCell>
-                                                <TableCell align="center" sx={{ py: { xs: 0.25, sm: 0.75 }, px: { xs: 0, sm: 1 } }}>
-                                                    <Checkbox
-                                                        checked={p.effective_visible || false}
-                                                        indeterminate={p.override_visible === null}
-                                                        onChange={() => handleToggleUserOverrideVisible(p.code)}
-                                                        size="small"
-                                                        sx={{
-                                                            p: { xs: 0.25, sm: 0.5 },
-                                                            color: p.override_visible === null ? 'grey.400' : undefined
-                                                        }}
-                                                    />
-                                                </TableCell>
+                            <AccordionSummary
+                                expandIcon={<ExpandMoreIcon />}
+                                sx={{
+                                    bgcolor: isDarkMode ? '#1e293b' : 'grey.50',
+                                    minHeight: { xs: 40, sm: 48 },
+                                    px: { xs: 1, sm: 2 },
+                                    '&.Mui-expanded': { minHeight: { xs: 40, sm: 48 } },
+                                    '& .MuiAccordionSummary-content': { my: { xs: 0.5, sm: 1 } }
+                                }}
+                            >
+                                <Box sx={{ flex: 1, mr: 1, overflow: 'hidden' }}>
+                                    <Stack direction="row" alignItems="center" spacing={0.5} flexWrap="wrap" useFlexGap>
+                                        <Typography fontWeight={600} fontSize={{ xs: '0.75rem', sm: '0.9rem' }} noWrap sx={{ maxWidth: { xs: '120px', sm: 'none' } }}>
+                                            {PAGE_LABELS[page] || page}
+                                        </Typography>
+                                        <Chip
+                                            label={grouped[page].length}
+                                            size="small"
+                                            sx={{ height: { xs: 16, sm: 20 }, fontSize: { xs: '0.6rem', sm: '0.7rem' }, '& .MuiChip-label': { px: 0.5 } }}
+                                        />
+                                        {pageAllEnabled && (
+                                            <Chip label={isSmall ? '✓E' : '✓ Enabled'} size="small" color="success" variant="outlined" sx={{ height: { xs: 16, sm: 18 }, fontSize: { xs: '0.55rem', sm: '0.65rem' }, '& .MuiChip-label': { px: { xs: 0.3, sm: 0.5 } } }} />
+                                        )}
+                                        {pageAllVisible && (
+                                            <Chip label={isSmall ? '✓V' : '✓ Visible'} size="small" color="info" variant="outlined" sx={{ height: { xs: 16, sm: 18 }, fontSize: { xs: '0.55rem', sm: '0.65rem' }, '& .MuiChip-label': { px: { xs: 0.3, sm: 0.5 } } }} />
+                                        )}
+                                    </Stack>
+                                </Box>
+                            </AccordionSummary>
+                            <AccordionDetails sx={{ p: 0 }}>
+                                {/* Page-level quick actions */}
+                                <Box sx={{
+                                    p: { xs: 0.5, sm: 1 },
+                                    bgcolor: isDarkMode ? alpha(theme.palette.grey[800], 0.5) : 'grey.100',
+                                    borderBottom: '1px solid',
+                                    borderColor: 'divider',
+                                    display: 'flex',
+                                    gap: { xs: 0.5, sm: 1 },
+                                    flexWrap: 'wrap'
+                                }}>
+                                    <Tooltip title={pageAllEnabled ? "Disable all in this section" : "Enable all in this section"}>
+                                        <Button
+                                            size="small"
+                                            variant={pageAllEnabled ? "contained" : "outlined"}
+                                            color="success"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleOverridePageEnabled(page, !pageAllEnabled);
+                                            }}
+                                            startIcon={!isSmall && (pageAllEnabled ? <CheckBoxIcon /> : <CheckBoxOutlineBlankIcon />)}
+                                            sx={{ fontSize: { xs: '0.6rem', sm: '0.7rem' }, py: 0.25, px: { xs: 0.5, sm: 1 }, minWidth: 0 }}
+                                        >
+                                            {isSmall ? (pageAllEnabled ? '✓ Enable' : 'Enable') : (pageAllEnabled ? 'All Enabled' : 'Enable All')}
+                                        </Button>
+                                    </Tooltip>
+                                    <Tooltip title={pageAllVisible ? "Hide all in this section" : "Show all in this section"}>
+                                        <Button
+                                            size="small"
+                                            variant={pageAllVisible ? "contained" : "outlined"}
+                                            color="info"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleOverridePageVisible(page, !pageAllVisible);
+                                            }}
+                                            startIcon={!isSmall && (pageAllVisible ? <VisibilityIcon /> : <VisibilityOffIcon />)}
+                                            sx={{ fontSize: { xs: '0.6rem', sm: '0.7rem' }, py: 0.25, px: { xs: 0.5, sm: 1 }, minWidth: 0 }}
+                                        >
+                                            {isSmall ? (pageAllVisible ? '✓ Show' : 'Show') : (pageAllVisible ? 'All Visible' : 'Show All')}
+                                        </Button>
+                                    </Tooltip>
+                                    <Tooltip title="Reset this section to role defaults">
+                                        <Button
+                                            size="small"
+                                            variant="outlined"
+                                            color="warning"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleResetPageOverrides(page);
+                                            }}
+                                            startIcon={!isSmall && <RefreshIcon />}
+                                            sx={{ fontSize: { xs: '0.6rem', sm: '0.7rem' }, py: 0.25, px: { xs: 0.5, sm: 1 }, minWidth: 0 }}
+                                        >
+                                            {isSmall ? 'Reset' : 'Reset'}
+                                        </Button>
+                                    </Tooltip>
+                                </Box>
+                                <TableContainer>
+                                    <Table size="small" sx={{ tableLayout: 'fixed' }}>
+                                        <TableHead>
+                                            <TableRow sx={{ bgcolor: isDarkMode ? '#334155' : 'grey.100' }}>
+                                                <TableCell sx={{ fontWeight: 600, py: { xs: 0.5, sm: 1 }, fontSize: { xs: '0.7rem', sm: '0.875rem' } }}>Permission</TableCell>
+                                                <TableCell align="center" sx={{ fontWeight: 600, py: { xs: 0.5, sm: 1 }, width: { xs: 50, sm: 90 }, px: { xs: 0.25, sm: 1 }, fontSize: { xs: '0.65rem', sm: '0.875rem' } }}>Enable</TableCell>
+                                                <TableCell align="center" sx={{ fontWeight: 600, py: { xs: 0.5, sm: 1 }, width: { xs: 50, sm: 90 }, px: { xs: 0.25, sm: 1 }, fontSize: { xs: '0.65rem', sm: '0.875rem' } }}>Show</TableCell>
                                             </TableRow>
-                                        ))}
-                                    </TableBody>
-                                </Table>
-                            </TableContainer>
-                        </AccordionDetails>
-                    </Accordion>
-                ))}
+                                        </TableHead>
+                                        <TableBody>
+                                            {grouped[page].map(p => (
+                                                <TableRow key={p.code} hover>
+                                                    <TableCell sx={{ py: { xs: 0.25, sm: 0.75 }, px: { xs: 0.5, sm: 2 } }}>
+                                                        <Typography variant="body2" fontWeight={500} sx={{ fontSize: { xs: '0.7rem', sm: '0.875rem' }, wordBreak: 'break-word' }}>{p.name}</Typography>
+                                                    </TableCell>
+                                                    <TableCell align="center" sx={{ py: { xs: 0.25, sm: 0.75 }, px: { xs: 0, sm: 1 } }}>
+                                                        <Checkbox
+                                                            checked={p.effective_enabled || false}
+                                                            indeterminate={p.override_enabled === null}
+                                                            onChange={() => handleToggleUserOverrideEnabled(p.code)}
+                                                            size="small"
+                                                            sx={{
+                                                                p: { xs: 0.25, sm: 0.5 },
+                                                                color: p.override_enabled === null ? 'grey.400' : undefined
+                                                            }}
+                                                        />
+                                                    </TableCell>
+                                                    <TableCell align="center" sx={{ py: { xs: 0.25, sm: 0.75 }, px: { xs: 0, sm: 1 } }}>
+                                                        <Checkbox
+                                                            checked={p.effective_visible || false}
+                                                            indeterminate={p.override_visible === null}
+                                                            onChange={() => handleToggleUserOverrideVisible(p.code)}
+                                                            size="small"
+                                                            sx={{
+                                                                p: { xs: 0.25, sm: 0.5 },
+                                                                color: p.override_visible === null ? 'grey.400' : undefined
+                                                            }}
+                                                        />
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+                                </TableContainer>
+                            </AccordionDetails>
+                        </Accordion>
+                    );
+                })}
             </Box>
         );
     };
