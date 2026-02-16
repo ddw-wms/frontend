@@ -121,6 +121,7 @@ import {
   cacheBatchData,
   isWSNInCachedBatches,
   getBatchCacheStats,
+  setActiveWarehouseForCache,
   BatchInfo
 } from '@/lib/masterDataCache';
 import {
@@ -712,6 +713,13 @@ export default function InboundPage() {
       localStorage.removeItem('inbound_selected_batches');
     }
   }, [selectedBatchIds]);
+
+  // Sync warehouse context with master data cache
+  useEffect(() => {
+    if (activeWarehouse?.id) {
+      setActiveWarehouseForCache(activeWarehouse.id);
+    }
+  }, [activeWarehouse?.id]);
 
   // Prewarm cache on mount (ONLY if no batch mode)
   useEffect(() => {
@@ -3625,7 +3633,7 @@ export default function InboundPage() {
 
         if (isWMSCacheEnabled()) {
           const submittedWSNs = filtered.map((r: any) => r.wsn?.trim()?.toUpperCase()).filter(Boolean);
-          removeMultipleFromPendingCache(submittedWSNs).catch(() => {});
+          removeMultipleFromPendingCache(submittedWSNs).catch(() => { });
         }
       } else if (successCount > 0) {
         // Partial success → remove only successful WSNs, keep failed/duplicate rows
@@ -3649,7 +3657,7 @@ export default function InboundPage() {
             .filter((r: any) => r.status === 'SUCCESS')
             .map((r: any) => r.wsn?.trim()?.toUpperCase())
             .filter(Boolean);
-          removeMultipleFromPendingCache(successWSNs).catch(() => {});
+          removeMultipleFromPendingCache(successWSNs).catch(() => { });
         }
       }
       // else: successCount === 0 → keep all rows as-is, don't touch draft

@@ -11,6 +11,27 @@
 import Dexie, { Table } from 'dexie';
 import { inboundAPI } from './api';
 
+// Module-level warehouse context for cache scoping
+let _activeWarehouseId: number | undefined;
+
+/**
+ * Set the active warehouse ID for cache operations.
+ * When warehouse changes, the cache is cleared automatically.
+ */
+export async function setActiveWarehouseForCache(warehouseId: number | undefined): Promise<void> {
+    if (_activeWarehouseId === warehouseId) return;
+    const previousId = _activeWarehouseId;
+    _activeWarehouseId = warehouseId;
+    if (previousId !== undefined && warehouseId !== undefined && previousId !== warehouseId) {
+        console.log(`🔄 Warehouse changed from ${previousId} to ${warehouseId}, clearing cache...`);
+        await clearCache();
+    }
+}
+
+export function getActiveWarehouseId(): number | undefined {
+    return _activeWarehouseId;
+}
+
 // Master data interface
 export interface MasterDataRecord {
     wsn: string;  // Primary key
@@ -145,7 +166,7 @@ export async function getMasterDataByWSN(wsn: string): Promise<MasterDataRecord 
         console.log(`🔍 Cache MISS for WSN: ${normalizedWSN}, fetching from API...`);
 
         // ⚡ RACE: API call vs timeout - return stale cache if API is slow
-        const apiPromise = inboundAPI.getMasterDataByWSN(normalizedWSN)
+        const apiPromise = inboundAPI.getMasterDataByWSN(normalizedWSN, _activeWarehouseId)
             .then(response => {
                 if (response?.data) {
                     const record: MasterDataRecord = {
@@ -319,7 +340,7 @@ export async function performFullSync(
         console.log('🔄 Starting full master data sync...');
 
         // Get total count first
-        const countResponse = await inboundAPI.getMasterDataCount();
+        const countResponse = await inboundAPI.getMasterDataCount(_activeWarehouseId);
         const totalCount = countResponse?.data?.count || 0;
 
         if (totalCount === 0) {
@@ -343,7 +364,7 @@ export async function performFullSync(
         await database.masterData.clear();
 
         while (loaded < totalCount) {
-            const response = await inboundAPI.getMasterDataBatch(page, batchSize);
+            const response = await inboundAPI.getMasterDataBatch(page, batchSize, _activeWarehouseId);
             const records = response?.data?.data || response?.data || [];
 
             if (!records || records.length === 0) break;
@@ -495,7 +516,7 @@ export function getSyncStatus(): { inProgress: boolean; loaded: number; total: n
  */
 export async function getBatchList(): Promise<BatchInfo[]> {
     try {
-        const response = await inboundAPI.getMasterDataBatchList();
+        const response = await inboundAPI.getMasterDataBatchList(_activeWarehouseId);
         return response?.data?.batches || [];
     } catch (error) {
         console.error('❌ Failed to get batch list:', error);
@@ -543,7 +564,7 @@ export async function cacheBatchData(
         if (onProgress) onProgress(0, 1, `Loading ${batchIds.length} batch(es)...`);
 
         // Fetch data for selected batches
-        const response = await inboundAPI.getMasterDataByBatchIds(batchIds);
+        const response = await inboundAPI.getMasterDataByBatchIds(batchIds, _activeWarehouseId);
         const records = response?.data?.data || [];
         const totalCount = records.length;
 

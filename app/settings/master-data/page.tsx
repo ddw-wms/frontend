@@ -851,7 +851,7 @@ export default function MasterDataPage() {
         if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
       };
     }
-  }, [page, rowsPerPage, user, tabValue, isClient, debouncedSearch, filterBatchId, filterStatus, filterBrand, filterCategory]);
+  }, [page, rowsPerPage, user, tabValue, isClient, debouncedSearch, filterBatchId, filterStatus, filterBrand, filterCategory, activeWarehouse?.id]);
 
   // Initial load for batches and active uploads
   useEffect(() => {
@@ -860,7 +860,7 @@ export default function MasterDataPage() {
       // Note: loadBrands and loadCategories are handled by their respective useEffects
       checkActiveUploads();
     }
-  }, [user, isClient]);
+  }, [user, isClient, activeWarehouse?.id]);
 
   // Force reset if rowsPerPage is too large
   useEffect(() => {
@@ -881,8 +881,9 @@ export default function MasterDataPage() {
       status: filterStatus,
       brand: filterBrand,
       category: filterCategory,
+      warehouseId: activeWarehouse?.id,
     });
-  }, [page, rowsPerPage, debouncedSearch, filterBatchId, filterStatus, filterBrand, filterCategory]);
+  }, [page, rowsPerPage, debouncedSearch, filterBatchId, filterStatus, filterBrand, filterCategory, activeWarehouse?.id]);
 
   // ⚡ PREFETCH: Prefetch next page in background
   const prefetchNextPage = useCallback(async () => {
@@ -897,6 +898,7 @@ export default function MasterDataPage() {
       status: filterStatus,
       brand: filterBrand,
       category: filterCategory,
+      warehouseId: activeWarehouse?.id,
     });
 
     const cached = pageCacheRef.current.get(nextPageCacheKey);
@@ -911,6 +913,7 @@ export default function MasterDataPage() {
       if (filterStatus && filterStatus !== 'All') params.append('status', filterStatus);
       if (filterBrand) params.append('brand', filterBrand);
       if (filterCategory) params.append('category', filterCategory);
+      if (activeWarehouse?.id) params.append('warehouseId', activeWarehouse.id.toString());
 
       const token = localStorage.getItem('token');
       const response = await fetch(
@@ -930,7 +933,7 @@ export default function MasterDataPage() {
         timestamp: Date.now(),
       });
     } catch { /* Silently fail - prefetch is optional */ }
-  }, [page, rowsPerPage, totalRecords, debouncedSearch, filterBatchId, filterStatus, filterBrand, filterCategory]);
+  }, [page, rowsPerPage, totalRecords, debouncedSearch, filterBatchId, filterStatus, filterBrand, filterCategory, activeWarehouse?.id]);
 
   const loadMasterData = useCallback(async ({ buttonRefresh = false } = {}) => {
     const cacheKey = getCacheKey();
@@ -979,6 +982,7 @@ export default function MasterDataPage() {
       if (filterStatus && filterStatus !== 'All') params.append('status', filterStatus);
       if (filterBrand) params.append('brand', filterBrand);
       if (filterCategory) params.append('category', filterCategory);
+      if (activeWarehouse?.id) params.append('warehouseId', activeWarehouse.id.toString());
 
       const token = localStorage.getItem('token');
 
@@ -1079,7 +1083,7 @@ export default function MasterDataPage() {
 
   const loadBatches = async () => {
     try {
-      const response = await masterDataAPI.getBatches();
+      const response = await masterDataAPI.getBatches(activeWarehouse?.id);
       console.log('Batches response:', response.data);
 
       const batchesArray = Array.isArray(response.data) ? response.data : [];
@@ -1100,7 +1104,7 @@ export default function MasterDataPage() {
   // ✅ Load brands from database API (optionally filtered by category)
   const loadBrands = async (category?: string) => {
     try {
-      const response = await masterDataAPI.getBrands(category || undefined);
+      const response = await masterDataAPI.getBrands(category || undefined, activeWarehouse?.id);
       setBrandOptions(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
       console.error('Failed to load brands:', error);
@@ -1111,7 +1115,7 @@ export default function MasterDataPage() {
   // ✅ Load categories from database API (optionally filtered by brand)
   const loadCategories = async (brand?: string) => {
     try {
-      const response = await masterDataAPI.getCategories(brand || undefined);
+      const response = await masterDataAPI.getCategories(brand || undefined, activeWarehouse?.id);
       setCategoryOptions(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
       console.error('Failed to load categories:', error);
@@ -1245,7 +1249,7 @@ export default function MasterDataPage() {
   const loadDeletedRecords = useCallback(async () => {
     setDeletedRecordsLoading(true);
     try {
-      const response = await masterDataAPI.getDeletedRecords(deletedRecordsPage, 50, { search: deletedSearch });
+      const response = await masterDataAPI.getDeletedRecords(deletedRecordsPage, 50, { search: deletedSearch, warehouseId: activeWarehouse?.id });
       setDeletedRecords(response.data?.data || []);
       setDeletedRecordsTotal(response.data?.total || 0);
     } catch (error) {
@@ -1259,7 +1263,7 @@ export default function MasterDataPage() {
   const loadSnapshots = useCallback(async () => {
     setSnapshotsLoading(true);
     try {
-      const response = await masterDataAPI.getSnapshots(snapshotsPage, 20);
+      const response = await masterDataAPI.getSnapshots(snapshotsPage, 20, { warehouseId: activeWarehouse?.id });
       setSnapshots(response.data?.data || []);
       setSnapshotsTotal(response.data?.total || 0);
     } catch (error) {
@@ -1388,7 +1392,7 @@ export default function MasterDataPage() {
 
     setFormSubmitting(true);
     try {
-      await masterDataAPI.create(productFormData);
+      await masterDataAPI.create({ ...productFormData, warehouse_id: activeWarehouse?.id });
       toast.success('✅ Product added successfully!');
       setAddDialogOpen(false);
       resetProductForm();
@@ -1536,6 +1540,7 @@ export default function MasterDataPage() {
     const formData = new FormData();
     formData.append('file', selectedFile);
     formData.append('duplicateStrategy', duplicateStrategy);
+    if (activeWarehouse?.id) formData.append('warehouse_id', activeWarehouse.id.toString());
 
     try {
       const response = await fetch(
@@ -1662,6 +1667,7 @@ export default function MasterDataPage() {
       if (filterStatus && filterStatus !== 'All') params.append('status', filterStatus);
       if (filterBrand) params.append('brand', filterBrand);
       if (filterCategory) params.append('category', filterCategory);
+      if (activeWarehouse?.id) params.append('warehouseId', activeWarehouse.id.toString());
 
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/master-data/export?${params.toString()}`,
@@ -2658,9 +2664,9 @@ export default function MasterDataPage() {
                                       size="small"
                                       color={
                                         entry.status === 'completed' ? 'success' :
-                                        entry.status === 'failed' ? 'error' :
-                                        entry.status === 'processing' ? 'info' :
-                                        entry.status === 'cancelled' ? 'warning' : 'default'
+                                          entry.status === 'failed' ? 'error' :
+                                            entry.status === 'processing' ? 'info' :
+                                              entry.status === 'cancelled' ? 'warning' : 'default'
                                       }
                                       sx={{ height: 22, fontSize: '0.7rem', fontWeight: 600 }}
                                     />

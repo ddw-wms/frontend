@@ -370,7 +370,7 @@ export const sessionsAPI = {
 // };
 
 export const masterDataAPI = {
-  // Supports optional filters: batch_id, status, brand, category
+  // Supports optional filters: batch_id, status, brand, category, warehouseId
   getAll: (page = 1, limit = 100, search = '', filters?: any) =>
     api.get('master-data', {
       params: {
@@ -380,7 +380,8 @@ export const masterDataAPI = {
         batch_id: filters?.batchId || filters?.batch_id,
         status: filters?.status,
         brand: filters?.brand,
-        category: filters?.category
+        category: filters?.category,
+        warehouseId: filters?.warehouseId
       },
     }),
   // Create single product
@@ -393,11 +394,11 @@ export const masterDataAPI = {
     }),
   getUploadProgress: (jobId: string) => api.get(`master-data/upload/progress/${jobId}`),
   cancelUpload: (jobId: string) => api.delete(`master-data/upload/cancel/${jobId}`),
-  getBatches: () => api.get('master-data/batches'),
+  getBatches: (warehouseId?: number) => api.get('master-data/batches', { params: { warehouseId } }),
   // Get unique brands for filter dropdown (optionally filtered by category)
-  getBrands: (category?: string) => api.get('master-data/brands', { params: { category } }),
+  getBrands: (category?: string, warehouseId?: number) => api.get('master-data/brands', { params: { category, warehouseId } }),
   // Get unique categories for filter dropdown (optionally filtered by brand)
-  getCategories: (brand?: string) => api.get('master-data/categories', { params: { brand } }),
+  getCategories: (brand?: string, warehouseId?: number) => api.get('master-data/categories', { params: { brand, warehouseId } }),
   delete: (id: number) => api.delete(`master-data/${id}`),
   deleteBatch: (batchId: string) => api.delete(`master-data/batch/${batchId}`),
   getActiveUploads: () => api.get('master-data/upload/active'),
@@ -409,16 +410,24 @@ export const masterDataAPI = {
   getUploadDuplicates: (jobId: string) => api.get(`master-data/upload/duplicates/${jobId}`),
   // Phase 5: Advanced features
   restoreBatch: (batchId: string) => api.post(`master-data/batch/${batchId}/restore`),
-  getSnapshots: (page = 1, limit = 20, filters?: { batchId?: string; includeRestored?: boolean }) =>
+  getSnapshots: (page = 1, limit = 20, filters?: { batchId?: string; includeRestored?: boolean; warehouseId?: number }) =>
     api.get('master-data/snapshots', {
-      params: { page, limit, batchId: filters?.batchId, includeRestored: filters?.includeRestored }
+      params: { page, limit, batchId: filters?.batchId, includeRestored: filters?.includeRestored, warehouseId: filters?.warehouseId }
     }),
-  getDeletedRecords: (page = 1, limit = 50, filters?: { search?: string; batchId?: string }) =>
+  getDeletedRecords: (page = 1, limit = 50, filters?: { search?: string; batchId?: string; warehouseId?: number }) =>
     api.get('master-data/deleted', {
-      params: { page, limit, search: filters?.search, batchId: filters?.batchId }
+      params: { page, limit, search: filters?.search, batchId: filters?.batchId, warehouseId: filters?.warehouseId }
     }),
   purgeDeletedRecord: (id: number) => api.delete(`master-data/deleted/purge/${id}`),
   cleanupStaleData: () => api.delete('master-data/cleanup/stale'),
+  // Export with warehouse filter
+  export: (filters?: any) =>
+    api.get('master-data/export', {
+      params: {
+        ...filters,
+        warehouseId: filters?.warehouseId
+      }
+    }),
   // Helper to trigger template download in browser
   downloadTemplate: () => {
     if (typeof window !== 'undefined') {
@@ -433,15 +442,15 @@ export const masterDataAPI = {
 // ====================Inbound API=======================
 export const inboundAPI = {
   createSingle: (data: any) => api.post('inbound', data),
-  getMasterDataByWSN: (wsn: string) => api.get(`inbound/master-data/${wsn}`),
+  getMasterDataByWSN: (wsn: string, warehouseId?: number) => api.get(`inbound/master-data/${wsn}`, { params: { warehouseId } }),
   // Master data cache APIs
-  getMasterDataCount: () => api.get('master-data/count'),
-  getMasterDataBatch: (page: number, limit: number) =>
-    api.get('master-data/batch', { params: { page, limit } }),
+  getMasterDataCount: (warehouseId?: number) => api.get('master-data/count', { params: { warehouseId } }),
+  getMasterDataBatch: (page: number, limit: number, warehouseId?: number) =>
+    api.get('master-data/batch', { params: { page, limit, warehouseId } }),
   // Batch-specific cache APIs
-  getMasterDataBatchList: () => api.get('master-data/batch-list'),
-  getMasterDataByBatchIds: (batchIds: string[]) =>
-    api.get('master-data/by-batch', { params: { batchIds: batchIds.join(',') } }),
+  getMasterDataBatchList: (warehouseId?: number) => api.get('master-data/batch-list', { params: { warehouseId } }),
+  getMasterDataByBatchIds: (batchIds: string[], warehouseId?: number) =>
+    api.get('master-data/by-batch', { params: { batchIds: batchIds.join(','), warehouseId } }),
   bulkUpload: (formData: FormData) => api.post('inbound/bulk-upload', formData, {
     headers: { 'Content-Type': 'multipart/form-data' }
   }),

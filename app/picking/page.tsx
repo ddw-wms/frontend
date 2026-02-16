@@ -1700,7 +1700,7 @@ export default function PickingPage() {
               return { rowIndex, data: res.data };
             } catch {
               try {
-                const inboundResp = await inboundAPI.getMasterDataByWSN(wsn);
+                const inboundResp = await inboundAPI.getMasterDataByWSN(wsn, activeWarehouse?.id);
                 return { rowIndex, data: inboundResp.data };
               } catch {
                 return { rowIndex, data: null };
@@ -2300,7 +2300,7 @@ export default function PickingPage() {
         } catch (err) {
           // Try inbound master data fallback
           try {
-            const inboundResp = await inboundAPI.getMasterDataByWSN(wsn);
+            const inboundResp = await inboundAPI.getMasterDataByWSN(wsn, activeWarehouse?.id);
             const md = inboundResp.data;
             const fallbackData = {
               product_title: md.product_title ?? '',
@@ -5637,7 +5637,7 @@ export default function PickingPage() {
                     // If not found in picking sources, try inbound master data as a fallback (only if online)
                     if (err?.response?.status === 404 && isOnline) {
                       try {
-                        const inboundResp = await inboundAPI.getMasterDataByWSN(wsn);
+                        const inboundResp = await inboundAPI.getMasterDataByWSN(wsn, activeWarehouse?.id);
                         const md = inboundResp.data;
 
                         // ⚡ PERF: Single setData() for inbound fallback
