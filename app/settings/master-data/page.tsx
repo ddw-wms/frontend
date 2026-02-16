@@ -2042,7 +2042,7 @@ export default function MasterDataPage() {
                       )}
 
                       {/* Full Loading Overlay - shows during initial load OR while columns are being sized */}
-                      {(!gridDataRendered || (loading && (!masterData || masterData.length === 0))) && (
+                      {((loading && (!masterData || masterData.length === 0)) || (masterData && masterData.length > 0 && !gridDataRendered)) && (
                         <Box sx={{
                           position: 'absolute',
                           top: 0,
