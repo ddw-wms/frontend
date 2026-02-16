@@ -698,17 +698,26 @@ export default function PrinterSettingsPage() {
                     startIcon={<DownloadIcon />}
                     onClick={async () => {
                       try {
-                        // Direct backend download (Supabase Storage)
-                        const link = document.createElement('a');
-                        link.href = `${process.env.NEXT_PUBLIC_API_URL}/downloads/print-agent`;
-                        link.download = 'WMS Print Agent Setup 1.0.0.exe';
-                        document.body.appendChild(link);
-                        link.click();
-                        document.body.removeChild(link);
+                        // Fetch with auth token to get signed download URL
+                        const token = localStorage.getItem('token');
+                        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/downloads/print-agent`, {
+                          headers: {
+                            'Authorization': `Bearer ${token}`
+                          }
+                        });
 
-                        setTimeout(() => {
+                        if (!response.ok) {
+                          throw new Error('Download failed');
+                        }
+
+                        const data = await response.json();
+                        if (data.downloadUrl) {
+                          // Open signed Supabase URL directly - browser handles download
+                          window.open(data.downloadUrl, '_blank');
                           alert('📥 Download started!\n\nFile: WMS Print Agent Setup 1.0.0\nDownloading from secure cloud storage...');
-                        }, 500);
+                        } else {
+                          throw new Error('No download URL received');
+                        }
                       } catch (error) {
                         alert('Download failed. Please try again or contact IT support.');
                       }
