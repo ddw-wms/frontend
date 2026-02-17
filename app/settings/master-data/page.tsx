@@ -2650,7 +2650,7 @@ export default function MasterDataPage() {
                                 <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem' }} align="right">Duplicates</TableCell>
                                 <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem' }}>Strategy</TableCell>
                                 <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem' }}>Date</TableCell>
-                                {isAdmin && <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem' }} align="center">Actions</TableCell>}
+                                {(isAdmin || canSeeButton('batches:delete')) && <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem' }} align="center">Actions</TableCell>}
                               </TableRow>
                             </TableHead>
                             <TableBody>
@@ -2708,7 +2708,7 @@ export default function MasterDataPage() {
                                       {formatDateToIST(entry.uploadedAt)}
                                     </Typography>
                                   </TableCell>
-                                  {isAdmin && (
+                                  {(isAdmin || canSeeButton('batches:delete')) && (
                                     <TableCell align="center">
                                       {entry.status !== 'processing' && entry.status !== 'pending' ? (
                                         <Tooltip title="Delete log entry">
