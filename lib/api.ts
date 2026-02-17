@@ -403,9 +403,9 @@ export const masterDataAPI = {
   deleteBatch: (batchId: string) => api.delete(`master-data/batch/${batchId}`),
   getActiveUploads: () => api.get('master-data/upload/active'),
   // Phase 3: Upload history & duplicate details
-  getUploadHistory: (page = 1, limit = 20, filters?: { status?: string; search?: string; dateFrom?: string; dateTo?: string }) =>
+  getUploadHistory: (page = 1, limit = 20, filters?: { status?: string; search?: string; dateFrom?: string; dateTo?: string; warehouseId?: number }) =>
     api.get('master-data/upload/history', {
-      params: { page, limit, status: filters?.status, search: filters?.search, dateFrom: filters?.dateFrom, dateTo: filters?.dateTo }
+      params: { page, limit, status: filters?.status, search: filters?.search, dateFrom: filters?.dateFrom, dateTo: filters?.dateTo, warehouseId: filters?.warehouseId }
     }),
   getUploadDuplicates: (jobId: string) => api.get(`master-data/upload/duplicates/${jobId}`),
   // Phase 5: Advanced features
@@ -419,6 +419,7 @@ export const masterDataAPI = {
       params: { page, limit, search: filters?.search, batchId: filters?.batchId, warehouseId: filters?.warehouseId }
     }),
   purgeDeletedRecord: (id: number) => api.delete(`master-data/deleted/purge/${id}`),
+  deleteUploadLog: (id: number) => api.delete(`master-data/upload/history/${id}`),
   cleanupStaleData: () => api.delete('master-data/cleanup/stale'),
   // Export with warehouse filter
   export: (filters?: any) =>

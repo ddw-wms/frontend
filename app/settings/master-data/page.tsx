@@ -1227,7 +1227,7 @@ export default function MasterDataPage() {
   const loadUploadHistory = useCallback(async () => {
     setUploadHistoryLoading(true);
     try {
-      const response = await masterDataAPI.getUploadHistory(uploadHistoryPage, 20);
+      const response = await masterDataAPI.getUploadHistory(uploadHistoryPage, 20, { warehouseId: activeWarehouse?.id });
       setUploadHistory(response.data?.data || []);
       setUploadHistoryTotal(response.data?.total || 0);
     } catch (error) {
@@ -1235,7 +1235,7 @@ export default function MasterDataPage() {
     } finally {
       setUploadHistoryLoading(false);
     }
-  }, [uploadHistoryPage]);
+  }, [uploadHistoryPage, activeWarehouse?.id]);
 
   // Load upload history when page changes or tab switches to it
   useEffect(() => {
@@ -1257,7 +1257,7 @@ export default function MasterDataPage() {
     } finally {
       setDeletedRecordsLoading(false);
     }
-  }, [deletedRecordsPage, deletedSearch]);
+  }, [deletedRecordsPage, deletedSearch, activeWarehouse?.id]);
 
   // ✅ Phase 5: Load snapshots
   const loadSnapshots = useCallback(async () => {
@@ -1271,7 +1271,7 @@ export default function MasterDataPage() {
     } finally {
       setSnapshotsLoading(false);
     }
-  }, [snapshotsPage]);
+  }, [snapshotsPage, activeWarehouse?.id]);
 
   // Load deleted/snapshots when their tab is active
   useEffect(() => {
@@ -1324,6 +1324,18 @@ export default function MasterDataPage() {
       loadDeletedRecords();
     } catch (error) {
       toast.error('Cleanup failed');
+    }
+  };
+
+  // ✅ Delete upload history log entry
+  const handleDeleteUploadLog = async (id: number, filename: string) => {
+    if (!confirm(`Delete upload log for "${filename}"?\n\nThis only removes the log entry, not the uploaded data.`)) return;
+    try {
+      await masterDataAPI.deleteUploadLog(id);
+      toast.success('Upload log deleted');
+      loadUploadHistory();
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || 'Failed to delete upload log');
     }
   };
 
@@ -2638,6 +2650,7 @@ export default function MasterDataPage() {
                                 <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem' }} align="right">Duplicates</TableCell>
                                 <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem' }}>Strategy</TableCell>
                                 <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem' }}>Date</TableCell>
+                                {isAdmin && <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem' }} align="center">Actions</TableCell>}
                               </TableRow>
                             </TableHead>
                             <TableBody>
@@ -2695,6 +2708,19 @@ export default function MasterDataPage() {
                                       {formatDateToIST(entry.uploadedAt)}
                                     </Typography>
                                   </TableCell>
+                                  {isAdmin && (
+                                    <TableCell align="center">
+                                      {entry.status !== 'processing' && entry.status !== 'pending' ? (
+                                        <Tooltip title="Delete log entry">
+                                          <IconButton size="small" color="error" onClick={() => handleDeleteUploadLog(entry.id, entry.filename)}>
+                                            <DeleteIcon sx={{ fontSize: 16 }} />
+                                          </IconButton>
+                                        </Tooltip>
+                                      ) : (
+                                        <Typography variant="caption" color="text.secondary">-</Typography>
+                                      )}
+                                    </TableCell>
+                                  )}
                                 </TableRow>
                               ))}
                             </TableBody>
