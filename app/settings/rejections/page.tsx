@@ -19,6 +19,28 @@ import {
 } from '@mui/icons-material';
 
 import AppLayout from '@/components/AppLayout';
+
+// Format date as DD-MMM-YYYY (e.g. 18-Feb-2026)
+const formatDateDMY = (dateVal: any): string => {
+    if (!dateVal) return '-';
+    const d = new Date(dateVal);
+    if (isNaN(d.getTime())) return '-';
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${day}-${months[d.getMonth()]}-${d.getFullYear()}`;
+};
+
+// Format date+time as DD-MMM-YYYY HH:MM
+const formatDateTimeDMY = (dateVal: any): string => {
+    if (!dateVal) return '-';
+    const d = new Date(dateVal);
+    if (isNaN(d.getTime())) return '-';
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const day = String(d.getDate()).padStart(2, '0');
+    const hr = String(d.getHours()).padStart(2, '0');
+    const min = String(d.getMinutes()).padStart(2, '0');
+    return `${day}-${months[d.getMonth()]}-${d.getFullYear()} ${hr}:${min}`;
+};
 import { StandardPageHeader, BatchManagementTab } from '@/components';
 import { rejectionsAPI } from '@/lib/api';
 import toast, { Toaster } from 'react-hot-toast';
@@ -635,10 +657,7 @@ export default function RejectionsPage() {
             field: 'rejection_date',
             headerName: 'Date',
             width: 95,
-            valueFormatter: (params: any) => {
-                if (!params.value) return '-';
-                return new Date(params.value).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' });
-            }
+            valueFormatter: (params: any) => formatDateDMY(params.value)
         },
         {
             field: 'credit_note_no',
@@ -717,7 +736,7 @@ export default function RejectionsPage() {
             field: 'rejection_date',
             headerName: 'Date',
             width: 90,
-            valueFormatter: (params: any) => params.value ? new Date(params.value).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' }) : '-'
+            valueFormatter: (params: any) => formatDateDMY(params.value)
         },
         {
             field: 'cn_pending',
@@ -1542,7 +1561,7 @@ export default function RejectionsPage() {
                                                                 {batch.batch_id}
                                                             </Typography>
                                                             <Typography variant="caption" color="text.secondary">
-                                                                {batch.count} items • Deleted by {batch.deleted_by_name || 'Unknown'} • {batch.deleted_at ? new Date(batch.deleted_at).toLocaleDateString() : ''}
+                                                                {batch.count} items • Deleted by {batch.deleted_by_name || 'Unknown'} • {formatDateDMY(batch.deleted_at)}
                                                             </Typography>
                                                         </Box>
                                                         <Stack direction="row" spacing={0.5}>
@@ -1664,7 +1683,7 @@ export default function RejectionsPage() {
                                                                 <td style={{ padding: '8px 12px', textAlign: 'center', color: '#ef4444', fontWeight: 600 }}>{log.error_count}</td>
                                                                 <td style={{ padding: '8px 12px' }}>{log.uploaded_by_name || '-'}</td>
                                                                 <td style={{ padding: '8px 12px', fontSize: '0.75rem' }}>
-                                                                    {log.uploaded_at ? new Date(log.uploaded_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-'}
+                                                                    {formatDateTimeDMY(log.uploaded_at)}
                                                                 </td>
                                                                 <td style={{ padding: '8px 12px', textAlign: 'center' }}>
                                                                     {canDelete && (
