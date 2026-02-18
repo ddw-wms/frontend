@@ -12,7 +12,8 @@ import {
     Search as SearchIcon, Refresh as RefreshIcon,
     CheckCircle as CheckIcon,
     Close as CloseIcon, Description as ExcelIcon,
-    Tune as TuneIcon, FilterList as FilterListIcon
+    Tune as TuneIcon, FilterList as FilterListIcon,
+    PersonAdd as PersonAddIcon
 } from '@mui/icons-material';
 
 import AppLayout from '@/components/AppLayout';
@@ -128,6 +129,12 @@ export default function RejectionsPage() {
     const [uploadHistoryPage, setUploadHistoryPage] = useState(1);
     const [uploadHistoryLoading, setUploadHistoryLoading] = useState(false);
 
+    // Managed persons state (for upload dialog dropdown)
+    const [managedPersons, setManagedPersons] = useState<{ id: number; name: string }[]>([]);
+    const [selectedPerson, setSelectedPerson] = useState<string>('');
+    const [addingNewPerson, setAddingNewPerson] = useState(false);
+    const [newPersonName, setNewPersonName] = useState('');
+
     // Summary stats
     const [stats, setStats] = useState({ total: 0, cn_pending: 0, cn_received: 0, total_yield: 0 });
 
@@ -209,6 +216,35 @@ export default function RejectionsPage() {
         }
     }, [canView, activeWarehouse?.id]);
 
+    // Fetch managed persons for upload dialog dropdown
+    const fetchManagedPersons = useCallback(async () => {
+        if (!activeWarehouse?.id) return;
+        try {
+            const res = await rejectionsAPI.getManagedPersons(activeWarehouse.id);
+            setManagedPersons((res.data.persons || []).map((p: any) => ({ id: p.id, name: p.name })));
+        } catch (error) {
+            console.error('Failed to load managed persons:', error);
+        }
+    }, [activeWarehouse?.id]);
+
+    // Handle adding a new person
+    const handleAddNewPerson = async () => {
+        if (!newPersonName.trim() || !activeWarehouse?.id) return;
+        try {
+            const res = await rejectionsAPI.addManagedPerson(newPersonName.trim(), activeWarehouse.id);
+            toast.success(res.data.message || 'Person added');
+            setNewPersonName('');
+            setAddingNewPerson(false);
+            await fetchManagedPersons();
+            // Auto-select the newly added person
+            if (res.data.person?.name) {
+                setSelectedPerson(res.data.person.name);
+            }
+        } catch (error: any) {
+            toast.error(error?.response?.data?.error || 'Failed to add person');
+        }
+    };
+
     // Load batch list when batch management tab is active
     useEffect(() => {
         if (activeTab === 2) {
@@ -272,6 +308,11 @@ export default function RejectionsPage() {
             return;
         }
 
+        if (!selectedPerson) {
+            toast.error('Please select Rejected By person');
+            return;
+        }
+
         // Reset errors
         setUploadError('');
         setFileValidationError('');
@@ -305,6 +346,7 @@ export default function RejectionsPage() {
             formData.append('file', selectedFile);
             formData.append('warehouse_id', String(activeWarehouse.id));
             formData.append('rejection_date', rejectionDate);
+            formData.append('rejected_by_person', selectedPerson);
 
             const response = await rejectionsAPI.uploadRejections(formData);
 
@@ -316,6 +358,7 @@ export default function RejectionsPage() {
 
             setUploadDialogOpen(false);
             setSelectedFile(null);
+            setSelectedPerson('');
             setUploadError('');
             setFileValidationError('');
             fetchRejections();
@@ -777,7 +820,7 @@ export default function RejectionsPage() {
                                 </Button>
                             )}
                             {canCreate && (
-                                <Button size="small" variant="contained" startIcon={<UploadIcon sx={{ fontSize: 16 }} />} onClick={() => setUploadDialogOpen(true)} sx={{ fontSize: '0.75rem' }}>
+                                <Button size="small" variant="contained" startIcon={<UploadIcon sx={{ fontSize: 16 }} />} onClick={() => { fetchManagedPersons(); setUploadDialogOpen(true); }} sx={{ fontSize: '0.75rem' }}>
                                     Upload
                                 </Button>
                             )}
@@ -1548,20 +1591,20 @@ export default function RejectionsPage() {
             </Box >
 
             {/* Upload Dialog */}
-            < Dialog open={uploadDialogOpen} onClose={() => { setUploadDialogOpen(false); setUploadError(''); setFileValidationError(''); }} maxWidth="sm" fullWidth >
+            < Dialog open={uploadDialogOpen} onClose={() => { setUploadDialogOpen(false); setUploadError(''); setFileValidationError(''); setAddingNewPerson(false); setNewPersonName(''); }} maxWidth="sm" fullWidth >
                 <DialogTitle sx={{ pb: 1 }}>
                     Upload Rejection Excel
-                    <IconButton onClick={() => { setUploadDialogOpen(false); setUploadError(''); setFileValidationError(''); }} sx={{ position: 'absolute', right: 8, top: 8 }}>
+                    <IconButton onClick={() => { setUploadDialogOpen(false); setUploadError(''); setFileValidationError(''); setAddingNewPerson(false); setNewPersonName(''); }} sx={{ position: 'absolute', right: 8, top: 8 }}>
                         <CloseIcon />
                     </IconButton>
                 </DialogTitle>
                 <DialogContent>
                     <Stack spacing={2} sx={{ mt: 1 }}>
                         <Alert severity="info" sx={{ py: 0.5 }}>
-                            Required columns: <strong>WSN</strong>, <strong>Rejection Type</strong>, <strong>Rejected By</strong>, Rejection Date (optional), Remarks (optional)
+                            Excel columns: <strong>WSN</strong>, <strong>Rejection Type</strong> (dropdown in template), Remarks (optional)
                             <br />
                             <Typography variant="caption" color="text.secondary">
-                                If Rejection Date column is in Excel, each row can have its own date. Otherwise, the date below is used for all rows.
+                                Rejected By person and Rejection Date are selected below (applied to all rows).
                             </Typography>
                         </Alert>
 
@@ -1585,17 +1628,65 @@ export default function RejectionsPage() {
                             </Alert>
                         )}
 
+                        {/* Rejected By Person Dropdown */}
+                        <FormControl fullWidth size="small" required>
+                            <InputLabel>Rejected By Person</InputLabel>
+                            <Select
+                                value={selectedPerson}
+                                label="Rejected By Person"
+                                onChange={(e) => {
+                                    if (e.target.value === '__ADD_NEW__') {
+                                        setAddingNewPerson(true);
+                                        return;
+                                    }
+                                    setSelectedPerson(e.target.value);
+                                }}
+                            >
+                                {managedPersons.map((p) => (
+                                    <MenuItem key={p.id} value={p.name}>{p.name}</MenuItem>
+                                ))}
+                                <MenuItem value="__ADD_NEW__" sx={{ color: 'primary.main', fontWeight: 600, borderTop: '1px solid', borderColor: 'divider', mt: 0.5 }}>
+                                    <PersonAddIcon sx={{ mr: 1, fontSize: 18 }} /> + Add New Person
+                                </MenuItem>
+                            </Select>
+                        </FormControl>
+
+                        {/* Add New Person Inline */}
+                        {addingNewPerson && (
+                            <Stack direction="row" spacing={1} alignItems="center">
+                                <TextField
+                                    size="small"
+                                    label="New Person Name"
+                                    value={newPersonName}
+                                    onChange={(e) => setNewPersonName(e.target.value)}
+                                    fullWidth
+                                    autoFocus
+                                    onKeyDown={(e) => { if (e.key === 'Enter') handleAddNewPerson(); if (e.key === 'Escape') { setAddingNewPerson(false); setNewPersonName(''); } }}
+                                    placeholder="e.g. Rahul Kumar"
+                                />
+                                <Button variant="contained" size="small" onClick={handleAddNewPerson} disabled={!newPersonName.trim()} sx={{ minWidth: 70 }}>
+                                    Add
+                                </Button>
+                                <IconButton size="small" onClick={() => { setAddingNewPerson(false); setNewPersonName(''); }}>
+                                    <CloseIcon fontSize="small" />
+                                </IconButton>
+                            </Stack>
+                        )}
+
+                        {/* Rejection Date */}
                         <TextField
                             type="date"
-                            label="Default Rejection Date (fallback if not in Excel)"
+                            label="Rejection Date"
                             value={rejectionDate}
                             onChange={(e) => setRejectionDate(e.target.value)}
                             InputLabelProps={{ shrink: true }}
                             fullWidth
                             size="small"
-                            helperText="Used for rows that don't have a Rejection Date in the Excel"
+                            required
+                            helperText="Applied to all rows in this upload"
                         />
 
+                        {/* File Upload Area */}
                         <Box
                             sx={{
                                 border: '2px dashed',
@@ -1635,11 +1726,11 @@ export default function RejectionsPage() {
                     </Stack>
                 </DialogContent>
                 <DialogActions sx={{ px: 3, pb: 2 }}>
-                    <Button onClick={() => { setUploadDialogOpen(false); setUploadError(''); setFileValidationError(''); }}>Cancel</Button>
+                    <Button onClick={() => { setUploadDialogOpen(false); setUploadError(''); setFileValidationError(''); setAddingNewPerson(false); setNewPersonName(''); }}>Cancel</Button>
                     <Button
                         variant="contained"
                         onClick={handleUpload}
-                        disabled={!selectedFile || uploading}
+                        disabled={!selectedFile || !selectedPerson || uploading}
                         startIcon={uploading ? <CircularProgress size={16} /> : <UploadIcon />}
                     >
                         {uploading ? 'Uploading...' : 'Upload'}
@@ -1817,7 +1908,7 @@ export default function RejectionsPage() {
                                     <Button
                                         variant="contained"
                                         startIcon={<UploadIcon />}
-                                        onClick={() => { setUploadDialogOpen(true); setMobileFiltersOpen(false); }}
+                                        onClick={() => { fetchManagedPersons(); setUploadDialogOpen(true); setMobileFiltersOpen(false); }}
                                         sx={{ height: 48, fontSize: '0.85rem' }}
                                     >
                                         Upload

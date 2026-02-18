@@ -975,6 +975,16 @@ export const rejectionsAPI = {
   // Delete upload history log
   deleteUploadLog: (id: number) =>
     api.delete(`/rejections/upload-history/${id}`),
+
+  // Managed persons
+  getManagedPersons: (warehouse_id?: number) =>
+    api.get('/rejections/managed-persons', { params: { warehouse_id } }),
+
+  addManagedPerson: (name: string, warehouse_id: number) =>
+    api.post('/rejections/managed-persons', { name, warehouse_id }),
+
+  deleteManagedPerson: (id: number) =>
+    api.delete(`/rejections/managed-persons/${id}`),
 };
 
 // ============================ LIVE VIEW API ============================
