@@ -13,7 +13,9 @@ import {
     CheckCircle as CheckIcon,
     Close as CloseIcon, Description as ExcelIcon,
     Tune as TuneIcon, FilterList as FilterListIcon,
-    PersonAdd as PersonAddIcon
+    PersonAdd as PersonAddIcon,
+    RestoreFromTrash as RestoreIcon,
+    DeleteForever as DeleteForeverIcon
 } from '@mui/icons-material';
 
 import AppLayout from '@/components/AppLayout';
@@ -122,6 +124,10 @@ export default function RejectionsPage() {
     // Batch Management state
     const [batchList, setBatchList] = useState<any[]>([]);
     const [batchLoading, setBatchLoading] = useState(false);
+
+    // Deleted batches (soft-deleted, recoverable)
+    const [deletedBatches, setDeletedBatches] = useState<any[]>([]);
+    const [deletedBatchesLoading, setDeletedBatchesLoading] = useState(false);
 
     // Upload History state
     const [uploadHistory, setUploadHistory] = useState<any[]>([]);
@@ -249,8 +255,51 @@ export default function RejectionsPage() {
     useEffect(() => {
         if (activeTab === 2) {
             fetchBatchList();
+            fetchDeletedBatches();
         }
     }, [activeTab, fetchBatchList]);
+
+    // Fetch deleted batches (soft-deleted, can be restored)
+    const fetchDeletedBatches = useCallback(async () => {
+        if (!canView) return;
+        setDeletedBatchesLoading(true);
+        try {
+            const res = await rejectionsAPI.getDeletedBatches(activeWarehouse?.id);
+            setDeletedBatches(res.data.batches || []);
+        } catch (error) {
+            console.log('⚠️ Failed to load deleted batches:', error);
+        } finally {
+            setDeletedBatchesLoading(false);
+        }
+    }, [canView, activeWarehouse?.id]);
+
+    // Handle restore batch
+    const handleRestoreBatch = async (batchId: string) => {
+        if (!confirm(`Restore batch "${batchId}"? All its rejections will be recovered.`)) return;
+        try {
+            const res = await rejectionsAPI.restoreBatch(batchId);
+            toast.success(res.data.message || 'Batch restored');
+            fetchBatchList();
+            fetchDeletedBatches();
+            fetchRejections();
+            fetchSummary();
+            fetchFilterOptions();
+        } catch (error: any) {
+            toast.error(error?.response?.data?.error || 'Failed to restore batch');
+        }
+    };
+
+    // Handle permanent delete
+    const handlePermanentDeleteBatch = async (batchId: string) => {
+        if (!confirm(`⚠️ PERMANENTLY delete batch "${batchId}"?\n\nThis cannot be undone! Data will be lost forever.`)) return;
+        try {
+            const res = await rejectionsAPI.permanentDeleteBatch(batchId);
+            toast.success(res.data.message || 'Batch permanently deleted');
+            fetchDeletedBatches();
+        } catch (error: any) {
+            toast.error(error?.response?.data?.error || 'Failed to permanently delete batch');
+        }
+    };
 
     // Fetch upload history
     const fetchUploadHistory = useCallback(async () => {
@@ -421,16 +470,17 @@ export default function RejectionsPage() {
         }
     };
 
-    // Handle delete batch
+    // Handle delete batch (soft delete — can be restored)
     const handleDeleteBatch = async (batchId: string) => {
-        if (!confirm(`Are you sure you want to delete batch "${batchId}" and all its rejections?`)) return;
+        if (!confirm(`Delete batch "${batchId}"?\n\nThis is a soft delete — you can restore it from the "Deleted Batches" section.`)) return;
 
         try {
             await rejectionsAPI.deleteBatch(batchId);
-            toast.success('Batch deleted successfully');
+            toast.success('Batch moved to trash (can be restored)');
             fetchRejections();
             fetchSummary();
             fetchBatchList();
+            fetchDeletedBatches();
             fetchFilterOptions();
         } catch (error: any) {
             toast.error(error.response?.data?.error || 'Failed to delete batch');
@@ -1458,6 +1508,71 @@ export default function RejectionsPage() {
                                     emptyMessage="No rejection batches found"
                                     emptySubMessage="Batches will appear here after uploading rejections"
                                 />
+                                {/* Deleted Batches Section (Trash / Recovery) */}
+                                {deletedBatches.length > 0 && (
+                                    <Box sx={{ p: 2, borderTop: '1px solid', borderColor: 'divider' }}>
+                                        <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.5 }}>
+                                            <Typography variant="subtitle2" fontWeight={700} color="error.main">
+                                                🗑️ Deleted Batches ({deletedBatches.length})
+                                            </Typography>
+                                            <Button
+                                                size="small"
+                                                startIcon={deletedBatchesLoading ? <CircularProgress size={14} /> : <RefreshIcon />}
+                                                onClick={fetchDeletedBatches}
+                                                disabled={deletedBatchesLoading}
+                                            >
+                                                Refresh
+                                            </Button>
+                                        </Stack>
+                                        <Alert severity="warning" sx={{ mb: 1.5, py: 0.5 }}>
+                                            <Typography variant="caption">
+                                                Deleted batches can be <strong>restored</strong>. Permanent delete will remove data forever.
+                                            </Typography>
+                                        </Alert>
+                                        <Stack spacing={1}>
+                                            {deletedBatches.map((batch: any) => (
+                                                <Paper
+                                                    key={batch.batch_id}
+                                                    variant="outlined"
+                                                    sx={{ p: 1.5, bgcolor: 'action.hover', opacity: 0.85 }}
+                                                >
+                                                    <Stack direction="row" justifyContent="space-between" alignItems="center">
+                                                        <Box>
+                                                            <Typography variant="body2" fontWeight={600}>
+                                                                {batch.batch_id}
+                                                            </Typography>
+                                                            <Typography variant="caption" color="text.secondary">
+                                                                {batch.count} items • Deleted by {batch.deleted_by_name || 'Unknown'} • {batch.deleted_at ? new Date(batch.deleted_at).toLocaleDateString() : ''}
+                                                            </Typography>
+                                                        </Box>
+                                                        <Stack direction="row" spacing={0.5}>
+                                                            <Tooltip title="Restore Batch">
+                                                                <IconButton
+                                                                    size="small"
+                                                                    color="success"
+                                                                    onClick={() => handleRestoreBatch(batch.batch_id)}
+                                                                >
+                                                                    <RestoreIcon fontSize="small" />
+                                                                </IconButton>
+                                                            </Tooltip>
+                                                            {canDelete && (
+                                                                <Tooltip title="Permanently Delete">
+                                                                    <IconButton
+                                                                        size="small"
+                                                                        color="error"
+                                                                        onClick={() => handlePermanentDeleteBatch(batch.batch_id)}
+                                                                    >
+                                                                        <DeleteForeverIcon fontSize="small" />
+                                                                    </IconButton>
+                                                                </Tooltip>
+                                                            )}
+                                                        </Stack>
+                                                    </Stack>
+                                                </Paper>
+                                            ))}
+                                        </Stack>
+                                    </Box>
+                                )}
                             </Paper>
                         )
                     }

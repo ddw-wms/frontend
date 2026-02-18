@@ -985,6 +985,16 @@ export const rejectionsAPI = {
 
   deleteManagedPerson: (id: number) =>
     api.delete(`/rejections/managed-persons/${id}`),
+
+  // Soft delete recovery
+  getDeletedBatches: (warehouse_id?: number) =>
+    api.get('/rejections/deleted-batches', { params: { warehouse_id } }),
+
+  restoreBatch: (batchId: string) =>
+    api.put(`/rejections/batch/${batchId}/restore`),
+
+  permanentDeleteBatch: (batchId: string) =>
+    api.delete(`/rejections/batch/${batchId}/permanent`),
 };
 
 // ============================ LIVE VIEW API ============================
