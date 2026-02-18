@@ -93,6 +93,8 @@ export default function RejectionsPage() {
     const [page, setPage] = useState(1);
     const [limit, setLimit] = useState(100);
     const [activeTab, setActiveTab] = useState(0);
+    const [uploadError, setUploadError] = useState<string>('');
+    const [fileValidationError, setFileValidationError] = useState<string>('');
 
     // Filters
     const [search, setSearch] = useState('');
@@ -119,6 +121,12 @@ export default function RejectionsPage() {
     // Batch Management state
     const [batchList, setBatchList] = useState<any[]>([]);
     const [batchLoading, setBatchLoading] = useState(false);
+
+    // Upload History state
+    const [uploadHistory, setUploadHistory] = useState<any[]>([]);
+    const [uploadHistoryTotal, setUploadHistoryTotal] = useState(0);
+    const [uploadHistoryPage, setUploadHistoryPage] = useState(1);
+    const [uploadHistoryLoading, setUploadHistoryLoading] = useState(false);
 
     // Summary stats
     const [stats, setStats] = useState({ total: 0, cn_pending: 0, cn_received: 0, total_yield: 0 });
@@ -208,6 +216,44 @@ export default function RejectionsPage() {
         }
     }, [activeTab, fetchBatchList]);
 
+    // Fetch upload history
+    const fetchUploadHistory = useCallback(async () => {
+        if (!canView) return;
+        setUploadHistoryLoading(true);
+        try {
+            const response = await rejectionsAPI.getUploadHistory({
+                page: uploadHistoryPage,
+                limit: 20,
+                warehouse_id: activeWarehouse?.id,
+            });
+            setUploadHistory(response.data.data || []);
+            setUploadHistoryTotal(response.data.total || 0);
+        } catch (error) {
+            console.log('⚠️ Upload history load error:', error);
+        } finally {
+            setUploadHistoryLoading(false);
+        }
+    }, [canView, uploadHistoryPage, activeWarehouse?.id]);
+
+    // Load upload history when tab is active
+    useEffect(() => {
+        if (activeTab === 3) {
+            fetchUploadHistory();
+        }
+    }, [activeTab, fetchUploadHistory]);
+
+    // Handle delete upload log
+    const handleDeleteUploadLog = async (id: number, filename: string) => {
+        if (!confirm(`Delete upload log for "${filename}"?\n\nThis only removes the log entry, not the uploaded data.`)) return;
+        try {
+            await rejectionsAPI.deleteUploadLog(id);
+            toast.success('Upload log deleted');
+            fetchUploadHistory();
+        } catch (error: any) {
+            toast.error(error?.response?.data?.error || 'Failed to delete upload log');
+        }
+    };
+
     useEffect(() => {
         fetchRejections();
         fetchSummary();
@@ -223,6 +269,33 @@ export default function RejectionsPage() {
 
         if (!activeWarehouse?.id) {
             toast.error('Please select a warehouse');
+            return;
+        }
+
+        // Reset errors
+        setUploadError('');
+        setFileValidationError('');
+
+        // Client-side validation
+        const validExtensions = ['.xlsx', '.xls'];
+        const fileName = selectedFile.name.toLowerCase();
+        const fileExt = fileName.substring(fileName.lastIndexOf('.'));
+
+        if (!validExtensions.includes(fileExt)) {
+            setFileValidationError(`Invalid file type "${fileExt}". Only Excel (.xlsx, .xls) files are allowed.`);
+            return;
+        }
+
+        // Check file size (10MB limit)
+        const maxSize = 10 * 1024 * 1024;
+        if (selectedFile.size > maxSize) {
+            setFileValidationError('File size exceeds 10MB limit. Please upload a smaller file.');
+            return;
+        }
+
+        // Check if file is empty
+        if (selectedFile.size === 0) {
+            setFileValidationError('The selected file is empty. Please choose a valid file.');
             return;
         }
 
@@ -243,12 +316,16 @@ export default function RejectionsPage() {
 
             setUploadDialogOpen(false);
             setSelectedFile(null);
+            setUploadError('');
+            setFileValidationError('');
             fetchRejections();
             fetchSummary();
             fetchFilterOptions();
             fetchBatchList();
         } catch (error: any) {
-            toast.error(error.response?.data?.error || 'Upload failed');
+            const errorMsg = error.response?.data?.error || 'Upload failed';
+            setUploadError(errorMsg);
+            toast.error(errorMsg);
         } finally {
             setUploading(false);
         }
@@ -722,11 +799,34 @@ export default function RejectionsPage() {
                         <Tab label={`Rejections (${totalCount})`} />
                         <Tab label={`CN Summary (${summary.length})`} />
                         <Tab label={`Batches (${batchList.length})`} />
+                        <Tab label={`Upload History (${uploadHistoryTotal})`} />
                     </Tabs>
 
                     {/* Tab Panels */}
                     {activeTab === 0 && (
                         <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
+                            {/* Active Batch Filter Indicator */}
+                            {batchFilter && (
+                                <Alert
+                                    severity="info"
+                                    sx={{ mb: 1, py: 0, '& .MuiAlert-message': { py: 0.5 } }}
+                                    action={
+                                        <Button
+                                            size="small"
+                                            color="inherit"
+                                            onClick={() => { setBatchFilter(''); setPage(1); }}
+                                            sx={{ fontSize: '0.75rem', textTransform: 'none' }}
+                                        >
+                                            Clear Filter
+                                        </Button>
+                                    }
+                                >
+                                    <Typography variant="body2" sx={{ fontSize: '0.8rem' }}>
+                                        Filtered by batch: <strong>{batchFilter}</strong>
+                                    </Typography>
+                                </Alert>
+                            )}
+
                             {/* Search & Filter Row */}
                             <Stack
                                 direction="row"
@@ -1303,8 +1403,14 @@ export default function RejectionsPage() {
                                     onRefresh={fetchBatchList}
                                     onDelete={handleDeleteBatch}
                                     onRename={handleRenameBatch}
+                                    onView={(batchId) => {
+                                        setBatchFilter(batchId);
+                                        setPage(1);
+                                        setActiveTab(0);
+                                    }}
                                     canDelete={canDelete}
                                     canRename={canCreate}
+                                    canView={true}
                                     title="Rejection Batches"
                                     emptyMessage="No rejection batches found"
                                     emptySubMessage="Batches will appear here after uploading rejections"
@@ -1312,31 +1418,182 @@ export default function RejectionsPage() {
                             </Paper>
                         )
                     }
+
+                    {/* Upload History Tab */}
+                    {
+                        activeTab === 3 && (
+                            <Paper elevation={2} sx={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 300, overflow: 'auto' }}>
+                                <Box sx={{ p: 2 }}>
+                                    {/* Header */}
+                                    <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+                                        <Typography variant="subtitle1" fontWeight={700}>
+                                            📜 Upload History
+                                        </Typography>
+                                        <Button
+                                            size="small"
+                                            startIcon={uploadHistoryLoading ? <CircularProgress size={14} /> : <RefreshIcon />}
+                                            onClick={fetchUploadHistory}
+                                            disabled={uploadHistoryLoading}
+                                        >
+                                            Refresh
+                                        </Button>
+                                    </Stack>
+
+                                    {/* Upload History Table */}
+                                    {uploadHistoryLoading && uploadHistory.length === 0 ? (
+                                        <Box sx={{ textAlign: 'center', py: 4 }}>
+                                            <CircularProgress size={32} />
+                                            <Typography variant="body2" sx={{ mt: 1, color: 'text.secondary' }}>Loading upload history...</Typography>
+                                        </Box>
+                                    ) : uploadHistory.length === 0 ? (
+                                        <Box sx={{ textAlign: 'center', py: 4 }}>
+                                            <Typography sx={{ fontSize: '3rem', opacity: 0.3 }}>📜</Typography>
+                                            <Typography variant="h6" sx={{ fontWeight: 600, color: '#6b7280', mt: 1 }}>No Upload History</Typography>
+                                            <Typography variant="body2" sx={{ color: '#9ca3af' }}>Upload history will appear here after rejection uploads</Typography>
+                                        </Box>
+                                    ) : (
+                                        <>
+                                            <Box sx={{ overflowX: 'auto' }}>
+                                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                                                    <thead>
+                                                        <tr style={{ borderBottom: `2px solid ${isDarkMode ? 'rgba(255,255,255,0.1)' : '#e0e0e0'}` }}>
+                                                            <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 700 }}>File</th>
+                                                            <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 700 }}>Batch</th>
+                                                            <th style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 700 }}>Status</th>
+                                                            <th style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 700 }}>Total</th>
+                                                            <th style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 700 }}>Success</th>
+                                                            <th style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 700 }}>Skipped</th>
+                                                            <th style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 700 }}>Errors</th>
+                                                            <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 700 }}>Uploaded By</th>
+                                                            <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 700 }}>Date</th>
+                                                            <th style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 700 }}>Action</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {uploadHistory.map((log: any) => (
+                                                            <tr key={log.id} style={{ borderBottom: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.06)' : '#f0f0f0'}` }}>
+                                                                <td style={{ padding: '8px 12px', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                                    <Tooltip title={log.original_filename || '-'}>
+                                                                        <span>{log.original_filename || '-'}</span>
+                                                                    </Tooltip>
+                                                                    {log.file_size_bytes > 0 && (
+                                                                        <Typography variant="caption" display="block" sx={{ color: 'text.secondary', fontSize: '0.65rem' }}>
+                                                                            {(log.file_size_bytes / 1024).toFixed(1)} KB
+                                                                        </Typography>
+                                                                    )}
+                                                                </td>
+                                                                <td style={{ padding: '8px 12px' }}>
+                                                                    <Typography variant="body2" sx={{ color: '#1e40af', fontWeight: 500, fontSize: '0.78rem' }}>
+                                                                        {log.batch_id}
+                                                                    </Typography>
+                                                                </td>
+                                                                <td style={{ padding: '8px 12px', textAlign: 'center' }}>
+                                                                    <Chip
+                                                                        label={log.status === 'completed' ? 'Success' : 'Failed'}
+                                                                        size="small"
+                                                                        sx={{
+                                                                            height: 22,
+                                                                            fontSize: '0.7rem',
+                                                                            fontWeight: 600,
+                                                                            bgcolor: log.status === 'completed' ? '#22c55e' : '#ef4444',
+                                                                            color: '#fff'
+                                                                        }}
+                                                                    />
+                                                                </td>
+                                                                <td style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 600 }}>{log.total_rows}</td>
+                                                                <td style={{ padding: '8px 12px', textAlign: 'center', color: '#22c55e', fontWeight: 600 }}>{log.success_count}</td>
+                                                                <td style={{ padding: '8px 12px', textAlign: 'center', color: '#f59e0b', fontWeight: 600 }}>{log.skipped_count}</td>
+                                                                <td style={{ padding: '8px 12px', textAlign: 'center', color: '#ef4444', fontWeight: 600 }}>{log.error_count}</td>
+                                                                <td style={{ padding: '8px 12px' }}>{log.uploaded_by_name || '-'}</td>
+                                                                <td style={{ padding: '8px 12px', fontSize: '0.75rem' }}>
+                                                                    {log.uploaded_at ? new Date(log.uploaded_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-'}
+                                                                </td>
+                                                                <td style={{ padding: '8px 12px', textAlign: 'center' }}>
+                                                                    {canDelete && (
+                                                                        <Tooltip title="Delete log">
+                                                                            <IconButton
+                                                                                size="small"
+                                                                                onClick={() => handleDeleteUploadLog(log.id, log.original_filename || 'unknown')}
+                                                                                sx={{ width: 28, height: 28, color: '#ef4444' }}
+                                                                            >
+                                                                                <DeleteIcon sx={{ fontSize: 16 }} />
+                                                                            </IconButton>
+                                                                        </Tooltip>
+                                                                    )}
+                                                                </td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            </Box>
+
+                                            {/* Pagination */}
+                                            {uploadHistoryTotal > 20 && (
+                                                <Stack direction="row" justifyContent="center" sx={{ mt: 2 }}>
+                                                    <Pagination
+                                                        count={Math.ceil(uploadHistoryTotal / 20)}
+                                                        page={uploadHistoryPage}
+                                                        onChange={(_, p) => setUploadHistoryPage(p)}
+                                                        size="small"
+                                                    />
+                                                </Stack>
+                                            )}
+                                        </>
+                                    )}
+                                </Box>
+                            </Paper>
+                        )
+                    }
                 </Box >
             </Box >
 
             {/* Upload Dialog */}
-            < Dialog open={uploadDialogOpen} onClose={() => setUploadDialogOpen(false)} maxWidth="sm" fullWidth >
+            < Dialog open={uploadDialogOpen} onClose={() => { setUploadDialogOpen(false); setUploadError(''); setFileValidationError(''); }} maxWidth="sm" fullWidth >
                 <DialogTitle sx={{ pb: 1 }}>
                     Upload Rejection Excel
-                    <IconButton onClick={() => setUploadDialogOpen(false)} sx={{ position: 'absolute', right: 8, top: 8 }}>
+                    <IconButton onClick={() => { setUploadDialogOpen(false); setUploadError(''); setFileValidationError(''); }} sx={{ position: 'absolute', right: 8, top: 8 }}>
                         <CloseIcon />
                     </IconButton>
                 </DialogTitle>
                 <DialogContent>
                     <Stack spacing={2} sx={{ mt: 1 }}>
                         <Alert severity="info" sx={{ py: 0.5 }}>
-                            Required columns: <strong>WSN</strong>, <strong>Rejection Type</strong>, <strong>Rejected By</strong>, Remarks (optional)
+                            Required columns: <strong>WSN</strong>, <strong>Rejection Type</strong>, <strong>Rejected By</strong>, Rejection Date (optional), Remarks (optional)
+                            <br />
+                            <Typography variant="caption" color="text.secondary">
+                                If Rejection Date column is in Excel, each row can have its own date. Otherwise, the date below is used for all rows.
+                            </Typography>
                         </Alert>
+
+                        {/* Upload Error Display */}
+                        {uploadError && (
+                            <Alert severity="error" onClose={() => setUploadError('')} sx={{ py: 0.5 }}>
+                                <Typography variant="body2" fontWeight={600}>Upload Failed</Typography>
+                                <Typography variant="caption">{uploadError}</Typography>
+                                <Box sx={{ mt: 1 }}>
+                                    <Button size="small" variant="outlined" color="error" onClick={handleDownloadTemplate} sx={{ fontSize: '0.7rem' }}>
+                                        Download Correct Template
+                                    </Button>
+                                </Box>
+                            </Alert>
+                        )}
+
+                        {/* File Validation Error */}
+                        {fileValidationError && (
+                            <Alert severity="warning" onClose={() => setFileValidationError('')} sx={{ py: 0.5 }}>
+                                {fileValidationError}
+                            </Alert>
+                        )}
 
                         <TextField
                             type="date"
-                            label="Rejection Date"
+                            label="Default Rejection Date (fallback if not in Excel)"
                             value={rejectionDate}
                             onChange={(e) => setRejectionDate(e.target.value)}
                             InputLabelProps={{ shrink: true }}
                             fullWidth
                             size="small"
+                            helperText="Used for rows that don't have a Rejection Date in the Excel"
                         />
 
                         <Box
@@ -1378,7 +1635,7 @@ export default function RejectionsPage() {
                     </Stack>
                 </DialogContent>
                 <DialogActions sx={{ px: 3, pb: 2 }}>
-                    <Button onClick={() => setUploadDialogOpen(false)}>Cancel</Button>
+                    <Button onClick={() => { setUploadDialogOpen(false); setUploadError(''); setFileValidationError(''); }}>Cancel</Button>
                     <Button
                         variant="contained"
                         onClick={handleUpload}

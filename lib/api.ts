@@ -967,6 +967,14 @@ export const rejectionsAPI = {
   // Rename batch
   renameBatch: (batchId: string, newBatchId: string) =>
     api.put(`/rejections/batch/${batchId}/rename`, { newBatchId }),
+
+  // Upload history
+  getUploadHistory: (params?: { page?: number; limit?: number; warehouse_id?: number; status?: string; search?: string }) =>
+    api.get('/rejections/upload-history', { params }),
+
+  // Delete upload history log
+  deleteUploadLog: (id: number) =>
+    api.delete(`/rejections/upload-history/${id}`),
 };
 
 // ============================ LIVE VIEW API ============================
