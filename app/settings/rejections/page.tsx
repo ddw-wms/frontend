@@ -157,6 +157,9 @@ export default function RejectionsPage() {
     const [uploadHistoryPage, setUploadHistoryPage] = useState(1);
     const [uploadHistoryLoading, setUploadHistoryLoading] = useState(false);
 
+    // Upload log detail dialog (skipped/error details)
+    const [logDetailDialog, setLogDetailDialog] = useState<{ open: boolean; log: any; tab: 'skipped' | 'errors' }>({ open: false, log: null, tab: 'skipped' });
+
     // Managed persons state (for upload dialog dropdown)
     const [managedPersons, setManagedPersons] = useState<{ id: number; name: string }[]>([]);
     const [selectedPerson, setSelectedPerson] = useState<string>('');
@@ -1679,8 +1682,30 @@ export default function RejectionsPage() {
                                                                 </td>
                                                                 <td style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 600 }}>{log.total_rows}</td>
                                                                 <td style={{ padding: '8px 12px', textAlign: 'center', color: '#22c55e', fontWeight: 600 }}>{log.success_count}</td>
-                                                                <td style={{ padding: '8px 12px', textAlign: 'center', color: '#f59e0b', fontWeight: 600 }}>{log.skipped_count}</td>
-                                                                <td style={{ padding: '8px 12px', textAlign: 'center', color: '#ef4444', fontWeight: 600 }}>{log.error_count}</td>
+                                                                <td style={{ padding: '8px 12px', textAlign: 'center', color: '#f59e0b', fontWeight: 600 }}>
+                                                                    {log.skipped_count > 0 ? (
+                                                                        <Tooltip title="Click to view skipped WSN details">
+                                                                            <span
+                                                                                style={{ cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted' }}
+                                                                                onClick={() => setLogDetailDialog({ open: true, log, tab: 'skipped' })}
+                                                                            >
+                                                                                {log.skipped_count}
+                                                                            </span>
+                                                                        </Tooltip>
+                                                                    ) : log.skipped_count}
+                                                                </td>
+                                                                <td style={{ padding: '8px 12px', textAlign: 'center', color: '#ef4444', fontWeight: 600 }}>
+                                                                    {log.error_count > 0 ? (
+                                                                        <Tooltip title="Click to view error details">
+                                                                            <span
+                                                                                style={{ cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted' }}
+                                                                                onClick={() => setLogDetailDialog({ open: true, log, tab: 'errors' })}
+                                                                            >
+                                                                                {log.error_count}
+                                                                            </span>
+                                                                        </Tooltip>
+                                                                    ) : log.error_count}
+                                                                </td>
                                                                 <td style={{ padding: '8px 12px' }}>{log.uploaded_by_name || '-'}</td>
                                                                 <td style={{ padding: '8px 12px', fontSize: '0.75rem' }}>
                                                                     {formatDateTimeDMY(log.uploaded_at)}
@@ -2063,6 +2088,123 @@ export default function RejectionsPage() {
                         </Button>
                     </Stack>
                 </DialogContent>
+            </Dialog>
+
+            {/* Upload Log Detail Dialog (Skipped / Error details) */}
+            <Dialog
+                open={logDetailDialog.open}
+                onClose={() => setLogDetailDialog({ open: false, log: null, tab: 'skipped' })}
+                maxWidth="sm"
+                fullWidth
+            >
+                <DialogTitle sx={{ pb: 1 }}>
+                    <Stack direction="row" alignItems="center" spacing={1}>
+                        <Typography variant="h6" fontWeight={700}>
+                            {logDetailDialog.tab === 'skipped' ? '⚠️ Skipped WSNs' : '❌ Error Details'}
+                        </Typography>
+                    </Stack>
+                    <Typography variant="caption" color="text.secondary">
+                        File: {logDetailDialog.log?.original_filename || '-'} &bull; Batch: {logDetailDialog.log?.batch_id || '-'}
+                    </Typography>
+                    <IconButton
+                        onClick={() => setLogDetailDialog({ open: false, log: null, tab: 'skipped' })}
+                        sx={{ position: 'absolute', right: 8, top: 8 }}
+                    >
+                        <CloseIcon />
+                    </IconButton>
+                </DialogTitle>
+                <DialogContent dividers>
+                    {/* Tab toggle between skipped and errors */}
+                    {logDetailDialog.log && (logDetailDialog.log.skipped_count > 0 || logDetailDialog.log.error_count > 0) && (
+                        <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
+                            <Chip
+                                label={`Skipped (${logDetailDialog.log.skipped_count})`}
+                                variant={logDetailDialog.tab === 'skipped' ? 'filled' : 'outlined'}
+                                color="warning"
+                                size="small"
+                                onClick={() => setLogDetailDialog(prev => ({ ...prev, tab: 'skipped' }))}
+                                sx={{ cursor: 'pointer', fontWeight: 600 }}
+                            />
+                            <Chip
+                                label={`Errors (${logDetailDialog.log.error_count})`}
+                                variant={logDetailDialog.tab === 'errors' ? 'filled' : 'outlined'}
+                                color="error"
+                                size="small"
+                                onClick={() => setLogDetailDialog(prev => ({ ...prev, tab: 'errors' }))}
+                                sx={{ cursor: 'pointer', fontWeight: 600 }}
+                            />
+                        </Stack>
+                    )}
+
+                    {logDetailDialog.tab === 'skipped' ? (
+                        (() => {
+                            const skippedData: { wsn: string; reason: string }[] = logDetailDialog.log?.skipped_details || [];
+                            if (skippedData.length === 0) {
+                                return (
+                                    <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>
+                                        No skipped details available for this upload.
+                                    </Typography>
+                                );
+                            }
+                            return (
+                                <Box sx={{ maxHeight: 400, overflow: 'auto' }}>
+                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                                        <thead>
+                                            <tr style={{ borderBottom: '2px solid #e0e0e0' }}>
+                                                <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 700, width: 50 }}>#</th>
+                                                <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 700 }}>WSN</th>
+                                                <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 700 }}>Reason</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {skippedData.map((item, idx) => (
+                                                <tr key={idx} style={{ borderBottom: '1px solid #f0f0f0' }}>
+                                                    <td style={{ padding: '6px 12px', color: '#9ca3af' }}>{idx + 1}</td>
+                                                    <td style={{ padding: '6px 12px', fontWeight: 600, fontFamily: 'monospace' }}>{item.wsn}</td>
+                                                    <td style={{ padding: '6px 12px', color: '#f59e0b' }}>{item.reason}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </Box>
+                            );
+                        })()
+                    ) : (
+                        (() => {
+                            const errorData: string[] = logDetailDialog.log?.error_details || [];
+                            if (errorData.length === 0) {
+                                return (
+                                    <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>
+                                        No error details available for this upload.
+                                    </Typography>
+                                );
+                            }
+                            return (
+                                <Box sx={{ maxHeight: 400, overflow: 'auto' }}>
+                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                                        <thead>
+                                            <tr style={{ borderBottom: '2px solid #e0e0e0' }}>
+                                                <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 700, width: 50 }}>#</th>
+                                                <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 700 }}>Error Message</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {errorData.map((msg, idx) => (
+                                                <tr key={idx} style={{ borderBottom: '1px solid #f0f0f0' }}>
+                                                    <td style={{ padding: '6px 12px', color: '#9ca3af' }}>{idx + 1}</td>
+                                                    <td style={{ padding: '6px 12px', color: '#ef4444' }}>{msg}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </Box>
+                            );
+                        })()
+                    )}
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setLogDetailDialog({ open: false, log: null, tab: 'skipped' })}>Close</Button>
+                </DialogActions>
             </Dialog>
         </AppLayout>
     );
