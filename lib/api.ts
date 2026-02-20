@@ -468,6 +468,14 @@ export const inboundAPI = {
   getReceivingWSNs: (warehouse_id?: number) =>
     api.get('inbound/receiving-wsns', { params: { warehouse_id } }),
 
+  // Multi-entry draft persistence (save/load/clear draft from database)
+  saveDraft: (draft_data: any[], warehouse_id: number, vehicle_no?: string, common_date?: string) =>
+    api.put('inbound/draft', { draft_data, warehouse_id, vehicle_no, common_date }),
+  loadDraft: (warehouse_id: number) =>
+    api.get('inbound/draft', { params: { warehouse_id } }),
+  clearDraft: (warehouse_id: number) =>
+    api.delete('inbound/draft', { params: { warehouse_id } }),
+
   getBatches: (warehouseId?: string) => {
     const params = warehouseId ? `?warehouse_id=${warehouseId}` : '';
     return api.get(`inbound/batches${params}`);

@@ -366,6 +366,10 @@ export default function InboundPage() {
   // WSN fetch tracking to prevent race conditions
   const wsnFetchMapRef = useRef<Map<number, string>>(new Map());
 
+  // ⚡ BULK PASTE: Flag to skip per-cell heavy processing during clipboard paste
+  const isPastingRef = useRef(false);
+  const pastedWSNCellsRef = useRef<{ rowIndex: number; wsn: string }[]>([]);
+
   // ---- Draft / Autosave (IndexedDB via localForage) ----
   const [draftSavedAt, setDraftSavedAt] = useState<number | null>(null);
   const [draftSaving, setDraftSaving] = useState(false);
@@ -895,29 +899,43 @@ export default function InboundPage() {
   }, []);
 
   // ------------------ Draft helpers & autosave ------------------
+  const draftLoadedRef = useRef(false); // Prevent autosave from overwriting draft during initial mount
+
   const getDraftKey = () => {
     if (!activeWarehouse?.id || !user?.id) return null;
     return `inboundMultiDraft_${activeWarehouse.id}_${user.id}`;
   };
 
   const saveDraftImmediate = async (rowsToSave = multiRows) => {
-    const key = getDraftKey();
-    if (!key) return;
+    if (!activeWarehouse?.id) return;
+    // Don't save if draft hasn't been loaded yet (prevents empty rows overwriting real draft)
+    if (!draftLoadedRef.current) return;
     setDraftSaving(true);
     try {
-      await localforage.setItem(key, { rows: rowsToSave, savedAt: Date.now(), version: 1 });
+      // ⚡ PRIMARY: Save to database (server-side, survives logout/browser crash)
+      await inboundAPI.saveDraft(rowsToSave, activeWarehouse.id, commonVehicle, commonDate);
       setDraftSavedAt(Date.now());
       setDraftExists(true);
     } catch (err) {
-      console.error('Failed to save draft', err);
+      console.error('Failed to save draft to DB, falling back to local storage', err);
+      // ⚡ FALLBACK: Save to IndexedDB if API fails (offline/network error)
+      try {
+        const key = getDraftKey();
+        if (key) {
+          await localforage.setItem(key, { rows: rowsToSave, savedAt: Date.now(), version: 1 });
+          setDraftSavedAt(Date.now());
+          setDraftExists(true);
+        }
+      } catch (localErr) {
+        console.error('Failed to save draft locally too', localErr);
+      }
     } finally {
       setDraftSaving(false);
     }
   };
 
   const clearDraft = async () => {
-    const key = getDraftKey();
-    if (!key) return;
+    if (!activeWarehouse?.id) return;
     try {
       // 1. Cancel any pending sync timeout FIRST to prevent stale data sync
       if (receivingSyncTimeoutRef.current) {
@@ -931,8 +949,16 @@ export default function InboundPage() {
       // 3. Reset the sync tracking ref so next sync starts fresh
       lastSyncedWSNsRef.current = '';
 
-      // 4. Clear draft from IndexedDB
-      await localforage.removeItem(key);
+      // 4. Clear draft from DB (primary) + IndexedDB (fallback cleanup)
+      try {
+        await inboundAPI.clearDraft(activeWarehouse.id);
+      } catch (e) {
+        console.error('Failed to clear draft from DB', e);
+      }
+      const key = getDraftKey();
+      if (key) {
+        try { await localforage.removeItem(key); } catch (e) { /* ignore */ }
+      }
       setDraftSavedAt(null);
       setDraftExists(false);
       // Also clear vehicle number
@@ -1008,31 +1034,71 @@ export default function InboundPage() {
   useEffect(() => {
     let mounted = true;
     const load = async () => {
-      const key = getDraftKey();
-      if (!key) return;
+      if (!activeWarehouse?.id || !user?.id) {
+        draftLoadedRef.current = true; // No user/warehouse → allow autosave for future
+        return;
+      }
+
+      let draftRows: any[] | null = null;
+      let draftSavedTime: number | null = null;
+      let draftVehicle = '';
+
+      // ⚡ PRIMARY: Try loading from database first
       try {
-        const draft: any = await localforage.getItem(key);
-        if (draft && draft.rows && draft.rows.length > 0 && mounted) {
-          // Apply defaults for missing fields and ensure _rowId exists
-          const restored = draft.rows.map((r: any, index: number) => {
-            // ⚡ PERFORMANCE: Ensure each row has a unique _rowId
-            const rowId = r._rowId || `restored_${index}_${Date.now()}`;
-            rowIdCounterRef.current = Math.max(rowIdCounterRef.current, index + 1);
-            return {
-              _rowId: rowId,
-              inbound_date: r.inbound_date || commonDate,
-              vehicle_no: r.vehicle_no || commonVehicle,
-              ...r,
-            };
-          });
-          setMultiRows(restored);
-          setDraftSavedAt(draft.savedAt || Date.now());
-          setDraftExists(true);
-          //toast.success('✓ Draft restored');
+        const resp = await inboundAPI.loadDraft(activeWarehouse.id);
+        const data = resp.data;
+        if (data?.exists && data.draft?.rows && data.draft.rows.length > 0) {
+          draftRows = data.draft.rows;
+          draftSavedTime = data.draft.saved_at ? new Date(data.draft.saved_at).getTime() : Date.now();
+          draftVehicle = data.draft.vehicle_no || '';
         }
       } catch (err) {
-        console.error('Failed to load draft', err);
+        console.error('Failed to load draft from DB, trying local fallback', err);
       }
+
+      // ⚡ FALLBACK: If DB had nothing, try IndexedDB (offline backup)
+      if (!draftRows) {
+        try {
+          const key = getDraftKey();
+          if (key) {
+            const localDraft: any = await localforage.getItem(key);
+            if (localDraft && localDraft.rows && localDraft.rows.length > 0) {
+              draftRows = localDraft.rows;
+              draftSavedTime = localDraft.savedAt || Date.now();
+              // If we found local draft but DB was empty, sync it to DB
+              try {
+                await inboundAPI.saveDraft(localDraft.rows, activeWarehouse.id, '', '');
+                console.log('📤 Synced local draft to database');
+              } catch (e) { /* ignore sync failure */ }
+            }
+          }
+        } catch (err) {
+          console.error('Failed to load draft from local storage', err);
+        }
+      }
+
+      // Apply draft if found
+      if (draftRows && draftRows.length > 0 && mounted) {
+        const restored = draftRows.map((r: any, index: number) => {
+          const rowId = r._rowId || `restored_${index}_${Date.now()}`;
+          rowIdCounterRef.current = Math.max(rowIdCounterRef.current, index + 1);
+          return {
+            _rowId: rowId,
+            inbound_date: r.inbound_date || commonDate,
+            vehicle_no: r.vehicle_no || commonVehicle,
+            ...r,
+          };
+        });
+        setMultiRows(restored);
+        setDraftSavedAt(draftSavedTime || Date.now());
+        setDraftExists(true);
+        if (draftVehicle) {
+          setCommonVehicle(draftVehicle);
+        }
+      }
+
+      // ⚡ CRITICAL: Mark draft as loaded AFTER setting rows — allows autosave to start
+      draftLoadedRef.current = true;
     };
     load();
     return () => { mounted = false; };
@@ -1088,11 +1154,21 @@ export default function InboundPage() {
     return () => window.removeEventListener('unload', onUnload);
   }, [activeWarehouse?.id]);
 
-  // Warn on unload if there are unsaved changes
+  // Warn on unload if there are unsaved changes + emergency save to IndexedDB
   useEffect(() => {
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
       const hasData = multiRows.some(r => r.wsn?.trim());
       if (!hasData) return;
+
+      // ⚡ EMERGENCY SAVE: Save to IndexedDB synchronously on page unload
+      // (API calls can't complete during unload, but IndexedDB can)
+      const key = getDraftKey();
+      if (key) {
+        try {
+          localforage.setItem(key, { rows: multiRows, savedAt: Date.now(), version: 1 });
+        } catch (e) { /* best effort */ }
+      }
+
       if (!draftSavedAt || (lastChangeAtRef.current && draftSavedAt < lastChangeAtRef.current)) {
         e.preventDefault();
         e.returnValue = '';
@@ -3212,7 +3288,8 @@ export default function InboundPage() {
 
   const updateMultiRow = (index: number, field: string, value: any) => {
     const newRows = [...multiRows];
-    newRows[index][field] = field === 'wsn' ? value.toUpperCase() : value;
+    // ⚡ UPPERCASE: Convert ALL string values to uppercase
+    newRows[index][field] = value && typeof value === 'string' ? value.toUpperCase() : value;
     setMultiRows(newRows);
 
     // Debounce duplicate check (200ms)
@@ -6806,17 +6883,102 @@ export default function InboundPage() {
                       if (!EDITABLE_COLUMNS.includes(colId)) {
                         return params.node?.data?.[colId]; // Return original value
                       }
-                      return params.value;
+                      // ⚡ UPPERCASE: Convert ALL pasted values to uppercase
+                      const val = params.value;
+                      return val && typeof val === 'string' ? val.toUpperCase() : val;
                     }}
 
-                    // ⚡ EXCEL-LIKE: Handle paste end for notifications
+                    // ⚡ BULK PASTE: Set flag when paste starts to skip per-cell heavy processing
+                    onPasteStart={(params) => {
+                      isPastingRef.current = true;
+                      pastedWSNCellsRef.current = [];
+                    }}
+
+                    // ⚡ BULK PASTE: Batch-process all pasted WSNs after paste completes
                     onPasteEnd={(params) => {
-                      toast.success(`Pasted data successfully`, { duration: 1500 });
-                      // Refresh grid to ensure all cells are updated
-                      const api = gridRef.current;
-                      if (api) {
-                        api.refreshCells({ force: true });
+                      isPastingRef.current = false;
+
+                      const pastedWSNCells = pastedWSNCellsRef.current;
+                      pastedWSNCellsRef.current = [];
+
+                      if (pastedWSNCells.length === 0) {
+                        // No WSN cells were pasted — maybe only non-WSN columns
+                        toast.success(`Pasted data successfully`, { duration: 1500 });
+                        const api = gridRef.current;
+                        if (api) api.refreshCells({ force: true });
+                        return;
                       }
+
+                      // ⚡ BATCH MASTER DATA LOOKUP for all pasted WSNs
+                      const uniqueWSNs = [...new Set(pastedWSNCells.map(c => c.wsn))];
+
+                      toast.success(`Pasted ${pastedWSNCells.length} WSN${pastedWSNCells.length > 1 ? 's' : ''} — loading master data...`, { duration: 2000 });
+
+                      // Process in batches of 50 for performance
+                      const LOOKUP_BATCH = 50;
+                      (async () => {
+                        const masterDataMap = new Map<string, any>();
+
+                        for (let i = 0; i < uniqueWSNs.length; i += LOOKUP_BATCH) {
+                          const batch = uniqueWSNs.slice(i, i + LOOKUP_BATCH);
+                          const results = await Promise.allSettled(
+                            batch.map(async (wsn) => {
+                              // Try fast pending cache first
+                              if (isWMSCacheEnabled() && activeWarehouse?.id) {
+                                const pendingData = await getPendingByWSNFast(wsn, activeWarehouse.id);
+                                if (pendingData) return { wsn, data: pendingData };
+                              }
+                              // Fallback to local master data cache
+                              const data = await getLocalMasterData(wsn).catch(() => null);
+                              return { wsn, data };
+                            })
+                          );
+
+                          results.forEach((result) => {
+                            if (result.status === 'fulfilled' && result.value.data) {
+                              masterDataMap.set(result.value.wsn, result.value.data);
+                            }
+                          });
+                        }
+
+                        // Apply all master data in ONE state update
+                        setMultiRows((prevRows) => {
+                          const updatedRows = [...prevRows];
+                          let appliedCount = 0;
+
+                          pastedWSNCells.forEach(({ rowIndex, wsn }) => {
+                            if (rowIndex < updatedRows.length) {
+                              const masterInfo = masterDataMap.get(wsn);
+                              if (masterInfo) {
+                                updatedRows[rowIndex] = { ...updatedRows[rowIndex] };
+                                ALL_MASTER_COLUMNS.forEach((col) => {
+                                  updatedRows[rowIndex][col] = masterInfo[col] || null;
+                                });
+                                appliedCount++;
+                              }
+                            }
+                          });
+
+                          return updatedRows;
+                        });
+
+                        // Run duplicate check ONCE after all data is applied
+                        setTimeout(() => {
+                          checkDuplicates(multiRowsRef.current);
+                        }, 100);
+
+                        // Refresh grid
+                        const api = gridRef.current;
+                        if (api) api.refreshCells({ force: true });
+
+                        const found = masterDataMap.size;
+                        const notFound = uniqueWSNs.length - found;
+                        if (notFound > 0) {
+                          toast(`Master data: ${found} found, ${notFound} not found`, { duration: 3000, icon: 'ℹ️' });
+                        } else {
+                          toast.success(`Master data loaded for all ${found} WSN${found > 1 ? 's' : ''}`, { duration: 2000 });
+                        }
+                      })();
                     }}
 
                     // keyboard navigation
@@ -6943,6 +7105,22 @@ export default function InboundPage() {
                       // ✅ NULL SAFETY: Return early if field or rowIndex is null
                       if (!field || rowIndex === null || rowIndex === undefined) return;
 
+                      // ⚡ BULK PASTE: During paste, skip all heavy processing (master data fetch,
+                      // duplicate check, overwrite dialog, auto-scroll). Only store uppercase value.
+                      // onPasteEnd will batch-process everything after paste completes.
+                      if (isPastingRef.current) {
+                        const uppercasedVal = newValue && typeof newValue === 'string' ? newValue.toUpperCase() : newValue;
+                        const newRows = [...multiRows];
+                        newRows[rowIndex] = { ...newRows[rowIndex], [field]: uppercasedVal };
+                        setMultiRows(newRows);
+
+                        // Track pasted WSN cells for batch processing in onPasteEnd
+                        if (field === 'wsn' && uppercasedVal?.trim()) {
+                          pastedWSNCellsRef.current.push({ rowIndex, wsn: uppercasedVal.trim() });
+                        }
+                        return;
+                      }
+
                       // ⚠️ WSN OVERWRITE WARNING: Check if replacing an existing WSN with a different one
                       if (field === 'wsn') {
                         const existingWSN = oldValue?.trim()?.toUpperCase();
@@ -7015,8 +7193,8 @@ export default function InboundPage() {
                         return;
                       }
 
-                      // ⚡ Convert WSN to uppercase
-                      const processedValue = field === 'wsn' && newValue ? newValue.toUpperCase() : newValue;
+                      // ⚡ UPPERCASE: Convert ALL editable field values to uppercase
+                      const processedValue = newValue && typeof newValue === 'string' ? newValue.toUpperCase() : newValue;
                       newRows[rowIndex] = { ...newRows[rowIndex], [field]: processedValue };
                       setMultiRows(newRows);
 
