@@ -228,6 +228,7 @@ export default function InboundPage() {
   const gridRef = useRef<any>(null);
   const listGridRef = useRef<any>(null);  // Separate ref for List grid
   const multiEntryContainerRef = useRef<HTMLDivElement>(null);  // Ref for fullscreen mode
+  const multiGridBoxRef = useRef<HTMLDivElement>(null);  // Ref for grid container (paste handler)
   const columnApiRef = useRef<any>(null);
   const hasAutoFittedRef = useRef(false); // Track if auto-fit has been done
   const isRestoringStateRef = useRef(false); // Prevent saving state during restore
@@ -366,9 +367,8 @@ export default function InboundPage() {
   // WSN fetch tracking to prevent race conditions
   const wsnFetchMapRef = useRef<Map<number, string>>(new Map());
 
-  // ⚡ BULK PASTE: Flag to skip per-cell heavy processing during clipboard paste
+  // ⚡ BULK PASTE refs (used by custom paste handler)
   const isPastingRef = useRef(false);
-  const pastedWSNCellsRef = useRef<{ rowIndex: number; wsn: string }[]>([]);
 
   // ---- Draft / Autosave (IndexedDB via localForage) ----
   const [draftSavedAt, setDraftSavedAt] = useState<number | null>(null);
@@ -1258,6 +1258,167 @@ export default function InboundPage() {
     multiRowsRef.current = multiRows;
   }, [multiRows]);
 
+  // ====== CUSTOM PASTE HANDLER (AG Grid Community has no ClipboardModule) ======
+  useEffect(() => {
+    if (!isOnMultiTab) return;
+
+    const handlePaste = async (e: ClipboardEvent) => {
+      const api = gridRef.current;
+      if (!api) return;
+
+      // If a cell is being edited (input active), let browser handle paste natively
+      const activeEl = document.activeElement;
+      if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || (activeEl as HTMLElement).isContentEditable)) return;
+
+      // Only handle if grid has a focused cell
+      const focusedCell = api.getFocusedCell();
+      if (!focusedCell) return;
+
+      // Only handle if focus is within the grid container
+      const container = multiGridBoxRef.current;
+      if (container && activeEl && !container.contains(activeEl)) return;
+
+      const text = e.clipboardData?.getData('text/plain');
+      if (!text?.trim()) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      isPastingRef.current = true;
+
+      const startRow = focusedCell.rowIndex;
+      const startColId = focusedCell.column.getColId();
+
+      // Parse clipboard: rows by newlines, columns by tabs
+      const clipRows = text.split(/\r?\n/).filter(r => r.length > 0);
+      const allColumns = api.getAllDisplayedColumns();
+      const startColIndex = allColumns.findIndex((c: any) => c.getColId() === startColId);
+      if (startColIndex < 0) { isPastingRef.current = false; return; }
+
+      const pastedWSNCells: { rowIndex: number; wsn: string }[] = [];
+
+      // ⚡ AUTO-EXTEND: Add rows if paste extends beyond current grid
+      const lastPasteRow = startRow + clipRows.length - 1;
+
+      // Apply all pasted values in ONE state update (no stale-state issue)
+      setMultiRows(prev => {
+        let newRows = [...prev];
+
+        // Auto-extend rows if needed
+        if (lastPasteRow >= newRows.length) {
+          const extraNeeded = lastPasteRow - newRows.length + 1 + 50; // 50 buffer
+          for (let x = 0; x < extraNeeded; x++) {
+            newRows.push({
+              _rowId: `row-${newRows.length + x}-${Date.now()}`,
+              wsn: '', product_serial_number: '', rack_no: '', unload_remarks: '',
+              inbound_date: new Date().toISOString().split('T')[0],
+            });
+          }
+        }
+
+        clipRows.forEach((clipRow, i) => {
+          const rowIndex = startRow + i;
+          if (rowIndex >= newRows.length) return;
+
+          const cells = clipRow.split('\t');
+          cells.forEach((cellValue, j) => {
+            const colIndex = startColIndex + j;
+            if (colIndex >= allColumns.length) return;
+
+            const colId = allColumns[colIndex].getColId();
+            if (!EDITABLE_COLUMNS.includes(colId)) return;
+
+            const val = cellValue?.trim() ? cellValue.trim().toUpperCase() : '';
+            newRows[rowIndex] = { ...newRows[rowIndex], [colId]: val };
+
+            if (colId === 'wsn' && val) {
+              pastedWSNCells.push({ rowIndex, wsn: val });
+            }
+          });
+        });
+
+        return newRows;
+      });
+
+      toast.success(`Pasted ${clipRows.length} row${clipRows.length > 1 ? 's' : ''} — loading master data...`, { duration: 2000 });
+
+      // ⚡ BATCH MASTER DATA LOOKUP for all pasted WSNs
+      if (pastedWSNCells.length > 0) {
+        const uniqueWSNs = Array.from(new Set(pastedWSNCells.map(c => c.wsn)));
+        const LOOKUP_BATCH = 50;
+        const masterDataMap = new Map<string, any>();
+
+        for (let i = 0; i < uniqueWSNs.length; i += LOOKUP_BATCH) {
+          const batch = uniqueWSNs.slice(i, i + LOOKUP_BATCH);
+          const results = await Promise.allSettled(
+            batch.map(async (wsn) => {
+              try {
+                if (isWMSCacheEnabled() && activeWarehouse?.id) {
+                  const pendingData = await getPendingByWSNFast(wsn, activeWarehouse.id);
+                  if (pendingData) return { wsn, data: pendingData };
+                }
+                const data = await getLocalMasterData(wsn).catch(() => null);
+                return { wsn, data };
+              } catch { return { wsn, data: null }; }
+            })
+          );
+
+          results.forEach((result) => {
+            if (result.status === 'fulfilled' && result.value.data) {
+              masterDataMap.set(result.value.wsn, result.value.data);
+            }
+          });
+        }
+
+        // Apply master data in ONE state update
+        setMultiRows(prevRows => {
+          const updatedRows = [...prevRows];
+          pastedWSNCells.forEach(({ rowIndex, wsn }) => {
+            if (rowIndex < updatedRows.length) {
+              const masterInfo = masterDataMap.get(wsn);
+              if (masterInfo) {
+                updatedRows[rowIndex] = { ...updatedRows[rowIndex] };
+                ALL_MASTER_COLUMNS.forEach((col) => {
+                  updatedRows[rowIndex][col] = masterInfo[col] || null;
+                });
+              }
+            }
+          });
+          return updatedRows;
+        });
+
+        // Duplicate check after data applied
+        setTimeout(() => {
+          checkDuplicates(multiRowsRef.current);
+        }, 200);
+
+        // Refresh grid
+        setTimeout(() => {
+          if (api) api.refreshCells({ force: true });
+        }, 100);
+
+        const found = masterDataMap.size;
+        const notFound = uniqueWSNs.length - found;
+        if (notFound > 0) {
+          toast(`Master data: ${found} found, ${notFound} not found`, { duration: 3000, icon: 'ℹ️' });
+        } else {
+          toast.success(`Master data loaded for all ${found} WSN${found > 1 ? 's' : ''}`, { duration: 2000 });
+        }
+      } else {
+        toast.success(`Pasted ${clipRows.length} row${clipRows.length > 1 ? 's' : ''} successfully`, { duration: 1500 });
+        setTimeout(() => {
+          if (api) api.refreshCells({ force: true });
+        }, 100);
+      }
+
+      isPastingRef.current = false;
+    };
+
+    document.addEventListener('paste', handlePaste);
+    return () => document.removeEventListener('paste', handlePaste);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOnMultiTab, activeWarehouse?.id]);
+
   // ====== PRINT AGENT CHECK ======
   useEffect(() => {
     const checkAgent = async () => {
@@ -1320,8 +1481,8 @@ export default function InboundPage() {
     const day = String(d.getDate()).padStart(2, '0');
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const mon = months[d.getMonth()];
-    const yy = String(d.getFullYear()).slice(-2);
-    return `${day}-${mon}-${yy}`;   // 01-Dec-25
+    const yyyy = d.getFullYear();
+    return `${day}-${mon}-${yyyy}`;   // 01-Dec-2025 (DD-MMM-YYYY)
   }, []);
 
   // -------- AG Grid helpers for Inbound List (keeps behavior same as table) --------
@@ -3615,9 +3776,11 @@ export default function InboundPage() {
       return;
     }
 
+    // ⚡ FIX: Always use commonDate from header (today's date by default)
+    // This prevents stale dates from saved drafts being submitted
     const rowsWithDefaults = multiRows.map(row => ({
       ...row,
-      inbound_date: row.inbound_date || commonDate,
+      inbound_date: commonDate,
       vehicle_no: row.vehicle_no || commonVehicle,
       rack_no: row.rack_no || 'Staging' // ✅ Auto-fill Staging
     }));
@@ -3795,12 +3958,35 @@ export default function InboundPage() {
         return;
       }
 
-      // Format dates before export
-      const formattedData = dataToExport.map((row: any) => ({
-        ...row,
-        inbound_date: row.inbound_date ? formatInboundDate(row.inbound_date) : '',
-        invoice_date: row.invoice_date ? formatInboundDate(row.invoice_date) : ''
-      }));
+      // ⚡ FIX: Convert dates to proper Date objects and numbers to actual numbers
+      // so Excel treats them as date/number cells (sortable, summable) not text
+      const NUMERIC_FIELDS = ['mrp', 'fsp', 'igst_rate', 'quantity', 'vrp', 'yield_value'];
+      const DATE_FIELDS = ['inbound_date', 'invoice_date'];
+
+      const formattedData = dataToExport.map((row: any) => {
+        const newRow = { ...row };
+        // Convert date fields to DD-MMM-YYYY string format
+        DATE_FIELDS.forEach(field => {
+          if (newRow[field]) {
+            const d = new Date(newRow[field]);
+            if (!isNaN(d.getTime())) {
+              const day = String(d.getDate()).padStart(2, '0');
+              const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+              const mon = months[d.getMonth()];
+              const yyyy = d.getFullYear();
+              newRow[field] = `${day}-${mon}-${yyyy}`; // DD-MMM-YYYY
+            }
+          }
+        });
+        // Convert numeric fields from strings to actual numbers
+        NUMERIC_FIELDS.forEach(field => {
+          if (newRow[field] !== null && newRow[field] !== undefined && newRow[field] !== '') {
+            const num = Number(newRow[field]);
+            if (!isNaN(num)) newRow[field] = num;
+          }
+        });
+        return newRow;
+      });
 
       const ws = XLSX.utils.json_to_sheet(formattedData);
       const wb = XLSX.utils.book_new();
@@ -6575,6 +6761,7 @@ export default function InboundPage() {
 
                 {/* AG GRID - Professional Excel-like styling */}
                 <Box
+                  ref={multiGridBoxRef}
                   sx={{
                     flex: 1,
                     minHeight: 300,
@@ -6869,117 +7056,14 @@ export default function InboundPage() {
                       },
                     }}
 
-                    // ⚡ EXCEL-LIKE CLIPBOARD & SELECTION FEATURES
+                    // ⚡ CLIPBOARD & SELECTION FEATURES
                     enableCellTextSelection={true}
                     suppressCopyRowsToClipboard={false}
-                    clipboardDelimiter="\t"
                     rowSelection={undefined}
                     suppressRowDeselection={false}
 
-                    // ⚡ EXCEL-LIKE: Process clipboard paste from Excel
-                    processCellFromClipboard={(params) => {
-                      // Allow pasting into editable columns only
-                      const colId = params.column.getColId();
-                      if (!EDITABLE_COLUMNS.includes(colId)) {
-                        return params.node?.data?.[colId]; // Return original value
-                      }
-                      // ⚡ UPPERCASE: Convert ALL pasted values to uppercase
-                      const val = params.value;
-                      return val && typeof val === 'string' ? val.toUpperCase() : val;
-                    }}
-
-                    // ⚡ BULK PASTE: Set flag when paste starts to skip per-cell heavy processing
-                    onPasteStart={(params) => {
-                      isPastingRef.current = true;
-                      pastedWSNCellsRef.current = [];
-                    }}
-
-                    // ⚡ BULK PASTE: Batch-process all pasted WSNs after paste completes
-                    onPasteEnd={(params) => {
-                      isPastingRef.current = false;
-
-                      const pastedWSNCells = pastedWSNCellsRef.current;
-                      pastedWSNCellsRef.current = [];
-
-                      if (pastedWSNCells.length === 0) {
-                        // No WSN cells were pasted — maybe only non-WSN columns
-                        toast.success(`Pasted data successfully`, { duration: 1500 });
-                        const api = gridRef.current;
-                        if (api) api.refreshCells({ force: true });
-                        return;
-                      }
-
-                      // ⚡ BATCH MASTER DATA LOOKUP for all pasted WSNs
-                      const uniqueWSNs = Array.from(new Set(pastedWSNCells.map(c => c.wsn)));
-
-                      toast.success(`Pasted ${pastedWSNCells.length} WSN${pastedWSNCells.length > 1 ? 's' : ''} — loading master data...`, { duration: 2000 });
-
-                      // Process in batches of 50 for performance
-                      const LOOKUP_BATCH = 50;
-                      (async () => {
-                        const masterDataMap = new Map<string, any>();
-
-                        for (let i = 0; i < uniqueWSNs.length; i += LOOKUP_BATCH) {
-                          const batch = uniqueWSNs.slice(i, i + LOOKUP_BATCH);
-                          const results = await Promise.allSettled(
-                            batch.map(async (wsn) => {
-                              // Try fast pending cache first
-                              if (isWMSCacheEnabled() && activeWarehouse?.id) {
-                                const pendingData = await getPendingByWSNFast(wsn, activeWarehouse.id);
-                                if (pendingData) return { wsn, data: pendingData };
-                              }
-                              // Fallback to local master data cache
-                              const data = await getLocalMasterData(wsn).catch(() => null);
-                              return { wsn, data };
-                            })
-                          );
-
-                          results.forEach((result) => {
-                            if (result.status === 'fulfilled' && result.value.data) {
-                              masterDataMap.set(result.value.wsn, result.value.data);
-                            }
-                          });
-                        }
-
-                        // Apply all master data in ONE state update
-                        setMultiRows((prevRows) => {
-                          const updatedRows = [...prevRows];
-                          let appliedCount = 0;
-
-                          pastedWSNCells.forEach(({ rowIndex, wsn }) => {
-                            if (rowIndex < updatedRows.length) {
-                              const masterInfo = masterDataMap.get(wsn);
-                              if (masterInfo) {
-                                updatedRows[rowIndex] = { ...updatedRows[rowIndex] };
-                                ALL_MASTER_COLUMNS.forEach((col) => {
-                                  updatedRows[rowIndex][col] = masterInfo[col] || null;
-                                });
-                                appliedCount++;
-                              }
-                            }
-                          });
-
-                          return updatedRows;
-                        });
-
-                        // Run duplicate check ONCE after all data is applied
-                        setTimeout(() => {
-                          checkDuplicates(multiRowsRef.current);
-                        }, 100);
-
-                        // Refresh grid
-                        const api = gridRef.current;
-                        if (api) api.refreshCells({ force: true });
-
-                        const found = masterDataMap.size;
-                        const notFound = uniqueWSNs.length - found;
-                        if (notFound > 0) {
-                          toast(`Master data: ${found} found, ${notFound} not found`, { duration: 3000, icon: 'ℹ️' });
-                        } else {
-                          toast.success(`Master data loaded for all ${found} WSN${found > 1 ? 's' : ''}`, { duration: 2000 });
-                        }
-                      })();
-                    }}
+                    // NOTE: Clipboard paste is handled via custom document 'paste' event listener
+                    // (AG Grid Community v34 does not include ClipboardModule)
 
                     // keyboard navigation
                     stopEditingWhenCellsLoseFocus={true}
@@ -7105,21 +7189,8 @@ export default function InboundPage() {
                       // ✅ NULL SAFETY: Return early if field or rowIndex is null
                       if (!field || rowIndex === null || rowIndex === undefined) return;
 
-                      // ⚡ BULK PASTE: During paste, skip all heavy processing (master data fetch,
-                      // duplicate check, overwrite dialog, auto-scroll). Only store uppercase value.
-                      // onPasteEnd will batch-process everything after paste completes.
-                      if (isPastingRef.current) {
-                        const uppercasedVal = newValue && typeof newValue === 'string' ? newValue.toUpperCase() : newValue;
-                        const newRows = [...multiRows];
-                        newRows[rowIndex] = { ...newRows[rowIndex], [field]: uppercasedVal };
-                        setMultiRows(newRows);
-
-                        // Track pasted WSN cells for batch processing in onPasteEnd
-                        if (field === 'wsn' && uppercasedVal?.trim()) {
-                          pastedWSNCellsRef.current.push({ rowIndex, wsn: uppercasedVal.trim() });
-                        }
-                        return;
-                      }
+                      // ⚡ BULK PASTE: During paste (custom handler), skip cell-level processing
+                      if (isPastingRef.current) return;
 
                       // ⚠️ WSN OVERWRITE WARNING: Check if replacing an existing WSN with a different one
                       if (field === 'wsn') {
