@@ -358,6 +358,13 @@ export default function InboundPage() {
     // For WSN changes that trigger master data clear/fetch
     oldRowData?: any;
     newRowData?: any;
+    // For batch paste undo/redo
+    pasteData?: {
+      startRow: number;
+      endRow: number;
+      oldRows: any[];  // snapshot of rows BEFORE paste
+      newRows: any[];  // snapshot of rows AFTER paste (with master data)
+    };
   }
   const undoStackRef = useRef<UndoAction[]>([]);
   const redoStackRef = useRef<UndoAction[]>([]);
@@ -1296,17 +1303,19 @@ export default function InboundPage() {
       if (startColIndex < 0) { isPastingRef.current = false; return; }
 
       const pastedWSNCells: { rowIndex: number; wsn: string }[] = [];
-
-      // ⚡ AUTO-EXTEND: Add rows if paste extends beyond current grid
       const lastPasteRow = startRow + clipRows.length - 1;
 
-      // Apply all pasted values in ONE state update (no stale-state issue)
+      // ⚡ SNAPSHOT rows BEFORE paste for undo
+      const prevSnapshot = multiRowsRef.current;
+      const oldRowsSnapshot = prevSnapshot.slice(startRow, lastPasteRow + 1).map(r => JSON.parse(JSON.stringify(r)));
+
+      // Apply all pasted values in ONE state update
       setMultiRows(prev => {
         let newRows = [...prev];
 
         // Auto-extend rows if needed
         if (lastPasteRow >= newRows.length) {
-          const extraNeeded = lastPasteRow - newRows.length + 1 + 50; // 50 buffer
+          const extraNeeded = lastPasteRow - newRows.length + 1 + 50;
           for (let x = 0; x < extraNeeded; x++) {
             newRows.push({
               _rowId: `row-${newRows.length + x}-${Date.now()}`,
@@ -1317,22 +1326,18 @@ export default function InboundPage() {
         }
 
         clipRows.forEach((clipRow, i) => {
-          const rowIndex = startRow + i;
-          if (rowIndex >= newRows.length) return;
-
+          const rowIdx = startRow + i;
+          if (rowIdx >= newRows.length) return;
           const cells = clipRow.split('\t');
           cells.forEach((cellValue, j) => {
             const colIndex = startColIndex + j;
             if (colIndex >= allColumns.length) return;
-
             const colId = allColumns[colIndex].getColId();
             if (!EDITABLE_COLUMNS.includes(colId)) return;
-
             const val = cellValue?.trim() ? cellValue.trim().toUpperCase() : '';
-            newRows[rowIndex] = { ...newRows[rowIndex], [colId]: val };
-
+            newRows[rowIdx] = { ...newRows[rowIdx], [colId]: val };
             if (colId === 'wsn' && val) {
-              pastedWSNCells.push({ rowIndex, wsn: val });
+              pastedWSNCells.push({ rowIndex: rowIdx, wsn: val });
             }
           });
         });
@@ -1340,71 +1345,174 @@ export default function InboundPage() {
         return newRows;
       });
 
-      toast.success(`Pasted ${clipRows.length} row${clipRows.length > 1 ? 's' : ''} — loading master data...`, { duration: 2000 });
+      toast.success(`Pasted ${clipRows.length} row${clipRows.length > 1 ? 's' : ''} — checking duplicates & loading data...`, { duration: 2500 });
 
-      // ⚡ BATCH MASTER DATA LOOKUP for all pasted WSNs
+      // ⚡ COMPREHENSIVE DUPLICATE CHECK for pasted WSNs
       if (pastedWSNCells.length > 0) {
         const uniqueWSNs = Array.from(new Set(pastedWSNCells.map(c => c.wsn)));
-        const LOOKUP_BATCH = 50;
-        const masterDataMap = new Map<string, any>();
 
-        for (let i = 0; i < uniqueWSNs.length; i += LOOKUP_BATCH) {
-          const batch = uniqueWSNs.slice(i, i + LOOKUP_BATCH);
-          const results = await Promise.allSettled(
-            batch.map(async (wsn) => {
+        // 1) GRID DUPLICATES: Check against existing grid rows + within paste itself
+        const gridRows = multiRowsRef.current;
+        const wsnCountMap = new Map<string, number>();
+        gridRows.forEach(r => {
+          const w = r.wsn?.trim()?.toUpperCase();
+          if (w) wsnCountMap.set(w, (wsnCountMap.get(w) || 0) + 1);
+        });
+        const gridDupWSNs = new Set<string>();
+        uniqueWSNs.forEach(wsn => {
+          if ((wsnCountMap.get(wsn) || 0) > 1) gridDupWSNs.add(wsn);
+        });
+
+        // 2) ALREADY INBOUNDED + CROSS WAREHOUSE: Batch API check
+        const alreadyInboundedWSNs = new Set<string>();
+        const crossWarehouseDetected = new Set<string>();
+        const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+
+        if (isOnline) {
+          const API_BATCH = 20;
+          for (let i = 0; i < uniqueWSNs.length; i += API_BATCH) {
+            const batch = uniqueWSNs.slice(i, i + API_BATCH);
+            await Promise.allSettled(batch.map(async (wsn) => {
               try {
-                if (isWMSCacheEnabled() && activeWarehouse?.id) {
-                  const pendingData = await getPendingByWSNFast(wsn, activeWarehouse.id);
-                  if (pendingData) return { wsn, data: pendingData };
+                const resp = await Promise.race([
+                  inboundAPI.getAll(1, 1, { search: wsn }),
+                  new Promise<null>(resolve => setTimeout(() => resolve(null), 3000))
+                ]);
+                if (!resp) return;
+                const item = resp?.data?.data?.[0] || resp?.data?.[0] || null;
+                if (item) {
+                  const itemWSN = (item.wsn || '').trim().toUpperCase();
+                  if (itemWSN !== wsn) return; // search result doesn't exactly match
+                  const itemWhId = item.warehouse_id ?? item.warehouseId ?? item.warehouseid ?? null;
+                  if (itemWhId && itemWhId !== activeWarehouse?.id) {
+                    crossWarehouseDetected.add(wsn);
+                  } else {
+                    alreadyInboundedWSNs.add(wsn);
+                  }
                 }
-                const data = await getLocalMasterData(wsn).catch(() => null);
-                return { wsn, data };
-              } catch { return { wsn, data: null }; }
-            })
-          );
+              } catch { /* ignore */ }
+            }));
+          }
+        }
 
-          results.forEach((result) => {
-            if (result.status === 'fulfilled' && result.value.data) {
-              masterDataMap.set(result.value.wsn, result.value.data);
-            }
+        // 3) Combine all problematic WSNs
+        const allProblematicArr: string[] = [];
+        gridDupWSNs.forEach(w => allProblematicArr.push(w));
+        alreadyInboundedWSNs.forEach(w => allProblematicArr.push(w));
+        crossWarehouseDetected.forEach(w => allProblematicArr.push(w));
+        const allProblematic = new Set(allProblematicArr);
+
+        // 4) Clear problematic rows from the grid
+        if (allProblematic.size > 0) {
+          setMultiRows(prev => {
+            const updated = [...prev];
+            pastedWSNCells.forEach(({ rowIndex: rIdx, wsn }) => {
+              if (allProblematic.has(wsn) && rIdx < updated.length) {
+                updated[rIdx] = { ...updated[rIdx], wsn: '' };
+                ALL_MASTER_COLUMNS.forEach(col => { updated[rIdx][col] = null; });
+              }
+            });
+            return updated;
+          });
+
+          // Show detailed summary
+          const msgs: string[] = [];
+          if (gridDupWSNs.size > 0) msgs.push(`${gridDupWSNs.size} duplicate in grid`);
+          if (alreadyInboundedWSNs.size > 0) msgs.push(`${alreadyInboundedWSNs.size} already inbounded`);
+          if (crossWarehouseDetected.size > 0) msgs.push(`${crossWarehouseDetected.size} cross-warehouse`);
+          toast.error(`Removed: ${msgs.join(', ')}`, {
+            duration: 5000,
+            style: { fontWeight: 600, fontSize: '14px' },
           });
         }
 
-        // Apply master data in ONE state update
-        setMultiRows(prevRows => {
-          const updatedRows = [...prevRows];
-          pastedWSNCells.forEach(({ rowIndex, wsn }) => {
-            if (rowIndex < updatedRows.length) {
-              const masterInfo = masterDataMap.get(wsn);
-              if (masterInfo) {
-                updatedRows[rowIndex] = { ...updatedRows[rowIndex] };
-                ALL_MASTER_COLUMNS.forEach((col) => {
-                  updatedRows[rowIndex][col] = masterInfo[col] || null;
-                });
-              }
-            }
-          });
-          return updatedRows;
-        });
+        // 5) MASTER DATA LOOKUP for remaining valid WSNs
+        const validPastedCells = pastedWSNCells.filter(c => !allProblematic.has(c.wsn));
+        const validUniqueWSNs = Array.from(new Set(validPastedCells.map(c => c.wsn)));
+        const LOOKUP_BATCH = 50;
+        const masterDataMap = new Map<string, any>();
 
-        // Duplicate check after data applied
+        if (validUniqueWSNs.length > 0) {
+          for (let i = 0; i < validUniqueWSNs.length; i += LOOKUP_BATCH) {
+            const batch = validUniqueWSNs.slice(i, i + LOOKUP_BATCH);
+            const results = await Promise.allSettled(
+              batch.map(async (wsn) => {
+                try {
+                  if (isWMSCacheEnabled() && activeWarehouse?.id) {
+                    const pendingData = await getPendingByWSNFast(wsn, activeWarehouse.id);
+                    if (pendingData) return { wsn, data: pendingData };
+                  }
+                  const data = await getLocalMasterData(wsn).catch(() => null);
+                  return { wsn, data };
+                } catch { return { wsn, data: null }; }
+              })
+            );
+            results.forEach(result => {
+              if (result.status === 'fulfilled' && result.value.data) {
+                masterDataMap.set(result.value.wsn, result.value.data);
+              }
+            });
+          }
+
+          // Apply master data
+          setMultiRows(prevRows => {
+            const updatedRows = [...prevRows];
+            validPastedCells.forEach(({ rowIndex: rIdx, wsn }) => {
+              if (rIdx < updatedRows.length) {
+                const masterInfo = masterDataMap.get(wsn);
+                if (masterInfo) {
+                  updatedRows[rIdx] = { ...updatedRows[rIdx] };
+                  ALL_MASTER_COLUMNS.forEach(col => {
+                    updatedRows[rIdx][col] = masterInfo[col] || null;
+                  });
+                }
+              }
+            });
+            return updatedRows;
+          });
+
+          const found = masterDataMap.size;
+          const notFound = validUniqueWSNs.length - found;
+          if (notFound > 0) {
+            toast(`Master data: ${found} found, ${notFound} not found`, { duration: 3000, icon: 'ℹ️' });
+          } else if (found > 0) {
+            toast.success(`Master data loaded for ${found} WSN${found > 1 ? 's' : ''}`, { duration: 2000 });
+          }
+        }
+
+        // 6) Run full duplicate check to update UI state (grid highlights etc)
         setTimeout(() => {
           checkDuplicates(multiRowsRef.current);
-        }, 200);
+        }, 300);
+
+        // 7) SAVE BATCH UNDO ACTION — snapshot rows AFTER all changes
+        setTimeout(() => {
+          const newRowsSnapshot = multiRowsRef.current.slice(startRow, lastPasteRow + 1).map(r => JSON.parse(JSON.stringify(r)));
+          const pasteUndoAction: UndoAction = {
+            type: 'paste',
+            rowIndex: startRow,
+            field: 'wsn',
+            oldValue: null,
+            newValue: null,
+            pasteData: {
+              startRow,
+              endRow: lastPasteRow,
+              oldRows: oldRowsSnapshot,
+              newRows: newRowsSnapshot,
+            },
+          };
+          undoStackRef.current.push(pasteUndoAction);
+          if (undoStackRef.current.length > MAX_UNDO_HISTORY) undoStackRef.current.shift();
+          redoStackRef.current = [];
+        }, 500);
 
         // Refresh grid
         setTimeout(() => {
           if (api) api.refreshCells({ force: true });
-        }, 100);
+        }, 350);
 
-        const found = masterDataMap.size;
-        const notFound = uniqueWSNs.length - found;
-        if (notFound > 0) {
-          toast(`Master data: ${found} found, ${notFound} not found`, { duration: 3000, icon: 'ℹ️' });
-        } else {
-          toast.success(`Master data loaded for all ${found} WSN${found > 1 ? 's' : ''}`, { duration: 2000 });
-        }
       } else {
+        // No WSN cells pasted — just non-WSN columns
         toast.success(`Pasted ${clipRows.length} row${clipRows.length > 1 ? 's' : ''} successfully`, { duration: 1500 });
         setTimeout(() => {
           if (api) api.refreshCells({ force: true });
@@ -2253,17 +2361,6 @@ export default function InboundPage() {
     oldRowData?: any,
     newRowData?: any
   ) => {
-    // Debug logging
-    console.log('💾 SAVE UNDO - Saving action:', {
-      rowIndex,
-      field,
-      oldValue,
-      newValue,
-      hasOldRowData: !!oldRowData,
-      oldRowDataWSN: oldRowData?.wsn,
-      oldRowDataTitle: oldRowData?.product_title,
-    });
-
     const action: UndoAction = {
       type: 'cell',
       rowIndex,
@@ -2279,11 +2376,9 @@ export default function InboundPage() {
     }
     // Clear redo stack when new action is performed
     redoStackRef.current = [];
-
-    console.log('💾 SAVE UNDO - Stack size:', undoStackRef.current.length);
   }, []);
 
-  // ✅ EXCEL-LIKE: Undo last change (Ctrl+Z) - cell level
+  // ✅ EXCEL-LIKE: Undo last change (Ctrl+Z) - cell level + batch paste
   const handleUndo = useCallback(() => {
     if (undoStackRef.current.length === 0) {
       toast('Nothing to undo', { icon: 'ℹ️', duration: 500 });
@@ -2292,42 +2387,63 @@ export default function InboundPage() {
 
     const action = undoStackRef.current.pop()!;
 
-    // Debug logging
-    console.log('🔄 UNDO - Action:', {
-      type: action.type,
-      rowIndex: action.rowIndex,
-      field: action.field,
-      oldValue: action.oldValue,
-      newValue: action.newValue,
-      hasOldRowData: !!action.oldRowData,
-      oldRowDataWSN: action.oldRowData?.wsn,
-    });
+    // ⚡ BATCH PASTE UNDO: Restore all affected rows in one shot
+    if (action.type === 'paste' && action.pasteData) {
+      const { startRow, endRow, oldRows, newRows: pasteNewRows } = action.pasteData;
 
-    setMultiRows(currentRows => {
-      const newRows = [...currentRows];
+      setMultiRows(currentRows => {
+        const updated = [...currentRows];
+        // Snapshot current state for redo
+        const currentSnapshot = updated.slice(startRow, endRow + 1).map(r => JSON.parse(JSON.stringify(r)));
 
-      // Capture current row data for redo BEFORE making changes
-      const currentRowData = JSON.parse(JSON.stringify(newRows[action.rowIndex]));
+        // Restore old rows
+        oldRows.forEach((oldRow, i) => {
+          const idx = startRow + i;
+          if (idx < updated.length) {
+            updated[idx] = { ...oldRow };
+          }
+        });
 
-      console.log('🔄 UNDO - Before change row', action.rowIndex, ':', {
-        wsn: newRows[action.rowIndex]?.wsn,
-        product_title: newRows[action.rowIndex]?.product_title,
+        // Save redo action
+        redoStackRef.current.push({
+          ...action,
+          pasteData: {
+            startRow,
+            endRow,
+            oldRows: currentSnapshot,
+            newRows: oldRows,
+          },
+        });
+
+        return updated;
       });
 
-      // Debug: Check row 6 before (to see if it changes)
-      if (action.rowIndex !== 6 && newRows[6]) {
-        console.log('🔄 UNDO - Row 6 before:', {
-          wsn: newRows[6]?.wsn,
-          product_title: newRows[6]?.product_title,
-        });
-      }
+      // Re-check duplicates after undo
+      setTimeout(() => checkDuplicates(multiRowsRef.current), 100);
+
+      setTimeout(() => {
+        const api = gridRef.current;
+        if (api) {
+          api.ensureIndexVisible(startRow, 'middle');
+          api.setFocusedCell(startRow, 'wsn');
+          api.refreshCells({ force: true });
+        }
+      }, 50);
+
+      const count = endRow - startRow + 1;
+      toast.success(`Undo paste: ${count} row${count > 1 ? 's' : ''} restored`, { duration: 2000 });
+      return;
+    }
+
+    // CELL-LEVEL UNDO
+    setMultiRows(currentRows => {
+      const newRows = [...currentRows];
+      const currentRowData = JSON.parse(JSON.stringify(newRows[action.rowIndex]));
 
       if (action.type === 'cell') {
-        // If we have full row data (WSN change with master data), restore it
         if (action.oldRowData) {
           newRows[action.rowIndex] = { ...action.oldRowData };
         } else {
-          // Simple cell change - just restore the old value
           newRows[action.rowIndex] = {
             ...newRows[action.rowIndex],
             [action.field]: action.oldValue
@@ -2335,25 +2451,10 @@ export default function InboundPage() {
         }
       }
 
-      console.log('🔄 UNDO - After change row', action.rowIndex, ':', {
-        wsn: newRows[action.rowIndex]?.wsn,
-        product_title: newRows[action.rowIndex]?.product_title,
-      });
-
-      // Debug: Check row 6 after
-      if (action.rowIndex !== 6 && newRows[6]) {
-        console.log('🔄 UNDO - Row 6 after:', {
-          wsn: newRows[6]?.wsn,
-          product_title: newRows[6]?.product_title,
-        });
-      }
-
-      // Save to redo stack with current data for proper redo
       redoStackRef.current.push({
         ...action,
         oldValue: action.newValue,
         newValue: action.oldValue,
-        // Store the row data we're replacing for redo
         oldRowData: currentRowData,
         newRowData: action.oldRowData,
       });
@@ -2361,23 +2462,18 @@ export default function InboundPage() {
       return newRows;
     });
 
-    // ⚡ EXCEL-LIKE: Move focus to the undone cell (like Excel)
     setTimeout(() => {
       const api = gridRef.current;
       if (api) {
-        // Ensure the row is visible first
         api.ensureIndexVisible(action.rowIndex, 'middle');
-        // Set focus on the cell that was undone
         api.setFocusedCell(action.rowIndex, action.field);
-        // Optionally start editing the cell
-        // api.startEditingCell({ rowIndex: action.rowIndex, colKey: action.field });
       }
     }, 50);
 
     toast.success('Undo successful', { duration: 1500 });
   }, []);
 
-  // ✅ EXCEL-LIKE: Redo last undone change (Ctrl+Y) - cell level
+  // ✅ EXCEL-LIKE: Redo last undone change (Ctrl+Y) - cell level + batch paste
   const handleRedo = useCallback(() => {
     if (redoStackRef.current.length === 0) {
       toast('Nothing to redo', { icon: 'ℹ️', duration: 1500 });
@@ -2386,18 +2482,58 @@ export default function InboundPage() {
 
     const action = redoStackRef.current.pop()!;
 
+    // ⚡ BATCH PASTE REDO: Re-apply all pasted rows
+    if (action.type === 'paste' && action.pasteData) {
+      const { startRow, endRow, oldRows } = action.pasteData;
+
+      setMultiRows(currentRows => {
+        const updated = [...currentRows];
+        const currentSnapshot = updated.slice(startRow, endRow + 1).map(r => JSON.parse(JSON.stringify(r)));
+
+        oldRows.forEach((row, i) => {
+          const idx = startRow + i;
+          if (idx < updated.length) {
+            updated[idx] = { ...row };
+          }
+        });
+
+        undoStackRef.current.push({
+          ...action,
+          pasteData: {
+            startRow,
+            endRow,
+            oldRows: currentSnapshot,
+            newRows: oldRows,
+          },
+        });
+
+        return updated;
+      });
+
+      setTimeout(() => checkDuplicates(multiRowsRef.current), 100);
+      setTimeout(() => {
+        const api = gridRef.current;
+        if (api) {
+          api.ensureIndexVisible(startRow, 'middle');
+          api.setFocusedCell(startRow, 'wsn');
+          api.refreshCells({ force: true });
+        }
+      }, 50);
+
+      const count = endRow - startRow + 1;
+      toast.success(`Redo paste: ${count} row${count > 1 ? 's' : ''} re-applied`, { duration: 2000 });
+      return;
+    }
+
+    // CELL-LEVEL REDO
     setMultiRows(currentRows => {
       const newRows = [...currentRows];
-
-      // Capture current row data for undo BEFORE making changes
       const currentRowData = JSON.parse(JSON.stringify(newRows[action.rowIndex]));
 
       if (action.type === 'cell') {
-        // If we have full row data, restore it (this is the state we're redoing TO)
         if (action.oldRowData) {
           newRows[action.rowIndex] = { ...action.oldRowData };
         } else {
-          // Simple cell change
           newRows[action.rowIndex] = {
             ...newRows[action.rowIndex],
             [action.field]: action.oldValue
@@ -2405,7 +2541,6 @@ export default function InboundPage() {
         }
       }
 
-      // Save to undo stack with current data for proper undo again
       undoStackRef.current.push({
         ...action,
         oldValue: action.newValue,
@@ -2417,13 +2552,10 @@ export default function InboundPage() {
       return newRows;
     });
 
-    // ⚡ EXCEL-LIKE: Move focus to the redone cell (like Excel)
     setTimeout(() => {
       const api = gridRef.current;
       if (api) {
-        // Ensure the row is visible first
         api.ensureIndexVisible(action.rowIndex, 'middle');
-        // Set focus on the cell that was redone
         api.setFocusedCell(action.rowIndex, action.field);
       }
     }, 50);
@@ -2850,8 +2982,8 @@ export default function InboundPage() {
     }
   }, []);
 
-  // ✅ EXCEL ENHANCEMENT: Handle Shift+Arrow for range selection
-  const handleShiftArrow = useCallback((direction: 'up' | 'down' | 'left' | 'right') => {
+  // ✅ EXCEL ENHANCEMENT: Handle Shift+Arrow for range selection (step=1 for Shift, jump for Ctrl+Shift)
+  const handleShiftArrow = useCallback((direction: 'up' | 'down' | 'left' | 'right', jump?: boolean) => {
     const api = gridRef.current;
     if (!api) return;
 
@@ -2866,7 +2998,6 @@ export default function InboundPage() {
       rangeStartCellRef.current = { rowIndex, colId };
     }
 
-    // Get current selection or initialize from focused cell
     const currentRange = selectedRange || {
       startRow: rowIndex,
       endRow: rowIndex,
@@ -2877,18 +3008,36 @@ export default function InboundPage() {
     let newEndRow = currentRange.endRow;
     let newEndCol = currentRange.endCol;
 
-    if (direction === 'up' && currentRange.endRow > 0) {
-      newEndRow = currentRange.endRow - 1;
-    } else if (direction === 'down' && currentRange.endRow < multiRows.length - 1) {
-      newEndRow = currentRange.endRow + 1;
+    if (direction === 'up') {
+      if (jump) {
+        newEndRow = 0; // Jump to first row
+      } else if (currentRange.endRow > 0) {
+        newEndRow = currentRange.endRow - 1;
+      }
+    } else if (direction === 'down') {
+      if (jump) {
+        // Jump to last row with data
+        let lastDataRow = 0;
+        const rows = multiRowsRef.current;
+        for (let i = rows.length - 1; i >= 0; i--) {
+          if (rows[i]?.wsn?.trim()) { lastDataRow = i; break; }
+        }
+        newEndRow = Math.max(lastDataRow, currentRange.endRow);
+      } else if (currentRange.endRow < multiRows.length - 1) {
+        newEndRow = currentRange.endRow + 1;
+      }
     } else if (direction === 'left' || direction === 'right') {
       const allColumns = api.getColumns();
       if (allColumns) {
         const colIndex = allColumns.findIndex((c: any) => c.getColId() === currentRange.endCol);
-        if (direction === 'left' && colIndex > 0) {
-          newEndCol = allColumns[colIndex - 1].getColId();
-        } else if (direction === 'right' && colIndex < allColumns.length - 1) {
-          newEndCol = allColumns[colIndex + 1].getColId();
+        if (jump) {
+          newEndCol = direction === 'left' ? allColumns[0].getColId() : allColumns[allColumns.length - 1].getColId();
+        } else {
+          if (direction === 'left' && colIndex > 0) {
+            newEndCol = allColumns[colIndex - 1].getColId();
+          } else if (direction === 'right' && colIndex < allColumns.length - 1) {
+            newEndCol = allColumns[colIndex + 1].getColId();
+          }
         }
       }
     }
@@ -2907,16 +3056,19 @@ export default function InboundPage() {
   }, [multiRows.length, selectedRange]);
 
   // ⚡ EXCEL-LIKE: Refresh grid when selection changes to update cell highlighting
-  // Use requestAnimationFrame + refreshCells instead of redrawRows for better performance
+  // Debounced to prevent lag during rapid Shift+Arrow key holds
+  const selectionRefreshTimerRef = useRef<number | null>(null);
   useEffect(() => {
-    const api = gridRef.current;
-    if (api) {
-      // Use refreshCells with force:true to update styles without full redraw
-      // requestAnimationFrame batches the refresh for better performance
-      requestAnimationFrame(() => {
+    if (selectionRefreshTimerRef.current) cancelAnimationFrame(selectionRefreshTimerRef.current);
+    selectionRefreshTimerRef.current = requestAnimationFrame(() => {
+      const api = gridRef.current;
+      if (api) {
         api.refreshCells({ force: true });
-      });
-    }
+      }
+    });
+    return () => {
+      if (selectionRefreshTimerRef.current) cancelAnimationFrame(selectionRefreshTimerRef.current);
+    };
   }, [selectedRange]);
 
   // ⚡ EXCEL-LIKE KEYBOARD SHORTCUTS (Global listener for Multi Entry tab)
@@ -3062,12 +3214,12 @@ export default function InboundPage() {
         return;
       }
 
-      // Shift+Arrow keys → Extend selection
-      if (shiftKey && !ctrlKey && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+      // Shift+Arrow keys → Extend selection (with or without Ctrl for jump)
+      if (shiftKey && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
         if (isEditing) return;
         e.preventDefault();
         const direction = e.key.replace('Arrow', '').toLowerCase() as 'up' | 'down' | 'left' | 'right';
-        handleShiftArrow(direction);
+        handleShiftArrow(direction, ctrlKey); // ctrlKey=true → jump to edge
         return;
       }
 
