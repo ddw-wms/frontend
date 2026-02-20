@@ -6910,7 +6910,7 @@ export default function InboundPage() {
                       }
 
                       // ⚡ BATCH MASTER DATA LOOKUP for all pasted WSNs
-                      const uniqueWSNs = [...new Set(pastedWSNCells.map(c => c.wsn))];
+                      const uniqueWSNs = Array.from(new Set(pastedWSNCells.map(c => c.wsn)));
 
                       toast.success(`Pasted ${pastedWSNCells.length} WSN${pastedWSNCells.length > 1 ? 's' : ''} — loading master data...`, { duration: 2000 });
 
