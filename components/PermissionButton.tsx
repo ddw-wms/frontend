@@ -37,12 +37,12 @@ export function PermissionButton({
     const hasAccess = canAccess(permissionCode);
 
     // Hide button if no access and hideWhenDisabled is true
-    if (!canAccess && hideWhenDisabled) {
+    if (!hasAccess && hideWhenDisabled) {
         return null;
     }
 
     // Show disabled button with tooltip if no access
-    if (!canAccess) {
+    if (!hasAccess) {
         return (
             <Tooltip title={disabledTooltip}>
                 <span>

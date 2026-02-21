@@ -637,26 +637,38 @@ export default function PermissionsPage() {
         }
     };
 
+    // 3-state toggle: null (role default) -> true (override ON) -> false (override OFF) -> null (back to role default)
     const handleToggleUserOverrideEnabled = (code: string) => {
         setUserOverrides(prev => prev.map(p => {
             if (p.code !== code) return p;
             let newVal: boolean | null;
             if (p.override_enabled === null || p.override_enabled === undefined) {
-                newVal = !p.role_enabled;
+                // Currently using role default -> set override to ON
+                newVal = true;
+            } else if (p.override_enabled === true) {
+                // Currently overridden ON -> set override to OFF
+                newVal = false;
             } else {
+                // Currently overridden OFF -> back to role default
                 newVal = null;
             }
             return { ...p, override_enabled: newVal, effective_enabled: newVal ?? p.role_enabled };
         }));
     };
 
+    // 3-state toggle: null (role default) -> true (override ON) -> false (override OFF) -> null (back to role default)
     const handleToggleUserOverrideVisible = (code: string) => {
         setUserOverrides(prev => prev.map(p => {
             if (p.code !== code) return p;
             let newVal: boolean | null;
             if (p.override_visible === null || p.override_visible === undefined) {
-                newVal = !p.role_visible;
+                // Currently using role default -> set override to ON
+                newVal = true;
+            } else if (p.override_visible === true) {
+                // Currently overridden ON -> set override to OFF
+                newVal = false;
             } else {
+                // Currently overridden OFF -> back to role default
                 newVal = null;
             }
             return { ...p, override_visible: newVal, effective_visible: newVal ?? p.role_visible };
@@ -1503,42 +1515,95 @@ export default function PermissionsPage() {
                                         <TableHead>
                                             <TableRow sx={{ bgcolor: isDarkMode ? '#334155' : 'grey.100' }}>
                                                 <TableCell sx={{ fontWeight: 600, py: { xs: 0.5, sm: 1 }, fontSize: { xs: '0.7rem', sm: '0.875rem' } }}>Permission</TableCell>
-                                                <TableCell align="center" sx={{ fontWeight: 600, py: { xs: 0.5, sm: 1 }, width: { xs: 50, sm: 90 }, px: { xs: 0.25, sm: 1 }, fontSize: { xs: '0.65rem', sm: '0.875rem' } }}>Enable</TableCell>
-                                                <TableCell align="center" sx={{ fontWeight: 600, py: { xs: 0.5, sm: 1 }, width: { xs: 50, sm: 90 }, px: { xs: 0.25, sm: 1 }, fontSize: { xs: '0.65rem', sm: '0.875rem' } }}>Show</TableCell>
+                                                <TableCell align="center" sx={{ fontWeight: 600, py: { xs: 0.5, sm: 1 }, width: { xs: 70, sm: 110 }, px: { xs: 0.25, sm: 1 }, fontSize: { xs: '0.65rem', sm: '0.875rem' } }}>
+                                                    <Tooltip title="Grey=Role Default, Green✓=Override ON, Red✗=Override OFF">
+                                                        <Stack direction="row" alignItems="center" justifyContent="center" spacing={0.25}>
+                                                            <LockOpenIcon sx={{ fontSize: { xs: 14, sm: 18 }, color: 'success.main' }} />
+                                                            {!isSmall && <Typography component="span" sx={{ fontSize: '0.75rem' }}>Enable</Typography>}
+                                                        </Stack>
+                                                    </Tooltip>
+                                                </TableCell>
+                                                <TableCell align="center" sx={{ fontWeight: 600, py: { xs: 0.5, sm: 1 }, width: { xs: 70, sm: 110 }, px: { xs: 0.25, sm: 1 }, fontSize: { xs: '0.65rem', sm: '0.875rem' } }}>
+                                                    <Tooltip title="Grey=Role Default, Green✓=Override ON, Red✗=Override OFF">
+                                                        <Stack direction="row" alignItems="center" justifyContent="center" spacing={0.25}>
+                                                            <VisibilityIcon sx={{ fontSize: { xs: 14, sm: 18 }, color: 'info.main' }} />
+                                                            {!isSmall && <Typography component="span" sx={{ fontSize: '0.75rem' }}>Show</Typography>}
+                                                        </Stack>
+                                                    </Tooltip>
+                                                </TableCell>
                                             </TableRow>
                                         </TableHead>
                                         <TableBody>
-                                            {grouped[page].map(p => (
-                                                <TableRow key={p.code} hover>
-                                                    <TableCell sx={{ py: { xs: 0.25, sm: 0.75 }, px: { xs: 0.5, sm: 2 } }}>
-                                                        <Typography variant="body2" fontWeight={500} sx={{ fontSize: { xs: '0.7rem', sm: '0.875rem' }, wordBreak: 'break-word' }}>{p.name}</Typography>
-                                                    </TableCell>
-                                                    <TableCell align="center" sx={{ py: { xs: 0.25, sm: 0.75 }, px: { xs: 0, sm: 1 } }}>
-                                                        <Checkbox
-                                                            checked={p.effective_enabled || false}
-                                                            indeterminate={p.override_enabled === null}
-                                                            onChange={() => handleToggleUserOverrideEnabled(p.code)}
-                                                            size="small"
-                                                            sx={{
-                                                                p: { xs: 0.25, sm: 0.5 },
-                                                                color: p.override_enabled === null ? 'grey.400' : undefined
-                                                            }}
-                                                        />
-                                                    </TableCell>
-                                                    <TableCell align="center" sx={{ py: { xs: 0.25, sm: 0.75 }, px: { xs: 0, sm: 1 } }}>
-                                                        <Checkbox
-                                                            checked={p.effective_visible || false}
-                                                            indeterminate={p.override_visible === null}
-                                                            onChange={() => handleToggleUserOverrideVisible(p.code)}
-                                                            size="small"
-                                                            sx={{
-                                                                p: { xs: 0.25, sm: 0.5 },
-                                                                color: p.override_visible === null ? 'grey.400' : undefined
-                                                            }}
-                                                        />
-                                                    </TableCell>
-                                                </TableRow>
-                                            ))}
+                                            {grouped[page].map(p => {
+                                                // Determine override state label for Enable
+                                                const enableLabel = p.override_enabled === null || p.override_enabled === undefined
+                                                    ? (p.role_enabled ? 'Role: ON' : 'Role: OFF')
+                                                    : (p.override_enabled ? '✓ Override: ON' : '✗ Override: OFF');
+                                                const enableColor = p.override_enabled === null || p.override_enabled === undefined
+                                                    ? 'text.disabled'
+                                                    : (p.override_enabled ? 'success.main' : 'error.main');
+
+                                                // Determine override state label for Visible
+                                                const visibleLabel = p.override_visible === null || p.override_visible === undefined
+                                                    ? (p.role_visible ? 'Role: ON' : 'Role: OFF')
+                                                    : (p.override_visible ? '✓ Override: ON' : '✗ Override: OFF');
+                                                const visibleColor = p.override_visible === null || p.override_visible === undefined
+                                                    ? 'text.disabled'
+                                                    : (p.override_visible ? 'success.main' : 'error.main');
+
+                                                return (
+                                                    <TableRow key={p.code} hover sx={{
+                                                        bgcolor: (p.override_enabled !== null && p.override_enabled !== undefined) ||
+                                                            (p.override_visible !== null && p.override_visible !== undefined)
+                                                            ? (isDarkMode ? alpha(theme.palette.warning.main, 0.08) : alpha(theme.palette.warning.main, 0.06))
+                                                            : 'inherit'
+                                                    }}>
+                                                        <TableCell sx={{ py: { xs: 0.25, sm: 0.75 }, px: { xs: 0.5, sm: 2 } }}>
+                                                            <Typography variant="body2" fontWeight={500} sx={{ fontSize: { xs: '0.7rem', sm: '0.875rem' }, wordBreak: 'break-word' }}>{p.name}</Typography>
+                                                        </TableCell>
+                                                        <TableCell align="center" sx={{ py: { xs: 0.25, sm: 0.75 }, px: { xs: 0, sm: 1 } }}>
+                                                            <Tooltip title={`Click to cycle: Role Default → Override ON → Override OFF → Role Default. Current: ${enableLabel}`} arrow>
+                                                                <Box sx={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center' }}>
+                                                                    <Checkbox
+                                                                        checked={p.effective_enabled || false}
+                                                                        indeterminate={p.override_enabled === null || p.override_enabled === undefined}
+                                                                        onChange={() => handleToggleUserOverrideEnabled(p.code)}
+                                                                        color={p.override_enabled === true ? 'success' : p.override_enabled === false ? 'error' : 'default'}
+                                                                        size="small"
+                                                                        sx={{
+                                                                            p: { xs: 0.25, sm: 0.5 },
+                                                                            color: p.override_enabled === null || p.override_enabled === undefined ? 'grey.400' : undefined
+                                                                        }}
+                                                                    />
+                                                                    <Typography sx={{ fontSize: '0.55rem', color: enableColor, lineHeight: 1, mt: -0.25, whiteSpace: 'nowrap' }}>
+                                                                        {enableLabel}
+                                                                    </Typography>
+                                                                </Box>
+                                                            </Tooltip>
+                                                        </TableCell>
+                                                        <TableCell align="center" sx={{ py: { xs: 0.25, sm: 0.75 }, px: { xs: 0, sm: 1 } }}>
+                                                            <Tooltip title={`Click to cycle: Role Default → Override ON → Override OFF → Role Default. Current: ${visibleLabel}`} arrow>
+                                                                <Box sx={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center' }}>
+                                                                    <Checkbox
+                                                                        checked={p.effective_visible || false}
+                                                                        indeterminate={p.override_visible === null || p.override_visible === undefined}
+                                                                        onChange={() => handleToggleUserOverrideVisible(p.code)}
+                                                                        color={p.override_visible === true ? 'success' : p.override_visible === false ? 'error' : 'default'}
+                                                                        size="small"
+                                                                        sx={{
+                                                                            p: { xs: 0.25, sm: 0.5 },
+                                                                            color: p.override_visible === null || p.override_visible === undefined ? 'grey.400' : undefined
+                                                                        }}
+                                                                    />
+                                                                    <Typography sx={{ fontSize: '0.55rem', color: visibleColor, lineHeight: 1, mt: -0.25, whiteSpace: 'nowrap' }}>
+                                                                        {visibleLabel}
+                                                                    </Typography>
+                                                                </Box>
+                                                            </Tooltip>
+                                                        </TableCell>
+                                                    </TableRow>
+                                                );
+                                            })}
                                         </TableBody>
                                     </Table>
                                 </TableContainer>
