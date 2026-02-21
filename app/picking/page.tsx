@@ -616,9 +616,19 @@ export default function PickingPage() {
 
   // ====== MULTI ENTRY: CATEGORY PIVOT DIALOG ======
   const [categoryPivotOpen, setCategoryPivotOpen] = useState(false);
-  const [pivotGroupBy, setPivotGroupBy] = useState<'category' | 'brand'>('category');
+  const [pivotGroupBy, setPivotGroupBy] = useState<'category' | 'brand' | 'p_type' | 'combined' | 'crosstab'>('category');
   const [categoryPivotSortBy, setCategoryPivotSortBy] = useState<'category' | 'qty' | 'fsp' | 'mrp'>('qty');
   const [categoryPivotSortDir, setCategoryPivotSortDir] = useState<'asc' | 'desc'>('desc');
+  // Combined view filters (multiple selection)
+  const [pivotCategoryFilter, setPivotCategoryFilter] = useState<string[]>([]);
+  const [pivotBrandFilter, setPivotBrandFilter] = useState<string[]>([]);
+  const [pivotPTypeFilter, setPivotPTypeFilter] = useState<string[]>([]);
+  // Cross-Tab Pivot settings
+  const [crossTabRowField, setCrossTabRowField] = useState<'category' | 'brand' | 'p_type'>('brand');
+  const [crossTabColField, setCrossTabColField] = useState<'category' | 'brand' | 'p_type'>('p_type');
+  const [crossTabFilter, setCrossTabFilter] = useState<string[]>([]);
+  // Pivot Dialog fullscreen toggle
+  const [pivotDialogFullscreen, setPivotDialogFullscreen] = useState(false);
 
   // Picking List state
   // ⚡ INSTANT NAVIGATION: Initialize from cache to prevent empty grid flash
@@ -2493,29 +2503,121 @@ export default function PickingPage() {
 
   // ====== CATEGORY PIVOT DATA COMPUTATION ======
   // Calculate category/brand-wise quantity summary from scanned rows in Multi Entry
-  const categoryPivotData = useMemo(() => {
-    // Only consider rows with WSN filled
+  // Get available filter options for combined view
+  // Dynamic filter options based on selected filters
+  const pivotFilterOptions = useMemo(() => {
     const filledRows = multiRows.filter((row: any) => row.wsn?.trim());
 
-    if (filledRows.length === 0) {
-      return { categories: [], grandTotal: { qty: 0, fsp: 0, mrp: 0 } };
+    // Filter rows based on current selections for dynamic options
+    let filteredForCategories = filledRows;
+    let filteredForBrands = filledRows;
+    let filteredForPTypes = filledRows;
+
+    // For categories dropdown: filter by selected brands and pTypes
+    if (pivotBrandFilter.length > 0) {
+      filteredForCategories = filteredForCategories.filter((row: any) =>
+        pivotBrandFilter.includes(row.brand?.trim()));
+    }
+    if (pivotPTypeFilter.length > 0) {
+      filteredForCategories = filteredForCategories.filter((row: any) =>
+        pivotPTypeFilter.includes(row.p_type?.trim()));
     }
 
-    // Group by category (cms_vertical) or brand based on pivotGroupBy
-    const groupField = pivotGroupBy === 'brand' ? 'brand' : 'cms_vertical';
-    const defaultLabel = pivotGroupBy === 'brand' ? 'Unknown Brand' : 'Uncategorized';
-    const categoryMap = new Map<string, { qty: number; fsp: number; mrp: number; items: any[] }>();
+    // For brands dropdown: filter by selected categories and pTypes
+    if (pivotCategoryFilter.length > 0) {
+      filteredForBrands = filteredForBrands.filter((row: any) =>
+        pivotCategoryFilter.includes(row.cms_vertical?.trim()));
+    }
+    if (pivotPTypeFilter.length > 0) {
+      filteredForBrands = filteredForBrands.filter((row: any) =>
+        pivotPTypeFilter.includes(row.p_type?.trim()));
+    }
+
+    // For pTypes dropdown: filter by selected categories and brands
+    if (pivotCategoryFilter.length > 0) {
+      filteredForPTypes = filteredForPTypes.filter((row: any) =>
+        pivotCategoryFilter.includes(row.cms_vertical?.trim()));
+    }
+    if (pivotBrandFilter.length > 0) {
+      filteredForPTypes = filteredForPTypes.filter((row: any) =>
+        pivotBrandFilter.includes(row.brand?.trim()));
+    }
+
+    const categories = new Set<string>();
+    const brands = new Set<string>();
+    const pTypes = new Set<string>();
+
+    filteredForCategories.forEach((row: any) => {
+      if (row.cms_vertical?.trim()) categories.add(row.cms_vertical.trim());
+    });
+    filteredForBrands.forEach((row: any) => {
+      if (row.brand?.trim()) brands.add(row.brand.trim());
+    });
+    filteredForPTypes.forEach((row: any) => {
+      if (row.p_type?.trim()) pTypes.add(row.p_type.trim());
+    });
+
+    return {
+      categories: Array.from(categories).sort(),
+      brands: Array.from(brands).sort(),
+      pTypes: Array.from(pTypes).sort(),
+    };
+  }, [multiRows, pivotCategoryFilter, pivotBrandFilter, pivotPTypeFilter]);
+
+  const categoryPivotData = useMemo(() => {
+    // Only consider rows with WSN filled
+    let filledRows = multiRows.filter((row: any) => row.wsn?.trim());
+
+    if (filledRows.length === 0) {
+      return { categories: [], grandTotal: { qty: 0, fsp: 0, mrp: 0 }, filteredTotal: { qty: 0, fsp: 0, mrp: 0 } };
+    }
+
+    // Apply filters for combined view (multiple selection)
+    if (pivotGroupBy === 'combined') {
+      if (pivotCategoryFilter.length > 0) {
+        filledRows = filledRows.filter((row: any) => pivotCategoryFilter.includes(row.cms_vertical?.trim()));
+      }
+      if (pivotBrandFilter.length > 0) {
+        filledRows = filledRows.filter((row: any) => pivotBrandFilter.includes(row.brand?.trim()));
+      }
+      if (pivotPTypeFilter.length > 0) {
+        filledRows = filledRows.filter((row: any) => pivotPTypeFilter.includes(row.p_type?.trim()));
+      }
+    }
+
+    if (filledRows.length === 0) {
+      return { categories: [], grandTotal: { qty: 0, fsp: 0, mrp: 0 }, filteredTotal: { qty: 0, fsp: 0, mrp: 0 } };
+    }
+
+    // Group by category (cms_vertical), brand, p_type, or combined based on pivotGroupBy
+    const categoryMap = new Map<string, { qty: number; fsp: number; mrp: number; items: any[]; categoryName?: string; brandName?: string; pTypeName?: string }>();
 
     filledRows.forEach((row: any) => {
-      const category = row[groupField]?.trim() || defaultLabel;
+      let groupKey: string;
+      let categoryName = '';
+      let brandName = '';
+      let pTypeName = '';
+
+      if (pivotGroupBy === 'combined') {
+        // Combined: group by category + brand + p_type
+        categoryName = row.cms_vertical?.trim() || 'Uncategorized';
+        brandName = row.brand?.trim() || 'Unknown Brand';
+        pTypeName = row.p_type?.trim() || 'Unknown Type';
+        groupKey = `${categoryName}|||${brandName}|||${pTypeName}`;
+      } else {
+        const groupField = pivotGroupBy === 'brand' ? 'brand' : pivotGroupBy === 'p_type' ? 'p_type' : 'cms_vertical';
+        const defaultLabel = pivotGroupBy === 'brand' ? 'Unknown Brand' : pivotGroupBy === 'p_type' ? 'Unknown Type' : 'Uncategorized';
+        groupKey = row[groupField]?.trim() || defaultLabel;
+      }
+
       const fsp = parseFloat(row.fsp) || 0;
       const mrp = parseFloat(row.mrp) || 0;
 
-      if (!categoryMap.has(category)) {
-        categoryMap.set(category, { qty: 0, fsp: 0, mrp: 0, items: [] });
+      if (!categoryMap.has(groupKey)) {
+        categoryMap.set(groupKey, { qty: 0, fsp: 0, mrp: 0, items: [], categoryName, brandName, pTypeName });
       }
 
-      const data = categoryMap.get(category)!;
+      const data = categoryMap.get(groupKey)!;
       data.qty += 1;
       data.fsp += fsp;
       data.mrp += mrp;
@@ -2537,6 +2639,10 @@ export default function PickingPage() {
       fsp: data.fsp,
       mrp: data.mrp,
       percentage: grandTotal.qty > 0 ? (data.qty / grandTotal.qty) * 100 : 0,
+      // For combined view
+      categoryName: data.categoryName || '',
+      brandName: data.brandName || '',
+      pTypeName: data.pTypeName || '',
     }));
 
     // Sort based on current sort settings
@@ -2572,7 +2678,109 @@ export default function PickingPage() {
     });
 
     return { categories, grandTotal };
-  }, [multiRows, pivotGroupBy, categoryPivotSortBy, categoryPivotSortDir]);
+  }, [multiRows, pivotGroupBy, categoryPivotSortBy, categoryPivotSortDir, pivotCategoryFilter, pivotBrandFilter, pivotPTypeFilter]);
+
+  // Cross-Tab filter options (the third field not used in row/col)
+  const crossTabFilterField = useMemo(() => {
+    const fields: ('category' | 'brand' | 'p_type')[] = ['category', 'brand', 'p_type'];
+    return fields.find(f => f !== crossTabRowField && f !== crossTabColField) || 'category';
+  }, [crossTabRowField, crossTabColField]);
+
+  const crossTabFilterOptions = useMemo(() => {
+    const filledRows = multiRows.filter((row: any) => row.wsn?.trim());
+    const options = new Set<string>();
+    const fieldMap: Record<string, string> = {
+      'category': 'cms_vertical',
+      'brand': 'brand',
+      'p_type': 'p_type',
+    };
+    const dbField = fieldMap[crossTabFilterField];
+    filledRows.forEach((row: any) => {
+      if (row[dbField]?.trim()) options.add(row[dbField].trim());
+    });
+    return Array.from(options).sort();
+  }, [multiRows, crossTabFilterField]);
+
+  // Cross-Tab Pivot Data computation
+  const crossTabPivotData = useMemo(() => {
+    let filledRows = multiRows.filter((row: any) => row.wsn?.trim());
+
+    if (filledRows.length === 0) {
+      return { rowHeaders: [], colHeaders: [], data: {}, rowTotals: {}, colTotals: {}, grandTotal: 0 };
+    }
+
+    // Apply filter if selected
+    const fieldMap: Record<string, string> = {
+      'category': 'cms_vertical',
+      'brand': 'brand',
+      'p_type': 'p_type',
+    };
+
+    if (crossTabFilter.length > 0) {
+      const filterDbField = fieldMap[crossTabFilterField];
+      filledRows = filledRows.filter((row: any) => crossTabFilter.includes(row[filterDbField]?.trim()));
+    }
+
+    const rowDbField = fieldMap[crossTabRowField];
+    const colDbField = fieldMap[crossTabColField];
+
+    // Collect unique row and column values
+    const rowSet = new Set<string>();
+    const colSet = new Set<string>();
+
+    filledRows.forEach((row: any) => {
+      const rowVal = row[rowDbField]?.trim() || 'Unknown';
+      const colVal = row[colDbField]?.trim() || 'Unknown';
+      rowSet.add(rowVal);
+      colSet.add(colVal);
+    });
+
+    const rowHeaders = Array.from(rowSet).sort();
+    const colHeaders = Array.from(colSet).sort();
+
+    // Build the 2D data matrix
+    const data: Record<string, Record<string, number>> = {};
+    const rowTotals: Record<string, number> = {};
+    const colTotals: Record<string, number> = {};
+    let grandTotal = 0;
+
+    // Initialize
+    rowHeaders.forEach(rh => {
+      data[rh] = {};
+      rowTotals[rh] = 0;
+      colHeaders.forEach(ch => {
+        data[rh][ch] = 0;
+      });
+    });
+    colHeaders.forEach(ch => {
+      colTotals[ch] = 0;
+    });
+
+    // Fill data
+    filledRows.forEach((row: any) => {
+      const rowVal = row[rowDbField]?.trim() || 'Unknown';
+      const colVal = row[colDbField]?.trim() || 'Unknown';
+      data[rowVal][colVal] += 1;
+      rowTotals[rowVal] += 1;
+      colTotals[colVal] += 1;
+      grandTotal += 1;
+    });
+
+    return { rowHeaders, colHeaders, data, rowTotals, colTotals, grandTotal };
+  }, [multiRows, crossTabRowField, crossTabColField, crossTabFilter, crossTabFilterField]);
+
+  // Clear pivot filters when switching away from combined view
+  const handlePivotGroupChange = (newGroup: 'category' | 'brand' | 'p_type' | 'combined' | 'crosstab') => {
+    setPivotGroupBy(newGroup);
+    if (newGroup !== 'combined') {
+      setPivotCategoryFilter([]);
+      setPivotBrandFilter([]);
+      setPivotPTypeFilter([]);
+    }
+    if (newGroup !== 'crosstab') {
+      setCrossTabFilter([]);
+    }
+  };
 
   // Handle sort column click for category pivot
   const handleCategoryPivotSort = (column: 'category' | 'qty' | 'fsp' | 'mrp') => {
@@ -2588,25 +2796,94 @@ export default function PickingPage() {
   const exportCategoryPivotToExcel = async () => {
     try {
       const XLSX = await import('xlsx');
-      const groupLabel = pivotGroupBy === 'brand' ? 'Brand' : 'Category';
-      const exportData = categoryPivotData.categories.map((cat, idx) => ({
-        'Sr No': idx + 1,
-        [groupLabel]: cat.category,
-        'Quantity': cat.qty,
-        'Total FSP (₹)': cat.fsp,
-        'Total MRP (₹)': cat.mrp,
-        'Percentage (%)': cat.percentage.toFixed(1),
-      }));
 
-      // Add grand total row
-      exportData.push({
-        'Sr No': '',
-        [groupLabel]: 'GRAND TOTAL',
-        'Quantity': categoryPivotData.grandTotal.qty,
-        'Total FSP (₹)': categoryPivotData.grandTotal.fsp,
-        'Total MRP (₹)': categoryPivotData.grandTotal.mrp,
-        'Percentage (%)': '100.0',
-      } as any);
+      // Handle Cross-Tab export separately
+      if (pivotGroupBy === 'crosstab') {
+        const { rowHeaders, colHeaders, data, rowTotals, colTotals, grandTotal } = crossTabPivotData;
+        const rowLabel = crossTabRowField === 'category' ? 'Category' : crossTabRowField === 'brand' ? 'Brand' : 'P_Type';
+        const colLabel = crossTabColField === 'category' ? 'Category' : crossTabColField === 'brand' ? 'Brand' : 'P_Type';
+
+        // Build export data with cross-tab format
+        const exportData: any[] = [];
+
+        // Header row
+        const headerRow: any = { [rowLabel]: '' };
+        colHeaders.forEach(ch => { headerRow[ch] = ch; });
+        headerRow['Grand Total'] = 'Grand Total';
+
+        // Data rows
+        rowHeaders.forEach(rh => {
+          const row: any = { [rowLabel]: rh };
+          colHeaders.forEach(ch => {
+            row[ch] = data[rh][ch] || 0;
+          });
+          row['Grand Total'] = rowTotals[rh];
+          exportData.push(row);
+        });
+
+        // Grand Total row
+        const totalRow: any = { [rowLabel]: 'Grand Total' };
+        colHeaders.forEach(ch => {
+          totalRow[ch] = colTotals[ch];
+        });
+        totalRow['Grand Total'] = grandTotal;
+        exportData.push(totalRow);
+
+        const ws = XLSX.utils.json_to_sheet(exportData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, `${rowLabel} x ${colLabel}`);
+
+        const timestamp = new Date().toISOString().slice(0, 10);
+        XLSX.writeFile(wb, `Picking_CrossTab_${rowLabel}_${colLabel}_${timestamp}.xlsx`);
+
+        toast.success(`Cross-Tab (${rowLabel} × ${colLabel}) exported!`);
+        return;
+      }
+
+      const groupLabel = pivotGroupBy === 'brand' ? 'Brand' : pivotGroupBy === 'p_type' ? 'P_Type' : pivotGroupBy === 'combined' ? 'Combined' : 'Category';
+
+      let exportData;
+      if (pivotGroupBy === 'combined') {
+        exportData = categoryPivotData.categories.map((cat, idx) => ({
+          'Sr No': idx + 1,
+          'Category': cat.categoryName,
+          'Brand': cat.brandName,
+          'P_Type': cat.pTypeName,
+          'Quantity': cat.qty,
+          'Total FSP (₹)': cat.fsp,
+          'Total MRP (₹)': cat.mrp,
+          'Percentage (%)': cat.percentage.toFixed(1),
+        }));
+        // Add grand total row
+        exportData.push({
+          'Sr No': '',
+          'Category': 'GRAND TOTAL',
+          'Brand': '',
+          'P_Type': '',
+          'Quantity': categoryPivotData.grandTotal.qty,
+          'Total FSP (₹)': categoryPivotData.grandTotal.fsp,
+          'Total MRP (₹)': categoryPivotData.grandTotal.mrp,
+          'Percentage (%)': '100.0',
+        } as any);
+      } else {
+        exportData = categoryPivotData.categories.map((cat, idx) => ({
+          'Sr No': idx + 1,
+          [groupLabel]: cat.category,
+          'Quantity': cat.qty,
+          'Total FSP (₹)': cat.fsp,
+          'Total MRP (₹)': cat.mrp,
+          'Percentage (%)': cat.percentage.toFixed(1),
+        }));
+        // Add grand total row
+        exportData.push({
+          'Sr No': '',
+          [groupLabel]: 'GRAND TOTAL',
+          'Quantity': categoryPivotData.grandTotal.qty,
+          'Total FSP (₹)': categoryPivotData.grandTotal.fsp,
+          'Total MRP (₹)': categoryPivotData.grandTotal.mrp,
+          'Percentage (%)': '100.0',
+        } as any);
+      }
 
       const ws = XLSX.utils.json_to_sheet(exportData);
       const wb = XLSX.utils.book_new();
@@ -6065,12 +6342,23 @@ export default function PickingPage() {
         <Dialog
           open={categoryPivotOpen}
           onClose={() => setCategoryPivotOpen(false)}
-          maxWidth="md"
+          maxWidth={pivotDialogFullscreen ? false : "lg"}
           fullWidth
+          container={multiEntryContainerRef.current}
           PaperProps={{
             sx: {
-              borderRadius: 2,
+              borderRadius: pivotDialogFullscreen ? 0 : 2,
               bgcolor: isDarkMode ? '#1e293b' : '#ffffff',
+              ...(pivotDialogFullscreen ? {
+                width: '98vw',
+                height: '92vh',
+                maxWidth: 'none',
+                maxHeight: 'none',
+                m: 1,
+              } : {
+                width: '1100px',
+                minHeight: '600px',
+              }),
             }
           }}
         >
@@ -6085,18 +6373,31 @@ export default function PickingPage() {
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <PieChartIcon />
               <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                {pivotGroupBy === 'brand' ? 'Brand' : 'Category'} Quantity Summary
+                {pivotGroupBy === 'brand' ? 'Brand' : pivotGroupBy === 'p_type' ? 'P_Type' : pivotGroupBy === 'combined' ? 'Combined' : pivotGroupBy === 'crosstab' ? 'Cross-Tab' : 'Category'} Quantity Summary
               </Typography>
             </Box>
-            <Chip
-              label={`${categoryPivotData.grandTotal.qty} Items`}
-              size="small"
-              sx={{
-                bgcolor: 'rgba(255,255,255,0.2)',
-                color: 'white',
-                fontWeight: 700,
-              }}
-            />
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Chip
+                label={`${pivotGroupBy === 'crosstab' ? crossTabPivotData.grandTotal : categoryPivotData.grandTotal.qty} Items`}
+                size="small"
+                sx={{
+                  bgcolor: 'rgba(255,255,255,0.2)',
+                  color: 'white',
+                  fontWeight: 700,
+                }}
+              />
+              <IconButton
+                size="small"
+                onClick={() => setPivotDialogFullscreen(!pivotDialogFullscreen)}
+                sx={{
+                  color: 'white',
+                  '&:hover': { bgcolor: 'rgba(255,255,255,0.15)' },
+                }}
+                title={pivotDialogFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
+              >
+                {pivotDialogFullscreen ? <FullscreenExitIcon /> : <FullscreenIcon />}
+              </IconButton>
+            </Box>
           </DialogTitle>
           <DialogContent sx={{ p: 0 }}>
             {/* Group By Toggle */}
@@ -6115,7 +6416,7 @@ export default function PickingPage() {
                 <Button
                   size="small"
                   variant={pivotGroupBy === 'category' ? 'contained' : 'outlined'}
-                  onClick={() => setPivotGroupBy('category')}
+                  onClick={() => handlePivotGroupChange('category')}
                   sx={{
                     fontSize: '0.75rem',
                     fontWeight: 600,
@@ -6133,12 +6434,12 @@ export default function PickingPage() {
                     }),
                   }}
                 >
-                  ðŸ“ Category
+                  Category
                 </Button>
                 <Button
                   size="small"
                   variant={pivotGroupBy === 'brand' ? 'contained' : 'outlined'}
-                  onClick={() => setPivotGroupBy('brand')}
+                  onClick={() => handlePivotGroupChange('brand')}
                   sx={{
                     fontSize: '0.75rem',
                     fontWeight: 600,
@@ -6156,35 +6457,652 @@ export default function PickingPage() {
                     }),
                   }}
                 >
-                  ðŸ·ï¸ Brand
+                  Brand
+                </Button>
+                <Button
+                  size="small"
+                  variant={pivotGroupBy === 'p_type' ? 'contained' : 'outlined'}
+                  onClick={() => handlePivotGroupChange('p_type')}
+                  sx={{
+                    fontSize: '0.75rem',
+                    fontWeight: 600,
+                    px: 2,
+                    py: 0.5,
+                    borderRadius: 1,
+                    textTransform: 'none',
+                    ...(pivotGroupBy === 'p_type' ? {
+                      background: 'linear-gradient(135deg, #ea580c 0%, #f97316 100%)',
+                      '&:hover': { background: 'linear-gradient(135deg, #c2410c 0%, #ea580c 100%)' },
+                    } : {
+                      borderColor: isDarkMode ? '#fb923c' : '#ea580c',
+                      color: isDarkMode ? '#fdba74' : '#ea580c',
+                      '&:hover': { bgcolor: 'rgba(249, 115, 22, 0.08)' },
+                    }),
+                  }}
+                >
+                  P_Type
+                </Button>
+                <Button
+                  size="small"
+                  variant={pivotGroupBy === 'combined' ? 'contained' : 'outlined'}
+                  onClick={() => handlePivotGroupChange('combined')}
+                  sx={{
+                    fontSize: '0.75rem',
+                    fontWeight: 600,
+                    px: 2,
+                    py: 0.5,
+                    borderRadius: 1,
+                    textTransform: 'none',
+                    ...(pivotGroupBy === 'combined' ? {
+                      background: 'linear-gradient(135deg, #059669 0%, #10b981 100%)',
+                      '&:hover': { background: 'linear-gradient(135deg, #047857 0%, #059669 100%)' },
+                    } : {
+                      borderColor: isDarkMode ? '#34d399' : '#059669',
+                      color: isDarkMode ? '#6ee7b7' : '#059669',
+                      '&:hover': { bgcolor: 'rgba(16, 185, 129, 0.08)' },
+                    }),
+                  }}
+                >
+                  Combined
+                </Button>
+                <Button
+                  size="small"
+                  variant={pivotGroupBy === 'crosstab' ? 'contained' : 'outlined'}
+                  onClick={() => handlePivotGroupChange('crosstab')}
+                  sx={{
+                    fontSize: '0.75rem',
+                    fontWeight: 600,
+                    px: 2,
+                    py: 0.5,
+                    borderRadius: 1,
+                    textTransform: 'none',
+                    ...(pivotGroupBy === 'crosstab' ? {
+                      background: 'linear-gradient(135deg, #dc2626 0%, #ef4444 100%)',
+                      '&:hover': { background: 'linear-gradient(135deg, #b91c1c 0%, #dc2626 100%)' },
+                    } : {
+                      borderColor: isDarkMode ? '#f87171' : '#dc2626',
+                      color: isDarkMode ? '#fca5a5' : '#dc2626',
+                      '&:hover': { bgcolor: 'rgba(239, 68, 68, 0.08)' },
+                    }),
+                  }}
+                >
+                  Cross-Tab
                 </Button>
               </Box>
             </Box>
 
-            {categoryPivotData.categories.length === 0 ? (
+            {/* Cross-Tab Settings */}
+            {pivotGroupBy === 'crosstab' && (
+              <Box sx={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 2,
+                px: 2,
+                py: 1.5,
+                borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0',
+                bgcolor: isDarkMode ? 'rgba(239, 68, 68, 0.08)' : 'rgba(239, 68, 68, 0.03)',
+                flexWrap: 'wrap',
+              }}>
+                <Typography sx={{ fontWeight: 600, color: isDarkMode ? '#fca5a5' : '#dc2626', fontSize: '0.8rem' }}>
+                  Settings:
+                </Typography>
+                <FormControl size="small" sx={{ minWidth: 130 }}>
+                  <InputLabel
+                    id="picking-crosstab-row-field-label"
+                    sx={{
+                      fontSize: '0.75rem',
+                      color: isDarkMode ? '#e2e8f0' : 'inherit',
+                      '&.Mui-focused': { color: isDarkMode ? '#fca5a5' : '#dc2626' },
+                      '&.MuiInputLabel-shrink': { color: isDarkMode ? '#e2e8f0' : 'inherit' },
+                    }}
+                  >Row Field</InputLabel>
+                  <Select
+                    labelId="picking-crosstab-row-field-label"
+                    id="picking-crosstab-row-field"
+                    value={crossTabRowField}
+                    onChange={(e) => {
+                      const newVal = e.target.value as 'category' | 'brand' | 'p_type';
+                      if (newVal === crossTabColField) {
+                        setCrossTabColField(crossTabRowField);
+                      }
+                      setCrossTabRowField(newVal);
+                      setCrossTabFilter([]);
+                    }}
+                    label="Row Field"
+                    MenuProps={{
+                      PaperProps: {
+                        sx: {
+                          bgcolor: isDarkMode ? '#1e293b' : '#fff',
+                          color: isDarkMode ? '#e2e8f0' : 'inherit',
+                          '& .MuiMenuItem-root': {
+                            fontSize: '0.75rem',
+                            color: isDarkMode ? '#e2e8f0' : 'inherit',
+                            '&:hover': { bgcolor: isDarkMode ? 'rgba(239, 68, 68, 0.2)' : 'rgba(239, 68, 68, 0.1)' },
+                            '&.Mui-selected': {
+                              bgcolor: isDarkMode ? 'rgba(239, 68, 68, 0.3)' : 'rgba(239, 68, 68, 0.15)',
+                              color: isDarkMode ? '#fca5a5' : '#dc2626',
+                            },
+                          },
+                        },
+                      },
+                    }}
+                    sx={{
+                      fontSize: '0.75rem',
+                      height: 36,
+                      bgcolor: isDarkMode ? '#1e293b' : '#fff',
+                      color: isDarkMode ? '#e2e8f0' : 'inherit',
+                      '& .MuiSelect-select': { color: isDarkMode ? '#e2e8f0' : 'inherit' },
+                      '& .MuiOutlinedInput-notchedOutline': { borderColor: isDarkMode ? '#475569' : '#d1d5db' },
+                      '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: isDarkMode ? '#f87171' : '#dc2626' },
+                      '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: isDarkMode ? '#f87171' : '#dc2626' },
+                      '& .MuiSelect-icon': { color: isDarkMode ? '#e2e8f0' : 'inherit' },
+                    }}
+                  >
+                    <MenuItem value="category">Category</MenuItem>
+                    <MenuItem value="brand">Brand</MenuItem>
+                    <MenuItem value="p_type">P_Type</MenuItem>
+                  </Select>
+                </FormControl>
+                <Typography sx={{ color: isDarkMode ? '#94a3b8' : '#64748b', fontWeight: 600 }}>{'\u00D7'}</Typography>
+                <FormControl size="small" sx={{ minWidth: 130 }}>
+                  <InputLabel
+                    id="picking-crosstab-col-field-label"
+                    sx={{
+                      fontSize: '0.75rem',
+                      color: isDarkMode ? '#e2e8f0' : 'inherit',
+                      '&.Mui-focused': { color: isDarkMode ? '#fca5a5' : '#dc2626' },
+                      '&.MuiInputLabel-shrink': { color: isDarkMode ? '#e2e8f0' : 'inherit' },
+                    }}
+                  >Column Field</InputLabel>
+                  <Select
+                    labelId="picking-crosstab-col-field-label"
+                    id="picking-crosstab-col-field"
+                    value={crossTabColField}
+                    onChange={(e) => {
+                      const newVal = e.target.value as 'category' | 'brand' | 'p_type';
+                      if (newVal === crossTabRowField) {
+                        setCrossTabRowField(crossTabColField);
+                      }
+                      setCrossTabColField(newVal);
+                      setCrossTabFilter([]);
+                    }}
+                    label="Column Field"
+                    MenuProps={{
+                      PaperProps: {
+                        sx: {
+                          bgcolor: isDarkMode ? '#1e293b' : '#fff',
+                          color: isDarkMode ? '#e2e8f0' : 'inherit',
+                          '& .MuiMenuItem-root': {
+                            fontSize: '0.75rem',
+                            color: isDarkMode ? '#e2e8f0' : 'inherit',
+                            '&:hover': { bgcolor: isDarkMode ? 'rgba(239, 68, 68, 0.2)' : 'rgba(239, 68, 68, 0.1)' },
+                            '&.Mui-selected': {
+                              bgcolor: isDarkMode ? 'rgba(239, 68, 68, 0.3)' : 'rgba(239, 68, 68, 0.15)',
+                              color: isDarkMode ? '#fca5a5' : '#dc2626',
+                            },
+                          },
+                        },
+                      },
+                    }}
+                    sx={{
+                      fontSize: '0.75rem',
+                      height: 36,
+                      bgcolor: isDarkMode ? '#1e293b' : '#fff',
+                      color: isDarkMode ? '#e2e8f0' : 'inherit',
+                      '& .MuiSelect-select': { color: isDarkMode ? '#e2e8f0' : 'inherit' },
+                      '& .MuiOutlinedInput-notchedOutline': { borderColor: isDarkMode ? '#475569' : '#d1d5db' },
+                      '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: isDarkMode ? '#f87171' : '#dc2626' },
+                      '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: isDarkMode ? '#f87171' : '#dc2626' },
+                      '& .MuiSelect-icon': { color: isDarkMode ? '#e2e8f0' : 'inherit' },
+                    }}
+                  >
+                    <MenuItem value="category">Category</MenuItem>
+                    <MenuItem value="brand">Brand</MenuItem>
+                    <MenuItem value="p_type">P_Type</MenuItem>
+                  </Select>
+                </FormControl>
+                <Divider orientation="vertical" flexItem sx={{ mx: 1, borderColor: isDarkMode ? '#475569' : '#e2e8f0' }} />
+                <Autocomplete
+                  multiple
+                  size="small"
+                  disableCloseOnSelect
+                  options={crossTabFilterOptions}
+                  value={crossTabFilter}
+                  onChange={(_, newValue) => setCrossTabFilter(newValue)}
+                  noOptionsText="No options available"
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      label={`Filter by ${crossTabFilterField === 'category' ? 'Category' : crossTabFilterField === 'brand' ? 'Brand' : 'P_Type'}`}
+                      placeholder={crossTabFilter.length === 0 ? "All" : ""}
+                      sx={{
+                        minWidth: 200,
+                        '& .MuiInputBase-root': {
+                          fontSize: '0.75rem',
+                          minHeight: 36,
+                          bgcolor: isDarkMode ? '#1e293b' : '#fff',
+                          color: isDarkMode ? '#e2e8f0' : 'inherit',
+                        },
+                        '& .MuiInputBase-input': {
+                          color: isDarkMode ? '#e2e8f0' : 'inherit',
+                          '&::placeholder': { color: isDarkMode ? '#94a3b8' : '#9ca3af', opacity: 1 },
+                        },
+                        '& .MuiInputLabel-root': {
+                          fontSize: '0.75rem',
+                          color: isDarkMode ? '#e2e8f0' : 'inherit',
+                          '&.Mui-focused': { color: isDarkMode ? '#fca5a5' : '#dc2626' },
+                          '&.MuiInputLabel-shrink': { color: isDarkMode ? '#e2e8f0' : 'inherit' },
+                        },
+                        '& .MuiOutlinedInput-notchedOutline': { borderColor: isDarkMode ? '#475569' : '#d1d5db' },
+                        '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: isDarkMode ? '#f87171' : '#dc2626' },
+                        '& .Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: isDarkMode ? '#f87171' : '#dc2626' },
+                        '& .MuiSvgIcon-root': { color: isDarkMode ? '#e2e8f0' : 'inherit' },
+                      }}
+                    />
+                  )}
+                  renderTags={(value, getTagProps) =>
+                    value.map((option, index) => (
+                      <Chip
+                        {...getTagProps({ index })}
+                        key={option}
+                        label={option}
+                        size="small"
+                        sx={{
+                          fontSize: '0.65rem',
+                          height: 22,
+                          bgcolor: isDarkMode ? 'rgba(239, 68, 68, 0.3)' : 'rgba(239, 68, 68, 0.15)',
+                          color: isDarkMode ? '#fca5a5' : '#dc2626',
+                          '& .MuiChip-deleteIcon': { color: isDarkMode ? '#f87171' : '#ef4444', fontSize: '0.9rem' },
+                        }}
+                      />
+                    ))
+                  }
+                  slotProps={{
+                    paper: {
+                      sx: {
+                        bgcolor: isDarkMode ? '#1e293b' : '#fff',
+                        color: isDarkMode ? '#e2e8f0' : 'inherit',
+                        '& .MuiAutocomplete-option': {
+                          fontSize: '0.75rem',
+                          '&:hover': { bgcolor: isDarkMode ? 'rgba(239, 68, 68, 0.2)' : 'rgba(239, 68, 68, 0.1)' },
+                          '&[aria-selected="true"]': { bgcolor: isDarkMode ? 'rgba(239, 68, 68, 0.3)' : 'rgba(239, 68, 68, 0.2)' },
+                        },
+                        '& .MuiAutocomplete-noOptions': { fontSize: '0.75rem', color: isDarkMode ? '#94a3b8' : '#64748b' },
+                      },
+                    },
+                  }}
+                />
+                {crossTabFilter.length > 0 && (
+                  <Button
+                    size="small"
+                    onClick={() => setCrossTabFilter([])}
+                    sx={{
+                      fontSize: '0.7rem',
+                      fontWeight: 600,
+                      color: '#ef4444',
+                      textTransform: 'none',
+                      '&:hover': { bgcolor: 'rgba(239, 68, 68, 0.08)' },
+                    }}
+                  >
+                    Clear
+                  </Button>
+                )}
+              </Box>
+            )}
+
+            {/* Combined View Filters */}
+            {pivotGroupBy === 'combined' && (
+              <Box sx={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 2,
+                px: 2,
+                py: 1.5,
+                borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0',
+                bgcolor: isDarkMode ? 'rgba(16, 185, 129, 0.08)' : 'rgba(16, 185, 129, 0.03)',
+                flexWrap: 'wrap',
+              }}>
+                <Typography sx={{ fontWeight: 600, color: isDarkMode ? '#6ee7b7' : '#059669', fontSize: '0.8rem' }}>
+                  Filters:
+                </Typography>
+                <Autocomplete
+                  multiple
+                  size="small"
+                  options={pivotFilterOptions.categories}
+                  value={pivotCategoryFilter}
+                  onChange={(_, newValue) => setPivotCategoryFilter(newValue)}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      label="Category"
+                      placeholder={pivotCategoryFilter.length === 0 ? "All" : ""}
+                      sx={{
+                        minWidth: 180,
+                        '& .MuiInputBase-root': { fontSize: '0.75rem', minHeight: 36, bgcolor: isDarkMode ? '#1e293b' : '#fff', color: isDarkMode ? '#e2e8f0' : 'inherit' },
+                        '& .MuiInputBase-input': { color: isDarkMode ? '#e2e8f0' : 'inherit', '&::placeholder': { color: isDarkMode ? '#94a3b8' : '#9ca3af', opacity: 1 } },
+                        '& .MuiInputLabel-root': { fontSize: '0.75rem', color: isDarkMode ? '#e2e8f0' : 'inherit', '&.Mui-focused': { color: isDarkMode ? '#a78bfa' : '#7c3aed' } },
+                        '& .MuiOutlinedInput-notchedOutline': { borderColor: isDarkMode ? '#475569' : '#d1d5db' },
+                        '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: isDarkMode ? '#7c3aed' : '#8b5cf6' },
+                        '& .MuiSvgIcon-root': { color: isDarkMode ? '#e2e8f0' : 'inherit' },
+                      }}
+                    />
+                  )}
+                  renderTags={(value, getTagProps) =>
+                    value.map((option, index) => (
+                      <Chip {...getTagProps({ index })} key={option} label={option} size="small"
+                        sx={{ fontSize: '0.65rem', height: 22, bgcolor: isDarkMode ? 'rgba(139, 92, 246, 0.3)' : 'rgba(139, 92, 246, 0.15)', color: isDarkMode ? '#c4b5fd' : '#7c3aed', '& .MuiChip-deleteIcon': { color: isDarkMode ? '#a78bfa' : '#8b5cf6', fontSize: '0.9rem' } }}
+                      />
+                    ))
+                  }
+                  slotProps={{
+                    paper: {
+                      sx: {
+                        bgcolor: isDarkMode ? '#1e293b' : '#fff', color: isDarkMode ? '#e2e8f0' : 'inherit',
+                        '& .MuiAutocomplete-option': { fontSize: '0.75rem', '&:hover': { bgcolor: isDarkMode ? 'rgba(139, 92, 246, 0.2)' : 'rgba(139, 92, 246, 0.1)' }, '&[aria-selected="true"]': { bgcolor: isDarkMode ? 'rgba(139, 92, 246, 0.3)' : 'rgba(139, 92, 246, 0.2)' } },
+                      },
+                    },
+                  }}
+                />
+                <Autocomplete
+                  multiple
+                  size="small"
+                  options={pivotFilterOptions.brands}
+                  value={pivotBrandFilter}
+                  onChange={(_, newValue) => setPivotBrandFilter(newValue)}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      label="Brand"
+                      placeholder={pivotBrandFilter.length === 0 ? "All" : ""}
+                      sx={{
+                        minWidth: 180,
+                        '& .MuiInputBase-root': { fontSize: '0.75rem', minHeight: 36, bgcolor: isDarkMode ? '#1e293b' : '#fff', color: isDarkMode ? '#e2e8f0' : 'inherit' },
+                        '& .MuiInputBase-input': { color: isDarkMode ? '#e2e8f0' : 'inherit', '&::placeholder': { color: isDarkMode ? '#94a3b8' : '#9ca3af', opacity: 1 } },
+                        '& .MuiInputLabel-root': { fontSize: '0.75rem', color: isDarkMode ? '#e2e8f0' : 'inherit', '&.Mui-focused': { color: isDarkMode ? '#22d3ee' : '#0891b2' } },
+                        '& .MuiOutlinedInput-notchedOutline': { borderColor: isDarkMode ? '#475569' : '#d1d5db' },
+                        '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: isDarkMode ? '#06b6d4' : '#0891b2' },
+                        '& .MuiSvgIcon-root': { color: isDarkMode ? '#e2e8f0' : 'inherit' },
+                      }}
+                    />
+                  )}
+                  renderTags={(value, getTagProps) =>
+                    value.map((option, index) => (
+                      <Chip {...getTagProps({ index })} key={option} label={option} size="small"
+                        sx={{ fontSize: '0.65rem', height: 22, bgcolor: isDarkMode ? 'rgba(6, 182, 212, 0.3)' : 'rgba(6, 182, 212, 0.15)', color: isDarkMode ? '#67e8f9' : '#0891b2', '& .MuiChip-deleteIcon': { color: isDarkMode ? '#22d3ee' : '#06b6d4', fontSize: '0.9rem' } }}
+                      />
+                    ))
+                  }
+                  slotProps={{
+                    paper: {
+                      sx: {
+                        bgcolor: isDarkMode ? '#1e293b' : '#fff', color: isDarkMode ? '#e2e8f0' : 'inherit',
+                        '& .MuiAutocomplete-option': { fontSize: '0.75rem', '&:hover': { bgcolor: isDarkMode ? 'rgba(6, 182, 212, 0.2)' : 'rgba(6, 182, 212, 0.1)' }, '&[aria-selected="true"]': { bgcolor: isDarkMode ? 'rgba(6, 182, 212, 0.3)' : 'rgba(6, 182, 212, 0.2)' } },
+                      },
+                    },
+                  }}
+                />
+                <Autocomplete
+                  multiple
+                  size="small"
+                  options={pivotFilterOptions.pTypes}
+                  value={pivotPTypeFilter}
+                  onChange={(_, newValue) => setPivotPTypeFilter(newValue)}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      label="P_Type"
+                      placeholder={pivotPTypeFilter.length === 0 ? "All" : ""}
+                      sx={{
+                        minWidth: 180,
+                        '& .MuiInputBase-root': { fontSize: '0.75rem', minHeight: 36, bgcolor: isDarkMode ? '#1e293b' : '#fff', color: isDarkMode ? '#e2e8f0' : 'inherit' },
+                        '& .MuiInputBase-input': { color: isDarkMode ? '#e2e8f0' : 'inherit', '&::placeholder': { color: isDarkMode ? '#94a3b8' : '#9ca3af', opacity: 1 } },
+                        '& .MuiInputLabel-root': { fontSize: '0.75rem', color: isDarkMode ? '#e2e8f0' : 'inherit', '&.Mui-focused': { color: isDarkMode ? '#fb923c' : '#ea580c' } },
+                        '& .MuiOutlinedInput-notchedOutline': { borderColor: isDarkMode ? '#475569' : '#d1d5db' },
+                        '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: isDarkMode ? '#f97316' : '#ea580c' },
+                        '& .MuiSvgIcon-root': { color: isDarkMode ? '#e2e8f0' : 'inherit' },
+                      }}
+                    />
+                  )}
+                  renderTags={(value, getTagProps) =>
+                    value.map((option, index) => (
+                      <Chip {...getTagProps({ index })} key={option} label={option} size="small"
+                        sx={{ fontSize: '0.65rem', height: 22, bgcolor: isDarkMode ? 'rgba(249, 115, 22, 0.3)' : 'rgba(249, 115, 22, 0.15)', color: isDarkMode ? '#fdba74' : '#ea580c', '& .MuiChip-deleteIcon': { color: isDarkMode ? '#fb923c' : '#f97316', fontSize: '0.9rem' } }}
+                      />
+                    ))
+                  }
+                  slotProps={{
+                    paper: {
+                      sx: {
+                        bgcolor: isDarkMode ? '#1e293b' : '#fff', color: isDarkMode ? '#e2e8f0' : 'inherit',
+                        '& .MuiAutocomplete-option': { fontSize: '0.75rem', '&:hover': { bgcolor: isDarkMode ? 'rgba(249, 115, 22, 0.2)' : 'rgba(249, 115, 22, 0.1)' }, '&[aria-selected="true"]': { bgcolor: isDarkMode ? 'rgba(249, 115, 22, 0.3)' : 'rgba(249, 115, 22, 0.2)' } },
+                      },
+                    },
+                  }}
+                />
+                {(pivotCategoryFilter.length > 0 || pivotBrandFilter.length > 0 || pivotPTypeFilter.length > 0) && (
+                  <Button
+                    size="small"
+                    onClick={() => {
+                      setPivotCategoryFilter([]);
+                      setPivotBrandFilter([]);
+                      setPivotPTypeFilter([]);
+                    }}
+                    sx={{
+                      fontSize: '0.7rem',
+                      fontWeight: 600,
+                      color: '#ef4444',
+                      textTransform: 'none',
+                      '&:hover': { bgcolor: 'rgba(239, 68, 68, 0.08)' },
+                    }}
+                  >
+                    Clear All
+                  </Button>
+                )}
+              </Box>
+            )}
+
+            {/* Cross-Tab View */}
+            {pivotGroupBy === 'crosstab' ? (
+              crossTabPivotData.grandTotal === 0 ? (
+                <Box sx={{ p: 4, textAlign: 'center' }}>
+                  <Typography color="text.secondary">
+                    {crossTabFilter.length > 0
+                      ? 'No items match the selected filters.'
+                      : 'No scanned items found. Start scanning WSNs to see cross-tab summary.'}
+                  </Typography>
+                </Box>
+              ) : (
+                <TableContainer sx={{ maxHeight: pivotDialogFullscreen ? 'calc(92vh - 220px)' : 500 }}>
+                  <Table stickyHeader size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell
+                          sx={{
+                            fontWeight: 700,
+                            bgcolor: isDarkMode ? '#334155' : '#f1f5f9',
+                            color: isDarkMode ? '#f1f5f9' : '#1e293b',
+                            borderRight: isDarkMode ? '2px solid #475569' : '2px solid #e2e8f0',
+                            minWidth: 120,
+                          }}
+                        >
+                          {crossTabRowField === 'category' ? 'Category' : crossTabRowField === 'brand' ? 'Brand' : 'P_Type'} / {crossTabColField === 'category' ? 'Category' : crossTabColField === 'brand' ? 'Brand' : 'P_Type'}
+                        </TableCell>
+                        {crossTabPivotData.colHeaders.map((col) => (
+                          <TableCell
+                            key={col}
+                            align="center"
+                            sx={{
+                              fontWeight: 600,
+                              bgcolor: isDarkMode ? '#334155' : '#f1f5f9',
+                              color: isDarkMode ? '#67e8f9' : '#0891b2',
+                              fontSize: '0.75rem',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {col}
+                          </TableCell>
+                        ))}
+                        <TableCell
+                          align="center"
+                          sx={{
+                            fontWeight: 700,
+                            bgcolor: isDarkMode ? '#374151' : '#e2e8f0',
+                            color: isDarkMode ? '#f97316' : '#ea580c',
+                            borderLeft: isDarkMode ? '2px solid #475569' : '2px solid #cbd5e1',
+                          }}
+                        >
+                          Grand Total
+                        </TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {crossTabPivotData.rowHeaders.map((row) => (
+                        <TableRow key={row} hover>
+                          <TableCell
+                            sx={{
+                              fontWeight: 600,
+                              color: isDarkMode ? '#c4b5fd' : '#7c3aed',
+                              fontSize: '0.8rem',
+                              borderRight: isDarkMode ? '2px solid #475569' : '2px solid #e2e8f0',
+                              bgcolor: isDarkMode ? 'rgba(139, 92, 246, 0.05)' : 'rgba(139, 92, 246, 0.03)',
+                            }}
+                          >
+                            {row}
+                          </TableCell>
+                          {crossTabPivotData.colHeaders.map((col) => (
+                            <TableCell
+                              key={col}
+                              align="center"
+                              sx={{
+                                fontSize: '0.8rem',
+                                color: crossTabPivotData.data[row][col] > 0
+                                  ? (isDarkMode ? '#34d399' : '#059669')
+                                  : (isDarkMode ? '#64748b' : '#94a3b8'),
+                                fontWeight: crossTabPivotData.data[row][col] > 0 ? 600 : 400,
+                              }}
+                            >
+                              {crossTabPivotData.data[row][col] || '-'}
+                            </TableCell>
+                          ))}
+                          <TableCell
+                            align="center"
+                            sx={{
+                              fontWeight: 700,
+                              color: isDarkMode ? '#f97316' : '#ea580c',
+                              borderLeft: isDarkMode ? '2px solid #475569' : '2px solid #cbd5e1',
+                              bgcolor: isDarkMode ? 'rgba(249, 115, 22, 0.08)' : 'rgba(249, 115, 22, 0.05)',
+                            }}
+                          >
+                            {crossTabPivotData.rowTotals[row]}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      {/* Grand Total Row */}
+                      <TableRow sx={{
+                        bgcolor: isDarkMode ? 'rgba(99, 102, 241, 0.2)' : 'rgba(99, 102, 241, 0.1)',
+                        '& td': { borderTop: isDarkMode ? '2px solid #6366f1' : '2px solid #818cf8' },
+                      }}>
+                        <TableCell
+                          sx={{
+                            fontWeight: 700,
+                            color: isDarkMode ? '#a5b4fc' : '#4f46e5',
+                            borderRight: isDarkMode ? '2px solid #475569' : '2px solid #e2e8f0',
+                          }}
+                        >
+                          Grand Total
+                        </TableCell>
+                        {crossTabPivotData.colHeaders.map((col) => (
+                          <TableCell
+                            key={col}
+                            align="center"
+                            sx={{
+                              fontWeight: 700,
+                              color: isDarkMode ? '#67e8f9' : '#0891b2',
+                            }}
+                          >
+                            {crossTabPivotData.colTotals[col]}
+                          </TableCell>
+                        ))}
+                        <TableCell
+                          align="center"
+                          sx={{
+                            fontWeight: 700,
+                            fontSize: '1rem',
+                            color: 'white',
+                            bgcolor: isDarkMode ? '#dc2626' : '#ef4444',
+                            borderLeft: isDarkMode ? '2px solid #475569' : '2px solid #cbd5e1',
+                          }}
+                        >
+                          {crossTabPivotData.grandTotal}
+                        </TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              )
+            ) : categoryPivotData.categories.length === 0 ? (
               <Box sx={{ p: 4, textAlign: 'center' }}>
                 <Typography color="text.secondary">
-                  No scanned items found. Start scanning WSNs to see {pivotGroupBy} summary.
+                  {pivotGroupBy === 'combined' && (pivotCategoryFilter.length > 0 || pivotBrandFilter.length > 0 || pivotPTypeFilter.length > 0)
+                    ? 'No items match the selected filters.'
+                    : `No scanned items found. Start scanning WSNs to see ${pivotGroupBy} summary.`}
                 </Typography>
               </Box>
             ) : (
-              <TableContainer sx={{ maxHeight: 400 }}>
+              <TableContainer sx={{ maxHeight: pivotDialogFullscreen ? 'calc(92vh - 220px)' : 500 }}>
                 <Table stickyHeader size="small">
                   <TableHead>
                     <TableRow>
-                      <TableCell
-                        onClick={() => handleCategoryPivotSort('category')}
-                        sx={{
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                          bgcolor: isDarkMode ? '#334155' : '#f1f5f9',
-                          color: isDarkMode ? '#f1f5f9' : '#1e293b',
-                          '&:hover': { bgcolor: isDarkMode ? '#475569' : '#e2e8f0' },
-                          userSelect: 'none',
-                        }}
-                      >
-                        {pivotGroupBy === 'brand' ? 'Brand' : 'Category'} {categoryPivotSortBy === 'category' && (categoryPivotSortDir === 'asc' ? '^' : 'v')}
-                      </TableCell>
+                      {/* For combined view, show 3 columns */}
+                      {pivotGroupBy === 'combined' ? (
+                        <>
+                          <TableCell
+                            onClick={() => handleCategoryPivotSort('category')}
+                            sx={{
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              bgcolor: isDarkMode ? '#334155' : '#f1f5f9',
+                              color: isDarkMode ? '#f1f5f9' : '#1e293b',
+                              '&:hover': { bgcolor: isDarkMode ? '#475569' : '#e2e8f0' },
+                              userSelect: 'none',
+                            }}
+                          >
+                            Category {categoryPivotSortBy === 'category' && (categoryPivotSortDir === 'asc' ? '^' : 'v')}
+                          </TableCell>
+                          <TableCell
+                            sx={{
+                              fontWeight: 700,
+                              bgcolor: isDarkMode ? '#334155' : '#f1f5f9',
+                              color: isDarkMode ? '#f1f5f9' : '#1e293b',
+                            }}
+                          >
+                            Brand
+                          </TableCell>
+                          <TableCell
+                            sx={{
+                              fontWeight: 700,
+                              bgcolor: isDarkMode ? '#334155' : '#f1f5f9',
+                              color: isDarkMode ? '#f1f5f9' : '#1e293b',
+                            }}
+                          >
+                            P_Type
+                          </TableCell>
+                        </>
+                      ) : (
+                        <TableCell
+                          onClick={() => handleCategoryPivotSort('category')}
+                          sx={{
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            bgcolor: isDarkMode ? '#334155' : '#f1f5f9',
+                            color: isDarkMode ? '#f1f5f9' : '#1e293b',
+                            '&:hover': { bgcolor: isDarkMode ? '#475569' : '#e2e8f0' },
+                            userSelect: 'none',
+                          }}
+                        >
+                          {pivotGroupBy === 'brand' ? 'Brand' : pivotGroupBy === 'p_type' ? 'P_Type' : 'Category'} {categoryPivotSortBy === 'category' && (categoryPivotSortDir === 'asc' ? '^' : 'v')}
+                        </TableCell>
+                      )}
                       <TableCell
                         align="right"
                         onClick={() => handleCategoryPivotSort('qty')}
@@ -6248,25 +7166,62 @@ export default function PickingPage() {
                           '&:hover': { bgcolor: isDarkMode ? 'rgba(59, 130, 246, 0.15)' : 'rgba(59, 130, 246, 0.08)' },
                         }}
                       >
-                        <TableCell sx={{
-                          fontWeight: 600,
-                          color: isDarkMode ? '#f1f5f9' : '#1e293b',
-                        }}>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <Box
-                              sx={{
-                                width: 8,
-                                height: 8,
-                                borderRadius: '50%',
-                                bgcolor: [
-                                  '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
-                                  '#ec4899', '#06b6d4', '#84cc16', '#f97316', '#6366f1'
-                                ][idx % 10],
-                              }}
-                            />
-                            {cat.category}
-                          </Box>
-                        </TableCell>
+                        {/* For combined view, show 3 columns */}
+                        {pivotGroupBy === 'combined' ? (
+                          <>
+                            <TableCell sx={{
+                              fontWeight: 600,
+                              color: isDarkMode ? '#f1f5f9' : '#1e293b',
+                            }}>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <Box
+                                  sx={{
+                                    width: 8,
+                                    height: 8,
+                                    borderRadius: '50%',
+                                    bgcolor: [
+                                      '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
+                                      '#ec4899', '#06b6d4', '#84cc16', '#f97316', '#6366f1'
+                                    ][idx % 10],
+                                  }}
+                                />
+                                {cat.categoryName}
+                              </Box>
+                            </TableCell>
+                            <TableCell sx={{
+                              fontWeight: 600,
+                              color: isDarkMode ? '#67e8f9' : '#0891b2',
+                            }}>
+                              {cat.brandName}
+                            </TableCell>
+                            <TableCell sx={{
+                              fontWeight: 600,
+                              color: isDarkMode ? '#fdba74' : '#ea580c',
+                            }}>
+                              {cat.pTypeName}
+                            </TableCell>
+                          </>
+                        ) : (
+                          <TableCell sx={{
+                            fontWeight: 600,
+                            color: isDarkMode ? '#f1f5f9' : '#1e293b',
+                          }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <Box
+                                sx={{
+                                  width: 8,
+                                  height: 8,
+                                  borderRadius: '50%',
+                                  bgcolor: [
+                                    '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
+                                    '#ec4899', '#06b6d4', '#84cc16', '#f97316', '#6366f1'
+                                  ][idx % 10],
+                                }}
+                              />
+                              {cat.category}
+                            </Box>
+                          </TableCell>
+                        )}
                         <TableCell align="right" sx={{
                           fontWeight: 700,
                           color: isDarkMode ? '#60a5fa' : '#2563eb',
@@ -6278,13 +7233,13 @@ export default function PickingPage() {
                           color: isDarkMode ? '#4ade80' : '#16a34a',
                           fontWeight: 600,
                         }}>
-                          ₹{cat.fsp.toLocaleString()}
+                          {'\u20B9'}{cat.fsp.toLocaleString()}
                         </TableCell>
                         <TableCell align="right" sx={{
                           color: isDarkMode ? '#f97316' : '#ea580c',
                           fontWeight: 600,
                         }}>
-                          ₹{cat.mrp.toLocaleString()}
+                          {'\u20B9'}{cat.mrp.toLocaleString()}
                         </TableCell>
                         <TableCell align="center">
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -6329,6 +7284,13 @@ export default function PickingPage() {
                       }}>
                         GRAND TOTAL
                       </TableCell>
+                      {/* Empty cells for combined view extra columns */}
+                      {pivotGroupBy === 'combined' && (
+                        <>
+                          <TableCell sx={{ color: 'white' }}></TableCell>
+                          <TableCell sx={{ color: 'white' }}></TableCell>
+                        </>
+                      )}
                       <TableCell align="right" sx={{
                         fontWeight: 800,
                         color: 'white',
@@ -6340,13 +7302,13 @@ export default function PickingPage() {
                         fontWeight: 700,
                         color: '#4ade80',
                       }}>
-                        ₹{categoryPivotData.grandTotal.fsp.toLocaleString()}
+                        {'\u20B9'}{categoryPivotData.grandTotal.fsp.toLocaleString()}
                       </TableCell>
                       <TableCell align="right" sx={{
                         fontWeight: 700,
                         color: '#fbbf24',
                       }}>
-                        ₹{categoryPivotData.grandTotal.mrp.toLocaleString()}
+                        {'\u20B9'}{categoryPivotData.grandTotal.mrp.toLocaleString()}
                       </TableCell>
                       <TableCell align="center" sx={{
                         fontWeight: 700,
@@ -6364,7 +7326,7 @@ export default function PickingPage() {
             <Button
               onClick={exportCategoryPivotToExcel}
               startIcon={<DownloadIcon />}
-              disabled={categoryPivotData.categories.length === 0}
+              disabled={pivotGroupBy === 'crosstab' ? crossTabPivotData.grandTotal === 0 : categoryPivotData.categories.length === 0}
               sx={{
                 color: '#10b981',
                 fontWeight: 600,
