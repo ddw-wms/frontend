@@ -843,6 +843,26 @@ export const dashboardAPI = {
 
 
 // ================= Reports API =======================
+export const reportsAPI = {
+  getTrendAnalysis: (warehouseId: number, startDate?: string, endDate?: string) => {
+    const params = new URLSearchParams({ warehouse_id: String(warehouseId) });
+    if (startDate) params.append('start_date', startDate);
+    if (endDate) params.append('end_date', endDate);
+    return api.get(`/reports/trend-analysis?${params.toString()}`);
+  },
+  getQCAnalysis: (warehouseId: number) =>
+    api.get(`/reports/qc-analysis?warehouse_id=${warehouseId}`),
+  getPerformanceMetrics: (warehouseId: number) =>
+    api.get(`/reports/performance-metrics?warehouse_id=${warehouseId}`),
+  getExceptionReports: (warehouseId: number) =>
+    api.get(`/reports/exception-reports?warehouse_id=${warehouseId}`),
+  exportReport: (reportType: string, warehouseId: number, startDate?: string, endDate?: string) => {
+    const params = new URLSearchParams({ report_type: reportType, warehouse_id: String(warehouseId) });
+    if (startDate) params.append('start_date', startDate);
+    if (endDate) params.append('end_date', endDate);
+    return api.get(`/reports/export?${params.toString()}`, { responseType: 'blob' });
+  },
+};
 
 // ================= Permissions API =======================
 export const permissionsAPI = {

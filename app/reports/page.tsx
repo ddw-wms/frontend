@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
     Box, Paper, Typography, Card, CardContent, Stack, LinearProgress,
     Alert, Chip, Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-    useTheme, useMediaQuery
+    useTheme, useMediaQuery, Button, IconButton, TextField, CircularProgress, Divider
 } from '@mui/material';
 import {
     TrendingUp as TrendingUpIcon,
@@ -14,7 +14,9 @@ import {
     Error as ErrorIcon,
     Speed as SpeedIcon,
     Inventory as InventoryIcon,
-    LocalShipping as LocalShippingIcon
+    LocalShipping as LocalShippingIcon,
+    Download as DownloadIcon,
+    Refresh as RefreshIcon
 } from '@mui/icons-material';
 import { useWarehouse } from '@/app/context/WarehouseContext';
 import { getStoredUser } from '@/lib/auth';
@@ -27,7 +29,7 @@ import {
     XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceArea
 } from 'recharts';
 import dayjs from 'dayjs';
-import api from '@/lib/api';
+import api, { reportsAPI } from '@/lib/api';
 
 const COLORS = ['#1e40af', '#f093fb', '#4facfe', '#43e97b', '#fa709a'];
 
@@ -54,6 +56,19 @@ export default function ReportsPage() {
         slowMoving: []
     });
 
+    // Per-section error & loading states
+    const [sectionErrors, setSectionErrors] = useState<Record<string, string>>({});
+    const [sectionLoading, setSectionLoading] = useState<Record<string, boolean>>({});
+    const [exporting, setExporting] = useState(false);
+
+    // Date range for trend analysis (default: last 30 days)
+    const [dateRange, setDateRange] = useState({
+        startDate: dayjs().subtract(29, 'day').format('YYYY-MM-DD'),
+        endDate: dayjs().format('YYYY-MM-DD')
+    });
+    const dateRangeRef = useRef(dateRange);
+    dateRangeRef.current = dateRange;
+
     useEffect(() => {
         const storedUser = getStoredUser();
         if (!storedUser) {
@@ -68,30 +83,61 @@ export default function ReportsPage() {
         if (!activeWarehouse?.id) return;
 
         setLoading(true);
+        setSectionErrors({});
+
         try {
-            // Clear previous data when warehouse changes
             if (selectedTab === 0) {
-                // Analytics Dashboard
-                const [trends, qc] = await Promise.all([
-                    api.get(`/reports/trend-analysis?warehouse_id=${activeWarehouse.id}`),
-                    api.get(`/reports/qc-analysis?warehouse_id=${activeWarehouse.id}`)
+                // Analytics Dashboard - load trend and QC independently
+                setSectionLoading(prev => ({ ...prev, trend: true, qc: true }));
+
+                const { startDate, endDate } = dateRangeRef.current;
+                const [trendResult, qcResult] = await Promise.allSettled([
+                    reportsAPI.getTrendAnalysis(activeWarehouse.id, startDate, endDate),
+                    reportsAPI.getQCAnalysis(activeWarehouse.id)
                 ]);
-                setTrendData(trends.data.trends || []);
-                setQcAnalysis(qc.data.qcAnalysis || []);
+
+                if (trendResult.status === 'fulfilled') {
+                    setTrendData(trendResult.value.data.trends || []);
+                } else {
+                    const errMsg = (trendResult.reason as any)?.response?.data?.error || 'Failed to load trend data';
+                    setSectionErrors(prev => ({ ...prev, trend: errMsg }));
+                }
+
+                if (qcResult.status === 'fulfilled') {
+                    setQcAnalysis(qcResult.value.data.qcAnalysis || []);
+                } else {
+                    const errMsg = (qcResult.reason as any)?.response?.data?.error || 'Failed to load QC data';
+                    setSectionErrors(prev => ({ ...prev, qc: errMsg }));
+                }
+
+                setSectionLoading(prev => ({ ...prev, trend: false, qc: false }));
             } else if (selectedTab === 1) {
                 // Performance Reports
-                const perf = await api.get(`/reports/performance-metrics?warehouse_id=${activeWarehouse.id}`);
-                setUserPerformance(perf.data.userPerformance || []);
-                setBrandPerformance(perf.data.brandPerformance || []);
+                setSectionLoading(prev => ({ ...prev, performance: true }));
+                try {
+                    const perf = await reportsAPI.getPerformanceMetrics(activeWarehouse.id);
+                    setUserPerformance(perf.data.userPerformance || []);
+                    setBrandPerformance(perf.data.brandPerformance || []);
+                } catch (err: any) {
+                    const errMsg = err?.response?.data?.error || 'Failed to load performance data';
+                    setSectionErrors(prev => ({ ...prev, performance: errMsg }));
+                }
+                setSectionLoading(prev => ({ ...prev, performance: false }));
             } else if (selectedTab === 2) {
                 // Exception Reports
-                const exceptions = await api.get(`/reports/exception-reports?warehouse_id=${activeWarehouse.id}`);
-                setExceptionReports(exceptions.data);
+                setSectionLoading(prev => ({ ...prev, exception: true }));
+                try {
+                    const exceptions = await reportsAPI.getExceptionReports(activeWarehouse.id);
+                    setExceptionReports(exceptions.data);
+                } catch (err: any) {
+                    const errMsg = err?.response?.data?.error || 'Failed to load exception data';
+                    setSectionErrors(prev => ({ ...prev, exception: errMsg }));
+                }
+                setSectionLoading(prev => ({ ...prev, exception: false }));
             }
         } catch (error: any) {
             console.error('Error loading analytics:', error);
-            const errorMsg = error.response?.data?.error || error.message || 'Failed to load analytics data';
-            toast.error(errorMsg);
+            toast.error('Failed to load analytics data');
         } finally {
             setLoading(false);
         }
@@ -106,6 +152,8 @@ export default function ReportsPage() {
             setUserPerformance([]);
             setBrandPerformance([]);
             setExceptionReports({ stuckInbound: [], qcFailed: [], slowMoving: [] });
+            setSectionErrors({});
+            setSectionLoading({});
 
             loadAnalyticsData();
         }
@@ -140,6 +188,51 @@ export default function ReportsPage() {
             picking: { value: sumField(last7Days, 'picking'), change: 0 }
         };
     }, [trendData]);
+
+    // Export report to Excel
+    const handleExport = async (reportType: string) => {
+        if (!activeWarehouse?.id) return;
+        setExporting(true);
+        try {
+            const { startDate, endDate } = dateRangeRef.current;
+            const response = await reportsAPI.exportReport(reportType, activeWarehouse.id, startDate, endDate);
+            const url = window.URL.createObjectURL(new Blob([response.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', `${reportType}_report_${dayjs().format('YYYY-MM-DD')}.xlsx`);
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(url);
+            toast.success('Report exported successfully');
+        } catch (error: any) {
+            console.error('Export error:', error);
+            toast.error('Failed to export report');
+        } finally {
+            setExporting(false);
+        }
+    };
+
+    // Retry / Refresh data
+    const retrySection = () => {
+        setSectionErrors({});
+        loadAnalyticsData();
+    };
+
+    // Error display component with retry button
+    const SectionError = ({ message, onRetry }: { message: string; onRetry: () => void }) => (
+        <Alert
+            severity="error"
+            sx={{ my: 1 }}
+            action={
+                <Button color="inherit" size="small" startIcon={<RefreshIcon />} onClick={onRetry}>
+                    Retry
+                </Button>
+            }
+        >
+            {message}
+        </Alert>
+    );
 
     // Render Analytics Dashboard
     const renderAnalyticsDashboard = () => (
@@ -233,35 +326,77 @@ export default function ReportsPage() {
 
             {/* Trend Chart */}
             <Paper sx={{ p: { xs: 0.75, md: 1.5 }, mb: { xs: 1.5, md: 2 } }}>
-                <Typography variant="h6" sx={{ mb: { xs: 0.5, md: 1 }, fontWeight: 600, fontSize: { xs: '0.85rem', md: '1.1rem' } }}>
-                    📈 30-Day Operations Trend
-                </Typography>
-                <ResponsiveContainer width="100%" height={isMobile ? 180 : 250}>
-                    <LineChart data={trendData}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis
-                            dataKey="date"
-                            tickFormatter={(date) => dayjs(date).format(isMobile ? 'DD' : 'MMM DD')}
-                            fontSize={isMobile ? 10 : 12}
+                <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', md: 'center' }} spacing={1} sx={{ mb: { xs: 0.5, md: 1 } }}>
+                    <Typography variant="h6" sx={{ fontWeight: 600, fontSize: { xs: '0.85rem', md: '1.1rem' } }}>
+                        📈 Operations Trend
+                    </Typography>
+                    <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+                        <TextField
+                            type="date"
+                            size="small"
+                            label="From"
+                            value={dateRange.startDate}
+                            onChange={(e) => setDateRange(prev => ({ ...prev, startDate: e.target.value }))}
+                            InputLabelProps={{ shrink: true }}
+                            sx={{ width: { xs: 130, md: 150 }, '& .MuiInputBase-input': { fontSize: { xs: '0.7rem', md: '0.8rem' }, py: { xs: 0.5, md: 0.75 } } }}
                         />
-                        <YAxis fontSize={isMobile ? 10 : 12} />
-                        <Tooltip
-                            labelFormatter={(date) => dayjs(date).format('MMM DD, YYYY')}
-                            contentStyle={{
-                                backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
-                                border: isDarkMode ? '1px solid rgba(255,255,255,0.15)' : '1px solid #e5e7eb',
-                                borderRadius: '8px',
-                                color: isDarkMode ? '#f1f5f9' : '#1f2937'
-                            }}
-                            labelStyle={{ color: isDarkMode ? '#f1f5f9' : '#1f2937' }}
+                        <TextField
+                            type="date"
+                            size="small"
+                            label="To"
+                            value={dateRange.endDate}
+                            onChange={(e) => setDateRange(prev => ({ ...prev, endDate: e.target.value }))}
+                            InputLabelProps={{ shrink: true }}
+                            sx={{ width: { xs: 130, md: 150 }, '& .MuiInputBase-input': { fontSize: { xs: '0.7rem', md: '0.8rem' }, py: { xs: 0.5, md: 0.75 } } }}
                         />
-                        <Legend wrapperStyle={{ fontSize: isMobile ? '11px' : '14px' }} />
-                        <Line type="monotone" dataKey="inbound" stroke="#1e40af" strokeWidth={isMobile ? 1.5 : 2} name="Inbound" />
-                        <Line type="monotone" dataKey="qc" stroke="#f093fb" strokeWidth={isMobile ? 1.5 : 2} name="QC" />
-                        <Line type="monotone" dataKey="picking" stroke="#4facfe" strokeWidth={isMobile ? 1.5 : 2} name="Picking" />
-                        <Line type="monotone" dataKey="outbound" stroke="#43e97b" strokeWidth={isMobile ? 1.5 : 2} name="Outbound" />
-                    </LineChart>
-                </ResponsiveContainer>
+                        <IconButton size="small" onClick={retrySection} title="Refresh">
+                            <RefreshIcon fontSize="small" />
+                        </IconButton>
+                        <Button
+                            size="small"
+                            variant="outlined"
+                            startIcon={exporting ? <CircularProgress size={14} /> : <DownloadIcon />}
+                            onClick={() => handleExport('current_stock')}
+                            disabled={exporting}
+                            sx={{ fontSize: { xs: '0.65rem', md: '0.75rem' }, py: { xs: 0.25, md: 0.5 }, textTransform: 'none' }}
+                        >
+                            {isMobile ? 'Export' : 'Export Excel'}
+                        </Button>
+                    </Stack>
+                </Stack>
+                {sectionErrors.trend && <SectionError message={sectionErrors.trend} onRetry={retrySection} />}
+                {sectionLoading.trend ? (
+                    <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: isMobile ? 180 : 250 }}>
+                        <CircularProgress />
+                    </Box>
+                ) : (
+                    <ResponsiveContainer width="100%" height={isMobile ? 180 : 250}>
+                        <LineChart data={trendData}>
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis
+                                dataKey="date"
+                                tickFormatter={(date) => dayjs(date).format(isMobile ? 'DD' : 'MMM DD')}
+                                fontSize={isMobile ? 10 : 12}
+                            />
+                            <YAxis fontSize={isMobile ? 10 : 12} />
+                            <Tooltip
+                                labelFormatter={(date) => dayjs(date).format('MMM DD, YYYY')}
+                                contentStyle={{
+                                    backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
+                                    border: isDarkMode ? '1px solid rgba(255,255,255,0.15)' : '1px solid #e5e7eb',
+                                    borderRadius: '8px',
+                                    color: isDarkMode ? '#f1f5f9' : '#1f2937'
+                                }}
+                                labelStyle={{ color: isDarkMode ? '#f1f5f9' : '#1f2937' }}
+                            />
+                            <Legend wrapperStyle={{ fontSize: isMobile ? '11px' : '14px' }} />
+                            <Line type="monotone" dataKey="inbound" stroke="#1e40af" strokeWidth={isMobile ? 1.5 : 2} name="Inbound" />
+                            <Line type="monotone" dataKey="qc" stroke="#f093fb" strokeWidth={isMobile ? 1.5 : 2} name="QC" />
+                            <Line type="monotone" dataKey="picking" stroke="#4facfe" strokeWidth={isMobile ? 1.5 : 2} name="Picking" />
+                            <Line type="monotone" dataKey="outbound" stroke="#43e97b" strokeWidth={isMobile ? 1.5 : 2} name="Outbound" />
+                        </LineChart>
+                    </ResponsiveContainer>
+                )}
             </Paper>
 
             {/* QC Analysis */}
@@ -269,6 +404,7 @@ export default function ReportsPage() {
                 <Typography variant="h6" sx={{ mb: { xs: 0.5, md: 1 }, fontWeight: 600, fontSize: { xs: '0.85rem', md: '1.1rem' } }}>
                     ✅ QC Status Distribution
                 </Typography>
+                {sectionErrors.qc && <SectionError message={sectionErrors.qc} onRetry={retrySection} />}
                 <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: { xs: 0.75, md: 1.5 } }}>
                     <ResponsiveContainer width="100%" height={isMobile ? 160 : 200}>
                         <PieChart>
@@ -326,11 +462,24 @@ export default function ReportsPage() {
     // Render Performance Reports
     const renderPerformanceReports = () => (
         <Box sx={{ p: { xs: 1, md: 2 } }}>
+            {sectionErrors.performance && <SectionError message={sectionErrors.performance} onRetry={retrySection} />}
             {/* User Performance */}
             <Paper sx={{ p: { xs: 1, md: 2 }, mb: { xs: 2, md: 3 }, bgcolor: isDarkMode ? '#1e293b' : '#ffffff' }}>
-                <Typography variant="h6" sx={{ mb: { xs: 1, md: 2 }, fontWeight: 600, fontSize: { xs: '0.9rem', md: '1.25rem' } }}>
-                    👥 User Performance (Top 20)
-                </Typography>
+                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: { xs: 1, md: 2 } }}>
+                    <Typography variant="h6" sx={{ fontWeight: 600, fontSize: { xs: '0.9rem', md: '1.25rem' } }}>
+                        👥 User Performance (Top 20)
+                    </Typography>
+                    <Button
+                        size="small"
+                        variant="outlined"
+                        startIcon={exporting ? <CircularProgress size={14} /> : <DownloadIcon />}
+                        onClick={() => handleExport('inbound')}
+                        disabled={exporting}
+                        sx={{ fontSize: { xs: '0.65rem', md: '0.75rem' }, textTransform: 'none' }}
+                    >
+                        Export
+                    </Button>
+                </Stack>
                 <div style={{
                     width: '100%',
                     height: isMobile ? 200 : 300,
@@ -440,9 +589,21 @@ export default function ReportsPage() {
 
             {/* Brand Performance */}
             <Paper sx={{ p: { xs: 1, md: 2 } }}>
-                <Typography variant="h6" sx={{ mb: { xs: 1, md: 2 }, fontWeight: 600, fontSize: { xs: '0.9rem', md: '1.25rem' } }}>
-                    🏷️ Brand Performance (Top 20)
-                </Typography>
+                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: { xs: 1, md: 2 } }}>
+                    <Typography variant="h6" sx={{ fontWeight: 600, fontSize: { xs: '0.9rem', md: '1.25rem' } }}>
+                        🏷️ Brand Performance (Top 20)
+                    </Typography>
+                    <Button
+                        size="small"
+                        variant="outlined"
+                        startIcon={exporting ? <CircularProgress size={14} /> : <DownloadIcon />}
+                        onClick={() => handleExport('outbound')}
+                        disabled={exporting}
+                        sx={{ fontSize: { xs: '0.65rem', md: '0.75rem' }, textTransform: 'none' }}
+                    >
+                        Export
+                    </Button>
+                </Stack>
                 <TableContainer sx={{ maxHeight: isMobile ? 300 : 400 }}>
                     <Table size="small" stickyHeader>
                         <TableHead>
@@ -499,6 +660,7 @@ export default function ReportsPage() {
     // Render Exception Reports
     const renderExceptionReports = () => (
         <Box sx={{ p: { xs: 1, md: 2 } }}>
+            {sectionErrors.exception && <SectionError message={sectionErrors.exception} onRetry={retrySection} />}
             {/* Summary Cards */}
             <Box sx={{
                 display: 'grid',
