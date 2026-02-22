@@ -7,10 +7,10 @@ import {
   TextField, Paper, Typography, Table, TableBody, TableCell, TableHead,
   TableRow, TableContainer, Chip, IconButton, Stack,
   FormControl, InputLabel, Select, MenuItem, Switch, FormControlLabel, useMediaQuery, useTheme, CircularProgress,
-  Tooltip, Badge
+  Tooltip, Badge, Checkbox, ListItemText, OutlinedInput
 } from '@mui/material';
 import { Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon, Key as KeyIcon, Logout as LogoutIcon, Circle as CircleIcon, Visibility as ViewIcon } from '@mui/icons-material';
-import { usersAPI, sessionsAPI } from '@/lib/api';
+import { usersAPI, sessionsAPI, warehousesAPI } from '@/lib/api';
 import AppLayout from '@/components/AppLayout';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import UserActivityModal from '@/components/UserActivityModal';
@@ -47,9 +47,11 @@ export default function UsersPage() {
     phone: '',
     role: 'operator',
     password: '',
-    isActive: true
+    isActive: true,
+    warehouseIds: [] as number[]
   });
   const [loading, setLoading] = useState(false);
+  const [allWarehouses, setAllWarehouses] = useState<any[]>([]);
 
   // Password change dialog
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
@@ -169,6 +171,8 @@ export default function UsersPage() {
 
   useEffect(() => {
     loadUsers();
+    // Load warehouses for the assignment dropdown
+    warehousesAPI.getAll().then(res => setAllWarehouses(res.data || [])).catch(() => { });
   }, []);
 
   // Load online users when admin/super_admin
@@ -219,8 +223,16 @@ export default function UsersPage() {
   };
 
 
-  const handleDialogOpen = (item?: any) => {
+  const handleDialogOpen = async (item?: any) => {
     setEditItem(item || null);
+    // Load user's current warehouse assignments if editing
+    let userWarehouseIds: number[] = [];
+    if (item) {
+      try {
+        const res = await usersAPI.getWarehouses(item.id);
+        userWarehouseIds = (res.data || []).map((w: any) => w.id);
+      } catch { /* ignore */ }
+    }
     setForm(item ? {
       username: item.username,
       email: item.email || '',
@@ -228,7 +240,8 @@ export default function UsersPage() {
       phone: item.phone || '',
       role: item.role || 'operator',
       password: '',
-      isActive: item.is_active || true
+      isActive: item.is_active || true,
+      warehouseIds: userWarehouseIds
     } : {
       username: '',
       email: '',
@@ -236,7 +249,8 @@ export default function UsersPage() {
       phone: '',
       role: 'operator',
       password: '',
-      isActive: true
+      isActive: true,
+      warehouseIds: []
     });
     setOpenDialog(true);
   };
@@ -251,7 +265,8 @@ export default function UsersPage() {
       phone: '',
       role: 'operator',
       password: '',
-      isActive: true
+      isActive: true,
+      warehouseIds: []
     });
   };
 
@@ -271,6 +286,10 @@ export default function UsersPage() {
           role: form.role,
           is_active: form.isActive
         });
+        // Update warehouse assignments
+        try {
+          await usersAPI.setWarehouses(editItem.id, form.warehouseIds);
+        } catch { /* warehouse update is best-effort */ }
         toast.success('✓ User updated');
       } else {
         if (!form.password) {
@@ -278,13 +297,14 @@ export default function UsersPage() {
           setLoading(false);
           return;
         }
-        await usersAPI.create({
+        const newUserRes = await usersAPI.create({
           username: form.username,
           email: form.email,
           full_name: form.fullName,
           phone: form.phone,
           role: form.role,
-          password: form.password
+          password: form.password,
+          warehouse_ids: form.warehouseIds
         });
         toast.success('✓ User created');
       }
@@ -657,6 +677,32 @@ export default function UsersPage() {
                 <MenuItem value="picker">Picker</MenuItem>
                 <MenuItem value="viewer">Viewer</MenuItem>
               </Select>
+            </FormControl>
+            <FormControl fullWidth>
+              <InputLabel>Warehouse Access</InputLabel>
+              <Select
+                multiple
+                value={form.warehouseIds}
+                onChange={e => {
+                  const val = e.target.value;
+                  setForm({ ...form, warehouseIds: typeof val === 'string' ? val.split(',').map(Number) : val as number[] });
+                }}
+                input={<OutlinedInput label="Warehouse Access" />}
+                renderValue={(selected) => {
+                  if (selected.length === 0) return 'All Warehouses (unrestricted)';
+                  return (selected as number[]).map(id => allWarehouses.find((w: any) => w.id === id)?.name || id).join(', ');
+                }}
+              >
+                {allWarehouses.filter((w: any) => w.is_active !== false).map((w: any) => (
+                  <MenuItem key={w.id} value={w.id}>
+                    <Checkbox checked={form.warehouseIds.includes(w.id)} size="small" />
+                    <ListItemText primary={w.name} secondary={w.code} />
+                  </MenuItem>
+                ))}
+              </Select>
+              <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, ml: 1 }}>
+                Leave empty = unrestricted (all warehouses)
+              </Typography>
             </FormControl>
             <FormControlLabel
               control={

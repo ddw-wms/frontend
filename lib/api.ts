@@ -319,6 +319,8 @@ export const usersAPI = {
   update: (id: number, data: any) => api.put(`users/${id}`, data),
   delete: (id: number) => api.delete(`users/${id}`),
   changePassword: (id: number, newPassword: string) => api.patch(`users/${id}/change-password`, { newPassword }),
+  getWarehouses: (id: number) => api.get(`users/${id}/warehouses`),
+  setWarehouses: (id: number, warehouseIds: number[]) => api.put(`users/${id}/warehouses`, { warehouseIds }),
 };
 
 // ================= Sessions API (Admin only) =======================
