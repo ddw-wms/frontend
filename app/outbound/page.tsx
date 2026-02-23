@@ -4684,6 +4684,7 @@ export default function OutboundPage() {
                 {/* TAB: OUTBOUND LIST */}
                 {currentTabCode === 'list' && (
                     <Box sx={{
+                        mt: 0.5,
                         display: 'flex', flexDirection: 'column',
                         flex: 1, minHeight: 0, overflow: 'hidden',
                         background: isDarkMode ? '#0f172a' : '#f8fafc', py: { xs: 0.25, sm: 0.50 },

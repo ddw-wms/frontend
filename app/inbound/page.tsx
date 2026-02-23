@@ -4537,7 +4537,6 @@ export default function InboundPage() {
                   py: { xs: 0.25, sm: 0.50 },
                   borderRadius: 2,
 
-
                   // Paste inside the existing sx object
                   '& .MuiOutlinedInput-root': {
                     bgcolor: 'transparent !important',
@@ -6209,10 +6208,10 @@ export default function InboundPage() {
               <Box
                 ref={multiEntryContainerRef}
                 sx={{
+                  mt: -1.5,
                   display: 'flex',
                   flexDirection: 'column',
                   height: '100%', overflow: 'hidden',
-
                   bgcolor: isDarkMode ? '#0f172a' : '#f5f7fa',
                   // Prevent white flash during tab switch
                   '& *': { transition: 'none !important' },
@@ -6224,12 +6223,15 @@ export default function InboundPage() {
                     borderRadius: 1.5,
                     boxShadow: isDarkMode ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.06)',
                     flexShrink: 0, // Don't shrink this card
-                    mb: { xs: 1, sm: 1.5 }, // Add bottom margin for spacing
+                    mb: 1,
                     bgcolor: isDarkMode ? '#1e293b' : 'white',
                     overflow: 'visible', // Allow content to overflow for scrolling
                   }}
                 >
-                  <CardContent sx={{ p: { xs: 1.5, sm: 1.5 }, pt: { xs: 2, sm: 1.5 }, '&:last-child': { pb: { xs: 1.5, sm: 1.5 } }, overflow: 'visible' }}>
+                  <CardContent sx={{
+
+                    p: { xs: 1.5, sm: 1.5 }, pt: { xs: 2, sm: 1.5 }, '&:last-child': { pb: { xs: 1.5, sm: 1.5 } }, overflow: 'visible'
+                  }}>
                     {/* DESKTOP: Clean Single Row Layout */}
                     <Box sx={{
                       mb: 0.2,

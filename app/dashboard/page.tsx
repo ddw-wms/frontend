@@ -1802,6 +1802,7 @@ export default function DashboardPage() {
           {/* ================= FILTER BAR ================= */}
           <Box
             sx={{
+              mb: 0.5,
               background: isDarkMode ? '#0f172a' : '#f8fafc',
               py: { xs: 0.5, sm: 0.75, md: 0.95 },
               display: "flex",

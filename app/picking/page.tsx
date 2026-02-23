@@ -3753,14 +3753,20 @@ export default function PickingPage() {
         {/* ========== TAB: PICKING LIST ========== */}
         {currentTabCode === 'list' && (
           <Box sx={{
+            mt: 0.5,
             display: 'flex', flexDirection: 'column',
             flex: 1, minHeight: 0, overflow: 'hidden',
-            background: isDarkMode ? '#0f172a' : '#f8fafc', py: { xs: 0.25, sm: 0.50 },
+            background: isDarkMode ? '#0f172a' : '#f8fafc',
             transition: 'opacity 0.15s ease-in-out'
           }}>
             {/* FILTERS - REDESIGNED LIKE INBOUND */}
             <Box sx={{
-              mb: 1,
+              background: isDarkMode ? '#0f172a' : '#f8fafc',
+              mb: 0.5,
+              minHeight: 0,
+              overflow: 'hidden',
+              py: { xs: 0.25, sm: 0.50 },
+              borderRadius: 2,
 
               // Paste inside the existing sx object
               '& .MuiOutlinedInput-root': {

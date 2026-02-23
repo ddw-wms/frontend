@@ -2712,14 +2712,6 @@ export default function QCPage() {
                 minHeight: 0,
                 overflow: 'hidden',
                 py: { xs: 0.25, sm: 0.50 },
-
-              }}
-            >
-              {/* SEARCH BAR + FILTERS TOGGLE */}
-              <Box sx={{
-                flexShrink: 0,
-                mb: 1, position: 'relative',
-                zIndex: 95,
                 // Paste inside the existing sx object
                 '& .MuiOutlinedInput-root': {
                   bgcolor: 'transparent !important',
@@ -2756,7 +2748,16 @@ export default function QCPage() {
                   WebkitTextFillColor: 'inherit',
                 },
 
-
+              }}
+            >
+              <Box sx={{
+                flexShrink: 0,
+                mt: 0.5,
+                mb: 0.1,
+                background: isDarkMode ? '#0f172a' : '#f8fafc',
+                borderBottom: 'transparent',
+                position: 'relative',
+                zIndex: 95
               }}>
                 <Stack direction="row" spacing={1} alignItems="stretch" sx={{ mb: 1 }}>
                   <TextField
@@ -2803,6 +2804,7 @@ export default function QCPage() {
                       }
                     }}
                   />
+
 
                   {/* Options Button - Opens Options Panel Drawer */}
                   <Tooltip title="Open Options Panel">
@@ -4209,7 +4211,12 @@ export default function QCPage() {
               return (
                 <Box
                   ref={multiEntryContainerRef}
-                  sx={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 1, mt: 0, bgcolor: isDarkMode ? '#0f172a' : '#f5f7fa' }}>
+                  sx={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    height: '100%', gap: 1, mt: 1,
+                    bgcolor: isDarkMode ? '#0f172a' : '#f5f7fa'
+                  }}>
                   {/* HEADER */}
                   <Card sx={{ borderRadius: 1, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', bgcolor: isDarkMode ? '#1e293b' : 'white' }}>
                     <CardContent sx={{ p: { xs: 1.5, md: 1.2 }, pt: { xs: 2, md: 1.2 }, '&:last-child': { pb: { xs: 1.5, md: 1.2 } } }}>
