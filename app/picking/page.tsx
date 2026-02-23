@@ -3752,87 +3752,130 @@ export default function PickingPage() {
 
         {/* ========== TAB: PICKING LIST ========== */}
         {currentTabCode === 'list' && (
-          <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden', background: isDarkMode ? '#0f172a' : '#f8fafc', py: { xs: 0.25, sm: 0.50 } }}>
+          <Box sx={{
+            display: 'flex', flexDirection: 'column',
+            flex: 1, minHeight: 0, overflow: 'hidden',
+            background: isDarkMode ? '#0f172a' : '#f8fafc', py: { xs: 0.25, sm: 0.50 },
+            transition: 'opacity 0.15s ease-in-out'
+          }}>
             {/* FILTERS - REDESIGNED LIKE INBOUND */}
-            <Card sx={{ mb: 1, borderRadius: 1.5, boxShadow: isDarkMode ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.06)', background: isDarkMode ? '#1e293b' : 'rgba(255, 255, 255, 0.98)' }}>
-              <CardContent sx={{ p: { xs: 1, md: 1.5 }, '&:last-child': { pb: { xs: 1, md: 1.5 } } }}>
-                {/* ROW 1: Search + Options Button (like Dashboard/Inbound) */}
-                <Stack direction="row" spacing={1} alignItems="center">
-                  {/* Search Field */}
-                  <TextField
-                    size="small"
-                    placeholder="🔍 Search by WSN, Product, or any field..."
-                    value={searchFilter}
-                    onChange={(e) => { setSearchFilter(e.target.value); setPage(1); }}
-                    sx={{
-                      flex: 1,
-                      minWidth: { xs: 150, sm: 200, md: 280 },
-                      '& .MuiOutlinedInput-root': {
-                        bgcolor: isDarkMode ? '#1e293b' : 'white',
-                        borderRadius: 1.5,
-                        height: 38,
-                        fontSize: { xs: '0.8rem', sm: '0.875rem' },
-                        fontWeight: 500,
-                        border: isDarkMode ? '2px solid rgba(255,255,255,0.15)' : '2px solid #e2e8f0',
-                        '&:hover': { borderColor: isDarkMode ? 'rgba(255,255,255,0.25)' : '#cbd5e1' },
-                        '&.Mui-focused': { borderColor: '#1e40af' },
-                        '& fieldset': { border: 'none' },
-                        '& input': {
-                          py: 0.75,
-                          color: isDarkMode ? '#f1f5f9' : 'inherit'
-                        }
-                      }
-                    }}
-                  />
+            <Box sx={{
+              mb: 1,
 
-                  {/* Options Button - Opens Options Panel Drawer (works on both mobile and desktop) */}
-                  <Tooltip title="Open Options Panel">
-                    <Button
-                      variant="outlined"
-                      onClick={() => setListOptionsPanelOpen(true)}
-                      sx={{
-                        minWidth: { xs: 'auto', sm: 100 },
-                        height: 38,
+              // Paste inside the existing sx object
+              '& .MuiOutlinedInput-root': {
+                bgcolor: 'transparent !important',
+                boxShadow: 'none !important',
+                '&:hover': { bgcolor: 'transparent !important' },
+                '&.Mui-focused': { bgcolor: 'transparent !important', boxShadow: 'none !important' },
+              },
+              '& .MuiOutlinedInput-input': {
+                background: 'transparent !important',
+              },
+              '& input[type="date"], & .MuiOutlinedInput-input[type="date"], & .MuiInputBase-input[type="date"]': {
+                background: 'transparent !important',
+                color: 'inherit !important',
+                WebkitAppearance: 'none !important',
+                MozAppearance: 'textfield !important',
+                appearance: 'none !important',
+                borderRadius: '6px !important',
+                padding: '0 6px !important',
+              },
+              '& input[type="date"]::-webkit-datetime-edit, & input[type="date"]::-webkit-datetime-edit-text, & input[type="date"]::-webkit-datetime-edit-month-field, & input[type="date"]::-webkit-datetime-edit-day-field, & input[type="date"]::-webkit-datetime-edit-year-field': {
+                background: 'transparent !important',
+                color: 'inherit !important',
+              },
+              '& input[type="date"]::-webkit-calendar-picker-indicator': {
+                WebkitAppearance: 'none',
+                appearance: 'none',
+                background: 'transparent',
+                padding: 0,
+                margin: 0,
+              },
+              '& input:-webkit-autofill': {
+                WebkitBoxShadow: '0 0 0 1000px transparent inset',
+                boxShadow: '0 0 0 1000px transparent inset',
+                WebkitTextFillColor: 'inherit',
+              },
+            }}>
+
+              {/* ROW 1: Search + Options Button (like Dashboard/Inbound) */}
+              <Stack direction="row" spacing={1} alignItems="center">
+                {/* Search Field */}
+                <TextField
+                  size="small"
+                  placeholder="🔍 Search by WSN, Product, or any field..."
+                  value={searchFilter}
+                  onChange={(e) => { setSearchFilter(e.target.value); setPage(1); }}
+                  sx={{
+                    flex: 1,
+                    minWidth: { xs: 150, sm: 200, md: 280 },
+                    '& .MuiOutlinedInput-root': {
+                      bgcolor: isDarkMode ? '#1e293b' : 'white',
+                      borderRadius: 1.5,
+                      height: 38,
+                      fontSize: { xs: '0.8rem', sm: '0.875rem' },
+                      fontWeight: 500,
+                      border: isDarkMode ? '2px solid rgba(255,255,255,0.15)' : '2px solid #e2e8f0',
+                      '&:hover': { borderColor: isDarkMode ? 'rgba(255,255,255,0.25)' : '#cbd5e1' },
+                      '&.Mui-focused': { borderColor: '#1e40af' },
+                      '& fieldset': { border: 'none' },
+                      '& input': {
+                        py: 0.75,
+                        color: isDarkMode ? '#f1f5f9' : 'inherit'
+                      }
+                    }
+                  }}
+                />
+
+                {/* Options Button - Opens Options Panel Drawer (works on both mobile and desktop) */}
+                <Tooltip title="Open Options Panel">
+                  <Button
+                    variant="outlined"
+                    onClick={() => setListOptionsPanelOpen(true)}
+                    sx={{
+                      minWidth: { xs: 'auto', sm: 100 },
+                      height: 38,
+                      borderWidth: 2,
+                      borderColor: isDarkMode ? '#3b82f6' : '#1e40af',
+                      bgcolor: isDarkMode ? 'rgba(59, 130, 246, 0.08)' : 'rgba(30, 64, 175, 0.04)',
+                      color: isDarkMode ? '#60a5fa' : '#1e40af',
+                      fontWeight: 700,
+                      fontSize: { xs: '0.75rem', sm: '0.78rem' },
+                      borderRadius: 1.5,
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+                      transition: 'all 0.2s',
+                      px: { xs: 1.5, sm: 2 },
+                      '&:hover': {
                         borderWidth: 2,
-                        borderColor: isDarkMode ? '#3b82f6' : '#1e40af',
-                        bgcolor: isDarkMode ? 'rgba(59, 130, 246, 0.08)' : 'rgba(30, 64, 175, 0.04)',
-                        color: isDarkMode ? '#60a5fa' : '#1e40af',
-                        fontWeight: 700,
-                        fontSize: { xs: '0.75rem', sm: '0.78rem' },
-                        borderRadius: 1.5,
-                        boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
-                        transition: 'all 0.2s',
-                        px: { xs: 1.5, sm: 2 },
-                        '&:hover': {
-                          borderWidth: 2,
-                          borderColor: '#3b82f6',
-                          bgcolor: 'rgba(59, 130, 246, 0.12)',
-                          boxShadow: '0 4px 12px rgba(59, 130, 246, 0.2)'
-                        },
-                        position: 'relative'
-                      }}
-                    >
-                      <MenuIcon sx={{ fontSize: '1.1rem', mr: { xs: 0, sm: 0.5 } }} />
-                      <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>Options</Box>
-                      {/* Green dot indicator when filters are active */}
-                      {filtersActive && (
-                        <Box sx={{
-                          position: 'absolute',
-                          top: -4,
-                          right: -4,
-                          width: 12,
-                          height: 12,
-                          borderRadius: '50%',
-                          bgcolor: '#10b981',
-                          border: '2px solid white',
-                          boxShadow: '0 2px 4px rgba(16, 185, 129, 0.4)'
-                        }} />
-                      )}
-                    </Button>
-                  </Tooltip>
-                </Stack>
-              </CardContent>
-            </Card>
+                        borderColor: '#3b82f6',
+                        bgcolor: 'rgba(59, 130, 246, 0.12)',
+                        boxShadow: '0 4px 12px rgba(59, 130, 246, 0.2)'
+                      },
+                      position: 'relative'
+                    }}
+                  >
+                    <MenuIcon sx={{ fontSize: '1.1rem', mr: { xs: 0, sm: 0.5 } }} />
+                    <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>Options</Box>
+                    {/* Green dot indicator when filters are active */}
+                    {filtersActive && (
+                      <Box sx={{
+                        position: 'absolute',
+                        top: -4,
+                        right: -4,
+                        width: 12,
+                        height: 12,
+                        borderRadius: '50%',
+                        bgcolor: '#10b981',
+                        border: '2px solid white',
+                        boxShadow: '0 2px 4px rgba(16, 185, 129, 0.4)'
+                      }} />
+                    )}
+                  </Button>
+                </Tooltip>
+              </Stack>
+
+            </Box>
 
             {/* TABLE - AG GRID */}
             <Box sx={{
@@ -4606,199 +4649,107 @@ export default function PickingPage() {
         {currentTabCode === 'multi' && (
           <Box
             ref={multiEntryContainerRef}
-            sx={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, gap: 0.5, mt: 0, overflow: 'hidden', bgcolor: isDarkMode ? '#0f172a' : '#f5f7fa' }}>
+            sx={{
+              display: 'flex', flexDirection: 'column',
+              flex: 1, minHeight: 0, gap: 1.5, mt: 1.25,
+              overflow: 'hidden', bgcolor: isDarkMode ? '#0f172a' : '#f5f7fa',
+              // Paste inside the existing sx object
+              '& .MuiOutlinedInput-root': {
+                bgcolor: 'transparent !important',
+                boxShadow: 'none !important',
+                '&:hover': { bgcolor: 'transparent !important' },
+                '&.Mui-focused': { bgcolor: 'transparent !important', boxShadow: 'none !important' },
+              },
+              '& .MuiOutlinedInput-input': {
+                background: 'transparent !important',
+              },
+              '& input[type="date"], & .MuiOutlinedInput-input[type="date"], & .MuiInputBase-input[type="date"]': {
+                background: 'transparent !important',
+                color: 'inherit !important',
+                WebkitAppearance: 'none !important',
+                MozAppearance: 'textfield !important',
+                appearance: 'none !important',
+                borderRadius: '6px !important',
+                padding: '0 6px !important',
+              },
+              '& input[type="date"]::-webkit-datetime-edit, & input[type="date"]::-webkit-datetime-edit-text, & input[type="date"]::-webkit-datetime-edit-month-field, & input[type="date"]::-webkit-datetime-edit-day-field, & input[type="date"]::-webkit-datetime-edit-year-field': {
+                background: 'transparent !important',
+                color: 'inherit !important',
+              },
+              '& input[type="date"]::-webkit-calendar-picker-indicator': {
+                WebkitAppearance: 'none',
+                appearance: 'none',
+                background: 'transparent',
+                padding: 0,
+                margin: 0,
+              },
+              '& input:-webkit-autofill': {
+                WebkitBoxShadow: '0 0 0 1000px transparent inset',
+                boxShadow: '0 0 0 1000px transparent inset',
+                WebkitTextFillColor: 'inherit',
+              },
+            }}>
             {/* HEADER */}
-            <Card sx={{ borderRadius: 1, boxShadow: isDarkMode ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.06)', bgcolor: isDarkMode ? '#1e293b' : 'white' }}>
-              <CardContent sx={{ p: { xs: 1.5, md: 1.2 }, pt: { xs: 2, md: 1.2 }, '&:last-child': { pb: { xs: 1.5, md: 1.2 } } }}>
 
-                {/* ===== MOBILE: Single Row - Scrollable Inputs + Fixed Buttons ===== */}
-                <Box sx={{ display: { xs: 'flex', md: 'none' }, alignItems: 'center', gap: 0.5, width: '100%', mt: 1 }}>
-                  {/* LEFT: Scrollable Input Fields with Arrow Indicators */}
-                  <Box sx={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                    {/* Left Arrow Indicator */}
-                    <Box
-                      sx={{
-                        width: 16,
-                        height: 40,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        color: isDarkMode ? '#64748b' : '#94a3b8',
-                        fontSize: '0.7rem',
-                        flexShrink: 0,
-                      }}
-                    >
-                      ◀
-                    </Box>
 
-                    {/* Scrollable Container */}
-                    <Box
-                      sx={{
-                        flex: 1,
-                        minWidth: 0,
-                        overflowX: 'auto',
-                        overflowY: 'visible',
-                        WebkitOverflowScrolling: 'touch',
-                        scrollbarWidth: 'none',
-                        '&::-webkit-scrollbar': { display: 'none' },
-                      }}
-                    >
-                      <Stack direction="row" spacing={1} sx={{ width: 'max-content', pt: 1 }}>
-                        <TextField
-                          label="Date"
-                          type="date"
-                          value={pickingDate}
-                          onChange={(e) => setPickingDate(e.target.value)}
-                          size="small"
-                          sx={{
-                            minWidth: 120,
-                            '& .MuiInputBase-root': { height: 36, fontSize: '0.8rem' },
-                            '& .MuiInputLabel-root': { fontSize: '0.75rem' }
-                          }}
-                          InputLabelProps={{ shrink: true }}
-                        />
-                        <TextField
-                          label="Picker"
-                          value={pickerName}
-                          onChange={(e) => setPickerName(e.target.value)}
-                          size="small"
-                          sx={{
-                            minWidth: 90,
-                            '& .MuiInputBase-root': { height: 36, fontSize: '0.8rem' },
-                            '& .MuiInputLabel-root': { fontSize: '0.75rem' }
-                          }}
-                        />
-                        <Box sx={{ minWidth: 140 }}>
-                          <CustomerAutocomplete
-                            value={selectedCustomer}
-                            onChange={(newValue) => setSelectedCustomer(newValue)}
-                            customers={customers}
-                            warehouseId={activeWarehouse?.id}
-                            onCustomerAdded={loadCustomers}
-                            size="small"
-                            label="Customer"
-                            placeholder="Select..."
-                            sx={{
-                              '& .MuiInputBase-root': { height: 36, fontSize: '0.8rem' },
-                              '& .MuiInputLabel-root': { fontSize: '0.75rem' }
-                            }}
-                          />
-                        </Box>
-                      </Stack>
-                    </Box>
-
-                    {/* Right Arrow Indicator */}
-                    <Box
-                      sx={{
-                        width: 16,
-                        height: 40,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        color: isDarkMode ? '#64748b' : '#94a3b8',
-                        fontSize: '0.7rem',
-                        flexShrink: 0,
-                      }}
-                    >
-                      ▶
-                    </Box>
-                  </Box>
-
-                  {/* RIGHT: Fixed Action Buttons */}
-                  <Stack direction="row" spacing={0.5} sx={{ flexShrink: 0, alignItems: 'center' }}>
-                    {/* Menu Button */}
-                    <Tooltip title="Open Settings">
-                      <IconButton
-                        size="small"
-                        onClick={() => setPickingSettingsPanelOpen(true)}
-                        sx={{
-                          width: 36,
-                          height: 36,
-                          borderRadius: 1,
-                          border: '1.5px solid',
-                          borderColor: isDarkMode ? '#3b82f6' : '#1e40af',
-                          color: isDarkMode ? '#60a5fa' : '#1e40af',
-                          bgcolor: isDarkMode ? 'rgba(59, 130, 246, 0.08)' : 'rgba(30, 64, 175, 0.04)',
-                          '&:hover': { borderColor: '#3b82f6', bgcolor: 'rgba(59, 130, 246, 0.12)' }
-                        }}
-                      >
-                        <MenuIcon sx={{ fontSize: 18 }} />
-                      </IconButton>
-                    </Tooltip>
-
-                    {/* Fullscreen Button */}
-                    <Tooltip title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}>
-                      <IconButton
-                        size="small"
-                        onClick={toggleFullscreen}
-                        sx={{
-                          width: 36,
-                          height: 36,
-                          borderRadius: 1,
-                          border: '1.5px solid',
-                          borderColor: isFullscreen ? '#f59e0b' : (isDarkMode ? '#475569' : '#d1d5db'),
-                          color: isFullscreen ? '#f59e0b' : (isDarkMode ? '#94a3b8' : '#64748b'),
-                          bgcolor: isFullscreen ? 'rgba(245, 158, 11, 0.1)' : 'transparent',
-                          '&:hover': { borderColor: '#f59e0b', bgcolor: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b' }
-                        }}
-                      >
-                        {isFullscreen ? <FullscreenExitIcon sx={{ fontSize: 18 }} /> : <FullscreenIcon sx={{ fontSize: 18 }} />}
-                      </IconButton>
-                    </Tooltip>
-
-                    {/* Live View Panel */}
-                    <LiveViewPanel
-                      warehouseId={activeWarehouse?.id}
-                      pageType="picking"
-                      isDarkMode={isDarkMode}
-                      container={multiEntryContainerRef.current}
-                    />
-                  </Stack>
-                </Box>
-
-                {/* ===== DESKTOP: Clean Single Row Layout ===== */}
-                <Stack
-                  direction="row"
+            {/* ===== MOBILE: Single Row - Scrollable Inputs + Fixed Buttons ===== */}
+            <Box sx={{ display: { xs: 'flex', md: 'none' }, alignItems: 'center', gap: 0.5, width: '100%', mt: 1 }}>
+              {/* LEFT: Scrollable Input Fields with Arrow Indicators */}
+              <Box sx={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                {/* Left Arrow Indicator */}
+                <Box
                   sx={{
+                    width: 16,
+                    height: 40,
+                    display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'space-between',
-                    width: '100%',
-                    display: { xs: 'none', md: 'flex' }
+                    justifyContent: 'center',
+                    color: isDarkMode ? '#64748b' : '#94a3b8',
+                    fontSize: '0.7rem',
+                    flexShrink: 0,
                   }}
                 >
-                  {/* LEFT: Date + Picker + Customer Fields */}
-                  <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', flex: 1, maxWidth: 700 }}>
+                  ◀
+                </Box>
+
+                {/* Scrollable Container */}
+                <Box
+                  sx={{
+                    flex: 1,
+                    minWidth: 0,
+                    overflowX: 'auto',
+                    overflowY: 'visible',
+                    WebkitOverflowScrolling: 'touch',
+                    scrollbarWidth: 'none',
+                    '&::-webkit-scrollbar': { display: 'none' },
+                  }}
+                >
+                  <Stack direction="row" spacing={1} sx={{ width: 'max-content', pt: 1 }}>
                     <TextField
-                      label="Picking Date"
+                      label="Date"
                       type="date"
                       value={pickingDate}
                       onChange={(e) => setPickingDate(e.target.value)}
                       size="small"
                       sx={{
-                        width: 150,
-                        '& .MuiInputBase-root': {
-                          height: 38,
-                          bgcolor: isDarkMode ? '#0f172a' : '#f8fafc',
-                          borderRadius: 1.5
-                        }
+                        minWidth: 120,
+                        '& .MuiInputBase-root': { height: 36, fontSize: '0.8rem' },
+                        '& .MuiInputLabel-root': { fontSize: '0.75rem' }
                       }}
                       InputLabelProps={{ shrink: true }}
                     />
                     <TextField
-                      label="Picker Name"
+                      label="Picker"
                       value={pickerName}
                       onChange={(e) => setPickerName(e.target.value)}
                       size="small"
                       sx={{
-                        width: 150,
-                        '& .MuiInputBase-root': {
-                          height: 38,
-                          bgcolor: isDarkMode ? '#0f172a' : '#f8fafc',
-                          borderRadius: 1.5
-                        }
+                        minWidth: 90,
+                        '& .MuiInputBase-root': { height: 36, fontSize: '0.8rem' },
+                        '& .MuiInputLabel-root': { fontSize: '0.75rem' }
                       }}
                     />
-                    <Box sx={{ flex: 1, minWidth: 200, maxWidth: 350 }}>
+                    <Box sx={{ minWidth: 140 }}>
                       <CustomerAutocomplete
                         value={selectedCustomer}
                         onChange={(newValue) => setSelectedCustomer(newValue)}
@@ -4806,503 +4757,631 @@ export default function PickingPage() {
                         warehouseId={activeWarehouse?.id}
                         onCustomerAdded={loadCustomers}
                         size="small"
-                        label="Customer Name"
-                        placeholder="Type to search or select..."
-                        sx={{ width: '100%' }}
+                        label="Customer"
+                        placeholder="Select..."
+                        sx={{
+                          '& .MuiInputBase-root': { height: 36, fontSize: '0.8rem' },
+                          '& .MuiInputLabel-root': { fontSize: '0.75rem' }
+                        }}
                       />
                     </Box>
                   </Stack>
+                </Box>
 
-                  {/* RIGHT: Menu Button + Fullscreen + Live View */}
-                  <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-                    {/* Settings Menu Button */}
-                    <Tooltip title="Open Settings Panel" placement="top">
-                      <Button
-                        size="small"
-                        variant="outlined"
-                        startIcon={<MenuIcon sx={{ fontSize: 18 }} />}
-                        onClick={() => setPickingSettingsPanelOpen(true)}
-                        sx={{
-                          height: 38,
-                          px: 2,
-                          borderRadius: 1.5,
-                          fontWeight: 600,
-                          fontSize: '0.8rem',
-                          textTransform: 'none',
-                          borderColor: isDarkMode ? '#3b82f6' : '#1e40af',
-                          color: isDarkMode ? '#60a5fa' : '#1e40af',
-                          bgcolor: isDarkMode ? 'rgba(59, 130, 246, 0.08)' : 'rgba(30, 64, 175, 0.04)',
-                          '&:hover': {
-                            borderColor: '#3b82f6',
-                            bgcolor: 'rgba(59, 130, 246, 0.12)'
-                          }
-                        }}
-                      >
-                        Menu
-                      </Button>
-                    </Tooltip>
-
-                    {/* Fullscreen Button */}
-                    <Tooltip title={isFullscreen ? "Exit fullscreen (Esc)" : "Enter fullscreen mode"} placement="top">
-                      <IconButton
-                        size="small"
-                        onClick={toggleFullscreen}
-                        sx={{
-                          width: 38,
-                          height: 38,
-                          borderRadius: 1.5,
-                          border: '1.5px solid',
-                          borderColor: isFullscreen ? '#f59e0b' : (isDarkMode ? '#475569' : '#d1d5db'),
-                          color: isFullscreen ? '#f59e0b' : (isDarkMode ? '#94a3b8' : '#64748b'),
-                          bgcolor: isFullscreen ? 'rgba(245, 158, 11, 0.1)' : 'transparent',
-                          '&:hover': {
-                            borderColor: '#f59e0b',
-                            bgcolor: 'rgba(245, 158, 11, 0.1)',
-                            color: '#f59e0b'
-                          }
-                        }}
-                      >
-                        {isFullscreen ? <FullscreenExitIcon sx={{ fontSize: 20 }} /> : <FullscreenIcon sx={{ fontSize: 20 }} />}
-                      </IconButton>
-                    </Tooltip>
-
-                    {/* Live View Panel */}
-                    <LiveViewPanel
-                      warehouseId={activeWarehouse?.id}
-                      pageType="picking"
-                      isDarkMode={isDarkMode}
-                      container={multiEntryContainerRef.current}
-                    />
-                  </Stack>
-                </Stack>
-
-                {/* SETTINGS DRAWER - Right Side Panel with Accordions */}
-                <Drawer
-                  anchor="right"
-                  open={pickingSettingsPanelOpen}
-                  onClose={() => setPickingSettingsPanelOpen(false)}
-                  container={multiEntryContainerRef.current}
-                  ModalProps={{
-                    container: multiEntryContainerRef.current,
-                    keepMounted: false,
-                  }}
-                  PaperProps={{
-                    sx: {
-                      width: { xs: '100%', sm: 380 },
-                      maxWidth: '100vw',
-                      bgcolor: isDarkMode ? '#1e293b' : '#ffffff',
-                      borderLeft: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0'
-                    }
-                  }}
-                >
-                  {/* Panel Header */}
-                  <Box sx={{
-                    p: 2,
-                    background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
-                    color: 'white',
+                {/* Right Arrow Indicator */}
+                <Box
+                  sx={{
+                    width: 16,
+                    height: 40,
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'space-between',
-                    position: 'sticky',
-                    top: 0,
-                    zIndex: 10
-                  }}>
-                    <Typography sx={{ fontWeight: 700, fontSize: '1rem' }}>⚙️ Settings</Typography>
-                    <IconButton size="small" onClick={() => setPickingSettingsPanelOpen(false)} sx={{ color: 'white' }}>
-                      <CloseIcon />
-                    </IconButton>
-                  </Box>
+                    justifyContent: 'center',
+                    color: isDarkMode ? '#64748b' : '#94a3b8',
+                    fontSize: '0.7rem',
+                    flexShrink: 0,
+                  }}
+                >
+                  ▶
+                </Box>
+              </Box>
 
-                  {/* Panel Content with Accordions */}
-                  <Box sx={{ overflow: 'auto', flex: 1 }}>
+              {/* RIGHT: Fixed Action Buttons */}
+              <Stack direction="row" spacing={0.5} sx={{ flexShrink: 0, alignItems: 'center' }}>
+                {/* Menu Button */}
+                <Tooltip title="Open Settings">
+                  <IconButton
+                    size="small"
+                    onClick={() => setPickingSettingsPanelOpen(true)}
+                    sx={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: 1,
+                      border: '1.5px solid',
+                      borderColor: isDarkMode ? '#3b82f6' : '#1e40af',
+                      color: isDarkMode ? '#60a5fa' : '#1e40af',
+                      bgcolor: isDarkMode ? 'rgba(59, 130, 246, 0.08)' : 'rgba(30, 64, 175, 0.04)',
+                      '&:hover': { borderColor: '#3b82f6', bgcolor: 'rgba(59, 130, 246, 0.12)' }
+                    }}
+                  >
+                    <MenuIcon sx={{ fontSize: 18 }} />
+                  </IconButton>
+                </Tooltip>
 
-                    {/* ═══════════ COLUMNS ACCORDION ═══════════ */}
-                    <Accordion
-                      expanded={settingsPanelExpanded === 'columns'}
-                      onChange={(_, isExpanded) => setSettingsPanelExpanded(isExpanded ? 'columns' : false)}
-                      disableGutters
-                      sx={{
-                        bgcolor: 'transparent',
-                        boxShadow: 'none',
-                        '&:before': { display: 'none' },
-                        borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0'
-                      }}
-                    >
-                      <AccordionSummary
-                        expandIcon={<ExpandMoreIcon sx={{ color: isDarkMode ? '#94a3b8' : '#64748b' }} />}
-                        sx={{
-                          px: 2,
-                          minHeight: 56,
-                          '&.Mui-expanded': { minHeight: 56 },
-                          '& .MuiAccordionSummary-content': { my: 1.5 }
-                        }}
-                      >
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                          <ViewColumnIcon sx={{ color: '#3b82f6', fontSize: 22 }} />
-                          <Box>
-                            <Typography sx={{ fontWeight: 700, fontSize: '0.9rem', color: isDarkMode ? '#e2e8f0' : '#1e293b' }}>Columns</Typography>
-                            <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>
-                              {visibleColumns.length} columns visible
-                            </Typography>
-                          </Box>
-                        </Box>
-                      </AccordionSummary>
-                      <AccordionDetails sx={{ px: 2, pb: 2, pt: 0 }}>
-                        <Box sx={{ maxHeight: 280, overflow: 'auto', pr: 1 }}>
-                          <Typography sx={{ fontWeight: 700, fontSize: '0.7rem', color: '#3b82f6', mb: 1, textTransform: 'uppercase' }}>Editable Fields</Typography>
-                          <Stack spacing={0.5} sx={{ mb: 2 }}>
-                            {EDITABLE_COLUMNS.map((col) => (
-                              <FormControlLabel
-                                key={col}
-                                control={
-                                  <Checkbox
-                                    size="small"
-                                    checked={visibleColumns.includes(col)}
-                                    onChange={(e) => {
-                                      if (e.target.checked) {
-                                        setVisibleColumns([...visibleColumns, col]);
-                                      } else {
-                                        setVisibleColumns(visibleColumns.filter((c: string) => c !== col));
-                                      }
-                                    }}
-                                    sx={{ py: 0.25, '&.Mui-checked': { color: '#3b82f6' } }}
-                                  />
-                                }
-                                label={<Typography sx={{ fontSize: '0.8rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>{col.replace(/_/g, ' ').toUpperCase()}</Typography>}
-                                sx={{ m: 0 }}
-                              />
-                            ))}
-                          </Stack>
-                          <Typography sx={{ fontWeight: 700, fontSize: '0.7rem', color: '#10b981', mb: 1, textTransform: 'uppercase' }}>Master Data Fields</Typography>
-                          <Stack spacing={0.5}>
-                            {ALL_MASTER_COLUMNS.map((col) => (
-                              <FormControlLabel
-                                key={col}
-                                control={
-                                  <Checkbox
-                                    size="small"
-                                    checked={visibleColumns.includes(col)}
-                                    onChange={(e) => {
-                                      if (e.target.checked) {
-                                        setVisibleColumns([...visibleColumns, col]);
-                                      } else {
-                                        setVisibleColumns(visibleColumns.filter((c: string) => c !== col));
-                                      }
-                                    }}
-                                    sx={{ py: 0.25, '&.Mui-checked': { color: '#10b981' } }}
-                                  />
-                                }
-                                label={<Typography sx={{ fontSize: '0.8rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>{col.replace(/_/g, ' ').toUpperCase()}</Typography>}
-                                sx={{ m: 0 }}
-                              />
-                            ))}
-                          </Stack>
-                        </Box>
-                      </AccordionDetails>
-                    </Accordion>
+                {/* Fullscreen Button */}
+                <Tooltip title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}>
+                  <IconButton
+                    size="small"
+                    onClick={toggleFullscreen}
+                    sx={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: 1,
+                      border: '1.5px solid',
+                      borderColor: isFullscreen ? '#f59e0b' : (isDarkMode ? '#475569' : '#d1d5db'),
+                      color: isFullscreen ? '#f59e0b' : (isDarkMode ? '#94a3b8' : '#64748b'),
+                      bgcolor: isFullscreen ? 'rgba(245, 158, 11, 0.1)' : 'transparent',
+                      '&:hover': { borderColor: '#f59e0b', bgcolor: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b' }
+                    }}
+                  >
+                    {isFullscreen ? <FullscreenExitIcon sx={{ fontSize: 18 }} /> : <FullscreenIcon sx={{ fontSize: 18 }} />}
+                  </IconButton>
+                </Tooltip>
 
-                    {/* ═══════════ GRID SETTINGS ACCORDION ═══════════ */}
-                    <Accordion
-                      expanded={settingsPanelExpanded === 'grid'}
-                      onChange={(_, isExpanded) => setSettingsPanelExpanded(isExpanded ? 'grid' : false)}
-                      disableGutters
-                      sx={{
-                        bgcolor: 'transparent',
-                        boxShadow: 'none',
-                        '&:before': { display: 'none' },
-                        borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0'
-                      }}
-                    >
-                      <AccordionSummary
-                        expandIcon={<ExpandMoreIcon sx={{ color: isDarkMode ? '#94a3b8' : '#64748b' }} />}
-                        sx={{
-                          px: 2,
-                          minHeight: 56,
-                          '&.Mui-expanded': { minHeight: 56 },
-                          '& .MuiAccordionSummary-content': { my: 1.5 }
-                        }}
-                      >
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                          <TableChartIcon sx={{ color: '#f59e0b', fontSize: 22 }} />
-                          <Box>
-                            <Typography sx={{ fontWeight: 700, fontSize: '0.9rem', color: isDarkMode ? '#e2e8f0' : '#1e293b' }}>Grid Settings</Typography>
-                            <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>Sorting, filtering, resize</Typography>
-                          </Box>
-                        </Box>
-                      </AccordionSummary>
-                      <AccordionDetails sx={{ px: 2, pb: 2, pt: 0 }}>
-                        <Stack spacing={1.5}>
-                          <FormControlLabel
-                            control={
-                              <Checkbox
-                                checked={enableSorting}
-                                onChange={(e) => {
-                                  setEnableSorting(e.target.checked);
-                                  localStorage.setItem('picking_enableSorting', String(e.target.checked));
-                                }}
-                                sx={{ '&.Mui-checked': { color: '#f59e0b' } }}
-                              />
-                            }
-                            label={
-                              <Box>
-                                <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>⬆️ Enable Sorting</Typography>
-                                <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>Click headers to sort</Typography>
-                              </Box>
-                            }
-                          />
-                          <FormControlLabel
-                            control={
-                              <Checkbox
-                                checked={enableColumnFilters}
-                                onChange={(e) => {
-                                  setEnableColumnFilters(e.target.checked);
-                                  localStorage.setItem('picking_enableColumnFilters', String(e.target.checked));
-                                }}
-                                sx={{ '&.Mui-checked': { color: '#f59e0b' } }}
-                              />
-                            }
-                            label={
-                              <Box>
-                                <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>🔍 Enable Filtering</Typography>
-                                <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>Filter in column headers</Typography>
-                              </Box>
-                            }
-                          />
-                          <FormControlLabel
-                            control={
-                              <Checkbox
-                                checked={enableColumnResize}
-                                onChange={(e) => {
-                                  setEnableColumnResize(e.target.checked);
-                                  localStorage.setItem('picking_enableColumnResize', String(e.target.checked));
-                                }}
-                                sx={{ '&.Mui-checked': { color: '#f59e0b' } }}
-                              />
-                            }
-                            label={
-                              <Box>
-                                <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>↔️ Column Resize</Typography>
-                                <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>Drag borders to resize</Typography>
-                              </Box>
-                            }
-                          />
-                          <Button
-                            size="small"
-                            onClick={() => {
-                              setEnableSorting(true);
-                              setEnableColumnFilters(true);
-                              setEnableColumnResize(true);
-                              localStorage.setItem('picking_enableSorting', 'true');
-                              localStorage.setItem('picking_enableColumnFilters', 'true');
-                              localStorage.setItem('picking_enableColumnResize', 'true');
-                              toast.success('Grid settings reset');
-                            }}
-                            sx={{ alignSelf: 'flex-start', fontSize: '0.75rem', color: isDarkMode ? '#94a3b8' : '#64748b' }}
-                          >
-                            🔄 Reset to Default
-                          </Button>
-                        </Stack>
-                      </AccordionDetails>
-                    </Accordion>
+                {/* Live View Panel */}
+                <LiveViewPanel
+                  warehouseId={activeWarehouse?.id}
+                  pageType="picking"
+                  isDarkMode={isDarkMode}
+                  container={multiEntryContainerRef.current}
+                />
+              </Stack>
+            </Box>
 
-                    {/* ═══════════ SHORTCUTS ACCORDION (Ctrl+O) ═══════════ */}
-                    <Accordion
-                      expanded={settingsPanelExpanded === 'shortcuts'}
-                      onChange={(_, isExpanded) => setSettingsPanelExpanded(isExpanded ? 'shortcuts' : false)}
-                      disableGutters
-                      sx={{
-                        bgcolor: 'transparent',
-                        boxShadow: 'none',
-                        '&:before': { display: 'none' },
-                        borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0'
-                      }}
-                    >
-                      <AccordionSummary
-                        expandIcon={<ExpandMoreIcon sx={{ color: isDarkMode ? '#94a3b8' : '#64748b' }} />}
-                        sx={{
-                          px: 2,
-                          minHeight: 56,
-                          '&.Mui-expanded': { minHeight: 56 },
-                          '& .MuiAccordionSummary-content': { my: 1.5 }
-                        }}
-                      >
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                          <LinkIcon sx={{ color: '#8b5cf6', fontSize: 22 }} />
-                          <Box>
-                            <Typography sx={{ fontWeight: 700, fontSize: '0.9rem', color: isDarkMode ? '#e2e8f0' : '#1e293b' }}>Keyboard Shortcuts</Typography>
-                            <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>Ctrl+O and more</Typography>
-                          </Box>
-                        </Box>
-                      </AccordionSummary>
-                      <AccordionDetails sx={{ px: 2, pb: 2, pt: 0 }}>
-                        <Stack spacing={1.5}>
-                          <Box sx={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            p: 1.5,
-                            borderRadius: 1.5,
-                            bgcolor: ctrlOProductLinkEnabled ? (isDarkMode ? 'rgba(139, 92, 246, 0.15)' : 'rgba(139, 92, 246, 0.08)') : (isDarkMode ? '#0f172a' : '#f8fafc'),
-                            border: ctrlOProductLinkEnabled ? '1px solid #8b5cf6' : (isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0')
-                          }}>
-                            <Box>
-                              <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>Ctrl+O Product Link</Typography>
-                              <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>Opens FKT link for last scanned WSN</Typography>
-                            </Box>
-                            <Switch
-                              checked={ctrlOProductLinkEnabled}
-                              onChange={(e) => {
-                                const newValue = e.target.checked;
-                                setCtrlOProductLinkEnabled(newValue);
-                                ctrlOProductLinkEnabledRef.current = newValue;
-                                localStorage.setItem('picking_ctrlOProductLinkEnabled', String(newValue));
-                                toast.success(`Ctrl+O ${newValue ? 'enabled' : 'disabled'}`);
-                              }}
-                              sx={{ '& .MuiSwitch-switchBase.Mui-checked': { color: '#8b5cf6' }, '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { backgroundColor: '#8b5cf6' } }}
-                            />
-                          </Box>
-                        </Stack>
-                      </AccordionDetails>
-                    </Accordion>
+            {/* ===== DESKTOP: Clean Single Row Layout ===== */}
+            <Stack
+              direction="row"
+              sx={{
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                width: '100%',
+                display: { xs: 'none', md: 'flex' }
+              }}
+            >
+              {/* LEFT: Date + Picker + Customer Fields */}
+              <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', flex: 1, maxWidth: 700, paddingTop: 1 }}>
+                <TextField
+                  label="Picking Date"
+                  type="date"
+                  value={pickingDate}
+                  onChange={(e) => setPickingDate(e.target.value)}
+                  size="small"
+                  sx={{
+                    width: 150,
+                    '& .MuiInputBase-root': {
+                      height: 38,
+                      bgcolor: isDarkMode ? '#0f172a' : '#f8fafc',
+                      borderRadius: 1.5
+                    }
+                  }}
+                  InputLabelProps={{ shrink: true }}
+                />
+                <TextField
+                  label="Picker Name"
+                  value={pickerName}
+                  onChange={(e) => setPickerName(e.target.value)}
+                  size="small"
+                  sx={{
+                    width: 150,
+                    '& .MuiInputBase-root': {
+                      height: 38,
+                      bgcolor: isDarkMode ? '#0f172a' : '#f8fafc',
+                      borderRadius: 1.5
+                    }
+                  }}
+                />
+                <Box sx={{ flex: 1, minWidth: 200, maxWidth: 350 }}>
+                  <CustomerAutocomplete
+                    value={selectedCustomer}
+                    onChange={(newValue) => setSelectedCustomer(newValue)}
+                    customers={customers}
+                    warehouseId={activeWarehouse?.id}
+                    onCustomerAdded={loadCustomers}
+                    size="small"
+                    label="Customer Name"
+                    placeholder="Type to search or select..."
+                    sx={{ width: '100%' }}
+                  />
+                </Box>
+              </Stack>
 
-                    {/* ═══════════ AVAILABLE CACHE ACCORDION ═══════════ */}
-                    <Accordion
-                      expanded={settingsPanelExpanded === 'cache'}
-                      onChange={(_, isExpanded) => setSettingsPanelExpanded(isExpanded ? 'cache' : false)}
-                      disableGutters
-                      sx={{
-                        bgcolor: 'transparent',
-                        boxShadow: 'none',
-                        '&:before': { display: 'none' },
-                        borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0'
-                      }}
-                    >
-                      <AccordionSummary
-                        expandIcon={<ExpandMoreIcon sx={{ color: isDarkMode ? '#94a3b8' : '#64748b' }} />}
-                        sx={{
-                          px: 2,
-                          minHeight: 56,
-                          '&.Mui-expanded': { minHeight: 56 },
-                          '& .MuiAccordionSummary-content': { my: 1.5 }
-                        }}
-                      >
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, width: '100%' }}>
-                          <DownloadIcon sx={{ color: '#8b5cf6', fontSize: 22 }} />
-                          <Box sx={{ flex: 1 }}>
-                            <Typography sx={{ fontWeight: 700, fontSize: '0.9rem', color: isDarkMode ? '#e2e8f0' : '#1e293b' }}>Available Cache</Typography>
-                            <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>
-                              {availableCacheLoading ? availableCacheProgress || 'Loading...' : availableCacheStats?.count ? `${availableCacheStats.count.toLocaleString()} items` : availableCacheEnabled ? 'Not loaded' : 'Disabled'}
-                            </Typography>
-                          </Box>
-                          <Chip
-                            size="small"
-                            label={availableCacheLoading ? '...' : availableCacheStats?.count ? '✓' : '○'}
-                            sx={{ height: 24, fontSize: '0.8rem', bgcolor: availableCacheStats?.count ? '#10b981' : '#64748b', color: 'white' }}
-                          />
-                        </Box>
-                      </AccordionSummary>
-                      <AccordionDetails sx={{ px: 2, pb: 2, pt: 0 }}>
-                        <Stack spacing={1.5}>
-                          <Alert severity="info" sx={{ fontSize: '0.75rem', py: 0.5 }}>
-                            Cache available inventory for instant WSN lookup during Picking.
-                          </Alert>
-                          <Box sx={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            p: 1.5,
-                            borderRadius: 1.5,
-                            bgcolor: availableCacheEnabled ? 'rgba(139, 92, 246, 0.1)' : (isDarkMode ? '#0f172a' : '#f8fafc'),
-                            border: `1px solid ${availableCacheEnabled ? '#8b5cf6' : (isDarkMode ? '#334155' : '#e2e8f0')}`
-                          }}>
-                            <Box>
-                              <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>Enable Cache</Typography>
-                              <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>Instant WSN lookups</Typography>
-                            </Box>
-                            <Switch
-                              checked={availableCacheEnabled}
-                              onChange={(e) => {
-                                const newValue = e.target.checked;
-                                if (newValue) {
-                                  enableWMSCache();
-                                } else {
-                                  disableWMSCache();
-                                }
-                                setAvailableCacheEnabled(newValue);
-                                toast.success(`Cache ${newValue ? 'enabled' : 'disabled'}`);
-                              }}
-                              sx={{ '& .MuiSwitch-switchBase.Mui-checked': { color: '#8b5cf6' }, '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { backgroundColor: '#8b5cf6' } }}
-                            />
-                          </Box>
-                          <Button
-                            fullWidth
-                            variant="contained"
-                            disabled={availableCacheLoading || !activeWarehouse?.id}
-                            onClick={handleLoadAvailableCache}
-                            sx={{
-                              height: 44,
-                              background: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
-                              fontWeight: 600,
-                              '&:hover': { background: 'linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)' },
-                              '&.Mui-disabled': { bgcolor: '#64748b' }
-                            }}
-                          >
-                            {availableCacheLoading ? 'Loading...' : 'Load Available Cache'}
-                          </Button>
-                          {availableCacheStats?.lastSync && (
-                            <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8', textAlign: 'center' }}>
-                              Last sync: {new Date(availableCacheStats.lastSync).toLocaleTimeString()}
-                            </Typography>
-                          )}
-                        </Stack>
-                      </AccordionDetails>
-                    </Accordion>
+              {/* RIGHT: Menu Button + Fullscreen + Live View */}
+              <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                {/* Settings Menu Button */}
+                <Tooltip title="Open Settings Panel" placement="top">
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    startIcon={<MenuIcon sx={{ fontSize: 18 }} />}
+                    onClick={() => setPickingSettingsPanelOpen(true)}
+                    sx={{
+                      height: 38,
+                      px: 2,
+                      borderRadius: 1.5,
+                      fontWeight: 600,
+                      fontSize: '0.8rem',
+                      textTransform: 'none',
+                      borderColor: isDarkMode ? '#3b82f6' : '#1e40af',
+                      color: isDarkMode ? '#60a5fa' : '#1e40af',
+                      bgcolor: isDarkMode ? 'rgba(59, 130, 246, 0.08)' : 'rgba(30, 64, 175, 0.04)',
+                      '&:hover': {
+                        borderColor: '#3b82f6',
+                        bgcolor: 'rgba(59, 130, 246, 0.12)'
+                      }
+                    }}
+                  >
+                    Menu
+                  </Button>
+                </Tooltip>
 
-                    {/* ═══════════ PIVOT BUTTON ═══════════ */}
-                    <Box sx={{ p: 2, borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0' }}>
-                      <Button
-                        fullWidth
-                        variant="outlined"
-                        startIcon={<PieChartIcon />}
-                        onClick={() => { setCategoryPivotOpen(true); setPickingSettingsPanelOpen(false); }}
-                        disabled={!multiRows.some((r: any) => r.wsn?.trim())}
-                        sx={{
-                          height: 44,
-                          fontWeight: 600,
-                          borderColor: '#7c3aed',
-                          color: '#7c3aed',
-                          '&:hover': { bgcolor: 'rgba(124, 58, 237, 0.1)', borderColor: '#7c3aed' },
-                          '&.Mui-disabled': { borderColor: '#94a3b8', color: '#94a3b8' }
-                        }}
-                      >
-                        Category Pivot View
-                      </Button>
+                {/* Fullscreen Button */}
+                <Tooltip title={isFullscreen ? "Exit fullscreen (Esc)" : "Enter fullscreen mode"} placement="top">
+                  <IconButton
+                    size="small"
+                    onClick={toggleFullscreen}
+                    sx={{
+                      width: 38,
+                      height: 38,
+                      borderRadius: 1.5,
+                      border: '1.5px solid',
+                      borderColor: isFullscreen ? '#f59e0b' : (isDarkMode ? '#475569' : '#d1d5db'),
+                      color: isFullscreen ? '#f59e0b' : (isDarkMode ? '#94a3b8' : '#64748b'),
+                      bgcolor: isFullscreen ? 'rgba(245, 158, 11, 0.1)' : 'transparent',
+                      '&:hover': {
+                        borderColor: '#f59e0b',
+                        bgcolor: 'rgba(245, 158, 11, 0.1)',
+                        color: '#f59e0b'
+                      }
+                    }}
+                  >
+                    {isFullscreen ? <FullscreenExitIcon sx={{ fontSize: 20 }} /> : <FullscreenIcon sx={{ fontSize: 20 }} />}
+                  </IconButton>
+                </Tooltip>
+
+                {/* Live View Panel */}
+                <LiveViewPanel
+                  warehouseId={activeWarehouse?.id}
+                  pageType="picking"
+                  isDarkMode={isDarkMode}
+                  container={multiEntryContainerRef.current}
+                />
+              </Stack>
+            </Stack>
+
+            {/* SETTINGS DRAWER - Right Side Panel with Accordions */}
+            <Drawer
+              anchor="right"
+              open={pickingSettingsPanelOpen}
+              onClose={() => setPickingSettingsPanelOpen(false)}
+              container={multiEntryContainerRef.current}
+              ModalProps={{
+                container: multiEntryContainerRef.current,
+                keepMounted: false,
+              }}
+              PaperProps={{
+                sx: {
+                  width: { xs: '100%', sm: 380 },
+                  maxWidth: '100vw',
+                  bgcolor: isDarkMode ? '#1e293b' : '#ffffff',
+                  borderLeft: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0'
+                }
+              }}
+            >
+              {/* Panel Header */}
+              <Box sx={{
+                p: 2,
+                background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
+                color: 'white',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                position: 'sticky',
+                top: 0,
+                zIndex: 10
+              }}>
+                <Typography sx={{ fontWeight: 700, fontSize: '1rem' }}>⚙️ Settings</Typography>
+                <IconButton size="small" onClick={() => setPickingSettingsPanelOpen(false)} sx={{ color: 'white' }}>
+                  <CloseIcon />
+                </IconButton>
+              </Box>
+
+              {/* Panel Content with Accordions */}
+              <Box sx={{ overflow: 'auto', flex: 1 }}>
+
+                {/* ═══════════ COLUMNS ACCORDION ═══════════ */}
+                <Accordion
+                  expanded={settingsPanelExpanded === 'columns'}
+                  onChange={(_, isExpanded) => setSettingsPanelExpanded(isExpanded ? 'columns' : false)}
+                  disableGutters
+                  sx={{
+                    bgcolor: 'transparent',
+                    boxShadow: 'none',
+                    '&:before': { display: 'none' },
+                    borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0'
+                  }}
+                >
+                  <AccordionSummary
+                    expandIcon={<ExpandMoreIcon sx={{ color: isDarkMode ? '#94a3b8' : '#64748b' }} />}
+                    sx={{
+                      px: 2,
+                      minHeight: 56,
+                      '&.Mui-expanded': { minHeight: 56 },
+                      '& .MuiAccordionSummary-content': { my: 1.5 }
+                    }}
+                  >
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                      <ViewColumnIcon sx={{ color: '#3b82f6', fontSize: 22 }} />
+                      <Box>
+                        <Typography sx={{ fontWeight: 700, fontSize: '0.9rem', color: isDarkMode ? '#e2e8f0' : '#1e293b' }}>Columns</Typography>
+                        <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>
+                          {visibleColumns.length} columns visible
+                        </Typography>
+                      </Box>
                     </Box>
+                  </AccordionSummary>
+                  <AccordionDetails sx={{ px: 2, pb: 2, pt: 0 }}>
+                    <Box sx={{ maxHeight: 280, overflow: 'auto', pr: 1 }}>
+                      <Typography sx={{ fontWeight: 700, fontSize: '0.7rem', color: '#3b82f6', mb: 1, textTransform: 'uppercase' }}>Editable Fields</Typography>
+                      <Stack spacing={0.5} sx={{ mb: 2 }}>
+                        {EDITABLE_COLUMNS.map((col) => (
+                          <FormControlLabel
+                            key={col}
+                            control={
+                              <Checkbox
+                                size="small"
+                                checked={visibleColumns.includes(col)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setVisibleColumns([...visibleColumns, col]);
+                                  } else {
+                                    setVisibleColumns(visibleColumns.filter((c: string) => c !== col));
+                                  }
+                                }}
+                                sx={{ py: 0.25, '&.Mui-checked': { color: '#3b82f6' } }}
+                              />
+                            }
+                            label={<Typography sx={{ fontSize: '0.8rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>{col.replace(/_/g, ' ').toUpperCase()}</Typography>}
+                            sx={{ m: 0 }}
+                          />
+                        ))}
+                      </Stack>
+                      <Typography sx={{ fontWeight: 700, fontSize: '0.7rem', color: '#10b981', mb: 1, textTransform: 'uppercase' }}>Master Data Fields</Typography>
+                      <Stack spacing={0.5}>
+                        {ALL_MASTER_COLUMNS.map((col) => (
+                          <FormControlLabel
+                            key={col}
+                            control={
+                              <Checkbox
+                                size="small"
+                                checked={visibleColumns.includes(col)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setVisibleColumns([...visibleColumns, col]);
+                                  } else {
+                                    setVisibleColumns(visibleColumns.filter((c: string) => c !== col));
+                                  }
+                                }}
+                                sx={{ py: 0.25, '&.Mui-checked': { color: '#10b981' } }}
+                              />
+                            }
+                            label={<Typography sx={{ fontSize: '0.8rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>{col.replace(/_/g, ' ').toUpperCase()}</Typography>}
+                            sx={{ m: 0 }}
+                          />
+                        ))}
+                      </Stack>
+                    </Box>
+                  </AccordionDetails>
+                </Accordion>
 
-                    {/* ═══════════ EXPORT BUTTON ═══════════ */}
-                    <Box sx={{ p: 2, borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0' }}>
+                {/* ═══════════ GRID SETTINGS ACCORDION ═══════════ */}
+                <Accordion
+                  expanded={settingsPanelExpanded === 'grid'}
+                  onChange={(_, isExpanded) => setSettingsPanelExpanded(isExpanded ? 'grid' : false)}
+                  disableGutters
+                  sx={{
+                    bgcolor: 'transparent',
+                    boxShadow: 'none',
+                    '&:before': { display: 'none' },
+                    borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0'
+                  }}
+                >
+                  <AccordionSummary
+                    expandIcon={<ExpandMoreIcon sx={{ color: isDarkMode ? '#94a3b8' : '#64748b' }} />}
+                    sx={{
+                      px: 2,
+                      minHeight: 56,
+                      '&.Mui-expanded': { minHeight: 56 },
+                      '& .MuiAccordionSummary-content': { my: 1.5 }
+                    }}
+                  >
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                      <TableChartIcon sx={{ color: '#f59e0b', fontSize: 22 }} />
+                      <Box>
+                        <Typography sx={{ fontWeight: 700, fontSize: '0.9rem', color: isDarkMode ? '#e2e8f0' : '#1e293b' }}>Grid Settings</Typography>
+                        <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>Sorting, filtering, resize</Typography>
+                      </Box>
+                    </Box>
+                  </AccordionSummary>
+                  <AccordionDetails sx={{ px: 2, pb: 2, pt: 0 }}>
+                    <Stack spacing={1.5}>
+                      <FormControlLabel
+                        control={
+                          <Checkbox
+                            checked={enableSorting}
+                            onChange={(e) => {
+                              setEnableSorting(e.target.checked);
+                              localStorage.setItem('picking_enableSorting', String(e.target.checked));
+                            }}
+                            sx={{ '&.Mui-checked': { color: '#f59e0b' } }}
+                          />
+                        }
+                        label={
+                          <Box>
+                            <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>⬆️ Enable Sorting</Typography>
+                            <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>Click headers to sort</Typography>
+                          </Box>
+                        }
+                      />
+                      <FormControlLabel
+                        control={
+                          <Checkbox
+                            checked={enableColumnFilters}
+                            onChange={(e) => {
+                              setEnableColumnFilters(e.target.checked);
+                              localStorage.setItem('picking_enableColumnFilters', String(e.target.checked));
+                            }}
+                            sx={{ '&.Mui-checked': { color: '#f59e0b' } }}
+                          />
+                        }
+                        label={
+                          <Box>
+                            <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>🔍 Enable Filtering</Typography>
+                            <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>Filter in column headers</Typography>
+                          </Box>
+                        }
+                      />
+                      <FormControlLabel
+                        control={
+                          <Checkbox
+                            checked={enableColumnResize}
+                            onChange={(e) => {
+                              setEnableColumnResize(e.target.checked);
+                              localStorage.setItem('picking_enableColumnResize', String(e.target.checked));
+                            }}
+                            sx={{ '&.Mui-checked': { color: '#f59e0b' } }}
+                          />
+                        }
+                        label={
+                          <Box>
+                            <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>↔️ Column Resize</Typography>
+                            <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>Drag borders to resize</Typography>
+                          </Box>
+                        }
+                      />
+                      <Button
+                        size="small"
+                        onClick={() => {
+                          setEnableSorting(true);
+                          setEnableColumnFilters(true);
+                          setEnableColumnResize(true);
+                          localStorage.setItem('picking_enableSorting', 'true');
+                          localStorage.setItem('picking_enableColumnFilters', 'true');
+                          localStorage.setItem('picking_enableColumnResize', 'true');
+                          toast.success('Grid settings reset');
+                        }}
+                        sx={{ alignSelf: 'flex-start', fontSize: '0.75rem', color: isDarkMode ? '#94a3b8' : '#64748b' }}
+                      >
+                        🔄 Reset to Default
+                      </Button>
+                    </Stack>
+                  </AccordionDetails>
+                </Accordion>
+
+                {/* ═══════════ SHORTCUTS ACCORDION (Ctrl+O) ═══════════ */}
+                <Accordion
+                  expanded={settingsPanelExpanded === 'shortcuts'}
+                  onChange={(_, isExpanded) => setSettingsPanelExpanded(isExpanded ? 'shortcuts' : false)}
+                  disableGutters
+                  sx={{
+                    bgcolor: 'transparent',
+                    boxShadow: 'none',
+                    '&:before': { display: 'none' },
+                    borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0'
+                  }}
+                >
+                  <AccordionSummary
+                    expandIcon={<ExpandMoreIcon sx={{ color: isDarkMode ? '#94a3b8' : '#64748b' }} />}
+                    sx={{
+                      px: 2,
+                      minHeight: 56,
+                      '&.Mui-expanded': { minHeight: 56 },
+                      '& .MuiAccordionSummary-content': { my: 1.5 }
+                    }}
+                  >
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                      <LinkIcon sx={{ color: '#8b5cf6', fontSize: 22 }} />
+                      <Box>
+                        <Typography sx={{ fontWeight: 700, fontSize: '0.9rem', color: isDarkMode ? '#e2e8f0' : '#1e293b' }}>Keyboard Shortcuts</Typography>
+                        <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>Ctrl+O and more</Typography>
+                      </Box>
+                    </Box>
+                  </AccordionSummary>
+                  <AccordionDetails sx={{ px: 2, pb: 2, pt: 0 }}>
+                    <Stack spacing={1.5}>
+                      <Box sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        p: 1.5,
+                        borderRadius: 1.5,
+                        bgcolor: ctrlOProductLinkEnabled ? (isDarkMode ? 'rgba(139, 92, 246, 0.15)' : 'rgba(139, 92, 246, 0.08)') : (isDarkMode ? '#0f172a' : '#f8fafc'),
+                        border: ctrlOProductLinkEnabled ? '1px solid #8b5cf6' : (isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0')
+                      }}>
+                        <Box>
+                          <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>Ctrl+O Product Link</Typography>
+                          <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>Opens FKT link for last scanned WSN</Typography>
+                        </Box>
+                        <Switch
+                          checked={ctrlOProductLinkEnabled}
+                          onChange={(e) => {
+                            const newValue = e.target.checked;
+                            setCtrlOProductLinkEnabled(newValue);
+                            ctrlOProductLinkEnabledRef.current = newValue;
+                            localStorage.setItem('picking_ctrlOProductLinkEnabled', String(newValue));
+                            toast.success(`Ctrl+O ${newValue ? 'enabled' : 'disabled'}`);
+                          }}
+                          sx={{ '& .MuiSwitch-switchBase.Mui-checked': { color: '#8b5cf6' }, '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { backgroundColor: '#8b5cf6' } }}
+                        />
+                      </Box>
+                    </Stack>
+                  </AccordionDetails>
+                </Accordion>
+
+                {/* ═══════════ AVAILABLE CACHE ACCORDION ═══════════ */}
+                <Accordion
+                  expanded={settingsPanelExpanded === 'cache'}
+                  onChange={(_, isExpanded) => setSettingsPanelExpanded(isExpanded ? 'cache' : false)}
+                  disableGutters
+                  sx={{
+                    bgcolor: 'transparent',
+                    boxShadow: 'none',
+                    '&:before': { display: 'none' },
+                    borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0'
+                  }}
+                >
+                  <AccordionSummary
+                    expandIcon={<ExpandMoreIcon sx={{ color: isDarkMode ? '#94a3b8' : '#64748b' }} />}
+                    sx={{
+                      px: 2,
+                      minHeight: 56,
+                      '&.Mui-expanded': { minHeight: 56 },
+                      '& .MuiAccordionSummary-content': { my: 1.5 }
+                    }}
+                  >
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, width: '100%' }}>
+                      <DownloadIcon sx={{ color: '#8b5cf6', fontSize: 22 }} />
+                      <Box sx={{ flex: 1 }}>
+                        <Typography sx={{ fontWeight: 700, fontSize: '0.9rem', color: isDarkMode ? '#e2e8f0' : '#1e293b' }}>Available Cache</Typography>
+                        <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>
+                          {availableCacheLoading ? availableCacheProgress || 'Loading...' : availableCacheStats?.count ? `${availableCacheStats.count.toLocaleString()} items` : availableCacheEnabled ? 'Not loaded' : 'Disabled'}
+                        </Typography>
+                      </Box>
+                      <Chip
+                        size="small"
+                        label={availableCacheLoading ? '...' : availableCacheStats?.count ? '✓' : '○'}
+                        sx={{ height: 24, fontSize: '0.8rem', bgcolor: availableCacheStats?.count ? '#10b981' : '#64748b', color: 'white' }}
+                      />
+                    </Box>
+                  </AccordionSummary>
+                  <AccordionDetails sx={{ px: 2, pb: 2, pt: 0 }}>
+                    <Stack spacing={1.5}>
+                      <Alert severity="info" sx={{ fontSize: '0.75rem', py: 0.5 }}>
+                        Cache available inventory for instant WSN lookup during Picking.
+                      </Alert>
+                      <Box sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        p: 1.5,
+                        borderRadius: 1.5,
+                        bgcolor: availableCacheEnabled ? 'rgba(139, 92, 246, 0.1)' : (isDarkMode ? '#0f172a' : '#f8fafc'),
+                        border: `1px solid ${availableCacheEnabled ? '#8b5cf6' : (isDarkMode ? '#334155' : '#e2e8f0')}`
+                      }}>
+                        <Box>
+                          <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>Enable Cache</Typography>
+                          <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>Instant WSN lookups</Typography>
+                        </Box>
+                        <Switch
+                          checked={availableCacheEnabled}
+                          onChange={(e) => {
+                            const newValue = e.target.checked;
+                            if (newValue) {
+                              enableWMSCache();
+                            } else {
+                              disableWMSCache();
+                            }
+                            setAvailableCacheEnabled(newValue);
+                            toast.success(`Cache ${newValue ? 'enabled' : 'disabled'}`);
+                          }}
+                          sx={{ '& .MuiSwitch-switchBase.Mui-checked': { color: '#8b5cf6' }, '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { backgroundColor: '#8b5cf6' } }}
+                        />
+                      </Box>
                       <Button
                         fullWidth
                         variant="contained"
-                        startIcon={<DownloadIcon />}
-                        onClick={() => { exportMultiEntryToExcel(); setPickingSettingsPanelOpen(false); }}
-                        disabled={!multiRows.some((r: any) => r.wsn?.trim())}
+                        disabled={availableCacheLoading || !activeWarehouse?.id}
+                        onClick={handleLoadAvailableCache}
                         sx={{
                           height: 44,
-                          background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                          background: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
                           fontWeight: 600,
-                          '&:hover': { background: 'linear-gradient(135deg, #059669 0%, #047857 100%)' },
-                          '&.Mui-disabled': { background: '#94a3b8' }
+                          '&:hover': { background: 'linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)' },
+                          '&.Mui-disabled': { bgcolor: '#64748b' }
                         }}
                       >
-                        Export to Excel
+                        {availableCacheLoading ? 'Loading...' : 'Load Available Cache'}
                       </Button>
-                    </Box>
-                  </Box>
-                </Drawer>
+                      {availableCacheStats?.lastSync && (
+                        <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8', textAlign: 'center' }}>
+                          Last sync: {new Date(availableCacheStats.lastSync).toLocaleTimeString()}
+                        </Typography>
+                      )}
+                    </Stack>
+                  </AccordionDetails>
+                </Accordion>
 
-              </CardContent>
-            </Card>
+                {/* ═══════════ PIVOT BUTTON ═══════════ */}
+                <Box sx={{ p: 2, borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0' }}>
+                  <Button
+                    fullWidth
+                    variant="outlined"
+                    startIcon={<PieChartIcon />}
+                    onClick={() => { setCategoryPivotOpen(true); setPickingSettingsPanelOpen(false); }}
+                    disabled={!multiRows.some((r: any) => r.wsn?.trim())}
+                    sx={{
+                      height: 44,
+                      fontWeight: 600,
+                      borderColor: '#7c3aed',
+                      color: '#7c3aed',
+                      '&:hover': { bgcolor: 'rgba(124, 58, 237, 0.1)', borderColor: '#7c3aed' },
+                      '&.Mui-disabled': { borderColor: '#94a3b8', color: '#94a3b8' }
+                    }}
+                  >
+                    Category Pivot View
+                  </Button>
+                </Box>
+
+                {/* ═══════════ EXPORT BUTTON ═══════════ */}
+                <Box sx={{ p: 2, borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0' }}>
+                  <Button
+                    fullWidth
+                    variant="contained"
+                    startIcon={<DownloadIcon />}
+                    onClick={() => { exportMultiEntryToExcel(); setPickingSettingsPanelOpen(false); }}
+                    disabled={!multiRows.some((r: any) => r.wsn?.trim())}
+                    sx={{
+                      height: 44,
+                      background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                      fontWeight: 600,
+                      '&:hover': { background: 'linear-gradient(135deg, #059669 0%, #047857 100%)' },
+                      '&.Mui-disabled': { background: '#94a3b8' }
+                    }}
+                  >
+                    Export to Excel
+                  </Button>
+                </Box>
+              </Box>
+            </Drawer>
+
 
             {/* ERROR */}
             {crossWarehouseWSNs.size > 0 && (

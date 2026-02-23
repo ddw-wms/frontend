@@ -4683,9 +4683,52 @@ export default function OutboundPage() {
 
                 {/* TAB: OUTBOUND LIST */}
                 {currentTabCode === 'list' && (
-                    <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden', background: isDarkMode ? '#0f172a' : '#f8fafc', py: { xs: 0.25, sm: 0.50 }, transition: 'opacity 0.15s ease-in-out' }}>
+                    <Box sx={{
+                        display: 'flex', flexDirection: 'column',
+                        flex: 1, minHeight: 0, overflow: 'hidden',
+                        background: isDarkMode ? '#0f172a' : '#f8fafc', py: { xs: 0.25, sm: 0.50 },
+                        transition: 'opacity 0.15s ease-in-out'
+                    }}>
                         {/* SEARCH + OPTIONS BUTTON */}
-                        <Box sx={{ mb: 1 }}>
+                        <Box sx={{
+                            mb: 1,
+
+                            // Paste inside the existing sx object
+                            '& .MuiOutlinedInput-root': {
+                                bgcolor: 'transparent !important',
+                                boxShadow: 'none !important',
+                                '&:hover': { bgcolor: 'transparent !important' },
+                                '&.Mui-focused': { bgcolor: 'transparent !important', boxShadow: 'none !important' },
+                            },
+                            '& .MuiOutlinedInput-input': {
+                                background: 'transparent !important',
+                            },
+                            '& input[type="date"], & .MuiOutlinedInput-input[type="date"], & .MuiInputBase-input[type="date"]': {
+                                background: 'transparent !important',
+                                color: 'inherit !important',
+                                WebkitAppearance: 'none !important',
+                                MozAppearance: 'textfield !important',
+                                appearance: 'none !important',
+                                borderRadius: '6px !important',
+                                padding: '0 6px !important',
+                            },
+                            '& input[type="date"]::-webkit-datetime-edit, & input[type="date"]::-webkit-datetime-edit-text, & input[type="date"]::-webkit-datetime-edit-month-field, & input[type="date"]::-webkit-datetime-edit-day-field, & input[type="date"]::-webkit-datetime-edit-year-field': {
+                                background: 'transparent !important',
+                                color: 'inherit !important',
+                            },
+                            '& input[type="date"]::-webkit-calendar-picker-indicator': {
+                                WebkitAppearance: 'none',
+                                appearance: 'none',
+                                background: 'transparent',
+                                padding: 0,
+                                margin: 0,
+                            },
+                            '& input:-webkit-autofill': {
+                                WebkitBoxShadow: '0 0 0 1000px transparent inset',
+                                boxShadow: '0 0 0 1000px transparent inset',
+                                WebkitTextFillColor: 'inherit',
+                            },
+                        }}>
                             <Stack direction="row" spacing={1} alignItems="center">
                                 <TextField
                                     size="small"
