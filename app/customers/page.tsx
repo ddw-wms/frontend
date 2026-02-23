@@ -1,7 +1,7 @@
 // File Path = warehouse-frontend/app/customers/page.tsx
 'use client';
 
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Box, Typography, Button, Dialog, DialogTitle,
@@ -25,12 +25,6 @@ import toast, { Toaster } from 'react-hot-toast';
 import { customerAPI } from '@/lib/api';
 import { useCustomersPermissions } from '@/hooks/usePagePermissions';
 import { StandardPageHeader } from '@/components';
-import { AgGridReact } from 'ag-grid-react';
-import { ModuleRegistry, AllCommunityModule, ColDef, CellStyle } from 'ag-grid-community';
-import 'ag-grid-community/styles/ag-theme-quartz.css';
-
-// Register AG Grid modules
-ModuleRegistry.registerModules([AllCommunityModule]);
 
 // Indian States list for dropdown
 const INDIAN_STATES = [
@@ -49,11 +43,7 @@ export default function CustomersPage() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const isDarkMode = theme.palette.mode === 'dark';
-  const gridRef = useRef<AgGridReact>(null);
-  const columnApiRef = useRef<any>(null);
-  const hasAutoFittedRef = useRef(false);
   const [user, setUser] = useState<any>(null);
-  const [gridReady, setGridReady] = useState(false);
 
   // Permission hook
   const { canSeeButton, isAdmin, isLoading: permLoading } = useCustomersPermissions();
@@ -96,113 +86,36 @@ export default function CustomersPage() {
     shipping_same_as_billing: true
   });
 
-  // AG Grid Column Definitions - Dashboard Style (no floating filters, SR.NO column)
-  const columnDefs = useMemo<ColDef[]>(() => [
-    {
-      headerName: 'SR.NO',
-      field: '__sr',
-      valueGetter: (params: any) => params.node ? (page - 1) * pageSize + params.node.rowIndex + 1 : undefined,
-      width: 80,
-      maxWidth: 100,
-      suppressMovable: true,
-      sortable: false,
-      filter: false,
-      cellStyle: { fontWeight: 700, textAlign: 'center' }
-    },
-    {
-      headerName: 'CUSTOMER NAME',
-      field: 'name',
-      flex: 2,
-      minWidth: 180,
-      filter: 'agTextColumnFilter',
-      cellStyle: { fontWeight: 600 } as CellStyle
-    },
-    {
-      headerName: 'CONTACT PERSON',
-      field: 'contact_person',
-      flex: 1.5,
-      minWidth: 150,
-      filter: 'agTextColumnFilter',
-      valueFormatter: (params: any) => params.value || '-'
-    },
-    {
-      headerName: 'PHONE',
-      field: 'phone',
-      flex: 1,
-      minWidth: 130,
-      filter: 'agTextColumnFilter',
-      valueFormatter: (params: any) => params.value || '-'
-    },
-    {
-      headerName: 'EMAIL',
-      field: 'email',
-      flex: 1.5,
-      minWidth: 180,
-      filter: 'agTextColumnFilter',
-      valueFormatter: (params: any) => params.value || '-'
-    },
-    {
-      headerName: 'GST NUMBER',
-      field: 'gst_number',
-      flex: 1.3,
-      minWidth: 160,
-      filter: 'agTextColumnFilter',
-      cellStyle: { fontFamily: 'monospace' } as CellStyle,
-      valueFormatter: (params: any) => params.value || '-'
-    },
-    {
-      headerName: 'CITY',
-      field: 'billing_city',
-      flex: 1,
-      minWidth: 120,
-      filter: 'agTextColumnFilter',
-      valueFormatter: (params: any) => params.value || params.data?.city || '-'
-    },
-    {
-      headerName: 'STATE',
-      field: 'billing_state',
-      flex: 1,
-      minWidth: 120,
-      filter: 'agTextColumnFilter',
-      valueFormatter: (params: any) => params.value || params.data?.state || '-'
-    },
-    {
-      headerName: 'ACTIONS',
-      field: 'actions',
-      width: 100,
-      sortable: false,
-      filter: false,
-      cellRenderer: (params: any) => (
-        <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'center', height: '100%', alignItems: 'center' }}>
-          {canSeeButton('edit') && (
-            <IconButton
-              size="small"
-              onClick={() => handleOpenDialog(params.data)}
-              sx={{ color: '#3b82f6', p: 0.5, '&:hover': { bgcolor: 'rgba(59, 130, 246, 0.1)' } }}
-            >
-              <EditIcon sx={{ fontSize: 16 }} />
-            </IconButton>
-          )}
-          {canSeeButton('delete') && (
-            <IconButton
-              size="small"
-              onClick={() => handleDelete(params.data.id, params.data.name)}
-              sx={{ color: '#ef4444', p: 0.5, '&:hover': { bgcolor: 'rgba(239, 68, 68, 0.1)' } }}
-            >
-              <DeleteIcon sx={{ fontSize: 16 }} />
-            </IconButton>
-          )}
-        </Box>
-      )
-    }
-  ], [canSeeButton, page, pageSize]);
+  // Search state for Zoho-style list
+  const [searchQuery, setSearchQuery] = useState('');
 
-  // AG Grid default column properties - Dashboard Style (no floating filters)
-  const defaultColDef = useMemo(() => ({
-    sortable: true,
-    resizable: true,
-    filter: true,
-  }), []);
+  // Filter customers by search
+  const filteredCustomers = useMemo(() => {
+    if (!searchQuery.trim()) return customers;
+    const q = searchQuery.toLowerCase();
+    return customers.filter(c =>
+      (c.name || '').toLowerCase().includes(q) ||
+      (c.contact_person || '').toLowerCase().includes(q) ||
+      (c.phone || '').toLowerCase().includes(q) ||
+      (c.email || '').toLowerCase().includes(q) ||
+      (c.gst_number || '').toLowerCase().includes(q) ||
+      (c.billing_city || c.city || '').toLowerCase().includes(q) ||
+      (c.billing_state || c.state || '').toLowerCase().includes(q)
+    );
+  }, [customers, searchQuery]);
+
+  // Helper: get initials + color for avatar
+  const getCustomerAvatar = (name: string) => {
+    const initials = name
+      .split(' ')
+      .map(w => w[0])
+      .slice(0, 2)
+      .join('')
+      .toUpperCase();
+    const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
+    const idx = name.split('').reduce((a, c) => a + c.charCodeAt(0), 0) % colors.length;
+    return { initials, color: colors[idx] };
+  };
 
   // Billing Pincode lookup function
   const lookupBillingPincode = useCallback(async (pincode: string) => {
@@ -473,8 +386,30 @@ export default function CustomersPage() {
       toast.error('Customer name is required');
       return;
     }
+    if (customerType === 'business') {
+      if (!formData.gst_number.trim()) {
+        toast.error('GST Number is required for Business customers');
+        return;
+      }
+      if (!validateGSTNumber(formData.gst_number)) {
+        toast.error('Invalid GST Number format. Expected: 22AAAAA0000A1Z5');
+        return;
+      }
+    }
     if (formData.gst_number && !validateGSTNumber(formData.gst_number)) {
       toast.error('Invalid GST Number format. Expected: 22AAAAA0000A1Z5');
+      return;
+    }
+    if (!formData.billing_pin_code.trim() || formData.billing_pin_code.length !== 6) {
+      toast.error('Valid 6-digit Billing Pin Code is required');
+      return;
+    }
+    if (!formData.billing_city.trim()) {
+      toast.error('Billing City is required');
+      return;
+    }
+    if (!formData.billing_state.trim()) {
+      toast.error('Billing State is required');
       return;
     }
 
@@ -564,8 +499,8 @@ export default function CustomersPage() {
   };
 
   // Pagination calculations
-  const totalPages = Math.ceil(customers.length / pageSize);
-  const paginatedCustomers = customers.slice((page - 1) * pageSize, page * pageSize);
+  const totalPages = Math.ceil(filteredCustomers.length / pageSize);
+  const paginatedCustomers = filteredCustomers.slice((page - 1) * pageSize, page * pageSize);
 
   if (!activeWarehouse) {
     return (
@@ -600,208 +535,270 @@ export default function CustomersPage() {
           userName={user?.fullName}
         />
 
-        {/* Action Buttons */}
-        <Box sx={{ mb: 1, mt: 1.5, px: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Box sx={{ display: 'flex', gap: 1 }}>
+        {/* Zoho Books Style Toolbar */}
+        <Box sx={{
+          mb: 1, mt: 1.5, px: 1,
+          display: 'flex',
+          flexDirection: { xs: 'column', sm: 'row' },
+          justifyContent: 'space-between',
+          alignItems: { xs: 'stretch', sm: 'center' },
+          gap: 1
+        }}>
+          <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
             {canSeeButton('add') && (
-              <Button size="small" startIcon={<AddIcon sx={{ fontSize: 14 }} />} variant="contained" onClick={() => handleOpenDialog()} sx={{ height: 36, fontSize: '0.75rem', fontWeight: 600, background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)' }}>
+              <Button size="small" startIcon={<AddIcon sx={{ fontSize: 14 }} />} variant="contained" onClick={() => handleOpenDialog()} sx={{ height: 36, fontSize: '0.75rem', fontWeight: 600, background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)', borderRadius: 1.5 }}>
                 ADD CUSTOMER
               </Button>
             )}
             {canSeeButton('export') && (
-              <Button size="small" startIcon={<DownloadIcon sx={{ fontSize: 14 }} />} variant="contained" onClick={handleExport} sx={{ height: 36, fontSize: '0.75rem', fontWeight: 600, background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)' }}>
+              <Button size="small" startIcon={<DownloadIcon sx={{ fontSize: 14 }} />} variant="contained" onClick={handleExport} sx={{ height: 36, fontSize: '0.75rem', fontWeight: 600, background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', borderRadius: 1.5 }}>
                 EXPORT
               </Button>
             )}
-            <Button size="small" startIcon={<RefreshIcon sx={{ fontSize: 14 }} />} variant="outlined" onClick={loadCustomers} sx={{ height: 36, fontSize: '0.75rem', fontWeight: 600 }}>
+            <Button size="small" startIcon={<RefreshIcon sx={{ fontSize: 14 }} />} variant="outlined" onClick={loadCustomers} sx={{ height: 36, fontSize: '0.75rem', fontWeight: 600, borderRadius: 1.5 }}>
               REFRESH
             </Button>
           </Box>
-          <Typography variant="body2" sx={{ color: isDarkMode ? '#94a3b8' : '#64748b', fontWeight: 500 }}>
-            Total: {customers.length} customers
-          </Typography>
-        </Box>
-
-        {/* AG Grid - Dashboard Style */}
-        <Box
-          sx={{
-            flex: 1,
-            minHeight: 0,
-            borderRadius: 2,
-            overflow: 'hidden',
-            border: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0',
-            display: 'flex',
-            flexDirection: 'column',
-            bgcolor: isDarkMode ? '#1e293b' : 'white',
-            transition: 'opacity 0.2s ease-in-out',
-            opacity: loading ? 0.6 : 1,
-            // Header styling
-            '& .ag-header': {
-              background: '#1e3a5f !important',
-              borderBottom: 'none'
-            },
-            '& .ag-header-row': {
-              background: '#1e3a5f !important',
-            },
-            '& .ag-header-cell': {
-              padding: '0 12px',
-              fontWeight: 600,
-              letterSpacing: '0.01em',
-              backgroundColor: '#1e3a5f !important',
-              color: '#ffffff !important',
-            },
-            '& .ag-header-cell-text': {
-              color: '#ffffff !important',
-              fontWeight: 700,
-              fontSize: '0.75rem'
-            },
-            '& .ag-header-icon': {
-              color: '#ffffff !important'
-            },
-            '& .ag-icon': {
-              color: isDarkMode ? '#94a3b8 !important' : 'inherit'
-            },
-            // Root and body styling for dark mode
-            '& .ag-root-wrapper': {
-              backgroundColor: isDarkMode ? '#1e293b !important' : 'white',
-              border: 'none !important'
-            },
-            '& .ag-root': {
-              backgroundColor: isDarkMode ? '#1e293b !important' : 'white'
-            },
-            '& .ag-body-viewport': {
-              backgroundColor: isDarkMode ? '#1e293b !important' : 'white'
-            },
-            '& .ag-center-cols-viewport': {
-              backgroundColor: isDarkMode ? '#1e293b !important' : 'white'
-            },
-            '& .ag-center-cols-container': {
-              backgroundColor: isDarkMode ? '#1e293b !important' : 'white'
-            },
-            // Row styling
-            '& .ag-row': {
-              backgroundColor: isDarkMode ? '#1e293b !important' : '#ffffff',
-              borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.08) !important' : '1px solid rgba(0,0,0,0.06)',
-            },
-            '& .ag-row-even': {
-              backgroundColor: isDarkMode ? '#0f172a !important' : '#ffffff !important',
-            },
-            '& .ag-row-odd': {
-              backgroundColor: isDarkMode ? '#1e293b !important' : 'rgba(248,250,252,0.5) !important',
-            },
-            // Cell styling - critical for text visibility
-            '& .ag-cell': {
-              fontSize: '0.85rem',
-              display: 'flex',
-              alignItems: 'center',
-              padding: '0 12px',
-              color: isDarkMode ? '#f1f5f9 !important' : '#1e293b',
-              backgroundColor: 'transparent !important',
-            },
-            '& .ag-cell-value': {
-              color: isDarkMode ? '#f1f5f9 !important' : '#1e293b'
-            },
-            '& .ag-cell-wrapper': {
-              color: isDarkMode ? '#f1f5f9 !important' : '#1e293b'
-            },
-            // Hover effect
-            '& .ag-row-hover': {
-              backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.2) !important' : 'rgba(30,64,175,0.04) !important',
-            },
-            '& .ag-row-hover .ag-cell': {
-              backgroundColor: 'transparent !important',
-            },
-            // No rows overlay
-            '& .ag-overlay-no-rows-wrapper': {
-              backgroundColor: isDarkMode ? '#1e293b !important' : 'white',
-              color: isDarkMode ? '#94a3b8' : '#64748b'
-            },
-            '& .ag-overlay': {
-              backgroundColor: isDarkMode ? '#1e293b !important' : 'white'
-            },
-            // Scrollbar styling for dark mode
-            '& .ag-body-horizontal-scroll-viewport, & .ag-body-vertical-scroll-viewport': {
-              backgroundColor: isDarkMode ? '#0f172a' : '#f1f5f9'
-            }
-          }}
-        >
-          <div className="ag-theme-quartz" style={{ flex: 1, minHeight: 0, height: '100%', width: '100%', position: 'relative' }}>
-            {loading && !gridReady && (
-              <Box sx={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, bgcolor: isDarkMode ? 'rgba(15,23,42,0.8)' : 'rgba(255,255,255,0.8)' }}>
-                <CircularProgress size={50} />
-              </Box>
-            )}
-            <AgGridReact
-              ref={gridRef}
-              rowData={paginatedCustomers}
-              columnDefs={columnDefs}
-              defaultColDef={defaultColDef}
-              animateRows={false}
-              rowSelection={{ mode: 'singleRow', checkboxes: false, enableClickSelection: true }}
-              suppressCellFocus={true}
-              enableCellTextSelection={true}
-              ensureDomOrder={true}
-              // ⚡ PERFORMANCE: Optimizations for smooth fast scrolling
-              rowBuffer={100}
-              suppressRowTransform={true}
-              suppressAnimationFrame={true}
-              alwaysShowVerticalScroll={true}
-              debounceVerticalScrollbar={true}
-              suppressScrollOnNewData={true}
-              getRowId={(params) => String(params.data.id)}
-              overlayNoRowsTemplate={`<div style='padding: 20px; font-weight: 600; color: ${isDarkMode ? '#94a3b8' : '#64748b'};'>📭 No customers found</div>`}
-              rowHeight={44}
-              headerHeight={40}
-              onGridReady={(params: any) => {
-                columnApiRef.current = params.api;
-                setGridReady(true);
-                // Restore saved column state from localStorage
-                try {
-                  const saved = localStorage.getItem('customers_grid_state');
-                  if (saved) {
-                    const state = JSON.parse(saved);
-                    params.api.applyColumnState({ state, applyOrder: true });
-                    hasAutoFittedRef.current = true;
-                  }
-                } catch { /* ignore */ }
+          <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center' }}>
+            <TextField
+              size="small"
+              placeholder="Search customers..."
+              value={searchQuery}
+              onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon sx={{ fontSize: 18, color: '#94a3b8' }} />
+                  </InputAdornment>
+                )
               }}
-              onFirstDataRendered={(params: any) => {
-                // Auto-size columns on first load if no saved state
-                if (!hasAutoFittedRef.current && params.api) {
-                  try {
-                    const allColIds = params.api.getColumns()
-                      ?.filter((col: any) => col.getColId() !== 'actions')
-                      .map((col: any) => col.getColId()) || [];
-                    if (allColIds.length > 0) {
-                      params.api.autoSizeColumns(allColIds);
-                    }
-                    hasAutoFittedRef.current = true;
-                  } catch { /* ignore */ }
-                }
-              }}
-              onColumnResized={(params: any) => {
-                // Save state when user finishes resizing
-                if (params.finished && params.api) {
-                  try {
-                    const state = params.api.getColumnState();
-                    localStorage.setItem('customers_grid_state', JSON.stringify(state));
-                  } catch { /* ignore */ }
-                }
-              }}
-              onColumnMoved={(params: any) => {
-                // Save state when user finishes moving columns
-                if (params.finished && params.api) {
-                  try {
-                    const state = params.api.getColumnState();
-                    localStorage.setItem('customers_grid_state', JSON.stringify(state));
-                  } catch { /* ignore */ }
-                }
+              sx={{
+                width: { xs: '100%', sm: 260 },
+                '& .MuiOutlinedInput-root': { borderRadius: 2, height: 36, fontSize: '0.8rem' }
               }}
             />
-          </div>
+            <Typography variant="body2" sx={{ color: isDarkMode ? '#94a3b8' : '#64748b', fontWeight: 500, whiteSpace: 'nowrap' }}>
+              {filteredCustomers.length} customers
+            </Typography>
+          </Box>
         </Box>
 
-        {/* Pagination Footer - Responsive Dashboard Style */}
+        {/* Zoho Books Style Customer List */}
+        <Box sx={{
+          flex: 1,
+          minHeight: 0,
+          borderRadius: 2,
+          overflow: 'hidden',
+          border: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0',
+          display: 'flex',
+          flexDirection: 'column',
+          bgcolor: isDarkMode ? '#1e293b' : '#ffffff',
+          transition: 'opacity 0.2s ease-in-out',
+          opacity: loading ? 0.6 : 1,
+        }}>
+          {/* Table Header */}
+          <Box sx={{
+            display: { xs: 'none', md: 'grid' },
+            gridTemplateColumns: '44px 2fr 1.2fr 1.2fr 1.3fr 1fr 80px',
+            gap: 1,
+            px: 2,
+            py: 1.2,
+            bgcolor: isDarkMode ? '#0f172a' : '#f8fafc',
+            borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0',
+            position: 'sticky',
+            top: 0,
+            zIndex: 2
+          }}>
+            <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5 }}>#</Typography>
+            <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5 }}>Customer</Typography>
+            <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5 }}>Phone</Typography>
+            <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5 }}>Email</Typography>
+            <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5 }}>GST Number</Typography>
+            <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5 }}>Location</Typography>
+            <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5, textAlign: 'center' }}>Actions</Typography>
+          </Box>
+
+          {/* Customer Rows */}
+          <Box sx={{ flex: 1, overflow: 'auto' }}>
+            {loading ? (
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', py: 8 }}>
+                <CircularProgress size={40} />
+              </Box>
+            ) : paginatedCustomers.length === 0 ? (
+              <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', py: 8, color: '#94a3b8' }}>
+                <Typography sx={{ fontSize: '2rem', mb: 1 }}>📭</Typography>
+                <Typography sx={{ fontWeight: 600, fontSize: '0.9rem' }}>
+                  {searchQuery ? 'No customers match your search' : 'No customers found'}
+                </Typography>
+                <Typography variant="body2" sx={{ mt: 0.5, color: '#94a3b8' }}>
+                  {searchQuery ? 'Try a different search term' : 'Add your first customer to get started'}
+                </Typography>
+              </Box>
+            ) : (
+              paginatedCustomers.map((customer, index) => {
+                const avatar = getCustomerAvatar(customer.name || 'C');
+                const city = customer.billing_city || customer.city || '';
+                const state = customer.billing_state || customer.state || '';
+                const location = [city, state].filter(Boolean).join(', ');
+                const srNo = (page - 1) * pageSize + index + 1;
+
+                return (
+                  <Box
+                    key={customer.id}
+                    sx={{
+                      display: 'grid',
+                      gridTemplateColumns: { xs: '1fr auto', md: '44px 2fr 1.2fr 1.2fr 1.3fr 1fr 80px' },
+                      gap: { xs: 0, md: 1 },
+                      px: 2,
+                      py: { xs: 1.5, md: 1 },
+                      alignItems: 'center',
+                      borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.06)' : '1px solid #f1f5f9',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                      '&:hover': {
+                        bgcolor: isDarkMode ? 'rgba(59, 130, 246, 0.08)' : '#f8fafc',
+                      },
+                      '&:last-child': { borderBottom: 'none' }
+                    }}
+                    onClick={() => canSeeButton('edit') && handleOpenDialog(customer)}
+                  >
+                    {/* SR.NO - Desktop */}
+                    <Typography sx={{ display: { xs: 'none', md: 'block' }, fontSize: '0.78rem', color: '#94a3b8', fontWeight: 600 }}>
+                      {srNo}
+                    </Typography>
+
+                    {/* Customer Name + Avatar */}
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 0 }}>
+                      <Box sx={{
+                        width: 36,
+                        height: 36,
+                        borderRadius: '50%',
+                        bgcolor: avatar.color,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                        boxShadow: `0 2px 8px ${avatar.color}40`
+                      }}>
+                        <Typography sx={{ color: '#fff', fontWeight: 700, fontSize: '0.75rem', lineHeight: 1 }}>
+                          {avatar.initials}
+                        </Typography>
+                      </Box>
+                      <Box sx={{ minWidth: 0 }}>
+                        <Typography sx={{
+                          fontWeight: 600,
+                          fontSize: '0.85rem',
+                          color: isDarkMode ? '#f1f5f9' : '#1e293b',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis'
+                        }}>
+                          {customer.name}
+                        </Typography>
+                        {customer.contact_person && (
+                          <Typography sx={{ fontSize: '0.72rem', color: '#94a3b8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {customer.contact_person}
+                          </Typography>
+                        )}
+                      </Box>
+                    </Box>
+
+                    {/* Mobile: Actions */}
+                    <Box sx={{ display: { xs: 'flex', md: 'none' }, gap: 0.5 }}>
+                      {canSeeButton('edit') && (
+                        <IconButton size="small" onClick={(e) => { e.stopPropagation(); handleOpenDialog(customer); }} sx={{ color: '#3b82f6', p: 0.5 }}>
+                          <EditIcon sx={{ fontSize: 16 }} />
+                        </IconButton>
+                      )}
+                      {canSeeButton('delete') && (
+                        <IconButton size="small" onClick={(e) => { e.stopPropagation(); handleDelete(customer.id, customer.name); }} sx={{ color: '#ef4444', p: 0.5 }}>
+                          <DeleteIcon sx={{ fontSize: 16 }} />
+                        </IconButton>
+                      )}
+                    </Box>
+
+                    {/* Mobile: Extra Info */}
+                    <Box sx={{ display: { xs: 'flex', md: 'none' }, gridColumn: '1 / -1', flexWrap: 'wrap', gap: 1, mt: 0.5 }}>
+                      {customer.phone && (
+                        <Typography sx={{ fontSize: '0.72rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: 0.3 }}>
+                          <PhoneIcon sx={{ fontSize: 12 }} /> {customer.phone}
+                        </Typography>
+                      )}
+                      {customer.gst_number && (
+                        <Typography sx={{ fontSize: '0.68rem', fontFamily: 'monospace', color: '#8b5cf6', bgcolor: isDarkMode ? 'rgba(139,92,246,0.1)' : '#f5f3ff', px: 0.8, py: 0.2, borderRadius: 1 }}>
+                          {customer.gst_number}
+                        </Typography>
+                      )}
+                      {location && (
+                        <Typography sx={{ fontSize: '0.72rem', color: '#64748b' }}>📍 {location}</Typography>
+                      )}
+                    </Box>
+
+                    {/* Phone - Desktop */}
+                    <Typography sx={{ display: { xs: 'none', md: 'block' }, fontSize: '0.8rem', color: isDarkMode ? '#cbd5e1' : '#475569', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {customer.phone || <span style={{ color: '#cbd5e1' }}>—</span>}
+                    </Typography>
+
+                    {/* Email - Desktop */}
+                    <Typography sx={{ display: { xs: 'none', md: 'block' }, fontSize: '0.8rem', color: isDarkMode ? '#cbd5e1' : '#475569', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {customer.email || <span style={{ color: '#cbd5e1' }}>—</span>}
+                    </Typography>
+
+                    {/* GST - Desktop */}
+                    <Box sx={{ display: { xs: 'none', md: 'flex' }, alignItems: 'center' }}>
+                      {customer.gst_number ? (
+                        <Typography sx={{
+                          fontSize: '0.73rem',
+                          fontFamily: 'monospace',
+                          letterSpacing: 0.3,
+                          color: '#8b5cf6',
+                          bgcolor: isDarkMode ? 'rgba(139,92,246,0.1)' : '#f5f3ff',
+                          px: 1,
+                          py: 0.3,
+                          borderRadius: 1,
+                          fontWeight: 500
+                        }}>
+                          {customer.gst_number}
+                        </Typography>
+                      ) : (
+                        <Typography sx={{ fontSize: '0.8rem', color: '#cbd5e1' }}>—</Typography>
+                      )}
+                    </Box>
+
+                    {/* Location - Desktop */}
+                    <Typography sx={{ display: { xs: 'none', md: 'block' }, fontSize: '0.8rem', color: isDarkMode ? '#cbd5e1' : '#475569', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {location || <span style={{ color: '#cbd5e1' }}>—</span>}
+                    </Typography>
+
+                    {/* Actions - Desktop */}
+                    <Box sx={{ display: { xs: 'none', md: 'flex' }, gap: 0.5, justifyContent: 'center' }}>
+                      {canSeeButton('edit') && (
+                        <IconButton
+                          size="small"
+                          onClick={(e) => { e.stopPropagation(); handleOpenDialog(customer); }}
+                          sx={{ color: '#3b82f6', p: 0.5, '&:hover': { bgcolor: 'rgba(59, 130, 246, 0.1)' } }}
+                        >
+                          <EditIcon sx={{ fontSize: 16 }} />
+                        </IconButton>
+                      )}
+                      {canSeeButton('delete') && (
+                        <IconButton
+                          size="small"
+                          onClick={(e) => { e.stopPropagation(); handleDelete(customer.id, customer.name); }}
+                          sx={{ color: '#ef4444', p: 0.5, '&:hover': { bgcolor: 'rgba(239, 68, 68, 0.1)' } }}
+                        >
+                          <DeleteIcon sx={{ fontSize: 16 }} />
+                        </IconButton>
+                      )}
+                    </Box>
+                  </Box>
+                );
+              })
+            )}
+          </Box>
+        </Box>
+
+        {/* Pagination Footer */}
         <Fade in={true} timeout={300}>
           <Box
             sx={{
@@ -812,13 +809,12 @@ export default function CustomersPage() {
               alignItems: 'center',
               justifyContent: 'space-between',
               gap: { xs: 1, sm: 0 },
-              borderTop: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #ddd',
+              borderTop: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e2e8f0',
               bgcolor: isDarkMode ? '#1e293b' : 'white',
               flexShrink: 0,
-              minHeight: { xs: 'auto', sm: 52 },
+              minHeight: { xs: 'auto', sm: 48 },
             }}
           >
-            {/* Row 1 on Mobile: Page Size + Record Count */}
             <Box sx={{
               display: 'flex',
               alignItems: 'center',
@@ -827,8 +823,8 @@ export default function CustomersPage() {
               gap: 1.5
             }}>
               <Stack direction="row" spacing={1} alignItems="center">
-                <Typography sx={{ fontSize: '0.78rem', whiteSpace: 'nowrap', color: isDarkMode ? '#94a3b8' : 'inherit' }}>
-                  Page Size:
+                <Typography sx={{ fontSize: '0.78rem', whiteSpace: 'nowrap', color: isDarkMode ? '#94a3b8' : '#64748b' }}>
+                  Show:
                 </Typography>
                 <Select
                   size="small"
@@ -842,41 +838,29 @@ export default function CustomersPage() {
                   <MenuItem value={200}>200</MenuItem>
                 </Select>
               </Stack>
-
-              <Typography sx={{ fontSize: '0.78rem', color: isDarkMode ? '#94a3b8' : 'inherit', whiteSpace: 'nowrap' }}>
-                {(page - 1) * pageSize + 1} to {Math.min(page * pageSize, customers.length)} of {customers.length}
+              <Typography sx={{ fontSize: '0.78rem', color: isDarkMode ? '#94a3b8' : '#64748b', whiteSpace: 'nowrap' }}>
+                {filteredCustomers.length > 0 ? `${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, filteredCustomers.length)} of ${filteredCustomers.length}` : '0 results'}
               </Typography>
             </Box>
 
-            {/* Row 2 on Mobile: Pagination */}
-            <Stack direction="row" spacing={0.5} alignItems="center" justifyContent="center">
-              <Typography sx={{
-                fontSize: '0.78rem',
-                color: isDarkMode ? '#94a3b8' : 'inherit',
-                mr: 1,
-                display: { xs: 'none', md: 'block' }
-              }}>
-                Page {page} of {totalPages}
-              </Typography>
-              <Pagination
-                count={totalPages}
-                page={page}
-                onChange={(_, newPage) => setPage(newPage)}
-                size="small"
-                showFirstButton
-                showLastButton
-                siblingCount={isMobile ? 0 : 1}
-                boundaryCount={isMobile ? 1 : 1}
-                sx={{
-                  '& .MuiPaginationItem-root': {
-                    fontSize: { xs: '0.7rem', sm: '0.75rem' },
-                    minWidth: { xs: 28, sm: 32 },
-                    height: { xs: 28, sm: 32 }
-                  },
-                  '& .Mui-selected': { bgcolor: '#1e40af !important', color: 'white' }
-                }}
-              />
-            </Stack>
+            <Pagination
+              count={totalPages}
+              page={page}
+              onChange={(_, newPage) => setPage(newPage)}
+              size="small"
+              showFirstButton
+              showLastButton
+              siblingCount={isMobile ? 0 : 1}
+              boundaryCount={1}
+              sx={{
+                '& .MuiPaginationItem-root': {
+                  fontSize: { xs: '0.7rem', sm: '0.75rem' },
+                  minWidth: { xs: 28, sm: 32 },
+                  height: { xs: 28, sm: 32 }
+                },
+                '& .Mui-selected': { bgcolor: '#1e40af !important', color: 'white' }
+              }}
+            />
           </Box>
         </Fade>
       </Box>
@@ -1012,7 +996,7 @@ export default function CustomersPage() {
 
             {customerType === 'business' && (
               <Box sx={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: 2, alignItems: 'start', mb: 2.5 }}>
-                <Typography variant="body2" sx={{ fontWeight: 600, color: '#64748b', pt: 1 }}>GST Number</Typography>
+                <Typography variant="body2" sx={{ fontWeight: 600, color: '#64748b', pt: 1 }}>GST Number*</Typography>
                 <TextField
                   fullWidth
                   size="small"
@@ -1060,10 +1044,11 @@ export default function CustomersPage() {
               <Box sx={{ pl: 0 }}>
                 {/* Pin Code with auto-fetch */}
                 <Box sx={{ display: 'grid', gridTemplateColumns: '120px 150px 1fr 1fr', gap: 2, alignItems: 'start', mb: 2.5 }}>
-                  <Typography variant="body2" sx={{ fontWeight: 600, color: '#64748b', pt: 1 }}>Location</Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 600, color: '#64748b', pt: 1 }}>Location*</Typography>
                   <TextField
                     size="small"
-                    label="Pin Code"
+                    label="Pin Code *"
+                    required
                     value={formData.billing_pin_code}
                     onChange={(e) => handleBillingPincodeChange(e.target.value)}
                     placeholder="6 digits"
@@ -1090,16 +1075,17 @@ export default function CustomersPage() {
                   />
                   <TextField
                     size="small"
-                    label="City"
+                    label="City *"
+                    required
                     value={formData.billing_city}
                     onChange={(e) => setFormData({ ...formData, billing_city: e.target.value })}
                     placeholder="City"
                   />
-                  <FormControl size="small" fullWidth>
-                    <InputLabel>State</InputLabel>
+                  <FormControl size="small" fullWidth required>
+                    <InputLabel>State *</InputLabel>
                     <Select
                       value={formData.billing_state}
-                      label="State"
+                      label="State *"
                       onChange={(e) => setFormData({ ...formData, billing_state: e.target.value })}
                     >
                       <MenuItem value="">Select State</MenuItem>
@@ -1254,7 +1240,7 @@ export default function CustomersPage() {
           <Button
             variant="contained"
             onClick={handleSubmit}
-            disabled={saving || !formData.name.trim()}
+            disabled={saving || !formData.name.trim() || !formData.billing_pin_code.trim() || formData.billing_pin_code.length !== 6 || !formData.billing_city.trim() || !formData.billing_state.trim() || (customerType === 'business' && (!formData.gst_number.trim() || !validateGSTNumber(formData.gst_number)))}
             startIcon={saving ? <CircularProgress size={18} /> : null}
             sx={{
               borderRadius: 1,

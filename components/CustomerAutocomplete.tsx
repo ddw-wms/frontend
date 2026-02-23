@@ -159,13 +159,6 @@ export default function CustomerAutocomplete({
         }
     };
 
-    // Handle input change for freeSolo
-    const handleInputChange = (event: any, newInputValue: string) => {
-        if (newInputValue !== ADD_NEW_OPTION) {
-            onChange(newInputValue);
-        }
-    };
-
     // Billing Pincode lookup
     const lookupBillingPincode = useCallback(async (pincode: string) => {
         if (pincode.length !== 6 || !/^\d{6}$/.test(pincode)) {
@@ -320,8 +313,30 @@ export default function CustomerAutocomplete({
             toast.error('Warehouse not selected');
             return;
         }
+        if (formData.customer_type === 'Business') {
+            if (!formData.gst_number.trim()) {
+                toast.error('GST Number is required for Business customers');
+                return;
+            }
+            if (!validateGSTNumber(formData.gst_number)) {
+                toast.error('Invalid GST Number format');
+                return;
+            }
+        }
         if (formData.gst_number && !validateGSTNumber(formData.gst_number)) {
             toast.error('Invalid GST Number format');
+            return;
+        }
+        if (!formData.billing_pin_code.trim() || formData.billing_pin_code.length !== 6) {
+            toast.error('Valid 6-digit Billing Pin Code is required');
+            return;
+        }
+        if (!formData.billing_city.trim()) {
+            toast.error('Billing City is required');
+            return;
+        }
+        if (!formData.billing_state.trim()) {
+            toast.error('Billing State is required');
             return;
         }
 
@@ -392,11 +407,9 @@ export default function CustomerAutocomplete({
     return (
         <>
             <Autocomplete
-                freeSolo
                 options={options}
-                value={value}
+                value={value || null}
                 onChange={handleChange}
-                onInputChange={handleInputChange}
                 disabled={disabled}
                 fullWidth={fullWidth}
                 size={size}
@@ -518,7 +531,7 @@ export default function CustomerAutocomplete({
                                 <TextField
                                     fullWidth
                                     size="small"
-                                    label="GST Number"
+                                    label="GST Number *"
                                     value={formData.gst_number}
                                     onChange={(e) => handleGSTChange(e.target.value)}
                                     placeholder="e.g., 22AAAAA0000A1Z5"
@@ -577,7 +590,8 @@ export default function CustomerAutocomplete({
                                 <Box sx={{ display: 'flex', gap: 2 }}>
                                     <TextField
                                         size="small"
-                                        label="Pin Code"
+                                        label="Pin Code *"
+                                        required
                                         value={formData.billing_pin_code}
                                         onChange={(e) => handleBillingPincodeChange(e.target.value)}
                                         placeholder="6 digits"
@@ -597,18 +611,19 @@ export default function CustomerAutocomplete({
                                     />
                                     <TextField
                                         size="small"
-                                        label="City"
+                                        label="City *"
+                                        required
                                         value={formData.billing_city}
                                         onChange={(e) => setFormData(prev => ({ ...prev, billing_city: e.target.value }))}
                                         placeholder="City"
                                         sx={{ flex: 1, '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
                                     />
-                                    <FormControl size="small" sx={{ flex: 1 }}>
-                                        <InputLabel>State</InputLabel>
+                                    <FormControl size="small" sx={{ flex: 1 }} required>
+                                        <InputLabel>State *</InputLabel>
                                         <Select
                                             value={formData.billing_state}
                                             onChange={(e) => setFormData(prev => ({ ...prev, billing_state: e.target.value }))}
-                                            label="State"
+                                            label="State *"
                                             sx={{ borderRadius: 2 }}
                                         >
                                             {INDIAN_STATES.map((state) => (
@@ -720,7 +735,7 @@ export default function CustomerAutocomplete({
                     <Button
                         variant="contained"
                         onClick={handleSubmit}
-                        disabled={saving || !formData.name.trim()}
+                        disabled={saving || !formData.name.trim() || !formData.billing_pin_code.trim() || formData.billing_pin_code.length !== 6 || !formData.billing_city.trim() || !formData.billing_state.trim() || (formData.customer_type === 'Business' && (!formData.gst_number.trim() || !validateGSTNumber(formData.gst_number)))}
                         startIcon={saving ? <CircularProgress size={18} /> : <AddIcon />}
                         sx={{
                             borderRadius: 2,
