@@ -249,7 +249,8 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
     { label: 'Picking', icon: AssignmentIcon, path: '/picking', code: 'menu:picking' },
     { label: 'Outbound', icon: ShippingIcon, path: '/outbound', code: 'menu:outbound' },
     { label: 'Customers', icon: GroupIcon, path: '/customers', code: 'menu:customers' },
-    { label: 'Analytics', icon: ReportsIcon, path: '/reports', code: 'menu:reports' }
+    { label: 'Analytics', icon: ReportsIcon, path: '/reports', code: 'menu:reports' },
+    { label: 'Rejections', icon: RejectionsIcon, path: '/settings/rejections', code: 'menu:settings:rejections' }
   ], []);
 
   // Settings menu items with permission codes
@@ -263,7 +264,7 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
     { label: 'Permissions', icon: PermissionsIcon, path: '/settings/permissions', code: 'menu:settings:permissions' },
     { label: 'Appearance', icon: AppearanceIcon, path: '/settings/appearance', code: 'menu:settings:appearance' },
     { label: 'Error Logs', icon: ErrorLogsIcon, path: '/settings/error-logs', code: 'menu:settings:errorlogs' },
-    { label: 'Rejections', icon: RejectionsIcon, path: '/settings/rejections', code: 'menu:settings:rejections' },
+
   ], []);
 
   // Filter menu items based on permissions
