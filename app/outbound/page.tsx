@@ -1706,127 +1706,6 @@ export default function OutboundPage() {
         toast.success(`Filled: ${valueLeft}`, { duration: 1500 });
     }, [saveCellUndoAction]);
 
-    // ⚡ GO TO FIRST: Navigate to first cell (Ctrl+Home)
-    const handleGoToFirst = useCallback(() => {
-        const api = gridRef.current?.api;
-        if (!api) return;
-
-        api.ensureIndexVisible(0, 'top');
-        api.setFocusedCell(0, 'wsn');
-        setSelectionRange(null);
-    }, [setSelectionRange]);
-
-    // ⚡ GO TO LAST: Navigate to last cell with data (Ctrl+End)
-    const handleGoToLast = useCallback(() => {
-        const api = gridRef.current?.api;
-        if (!api) return;
-
-        let lastRowWithData = 0;
-        for (let i = multiRowsRef.current.length - 1; i >= 0; i--) {
-            if (multiRowsRef.current[i]?.wsn?.trim()) {
-                lastRowWithData = i;
-                break;
-            }
-        }
-
-        api.ensureIndexVisible(lastRowWithData, 'bottom');
-        api.setFocusedCell(lastRowWithData, 'wsn');
-        setSelectionRange(null);
-    }, [setSelectionRange]);
-
-    // ✅ CHECK DUPLICATES IN GRID
-    const checkDuplicates = useCallback(
-        async (rows: any[]) => {
-            const gridDup = new Set<string>();
-            const crossWh = new Set<string>();
-            const wsnCounts = new Map<string, number>();
-
-            rows.forEach((row) => {
-                const wsn = row.wsn?.trim()?.toUpperCase();
-                if (!wsn) return;
-
-                wsnCounts.set(wsn, (wsnCounts.get(wsn) || 0) + 1);
-                if (wsnCounts.get(wsn)! > 1) {
-                    gridDup.add(wsn);
-                }
-
-                if (existingOutboundWSNs.has(wsn)) {
-                    crossWh.add(wsn);
-                }
-            });
-
-            setGridDuplicateWSNs(gridDup);
-            setCrossWarehouseWSNs(crossWh);
-            setDuplicateWSNs(new Set([...Array.from(gridDup), ...Array.from(crossWh)]));
-        },
-        [existingOutboundWSNs]
-    );
-
-    // ✅ NAVIGATE TO NEXT CELL (AG GRID) - handles Enter, Tab, and Arrow keys
-    const navigateToNextCell = useCallback(
-        (params: any) => {
-            const { key, previousCellPosition, nextCellPosition, event } = params;
-            const api = params.api;
-
-            // Tab key: move to next/prev cell horizontally (Excel-like)
-            if (key === 'Tab') {
-                const column = previousCellPosition.column;
-                const rowIndex = previousCellPosition.rowIndex;
-                const allColumns = api.getAllDisplayedColumns() || [];
-                const currentColIndex = allColumns.findIndex((c: any) => c.getColId() === column.getColId());
-
-                const goingBack = event && event.shiftKey;
-
-                if (goingBack) {
-                    // Shift+Tab: move left, wrap to previous row if at start
-                    if (currentColIndex > 0) {
-                        return { rowIndex, column: allColumns[currentColIndex - 1], rowPinned: null };
-                    } else if (rowIndex > 0) {
-                        // Wrap to end of previous row
-                        return { rowIndex: rowIndex - 1, column: allColumns[allColumns.length - 1], rowPinned: null };
-                    }
-                } else {
-                    // Tab: move right, wrap to next row if at end
-                    if (currentColIndex < allColumns.length - 1) {
-                        return { rowIndex, column: allColumns[currentColIndex + 1], rowPinned: null };
-                    } else if (rowIndex < api.getDisplayedRowCount() - 1) {
-                        // Wrap to start of next row
-                        return { rowIndex: rowIndex + 1, column: allColumns[0], rowPinned: null };
-                    }
-                }
-                return previousCellPosition;
-            }
-
-            // Arrow keys: default behaviour
-            if (key !== 'Enter') {
-                return nextCellPosition;
-            }
-
-            // Enter: same column, next/prev row
-            const column = previousCellPosition.column;
-            const rowIndex = previousCellPosition.rowIndex;
-
-            const goingUp = event && event.shiftKey;
-            const newRowIndex = goingUp ? rowIndex - 1 : rowIndex + 1;
-
-            if (newRowIndex < 0 || newRowIndex >= api.getDisplayedRowCount()) {
-                return previousCellPosition;
-            }
-
-            return {
-                rowIndex: newRowIndex,
-                column,
-                rowPinned: null,
-            };
-        },
-        []
-    );
-
-    // ⚡ EXCEL-LIKE: Keep multiRowsRef in sync
-    useEffect(() => {
-        multiRowsRef.current = multiRows;
-    }, [multiRows]);
-
     // Store previous selection for smart refresh
     const prevSelectionBoundsRef = useRef<{ minRow: number; maxRow: number } | null>(null);
 
@@ -1950,6 +1829,127 @@ export default function OutboundPage() {
         updateSelectionRange(range);
         setSelectedRange(range);
     }, [updateSelectionRange]);
+
+    // ⚡ GO TO FIRST: Navigate to first cell (Ctrl+Home)
+    const handleGoToFirst = useCallback(() => {
+        const api = gridRef.current?.api;
+        if (!api) return;
+
+        api.ensureIndexVisible(0, 'top');
+        api.setFocusedCell(0, 'wsn');
+        setSelectionRange(null);
+    }, [setSelectionRange]);
+
+    // ⚡ GO TO LAST: Navigate to last cell with data (Ctrl+End)
+    const handleGoToLast = useCallback(() => {
+        const api = gridRef.current?.api;
+        if (!api) return;
+
+        let lastRowWithData = 0;
+        for (let i = multiRowsRef.current.length - 1; i >= 0; i--) {
+            if (multiRowsRef.current[i]?.wsn?.trim()) {
+                lastRowWithData = i;
+                break;
+            }
+        }
+
+        api.ensureIndexVisible(lastRowWithData, 'bottom');
+        api.setFocusedCell(lastRowWithData, 'wsn');
+        setSelectionRange(null);
+    }, [setSelectionRange]);
+
+    // ✅ CHECK DUPLICATES IN GRID
+    const checkDuplicates = useCallback(
+        async (rows: any[]) => {
+            const gridDup = new Set<string>();
+            const crossWh = new Set<string>();
+            const wsnCounts = new Map<string, number>();
+
+            rows.forEach((row) => {
+                const wsn = row.wsn?.trim()?.toUpperCase();
+                if (!wsn) return;
+
+                wsnCounts.set(wsn, (wsnCounts.get(wsn) || 0) + 1);
+                if (wsnCounts.get(wsn)! > 1) {
+                    gridDup.add(wsn);
+                }
+
+                if (existingOutboundWSNs.has(wsn)) {
+                    crossWh.add(wsn);
+                }
+            });
+
+            setGridDuplicateWSNs(gridDup);
+            setCrossWarehouseWSNs(crossWh);
+            setDuplicateWSNs(new Set([...Array.from(gridDup), ...Array.from(crossWh)]));
+        },
+        [existingOutboundWSNs]
+    );
+
+    // ✅ NAVIGATE TO NEXT CELL (AG GRID) - handles Enter, Tab, and Arrow keys
+    const navigateToNextCell = useCallback(
+        (params: any) => {
+            const { key, previousCellPosition, nextCellPosition, event } = params;
+            const api = params.api;
+
+            // Tab key: move to next/prev cell horizontally (Excel-like)
+            if (key === 'Tab') {
+                const column = previousCellPosition.column;
+                const rowIndex = previousCellPosition.rowIndex;
+                const allColumns = api.getAllDisplayedColumns() || [];
+                const currentColIndex = allColumns.findIndex((c: any) => c.getColId() === column.getColId());
+
+                const goingBack = event && event.shiftKey;
+
+                if (goingBack) {
+                    // Shift+Tab: move left, wrap to previous row if at start
+                    if (currentColIndex > 0) {
+                        return { rowIndex, column: allColumns[currentColIndex - 1], rowPinned: null };
+                    } else if (rowIndex > 0) {
+                        // Wrap to end of previous row
+                        return { rowIndex: rowIndex - 1, column: allColumns[allColumns.length - 1], rowPinned: null };
+                    }
+                } else {
+                    // Tab: move right, wrap to next row if at end
+                    if (currentColIndex < allColumns.length - 1) {
+                        return { rowIndex, column: allColumns[currentColIndex + 1], rowPinned: null };
+                    } else if (rowIndex < api.getDisplayedRowCount() - 1) {
+                        // Wrap to start of next row
+                        return { rowIndex: rowIndex + 1, column: allColumns[0], rowPinned: null };
+                    }
+                }
+                return previousCellPosition;
+            }
+
+            // Arrow keys: default behaviour
+            if (key !== 'Enter') {
+                return nextCellPosition;
+            }
+
+            // Enter: same column, next/prev row
+            const column = previousCellPosition.column;
+            const rowIndex = previousCellPosition.rowIndex;
+
+            const goingUp = event && event.shiftKey;
+            const newRowIndex = goingUp ? rowIndex - 1 : rowIndex + 1;
+
+            if (newRowIndex < 0 || newRowIndex >= api.getDisplayedRowCount()) {
+                return previousCellPosition;
+            }
+
+            return {
+                rowIndex: newRowIndex,
+                column,
+                rowPinned: null,
+            };
+        },
+        []
+    );
+
+    // ⚡ EXCEL-LIKE: Keep multiRowsRef in sync
+    useEffect(() => {
+        multiRowsRef.current = multiRows;
+    }, [multiRows]);
 
     // ⚡ PERF: Selection refresh is now handled inline by updateSelectionRange — no useEffect needed.
 
