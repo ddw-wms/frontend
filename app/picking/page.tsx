@@ -244,6 +244,7 @@ export default function PickingPage() {
   const MAX_UNDO_HISTORY = 100;
   const undoStackRef = useRef<UndoAction[]>([]);
   const redoStackRef = useRef<UndoAction[]>([]);
+  const draftLoadedRef = useRef(false);
 
   // ⚡ EXCEL-LIKE: Selection statistics
   const [selectionStats, setSelectionStats] = useState<{
@@ -469,15 +470,27 @@ export default function PickingPage() {
   };
 
   const saveDraftImmediate = async (rowsToSave = multiRows) => {
-    const key = getDraftKey();
-    if (!key) return;
+    if (!draftLoadedRef.current) return; // Don't overwrite before draft is loaded
+    if (!activeWarehouse?.id) return;
     setDraftSaving(true);
     try {
-      await localforage.setItem(key, { rows: rowsToSave, savedAt: Date.now(), version: 1 });
+      // Primary: Save to server-side DB
+      await pickingAPI.saveDraft(rowsToSave, activeWarehouse.id, selectedCustomer, pickingDate);
       setDraftSavedAt(Date.now());
       setDraftExists(true);
     } catch (err) {
-      console.error('Failed to save picking draft', err);
+      console.error('Failed to save picking draft to DB, falling back to IndexedDB', err);
+      // Fallback: Save to IndexedDB
+      try {
+        const key = getDraftKey();
+        if (key) {
+          await localforage.setItem(key, { rows: rowsToSave, savedAt: Date.now(), version: 1 });
+          setDraftSavedAt(Date.now());
+          setDraftExists(true);
+        }
+      } catch (localErr) {
+        console.error('Failed to save picking draft to IndexedDB', localErr);
+      }
     } finally {
       setDraftSaving(false);
     }
@@ -485,24 +498,60 @@ export default function PickingPage() {
 
   const clearDraft = async () => {
     const key = getDraftKey();
-    if (!key) return;
     try {
-      await localforage.removeItem(key);
-      setDraftSavedAt(null);
-      setDraftExists(false);
-      toast.success('Draft cleared');
+      // Clear from DB
+      if (activeWarehouse?.id) {
+        await pickingAPI.clearDraft(activeWarehouse.id);
+      }
     } catch (err) {
-      console.error('Failed to clear picking draft', err);
+      console.error('Failed to clear picking draft from DB', err);
     }
+    try {
+      // Also clear from IndexedDB
+      if (key) {
+        await localforage.removeItem(key);
+      }
+    } catch (err) {
+      console.error('Failed to clear picking draft from IndexedDB', err);
+    }
+    setDraftSavedAt(null);
+    setDraftExists(false);
+    undoStackRef.current = [];
+    redoStackRef.current = [];
+    toast.success('Draft cleared');
   };
 
   // Load draft when warehouse/user become available
   useEffect(() => {
     let mounted = true;
     const load = async () => {
-      const key = getDraftKey();
-      if (!key) return;
+      if (!activeWarehouse?.id || !user?.id) return;
+      draftLoadedRef.current = false;
       try {
+        // Primary: Load from server-side DB
+        const res = await pickingAPI.loadDraft(activeWarehouse.id);
+        const dbDraft = res.data;
+        if (dbDraft?.exists && dbDraft.draft?.rows?.length > 0 && mounted) {
+          const restored = dbDraft.draft.rows.map((r: any) => ({
+            picking_date: r.picking_date || pickingDate,
+            customer_name: r.customer_name || selectedCustomer,
+            picker_name: r.picker_name || pickerName,
+            ...r,
+          }));
+          setMultiRows(restored);
+          setDraftSavedAt(new Date(dbDraft.draft.saved_at || dbDraft.draft.updated_at).getTime());
+          setDraftExists(true);
+          draftLoadedRef.current = true;
+          return;
+        }
+      } catch (err) {
+        console.error('Failed to load picking draft from DB', err);
+      }
+
+      // Fallback: Load from IndexedDB
+      try {
+        const key = getDraftKey();
+        if (!key) { draftLoadedRef.current = true; return; }
         const draft: any = await localforage.getItem(key);
         if (draft && draft.rows && draft.rows.length > 0 && mounted) {
           const restored = draft.rows.map((r: any) => ({
@@ -514,11 +563,15 @@ export default function PickingPage() {
           setMultiRows(restored);
           setDraftSavedAt(draft.savedAt || Date.now());
           setDraftExists(true);
-          // toast.success('Draft restored');
+          // Sync local draft to DB
+          if (activeWarehouse?.id) {
+            try { await pickingAPI.saveDraft(restored, activeWarehouse.id, selectedCustomer, pickingDate); } catch { }
+          }
         }
       } catch (err) {
-        console.error('Failed to load picking draft', err);
+        console.error('Failed to load picking draft from IndexedDB', err);
       }
+      if (mounted) draftLoadedRef.current = true;
     };
     load();
     return () => { mounted = false; };

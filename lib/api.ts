@@ -619,7 +619,15 @@ export const qcAPI = {
 
   downloadTemplate: () => {
     window.location.href = `${process.env.NEXT_PUBLIC_API_URL}/qc/template`;
-  }
+  },
+
+  // Multi-entry draft persistence (save/load/clear draft from database)
+  saveDraft: (draft_data: any[], warehouse_id: number, common_date?: string) =>
+    api.put('qc/draft', { draft_data, warehouse_id, common_date }),
+  loadDraft: (warehouse_id: number) =>
+    api.get('qc/draft', { params: { warehouse_id } }),
+  clearDraft: (warehouse_id: number) =>
+    api.delete('qc/draft', { params: { warehouse_id } }),
 };
 
 // ============================ CUSTOMER API ==============================
@@ -730,6 +738,14 @@ export const outboundAPI = {
   // Get all available inventory for outbound caching (PICKING + QC + INBOUND not yet dispatched)
   getAvailableForOutbound: (warehouseId: number) =>
     api.get('outbound/available-inventory', { params: { warehouseId } }),
+
+  // Multi-entry draft persistence (save/load/clear draft from database)
+  saveDraft: (draft_data: any[], warehouse_id: number, customer_name?: string, dispatch_mode?: string, common_date?: string) =>
+    api.put('outbound/draft', { draft_data, warehouse_id, customer_name, dispatch_mode, common_date }),
+  loadDraft: (warehouse_id: number) =>
+    api.get('outbound/draft', { params: { warehouse_id } }),
+  clearDraft: (warehouse_id: number) =>
+    api.delete('outbound/draft', { params: { warehouse_id } }),
 };
 
 // ==========================PICKING API ==============================
@@ -789,7 +805,15 @@ export const pickingAPI = {
     api.get('/picking/brands', { params: { warehouseId } }),
   // Get unique categories for filter dropdown
   getCategories: (warehouseId?: number) =>
-    api.get('/picking/categories', { params: { warehouseId } })
+    api.get('/picking/categories', { params: { warehouseId } }),
+
+  // Multi-entry draft persistence (save/load/clear draft from database)
+  saveDraft: (draft_data: any[], warehouse_id: number, customer_name?: string, common_date?: string) =>
+    api.put('picking/draft', { draft_data, warehouse_id, customer_name, common_date }),
+  loadDraft: (warehouse_id: number) =>
+    api.get('picking/draft', { params: { warehouse_id } }),
+  clearDraft: (warehouse_id: number) =>
+    api.delete('picking/draft', { params: { warehouse_id } }),
 };
 
 // ======================== DASHBOARD API ==============================

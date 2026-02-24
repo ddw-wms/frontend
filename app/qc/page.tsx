@@ -385,6 +385,27 @@ export default function QCPage() {
   const isDraggingRef = useRef(false);
   const dragStartCellRef = useRef<{ rowIndex: number; colId: string } | null>(null);
 
+  // ⚡ UNDO/REDO: Track undo/redo actions for cell edits, paste, and fill-down
+  type UndoAction = {
+    type: 'cell' | 'paste' | 'fillDown' | 'batch';
+    rowIndex?: number;
+    field?: string;
+    oldValue?: string;
+    newValue?: string;
+    oldRowData?: any;
+    newRowData?: any;
+    pasteData?: {
+      startRow: number;
+      endRow: number;
+      oldRows: any[];
+      newRows: any[];
+    };
+  };
+  const MAX_UNDO_HISTORY = 100;
+  const undoStackRef = useRef<UndoAction[]>([]);
+  const redoStackRef = useRef<UndoAction[]>([]);
+  const draftLoadedRef = useRef(false);
+
   // Single Entry WSN debounce ref (for scanner support)
   const singleWSNDebounceRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -709,15 +730,27 @@ export default function QCPage() {
   };
 
   const saveDraftImmediate = async (rowsToSave = multiRows) => {
-    const key = getDraftKey();
-    if (!key) return;
+    if (!draftLoadedRef.current) return; // Don't overwrite before draft is loaded
+    if (!activeWarehouse?.id) return;
     setDraftSaving(true);
     try {
-      await localforage.setItem(key, { rows: rowsToSave, savedAt: Date.now(), version: 1 });
+      // Primary: Save to server-side DB
+      await qcAPI.saveDraft(rowsToSave, activeWarehouse.id, commonQcDate);
       setDraftSavedAt(Date.now());
       setDraftExists(true);
     } catch (err) {
-      console.error('Failed to save QC draft', err);
+      console.error('Failed to save QC draft to DB, falling back to IndexedDB', err);
+      // Fallback: Save to IndexedDB
+      try {
+        const key = getDraftKey();
+        if (key) {
+          await localforage.setItem(key, { rows: rowsToSave, savedAt: Date.now(), version: 1 });
+          setDraftSavedAt(Date.now());
+          setDraftExists(true);
+        }
+      } catch (localErr) {
+        console.error('Failed to save QC draft to IndexedDB', localErr);
+      }
     } finally {
       setDraftSaving(false);
     }
@@ -725,27 +758,61 @@ export default function QCPage() {
 
   const clearDraft = async () => {
     const key = getDraftKey();
-    if (!key) return;
     try {
-      await localforage.removeItem(key);
-      setDraftSavedAt(null);
-      setDraftExists(false);
-      toast.success('Draft cleared');
+      // Clear from DB
+      if (activeWarehouse?.id) {
+        await qcAPI.clearDraft(activeWarehouse.id);
+      }
     } catch (err) {
-      console.error('Failed to clear QC draft', err);
+      console.error('Failed to clear QC draft from DB', err);
     }
+    try {
+      // Also clear from IndexedDB
+      if (key) {
+        await localforage.removeItem(key);
+      }
+    } catch (err) {
+      console.error('Failed to clear QC draft from IndexedDB', err);
+    }
+    setDraftSavedAt(null);
+    setDraftExists(false);
+    undoStackRef.current = [];
+    redoStackRef.current = [];
+    toast.success('Draft cleared');
   };
 
   // Load draft when warehouse/user become available
   useEffect(() => {
     let mounted = true;
     const load = async () => {
-      const key = getDraftKey();
-      if (!key) return;
+      if (!activeWarehouse?.id || !user?.id) return;
+      draftLoadedRef.current = false;
       try {
+        // Primary: Load from server-side DB
+        const res = await qcAPI.loadDraft(activeWarehouse.id);
+        const dbDraft = res.data;
+        if (dbDraft?.exists && dbDraft.draft?.rows?.length > 0 && mounted) {
+          const restored = dbDraft.draft.rows.map((r: any) => ({
+            qcdate: r.qcdate || commonQcDate,
+            qcbyname: r.qcbyname || commonQcByName,
+            ...r,
+          }));
+          setMultiRows(restored);
+          setDraftSavedAt(new Date(dbDraft.draft.saved_at || dbDraft.draft.updated_at).getTime());
+          setDraftExists(true);
+          draftLoadedRef.current = true;
+          return;
+        }
+      } catch (err) {
+        console.error('Failed to load QC draft from DB', err);
+      }
+
+      // Fallback: Load from IndexedDB
+      try {
+        const key = getDraftKey();
+        if (!key) { draftLoadedRef.current = true; return; }
         const draft: any = await localforage.getItem(key);
         if (draft && draft.rows && draft.rows.length > 0 && mounted) {
-          // Apply defaults for missing fields
           const restored = draft.rows.map((r: any) => ({
             qcdate: r.qcdate || commonQcDate,
             qcbyname: r.qcbyname || commonQcByName,
@@ -754,11 +821,15 @@ export default function QCPage() {
           setMultiRows(restored);
           setDraftSavedAt(draft.savedAt || Date.now());
           setDraftExists(true);
-          //toast.success('✓ Draft restored');
+          // Sync local draft to DB
+          if (activeWarehouse?.id) {
+            try { await qcAPI.saveDraft(restored, activeWarehouse.id, commonQcDate); } catch { }
+          }
         }
       } catch (err) {
-        console.error('Failed to load QC draft', err);
+        console.error('Failed to load QC draft from IndexedDB', err);
       }
+      if (mounted) draftLoadedRef.current = true;
     };
     load();
     return () => { mounted = false; };
@@ -1131,6 +1202,375 @@ export default function QCPage() {
     return () => window.removeEventListener('mouseup', handleMouseUp);
   }, []);
 
+  // ⚡ UNDO/REDO: Save a cell-level undo action
+  const saveCellUndoAction = useCallback((action: UndoAction) => {
+    undoStackRef.current.push(action);
+    if (undoStackRef.current.length > MAX_UNDO_HISTORY) {
+      undoStackRef.current.shift();
+    }
+    redoStackRef.current = [];
+  }, []);
+
+  // ⚡ UNDO/REDO: Handle Ctrl+Z
+  const handleUndo = useCallback(() => {
+    if (undoStackRef.current.length === 0) {
+      toast('Nothing to undo', { icon: 'ℹ️', duration: 1500 });
+      return;
+    }
+
+    const action = undoStackRef.current.pop()!;
+    const newRows = [...multiRowsRef.current];
+
+    if (action.type === 'paste' && action.pasteData) {
+      // Restore all rows from before paste
+      const { startRow, oldRows } = action.pasteData;
+      for (let i = 0; i < oldRows.length; i++) {
+        if (startRow + i < newRows.length) {
+          newRows[startRow + i] = { ...oldRows[i] };
+        }
+      }
+      redoStackRef.current.push({
+        type: 'paste',
+        pasteData: {
+          startRow: action.pasteData.startRow,
+          endRow: action.pasteData.endRow,
+          oldRows: action.pasteData.oldRows,
+          newRows: action.pasteData.newRows,
+        },
+      });
+      setMultiRows(newRows);
+      gridRef.current?.refreshCells({ force: true });
+      toast.success('Paste undone', { duration: 1500 });
+    } else if (action.type === 'fillDown' && action.pasteData) {
+      const { startRow, oldRows } = action.pasteData;
+      for (let i = 0; i < oldRows.length; i++) {
+        if (startRow + i < newRows.length) {
+          newRows[startRow + i] = { ...oldRows[i] };
+        }
+      }
+      redoStackRef.current.push({
+        type: 'fillDown',
+        pasteData: {
+          startRow: action.pasteData.startRow,
+          endRow: action.pasteData.endRow,
+          oldRows: action.pasteData.oldRows,
+          newRows: action.pasteData.newRows,
+        },
+      });
+      setMultiRows(newRows);
+      gridRef.current?.refreshCells({ force: true });
+      toast.success('Fill down undone', { duration: 1500 });
+    } else if (action.type === 'cell') {
+      if (action.rowIndex !== undefined && action.field) {
+        if (action.oldRowData) {
+          newRows[action.rowIndex] = { ...action.oldRowData };
+        } else {
+          newRows[action.rowIndex] = { ...newRows[action.rowIndex], [action.field]: action.oldValue || '' };
+        }
+        redoStackRef.current.push({
+          type: 'cell',
+          rowIndex: action.rowIndex,
+          field: action.field,
+          oldValue: action.oldValue,
+          newValue: action.newValue,
+          oldRowData: action.oldRowData,
+          newRowData: action.newRowData,
+        });
+        setMultiRows(newRows);
+        gridRef.current?.refreshCells({ force: true });
+      }
+    }
+  }, []);
+
+  // ⚡ UNDO/REDO: Handle Ctrl+Y / Ctrl+Shift+Z
+  const handleRedo = useCallback(() => {
+    if (redoStackRef.current.length === 0) {
+      toast('Nothing to redo', { icon: 'ℹ️', duration: 1500 });
+      return;
+    }
+
+    const action = redoStackRef.current.pop()!;
+    const newRows = [...multiRowsRef.current];
+
+    if ((action.type === 'paste' || action.type === 'fillDown') && action.pasteData) {
+      const { startRow, newRows: pastedRows } = action.pasteData;
+      for (let i = 0; i < pastedRows.length; i++) {
+        if (startRow + i < newRows.length) {
+          newRows[startRow + i] = { ...pastedRows[i] };
+        }
+      }
+      undoStackRef.current.push({
+        type: action.type,
+        pasteData: {
+          startRow: action.pasteData.startRow,
+          endRow: action.pasteData.endRow,
+          oldRows: action.pasteData.oldRows,
+          newRows: action.pasteData.newRows,
+        },
+      });
+      setMultiRows(newRows);
+      gridRef.current?.refreshCells({ force: true });
+      toast.success(`${action.type === 'paste' ? 'Paste' : 'Fill down'} redone`, { duration: 1500 });
+    } else if (action.type === 'cell') {
+      if (action.rowIndex !== undefined && action.field) {
+        if (action.newRowData) {
+          newRows[action.rowIndex] = { ...action.newRowData };
+        } else {
+          newRows[action.rowIndex] = { ...newRows[action.rowIndex], [action.field]: action.newValue || '' };
+        }
+        undoStackRef.current.push({
+          type: 'cell',
+          rowIndex: action.rowIndex,
+          field: action.field,
+          oldValue: action.oldValue,
+          newValue: action.newValue,
+          oldRowData: action.oldRowData,
+          newRowData: action.newRowData,
+        });
+        setMultiRows(newRows);
+        gridRef.current?.refreshCells({ force: true });
+      }
+    }
+  }, []);
+
+  // ⚡ EXCEL-LIKE: Fill Down (Ctrl+D) — Copy first cell value down through selection
+  const handleFillDown = useCallback(() => {
+    const api = gridRef.current;
+    if (!api) return;
+
+    const range = selectedRangeRef.current;
+    if (!range) {
+      toast('Select a range first (Shift+Arrow or drag)', { icon: 'ℹ️', duration: 2000 });
+      return;
+    }
+
+    const minRow = Math.min(range.startRow, range.endRow);
+    const maxRow = Math.max(range.startRow, range.endRow);
+    if (minRow === maxRow) return;
+
+    const allColumns = api.getAllDisplayedColumns?.() || [];
+    const colIds = allColumns.map((c: any) => c.getColId());
+    const startColIndex = colIds.indexOf(range.startCol);
+    const endColIndex = colIds.indexOf(range.endCol);
+    const minCol = Math.min(startColIndex, endColIndex);
+    const maxCol = Math.max(startColIndex, endColIndex);
+
+    const newRows = [...multiRowsRef.current];
+    const oldRows = newRows.slice(minRow, maxRow + 1).map(r => ({ ...r }));
+    let filled = 0;
+
+    for (let c = minCol; c <= maxCol; c++) {
+      const colId = colIds[c];
+      if (!EDITABLE_COLUMNS.includes(colId)) continue;
+      const sourceValue = newRows[minRow]?.[colId] || '';
+      for (let r = minRow + 1; r <= maxRow; r++) {
+        newRows[r] = { ...newRows[r], [colId]: sourceValue };
+        filled++;
+      }
+    }
+
+    if (filled > 0) {
+      const newRowsSnapshot = newRows.slice(minRow, maxRow + 1).map(r => ({ ...r }));
+      saveCellUndoAction({
+        type: 'fillDown',
+        pasteData: {
+          startRow: minRow,
+          endRow: maxRow,
+          oldRows,
+          newRows: newRowsSnapshot,
+        },
+      });
+      setMultiRows(newRows);
+      api.refreshCells({ force: true });
+      toast.success(`Filled ${filled} cells`, { duration: 1500 });
+    }
+  }, [saveCellUndoAction]);
+
+  // ⚡ EXCEL-LIKE: Paste handler (Excel multi-row/cell paste with auto-populate)
+  useEffect(() => {
+    if (currentTabCode !== 'multi') return;
+
+    const handlePaste = async (e: ClipboardEvent) => {
+      // Skip if user is editing an input/textarea (let native paste work)
+      const activeEl = document.activeElement;
+      if (activeEl?.tagName === 'INPUT' || activeEl?.tagName === 'TEXTAREA') return;
+
+      const api = gridRef.current;
+      if (!api) return;
+
+      const focusedCell = api.getFocusedCell();
+      if (!focusedCell) return;
+
+      e.preventDefault();
+
+      const clipText = e.clipboardData?.getData('text/plain') || '';
+      if (!clipText.trim()) return;
+
+      // Parse clipboard: rows by newline, columns by tab
+      const clipRows = clipText.split(/\r?\n/).filter(line => line.trim());
+      if (clipRows.length === 0) return;
+
+      const allColumns = api.getAllDisplayedColumns?.() || [];
+      const colIds = allColumns.map((c: any) => c.getColId());
+      const startColIndex = colIds.indexOf(focusedCell.column.getColId());
+      const startRow = focusedCell.rowIndex;
+
+      // Auto-extend rows if paste goes beyond current grid
+      let currentRows = [...multiRowsRef.current];
+      const neededRows = startRow + clipRows.length + 50;
+      if (neededRows > currentRows.length) {
+        const emptyRow = () => ({
+          wsn: '', qcdate: new Date().toISOString().split('T')[0], qcbyname: '',
+          productserialnumber: '', rackno: '', qcgrade: '', qcremarks: '', otherremarks: '',
+          fsn: '', producttitle: '', brand: '', cmsvertical: '', hsnsac: '', igstrate: '',
+          mrp: '', fsp: '', vrp: '', yieldvalue: '', ptype: '', psize: '',
+          fktlink: '', whlocation: '', orderid: '', fkqcremark: '', fkgrade: '', invoicedate: '',
+        });
+        while (currentRows.length < neededRows) {
+          currentRows.push(emptyRow());
+        }
+      }
+
+      // Save snapshot for undo
+      const endRow = Math.min(startRow + clipRows.length - 1, currentRows.length - 1);
+      const oldRows = currentRows.slice(startRow, endRow + 1).map(r => ({ ...r }));
+
+      // Apply paste data
+      const wsnsToPrefetch: string[] = [];
+      for (let r = 0; r < clipRows.length; r++) {
+        const rowIdx = startRow + r;
+        if (rowIdx >= currentRows.length) break;
+
+        const cells = clipRows[r].split('\t');
+        for (let c = 0; c < cells.length; c++) {
+          const colIdx = startColIndex + c;
+          if (colIdx >= colIds.length) break;
+
+          const colId = colIds[colIdx];
+          if (!EDITABLE_COLUMNS.includes(colId)) continue;
+
+          const value = (cells[c] || '').trim().toUpperCase();
+          currentRows[rowIdx] = { ...currentRows[rowIdx], [colId]: value };
+
+          // Collect WSNs for master data fetch
+          if (colId === 'wsn' && value) {
+            wsnsToPrefetch.push(value);
+          }
+        }
+      }
+
+      const newRowsSnapshot = currentRows.slice(startRow, endRow + 1).map(r => ({ ...r }));
+
+      // Save undo action
+      saveCellUndoAction({
+        type: 'paste',
+        pasteData: {
+          startRow,
+          endRow,
+          oldRows,
+          newRows: newRowsSnapshot,
+        },
+      });
+
+      setMultiRows(currentRows);
+      api.refreshCells({ force: true });
+
+      // Fetch master data for pasted WSNs
+      if (wsnsToPrefetch.length > 0) {
+        const uniqueWSNs = [...new Set(wsnsToPrefetch)];
+        toast.loading(`Fetching data for ${uniqueWSNs.length} WSN(s)...`, { id: 'paste-fetch' });
+
+        const updatedRows = [...currentRows];
+        let fetchedCount = 0;
+
+        // Batch fetch with concurrency limit
+        const BATCH_SIZE = 20;
+        for (let i = 0; i < uniqueWSNs.length; i += BATCH_SIZE) {
+          const batch = uniqueWSNs.slice(i, i + BATCH_SIZE);
+          const results = await Promise.allSettled(
+            batch.map(async (wsn) => {
+              try {
+                // Try cache first
+                const { getAvailableByWSNFast } = await import('@/lib/wmsCache');
+                const cached = await getAvailableByWSNFast(wsn);
+                if (cached) return { wsn, data: cached, source: 'cache' };
+
+                // Fallback to API
+                const res = await qcAPI.getPendingInbound(activeWarehouse?.id, wsn);
+                const items = res.data?.data || res.data || [];
+                const match = items.find?.((item: any) => item.wsn?.toUpperCase() === wsn.toUpperCase());
+                return match ? { wsn, data: match, source: 'api' } : { wsn, data: null, source: 'api' };
+              } catch {
+                return { wsn, data: null, source: 'error' };
+              }
+            })
+          );
+
+          for (const result of results) {
+            if (result.status !== 'fulfilled' || !result.value?.data) continue;
+            const { wsn, data } = result.value;
+
+            // Find all rows with this WSN and populate master data
+            for (let r = startRow; r <= endRow && r < updatedRows.length; r++) {
+              if (updatedRows[r].wsn?.toUpperCase() === wsn.toUpperCase()) {
+                updatedRows[r] = {
+                  ...updatedRows[r],
+                  fsn: data.fsn || data.FSN || '',
+                  producttitle: data.product_title || data.producttitle || '',
+                  brand: data.brand || '',
+                  cmsvertical: data.cms_vertical || data.cmsvertical || '',
+                  hsnsac: data.hsn_sac || data.hsnsac || '',
+                  igstrate: data.igst_rate || data.igstrate || '',
+                  mrp: data.mrp || '',
+                  fsp: data.fsp || '',
+                  vrp: data.vrp || '',
+                  yieldvalue: data.yield_value || data.yieldvalue || '',
+                  ptype: data.p_type || data.ptype || '',
+                  psize: data.p_size || data.psize || '',
+                  fktlink: data.fkt_link || data.fktlink || '',
+                  whlocation: data.wh_location || data.whlocation || '',
+                  orderid: data.order_id || data.orderid || '',
+                  fkqcremark: data.fkqc_remark || data.fkqcremark || '',
+                  fkgrade: data.fk_grade || data.fkgrade || '',
+                  invoicedate: data.invoice_date || data.invoicedate || '',
+                };
+                fetchedCount++;
+              }
+            }
+          }
+        }
+
+        setMultiRows(updatedRows);
+        api.refreshCells({ force: true });
+        toast.dismiss('paste-fetch');
+        toast.success(`Pasted ${clipRows.length} row(s), fetched data for ${fetchedCount} WSN(s)`, { duration: 3000 });
+      } else {
+        toast.success(`Pasted ${clipRows.length} row(s)`, { duration: 2000 });
+      }
+
+      // Run duplicate check after paste
+      try {
+        const rows = multiRowsRef.current;
+        const wsnMap = new Map<string, number>();
+        const gridDups = new Set<string>();
+        for (const row of rows) {
+          const w = row.wsn?.trim().toUpperCase();
+          if (!w) continue;
+          wsnMap.set(w, (wsnMap.get(w) || 0) + 1);
+        }
+        wsnMap.forEach((count, wsn) => {
+          if (count > 1) gridDups.add(wsn);
+        });
+        if (gridDups.size > 0) {
+          toast.error(`${gridDups.size} duplicate WSN(s) found in grid`, { duration: 3000 });
+        }
+      } catch { }
+    };
+
+    document.addEventListener('paste', handlePaste);
+    return () => document.removeEventListener('paste', handlePaste);
+  }, [currentTabCode, activeWarehouse?.id, saveCellUndoAction]);
+
   // ⚡ EXCEL-LIKE: Clear selected cells (Delete/Backspace)
   const handleClearCells = useCallback(() => {
     const api = gridRef.current;
@@ -1245,6 +1685,27 @@ export default function QCPage() {
       if ((e.key === 'Delete' || e.key === 'Backspace') && !isEditing) {
         e.preventDefault();
         handleClearCells();
+        return;
+      }
+
+      // Ctrl+Z - Undo
+      if (ctrlKey && !shiftKey && e.key.toLowerCase() === 'z' && !isEditing) {
+        e.preventDefault();
+        handleUndo();
+        return;
+      }
+
+      // Ctrl+Y or Ctrl+Shift+Z - Redo
+      if ((ctrlKey && e.key.toLowerCase() === 'y' && !isEditing) || (ctrlKey && shiftKey && e.key.toLowerCase() === 'z' && !isEditing)) {
+        e.preventDefault();
+        handleRedo();
+        return;
+      }
+
+      // Ctrl+D - Fill Down
+      if (ctrlKey && e.key.toLowerCase() === 'd' && !isEditing) {
+        e.preventDefault();
+        handleFillDown();
         return;
       }
 
@@ -1405,7 +1866,7 @@ export default function QCPage() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [currentTabCode, handleSelectAll, handleClearCells]);
+  }, [currentTabCode, handleSelectAll, handleClearCells, handleUndo, handleRedo, handleFillDown]);
 
 
   // FETCH PRODUCT DETAILS FOR SINGLE ENTRY

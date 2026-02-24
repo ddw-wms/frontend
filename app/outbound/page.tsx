@@ -363,6 +363,7 @@ export default function OutboundPage() {
     const undoStackRef = useRef<UndoAction[]>([]);
     const redoStackRef = useRef<UndoAction[]>([]);
     const MAX_UNDO_HISTORY = 100;
+    const draftLoadedRef = useRef(false);
 
     // ⚡ ROW HIGHLIGHTING: For newly scanned/added rows
     const [highlightedRows, setHighlightedRows] = useState<Set<number>>(new Set());
@@ -3335,24 +3336,40 @@ export default function OutboundPage() {
     };
 
     const saveDraftImmediate = async (rowsToSave = multiRows) => {
-        const key = getDraftKey();
-        if (!key) return;
+        if (!draftLoadedRef.current) return; // Don't overwrite before draft is loaded
+        if (!activeWarehouse?.id) return;
         setDraftSaving(true);
         try {
-            // ⚡ DRAFT: Save customer and vehicle along with rows
-            await localforage.setItem(key, {
-                rows: rowsToSave,
-                savedAt: Date.now(),
-                version: 2,
-                // Include common fields in draft
-                customerName: selectedCustomer || commonCustomer,
-                vehicleNo: commonVehicle,
-                dispatchDate: commonDate,
-            });
+            // Primary: Save to server-side DB
+            await outboundAPI.saveDraft(
+                rowsToSave,
+                activeWarehouse.id,
+                selectedCustomer || commonCustomer,
+                '', // dispatch_mode
+                commonDate
+            );
             setDraftSavedAt(Date.now());
             setDraftExists(true);
         } catch (err) {
-            console.error('Failed to save outbound draft', err);
+            console.error('Failed to save outbound draft to DB, falling back to IndexedDB', err);
+            // Fallback: Save to IndexedDB
+            try {
+                const key = getDraftKey();
+                if (key) {
+                    await localforage.setItem(key, {
+                        rows: rowsToSave,
+                        savedAt: Date.now(),
+                        version: 2,
+                        customerName: selectedCustomer || commonCustomer,
+                        vehicleNo: commonVehicle,
+                        dispatchDate: commonDate,
+                    });
+                    setDraftSavedAt(Date.now());
+                    setDraftExists(true);
+                }
+            } catch (localErr) {
+                console.error('Failed to save outbound draft to IndexedDB', localErr);
+            }
         } finally {
             setDraftSaving(false);
         }
@@ -3360,45 +3377,89 @@ export default function OutboundPage() {
 
     const clearDraft = async () => {
         const key = getDraftKey();
-        if (!key) return;
         try {
-            await localforage.removeItem(key);
-            setDraftSavedAt(null);
-            setDraftExists(false);
-            // Also clear customer and vehicle fields
-            setCommonCustomer('');
-            setSelectedCustomer('');
-            setCommonVehicle('');
-            toast.success('Draft cleared');
+            // Clear from DB
+            if (activeWarehouse?.id) {
+                await outboundAPI.clearDraft(activeWarehouse.id);
+            }
         } catch (err) {
-            console.error('Failed to clear outbound draft', err);
+            console.error('Failed to clear outbound draft from DB', err);
         }
+        try {
+            // Also clear from IndexedDB
+            if (key) {
+                await localforage.removeItem(key);
+            }
+        } catch (err) {
+            console.error('Failed to clear outbound draft from IndexedDB', err);
+        }
+        setDraftSavedAt(null);
+        setDraftExists(false);
+        setCommonCustomer('');
+        setSelectedCustomer('');
+        setCommonVehicle('');
+        undoStackRef.current = [];
+        redoStackRef.current = [];
+        toast.success('Draft cleared');
     };
 
     // Load draft when warehouse/user become available
     useEffect(() => {
         let mounted = true;
         const load = async () => {
-            const key = getDraftKey();
-            if (!key) return;
+            if (!activeWarehouse?.id || !user?.id) return;
+            draftLoadedRef.current = false;
             try {
+                // Primary: Load from server-side DB
+                const res = await outboundAPI.loadDraft(activeWarehouse.id);
+                const dbDraft = res.data;
+                if (dbDraft?.exists && dbDraft.draft?.rows?.length > 0 && mounted) {
+                    let startId = rowIdCounterRef.current;
+                    const restored = dbDraft.draft.rows.map((r: any, idx: number) => ({
+                        dispatch_date: r.dispatch_date || commonDate,
+                        customer_name: r.customer_name || selectedCustomer,
+                        vehicle_no: r.vehicle_no || commonVehicle,
+                        ...r,
+                        _rowId: r._rowId || `row_${startId + idx}`,
+                    }));
+                    rowIdCounterRef.current = startId + restored.length;
+                    setMultiRows(restored);
+                    setDraftSavedAt(new Date(dbDraft.draft.saved_at || dbDraft.draft.updated_at).getTime());
+                    setDraftExists(true);
+
+                    if (dbDraft.draft.customer_name) {
+                        setSelectedCustomer(dbDraft.draft.customer_name);
+                        setCommonCustomer(dbDraft.draft.customer_name);
+                    }
+                    if (dbDraft.draft.common_date) {
+                        setCommonDate(dbDraft.draft.common_date);
+                    }
+                    draftLoadedRef.current = true;
+                    return;
+                }
+            } catch (err) {
+                console.error('Failed to load outbound draft from DB', err);
+            }
+
+            // Fallback: Load from IndexedDB
+            try {
+                const key = getDraftKey();
+                if (!key) { draftLoadedRef.current = true; return; }
                 const draft: any = await localforage.getItem(key);
                 if (draft && draft.rows && draft.rows.length > 0 && mounted) {
-                    // Generate unique row IDs for restored rows
                     let startId = rowIdCounterRef.current;
                     const restored = draft.rows.map((r: any, idx: number) => ({
                         dispatch_date: r.dispatch_date || commonDate,
                         customer_name: r.customer_name || selectedCustomer,
                         vehicle_no: r.vehicle_no || commonVehicle,
                         ...r,
-                        _rowId: r._rowId || `row_${startId + idx}`, // Ensure row ID exists
+                        _rowId: r._rowId || `row_${startId + idx}`,
                     }));
                     rowIdCounterRef.current = startId + restored.length;
                     setMultiRows(restored);
                     setDraftSavedAt(draft.savedAt || Date.now());
                     setDraftExists(true);
 
-                    // ⚡ DRAFT: Restore customer and vehicle from draft
                     if (draft.customerName) {
                         setSelectedCustomer(draft.customerName);
                         setCommonCustomer(draft.customerName);
@@ -3409,10 +3470,15 @@ export default function OutboundPage() {
                     if (draft.dispatchDate) {
                         setCommonDate(draft.dispatchDate);
                     }
+                    // Sync local draft to DB
+                    if (activeWarehouse?.id) {
+                        try { await outboundAPI.saveDraft(restored, activeWarehouse.id, draft.customerName || '', '', draft.dispatchDate || ''); } catch { }
+                    }
                 }
             } catch (err) {
-                console.error('Failed to load outbound draft', err);
+                console.error('Failed to load outbound draft from IndexedDB', err);
             }
+            if (mounted) draftLoadedRef.current = true;
         };
         load();
         return () => { mounted = false; };
