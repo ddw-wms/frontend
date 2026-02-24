@@ -4327,12 +4327,9 @@ export default function InboundPage() {
         field: col,
         headerName: col.replace(/_/g, ' ').toUpperCase(),
         editable: isEditable,
-        suppressSizeToFit: true,
         resizable: true,
         minWidth: 50,
         ...(savedWidth ? { width: savedWidth } : {}),
-        // Clean consistent cell styling - no different backgrounds
-        cellStyle: undefined
       };
 
       const columnWidthConfig = savedWidth ? {} : (COLUMN_WIDTHS[col] || {});
@@ -7563,23 +7560,23 @@ export default function InboundPage() {
                       } catch (e) { /* ignore */ }
                       // ⚡ Auto-fit columns to fill grid width on first render
                       try {
-                        const hasSavedWidths = Object.keys(multiColumnWidths).length > 0;
-                        if (!hasSavedWidths) {
-                          const colApi = columnApiRef.current;
-                          const api = gridRef.current;
-                          if (colApi && api) {
-                            const allCols = colApi.getAllColumns ? colApi.getAllColumns().map((c: any) => c.getColId()) : [];
-                            if (allCols.length > 0) {
+                        const colApi = columnApiRef.current;
+                        const api = gridRef.current;
+                        if (colApi && api) {
+                          const allCols = colApi.getAllColumns ? colApi.getAllColumns().map((c: any) => c.getColId()) : [];
+                          if (allCols.length > 0) {
+                            const hasSavedWidths = Object.keys(multiColumnWidths).length > 0;
+                            if (!hasSavedWidths) {
                               colApi.autoSizeColumns(allCols, false);
-                              let total = 0;
-                              for (const id of allCols) {
-                                const col = colApi.getColumn(id);
-                                total += col?.getActualWidth ? col.getActualWidth() : 0;
-                              }
-                              const dims = api.getSize ? api.getSize() : null;
-                              const gridW = dims?.width || 0;
-                              if (gridW && total < gridW) api.sizeColumnsToFit();
                             }
+                            let total = 0;
+                            for (const id of allCols) {
+                              const col = colApi.getColumn(id);
+                              total += col?.getActualWidth ? col.getActualWidth() : 0;
+                            }
+                            const dims = api.getSize ? api.getSize() : null;
+                            const gridW = dims?.width || 0;
+                            if (gridW && total < gridW) api.sizeColumnsToFit();
                           }
                         }
                       } catch { /* ignore */ }
@@ -7803,8 +7800,6 @@ export default function InboundPage() {
                     // ⚡ PERFORMANCE: Auto-fit columns to fill grid width on resize (no empty space)
                     onGridSizeChanged={() => {
                       try {
-                        const hasSavedWidths = Object.keys(multiColumnWidths).length > 0;
-                        if (hasSavedWidths) return;
                         const colApi = columnApiRef.current;
                         const api = gridRef.current;
                         if (!colApi || !api) return;

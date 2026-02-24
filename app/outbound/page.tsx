@@ -4690,31 +4690,6 @@ export default function OutboundPage() {
         cellStyle: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
     }), [enableSorting, enableColumnFilters, enableColumnResize]);
 
-    if (!user) {
-        return (
-            <AppLayout>
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', bgcolor: isDarkMode ? '#0f172a' : '#f8fafc' }}>
-                    <CircularProgress />
-                </Box>
-            </AppLayout>
-        );
-    }
-
-
-    if (!activeWarehouse) {
-        return (
-            <AppLayout>
-                <Box sx={{ p: 3, minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <Box sx={{ p: 5, background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)', borderRadius: 4, color: 'white', boxShadow: '0 20px 60px rgba(30, 64, 175, 0.4)' }}>
-                        <Typography variant="h5" sx={{ fontWeight: 700, mb: 1 }}>⚠️ No active warehouse selected.</Typography>
-                        <Typography variant="body2" sx={{ opacity: 0.9 }}>Please go to Settings → Warehouses to set one.</Typography>
-                    </Box>
-                </Box>
-            </AppLayout>
-        );
-    }
-
-
     // ⚡ EXTRACTED: Multi-entry grid onCellEditingStopped handler
     const handleMultiCellEditingStopped = useCallback(async (event: any) => {
         const field = event.colDef?.field;
@@ -4751,6 +4726,31 @@ export default function OutboundPage() {
             return;
         }
     }, [setWsnOverwriteDialog]);
+
+    if (!user) {
+        return (
+            <AppLayout>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', bgcolor: isDarkMode ? '#0f172a' : '#f8fafc' }}>
+                    <CircularProgress />
+                </Box>
+            </AppLayout>
+        );
+    }
+
+
+    if (!activeWarehouse) {
+        return (
+            <AppLayout>
+                <Box sx={{ p: 3, minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Box sx={{ p: 5, background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)', borderRadius: 4, color: 'white', boxShadow: '0 20px 60px rgba(30, 64, 175, 0.4)' }}>
+                        <Typography variant="h5" sx={{ fontWeight: 700, mb: 1 }}>⚠️ No active warehouse selected.</Typography>
+                        <Typography variant="body2" sx={{ opacity: 0.9 }}>Please go to Settings → Warehouses to set one.</Typography>
+                    </Box>
+                </Box>
+            </AppLayout>
+        );
+    }
+
 
     ///////////////////////////////////////// UI RENDERING /////////////////////////////////////////
     return (

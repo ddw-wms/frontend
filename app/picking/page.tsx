@@ -3620,10 +3620,6 @@ export default function PickingPage() {
     rack_no: { width: 80 },
   };
 
-  if (!activeWarehouse) {
-    return <AppLayout>⚠️ No warehouse selected</AppLayout>;
-  }
-
   // ✅ MULTI ENTRY - COLUMN DEFS (useMemo for stable reference)
   const columnDefs = useMemo(() => {
     // Add row number column at the beginning
@@ -4068,6 +4064,10 @@ export default function PickingPage() {
       }, 100);
     }
   }, [multiRows, existingPickingWSNs, activeWarehouse, add500Rows, checkDuplicates, buildMasterDataFromResponse, isWMSCacheEnabled, getAvailableByWSNFast, setMultiRows, setWsnOverwriteDialog]);
+
+  if (!activeWarehouse) {
+    return <AppLayout>⚠️ No warehouse selected</AppLayout>;
+  }
 
   //////////////////////////////////====UI RENDERING====////////////////////////////////////
 

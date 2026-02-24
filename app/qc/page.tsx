@@ -3204,10 +3204,6 @@ export default function QCPage() {
     }
   };
 
-  if (!activeWarehouse) {
-    return <AppLayout>⚠️ No warehouse selected</AppLayout>;
-  }
-
   // ⚡ EXTRACTED: Multi-entry grid onCellValueChanged handler
   const handleMultiCellValueChanged = useCallback((event: any) => {
     const { colDef, newValue, rowIndex, oldValue } = event;
@@ -3523,6 +3519,10 @@ export default function QCPage() {
     newRows[rowIndex] = { ...newRows[rowIndex], [field]: newValue };
     setMultiRows(newRows);
   }, [multiRows, existingQCWSNs, activeWarehouse, add500Rows, ensureRowVisible, isWMSCacheEnabled, getAvailableByWSNFast, setMultiRows, setWsnOverwriteDialog]);
+
+  if (!activeWarehouse) {
+    return <AppLayout>⚠️ No warehouse selected</AppLayout>;
+  }
 
   //////////////////////////////////====UI RENDERING====////////////////////////////////////
   return (
