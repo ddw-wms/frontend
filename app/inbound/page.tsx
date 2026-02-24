@@ -1207,7 +1207,7 @@ export default function InboundPage() {
       } catch (e) { /* ignore */ }
     }, 50);
     return () => clearTimeout(t);
-  }, [tabValue, visibleColumns, multiRows]);
+  }, [tabValue, visibleColumns]);
 
   useEffect(() => {
     if (brandFilter) {
@@ -1307,7 +1307,7 @@ export default function InboundPage() {
 
       // ⚡ SNAPSHOT rows BEFORE paste for undo
       const prevSnapshot = multiRowsRef.current;
-      const oldRowsSnapshot = prevSnapshot.slice(startRow, lastPasteRow + 1).map(r => JSON.parse(JSON.stringify(r)));
+      const oldRowsSnapshot = prevSnapshot.slice(startRow, lastPasteRow + 1).map(r => ({ ...r }));
 
       // Apply all pasted values in ONE state update
       setMultiRows(prev => {
@@ -1402,31 +1402,8 @@ export default function InboundPage() {
         crossWarehouseDetected.forEach(w => allProblematicArr.push(w));
         const allProblematic = new Set(allProblematicArr);
 
-        // 4) Clear problematic rows from the grid
-        if (allProblematic.size > 0) {
-          setMultiRows(prev => {
-            const updated = [...prev];
-            pastedWSNCells.forEach(({ rowIndex: rIdx, wsn }) => {
-              if (allProblematic.has(wsn) && rIdx < updated.length) {
-                updated[rIdx] = { ...updated[rIdx], wsn: '' };
-                ALL_MASTER_COLUMNS.forEach(col => { updated[rIdx][col] = null; });
-              }
-            });
-            return updated;
-          });
-
-          // Show detailed summary
-          const msgs: string[] = [];
-          if (gridDupWSNs.size > 0) msgs.push(`${gridDupWSNs.size} duplicate in grid`);
-          if (alreadyInboundedWSNs.size > 0) msgs.push(`${alreadyInboundedWSNs.size} already inbounded`);
-          if (crossWarehouseDetected.size > 0) msgs.push(`${crossWarehouseDetected.size} cross-warehouse`);
-          toast.error(`Removed: ${msgs.join(', ')}`, {
-            duration: 5000,
-            style: { fontWeight: 600, fontSize: '14px' },
-          });
-        }
-
-        // 5) MASTER DATA LOOKUP for remaining valid WSNs
+        // 4) Clear problematic rows AND apply master data in one state update
+        // First, do master data lookup for valid WSNs
         const validPastedCells = pastedWSNCells.filter(c => !allProblematic.has(c.wsn));
         const validUniqueWSNs = Array.from(new Set(validPastedCells.map(c => c.wsn)));
         const LOOKUP_BATCH = 50;
@@ -1453,24 +1430,51 @@ export default function InboundPage() {
               }
             });
           }
+        }
 
-          // Apply master data
-          setMultiRows(prevRows => {
-            const updatedRows = [...prevRows];
-            validPastedCells.forEach(({ rowIndex: rIdx, wsn }) => {
-              if (rIdx < updatedRows.length) {
-                const masterInfo = masterDataMap.get(wsn);
-                if (masterInfo) {
-                  updatedRows[rIdx] = { ...updatedRows[rIdx] };
-                  ALL_MASTER_COLUMNS.forEach(col => {
-                    updatedRows[rIdx][col] = masterInfo[col] || null;
-                  });
-                }
+        // Single combined state update: remove problematic + apply master data
+        setMultiRows(prev => {
+          const updated = [...prev];
+
+          // Clear problematic WSNs
+          if (allProblematic.size > 0) {
+            pastedWSNCells.forEach(({ rowIndex: rIdx, wsn }) => {
+              if (allProblematic.has(wsn) && rIdx < updated.length) {
+                updated[rIdx] = { ...updated[rIdx], wsn: '' };
+                ALL_MASTER_COLUMNS.forEach(col => { updated[rIdx][col] = null; });
               }
             });
-            return updatedRows;
+          }
+
+          // Apply master data for valid WSNs
+          validPastedCells.forEach(({ rowIndex: rIdx, wsn }) => {
+            if (rIdx < updated.length) {
+              const masterInfo = masterDataMap.get(wsn);
+              if (masterInfo) {
+                updated[rIdx] = { ...updated[rIdx] };
+                ALL_MASTER_COLUMNS.forEach(col => {
+                  updated[rIdx][col] = masterInfo[col] || null;
+                });
+              }
+            }
           });
 
+          return updated;
+        });
+
+        // Show summary messages
+        if (allProblematic.size > 0) {
+          const msgs: string[] = [];
+          if (gridDupWSNs.size > 0) msgs.push(`${gridDupWSNs.size} duplicate in grid`);
+          if (alreadyInboundedWSNs.size > 0) msgs.push(`${alreadyInboundedWSNs.size} already inbounded`);
+          if (crossWarehouseDetected.size > 0) msgs.push(`${crossWarehouseDetected.size} cross-warehouse`);
+          toast.error(`Removed: ${msgs.join(', ')}`, {
+            duration: 5000,
+            style: { fontWeight: 600, fontSize: '14px' },
+          });
+        }
+
+        if (validUniqueWSNs.length > 0) {
           const found = masterDataMap.size;
           const notFound = validUniqueWSNs.length - found;
           if (notFound > 0) {
@@ -1487,7 +1491,7 @@ export default function InboundPage() {
 
         // 7) SAVE BATCH UNDO ACTION — snapshot rows AFTER all changes
         setTimeout(() => {
-          const newRowsSnapshot = multiRowsRef.current.slice(startRow, lastPasteRow + 1).map(r => JSON.parse(JSON.stringify(r)));
+          const newRowsSnapshot = multiRowsRef.current.slice(startRow, lastPasteRow + 1).map(r => ({ ...r }));
           const pasteUndoAction: UndoAction = {
             type: 'paste',
             rowIndex: startRow,
@@ -2367,8 +2371,8 @@ export default function InboundPage() {
       field,
       oldValue,
       newValue,
-      oldRowData: oldRowData ? JSON.parse(JSON.stringify(oldRowData)) : undefined,
-      newRowData: newRowData ? JSON.parse(JSON.stringify(newRowData)) : undefined,
+      oldRowData: oldRowData ? { ...oldRowData } : undefined,
+      newRowData: newRowData ? { ...newRowData } : undefined,
     };
     undoStackRef.current.push(action);
     if (undoStackRef.current.length > MAX_UNDO_HISTORY) {
@@ -2394,7 +2398,7 @@ export default function InboundPage() {
       setMultiRows(currentRows => {
         const updated = [...currentRows];
         // Snapshot current state for redo
-        const currentSnapshot = updated.slice(startRow, endRow + 1).map(r => JSON.parse(JSON.stringify(r)));
+        const currentSnapshot = updated.slice(startRow, endRow + 1).map(r => ({ ...r }));
 
         // Restore old rows
         oldRows.forEach((oldRow, i) => {
@@ -2438,7 +2442,7 @@ export default function InboundPage() {
     // CELL-LEVEL UNDO
     setMultiRows(currentRows => {
       const newRows = [...currentRows];
-      const currentRowData = JSON.parse(JSON.stringify(newRows[action.rowIndex]));
+      const currentRowData = { ...newRows[action.rowIndex] };
 
       if (action.type === 'cell') {
         if (action.oldRowData) {
@@ -2488,7 +2492,7 @@ export default function InboundPage() {
 
       setMultiRows(currentRows => {
         const updated = [...currentRows];
-        const currentSnapshot = updated.slice(startRow, endRow + 1).map(r => JSON.parse(JSON.stringify(r)));
+        const currentSnapshot = updated.slice(startRow, endRow + 1).map(r => ({ ...r }));
 
         oldRows.forEach((row, i) => {
           const idx = startRow + i;
@@ -2528,7 +2532,7 @@ export default function InboundPage() {
     // CELL-LEVEL REDO
     setMultiRows(currentRows => {
       const newRows = [...currentRows];
-      const currentRowData = JSON.parse(JSON.stringify(newRows[action.rowIndex]));
+      const currentRowData = { ...newRows[action.rowIndex] };
 
       if (action.type === 'cell') {
         if (action.oldRowData) {
@@ -2585,6 +2589,7 @@ export default function InboundPage() {
     endCol: string;
     colIndexMap: Map<string, number>;
   } | null>(null);
+  const prevSelectionBoundsRef = useRef<{ minRow: number; maxRow: number } | null>(null);
 
   useEffect(() => {
     selectedRangeRef.current = selectedRange;
@@ -3056,14 +3061,42 @@ export default function InboundPage() {
   }, [multiRows.length, selectedRange]);
 
   // ⚡ EXCEL-LIKE: Refresh grid when selection changes to update cell highlighting
-  // Debounced to prevent lag during rapid Shift+Arrow key holds
+  // Row-scoped refresh for performance — only refreshes affected rows instead of entire grid
   const selectionRefreshTimerRef = useRef<number | null>(null);
   useEffect(() => {
     if (selectionRefreshTimerRef.current) cancelAnimationFrame(selectionRefreshTimerRef.current);
     selectionRefreshTimerRef.current = requestAnimationFrame(() => {
       const api = gridRef.current;
-      if (api) {
-        api.refreshCells({ force: true });
+      if (!api) return;
+
+      const bounds = selectionBoundsRef.current;
+      const prevBounds = prevSelectionBoundsRef.current;
+
+      const rowsToRefresh = new Set<number>();
+
+      if (bounds) {
+        for (let r = bounds.minRow; r <= bounds.maxRow; r++) {
+          rowsToRefresh.add(r);
+        }
+      }
+
+      if (prevBounds) {
+        for (let r = prevBounds.minRow; r <= prevBounds.maxRow; r++) {
+          rowsToRefresh.add(r);
+        }
+      }
+
+      prevSelectionBoundsRef.current = bounds ? { minRow: bounds.minRow, maxRow: bounds.maxRow } : null;
+
+      if (rowsToRefresh.size > 0) {
+        const rowNodes: any[] = [];
+        rowsToRefresh.forEach((rowIndex) => {
+          const node = api.getDisplayedRowAtIndex(rowIndex);
+          if (node) rowNodes.push(node);
+        });
+        if (rowNodes.length > 0) {
+          api.refreshCells({ rowNodes, force: true });
+        }
       }
     });
     return () => {
@@ -4300,7 +4333,7 @@ export default function InboundPage() {
         minWidth: 50,
         ...(savedWidth ? { width: savedWidth } : {}),
         // Clean consistent cell styling - no different backgrounds
-        cellStyle: () => ({})
+        cellStyle: undefined
       };
 
       const columnWidthConfig = savedWidth ? {} : (COLUMN_WIDTHS[col] || {});
@@ -4880,12 +4913,12 @@ export default function InboundPage() {
                       maintainColumnOrder={true}
                       ensureDomOrder={true}
                       enableCellTextSelection={true}
-                      suppressRowTransform={true}
+                      suppressRowTransform={false}
                       // ⚡ Performance optimizations for large datasets
-                      rowBuffer={100}
+                      rowBuffer={20}
                       valueCache={true}
                       debounceVerticalScrollbar={true}
-                      suppressAnimationFrame={true}
+                      suppressAnimationFrame={false}
                       alwaysShowVerticalScroll={true}
                       onGridReady={(params: any) => {
                         listGridRef.current = params.api;
@@ -7228,9 +7261,9 @@ export default function InboundPage() {
                     ensureDomOrder={true}
                     suppressMovableColumns={true}
                     // ⚡ PERFORMANCE: Optimizations for smooth fast scrolling
-                    rowBuffer={100}
-                    suppressRowTransform={true}
-                    suppressAnimationFrame={true}
+                    rowBuffer={20}
+                    suppressRowTransform={false}
+                    suppressAnimationFrame={false}
                     alwaysShowVerticalScroll={true}
                     animateRows={false}
                     suppressScrollOnNewData={true}

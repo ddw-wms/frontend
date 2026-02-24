@@ -1388,8 +1388,8 @@ export default function OutboundPage() {
             field,
             oldValue,
             newValue,
-            oldRowData: oldRowData ? JSON.parse(JSON.stringify(oldRowData)) : undefined,
-            newRowData: newRowData ? JSON.parse(JSON.stringify(newRowData)) : undefined,
+            oldRowData: oldRowData ? { ...oldRowData } : undefined,
+            newRowData: newRowData ? { ...newRowData } : undefined,
         };
         undoStackRef.current.push(action);
         if (undoStackRef.current.length > MAX_UNDO_HISTORY) {
@@ -1461,7 +1461,7 @@ export default function OutboundPage() {
             }
 
             // Handle single cell undo
-            const currentRowData = JSON.parse(JSON.stringify(newRows[action.rowIndex]));
+            const currentRowData = { ...newRows[action.rowIndex] };
 
             if (action.type === 'cell') {
                 if (action.oldRowData) {
@@ -1543,7 +1543,7 @@ export default function OutboundPage() {
                 return newRows;
             }
 
-            const currentRowData = JSON.parse(JSON.stringify(newRows[action.rowIndex]));
+            const currentRowData = { ...newRows[action.rowIndex] };
 
             if (action.type === 'cell') {
                 if (action.oldRowData) {
@@ -5071,9 +5071,9 @@ export default function OutboundPage() {
                                             ensureDomOrder={true}
                                             animateRows={false}
                                             // ⚡ PERFORMANCE: Optimizations for smooth fast scrolling
-                                            rowBuffer={100}
-                                            suppressRowTransform={true}
-                                            suppressAnimationFrame={true}
+                                            rowBuffer={20}
+                                            suppressRowTransform={false}
+                                            suppressAnimationFrame={false}
                                             alwaysShowVerticalScroll={true}
                                             valueCache={true}
                                             debounceVerticalScrollbar={true}
@@ -8102,8 +8102,8 @@ export default function OutboundPage() {
                                 }}
 
                                 // ⚡ PERFORMANCE: Optimizations for smooth fast scrolling
-                                rowBuffer={100}
-                                suppressRowTransform={true}
+                                rowBuffer={20}
+                                suppressRowTransform={false}
                                 alwaysShowVerticalScroll={true}
                                 animateRows={false}
                                 suppressScrollOnNewData={true}
@@ -8114,7 +8114,7 @@ export default function OutboundPage() {
                                 suppressRowHoverHighlight={false}
                                 suppressColumnVirtualisation={false}
                                 suppressRowVirtualisation={false}
-                                suppressAnimationFrame={true}
+                                suppressAnimationFrame={false}
 
                                 // ✅ Save column widths when resized (matching inbound pattern)
                                 onColumnResized={(params: any) => {

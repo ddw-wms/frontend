@@ -1487,7 +1487,7 @@ export default function PickingPage() {
       }
 
       // Handle single cell undo
-      const currentRowData = JSON.parse(JSON.stringify(newRows[action.rowIndex]));
+      const currentRowData = { ...newRows[action.rowIndex] };
 
       if (action.type === 'cell') {
         if (action.oldRowData) {
@@ -1566,7 +1566,7 @@ export default function PickingPage() {
         return newRows;
       }
 
-      const currentRowData = JSON.parse(JSON.stringify(newRows[action.rowIndex]));
+      const currentRowData = { ...newRows[action.rowIndex] };
 
       if (action.type === 'cell') {
         if (action.newRowData) {
@@ -1648,7 +1648,8 @@ export default function PickingPage() {
 
     try {
       await navigator.clipboard.writeText(textToCopy);
-      const cellCount = range ? (Math.abs(range.endRow - range.startRow) + 1) * (Math.abs(api.getAllDisplayedColumns().findIndex((c: any) => c.getColId() === range.endCol) - api.getAllDisplayedColumns().findIndex((c: any) => c.getColId() === range.startCol)) + 1) : 1;
+      const cols = api.getAllDisplayedColumns() || [];
+      const cellCount = range ? (Math.abs(range.endRow - range.startRow) + 1) * (Math.abs(cols.findIndex((c: any) => c.getColId() === range.endCol) - cols.findIndex((c: any) => c.getColId() === range.startCol)) + 1) : 1;
       toast.success(`Copied ${cellCount} cell${cellCount > 1 ? 's' : ''}`, { duration: 1000 });
     } catch (err) {
       toast.error('Failed to copy to clipboard');
@@ -4131,9 +4132,9 @@ export default function PickingPage() {
                       ensureDomOrder={true}
                       animateRows={false}
                       // ⚡ PERFORMANCE: Optimizations for smooth fast scrolling
-                      rowBuffer={100}
-                      suppressRowTransform={true}
-                      suppressAnimationFrame={true}
+                      rowBuffer={20}
+                      suppressRowTransform={false}
+                      suppressAnimationFrame={false}
                       alwaysShowVerticalScroll={true}
                       valueCache={true}
                       debounceVerticalScrollbar={true}
@@ -5698,8 +5699,8 @@ export default function PickingPage() {
                 ensureDomOrder={true}
                 suppressMovableColumns={true}
                 // ⚡ PERFORMANCE: Optimizations for smooth fast scrolling
-                rowBuffer={100}
-                suppressRowTransform={true}
+                rowBuffer={20}
+                suppressRowTransform={false}
                 alwaysShowVerticalScroll={true}
                 animateRows={false}
                 suppressScrollOnNewData={true}
