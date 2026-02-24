@@ -842,7 +842,7 @@ export default function RejectionsPage() {
                         spacing={1}
                         alignItems="center"
                         justifyContent="space-between"
-                        sx={{ mb: 1, flexWrap: 'wrap', gap: 0.5 }}
+                        sx={{ mb: 1, mt: 1, flexWrap: 'wrap', gap: 0.5 }}
                     >
                         {/* Stats Chips */}
                         <Stack direction="row" spacing={0.75} alignItems="center" flexWrap="wrap" useFlexGap>
