@@ -1597,7 +1597,7 @@ export default function OutboundPage() {
         }
 
         const { rowIndex, column } = focusedCell;
-        const colId = selectedRange?.startCol || column.getColId();
+        const colId = selectedRangeRef.current?.startCol || column.getColId();
 
         if (!EDITABLE_COLUMNS.includes(colId)) {
             toast('Cannot fill down in this column', { icon: '⚠️', duration: 1500 });
@@ -1605,9 +1605,10 @@ export default function OutboundPage() {
         }
 
         // If we have a selected range, fill down from first cell
-        if (selectedRange) {
-            const startRow = Math.min(selectedRange.startRow, selectedRange.endRow);
-            const endRow = Math.max(selectedRange.startRow, selectedRange.endRow);
+        const fillRange = selectedRangeRef.current;
+        if (fillRange) {
+            const startRow = Math.min(fillRange.startRow, fillRange.endRow);
+            const endRow = Math.max(fillRange.startRow, fillRange.endRow);
             const sourceValue = multiRowsRef.current[startRow]?.[colId];
 
             if (sourceValue === undefined || sourceValue === null || sourceValue === '') {
@@ -1658,7 +1659,7 @@ export default function OutboundPage() {
         setMultiRows(newRows);
         api.refreshCells({ force: true });
         toast.success(`Filled: ${valueAbove}`, { duration: 1500 });
-    }, [selectedRange, saveCellUndoAction]);
+    }, [saveCellUndoAction]);
 
     // ⚡ FILL RIGHT: Copy value from cell to the left (Ctrl+R)
     const handleFillRight = useCallback(() => {
@@ -1712,8 +1713,8 @@ export default function OutboundPage() {
 
         api.ensureIndexVisible(0, 'top');
         api.setFocusedCell(0, 'wsn');
-        setSelectedRange(null);
-    }, []);
+        setSelectionRange(null);
+    }, [setSelectionRange]);
 
     // ⚡ GO TO LAST: Navigate to last cell with data (Ctrl+End)
     const handleGoToLast = useCallback(() => {
@@ -1730,8 +1731,8 @@ export default function OutboundPage() {
 
         api.ensureIndexVisible(lastRowWithData, 'bottom');
         api.setFocusedCell(lastRowWithData, 'wsn');
-        setSelectedRange(null);
-    }, []);
+        setSelectionRange(null);
+    }, [setSelectionRange]);
 
     // ✅ CHECK DUPLICATES IN GRID
     const checkDuplicates = useCallback(
@@ -1826,11 +1827,16 @@ export default function OutboundPage() {
         multiRowsRef.current = multiRows;
     }, [multiRows]);
 
-    // ⚡ EXCEL-LIKE: Update selection bounds when selection changes
-    useEffect(() => {
-        selectedRangeRef.current = selectedRange;
+    // Store previous selection for smart refresh
+    const prevSelectionBoundsRef = useRef<{ minRow: number; maxRow: number } | null>(null);
 
-        if (selectedRange && gridRef.current?.api) {
+    // ⚡ PERF: Update selection refs + refresh cells WITHOUT triggering React re-render.
+    // Called directly during drag to avoid re-rendering the entire component on every mouseMove.
+    const updateSelectionRange = useCallback((range: typeof selectedRange) => {
+        selectedRangeRef.current = range;
+
+        // Pre-compute selection bounds
+        if (range && gridRef.current?.api) {
             const api = gridRef.current.api;
             const allColumns = api.getAllDisplayedColumns?.() || [];
             const colIndexMap = new Map<string, number>();
@@ -1838,13 +1844,13 @@ export default function OutboundPage() {
                 colIndexMap.set(c.getColId(), idx);
             });
 
-            const startColIndex = colIndexMap.get(selectedRange.startCol) ?? -1;
-            const endColIndex = colIndexMap.get(selectedRange.endCol) ?? -1;
+            const startColIndex = colIndexMap.get(range.startCol) ?? -1;
+            const endColIndex = colIndexMap.get(range.endCol) ?? -1;
 
             if (startColIndex !== -1 && endColIndex !== -1) {
                 selectionBoundsRef.current = {
-                    minRow: Math.min(selectedRange.startRow, selectedRange.endRow),
-                    maxRow: Math.max(selectedRange.startRow, selectedRange.endRow),
+                    minRow: Math.min(range.startRow, range.endRow),
+                    maxRow: Math.max(range.startRow, range.endRow),
                     minCol: Math.min(startColIndex, endColIndex),
                     maxCol: Math.max(startColIndex, endColIndex),
                     colIndexMap,
@@ -1855,9 +1861,8 @@ export default function OutboundPage() {
                     clearTimeout(selectionStatsTimeoutRef.current);
                 }
                 selectionStatsTimeoutRef.current = setTimeout(() => {
-                    // ⚡ EXCEL-LIKE: Calculate selection statistics for numeric cells (FSP, MRP, Quantity, etc.)
-                    const minRow = Math.min(selectedRange.startRow, selectedRange.endRow);
-                    const maxRow = Math.max(selectedRange.startRow, selectedRange.endRow);
+                    const minRow = Math.min(range.startRow, range.endRow);
+                    const maxRow = Math.max(range.startRow, range.endRow);
                     const minCol = Math.min(startColIndex, endColIndex);
                     const maxCol = Math.max(startColIndex, endColIndex);
 
@@ -1877,7 +1882,6 @@ export default function OutboundPage() {
                             count++;
                             const cellValue = rowNode.data[colId];
 
-                            // Check if it's a numeric column or if the value is numeric
                             if (numericColumns.includes(colId) || !isNaN(parseFloat(cellValue))) {
                                 const numVal = parseFloat(cellValue);
                                 if (!isNaN(numVal) && numVal !== 0) {
@@ -1890,7 +1894,7 @@ export default function OutboundPage() {
 
                     if (numericCount > 0) {
                         setSelectionStats({
-                            sum: Math.round(sum * 100) / 100, // Round to 2 decimal places
+                            sum: Math.round(sum * 100) / 100,
                             count,
                             average: Math.round((sum / numericCount) * 100) / 100,
                             numericCount,
@@ -1898,7 +1902,7 @@ export default function OutboundPage() {
                     } else {
                         setSelectionStats(null);
                     }
-                }, 50); // 50ms debounce for smooth drag selection
+                }, 50);
             } else {
                 selectionBoundsRef.current = null;
                 setSelectionStats(null);
@@ -1910,41 +1914,23 @@ export default function OutboundPage() {
             }
             setSelectionStats(null);
         }
-    }, [selectedRange]);
 
-    // Store previous selection for smart refresh
-    const prevSelectionBoundsRef = useRef<{ minRow: number; maxRow: number } | null>(null);
-
-    // ⚡ EXCEL-LIKE: Optimized refresh - only refresh affected rows instead of entire grid
-    useEffect(() => {
+        // Row-scoped refresh — only refreshes affected rows instead of entire grid
         const api = gridRef.current?.api;
-        if (!api) return;
-
-        requestAnimationFrame(() => {
+        if (api) {
             const bounds = selectionBoundsRef.current;
             const prevBounds = prevSelectionBoundsRef.current;
-
-            // Collect row indices that need refresh
             const rowsToRefresh = new Set<number>();
 
-            // Add current selection rows
             if (bounds) {
-                for (let r = bounds.minRow; r <= bounds.maxRow; r++) {
-                    rowsToRefresh.add(r);
-                }
+                for (let r = bounds.minRow; r <= bounds.maxRow; r++) rowsToRefresh.add(r);
             }
-
-            // Add previous selection rows (to clear old selection styling)
             if (prevBounds) {
-                for (let r = prevBounds.minRow; r <= prevBounds.maxRow; r++) {
-                    rowsToRefresh.add(r);
-                }
+                for (let r = prevBounds.minRow; r <= prevBounds.maxRow; r++) rowsToRefresh.add(r);
             }
 
-            // Update prev bounds for next time
             prevSelectionBoundsRef.current = bounds ? { minRow: bounds.minRow, maxRow: bounds.maxRow } : null;
 
-            // Only refresh if there are rows to update
             if (rowsToRefresh.size > 0) {
                 const rowNodes: any[] = [];
                 rowsToRefresh.forEach((rowIndex) => {
@@ -1955,8 +1941,17 @@ export default function OutboundPage() {
                     api.refreshCells({ rowNodes, force: true });
                 }
             }
-        });
-    }, [selectedRange]);
+        }
+    }, []);
+
+    // ⚡ PERF: Wrapper that updates refs/cells AND triggers React re-render (for JSX chip display).
+    // Use this for final/clear events (mouseUp, Escape, Shift+Click, keyboard selection, etc.).
+    const setSelectionRange = useCallback((range: typeof selectedRange) => {
+        updateSelectionRange(range);
+        setSelectedRange(range);
+    }, [updateSelectionRange]);
+
+    // ⚡ PERF: Selection refresh is now handled inline by updateSelectionRange — no useEffect needed.
 
     // ⚡ EXCEL-LIKE: Handle cell mouse down - start drag selection
     // FIXED: Only allow left mouse button (button === 0) for drag selection
@@ -1965,7 +1960,7 @@ export default function OutboundPage() {
         if (mouseButton !== 0) return;
 
         if (shiftKey && rangeStartCellRef.current) {
-            setSelectedRange({
+            setSelectionRange({
                 startRow: rangeStartCellRef.current.rowIndex,
                 endRow: rowIndex,
                 startCol: rangeStartCellRef.current.colId,
@@ -1975,9 +1970,9 @@ export default function OutboundPage() {
             isDraggingRef.current = true;
             dragStartCellRef.current = { rowIndex, colId };
             rangeStartCellRef.current = { rowIndex, colId };
-            setSelectedRange(null);
+            setSelectionRange(null);
         }
-    }, []);
+    }, [setSelectionRange]);
 
     // ⚡ EXCEL-LIKE: Handle cell mouse over - extend selection while dragging
     // FIXED: Only create selection when mouse moves to a DIFFERENT cell AND left button is still pressed
@@ -2003,18 +1998,19 @@ export default function OutboundPage() {
             return;
         }
 
-        setSelectedRange({
+        // ⚡ PERF: Update refs + refresh cells only — no React re-render during drag
+        updateSelectionRange({
             startRow: startRow,
             endRow: rowIndex,
             startCol: startCol,
             endCol: colId,
         });
-    }, []);
+    }, [updateSelectionRange]);
 
     // ⚡ EXCEL-LIKE: Handle cell click for shift+click selection
     const handleCellClick = useCallback((rowIndex: number, colId: string, shiftKey: boolean) => {
         if (shiftKey && rangeStartCellRef.current) {
-            setSelectedRange({
+            setSelectionRange({
                 startRow: rangeStartCellRef.current.rowIndex,
                 endRow: rowIndex,
                 startCol: rangeStartCellRef.current.colId,
@@ -2022,15 +2018,17 @@ export default function OutboundPage() {
             });
         } else {
             rangeStartCellRef.current = { rowIndex, colId };
-            setSelectedRange(null);
+            setSelectionRange(null);
         }
-    }, []);
+    }, [setSelectionRange]);
 
     // ⚡ EXCEL-LIKE: Handle mouse up - end drag selection
     useEffect(() => {
         const handleMouseUp = () => {
             if (isDraggingRef.current) {
                 isDraggingRef.current = false;
+                // ⚡ PERF: Sync ref → React state on drag end so JSX chip updates
+                setSelectedRange(selectedRangeRef.current);
             }
         };
         window.addEventListener('mouseup', handleMouseUp);
@@ -2433,7 +2431,7 @@ export default function OutboundPage() {
         const firstCol = editableColIds[0] || 'wsn';
         const lastCol = editableColIds[editableColIds.length - 1] || 'wsn';
 
-        setSelectedRange({
+        setSelectionRange({
             startRow: 0,
             endRow: totalRows - 1,
             startCol: firstCol,
@@ -2442,7 +2440,7 @@ export default function OutboundPage() {
 
         rangeStartCellRef.current = { rowIndex: 0, colId: firstCol };
         toast('All rows selected', { icon: '✓', duration: 1500 });
-    }, []);
+    }, [setSelectionRange]);
 
     // ⚡ EXCEL-LIKE: Keyboard shortcuts for Multi Entry tab (extended)
     useEffect(() => {
@@ -2604,7 +2602,7 @@ export default function OutboundPage() {
                 }
 
                 // Clear selection and navigate
-                setSelectedRange(null);
+                setSelectionRange(null);
                 rangeStartCellRef.current = null;
                 api.setFocusedCell(targetRow, colIds[targetColIndex]);
                 api.ensureIndexVisible(targetRow, 'middle');
@@ -2657,7 +2655,7 @@ export default function OutboundPage() {
                     endCol = colIds[endColIndex];
                 }
 
-                setSelectedRange({
+                setSelectionRange({
                     startRow: rangeStartCellRef.current.rowIndex,
                     endRow,
                     startCol: rangeStartCellRef.current.colId,
@@ -2687,7 +2685,7 @@ export default function OutboundPage() {
             if (e.key === 'Escape') {
                 e.preventDefault();
                 e.stopPropagation();
-                setSelectedRange(null);
+                setSelectionRange(null);
                 rangeStartCellRef.current = null;
                 const api = gridRef.current?.api;
                 if (api) {
@@ -2718,7 +2716,7 @@ export default function OutboundPage() {
             if (!shiftKey && !ctrlKey && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key) && !isEditing) {
                 // If there's a selection, clear it but let AG Grid handle the movement
                 if (selectedRangeRef.current) {
-                    setSelectedRange(null);
+                    setSelectionRange(null);
                     rangeStartCellRef.current = null;
                     const api = gridRef.current?.api;
                     if (api) {
@@ -2773,7 +2771,7 @@ export default function OutboundPage() {
                 }
 
                 // Update range - use rangeStartCellRef as anchor
-                setSelectedRange({
+                setSelectionRange({
                     startRow: rangeStartCellRef.current.rowIndex,
                     endRow: newEndRow,
                     startCol: rangeStartCellRef.current.colId,
@@ -2790,7 +2788,7 @@ export default function OutboundPage() {
         // Use capture phase to intercept before AG Grid handles it
         window.addEventListener('keydown', handleKeyDown, true);
         return () => window.removeEventListener('keydown', handleKeyDown, true);
-    }, [currentTabCode, handleSelectAll, handleClearCells, handleUndo, handleRedo, handleFillDown, handleFillRight, handleGoToFirst, handleGoToLast, handleCopy, handlePaste, ctrlOProductLinkEnabled]);
+    }, [currentTabCode, handleSelectAll, handleClearCells, handleUndo, handleRedo, handleFillDown, handleFillRight, handleGoToFirst, handleGoToLast, handleCopy, handlePaste, ctrlOProductLinkEnabled, setSelectionRange]);
 
     // ✅ AUTO-FETCH SOURCE DATA ON WSN CELL EDIT (MULTI ENTRY)
     const onCellValueChanged = useCallback(
@@ -4716,6 +4714,43 @@ export default function OutboundPage() {
         );
     }
 
+
+    // ⚡ EXTRACTED: Multi-entry grid onCellEditingStopped handler
+    const handleMultiCellEditingStopped = useCallback(async (event: any) => {
+        const field = event.colDef?.field;
+        const value = event.value;
+        const oldValue = event.oldValue;
+        const node = event.node;
+        const rowIndex = event.rowIndex;
+
+        if (field !== 'wsn') return;
+
+        const wsn = value?.trim()?.toUpperCase();
+        const existingWSN = oldValue?.trim()?.toUpperCase();
+
+        // ====== WSN OVERWRITE CHECK ======
+        // If user is replacing a valid WSN with a different valid WSN, show warning dialog
+        if (existingWSN && wsn && existingWSN !== wsn) {
+            // Revert cell to original value until user confirms
+            node.setDataValue('wsn', existingWSN);
+            // Store pending WSN data
+            pendingWSNRef.current = { wsn, rowIndex, params: event };
+            // Show dialog with existing product info
+            setWsnOverwriteDialog({
+                open: true,
+                existingWSN,
+                newWSN: wsn,
+                existingData: {
+                    product_title: node.data?.product_title || '',
+                    brand: node.data?.brand || '',
+                    mrp: node.data?.mrp || '',
+                    fsp: node.data?.fsp || '',
+                },
+                rowIndex
+            });
+            return;
+        }
+    }, [setWsnOverwriteDialog]);
 
     ///////////////////////////////////////// UI RENDERING /////////////////////////////////////////
     return (
@@ -8016,41 +8051,7 @@ export default function OutboundPage() {
                                 headerHeight={32}
                                 defaultColDef={defaultColDef}
                                 onCellValueChanged={onCellValueChanged}
-                                onCellEditingStopped={async (event: any) => {
-                                    const field = event.colDef?.field;
-                                    const value = event.value;
-                                    const oldValue = event.oldValue;
-                                    const node = event.node;
-                                    const rowIndex = event.rowIndex;
-
-                                    if (field !== 'wsn') return;
-
-                                    const wsn = value?.trim()?.toUpperCase();
-                                    const existingWSN = oldValue?.trim()?.toUpperCase();
-
-                                    // ====== WSN OVERWRITE CHECK ======
-                                    // If user is replacing a valid WSN with a different valid WSN, show warning dialog
-                                    if (existingWSN && wsn && existingWSN !== wsn) {
-                                        // Revert cell to original value until user confirms
-                                        node.setDataValue('wsn', existingWSN);
-                                        // Store pending WSN data
-                                        pendingWSNRef.current = { wsn, rowIndex, params: event };
-                                        // Show dialog with existing product info
-                                        setWsnOverwriteDialog({
-                                            open: true,
-                                            existingWSN,
-                                            newWSN: wsn,
-                                            existingData: {
-                                                product_title: node.data?.product_title || '',
-                                                brand: node.data?.brand || '',
-                                                mrp: node.data?.mrp || '',
-                                                fsp: node.data?.fsp || '',
-                                            },
-                                            rowIndex
-                                        });
-                                        return;
-                                    }
-                                }}
+                                onCellEditingStopped={handleMultiCellEditingStopped}
                                 getRowStyle={getRowStyle}
                                 getRowId={(params: any) => params.data._rowId}
                                 navigateToNextCell={navigateToNextCell}
@@ -8136,7 +8137,49 @@ export default function OutboundPage() {
                                     // Column widths are now baked into columnDefs via multiColumnWidths state
                                     // No need to apply column state here - widths are already set
                                 }}
-                            // Removed onFirstDataRendered and onGridSizeChanged auto-sizing to preserve user column widths
+
+                                // ⚡ PERFORMANCE: Auto-fit columns to fill grid width on resize (no empty space)
+                                onGridSizeChanged={() => {
+                                    try {
+                                        const hasSavedWidths = Object.keys(multiColumnWidths).length > 0;
+                                        if (hasSavedWidths) return;
+                                        const colApi = columnApiRef.current;
+                                        const api = gridRef.current?.api;
+                                        if (!colApi || !api) return;
+                                        const allCols = colApi.getAllColumns ? colApi.getAllColumns().map((c: any) => c.getColId()) : [];
+                                        if (!allCols || allCols.length === 0) return;
+                                        let total = 0;
+                                        for (const id of allCols) {
+                                            const col = colApi.getColumn(id);
+                                            total += col?.getActualWidth ? col.getActualWidth() : 0;
+                                        }
+                                        const dims = api.getSize ? api.getSize() : null;
+                                        const gridW = dims?.width || 0;
+                                        if (gridW && total < gridW) api.sizeColumnsToFit();
+                                    } catch { /* ignore */ }
+                                }}
+
+                                // ⚡ Auto-fit columns on first data render
+                                onFirstDataRendered={() => {
+                                    try {
+                                        const hasSavedWidths = Object.keys(multiColumnWidths).length > 0;
+                                        if (hasSavedWidths) return;
+                                        const colApi = columnApiRef.current;
+                                        const api = gridRef.current?.api;
+                                        if (!colApi || !api) return;
+                                        const allCols = colApi.getAllColumns ? colApi.getAllColumns().map((c: any) => c.getColId()) : [];
+                                        if (allCols.length === 0) return;
+                                        colApi.autoSizeColumns(allCols, false);
+                                        let total = 0;
+                                        for (const id of allCols) {
+                                            const col = colApi.getColumn(id);
+                                            total += col?.getActualWidth ? col.getActualWidth() : 0;
+                                        }
+                                        const dims = api.getSize ? api.getSize() : null;
+                                        const gridW = dims?.width || 0;
+                                        if (gridW && total < gridW) api.sizeColumnsToFit();
+                                    } catch { /* ignore */ }
+                                }}
                             />
                         </Box>
 

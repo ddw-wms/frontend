@@ -258,6 +258,127 @@ export default function PickingPage() {
   // ⚡ EXCEL-LIKE: Previous selection bounds for smart refresh
   const prevSelectionBoundsRef = useRef<{ minRow: number; maxRow: number } | null>(null);
 
+  // ⚡ PERF: Update selection refs + refresh cells WITHOUT triggering React re-render.
+  // Called directly during drag to avoid re-rendering the entire component on every mouseMove.
+  const updateSelectionRange = useCallback((range: typeof selectedRange) => {
+    selectedRangeRef.current = range;
+
+    // Pre-compute selection bounds
+    if (range && gridRef.current) {
+      const api = gridRef.current;
+      const allColumns = api.getAllDisplayedColumns?.() || [];
+      const colIndexMap = new Map<string, number>();
+      allColumns.forEach((c: any, idx: number) => {
+        colIndexMap.set(c.getColId(), idx);
+      });
+
+      const startColIndex = colIndexMap.get(range.startCol) ?? -1;
+      const endColIndex = colIndexMap.get(range.endCol) ?? -1;
+
+      if (startColIndex !== -1 && endColIndex !== -1) {
+        selectionBoundsRef.current = {
+          minRow: Math.min(range.startRow, range.endRow),
+          maxRow: Math.max(range.startRow, range.endRow),
+          minCol: Math.min(startColIndex, endColIndex),
+          maxCol: Math.max(startColIndex, endColIndex),
+          colIndexMap,
+        };
+
+        // ⚡ PERFORMANCE: Debounce selection statistics calculation (50ms)
+        if (selectionStatsTimeoutRef.current) {
+          clearTimeout(selectionStatsTimeoutRef.current);
+        }
+        selectionStatsTimeoutRef.current = setTimeout(() => {
+          const minRow = Math.min(range.startRow, range.endRow);
+          const maxRow = Math.max(range.startRow, range.endRow);
+          const minCol = Math.min(startColIndex, endColIndex);
+          const maxCol = Math.max(startColIndex, endColIndex);
+
+          const numericColumns = ['fsp', 'mrp', 'vrp', 'igst_rate', 'yield_value'];
+          let sum = 0;
+          let count = 0;
+          let numericCount = 0;
+
+          for (let r = minRow; r <= maxRow; r++) {
+            const rowNode = api.getDisplayedRowAtIndex(r);
+            if (!rowNode?.data) continue;
+
+            for (let c = minCol; c <= maxCol; c++) {
+              const colId = allColumns[c]?.getColId();
+              if (!colId) continue;
+
+              count++;
+              const cellValue = rowNode.data[colId];
+
+              if (numericColumns.includes(colId) || !isNaN(parseFloat(cellValue))) {
+                const numVal = parseFloat(cellValue);
+                if (!isNaN(numVal) && numVal !== 0) {
+                  sum += numVal;
+                  numericCount++;
+                }
+              }
+            }
+          }
+
+          if (numericCount > 0) {
+            setSelectionStats({
+              sum: Math.round(sum * 100) / 100,
+              count,
+              average: Math.round((sum / numericCount) * 100) / 100,
+              numericCount,
+            });
+          } else {
+            setSelectionStats(null);
+          }
+        }, 50);
+      } else {
+        selectionBoundsRef.current = null;
+        setSelectionStats(null);
+      }
+    } else {
+      selectionBoundsRef.current = null;
+      if (selectionStatsTimeoutRef.current) {
+        clearTimeout(selectionStatsTimeoutRef.current);
+      }
+      setSelectionStats(null);
+    }
+
+    // Row-scoped refresh — only refreshes affected rows instead of entire grid
+    const api = gridRef.current;
+    if (api) {
+      const bounds = selectionBoundsRef.current;
+      const prevBounds = prevSelectionBoundsRef.current;
+      const rowsToRefresh = new Set<number>();
+
+      if (bounds) {
+        for (let r = bounds.minRow; r <= bounds.maxRow; r++) rowsToRefresh.add(r);
+      }
+      if (prevBounds) {
+        for (let r = prevBounds.minRow; r <= prevBounds.maxRow; r++) rowsToRefresh.add(r);
+      }
+
+      prevSelectionBoundsRef.current = bounds ? { minRow: bounds.minRow, maxRow: bounds.maxRow } : null;
+
+      if (rowsToRefresh.size > 0) {
+        const rowNodes: any[] = [];
+        rowsToRefresh.forEach((rowIndex) => {
+          const node = api.getDisplayedRowAtIndex(rowIndex);
+          if (node) rowNodes.push(node);
+        });
+        if (rowNodes.length > 0) {
+          api.refreshCells({ rowNodes, force: true });
+        }
+      }
+    }
+  }, []);
+
+  // ⚡ PERF: Wrapper that updates refs/cells AND triggers React re-render (for JSX chip display).
+  // Use this for final/clear events (mouseUp, Escape, Shift+Click, keyboard selection, etc.).
+  const setSelectionRange = useCallback((range: typeof selectedRange) => {
+    updateSelectionRange(range);
+    setSelectedRange(range);
+  }, [updateSelectionRange]);
+
   // Get table row height from appearance settings
   const tableRowHeight = useTableRowHeight();
 
@@ -1100,127 +1221,7 @@ export default function PickingPage() {
     multiRowsRef.current = multiRows;
   }, [multiRows]);
 
-  // ⚡ EXCEL-LIKE: Update selection bounds when selection changes
-  useEffect(() => {
-    selectedRangeRef.current = selectedRange;
-
-    if (selectedRange && gridRef.current) {
-      const api = gridRef.current;
-      const allColumns = api.getAllDisplayedColumns?.() || [];
-      const colIndexMap = new Map<string, number>();
-      allColumns.forEach((c: any, idx: number) => {
-        colIndexMap.set(c.getColId(), idx);
-      });
-
-      const startColIndex = colIndexMap.get(selectedRange.startCol) ?? -1;
-      const endColIndex = colIndexMap.get(selectedRange.endCol) ?? -1;
-
-      if (startColIndex !== -1 && endColIndex !== -1) {
-        selectionBoundsRef.current = {
-          minRow: Math.min(selectedRange.startRow, selectedRange.endRow),
-          maxRow: Math.max(selectedRange.startRow, selectedRange.endRow),
-          minCol: Math.min(startColIndex, endColIndex),
-          maxCol: Math.max(startColIndex, endColIndex),
-          colIndexMap,
-        };
-
-        // ⚡ PERFORMANCE: Debounce selection statistics calculation (50ms)
-        if (selectionStatsTimeoutRef.current) {
-          clearTimeout(selectionStatsTimeoutRef.current);
-        }
-        selectionStatsTimeoutRef.current = setTimeout(() => {
-          const minRow = Math.min(selectedRange.startRow, selectedRange.endRow);
-          const maxRow = Math.max(selectedRange.startRow, selectedRange.endRow);
-          const minCol = Math.min(startColIndex, endColIndex);
-          const maxCol = Math.max(startColIndex, endColIndex);
-
-          const numericColumns = ['fsp', 'mrp', 'vrp', 'igst_rate', 'yield_value'];
-          let sum = 0;
-          let count = 0;
-          let numericCount = 0;
-
-          for (let r = minRow; r <= maxRow; r++) {
-            const rowNode = api.getDisplayedRowAtIndex(r);
-            if (!rowNode?.data) continue;
-
-            for (let c = minCol; c <= maxCol; c++) {
-              const colId = allColumns[c]?.getColId();
-              if (!colId) continue;
-
-              count++;
-              const cellValue = rowNode.data[colId];
-
-              if (numericColumns.includes(colId) || !isNaN(parseFloat(cellValue))) {
-                const numVal = parseFloat(cellValue);
-                if (!isNaN(numVal) && numVal !== 0) {
-                  sum += numVal;
-                  numericCount++;
-                }
-              }
-            }
-          }
-
-          if (numericCount > 0) {
-            setSelectionStats({
-              sum: Math.round(sum * 100) / 100,
-              count,
-              average: Math.round((sum / numericCount) * 100) / 100,
-              numericCount,
-            });
-          } else {
-            setSelectionStats(null);
-          }
-        }, 50);
-      } else {
-        selectionBoundsRef.current = null;
-        setSelectionStats(null);
-      }
-    } else {
-      selectionBoundsRef.current = null;
-      if (selectionStatsTimeoutRef.current) {
-        clearTimeout(selectionStatsTimeoutRef.current);
-      }
-      setSelectionStats(null);
-    }
-  }, [selectedRange]);
-
-  // ⚡ EXCEL-LIKE: Optimized refresh - only refresh affected rows instead of entire grid
-  useEffect(() => {
-    const api = gridRef.current;
-    if (!api) return;
-
-    requestAnimationFrame(() => {
-      const bounds = selectionBoundsRef.current;
-      const prevBounds = prevSelectionBoundsRef.current;
-
-      const rowsToRefresh = new Set<number>();
-
-      if (bounds) {
-        for (let r = bounds.minRow; r <= bounds.maxRow; r++) {
-          rowsToRefresh.add(r);
-        }
-      }
-
-      if (prevBounds) {
-        for (let r = prevBounds.minRow; r <= prevBounds.maxRow; r++) {
-          rowsToRefresh.add(r);
-        }
-      }
-
-      prevSelectionBoundsRef.current = bounds ? { minRow: bounds.minRow, maxRow: bounds.maxRow } : null;
-
-      if (rowsToRefresh.size > 0) {
-        const rowNodes: any[] = [];
-        rowsToRefresh.forEach((rowIndex) => {
-          const node = api.getDisplayedRowAtIndex(rowIndex);
-          if (node) rowNodes.push(node);
-        });
-        if (rowNodes.length > 0) {
-          api.refreshCells({ rowNodes, force: true });
-        }
-      }
-    });
-  }, [selectedRange]);
+  // ⚡ PERF: Selection bounds + cell refresh is now handled inline by updateSelectionRange — no useEffect needed.
 
   // ⚡ EXCEL-LIKE: Handle cell mouse down - start drag selection
   // FIXED: Only allow left mouse button (button === 0) for drag selection
@@ -1229,7 +1230,7 @@ export default function PickingPage() {
     if (mouseButton !== 0) return;
 
     if (shiftKey && rangeStartCellRef.current) {
-      setSelectedRange({
+      setSelectionRange({
         startRow: rangeStartCellRef.current.rowIndex,
         endRow: rowIndex,
         startCol: rangeStartCellRef.current.colId,
@@ -1239,9 +1240,9 @@ export default function PickingPage() {
       isDraggingRef.current = true;
       dragStartCellRef.current = { rowIndex, colId };
       rangeStartCellRef.current = { rowIndex, colId };
-      setSelectedRange(null);
+      setSelectionRange(null);
     }
-  }, []);
+  }, [setSelectionRange]);
 
   // ⚡ EXCEL-LIKE: Handle cell mouse over - extend selection while dragging
   // FIXED: Only create selection when mouse moves to a DIFFERENT cell AND left button is still pressed
@@ -1267,7 +1268,8 @@ export default function PickingPage() {
       return;
     }
 
-    setSelectedRange({
+    // ⚡ PERF: Update refs + refresh cells only — no React re-render during drag
+    updateSelectionRange({
       startRow: startRow,
       endRow: rowIndex,
       startCol: startCol,
@@ -1278,7 +1280,7 @@ export default function PickingPage() {
   // ⚡ EXCEL-LIKE: Handle cell click for shift+click selection
   const handleCellClick = useCallback((rowIndex: number, colId: string, shiftKey: boolean) => {
     if (shiftKey && rangeStartCellRef.current) {
-      setSelectedRange({
+      setSelectionRange({
         startRow: rangeStartCellRef.current.rowIndex,
         endRow: rowIndex,
         startCol: rangeStartCellRef.current.colId,
@@ -1286,15 +1288,17 @@ export default function PickingPage() {
       });
     } else {
       rangeStartCellRef.current = { rowIndex, colId };
-      setSelectedRange(null);
+      setSelectionRange(null);
     }
-  }, []);
+  }, [setSelectionRange]);
 
   // ⚡ EXCEL-LIKE: Handle mouse up - end drag selection
   useEffect(() => {
     const handleMouseUp = () => {
       if (isDraggingRef.current) {
         isDraggingRef.current = false;
+        // ⚡ PERF: Sync ref → React state on drag end so JSX chip updates
+        setSelectedRange(selectedRangeRef.current);
       }
     };
     window.addEventListener('mouseup', handleMouseUp);
@@ -1391,7 +1395,7 @@ export default function PickingPage() {
     const firstCol = editableColIds[0] || 'wsn';
     const lastCol = editableColIds[editableColIds.length - 1] || 'wsn';
 
-    setSelectedRange({
+    setSelectionRange({
       startRow: 0,
       endRow: totalRows - 1,
       startCol: firstCol,
@@ -1400,7 +1404,7 @@ export default function PickingPage() {
 
     rangeStartCellRef.current = { rowIndex: 0, colId: firstCol };
     toast('All rows selected', { icon: '🚫', duration: 1500 });
-  }, []);
+  }, [setSelectionRange]);
 
   // ⚡ EXCEL-LIKE: Save cell-level undo action
   const saveCellUndoAction = useCallback((
@@ -1911,7 +1915,7 @@ export default function PickingPage() {
     const api = gridRef.current;
     if (!api) return;
 
-    setSelectedRange(null);
+    setSelectionRange(null);
     rangeStartCellRef.current = null;
 
     const allColumns = api.getAllDisplayedColumns() || [];
@@ -1920,14 +1924,14 @@ export default function PickingPage() {
 
     api.ensureIndexVisible(0, 'top');
     api.setFocusedCell(0, colId);
-  }, []);
+  }, [setSelectionRange]);
 
   // ⚡ EXCEL-LIKE: Go to last cell with data (Ctrl+End)
   const handleGoToLast = useCallback(() => {
     const api = gridRef.current;
     if (!api) return;
 
-    setSelectedRange(null);
+    setSelectionRange(null);
     rangeStartCellRef.current = null;
 
     let lastRowWithData = 0;
@@ -1945,7 +1949,7 @@ export default function PickingPage() {
 
     api.ensureIndexVisible(lastRowWithData, 'bottom');
     api.setFocusedCell(lastRowWithData, lastCol);
-  }, []);
+  }, [setSelectionRange]);
 
   // ⚡ EXCEL-LIKE: Keyboard shortcuts for Multi Picking tab
   useEffect(() => {
@@ -2057,9 +2061,8 @@ export default function PickingPage() {
       // Escape - Clear selection or cancel editing
       if (e.key === 'Escape') {
         if (selectedRangeRef.current) {
-          setSelectedRange(null);
+          setSelectionRange(null);
           rangeStartCellRef.current = null;
-          gridRef.current?.refreshCells({ force: true });
         }
         return;
       }
@@ -2120,11 +2123,10 @@ export default function PickingPage() {
           targetColIndex = 1;
         }
 
-        setSelectedRange(null);
+        setSelectionRange(null);
         rangeStartCellRef.current = null;
         api.setFocusedCell(targetRow, colIds[targetColIndex]);
         api.ensureIndexVisible(targetRow, 'middle');
-        api.refreshCells({ force: true });
         return;
       }
 
@@ -2171,7 +2173,7 @@ export default function PickingPage() {
           endCol = colIds[endColIndex];
         }
 
-        setSelectedRange({
+        setSelectionRange({
           startRow: rangeStartCellRef.current.rowIndex,
           endRow,
           startCol: rangeStartCellRef.current.colId,
@@ -2186,7 +2188,7 @@ export default function PickingPage() {
       // Arrow keys without Shift - Clear selection and move
       if (!shiftKey && !ctrlKey && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key) && !isEditing) {
         if (selectedRangeRef.current) {
-          setSelectedRange(null);
+          setSelectionRange(null);
           rangeStartCellRef.current = null;
         }
         return;
@@ -2223,7 +2225,7 @@ export default function PickingPage() {
 
         const newColId = colIds[newColIndex];
 
-        setSelectedRange({
+        setSelectionRange({
           startRow: rangeStartCellRef.current.rowIndex,
           endRow: newRowIndex,
           startCol: rangeStartCellRef.current.colId,
@@ -2237,7 +2239,7 @@ export default function PickingPage() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [currentTabCode, handleSelectAll, handleClearCells, handleUndo, handleRedo, handleCopy, handlePaste, handleFillDown, handleGoToFirst, handleGoToLast]);
+  }, [currentTabCode, handleSelectAll, handleClearCells, handleUndo, handleRedo, handleCopy, handlePaste, handleFillDown, handleGoToFirst, handleGoToLast, setSelectionRange]);
 
   // Add new rows
   const add500Rows = () => {
@@ -3760,6 +3762,312 @@ export default function PickingPage() {
 
     return [rowNumberCol, ...dataCols];
   }, [visibleColumns, multiColumnWidths, racks, crossWarehouseWSNs, gridDuplicateWSNs, isDarkMode]);
+
+  // ⚡ EXTRACTED: Multi-entry grid onCellEditingStopped handler
+  const handleMultiCellEditingStopped = useCallback(async (event: any) => {
+    const field = event.colDef?.field;
+    const value = event.value;
+    const oldValue = event.oldValue;
+    const node = event.node;
+    const rowIndex = event.rowIndex;
+
+    if (field !== 'wsn') return;
+
+    const wsn = value?.trim()?.toUpperCase();
+    const existingWSN = oldValue?.trim()?.toUpperCase();
+
+    // ====== WSN OVERWRITE CHECK ======
+    // If user is replacing a valid WSN with a different valid WSN, show warning dialog
+    if (existingWSN && wsn && existingWSN !== wsn) {
+      // Revert cell to original value until user confirms
+      node.setDataValue('wsn', existingWSN);
+      // Store pending WSN data
+      pendingWSNRef.current = { wsn, rowIndex, event };
+      // Show dialog with existing product info
+      setWsnOverwriteDialog({
+        open: true,
+        existingWSN,
+        newWSN: wsn,
+        existingData: {
+          product_title: node.data?.product_title || '',
+          brand: node.data?.brand || '',
+          mrp: node.data?.mrp || '',
+          fsp: node.data?.fsp || '',
+        },
+        rowIndex
+      });
+      return;
+    }
+
+    // If WSN is cleared/deleted, reset all product fields
+    if (!wsn) {
+      // ⚡ PERF: Single setData() to clear all fields
+      const clearFields: any = {
+        wsn: '', product_title: '', brand: '', cms_vertical: '',
+        fsp: '', mrp: '', rack_no: '', source: '', batch_id: '',
+        hsn_sac: '', igst_rate: '', p_type: '', p_size: '', vrp: '',
+        wid: '', fsn: '', order_id: '', fkqc_remark: '', fk_grade: '',
+        invoice_date: '', fkt_link: '', wh_location: '', yield_value: '',
+        product_serial_number: ''
+      };
+      node.setData({ ...node.data, ...clearFields });
+
+      // Also update React state
+      setMultiRows((prev) => {
+        const rows = [...prev];
+        rows[rowIndex] = { ...rows[rowIndex], ...clearFields };
+        checkDuplicates(rows);
+        return rows;
+      });
+      return; // Exit early after clearing fields
+    }
+
+    // Immediate grid-level duplicate or existing pick check
+    const immediateCounts = new Map<string, number>();
+    multiRows.forEach((r: any) => {
+      const rv = r.wsn?.trim()?.toUpperCase();
+      if (rv) immediateCounts.set(rv, (immediateCounts.get(rv) || 0) + 1);
+    });
+
+    const isGridDuplicateImmediate = (immediateCounts.get(wsn) || 0) > 1;
+
+    if (isGridDuplicateImmediate) {
+      // Styled toast like QC/Inbounds
+      toast(`Duplicate WSN in grid: ${wsn}`, {
+        duration: 2500,
+        style: {
+          background: '#ffffff',
+          color: '#d97706',
+          border: '2px solid #f59e0b',
+          borderRadius: '8px',
+          padding: '12px 16px',
+          fontWeight: 600,
+          fontSize: '14px',
+        },
+        icon: '🚫',
+      });
+
+      // ⚡ PERF: Clear cell + master fields with single setData()
+      const clearData: any = { wsn: '', product_serial_number: null };
+      ALL_MASTER_COLUMNS.forEach(col => { clearData[col] = null; });
+      node.setData({ ...node.data, ...clearData });
+
+      // Update react state
+      setMultiRows((prev) => {
+        const rows = [...prev];
+        rows[rowIndex] = { ...rows[rowIndex], wsn: '' };
+        ALL_MASTER_COLUMNS.forEach(col => (rows[rowIndex][col] = null));
+        rows[rowIndex]['product_serial_number'] = null;
+        checkDuplicates(rows);
+        return rows;
+      });
+
+      // Re-focus same cell for quick correction
+      setTimeout(() => {
+        event.api.startEditingCell({
+          rowIndex: rowIndex,
+          colKey: 'wsn',
+        });
+      }, 100);
+
+      return;
+    }
+
+    // ⚡ AUTO-EXTEND: Add 500 rows when entering data near the end
+    if (rowIndex != null && rowIndex >= event.api.getDisplayedRowCount() - 2) {
+      add500Rows();
+    }
+
+    // ⚡ OFFLINE CHECK
+    const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+
+    // Show offline warning once per session
+    if (!isOnline && !offlineWarningShownRef.current) {
+      offlineWarningShownRef.current = true;
+      toast('📴 Offline Mode - Cross-warehouse duplicate check skipped. Will validate on submit.', {
+        duration: 5000,
+        style: {
+          background: '#fef3c7',
+          color: '#92400e',
+          border: '1px solid #f59e0b',
+          borderRadius: '8px',
+          padding: '12px 16px',
+          fontWeight: 500,
+          fontSize: '13px',
+        },
+        icon: '⚠️',
+      });
+    }
+
+    // Reset warning flag when back online
+    if (isOnline && offlineWarningShownRef.current) {
+      offlineWarningShownRef.current = false;
+    }
+
+    if (existingPickingWSNs.has(wsn) && isOnline) {
+      // Determine whether it's in this warehouse or another warehouse (only if online)
+      try {
+        const resp = await pickingAPI.checkWSNExists(wsn, activeWarehouse?.id);
+        const existsHere = resp.data?.exists;
+
+        if (existsHere) {
+          // Same-warehouse duplicate -> warn + clear
+          toast(`WSN ${wsn} already picked in this warehouse`, {
+            duration: 2500,
+            style: {
+              background: '#ffffff',
+              color: '#d97706',
+              border: '2px solid #f59e0b',
+              borderRadius: '8px',
+              padding: '12px 16px',
+              fontWeight: 600,
+              fontSize: '14px',
+            },
+            icon: '🚫',
+          });
+
+        } else {
+          // Cross-warehouse -> error + clear
+          toast.error(`WSN ${wsn} already picked in another warehouse`, {
+            duration: 3000,
+            style: {
+              background: '#ffffff',
+              color: '#dc2626',
+              border: '2px solid #dc2626',
+              borderRadius: '8px',
+              padding: '12px 16px',
+              fontWeight: 600,
+              fontSize: '14px',
+            },
+            icon: '🚫',
+          });
+        }
+
+        // ⚡ PERF: Clear cell + master fields with single setData()
+        const clearData: any = { wsn: '', product_serial_number: null };
+        ALL_MASTER_COLUMNS.forEach(col => { clearData[col] = null; });
+        node.setData({ ...node.data, ...clearData });
+
+        setMultiRows((prev) => {
+          const rows = [...prev];
+          rows[rowIndex] = { ...rows[rowIndex], wsn: '' };
+          ALL_MASTER_COLUMNS.forEach(col => (rows[rowIndex][col] = null));
+          rows[rowIndex]['product_serial_number'] = null;
+          checkDuplicates(rows);
+          return rows;
+        });
+
+        // Re-focus same cell
+        setTimeout(() => {
+          event.api.startEditingCell({ rowIndex: rowIndex, colKey: 'wsn' });
+        }, 100);
+
+        return;
+      } catch (err) {
+        // On API error, fall through to master data fetch (best-effort)
+      }
+    }
+
+    // ⚡ CACHE FIRST + API FALLBACK for master data
+    try {
+      let d = null;
+      let fromCache = false;
+
+      // TRY AVAILABLE CACHE FIRST (ultra-fast memory + IndexedDB, works offline)
+      if (isWMSCacheEnabled() && activeWarehouse?.id) {
+        try {
+          const cached = await getAvailableByWSNFast(wsn, activeWarehouse.id);
+          if (cached) {
+            d = cached;
+            fromCache = true;
+            console.log('⚡ Memory/Cache HIT for picking WSN:', wsn);
+          }
+        } catch { /* cache miss */ }
+      }
+
+      // FALL BACK TO API (only if online and not cached)
+      if (!d && isOnline) {
+        const res = await pickingAPI.getSourceByWSN(
+          wsn,
+          activeWarehouse?.id
+        );
+        d = res.data;
+        console.log('BACKEND DATA:', d);
+      }
+
+      // If still no data (offline with no cache), show message
+      if (!d) {
+        toast.error(`WSN ${wsn} not in cache. Enable cache refresh when online.`, {
+          duration: 3000,
+        });
+        node.setDataValue('wsn', '');
+        setTimeout(() => {
+          event.api.startEditingCell({ rowIndex: rowIndex, colKey: 'wsn' });
+        }, 100);
+        return;
+      }
+
+      // GUARD: ensure cell wasn't cleared in the meantime
+      const currentWsn = node?.data?.wsn?.trim()?.toUpperCase();
+      if (!currentWsn || currentWsn !== wsn) return;
+      // PERF: Single setData() instead of 21x setDataValue()
+      const masterData = buildMasterDataFromResponse(d);
+      node.setData({ ...node.data, ...masterData });
+
+      // Track last scanned row for Ctrl+O product link
+      lastScannedRowRef.current = {
+        wsn,
+        fkt_link: d.fkt_link ?? '',
+        product_title: d.product_title ?? '',
+      };
+
+      // Also update React state for consistency
+      setMultiRows((prev) => {
+        const rows = [...prev];
+        rows[rowIndex] = { ...rows[rowIndex], wsn, ...masterData };
+        checkDuplicates(rows);
+        return rows;
+      });
+
+      // Show success feedback
+      if (fromCache) {
+        toast.success(`✓ (Cache) Loaded ${wsn}`, { duration: 1500 });
+      }
+    } catch (err: any) {
+      console.error('Picking source fetch error:', err);
+
+      // If not found in picking sources, try inbound master data as a fallback (only if online)
+      if (err?.response?.status === 404 && isOnline) {
+        try {
+          const inboundResp = await inboundAPI.getMasterDataByWSN(wsn, activeWarehouse?.id);
+          const md = inboundResp.data;
+
+          // ⚡ PERF: Single setData() for inbound fallback
+          const fallbackMaster = buildMasterDataFromResponse(md);
+          node.setData({ ...node.data, ...fallbackMaster });
+
+          // Also update React state
+          setMultiRows((prev) => {
+            const rows = [...prev];
+            rows[rowIndex] = { ...rows[rowIndex], wsn, ...fallbackMaster };
+            checkDuplicates(rows);
+            return rows;
+          });
+
+          toast.success(`Source data loaded from Inbound for ${wsn}`);
+          return;
+        } catch (inErr) {
+          console.error('Inbound fallback failed:', inErr);
+        }
+      }
+
+      toast.error(`WSN ${wsn} not found`);
+      node.setDataValue('wsn', '');
+      setTimeout(() => {
+        event.api.startEditingCell({ rowIndex: rowIndex, colKey: 'wsn' });
+      }, 100);
+    }
+  }, [multiRows, existingPickingWSNs, activeWarehouse, add500Rows, checkDuplicates, buildMasterDataFromResponse, isWMSCacheEnabled, getAvailableByWSNFast, setMultiRows, setWsnOverwriteDialog]);
 
   //////////////////////////////////====UI RENDERING====////////////////////////////////////
 
@@ -5778,310 +6086,7 @@ export default function PickingPage() {
                   } catch { /* ignore */ }
                 }}
 
-                onCellEditingStopped={async (event: any) => {
-                  const field = event.colDef?.field;
-                  const value = event.value;
-                  const oldValue = event.oldValue;
-                  const node = event.node;
-                  const rowIndex = event.rowIndex;
-
-                  if (field !== 'wsn') return;
-
-                  const wsn = value?.trim()?.toUpperCase();
-                  const existingWSN = oldValue?.trim()?.toUpperCase();
-
-                  // ====== WSN OVERWRITE CHECK ======
-                  // If user is replacing a valid WSN with a different valid WSN, show warning dialog
-                  if (existingWSN && wsn && existingWSN !== wsn) {
-                    // Revert cell to original value until user confirms
-                    node.setDataValue('wsn', existingWSN);
-                    // Store pending WSN data
-                    pendingWSNRef.current = { wsn, rowIndex, event };
-                    // Show dialog with existing product info
-                    setWsnOverwriteDialog({
-                      open: true,
-                      existingWSN,
-                      newWSN: wsn,
-                      existingData: {
-                        product_title: node.data?.product_title || '',
-                        brand: node.data?.brand || '',
-                        mrp: node.data?.mrp || '',
-                        fsp: node.data?.fsp || '',
-                      },
-                      rowIndex
-                    });
-                    return;
-                  }
-
-                  // If WSN is cleared/deleted, reset all product fields
-                  if (!wsn) {
-                    // ⚡ PERF: Single setData() to clear all fields
-                    const clearFields: any = {
-                      wsn: '', product_title: '', brand: '', cms_vertical: '',
-                      fsp: '', mrp: '', rack_no: '', source: '', batch_id: '',
-                      hsn_sac: '', igst_rate: '', p_type: '', p_size: '', vrp: '',
-                      wid: '', fsn: '', order_id: '', fkqc_remark: '', fk_grade: '',
-                      invoice_date: '', fkt_link: '', wh_location: '', yield_value: '',
-                      product_serial_number: ''
-                    };
-                    node.setData({ ...node.data, ...clearFields });
-
-                    // Also update React state
-                    setMultiRows((prev) => {
-                      const rows = [...prev];
-                      rows[rowIndex] = { ...rows[rowIndex], ...clearFields };
-                      checkDuplicates(rows);
-                      return rows;
-                    });
-                    return; // Exit early after clearing fields
-                  }
-
-                  // Immediate grid-level duplicate or existing pick check
-                  const immediateCounts = new Map<string, number>();
-                  multiRows.forEach((r: any) => {
-                    const rv = r.wsn?.trim()?.toUpperCase();
-                    if (rv) immediateCounts.set(rv, (immediateCounts.get(rv) || 0) + 1);
-                  });
-
-                  const isGridDuplicateImmediate = (immediateCounts.get(wsn) || 0) > 1;
-
-                  if (isGridDuplicateImmediate) {
-                    // Styled toast like QC/Inbounds
-                    toast(`Duplicate WSN in grid: ${wsn}`, {
-                      duration: 2500,
-                      style: {
-                        background: '#ffffff',
-                        color: '#d97706',
-                        border: '2px solid #f59e0b',
-                        borderRadius: '8px',
-                        padding: '12px 16px',
-                        fontWeight: 600,
-                        fontSize: '14px',
-                      },
-                      icon: '🚫',
-                    });
-
-                    // ⚡ PERF: Clear cell + master fields with single setData()
-                    const clearData: any = { wsn: '', product_serial_number: null };
-                    ALL_MASTER_COLUMNS.forEach(col => { clearData[col] = null; });
-                    node.setData({ ...node.data, ...clearData });
-
-                    // Update react state
-                    setMultiRows((prev) => {
-                      const rows = [...prev];
-                      rows[rowIndex] = { ...rows[rowIndex], wsn: '' };
-                      ALL_MASTER_COLUMNS.forEach(col => (rows[rowIndex][col] = null));
-                      rows[rowIndex]['product_serial_number'] = null;
-                      checkDuplicates(rows);
-                      return rows;
-                    });
-
-                    // Re-focus same cell for quick correction
-                    setTimeout(() => {
-                      event.api.startEditingCell({
-                        rowIndex: rowIndex,
-                        colKey: 'wsn',
-                      });
-                    }, 100);
-
-                    return;
-                  }
-
-                  // ⚡ AUTO-EXTEND: Add 500 rows when entering data near the end
-                  if (rowIndex != null && rowIndex >= event.api.getDisplayedRowCount() - 2) {
-                    add500Rows();
-                  }
-
-                  // ⚡ OFFLINE CHECK
-                  const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
-
-                  // Show offline warning once per session
-                  if (!isOnline && !offlineWarningShownRef.current) {
-                    offlineWarningShownRef.current = true;
-                    toast('📴 Offline Mode - Cross-warehouse duplicate check skipped. Will validate on submit.', {
-                      duration: 5000,
-                      style: {
-                        background: '#fef3c7',
-                        color: '#92400e',
-                        border: '1px solid #f59e0b',
-                        borderRadius: '8px',
-                        padding: '12px 16px',
-                        fontWeight: 500,
-                        fontSize: '13px',
-                      },
-                      icon: '⚠️',
-                    });
-                  }
-
-                  // Reset warning flag when back online
-                  if (isOnline && offlineWarningShownRef.current) {
-                    offlineWarningShownRef.current = false;
-                  }
-
-                  if (existingPickingWSNs.has(wsn) && isOnline) {
-                    // Determine whether it's in this warehouse or another warehouse (only if online)
-                    try {
-                      const resp = await pickingAPI.checkWSNExists(wsn, activeWarehouse?.id);
-                      const existsHere = resp.data?.exists;
-
-                      if (existsHere) {
-                        // Same-warehouse duplicate -> warn + clear
-                        toast(`WSN ${wsn} already picked in this warehouse`, {
-                          duration: 2500,
-                          style: {
-                            background: '#ffffff',
-                            color: '#d97706',
-                            border: '2px solid #f59e0b',
-                            borderRadius: '8px',
-                            padding: '12px 16px',
-                            fontWeight: 600,
-                            fontSize: '14px',
-                          },
-                          icon: '🚫',
-                        });
-
-                      } else {
-                        // Cross-warehouse -> error + clear
-                        toast.error(`WSN ${wsn} already picked in another warehouse`, {
-                          duration: 3000,
-                          style: {
-                            background: '#ffffff',
-                            color: '#dc2626',
-                            border: '2px solid #dc2626',
-                            borderRadius: '8px',
-                            padding: '12px 16px',
-                            fontWeight: 600,
-                            fontSize: '14px',
-                          },
-                          icon: '🚫',
-                        });
-                      }
-
-                      // ⚡ PERF: Clear cell + master fields with single setData()
-                      const clearData: any = { wsn: '', product_serial_number: null };
-                      ALL_MASTER_COLUMNS.forEach(col => { clearData[col] = null; });
-                      node.setData({ ...node.data, ...clearData });
-
-                      setMultiRows((prev) => {
-                        const rows = [...prev];
-                        rows[rowIndex] = { ...rows[rowIndex], wsn: '' };
-                        ALL_MASTER_COLUMNS.forEach(col => (rows[rowIndex][col] = null));
-                        rows[rowIndex]['product_serial_number'] = null;
-                        checkDuplicates(rows);
-                        return rows;
-                      });
-
-                      // Re-focus same cell
-                      setTimeout(() => {
-                        event.api.startEditingCell({ rowIndex: rowIndex, colKey: 'wsn' });
-                      }, 100);
-
-                      return;
-                    } catch (err) {
-                      // On API error, fall through to master data fetch (best-effort)
-                    }
-                  }
-
-                  // ⚡ CACHE FIRST + API FALLBACK for master data
-                  try {
-                    let d = null;
-                    let fromCache = false;
-
-                    // TRY AVAILABLE CACHE FIRST (ultra-fast memory + IndexedDB, works offline)
-                    if (isWMSCacheEnabled() && activeWarehouse?.id) {
-                      try {
-                        const cached = await getAvailableByWSNFast(wsn, activeWarehouse.id);
-                        if (cached) {
-                          d = cached;
-                          fromCache = true;
-                          console.log('⚡ Memory/Cache HIT for picking WSN:', wsn);
-                        }
-                      } catch { /* cache miss */ }
-                    }
-
-                    // FALL BACK TO API (only if online and not cached)
-                    if (!d && isOnline) {
-                      const res = await pickingAPI.getSourceByWSN(
-                        wsn,
-                        activeWarehouse?.id
-                      );
-                      d = res.data;
-                      console.log('BACKEND DATA:', d);
-                    }
-
-                    // If still no data (offline with no cache), show message
-                    if (!d) {
-                      toast.error(`WSN ${wsn} not in cache. Enable cache refresh when online.`, {
-                        duration: 3000,
-                      });
-                      node.setDataValue('wsn', '');
-                      setTimeout(() => {
-                        event.api.startEditingCell({ rowIndex: rowIndex, colKey: 'wsn' });
-                      }, 100);
-                      return;
-                    }
-
-                    // GUARD: ensure cell wasn't cleared in the meantime
-                    const currentWsn = node?.data?.wsn?.trim()?.toUpperCase();
-                    if (!currentWsn || currentWsn !== wsn) return;
-                    // PERF: Single setData() instead of 21x setDataValue()
-                    const masterData = buildMasterDataFromResponse(d);
-                    node.setData({ ...node.data, ...masterData });
-
-                    // Track last scanned row for Ctrl+O product link
-                    lastScannedRowRef.current = {
-                      wsn,
-                      fkt_link: d.fkt_link ?? '',
-                      product_title: d.product_title ?? '',
-                    };
-
-                    // Also update React state for consistency
-                    setMultiRows((prev) => {
-                      const rows = [...prev];
-                      rows[rowIndex] = { ...rows[rowIndex], wsn, ...masterData };
-                      checkDuplicates(rows);
-                      return rows;
-                    });
-
-                    // Show success feedback
-                    if (fromCache) {
-                      toast.success(`✓ (Cache) Loaded ${wsn}`, { duration: 1500 });
-                    }
-                  } catch (err: any) {
-                    console.error('Picking source fetch error:', err);
-
-                    // If not found in picking sources, try inbound master data as a fallback (only if online)
-                    if (err?.response?.status === 404 && isOnline) {
-                      try {
-                        const inboundResp = await inboundAPI.getMasterDataByWSN(wsn, activeWarehouse?.id);
-                        const md = inboundResp.data;
-
-                        // ⚡ PERF: Single setData() for inbound fallback
-                        const fallbackMaster = buildMasterDataFromResponse(md);
-                        node.setData({ ...node.data, ...fallbackMaster });
-
-                        // Also update React state
-                        setMultiRows((prev) => {
-                          const rows = [...prev];
-                          rows[rowIndex] = { ...rows[rowIndex], wsn, ...fallbackMaster };
-                          checkDuplicates(rows);
-                          return rows;
-                        });
-
-                        toast.success(`Source data loaded from Inbound for ${wsn}`);
-                        return;
-                      } catch (inErr) {
-                        console.error('Inbound fallback failed:', inErr);
-                      }
-                    }
-
-                    toast.error(`WSN ${wsn} not found`);
-                    node.setDataValue('wsn', '');
-                    setTimeout(() => {
-                      event.api.startEditingCell({ rowIndex: rowIndex, colKey: 'wsn' });
-                    }, 100);
-                  }
-                }}
+                onCellEditingStopped={handleMultiCellEditingStopped}
 
               />
             </Box>
