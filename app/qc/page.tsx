@@ -1477,7 +1477,7 @@ export default function QCPage() {
 
       // Fetch master data for pasted WSNs
       if (wsnsToPrefetch.length > 0) {
-        const uniqueWSNs = [...new Set(wsnsToPrefetch)];
+        const uniqueWSNs = Array.from(new Set(wsnsToPrefetch));
         toast.loading(`Fetching data for ${uniqueWSNs.length} WSN(s)...`, { id: 'paste-fetch' });
 
         const updatedRows = [...currentRows];
@@ -1492,7 +1492,7 @@ export default function QCPage() {
               try {
                 // Try cache first
                 const { getAvailableByWSNFast } = await import('@/lib/wmsCache');
-                const cached = await getAvailableByWSNFast(wsn);
+                const cached = await getAvailableByWSNFast(wsn, activeWarehouse?.id || 0);
                 if (cached) return { wsn, data: cached, source: 'cache' };
 
                 // Fallback to API
