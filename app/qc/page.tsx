@@ -166,7 +166,7 @@ const getCachedQCListData = (): QCItem[] => {
 };
 
 import { useQCPermissions } from '@/hooks/usePagePermissions';
-import { useFullscreen, useLiveSession } from '@/hooks';
+import { useFullscreen, useLiveSession, useRealtimeSync } from '@/hooks';
 import BulkUploadCard from '@/components/BulkUploadCard';
 import LiveViewPanel from '@/components/LiveViewPanel';
 
@@ -3519,6 +3519,32 @@ export default function QCPage() {
     newRows[rowIndex] = { ...newRows[rowIndex], [field]: newValue };
     setMultiRows(newRows);
   }, [multiRows, existingQCWSNs, activeWarehouse, add500Rows, ensureRowVisible, isWMSCacheEnabled, getAvailableByWSNFast, setMultiRows, setWsnOverwriteDialog]);
+
+  // 📡 SSE: Real-time sync for multi-device updates
+  useRealtimeSync({
+    page: 'qc',
+    warehouseId: activeWarehouse?.id,
+    enabled: !!user && !!activeWarehouse,
+    onDataSubmitted: useCallback((data: any) => {
+      toast.success(`${data.submittedBy} submitted ${data.successCount} QC entries from another device`, { duration: 4000, icon: '📡' });
+      // Add submitted WSNs to existing list for duplicate prevention
+      if (data.submittedWSNs?.length) {
+        setExistingQCWSNs((prev: any[]) => {
+          const newEntries = data.submittedWSNs!.map((wsn: string) => ({ wsn, warehouseid: activeWarehouse?.id }));
+          return [...prev, ...newEntries];
+        });
+      }
+      // Refresh list data
+      loadQCList();
+      loadStats();
+    }, [activeWarehouse, loadQCList, loadStats]),
+    onDraftUpdated: useCallback((data: any) => {
+      toast('QC draft updated from another device', { duration: 3000, icon: '📝' });
+    }, []),
+    onDraftCleared: useCallback(() => {
+      toast('QC draft cleared from another device', { duration: 3000, icon: '🗑️' });
+    }, []),
+  });
 
   if (!activeWarehouse) {
     return <AppLayout>⚠️ No warehouse selected</AppLayout>;

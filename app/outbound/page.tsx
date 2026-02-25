@@ -156,7 +156,7 @@ const getCachedOutboundListData = (): OutboundItem[] => {
 };
 
 import { useOutboundPermissions } from '@/hooks/usePagePermissions';
-import { useFullscreen, useLiveSession } from '@/hooks';
+import { useFullscreen, useLiveSession, useRealtimeSync } from '@/hooks';
 import BulkUploadCard from '@/components/BulkUploadCard';
 import LiveViewPanel from '@/components/LiveViewPanel';
 
@@ -4726,6 +4726,32 @@ export default function OutboundPage() {
             return;
         }
     }, [setWsnOverwriteDialog]);
+
+    // 📡 SSE: Real-time sync for multi-device updates
+    useRealtimeSync({
+        page: 'outbound',
+        warehouseId: activeWarehouse?.id,
+        enabled: !!user && !!activeWarehouse,
+        onDataSubmitted: useCallback((data: any) => {
+            toast.success(`${data.submittedBy} submitted ${data.successCount} outbound entries from another device`, { duration: 4000, icon: '📡' });
+            // Add submitted WSNs to existing set for duplicate prevention
+            if (data.submittedWSNs?.length) {
+                setExistingOutboundWSNs((prev: Set<string>) => {
+                    const updated = new Set(prev);
+                    data.submittedWSNs!.forEach((wsn: string) => updated.add(wsn));
+                    return updated;
+                });
+            }
+            // Refresh list data
+            loadOutboundList();
+        }, [loadOutboundList]),
+        onDraftUpdated: useCallback((data: any) => {
+            toast('Outbound draft updated from another device', { duration: 3000, icon: '📝' });
+        }, []),
+        onDraftCleared: useCallback(() => {
+            toast('Outbound draft cleared from another device', { duration: 3000, icon: '🗑️' });
+        }, []),
+    });
 
     if (!user) {
         return (

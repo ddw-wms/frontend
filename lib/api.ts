@@ -261,12 +261,17 @@ export const authAPI = {
   register: (data: any) => api.post('auth/register', data),
 };
 
-// Request interceptor - add token
+// Request interceptor - add token and device ID
 api.interceptors.request.use((config) => {
   if (typeof window !== 'undefined') {
     const token = localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
+    }
+    // SSE device ID for real-time sync (skip broadcast back to sender)
+    const deviceId = sessionStorage.getItem('wms_device_id');
+    if (deviceId) {
+      config.headers['x-device-id'] = deviceId;
     }
   }
   return config;

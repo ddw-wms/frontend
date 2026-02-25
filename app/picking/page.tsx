@@ -111,7 +111,7 @@ const getCachedPickingListData = (): any[] => {
 };
 
 import { usePickingPermissions } from '@/hooks/usePagePermissions';
-import { useFullscreen, useLiveSession } from '@/hooks';
+import { useFullscreen, useLiveSession, useRealtimeSync } from '@/hooks';
 import LiveViewPanel from '@/components/LiveViewPanel';
 
 // Tab definitions with permission codes
@@ -4064,6 +4064,24 @@ export default function PickingPage() {
       }, 100);
     }
   }, [multiRows, existingPickingWSNs, activeWarehouse, add500Rows, checkDuplicates, buildMasterDataFromResponse, isWMSCacheEnabled, getAvailableByWSNFast, setMultiRows, setWsnOverwriteDialog]);
+
+  // 📡 SSE: Real-time sync for multi-device updates
+  useRealtimeSync({
+    page: 'picking',
+    warehouseId: activeWarehouse?.id,
+    enabled: !!user && !!activeWarehouse,
+    onDataSubmitted: useCallback((data: any) => {
+      toast.success(`${data.submittedBy} submitted ${data.successCount} picking entries from another device`, { duration: 4000, icon: '📡' });
+      // Refresh list data
+      loadPickingList();
+    }, [loadPickingList]),
+    onDraftUpdated: useCallback((data: any) => {
+      toast('Picking draft updated from another device', { duration: 3000, icon: '📝' });
+    }, []),
+    onDraftCleared: useCallback(() => {
+      toast('Picking draft cleared from another device', { duration: 3000, icon: '🗑️' });
+    }, []),
+  });
 
   if (!activeWarehouse) {
     return <AppLayout>⚠️ No warehouse selected</AppLayout>;

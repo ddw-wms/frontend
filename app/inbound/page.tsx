@@ -109,7 +109,7 @@ import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
 import React from 'react';
 import localforage from 'localforage';
 import { useInboundPermissions } from '@/hooks/usePagePermissions';
-import { useFullscreen, useLiveSession } from '@/hooks';
+import { useFullscreen, useLiveSession, useRealtimeSync } from '@/hooks';
 import BulkUploadCard from '@/components/BulkUploadCard';
 import LiveViewPanel from '@/components/LiveViewPanel';
 // Simple localStorage-based grid state (native ag-Grid pattern)
@@ -4904,6 +4904,31 @@ export default function InboundPage() {
     }
   }, [multiRows, selectedBatchIds, multiPrintEnabled, activeWarehouse, saveCellUndoAction, highlightRow, recordScanActivity, add500Rows, checkDuplicates, ensureRowVisible, addMultiRow, isWMSCacheEnabled, getPendingByWSNFast, getLocalMasterData, isWSNInCachedBatches, printLabel, setMultiRows, setWsnOverwriteDialog, setWsnNotInBatchDialog]);
 
+  // 📡 SSE: Real-time sync for multi-device updates
+  useRealtimeSync({
+    page: 'inbound',
+    warehouseId: activeWarehouse?.id,
+    enabled: !!user && !!activeWarehouse,
+    onDataSubmitted: useCallback((data: any) => {
+      toast.success(`${data.submittedBy} submitted ${data.successCount} entries from another device`, { duration: 4000, icon: '📡' });
+      // Add submitted WSNs to existing set for duplicate prevention
+      if (data.submittedWSNs?.length) {
+        setExistingInboundWSNs(prev => {
+          const updated = new Set(prev);
+          data.submittedWSNs!.forEach((wsn: string) => updated.add(wsn));
+          return updated;
+        });
+      }
+      // Refresh list data
+      loadInboundList();
+    }, [loadInboundList]),
+    onDraftUpdated: useCallback((data: any) => {
+      toast('Draft updated from another device', { duration: 3000, icon: '📝' });
+    }, []),
+    onDraftCleared: useCallback(() => {
+      toast('Draft cleared from another device', { duration: 3000, icon: '🗑️' });
+    }, []),
+  });
 
 
   if (!activeWarehouse) {

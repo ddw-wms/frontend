@@ -44,3 +44,6 @@ export { useFastSubmit } from './useFastSubmit';
 
 // Offline Guard (Submit protection when offline)
 export { useOfflineGuard } from './useOfflineGuard';
+
+// Real-time Sync (SSE-based multi-device data synchronization)
+export { useRealtimeSync, getSSEDeviceId } from './useRealtimeSync';
