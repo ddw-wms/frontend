@@ -40,6 +40,8 @@ interface RealtimeSyncOptions {
     onDraftUpdated?: (data: { userId: number; rowCount: number }) => void;
     /** Called when draft is cleared from another device */
     onDraftCleared?: (data: { userId: number }) => void;
+    /** Called when multi-entry rows are synced from another device (same user) */
+    onEntrySynced?: (data: { rows: Array<{ index: number; data: any }>; userId: number }) => void;
 }
 
 export function useRealtimeSync({
@@ -49,6 +51,7 @@ export function useRealtimeSync({
     onDataSubmitted,
     onDraftUpdated,
     onDraftCleared,
+    onEntrySynced,
 }: RealtimeSyncOptions) {
     const eventSourceRef = useRef<EventSource | null>(null);
     const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -59,10 +62,12 @@ export function useRealtimeSync({
     const onDataSubmittedRef = useRef(onDataSubmitted);
     const onDraftUpdatedRef = useRef(onDraftUpdated);
     const onDraftClearedRef = useRef(onDraftCleared);
+    const onEntrySyncedRef = useRef(onEntrySynced);
 
     useEffect(() => { onDataSubmittedRef.current = onDataSubmitted; }, [onDataSubmitted]);
     useEffect(() => { onDraftUpdatedRef.current = onDraftUpdated; }, [onDraftUpdated]);
     useEffect(() => { onDraftClearedRef.current = onDraftCleared; }, [onDraftCleared]);
+    useEffect(() => { onEntrySyncedRef.current = onEntrySynced; }, [onEntrySynced]);
 
     const connect = useCallback(() => {
         if (typeof window === 'undefined') return;
@@ -114,6 +119,14 @@ export function useRealtimeSync({
                     const data = JSON.parse(event.data);
                     console.log(`[SSE] 🗑️ Draft cleared from another device:`, data);
                     onDraftClearedRef.current?.(data);
+                } catch { /* ignore */ }
+            });
+
+            es.addEventListener('entry-synced', (event: MessageEvent) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    console.log(`[SSE] 🔄 Entry synced from another device:`, data);
+                    onEntrySyncedRef.current?.(data);
                 } catch { /* ignore */ }
             });
 

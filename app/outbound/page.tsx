@@ -432,6 +432,11 @@ export default function OutboundPage() {
 
 
     // ====== MULTI ENTRY STATE (AG GRID) ======
+    // ⚡ REAL-TIME SYNC: Cross-device row sync refs
+    const isSyncingRef = useRef(false);
+    const pendingSyncRowsRef = useRef<Map<number, any>>(new Map());
+    const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
     const generateEmptyRows = (count: number): OutboundItem[] => {
         return Array.from({ length: count }, () => {
             rowIdCounterRef.current += 1;
@@ -2790,6 +2795,22 @@ export default function OutboundPage() {
         return () => window.removeEventListener('keydown', handleKeyDown, true);
     }, [currentTabCode, handleSelectAll, handleClearCells, handleUndo, handleRedo, handleFillDown, handleFillRight, handleGoToFirst, handleGoToLast, handleCopy, handlePaste, ctrlOProductLinkEnabled, setSelectionRange]);
 
+    // ⚡ REAL-TIME SYNC: Debounced function to send changed rows to other devices via SSE
+    const flushSyncRows = useCallback(() => {
+        if (!activeWarehouse?.id) return;
+        if (pendingSyncRowsRef.current.size === 0) return;
+        const rows = Array.from(pendingSyncRowsRef.current.entries()).map(([index, data]) => ({ index, data }));
+        pendingSyncRowsRef.current.clear();
+        outboundAPI.syncRows(rows, activeWarehouse.id).catch(() => { /* best-effort */ });
+    }, [activeWarehouse?.id]);
+
+    const queueRowSync = useCallback((rowIndex: number, rowData: any) => {
+        if (isSyncingRef.current) return;
+        pendingSyncRowsRef.current.set(rowIndex, rowData);
+        if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
+        syncTimeoutRef.current = setTimeout(flushSyncRows, 300);
+    }, [flushSyncRows]);
+
     // ✅ AUTO-FETCH SOURCE DATA ON WSN CELL EDIT (MULTI ENTRY)
     const onCellValueChanged = useCallback(
         async (params: any) => {
@@ -2844,6 +2865,8 @@ export default function OutboundPage() {
                     const updatedRows: any[] = [];
                     gridRef.current?.api.forEachNode((node: any) => { if (node.data) updatedRows.push(node.data); });
                     setMultiRows(updatedRows);
+                    // ⚡ SYNC: Broadcast cleared row to other devices
+                    if (rowIndex != null) queueRowSync(rowIndex, clearedData);
                     return;
                 }
 
@@ -3070,8 +3093,13 @@ export default function OutboundPage() {
             });
             setMultiRows(updatedRows); // This triggers the auto-save useEffect
             checkDuplicates(updatedRows);
+
+            // ⚡ SYNC: Broadcast changed row to other devices
+            if (rowIndex != null && updatedRows[rowIndex]) {
+                queueRowSync(rowIndex, updatedRows[rowIndex]);
+            }
         },
-        [activeWarehouse, checkDuplicates, existingOutboundWSNs, cacheEnabled, cacheStats, saveCellUndoAction]
+        [activeWarehouse, checkDuplicates, existingOutboundWSNs, cacheEnabled, cacheStats, saveCellUndoAction, queueRowSync]
     );
 
     // ✅ ROW STYLING (DUPLICATES + HIGHLIGHTED)
@@ -4750,6 +4778,20 @@ export default function OutboundPage() {
         }, []),
         onDraftCleared: useCallback(() => {
             toast('Outbound draft cleared from another device', { duration: 3000, icon: '🗑️' });
+        }, []),
+        onEntrySynced: useCallback((data: any) => {
+            if (!data?.rows?.length) return;
+            isSyncingRef.current = true;
+            setMultiRows(prev => {
+                const updated = [...prev];
+                for (const { index, data: rowData } of data.rows) {
+                    if (index >= 0 && index < updated.length) {
+                        updated[index] = { ...updated[index], ...rowData };
+                    }
+                }
+                return updated;
+            });
+            setTimeout(() => { isSyncingRef.current = false; }, 100);
         }, []),
     });
 

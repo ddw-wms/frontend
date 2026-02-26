@@ -669,6 +669,11 @@ export default function QCPage() {
   const [wsnOverwriteDialog, setWsnOverwriteDialog] = useState<WSNOverwriteDialogData | null>(null);
   const pendingWSNRef = useRef<{ rowIndex: number; newWSN: string; event: any } | null>(null);
 
+  // ⚡ REAL-TIME SYNC: Cross-device row sync refs
+  const isSyncingRef = useRef(false);
+  const pendingSyncRowsRef = useRef<Map<number, any>>(new Map());
+  const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   // ====== LIVE VIEW SESSION ======
   const isOnMultiTab = visibleTabCodes[tabValue] === 'multi';
   const { startSession: startLiveSession, updateEntries: updateLiveEntries, endSession: endLiveSession, isActive: isLiveSessionActive } = useLiveSession({
@@ -833,6 +838,22 @@ export default function QCPage() {
       setDraftSaving(false);
     }
   };
+
+  // ⚡ REAL-TIME SYNC: Debounced function to send changed rows to other devices via SSE
+  const flushSyncRows = useCallback(() => {
+    if (!activeWarehouse?.id) return;
+    if (pendingSyncRowsRef.current.size === 0) return;
+    const rows = Array.from(pendingSyncRowsRef.current.entries()).map(([index, data]) => ({ index, data }));
+    pendingSyncRowsRef.current.clear();
+    qcAPI.syncRows(rows, activeWarehouse.id).catch(() => { /* best-effort */ });
+  }, [activeWarehouse?.id]);
+
+  const queueRowSync = useCallback((rowIndex: number, rowData: any) => {
+    if (isSyncingRef.current) return;
+    pendingSyncRowsRef.current.set(rowIndex, rowData);
+    if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
+    syncTimeoutRef.current = setTimeout(flushSyncRows, 300);
+  }, [flushSyncRows]);
 
   const clearDraft = async () => {
     const key = getDraftKey();
@@ -3263,6 +3284,8 @@ export default function QCPage() {
           newRows[rowIndex][col] = null;
         });
         setMultiRows(newRows);
+        // ⚡ SYNC: Broadcast cleared row to other devices
+        queueRowSync(rowIndex, newRows[rowIndex]);
         return;
       }
 
@@ -3497,6 +3520,8 @@ export default function QCPage() {
                   fkgrade: masterInfo.fk_grade || '',
                   invoicedate: masterInfo.invoice_date || '',
                 };
+                // ⚡ SYNC: Broadcast row with master data to other devices
+                queueRowSync(rowIndex, updatedRows[rowIndex]);
                 return updatedRows;
               });
             }
@@ -3518,7 +3543,9 @@ export default function QCPage() {
     // ===== OTHER FIELDS (non-WSN) =====
     newRows[rowIndex] = { ...newRows[rowIndex], [field]: newValue };
     setMultiRows(newRows);
-  }, [multiRows, existingQCWSNs, activeWarehouse, add500Rows, ensureRowVisible, isWMSCacheEnabled, getAvailableByWSNFast, setMultiRows, setWsnOverwriteDialog]);
+    // ⚡ SYNC: Broadcast non-WSN field changes to other devices
+    queueRowSync(rowIndex, newRows[rowIndex]);
+  }, [multiRows, existingQCWSNs, activeWarehouse, add500Rows, ensureRowVisible, isWMSCacheEnabled, getAvailableByWSNFast, setMultiRows, setWsnOverwriteDialog, queueRowSync]);
 
   // 📡 SSE: Real-time sync for multi-device updates
   useRealtimeSync({
@@ -3543,6 +3570,20 @@ export default function QCPage() {
     }, []),
     onDraftCleared: useCallback(() => {
       toast('QC draft cleared from another device', { duration: 3000, icon: '🗑️' });
+    }, []),
+    onEntrySynced: useCallback((data: any) => {
+      if (!data?.rows?.length) return;
+      isSyncingRef.current = true;
+      setMultiRows(prev => {
+        const updated = [...prev];
+        for (const { index, data: rowData } of data.rows) {
+          if (index >= 0 && index < updated.length) {
+            updated[index] = { ...updated[index], ...rowData };
+          }
+        }
+        return updated;
+      });
+      setTimeout(() => { isSyncingRef.current = false; }, 100);
     }, []),
   });
 

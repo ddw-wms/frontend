@@ -377,6 +377,11 @@ export default function InboundPage() {
   // ⚡ BULK PASTE refs (used by custom paste handler)
   const isPastingRef = useRef(false);
 
+  // ⚡ REAL-TIME SYNC: Cross-device row sync refs
+  const isSyncingRef = useRef(false); // Prevents sync → autosave → sync loop
+  const pendingSyncRowsRef = useRef<Map<number, any>>(new Map()); // Batches row changes for debounced sync
+  const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   // ---- Draft / Autosave (IndexedDB via localForage) ----
   const [draftSavedAt, setDraftSavedAt] = useState<number | null>(null);
   const [draftSaving, setDraftSaving] = useState(false);
@@ -940,6 +945,23 @@ export default function InboundPage() {
       setDraftSaving(false);
     }
   };
+
+  // ⚡ REAL-TIME SYNC: Debounced function to send changed rows to other devices via SSE
+  const flushSyncRows = useCallback(() => {
+    if (!activeWarehouse?.id) return;
+    if (pendingSyncRowsRef.current.size === 0) return;
+    const rows = Array.from(pendingSyncRowsRef.current.entries()).map(([index, data]) => ({ index, data }));
+    pendingSyncRowsRef.current.clear();
+    // Fire-and-forget — best effort
+    inboundAPI.syncRows(rows, activeWarehouse.id).catch(() => { /* best-effort */ });
+  }, [activeWarehouse?.id]);
+
+  const queueRowSync = useCallback((rowIndex: number, rowData: any) => {
+    if (isSyncingRef.current) return; // Don't sync rows that came FROM another device
+    pendingSyncRowsRef.current.set(rowIndex, rowData);
+    if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
+    syncTimeoutRef.current = setTimeout(flushSyncRows, 300);
+  }, [flushSyncRows]);
 
   const clearDraft = async () => {
     if (!activeWarehouse?.id) return;
@@ -4559,6 +4581,8 @@ export default function InboundPage() {
       });
       setMultiRows(newRows);
       checkDuplicates(newRows);
+      // ⚡ SYNC: Broadcast cleared row to other devices
+      queueRowSync(rowIndex, newRows[rowIndex]);
       return;
     }
 
@@ -4566,6 +4590,11 @@ export default function InboundPage() {
     const processedValue = newValue && typeof newValue === 'string' ? newValue.toUpperCase() : newValue;
     newRows[rowIndex] = { ...newRows[rowIndex], [field]: processedValue };
     setMultiRows(newRows);
+
+    // ⚡ SYNC: Broadcast non-WSN field changes to other devices (remarks, rack, serial, etc.)
+    if (field !== 'wsn') {
+      queueRowSync(rowIndex, newRows[rowIndex]);
+    }
 
     // ⚡ SMOOTH SCROLL: Only scroll to next row for WSN field (scanner input)
     // and only if NOT user-initiated scroll - this prevents disruptive auto-scrolling
@@ -4774,6 +4803,9 @@ export default function InboundPage() {
               // ⚡ CTRL+P REPRINT: Save last scanned row data for Ctrl+P shortcut
               lastScannedRowRef.current = { ...updatedRows[rowIndex], wsn: wsnUpper };
 
+              // ⚡ SYNC: Broadcast row with master data to other devices
+              queueRowSync(rowIndex, updatedRows[rowIndex]);
+
               return updatedRows;
             });
 
@@ -4902,7 +4934,7 @@ export default function InboundPage() {
         checkDuplicates(newRows);
       }, 200);
     }
-  }, [multiRows, selectedBatchIds, multiPrintEnabled, activeWarehouse, saveCellUndoAction, highlightRow, recordScanActivity, add500Rows, checkDuplicates, ensureRowVisible, addMultiRow, isWMSCacheEnabled, getPendingByWSNFast, getLocalMasterData, isWSNInCachedBatches, printLabel, setMultiRows, setWsnOverwriteDialog, setWsnNotInBatchDialog]);
+  }, [multiRows, selectedBatchIds, multiPrintEnabled, activeWarehouse, saveCellUndoAction, highlightRow, recordScanActivity, add500Rows, checkDuplicates, ensureRowVisible, addMultiRow, isWMSCacheEnabled, getPendingByWSNFast, getLocalMasterData, isWSNInCachedBatches, printLabel, setMultiRows, setWsnOverwriteDialog, setWsnNotInBatchDialog, queueRowSync]);
 
   // 📡 SSE: Real-time sync for multi-device updates
   useRealtimeSync({
@@ -4927,6 +4959,22 @@ export default function InboundPage() {
     }, []),
     onDraftCleared: useCallback(() => {
       toast('Draft cleared from another device', { duration: 3000, icon: '🗑️' });
+    }, []),
+    onEntrySynced: useCallback((data: any) => {
+      if (!data?.rows?.length) return;
+      // Set syncing flag to prevent autosave from re-triggering sync
+      isSyncingRef.current = true;
+      setMultiRows(prev => {
+        const updated = [...prev];
+        for (const { index, data: rowData } of data.rows) {
+          if (index >= 0 && index < updated.length) {
+            updated[index] = { ...updated[index], ...rowData };
+          }
+        }
+        return updated;
+      });
+      // Reset syncing flag after React state update completes
+      setTimeout(() => { isSyncingRef.current = false; }, 100);
     }, []),
   });
 

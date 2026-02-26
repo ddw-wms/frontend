@@ -483,6 +483,10 @@ export const inboundAPI = {
   clearDraft: (warehouse_id: number) =>
     api.delete('inbound/draft', { params: { warehouse_id } }),
 
+  // Real-time multi-entry row sync across devices (SSE relay, no DB write)
+  syncRows: (rows: Array<{ index: number; data: any }>, warehouseId: number) =>
+    api.post('inbound/sync-rows', { rows, warehouseId }),
+
   getBatches: (warehouseId?: string) => {
     const params = warehouseId ? `?warehouse_id=${warehouseId}` : '';
     return api.get(`inbound/batches${params}`);
@@ -633,6 +637,10 @@ export const qcAPI = {
     api.get('qc/draft', { params: { warehouse_id } }),
   clearDraft: (warehouse_id: number) =>
     api.delete('qc/draft', { params: { warehouse_id } }),
+
+  // Real-time multi-entry row sync across devices (SSE relay, no DB write)
+  syncRows: (rows: Array<{ index: number; data: any }>, warehouseId: number) =>
+    api.post('qc/sync-rows', { rows, warehouseId }),
 };
 
 // ============================ CUSTOMER API ==============================
@@ -751,6 +759,10 @@ export const outboundAPI = {
     api.get('outbound/draft', { params: { warehouse_id } }),
   clearDraft: (warehouse_id: number) =>
     api.delete('outbound/draft', { params: { warehouse_id } }),
+
+  // Real-time multi-entry row sync across devices (SSE relay, no DB write)
+  syncRows: (rows: Array<{ index: number; data: any }>, warehouseId: number) =>
+    api.post('outbound/sync-rows', { rows, warehouseId }),
 };
 
 // ==========================PICKING API ==============================
@@ -819,6 +831,10 @@ export const pickingAPI = {
     api.get('picking/draft', { params: { warehouse_id } }),
   clearDraft: (warehouse_id: number) =>
     api.delete('picking/draft', { params: { warehouse_id } }),
+
+  // Real-time multi-entry row sync across devices (SSE relay, no DB write)
+  syncRows: (rows: Array<{ index: number; data: any }>, warehouseId: number) =>
+    api.post('picking/sync-rows', { rows, warehouseId }),
 };
 
 // ======================== DASHBOARD API ==============================
