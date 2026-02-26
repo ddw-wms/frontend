@@ -2801,7 +2801,7 @@ export default function OutboundPage() {
         if (pendingSyncRowsRef.current.size === 0) return;
         const rows = Array.from(pendingSyncRowsRef.current.entries()).map(([index, data]) => ({ index, data }));
         pendingSyncRowsRef.current.clear();
-        outboundAPI.syncRows(rows, activeWarehouse.id).catch(() => { /* best-effort */ });
+        outboundAPI.syncRows(rows, activeWarehouse.id).catch((err: any) => { console.warn('[SYNC] Failed to relay rows:', err?.response?.status || err?.message); });
     }, [activeWarehouse?.id]);
 
     const queueRowSync = useCallback((rowIndex: number, rowData: any) => {
@@ -4791,7 +4791,11 @@ export default function OutboundPage() {
                 }
                 return updated;
             });
-            setTimeout(() => { isSyncingRef.current = false; }, 100);
+            // Force AG Grid to visually refresh updated cells
+            setTimeout(() => {
+                try { gridRef.current?.api?.refreshCells({ force: true }); } catch { /* ignore */ }
+                isSyncingRef.current = false;
+            }, 150);
         }, []),
     });
 

@@ -845,7 +845,7 @@ export default function QCPage() {
     if (pendingSyncRowsRef.current.size === 0) return;
     const rows = Array.from(pendingSyncRowsRef.current.entries()).map(([index, data]) => ({ index, data }));
     pendingSyncRowsRef.current.clear();
-    qcAPI.syncRows(rows, activeWarehouse.id).catch(() => { /* best-effort */ });
+    qcAPI.syncRows(rows, activeWarehouse.id).catch((err: any) => { console.warn('[SYNC] Failed to relay rows:', err?.response?.status || err?.message); });
   }, [activeWarehouse?.id]);
 
   const queueRowSync = useCallback((rowIndex: number, rowData: any) => {
@@ -3583,7 +3583,11 @@ export default function QCPage() {
         }
         return updated;
       });
-      setTimeout(() => { isSyncingRef.current = false; }, 100);
+      // Force AG Grid to visually refresh updated cells
+      setTimeout(() => {
+        try { gridRef.current?.refreshCells({ force: true }); } catch { /* ignore */ }
+        isSyncingRef.current = false;
+      }, 150);
     }, []),
   });
 
