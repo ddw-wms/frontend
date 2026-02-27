@@ -1375,6 +1375,7 @@ export default function PickingPage() {
 
       setMultiRows(newRows);
       checkDuplicates(newRows);
+      queueRowSync(rowIndex, newRows[rowIndex]);
       api.refreshCells({ force: true });
       return;
     }
@@ -1419,10 +1420,13 @@ export default function PickingPage() {
     if (cleared > 0) {
       setMultiRows(newRows);
       checkDuplicates(newRows);
+      for (let r = minRow; r <= maxRow; r++) {
+        queueRowSync(r, newRows[r]);
+      }
       api.refreshCells({ force: true });
       toast.success(`Cleared ${cleared} cells`, { duration: 1500 });
     }
-  }, [checkDuplicates]);
+  }, [checkDuplicates, queueRowSync]);
 
   // ⚡ EXCEL-LIKE: Select All (Ctrl+A)
   const handleSelectAll = useCallback(() => {

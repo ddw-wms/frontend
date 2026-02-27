@@ -2079,6 +2079,18 @@ export default function OutboundPage() {
             }
 
             setMultiRows(newRows);
+            // Sync cleared row to other browsers
+            if (!isSyncingRef.current) {
+                pendingSyncRowsRef.current.set(rowIndex, newRows[rowIndex]);
+                if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
+                syncTimeoutRef.current = setTimeout(() => {
+                    if (!activeWarehouse?.id) return;
+                    if (pendingSyncRowsRef.current.size === 0) return;
+                    const rows = Array.from(pendingSyncRowsRef.current.entries()).map(([index, data]) => ({ index, data }));
+                    pendingSyncRowsRef.current.clear();
+                    outboundAPI.syncRows(rows, activeWarehouse.id).catch(() => {});
+                }, 300);
+            }
             api.refreshCells({ force: true });
             return;
         }
@@ -2127,10 +2139,24 @@ export default function OutboundPage() {
 
         if (cleared > 0) {
             setMultiRows(newRows);
+            // Sync cleared rows to other browsers
+            if (!isSyncingRef.current) {
+                for (let r = minRow; r <= maxRow; r++) {
+                    pendingSyncRowsRef.current.set(r, newRows[r]);
+                }
+                if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
+                syncTimeoutRef.current = setTimeout(() => {
+                    if (!activeWarehouse?.id) return;
+                    if (pendingSyncRowsRef.current.size === 0) return;
+                    const rows = Array.from(pendingSyncRowsRef.current.entries()).map(([index, data]) => ({ index, data }));
+                    pendingSyncRowsRef.current.clear();
+                    outboundAPI.syncRows(rows, activeWarehouse.id).catch(() => {});
+                }, 300);
+            }
             api.refreshCells({ force: true });
             toast.success(`Cleared ${cleared} cells`, { duration: 1500 });
         }
-    }, [saveCellUndoAction]);
+    }, [saveCellUndoAction, activeWarehouse?.id]);
 
     // ⚡ EXCEL-LIKE: Copy selected cells to clipboard (Ctrl+C)
     const handleCopy = useCallback(() => {
