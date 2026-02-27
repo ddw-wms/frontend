@@ -245,6 +245,7 @@ export default function PickingPage() {
   const undoStackRef = useRef<UndoAction[]>([]);
   const redoStackRef = useRef<UndoAction[]>([]);
   const draftLoadedRef = useRef(false);
+  const draftLoadFailedRef = useRef(false); // Track if draft load failed (prevents empty overwrite)
 
   // ⚡ EXCEL-LIKE: Selection statistics
   const [selectionStats, setSelectionStats] = useState<{
@@ -601,8 +602,8 @@ export default function PickingPage() {
 
     // 🛡️ SAFEGUARD: Never overwrite a real draft with empty rows
     const hasAnyData = rowsToSave.some((r: any) => r.wsn?.trim());
-    if (!hasAnyData && draftExists) {
-      console.warn('[DRAFT] 🛡️ Blocked: refusing to overwrite existing picking draft with empty rows');
+    if (!hasAnyData && (draftExists || draftLoadFailedRef.current)) {
+      console.warn('[DRAFT] 🛡️ Blocked: refusing to overwrite picking (draftExists:', draftExists, 'loadFailed:', draftLoadFailedRef.current, ')');
       return;
     }
 
@@ -681,9 +682,12 @@ export default function PickingPage() {
     const load = async () => {
       if (!activeWarehouse?.id || !user?.id) return;
       draftLoadedRef.current = false;
+      draftLoadFailedRef.current = false;
+      let anyLoadSucceeded = false;
       try {
         // Primary: Load from server-side DB
         const res = await pickingAPI.loadDraft(activeWarehouse.id);
+        anyLoadSucceeded = true; // DB call completed (even if no draft found)
         const dbDraft = res.data;
         if (dbDraft?.exists && dbDraft.draft?.rows?.length > 0 && mounted) {
           const restored = dbDraft.draft.rows.map((r: any) => ({
@@ -707,6 +711,7 @@ export default function PickingPage() {
         const key = getDraftKey();
         if (!key) { draftLoadedRef.current = true; return; }
         const draft: any = await localforage.getItem(key);
+        anyLoadSucceeded = true; // IndexedDB call completed
         if (draft && draft.rows && draft.rows.length > 0 && mounted) {
           const restored = draft.rows.map((r: any) => ({
             picking_date: r.picking_date || pickingDate,
@@ -724,6 +729,11 @@ export default function PickingPage() {
         }
       } catch (err) {
         console.error('Failed to load picking draft from IndexedDB', err);
+      }
+      // 🛡️ If BOTH DB and IndexedDB failed, mark to prevent empty overwrite
+      if (!anyLoadSucceeded) {
+        draftLoadFailedRef.current = true;
+        console.error('⚠️ Picking draft load failed from both DB and IndexedDB — autosave blocked for empty rows');
       }
       if (mounted) draftLoadedRef.current = true;
     };

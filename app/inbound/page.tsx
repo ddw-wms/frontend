@@ -912,6 +912,7 @@ export default function InboundPage() {
 
   // ------------------ Draft helpers & autosave ------------------
   const draftLoadedRef = useRef(false); // Prevent autosave from overwriting draft during initial mount
+  const draftLoadFailedRef = useRef(false); // Track if draft load failed (prevents empty overwrite)
 
   const getDraftKey = () => {
     if (!activeWarehouse?.id || !user?.id) return null;
@@ -924,10 +925,10 @@ export default function InboundPage() {
     if (!draftLoadedRef.current) return;
 
     // 🛡️ SAFEGUARD: Never overwrite a real draft with empty rows
-    // If current rows have NO WSNs but DB has data, skip save to prevent data loss
+    // If current rows have NO WSNs but DB has data OR load failed, skip save to prevent data loss
     const hasAnyData = rowsToSave.some((r: any) => r.wsn?.trim());
-    if (!hasAnyData && draftExists) {
-      console.warn('[DRAFT] 🛡️ Blocked: refusing to overwrite existing draft with empty rows');
+    if (!hasAnyData && (draftExists || draftLoadFailedRef.current)) {
+      console.warn('[DRAFT] 🛡️ Blocked: refusing to overwrite (draftExists:', draftExists, 'loadFailed:', draftLoadFailedRef.current, ')');
       return;
     }
 
@@ -1084,6 +1085,9 @@ export default function InboundPage() {
       let draftRows: any[] | null = null;
       let draftSavedTime: number | null = null;
       let draftVehicle = '';
+      let dbLoadSucceeded = false;
+      let localLoadSucceeded = false;
+      draftLoadFailedRef.current = false;
 
       // ⚡ PRIMARY: Try loading from database first
       try {
@@ -1094,6 +1098,7 @@ export default function InboundPage() {
           draftSavedTime = data.draft.saved_at ? new Date(data.draft.saved_at).getTime() : Date.now();
           draftVehicle = data.draft.vehicle_no || '';
         }
+        dbLoadSucceeded = true;
       } catch (err) {
         console.error('Failed to load draft from DB, trying local fallback', err);
       }
@@ -1104,6 +1109,7 @@ export default function InboundPage() {
           const key = getDraftKey();
           if (key) {
             const localDraft: any = await localforage.getItem(key);
+            localLoadSucceeded = true;
             if (localDraft && localDraft.rows && localDraft.rows.length > 0) {
               draftRows = localDraft.rows;
               draftSavedTime = localDraft.savedAt || Date.now();
@@ -1113,10 +1119,20 @@ export default function InboundPage() {
                 console.log('📤 Synced local draft to database');
               } catch (e) { /* ignore sync failure */ }
             }
+          } else {
+            localLoadSucceeded = true; // No key but no error
           }
         } catch (err) {
           console.error('Failed to load draft from local storage', err);
         }
+      } else {
+        localLoadSucceeded = true; // DB had data, no need for local
+      }
+
+      // 🛡️ If BOTH DB and IndexedDB failed, mark load as failed to prevent empty overwrite
+      if (!dbLoadSucceeded && !localLoadSucceeded) {
+        draftLoadFailedRef.current = true;
+        console.error('⚠️ Draft load failed from both DB and IndexedDB — autosave will not overwrite');
       }
 
       // Apply draft if found

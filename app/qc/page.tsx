@@ -479,6 +479,7 @@ export default function QCPage() {
   const undoStackRef = useRef<UndoAction[]>([]);
   const redoStackRef = useRef<UndoAction[]>([]);
   const draftLoadedRef = useRef(false);
+  const draftLoadFailedRef = useRef(false); // Track if draft load failed (prevents empty overwrite)
 
   // Single Entry WSN debounce ref (for scanner support)
   const singleWSNDebounceRef = useRef<NodeJS.Timeout | null>(null);
@@ -818,8 +819,8 @@ export default function QCPage() {
 
     // 🛡️ SAFEGUARD: Never overwrite a real draft with empty rows
     const hasAnyData = rowsToSave.some((r: any) => r.wsn?.trim());
-    if (!hasAnyData && draftExists) {
-      console.warn('[DRAFT] 🛡️ Blocked: refusing to overwrite existing QC draft with empty rows');
+    if (!hasAnyData && (draftExists || draftLoadFailedRef.current)) {
+      console.warn('[DRAFT] 🛡️ Blocked: refusing to overwrite QC (draftExists:', draftExists, 'loadFailed:', draftLoadFailedRef.current, ')');
       return;
     }
 
@@ -898,9 +899,12 @@ export default function QCPage() {
     const load = async () => {
       if (!activeWarehouse?.id || !user?.id) return;
       draftLoadedRef.current = false;
+      draftLoadFailedRef.current = false;
+      let anyLoadSucceeded = false;
       try {
         // Primary: Load from server-side DB
         const res = await qcAPI.loadDraft(activeWarehouse.id);
+        anyLoadSucceeded = true; // DB call completed (even if no draft found)
         const dbDraft = res.data;
         if (dbDraft?.exists && dbDraft.draft?.rows?.length > 0 && mounted) {
           const restored = dbDraft.draft.rows.map((r: any, idx: number) => {
@@ -927,6 +931,7 @@ export default function QCPage() {
         const key = getDraftKey();
         if (!key) { draftLoadedRef.current = true; return; }
         const draft: any = await localforage.getItem(key);
+        anyLoadSucceeded = true; // IndexedDB call completed
         if (draft && draft.rows && draft.rows.length > 0 && mounted) {
           const restored = draft.rows.map((r: any, idx: number) => {
             rowIdCounterRef.current++;
@@ -947,6 +952,11 @@ export default function QCPage() {
         }
       } catch (err) {
         console.error('Failed to load QC draft from IndexedDB', err);
+      }
+      // 🛡️ If BOTH DB and IndexedDB failed, mark to prevent empty overwrite
+      if (!anyLoadSucceeded) {
+        draftLoadFailedRef.current = true;
+        console.error('⚠️ QC draft load failed from both DB and IndexedDB — autosave blocked for empty rows');
       }
       if (mounted) draftLoadedRef.current = true;
     };
