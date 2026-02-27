@@ -854,15 +854,12 @@ export default function QCPage() {
     if (pendingSyncRowsRef.current.size === 0) return;
     const rows = Array.from(pendingSyncRowsRef.current.entries()).map(([index, data]) => ({ index, data }));
     pendingSyncRowsRef.current.clear();
-    console.warn('[SYNC] 📤 Sending', rows.length, 'row(s) to qc sync-rows API, warehouseId:', activeWarehouse.id);
     qcAPI.syncRows(rows, activeWarehouse.id)
-      .then(() => console.warn('[SYNC] ✅ qc sync-rows API call succeeded'))
-      .catch((err: any) => { console.warn('[SYNC] ❌ Failed to relay rows:', err?.response?.status || err?.message, err?.response?.data); });
+      .catch(() => {});
   }, [activeWarehouse?.id]);
 
   const queueRowSync = useCallback((rowIndex: number, rowData: any) => {
-    if (isSyncingRef.current) { console.warn('[SYNC] ⏭ Skipped (receiving sync)'); return; }
-    console.warn('[SYNC] 📥 Queued row', rowIndex, 'for sync, wsn:', rowData?.wsn);
+    if (isSyncingRef.current) return;
     pendingSyncRowsRef.current.set(rowIndex, rowData);
     if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
     syncTimeoutRef.current = setTimeout(flushSyncRows, 300);
@@ -2942,6 +2939,9 @@ export default function QCPage() {
       console.error('Error fetching master data:', e);
     }
 
+    // Sync replaced row to other browsers
+    setTimeout(() => queueRowSync(rowIndex, multiRowsRef.current[rowIndex]), 50);
+
     // Move to next row
     setTimeout(() => {
       const nextIndex = rowIndex + 1;
@@ -2953,7 +2953,7 @@ export default function QCPage() {
         });
       }
     }, 100);
-  }, [activeWarehouse?.id, ensureRowVisible]);
+  }, [activeWarehouse?.id, ensureRowVisible, queueRowSync]);
 
   const handleOverwriteAddToNextRow = useCallback(async () => {
     const pending = pendingWSNRef.current;
@@ -3019,6 +3019,9 @@ export default function QCPage() {
       console.error('Error fetching master data:', e);
     }
 
+    // Sync new row to other browsers
+    setTimeout(() => queueRowSync(nextEmptyRow, multiRowsRef.current[nextEmptyRow]), 50);
+
     // Move to row after the newly inserted one
     setTimeout(() => {
       const focusRow = nextEmptyRow + 1;
@@ -3030,7 +3033,7 @@ export default function QCPage() {
         });
       }
     }, 100);
-  }, [activeWarehouse?.id, ensureRowVisible, add500Rows]);
+  }, [activeWarehouse?.id, ensureRowVisible, add500Rows, queueRowSync]);
 
   const handleMultiSubmit = async () => {
     // ⚡ VALIDATION: Warehouse check

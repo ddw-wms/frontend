@@ -2828,15 +2828,12 @@ export default function OutboundPage() {
         if (pendingSyncRowsRef.current.size === 0) return;
         const rows = Array.from(pendingSyncRowsRef.current.entries()).map(([index, data]) => ({ index, data }));
         pendingSyncRowsRef.current.clear();
-        console.warn('[SYNC] 📤 Sending', rows.length, 'row(s) to outbound sync-rows API, warehouseId:', activeWarehouse.id);
         outboundAPI.syncRows(rows, activeWarehouse.id)
-            .then(() => console.warn('[SYNC] ✅ outbound sync-rows API call succeeded'))
-            .catch((err: any) => { console.warn('[SYNC] ❌ Failed to relay rows:', err?.response?.status || err?.message, err?.response?.data); });
+            .catch(() => {});
     }, [activeWarehouse?.id]);
 
     const queueRowSync = useCallback((rowIndex: number, rowData: any) => {
-        if (isSyncingRef.current) { console.warn('[SYNC] ⏭ Skipped (receiving sync)'); return; }
-        console.warn('[SYNC] 📥 Queued row', rowIndex, 'for sync, wsn:', rowData?.wsn);
+        if (isSyncingRef.current) return;
         pendingSyncRowsRef.current.set(rowIndex, rowData);
         if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
         syncTimeoutRef.current = setTimeout(flushSyncRows, 300);
@@ -3190,6 +3187,9 @@ export default function OutboundPage() {
                         checkDuplicates(updatedRows);
                     }
                 } catch { /* ignore */ }
+                // Sync replaced row to other browsers
+                setTimeout(() => queueRowSync(rowIndex, multiRowsRef.current[rowIndex]), 50);
+
                 // Move to next row
                 setTimeout(() => {
                     params?.api?.startEditingCell({ rowIndex: rowIndex + 1, colKey: 'wsn' });
@@ -3231,6 +3231,9 @@ export default function OutboundPage() {
                             checkDuplicates(updatedRows);
                         }
                     } catch { /* ignore */ }
+                    // Sync new row to other browsers
+                    setTimeout(() => queueRowSync(nextEmptyIndex, multiRowsRef.current[nextEmptyIndex]), 50);
+
                     // Move to row after new one
                     setTimeout(() => {
                         params?.api?.startEditingCell({ rowIndex: nextEmptyIndex + 1, colKey: 'wsn' });

@@ -95,13 +95,13 @@ export function useRealtimeSync({
             es.addEventListener('connected', () => {
                 isConnectedRef.current = true;
                 reconnectAttemptRef.current = 0; // Reset backoff on successful connect
-                console.warn(`[SSE] ✅ Connected: ${page} warehouse=${warehouseId}`);
+
             });
 
             es.addEventListener('data-submitted', (event: MessageEvent) => {
                 try {
                     const data = JSON.parse(event.data);
-                    console.warn(`[SSE] 📡 Data submitted from another device:`, data);
+
                     onDataSubmittedRef.current?.(data);
                 } catch { /* ignore parse errors */ }
             });
@@ -109,7 +109,7 @@ export function useRealtimeSync({
             es.addEventListener('draft-updated', (event: MessageEvent) => {
                 try {
                     const data = JSON.parse(event.data);
-                    console.warn(`[SSE] 📝 Draft updated from another device:`, data);
+
                     onDraftUpdatedRef.current?.(data);
                 } catch { /* ignore */ }
             });
@@ -117,7 +117,7 @@ export function useRealtimeSync({
             es.addEventListener('draft-cleared', (event: MessageEvent) => {
                 try {
                     const data = JSON.parse(event.data);
-                    console.warn(`[SSE] 🗑️ Draft cleared from another device:`, data);
+
                     onDraftClearedRef.current?.(data);
                 } catch { /* ignore */ }
             });
@@ -125,8 +125,7 @@ export function useRealtimeSync({
             es.addEventListener('entry-synced', (event: MessageEvent) => {
                 try {
                     const data = JSON.parse(event.data);
-                    console.warn(`[SSE] 🔄 Entry synced from another device:`, data);
-                    console.warn(`[SSE] 🔄 onEntrySyncedRef.current exists:`, !!onEntrySyncedRef.current);
+
                     onEntrySyncedRef.current?.(data);
                 } catch (e) { console.error('[SSE] Failed to parse entry-synced event:', e); }
             });
@@ -144,14 +143,14 @@ export function useRealtimeSync({
                 const delay = Math.min(1000 * Math.pow(2, reconnectAttemptRef.current), 30000);
                 reconnectAttemptRef.current++;
 
-                console.warn(`[SSE] ⚠️ Disconnected. Reconnecting in ${delay / 1000}s (attempt ${reconnectAttemptRef.current})...`);
+
 
                 reconnectTimeoutRef.current = setTimeout(() => {
                     connect();
                 }, delay);
             };
         } catch (err) {
-            console.warn('[SSE] Failed to create EventSource:', err);
+
         }
     }, [warehouseId, page, enabled]);
 
