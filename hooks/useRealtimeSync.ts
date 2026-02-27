@@ -126,8 +126,9 @@ export function useRealtimeSync({
                 try {
                     const data = JSON.parse(event.data);
                     console.log(`[SSE] 🔄 Entry synced from another device:`, data);
+                    console.log(`[SSE] 🔄 onEntrySyncedRef.current exists:`, !!onEntrySyncedRef.current);
                     onEntrySyncedRef.current?.(data);
-                } catch { /* ignore */ }
+                } catch (e) { console.error('[SSE] Failed to parse entry-synced event:', e); }
             });
 
             es.addEventListener('ping', () => {

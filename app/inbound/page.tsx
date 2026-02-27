@@ -952,12 +952,16 @@ export default function InboundPage() {
     if (pendingSyncRowsRef.current.size === 0) return;
     const rows = Array.from(pendingSyncRowsRef.current.entries()).map(([index, data]) => ({ index, data }));
     pendingSyncRowsRef.current.clear();
+    console.log('[SYNC] 📤 Sending', rows.length, 'row(s) to sync-rows API, warehouseId:', activeWarehouse.id);
     // Fire-and-forget — best effort
-    inboundAPI.syncRows(rows, activeWarehouse.id).catch((err: any) => { console.warn('[SYNC] Failed to relay rows:', err?.response?.status || err?.message); });
+    inboundAPI.syncRows(rows, activeWarehouse.id)
+      .then(() => console.log('[SYNC] ✅ sync-rows API call succeeded'))
+      .catch((err: any) => { console.warn('[SYNC] ❌ Failed to relay rows:', err?.response?.status || err?.message, err?.response?.data); });
   }, [activeWarehouse?.id]);
 
   const queueRowSync = useCallback((rowIndex: number, rowData: any) => {
-    if (isSyncingRef.current) return; // Don't sync rows that came FROM another device
+    if (isSyncingRef.current) { console.log('[SYNC] ⏭ Skipped (receiving sync)'); return; }
+    console.log('[SYNC] 📥 Queued row', rowIndex, 'for sync, wsn:', rowData?.wsn);
     pendingSyncRowsRef.current.set(rowIndex, rowData);
     if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
     syncTimeoutRef.current = setTimeout(flushSyncRows, 300);
@@ -4961,12 +4965,14 @@ export default function InboundPage() {
       toast('Draft cleared from another device', { duration: 3000, icon: '🗑️' });
     }, []),
     onEntrySynced: useCallback((data: any) => {
-      if (!data?.rows?.length) return;
+      console.log('[SYNC] 📥 onEntrySynced called with:', JSON.stringify(data?.rows?.length), 'rows');
+      if (!data?.rows?.length) { console.log('[SYNC] ⚠️ No rows in sync data, skipping'); return; }
       // Set syncing flag to prevent autosave from re-triggering sync
       isSyncingRef.current = true;
       setMultiRows(prev => {
         const updated = [...prev];
         for (const { index, data: rowData } of data.rows) {
+          console.log('[SYNC] 📥 Applying synced row at index', index, 'wsn:', rowData?.wsn);
           if (index >= 0 && index < updated.length) {
             updated[index] = { ...updated[index], ...rowData };
           }
@@ -4977,6 +4983,7 @@ export default function InboundPage() {
       setTimeout(() => {
         try { gridRef.current?.refreshCells({ force: true }); } catch { /* ignore */ }
         isSyncingRef.current = false;
+        console.log('[SYNC] ✅ Grid refreshed after sync');
       }, 150);
     }, []),
   });
