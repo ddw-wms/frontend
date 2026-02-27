@@ -3368,6 +3368,14 @@ export default function OutboundPage() {
     const saveDraftImmediate = async (rowsToSave = multiRows) => {
         if (!draftLoadedRef.current) return; // Don't overwrite before draft is loaded
         if (!activeWarehouse?.id) return;
+
+        // 🛡️ SAFEGUARD: Never overwrite a real draft with empty rows
+        const hasAnyData = rowsToSave.some((r: any) => r.wsn?.trim());
+        if (!hasAnyData && draftExists) {
+            console.warn('[DRAFT] 🛡️ Blocked: refusing to overwrite existing outbound draft with empty rows');
+            return;
+        }
+
         setDraftSaving(true);
         try {
             // Primary: Save to server-side DB

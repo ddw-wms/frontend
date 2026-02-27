@@ -922,6 +922,15 @@ export default function InboundPage() {
     if (!activeWarehouse?.id) return;
     // Don't save if draft hasn't been loaded yet (prevents empty rows overwriting real draft)
     if (!draftLoadedRef.current) return;
+
+    // 🛡️ SAFEGUARD: Never overwrite a real draft with empty rows
+    // If current rows have NO WSNs but DB has data, skip save to prevent data loss
+    const hasAnyData = rowsToSave.some((r: any) => r.wsn?.trim());
+    if (!hasAnyData && draftExists) {
+      console.warn('[DRAFT] 🛡️ Blocked: refusing to overwrite existing draft with empty rows');
+      return;
+    }
+
     setDraftSaving(true);
     try {
       // ⚡ PRIMARY: Save to database (server-side, survives logout/browser crash)
