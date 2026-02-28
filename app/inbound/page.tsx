@@ -379,6 +379,7 @@ export default function InboundPage() {
 
   // ⚡ REAL-TIME SYNC: Cross-device row sync refs
   const isSyncingRef = useRef(false); // Prevents sync → autosave → sync loop
+  const lastSyncReceivedAtRef = useRef(0); // Timestamp of last sync received (suppresses redundant draft toast)
   const pendingSyncRowsRef = useRef<Map<number, any>>(new Map()); // Batches row changes for debounced sync
   const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -1160,6 +1161,9 @@ export default function InboundPage() {
 
   // Autosave (debounced) whenever multiRows change
   useEffect(() => {
+    // Skip autosave when change came from real-time sync (prevents circular save loop)
+    if (isSyncingRef.current) return;
+
     // Update last change timestamp
     lastChangeAtRef.current = Date.now();
 
@@ -4987,6 +4991,8 @@ export default function InboundPage() {
       loadInboundList();
     }, [loadInboundList]),
     onDraftUpdated: useCallback((data: any) => {
+      // Skip toast if we just received sync data (real-time sync already handles updates)
+      if (Date.now() - lastSyncReceivedAtRef.current < 3000) return;
       toast('Draft updated from another device', { duration: 3000, icon: '📝' });
     }, []),
     onDraftCleared: useCallback(() => {
@@ -4996,6 +5002,7 @@ export default function InboundPage() {
       if (!data?.rows?.length) return;
       // Set syncing flag to prevent autosave from re-triggering sync
       isSyncingRef.current = true;
+      lastSyncReceivedAtRef.current = Date.now();
       setMultiRows(prev => {
         const updated = [...prev];
         for (const { index, data: rowData } of data.rows) {

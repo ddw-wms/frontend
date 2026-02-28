@@ -435,6 +435,7 @@ export default function OutboundPage() {
     // ====== MULTI ENTRY STATE (AG GRID) ======
     // ⚡ REAL-TIME SYNC: Cross-device row sync refs
     const isSyncingRef = useRef(false);
+    const lastSyncReceivedAtRef = useRef(0);
     const pendingSyncRowsRef = useRef<Map<number, any>>(new Map());
     const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -2088,7 +2089,7 @@ export default function OutboundPage() {
                     if (pendingSyncRowsRef.current.size === 0) return;
                     const rows = Array.from(pendingSyncRowsRef.current.entries()).map(([index, data]) => ({ index, data }));
                     pendingSyncRowsRef.current.clear();
-                    outboundAPI.syncRows(rows, activeWarehouse.id).catch(() => {});
+                    outboundAPI.syncRows(rows, activeWarehouse.id).catch(() => { });
                 }, 300);
             }
             api.refreshCells({ force: true });
@@ -2150,7 +2151,7 @@ export default function OutboundPage() {
                     if (pendingSyncRowsRef.current.size === 0) return;
                     const rows = Array.from(pendingSyncRowsRef.current.entries()).map(([index, data]) => ({ index, data }));
                     pendingSyncRowsRef.current.clear();
-                    outboundAPI.syncRows(rows, activeWarehouse.id).catch(() => {});
+                    outboundAPI.syncRows(rows, activeWarehouse.id).catch(() => { });
                 }, 300);
             }
             api.refreshCells({ force: true });
@@ -2829,7 +2830,7 @@ export default function OutboundPage() {
         const rows = Array.from(pendingSyncRowsRef.current.entries()).map(([index, data]) => ({ index, data }));
         pendingSyncRowsRef.current.clear();
         outboundAPI.syncRows(rows, activeWarehouse.id)
-            .catch(() => {});
+            .catch(() => { });
     }, [activeWarehouse?.id]);
 
     const queueRowSync = useCallback((rowIndex: number, rowData: any) => {
@@ -3563,6 +3564,9 @@ export default function OutboundPage() {
 
     // Autosave (debounced) whenever multiRows or common fields change
     useEffect(() => {
+        // Skip autosave when change came from real-time sync (prevents circular save loop)
+        if (isSyncingRef.current) return;
+
         lastChangeAtRef.current = Date.now();
 
         if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
@@ -4825,6 +4829,8 @@ export default function OutboundPage() {
             loadOutboundList();
         }, [loadOutboundList]),
         onDraftUpdated: useCallback((data: any) => {
+            // Skip toast if we just received sync data (real-time sync already handles updates)
+            if (Date.now() - lastSyncReceivedAtRef.current < 3000) return;
             toast('Outbound draft updated from another device', { duration: 3000, icon: '📝' });
         }, []),
         onDraftCleared: useCallback(() => {
@@ -4833,6 +4839,7 @@ export default function OutboundPage() {
         onEntrySynced: useCallback((data: any) => {
             if (!data?.rows?.length) return;
             isSyncingRef.current = true;
+            lastSyncReceivedAtRef.current = Date.now();
             setMultiRows(prev => {
                 const updated = [...prev];
                 for (const { index, data: rowData } of data.rows) {
