@@ -2735,26 +2735,41 @@ export default function QCPage() {
   // TAB 2: BULK UPLOAD ACTIONS
   // ? ADD THIS - Actual download after confirmation (used by BulkUploadCard)
   const handleConfirmDownload = async () => {
-    // ⚡ OPTIMIZED: Load XLSX dynamically
-    const XLSX = await import('xlsx');
-
-    const template = [
-      {
-        WSN: 'ABC123A',
-        QCBYNAME: 'John Doe',
-        QCDATE: new Date().toISOString().split('T')[0],
-        GRADE: 'A',
-        QCREMARKS: 'All checks passed',
-        OTHERREMARKS: 'Package condition good',
-        PRODUCTSERIALNUMBER: 'SN12345',
-        RACKNO: 'A-01',
-      },
-    ];
-    const ws = XLSX.utils.json_to_sheet(template);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Template');
-    XLSX.writeFile(wb, 'QCBulkTemplate.xlsx');
-    toast.success('Template downloaded');
+    try {
+      // Download template from backend with Excel dropdown validation for GRADE & RACKNO
+      const response = await qcAPI.downloadValidatedTemplate(activeWarehouse?.id || 0);
+      const blob = new Blob([response.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'QCBulkTemplate.xlsx';
+      link.click();
+      window.URL.revokeObjectURL(url);
+      toast.success('Template downloaded with dropdown validation');
+    } catch (error) {
+      console.error('Failed to download QC template:', error);
+      // Fallback: generate simple template client-side
+      try {
+        const XLSX = await import('xlsx');
+        const template = [
+          {
+            WSN: 'ABC123A',
+            GRADE: 'A',
+            RACKNO: 'A-01',
+            QCREMARKS: 'All checks passed',
+            OTHERREMARKS: 'Package condition good',
+            PRODUCTSERIALNUMBER: 'SN12345',
+          },
+        ];
+        const ws = XLSX.utils.json_to_sheet(template);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Template');
+        XLSX.writeFile(wb, 'QCBulkTemplate.xlsx');
+        toast.success('Template downloaded (basic)');
+      } catch (e2) {
+        toast.error('Failed to download template');
+      }
+    }
   };
 
 
@@ -6491,8 +6506,22 @@ export default function QCPage() {
                     loadBatches();
                   }}
                   onDownloadTemplate={handleConfirmDownload}
-                  templateColumns={['WSN', 'QCBYNAME', 'QCDATE', 'GRADE', 'QCREMARKS', 'OTHERREMARKS', 'PRODUCTSERIALNUMBER', 'RACKNO']}
+                  templateColumns={['WSN', 'GRADE', 'RACKNO', 'QCREMARKS', 'OTHERREMARKS', 'PRODUCTSERIALNUMBER']}
                   title="Bulk QC Upload"
+                  dropdownFields={[
+                    {
+                      key: 'qc_date',
+                      label: 'QC Date',
+                      type: 'date',
+                      required: true,
+                    },
+                    {
+                      key: 'qc_by_name',
+                      label: 'QC By',
+                      type: 'readonly',
+                      value: (user as any)?.full_name || (user as any)?.name || (user as any)?.username || 'Current User',
+                    },
+                  ]}
                 />
               </Box>
             )

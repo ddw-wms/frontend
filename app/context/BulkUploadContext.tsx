@@ -36,9 +36,9 @@ const EXCEL_SIGNATURES = {
 
 // Required columns for each module (ALL must be present in header)
 const REQUIRED_COLUMNS: Record<UploadModule, string[]> = {
-    inbound: ['WSN', 'INBOUND_DATE', 'VEHICLE_NO', 'PRODUCT_SERIAL_NUMBER', 'RACK_NO', 'UNLOAD_REMARKS'],
-    qc: ['WSN', 'QCBYNAME', 'QCDATE', 'GRADE', 'QCREMARKS', 'OTHERREMARKS', 'PRODUCTSERIALNUMBER', 'RACKNO'],
-    outbound: ['WSN', 'DISPATCHDATE', 'CUSTOMERNAME', 'VEHICLENO', 'DISPATCHREMARKS', 'OTHERREMARKS'],
+    inbound: ['WSN', 'VEHICLE_NO', 'PRODUCT_SERIAL_NUMBER', 'UNLOAD_REMARKS'],
+    qc: ['WSN', 'GRADE', 'RACKNO', 'QCREMARKS', 'OTHERREMARKS', 'PRODUCTSERIALNUMBER'],
+    outbound: ['WSN', 'VEHICLENO', 'DISPATCHREMARKS', 'OTHERREMARKS'],
 };
 
 // Minimum required columns (at least these must be present)
@@ -60,7 +60,8 @@ interface BulkUploadContextType {
         module: UploadModule,
         file: File,
         warehouseId: number,
-        userId?: number
+        userId?: number,
+        extraFields?: Record<string, string>
     ) => Promise<{ success: boolean; jobId?: string; error?: string }>;
 
     // Validate file before upload
@@ -348,7 +349,8 @@ export function BulkUploadProvider({ children }: { children: React.ReactNode }) 
         module: UploadModule,
         file: File,
         warehouseId: number,
-        userId?: number
+        userId?: number,
+        extraFields?: Record<string, string>
     ): Promise<{ success: boolean; jobId?: string; error?: string }> => {
         // Generate job ID
         const jobId = `${module}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -407,6 +409,12 @@ export function BulkUploadProvider({ children }: { children: React.ReactNode }) 
             if (userId) {
                 formData.append('created_by', userId.toString());
             }
+            // Append extra dropdown fields (inbound_date, rack_no, customer_name, etc.)
+            if (extraFields) {
+                Object.entries(extraFields).forEach(([key, value]) => {
+                    if (value) formData.append(key, value);
+                });
+            }
 
             // Call appropriate API based on module
             let response: any;
@@ -416,7 +424,7 @@ export function BulkUploadProvider({ children }: { children: React.ReactNode }) 
                     response = await inboundAPI.bulkUpload(formData);
                     break;
                 case 'qc':
-                    response = await qcAPI.bulkUpload(file, warehouseId);
+                    response = await qcAPI.bulkUpload(formData);
                     break;
                 case 'outbound':
                     response = await outboundAPI.bulkUpload(formData);

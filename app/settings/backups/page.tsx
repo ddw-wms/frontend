@@ -38,7 +38,9 @@ import {
     Accordion,
     AccordionSummary,
     AccordionDetails,
-    Badge
+    Badge,
+    Tabs,
+    Tab
 } from '@mui/material';
 import {
     CloudDownload as DownloadIcon,
@@ -67,6 +69,7 @@ import { getStoredUser } from '@/lib/auth';
 import { useBackupsPermissions } from '@/hooks/usePagePermissions';
 import { alpha } from '@mui/material/styles';
 import { CheckCircleOutline as CheckIcon } from '@mui/icons-material';
+import BackupTimeline from '@/components/BackupTimeline';
 
 interface Backup {
     id: number;
@@ -164,6 +167,7 @@ export default function BackupPage() {
     const [expandedDays, setExpandedDays] = useState<string[]>([]);
     const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false);
     const [viewMode, setViewMode] = useState<'grouped' | 'list'>('grouped');
+    const [activeTab, setActiveTab] = useState(0);
 
     // Available modules for selective backup
     const backupModules = [
@@ -172,10 +176,13 @@ export default function BackupPage() {
         { id: 'qc', name: 'Quality Control', description: 'QC inspection records', icon: '✅' },
         { id: 'picking', name: 'Picking', description: 'Picking records', icon: '🛒' },
         { id: 'outbound', name: 'Outbound', description: 'Outbound/dispatch records', icon: '📤' },
+        { id: 'rejections', name: 'Rejections', description: 'Rejection & credit note tracking', icon: '🚫' },
         { id: 'warehouses', name: 'Warehouses', description: 'Warehouse configuration', icon: '🏭' },
         { id: 'customers', name: 'Customers', description: 'Customer data', icon: '👥' },
         { id: 'racks', name: 'Racks', description: 'Rack locations', icon: '🗄️' },
         { id: 'users', name: 'Users', description: 'User accounts & roles', icon: '👤' },
+        { id: 'roles', name: 'Roles & Permissions', description: 'RBAC roles, permissions & overrides', icon: '🔐' },
+        { id: 'upload_logs', name: 'Upload History', description: 'Upload logs & batch snapshots', icon: '📋' },
     ];
 
     // Group backups by date
@@ -705,6 +712,25 @@ export default function BackupPage() {
                     userName={user?.full_name}
                 />
 
+                {/* Tab Navigation */}
+                <Tabs
+                    value={activeTab}
+                    onChange={(_, v) => setActiveTab(v)}
+                    sx={{
+                        minHeight: { xs: 36, md: 42 },
+                        px: { xs: 1, md: 3 },
+                        '& .MuiTab-root': {
+                            minHeight: { xs: 36, md: 42 },
+                            fontSize: { xs: '0.7rem', md: '0.85rem' },
+                            fontWeight: 600,
+                            textTransform: 'none'
+                        }
+                    }}
+                >
+                    <Tab label="💾 Backups" />
+                    <Tab label="📊 Timeline (PITR)" />
+                </Tabs>
+
                 {/* Content */}
                 <Box sx={{
                     flex: 1,
@@ -712,6 +738,14 @@ export default function BackupPage() {
                     p: { xs: 1.5, sm: 2, md: 3 },
                     background: isDarkMode ? 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)' : 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
                 }}>
+
+                {/* ==================== TIMELINE TAB ==================== */}
+                {activeTab === 1 && (
+                    <BackupTimeline warehouseId={activeWarehouse?.id?.toString()} />
+                )}
+
+                {/* ==================== BACKUPS TAB ==================== */}
+                {activeTab === 0 && (<>
 
                     {/* Statistics Cards */}
                     <Box sx={{
@@ -2536,6 +2570,7 @@ export default function BackupPage() {
                         </DialogActions>
                     </Dialog>
 
+                </>)}
                 </Box >
             </Box >
         </AppLayout >

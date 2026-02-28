@@ -3598,8 +3598,6 @@ export default function OutboundPage() {
         const template = [
             {
                 WSN: 'ABC123',
-                DISPATCHDATE: '2025-12-19',
-                CUSTOMERNAME: 'Flipkart',
                 VEHICLENO: 'MH01AB1234',
                 DISPATCHREMARKS: 'Good condition',
                 OTHERREMARKS: '',
@@ -6028,8 +6026,23 @@ export default function OutboundPage() {
                                 loadOutboundList();
                             }}
                             onDownloadTemplate={handleConfirmDownload}
-                            templateColumns={['WSN', 'DISPATCHDATE', 'CUSTOMERNAME', 'VEHICLENO', 'DISPATCHREMARKS', 'OTHERREMARKS']}
+                            templateColumns={['WSN', 'VEHICLENO', 'DISPATCHREMARKS', 'OTHERREMARKS']}
                             title="🔍 Bulk Outbound Upload"
+                            dropdownFields={[
+                                {
+                                    key: 'dispatch_date',
+                                    label: 'Dispatch Date',
+                                    type: 'date',
+                                    required: true,
+                                },
+                                {
+                                    key: 'customer_name',
+                                    label: 'Customer Name',
+                                    type: 'autocomplete',
+                                    required: true,
+                                    options: (customers || []).map((c: string) => ({ label: c, value: c })),
+                                },
+                            ]}
                         />
                     </Box>
                 )}

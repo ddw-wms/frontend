@@ -37,8 +37,19 @@ import {
     ExpandLess as ExpandLessIcon,
     Info as InfoIcon,
 } from '@mui/icons-material';
+import { TextField, MenuItem, Autocomplete } from '@mui/material';
 import { useBulkUpload, UploadModule, UploadJob, UploadStatus } from '@/app/context/BulkUploadContext';
 import toast from 'react-hot-toast';
+
+// Dropdown field definition for pre-upload selections
+export interface BulkUploadDropdownField {
+    key: string;           // field key sent in FormData, e.g. 'rack_no'
+    label: string;         // UI label, e.g. 'Rack Number'
+    type: 'select' | 'date' | 'readonly' | 'autocomplete';
+    options?: { label: string; value: string }[];  // for select/autocomplete
+    value?: string;        // for readonly type (pre-filled, non-editable)
+    required?: boolean;
+}
 
 interface BulkUploadCardProps {
     module: UploadModule;
@@ -48,6 +59,7 @@ interface BulkUploadCardProps {
     onDownloadTemplate: () => void;
     templateColumns: string[];
     title?: string;
+    dropdownFields?: BulkUploadDropdownField[];
 }
 
 // Format bytes to human readable
@@ -125,6 +137,7 @@ export default function BulkUploadCard({
     onDownloadTemplate,
     templateColumns,
     title = '📤 Bulk Upload',
+    dropdownFields,
 }: BulkUploadCardProps) {
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -145,6 +158,31 @@ export default function BulkUploadCard({
     const [isDragOver, setIsDragOver] = useState(false);
     const [errorsExpanded, setErrorsExpanded] = useState(false);
     const [confirmOpen, setConfirmOpen] = useState(false);
+
+    // Dropdown field values state
+    const [dropdownValues, setDropdownValues] = useState<Record<string, string>>({});
+
+    // Initialize readonly values
+    useEffect(() => {
+        if (dropdownFields) {
+            const initial: Record<string, string> = {};
+            dropdownFields.forEach(f => {
+                if (f.type === 'readonly' && f.value) {
+                    initial[f.key] = f.value;
+                }
+            });
+            if (Object.keys(initial).length > 0) {
+                setDropdownValues(prev => ({ ...initial, ...prev }));
+            }
+        }
+    }, [dropdownFields]);
+
+    // Check if all required dropdown fields are filled
+    const allDropdownsFilled = !dropdownFields || dropdownFields.every(f => {
+        if (!f.required) return true;
+        if (f.type === 'readonly') return true;
+        return !!dropdownValues[f.key];
+    });
 
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -222,9 +260,9 @@ export default function BulkUploadCard({
 
     // Handle upload
     const handleUpload = async () => {
-        if (!selectedFile || !validationResult?.valid || isUploading) return;
+        if (!selectedFile || !validationResult?.valid || isUploading || !allDropdownsFilled) return;
 
-        const result = await startUpload(module, selectedFile, warehouseId, userId);
+        const result = await startUpload(module, selectedFile, warehouseId, userId, dropdownValues);
 
         if (result.success) {
             setSelectedFile(null);
@@ -311,6 +349,116 @@ export default function BulkUploadCard({
                 </Typography>
 
                 <Stack spacing={{ xs: 1.5, sm: 2 }}>
+                    {/* Pre-Upload Dropdown Fields */}
+                    {dropdownFields && dropdownFields.length > 0 && (
+                        <Box
+                            sx={{
+                                display: 'grid',
+                                gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)' },
+                                gap: { xs: 1.5, sm: 2 },
+                                p: { xs: 1.5, sm: 2 },
+                                bgcolor: isDarkMode ? 'rgba(30, 64, 175, 0.1)' : '#f8fafc',
+                                borderRadius: 1.5,
+                                border: isDarkMode ? '1px solid rgba(59, 130, 246, 0.2)' : '1px solid #e2e8f0',
+                            }}
+                        >
+                            {dropdownFields.map((field) => {
+                                if (field.type === 'date') {
+                                    return (
+                                        <TextField
+                                            key={field.key}
+                                            label={field.label}
+                                            type="date"
+                                            size="small"
+                                            required={field.required}
+                                            value={dropdownValues[field.key] || ''}
+                                            onChange={(e) => setDropdownValues(prev => ({ ...prev, [field.key]: e.target.value }))}
+                                            InputLabelProps={{ shrink: true }}
+                                            sx={{
+                                                '& .MuiOutlinedInput-root': {
+                                                    bgcolor: isDarkMode ? '#1e293b' : 'white',
+                                                },
+                                            }}
+                                        />
+                                    );
+                                }
+                                if (field.type === 'readonly') {
+                                    return (
+                                        <TextField
+                                            key={field.key}
+                                            label={field.label}
+                                            size="small"
+                                            value={field.value || ''}
+                                            InputProps={{ readOnly: true }}
+                                            sx={{
+                                                '& .MuiOutlinedInput-root': {
+                                                    bgcolor: isDarkMode ? '#334155' : '#f1f5f9',
+                                                },
+                                            }}
+                                        />
+                                    );
+                                }
+                                if (field.type === 'autocomplete') {
+                                    return (
+                                        <Autocomplete
+                                            key={field.key}
+                                            size="small"
+                                            options={field.options || []}
+                                            getOptionLabel={(opt) => opt.label}
+                                            value={field.options?.find(o => o.value === dropdownValues[field.key]) || null}
+                                            onChange={(_, newVal) => setDropdownValues(prev => ({ ...prev, [field.key]: newVal?.value || '' }))}
+                                            renderInput={(params) => (
+                                                <TextField
+                                                    {...params}
+                                                    label={field.label}
+                                                    required={field.required}
+                                                    sx={{
+                                                        '& .MuiOutlinedInput-root': {
+                                                            bgcolor: isDarkMode ? '#1e293b' : 'white',
+                                                        },
+                                                    }}
+                                                />
+                                            )}
+                                        />
+                                    );
+                                }
+                                // Default: select dropdown
+                                return (
+                                    <TextField
+                                        key={field.key}
+                                        label={field.label}
+                                        select
+                                        size="small"
+                                        required={field.required}
+                                        value={dropdownValues[field.key] || ''}
+                                        onChange={(e) => setDropdownValues(prev => ({ ...prev, [field.key]: e.target.value }))}
+                                        sx={{
+                                            '& .MuiOutlinedInput-root': {
+                                                bgcolor: isDarkMode ? '#1e293b' : 'white',
+                                            },
+                                        }}
+                                    >
+                                        <MenuItem value="" disabled>
+                                            Select {field.label}
+                                        </MenuItem>
+                                        {(field.options || []).map(opt => (
+                                            <MenuItem key={opt.value} value={opt.value}>
+                                                {opt.label}
+                                            </MenuItem>
+                                        ))}
+                                    </TextField>
+                                );
+                            })}
+                        </Box>
+                    )}
+
+                    {/* Warning if dropdowns not filled */}
+                    {dropdownFields && dropdownFields.length > 0 && !allDropdownsFilled && (
+                        <Alert severity="warning" sx={{ '& .MuiAlert-message': { fontSize: { xs: '0.75rem', sm: '0.8rem' } } }}>
+                            Please fill all required fields above before uploading.
+                        </Alert>
+                    )}
+
                     {/* Template Download Button */}
                     <Button
                         variant="outlined"
@@ -487,14 +635,14 @@ export default function BulkUploadCard({
                         <Button
                             variant="contained"
                             onClick={handleUpload}
-                            disabled={!selectedFile || !validationResult?.valid || isUploading}
+                            disabled={!selectedFile || !validationResult?.valid || isUploading || !allDropdownsFilled}
                             startIcon={isUploading ? <CircularProgress size={18} sx={{ color: 'white' }} /> : <UploadIcon />}
                             sx={{
                                 flex: 1,
                                 py: { xs: 1.2, sm: 1.5 },
                                 fontSize: { xs: '0.85rem', sm: '0.9rem' },
                                 fontWeight: 700,
-                                background: (!selectedFile || !validationResult?.valid || isUploading)
+                                background: (!selectedFile || !validationResult?.valid || isUploading || !allDropdownsFilled)
                                     ? '#9ca3af'
                                     : 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
                                 '&:hover': {

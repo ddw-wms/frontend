@@ -577,10 +577,7 @@ export const qcAPI = {
   createEntry: (data: any) =>
     api.post('/qc/create', data),
 
-  bulkUpload: (file: File, warehouseId: number) => {
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('warehouse_id', warehouseId.toString());
+  bulkUpload: (formData: FormData) => {
     return api.post('/qc/bulk-upload', formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     });
@@ -631,6 +628,13 @@ export const qcAPI = {
   downloadTemplate: () => {
     window.location.href = `${process.env.NEXT_PUBLIC_API_URL}/qc/template`;
   },
+
+  // Download QC template with Excel dropdown validation for GRADE & RACKNO
+  downloadValidatedTemplate: (warehouseId: number) =>
+    api.get('/qc/template', {
+      params: { warehouse_id: warehouseId },
+      responseType: 'blob',
+    }),
 
   // Multi-entry draft persistence (save/load/clear draft from database)
   saveDraft: (draft_data: any[], warehouse_id: number, common_date?: string) =>

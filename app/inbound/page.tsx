@@ -2364,10 +2364,8 @@ export default function InboundPage() {
 
     const template = [{
       'WSN': 'ABC123_A',
-      'INBOUND_DATE': new Date().toISOString().split('T')[0],
       'VEHICLE_NO': 'PB04AA1234',
       'PRODUCT_SERIAL_NUMBER': 'ABCDE12345',
-      'RACK_NO': 'A-01',
       'UNLOAD_REMARKS': 'Brand Box missing'
     }];
 
@@ -6763,8 +6761,23 @@ export default function InboundPage() {
                     loadInboundList();
                   }}
                   onDownloadTemplate={downloadTemplate}
-                  templateColumns={['WSN', 'INBOUND_DATE', 'VEHICLE_NO', 'PRODUCT_SERIAL_NUMBER', 'RACK_NO', 'UNLOAD_REMARKS']}
+                  templateColumns={['WSN', 'VEHICLE_NO', 'PRODUCT_SERIAL_NUMBER', 'UNLOAD_REMARKS']}
                   title="🔍 Bulk Inbound Upload"
+                  dropdownFields={[
+                    {
+                      key: 'inbound_date',
+                      label: 'Inbound Date',
+                      type: 'date',
+                      required: true,
+                    },
+                    {
+                      key: 'rack_no',
+                      label: 'Rack Number',
+                      type: 'select',
+                      required: true,
+                      options: (racks || []).map((r: any) => ({ label: r.rack_name || r.name || r, value: r.rack_name || r.name || r })),
+                    },
+                  ]}
                 />
               </Box>
             )
