@@ -428,6 +428,7 @@ export const masterDataAPI = {
       params: { page, limit, search: filters?.search, batchId: filters?.batchId, warehouseId: filters?.warehouseId }
     }),
   purgeDeletedRecord: (id: number) => api.delete(`master-data/deleted/purge/${id}`),
+  purgeAllDeletedRecords: () => api.delete('master-data/deleted/purge-all'),
   deleteUploadLog: (id: number) => api.delete(`master-data/upload/history/${id}`),
   cleanupStaleData: () => api.delete('master-data/cleanup/stale'),
   // Export with warehouse filter
@@ -452,7 +453,7 @@ export const masterDataAPI = {
 // ====================Inbound API=======================
 export const inboundAPI = {
   createSingle: (data: any) => api.post('inbound', data),
-  getMasterDataByWSN: (wsn: string, warehouseId?: number) => api.get(`inbound/master-data/${wsn}`, { params: { warehouseId } }),
+  getMasterDataByWSN: (wsn: string, warehouseId?: number, config?: any) => api.get(`inbound/master-data/${wsn}`, { params: { warehouseId }, ...config }),
   // Master data cache APIs
   getMasterDataCount: (warehouseId?: number) => api.get('master-data/count', { params: { warehouseId } }),
   getMasterDataBatch: (page: number, limit: number, warehouseId?: number) =>
@@ -552,11 +553,11 @@ export const rackAPI = {
 export const qcAPI = {
   getAllQCWSNs: () => api.get('qc/wsns/all'),
 
-  getPendingInbound: (warehouseId?: number, search?: string) => {
+  getPendingInbound: (warehouseId?: number, search?: string, config?: any) => {
     const params = new URLSearchParams();
     if (warehouseId) params.append('warehouseId', warehouseId.toString());
     if (search) params.append('search', search);
-    return api.get(`/qc/pending-inbound?${params.toString()}`);
+    return api.get(`/qc/pending-inbound?${params.toString()}`, config);
   },
 
   getList: (page: number, limit: number, filters?: any, config?: any) => {
@@ -680,15 +681,15 @@ export const customerAPI = {
 // ======================= OUTBOUND API ===========================
 export const outboundAPI = {
   // Get all outbound WSNs for duplicate checking
-  getAllOutboundWSNs: () => api.get('outbound/all-wsns'),
+  getAllOutboundWSNs: (config?: any) => api.get('outbound/all-wsns', config),
 
   // Get pending WSNs for outbound (from PICKING/QC)
   getPendingForOutbound: (warehouseId: number, search?: string) =>
     api.get('outbound/pending', { params: { warehouseId, search } }),
 
   // Get source data by WSN (PICKING → QC → INBOUND)
-  getSourceByWSN: (wsn: string, warehouseId: number) =>
-    api.get('outbound/source-by-wsn', { params: { wsn, warehouseId } }),
+  getSourceByWSN: (wsn: string, warehouseId: number, config?: any) =>
+    api.get('outbound/source-by-wsn', { params: { wsn, warehouseId }, ...config }),
 
   // Create single outbound entry
   createSingle: (data: any) => api.post('outbound/single', data),
@@ -769,14 +770,19 @@ export const outboundAPI = {
   // Real-time multi-entry row sync across devices (SSE relay, no DB write)
   syncRows: (rows: Array<{ index: number; data: any }>, warehouseId: number) =>
     api.post('outbound/sync-rows', { rows, warehouseId }),
+
+  // Real-time header field sync across devices (SSE relay, no DB write)
+  syncHeader: (warehouseId: number, commonDate: string, selectedCustomer: string, commonVehicle: string) =>
+    api.post('outbound/sync-header', { warehouseId, commonDate, selectedCustomer, commonVehicle }),
 };
 
 // ==========================PICKING API ==============================
 export const pickingAPI = {
   // Get source data by WSN (QC → INBOUND → MASTER priority)
-  getSourceByWSN: (wsn: string, warehouseId: number) =>
+  getSourceByWSN: (wsn: string, warehouseId: number, config?: any) =>
     api.get('/picking/source-by-wsn', {
-      params: { wsn, warehouseId }
+      params: { wsn, warehouseId },
+      ...config
     }),
   // Multi-entry with auto batch ID
   multiEntry: (entries: any[], warehouse_id: number) =>
@@ -806,9 +812,10 @@ export const pickingAPI = {
   getCustomers: (warehouseId: number) =>
     customerAPI.getNames(warehouseId),
   // Check if WSN exists
-  checkWSNExists: (wsn: string, warehouseId: number) =>
+  checkWSNExists: (wsn: string, warehouseId: number, config?: any) =>
     api.get('/picking/check-wsn', {
-      params: { wsn, warehouseId }
+      params: { wsn, warehouseId },
+      ...config
     }),
   // Get all existing WSNs for duplicate check
   getExistingWSNs: (warehouseId: number) =>

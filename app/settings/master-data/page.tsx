@@ -1092,7 +1092,9 @@ export default function MasterDataPage() {
       // ✅ Format lastupdated with created_at_display (datetime format)
       const formattedBatches = batchesArray.map((batch: any) => ({
         ...batch,
-        lastupdated_display: formatDateToIST(batch.lastupdated, 'datetime')
+        lastupdated_display: formatDateToIST(batch.lastupdated, 'datetime'),
+        warehouse_names: batch.warehouse_name || '-',
+        uploaded_by: batch.uploaded_by_name || '-'
       }));
 
       setBatches(formattedBatches);
@@ -1311,6 +1313,19 @@ export default function MasterDataPage() {
       loadDeletedRecords();
     } catch (error) {
       toast.error('Failed to purge record');
+    }
+  };
+
+  // ✅ Phase 5: Purge ALL deleted records permanently
+  const handlePurgeAll = async () => {
+    if (!confirm(`Permanently delete ALL ${deletedRecordsTotal} deleted records? This CANNOT be undone!`)) return;
+    try {
+      const response = await masterDataAPI.purgeAllDeletedRecords();
+      const count = response.data?.count || 0;
+      toast.success(`🗑️ ${count} records permanently deleted`);
+      loadDeletedRecords();
+    } catch (error) {
+      toast.error('Failed to purge records');
     }
   };
 
@@ -2748,9 +2763,14 @@ export default function MasterDataPage() {
                 {actualTabIndex === 3 && (
                   <Box sx={{ p: 2 }}>
                     <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
-                      <Typography variant="h6" fontWeight={700}>
-                        🗑️ Deleted Records
-                      </Typography>
+                      <Stack direction="row" alignItems="center" spacing={1}>
+                        <Typography variant="h6" fontWeight={700}>
+                          🗑️ Deleted Records
+                        </Typography>
+                        {deletedRecordsTotal > 0 && (
+                          <Chip label={formatNumber(deletedRecordsTotal)} size="small" color="error" sx={{ height: 22, fontSize: '0.7rem', fontWeight: 600 }} />
+                        )}
+                      </Stack>
                       <Stack direction="row" spacing={1}>
                         <TextField
                           size="small"
@@ -2759,6 +2779,11 @@ export default function MasterDataPage() {
                           onChange={(e) => { setDeletedSearch(e.target.value); setDeletedRecordsPage(1); }}
                           sx={{ width: 200, '& .MuiOutlinedInput-root': { height: 32, fontSize: '0.8rem' } }}
                         />
+                        {deletedRecordsTotal > 0 && (
+                          <Button size="small" variant="contained" color="error" startIcon={<DeleteSweepIcon />} onClick={handlePurgeAll}>
+                            Purge All
+                          </Button>
+                        )}
                         <Button size="small" variant="outlined" startIcon={<RefreshIcon />} onClick={loadDeletedRecords} disabled={deletedRecordsLoading}>
                           Refresh
                         </Button>

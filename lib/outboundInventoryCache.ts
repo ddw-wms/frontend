@@ -78,7 +78,8 @@ function getDB(): OutboundCacheDB {
 
 // Cache configuration
 const CACHE_CONFIG = {
-    STALE_THRESHOLD_MS: 30 * 60 * 1000,  // 30 minutes - available inventory changes frequently
+    STALE_THRESHOLD_MS: 24 * 60 * 60 * 1000,  // 24 hours (auto-refresh keeps data fresh)
+    AUTO_REFRESH_INTERVAL_MS: 30 * 60 * 1000,  // 30 minutes auto-refresh
     CHUNK_SIZE: 1000,  // Records per IndexedDB write
     YIELD_DELAY_MS: 10,  // Time to yield between chunks
     MEMORY_CACHE_ENABLED: true,  // Enable ultra-fast in-memory layer
@@ -207,15 +208,12 @@ export async function getAvailableInventoryByWSNFast(
     const normalizedWSN = wsn.trim().toUpperCase();
 
     // TIER 1: Memory Map (INSTANT - sub-millisecond)
+    // No stale check — auto-refresh keeps data fresh in background
     if (CACHE_CONFIG.MEMORY_CACHE_ENABLED && isMemoryWarmedUp && outboundMemoryMap && memoryWarehouseId === warehouseId) {
         const cached = outboundMemoryMap.get(normalizedWSN);
         if (cached) {
-            // Check if not stale
-            const age = Date.now() - (cached.cached_at || 0);
-            if (age < CACHE_CONFIG.STALE_THRESHOLD_MS) {
-                console.log(`⚡ Outbound Memory HIT: ${normalizedWSN}`);
-                return cached;
-            }
+            console.log(`⚡ Outbound Memory HIT: ${normalizedWSN}`);
+            return cached;
         }
     }
 
@@ -264,6 +262,7 @@ export async function getAvailableInventoryByWSN(
         const database = getDB();
 
         // 1. Try local cache first (INSTANT)
+        // No stale check — auto-refresh keeps data fresh in background
         const cached = await database.availableInventory
             .where('wsn')
             .equals(normalizedWSN)
@@ -271,32 +270,8 @@ export async function getAvailableInventoryByWSN(
             .first();
 
         if (cached) {
-            // Check if cache is not too old
-            const age = Date.now() - (cached.cached_at || 0);
-            if (age < CACHE_CONFIG.STALE_THRESHOLD_MS) {
-                console.log(`✅ Outbound Cache HIT for WSN: ${normalizedWSN}`);
-                return cached;
-            }
-            console.log(`⚠️ Outbound Cache STALE for WSN: ${normalizedWSN}, fetching fresh...`);
-        }
-
-        // 2. Cache miss or stale - fetch from API
-        console.log(`🔍 Outbound Cache MISS for WSN: ${normalizedWSN}, fetching from API...`);
-        const response = await outboundAPI.getSourceByWSN(normalizedWSN, warehouseId);
-
-        if (response?.data) {
-            const record: AvailableInventoryRecord = {
-                ...response.data,
-                wsn: normalizedWSN,
-                warehouse_id: warehouseId,
-                cached_at: Date.now()
-            };
-
-            // Save to cache for next time
-            await database.availableInventory.put(record);
-            console.log(`💾 Cached available inventory WSN: ${normalizedWSN}`);
-
-            return record;
+            console.log(`✅ Outbound Cache HIT for WSN: ${normalizedWSN}`);
+            return cached;
         }
 
         return null;
@@ -537,6 +512,115 @@ export async function needsCacheRefresh(warehouseId: number): Promise<boolean> {
         return timeSinceSync > CACHE_CONFIG.STALE_THRESHOLD_MS;
     } catch (error) {
         return true;
+    }
+}
+
+// ======================== AUTO-REFRESH (BACKGROUND) ========================
+
+let outboundAutoRefreshTimer: ReturnType<typeof setInterval> | null = null;
+let isOutboundRefreshing = false;
+
+/**
+ * Silent background refresh of outbound available inventory cache
+ * No UI feedback, chunked writes, mutex, offline-safe
+ */
+export async function silentRefreshOutboundCache(
+    warehouseId: number
+): Promise<boolean> {
+    if (isOutboundRefreshing) {
+        console.log('🔄 Outbound refresh already in progress, skipping...');
+        return false;
+    }
+
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        console.log('📴 Offline — skipping outbound cache refresh');
+        return false;
+    }
+
+    isOutboundRefreshing = true;
+    try {
+        const database = getDB();
+        console.log(`🔄 Silent refreshing outbound cache for warehouse ${warehouseId}...`);
+
+        const response = await outboundAPI.getAvailableForOutbound(warehouseId);
+        const records = response?.data || [];
+        const totalCount = records.length;
+
+        if (totalCount === 0) {
+            console.log('🔄 Silent outbound refresh: no records found');
+            return true;
+        }
+
+        // Clear existing and re-insert (atomic refresh)
+        await database.availableInventory
+            .where('warehouse_id')
+            .equals(warehouseId)
+            .delete();
+
+        const recordsWithMeta = records.map((r: any) => ({
+            ...r,
+            wsn: (r.wsn || '').toUpperCase(),
+            warehouse_id: warehouseId,
+            cached_at: Date.now()
+        }));
+
+        for (let i = 0; i < recordsWithMeta.length; i += CACHE_CONFIG.CHUNK_SIZE) {
+            const chunk = recordsWithMeta.slice(i, i + CACHE_CONFIG.CHUNK_SIZE);
+            await database.availableInventory.bulkPut(chunk);
+            await new Promise(resolve => setTimeout(resolve, CACHE_CONFIG.YIELD_DELAY_MS));
+        }
+
+        await database.metadata.put({ key: 'lastSync', value: Date.now() });
+        await database.metadata.put({ key: `lastSync_${warehouseId}`, value: Date.now() });
+
+        // Re-warm memory map from fresh data
+        if (CACHE_CONFIG.MEMORY_CACHE_ENABLED) {
+            outboundMemoryMap = new Map(recordsWithMeta.map((r: any) => [r.wsn, r]));
+            memoryWarehouseId = warehouseId;
+            isMemoryWarmedUp = true;
+        }
+
+        console.log(`✅ Silent outbound refresh complete: ${totalCount.toLocaleString()} records`);
+        return true;
+    } catch (error) {
+        console.error('❌ Silent outbound refresh failed:', error);
+        return false;
+    } finally {
+        isOutboundRefreshing = false;
+    }
+}
+
+/**
+ * Start auto-refresh timer for outbound cache
+ * Refreshes every 30 minutes while multi-entry tab is active
+ */
+export function startOutboundAutoRefresh(
+    warehouseId: number,
+    intervalMs?: number
+): () => void {
+    stopOutboundAutoRefresh();
+
+    const interval = intervalMs || CACHE_CONFIG.AUTO_REFRESH_INTERVAL_MS;
+
+    console.log(`⏰ Outbound auto-refresh started: every ${Math.round(interval / 60000)} minutes for warehouse ${warehouseId}`);
+
+    outboundAutoRefreshTimer = setInterval(() => {
+        silentRefreshOutboundCache(warehouseId).catch(err => {
+            console.warn('Outbound auto-refresh error (will retry):', err);
+        });
+    }, interval);
+
+    return () => stopOutboundAutoRefresh();
+}
+
+/**
+ * Stop outbound auto-refresh timer
+ */
+export function stopOutboundAutoRefresh(): void {
+    if (outboundAutoRefreshTimer) {
+        clearInterval(outboundAutoRefreshTimer);
+        outboundAutoRefreshTimer = null;
+        console.log('⏰ Outbound auto-refresh stopped');
     }
 }
 

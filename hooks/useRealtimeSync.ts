@@ -42,6 +42,8 @@ interface RealtimeSyncOptions {
     onDraftCleared?: (data: { userId: number }) => void;
     /** Called when multi-entry rows are synced from another device (same user) */
     onEntrySynced?: (data: { rows: Array<{ index: number; data: any }>; userId: number }) => void;
+    /** Called when multi-entry header fields are synced from another device (same user) */
+    onHeaderUpdated?: (data: { commonDate?: string; selectedCustomer?: string; commonVehicle?: string; userId: number }) => void;
 }
 
 export function useRealtimeSync({
@@ -52,6 +54,7 @@ export function useRealtimeSync({
     onDraftUpdated,
     onDraftCleared,
     onEntrySynced,
+    onHeaderUpdated,
 }: RealtimeSyncOptions) {
     const eventSourceRef = useRef<EventSource | null>(null);
     const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -63,11 +66,13 @@ export function useRealtimeSync({
     const onDraftUpdatedRef = useRef(onDraftUpdated);
     const onDraftClearedRef = useRef(onDraftCleared);
     const onEntrySyncedRef = useRef(onEntrySynced);
+    const onHeaderUpdatedRef = useRef(onHeaderUpdated);
 
     useEffect(() => { onDataSubmittedRef.current = onDataSubmitted; }, [onDataSubmitted]);
     useEffect(() => { onDraftUpdatedRef.current = onDraftUpdated; }, [onDraftUpdated]);
     useEffect(() => { onDraftClearedRef.current = onDraftCleared; }, [onDraftCleared]);
     useEffect(() => { onEntrySyncedRef.current = onEntrySynced; }, [onEntrySynced]);
+    useEffect(() => { onHeaderUpdatedRef.current = onHeaderUpdated; }, [onHeaderUpdated]);
 
     const connect = useCallback(() => {
         if (typeof window === 'undefined') return;
@@ -128,6 +133,13 @@ export function useRealtimeSync({
 
                     onEntrySyncedRef.current?.(data);
                 } catch (e) { console.error('[SSE] Failed to parse entry-synced event:', e); }
+            });
+
+            es.addEventListener('header-updated', (event: MessageEvent) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    onHeaderUpdatedRef.current?.(data);
+                } catch (e) { console.error('[SSE] Failed to parse header-updated event:', e); }
             });
 
             es.addEventListener('ping', () => {

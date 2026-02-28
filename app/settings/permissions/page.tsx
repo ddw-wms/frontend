@@ -1618,22 +1618,13 @@ export default function PermissionsPage() {
     // =====================================================
     // MAIN RENDER
     // =====================================================
-    if (loading) {
-        return (
-            <AppLayout>
-                <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
-                    <CircularProgress />
-                </Box>
-            </AppLayout>
-        );
-    }
 
     // Allow access if user has menu:settings:permissions permission enabled
     // super_admin always has access (isAdmin = true only for super_admin)
     // Other roles need the permission explicitly enabled
     const canAccessPermissionsPage = isAdmin || canAccessMenu('settings:permissions');
 
-    if (!canAccessPermissionsPage) {
+    if (!loading && !canAccessPermissionsPage) {
         return (
             <AppLayout>
                 <Alert severity="error">You do not have permission to access this page.</Alert>
@@ -1681,7 +1672,31 @@ export default function PermissionsPage() {
                 />
 
                 {/* Content */}
-                <Box sx={{ flex: 1, overflow: 'hidden', p: { xs: 1, md: 2 } }}>
+                <Box sx={{ flex: 1, overflow: 'hidden', p: { xs: 1, md: 2 }, position: 'relative' }}>
+                    {/* Overlay loading spinner - shows over content area while data loads */}
+                    {loading && (
+                        <Box sx={{
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            bottom: 0,
+                            display: 'flex',
+                            justifyContent: 'center',
+                            alignItems: 'center',
+                            bgcolor: isDarkMode ? 'rgba(15, 23, 42, 0.7)' : 'rgba(255, 255, 255, 0.7)',
+                            zIndex: 10,
+                            borderRadius: 1,
+                            backdropFilter: 'blur(2px)',
+                        }}>
+                            <Box sx={{ textAlign: 'center' }}>
+                                <CircularProgress size={40} sx={{ color: '#1e40af' }} />
+                                <Typography variant="body2" sx={{ mt: 1, color: 'text.secondary' }}>
+                                    Loading permissions...
+                                </Typography>
+                            </Box>
+                        </Box>
+                    )}
                     {/* TAB 0: Role Permissions */}
                     <TabPanel value={tabValue} index={0}>
                         <Box sx={{

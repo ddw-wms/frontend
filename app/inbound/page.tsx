@@ -137,7 +137,9 @@ import {
   clearMemoryCache,
   isMemoryCacheReady,
   removeFromPendingMemoryCache,
-  removeMultipleFromPendingMemoryCache
+  removeMultipleFromPendingMemoryCache,
+  startAutoRefresh,
+  stopAutoRefresh
 } from '@/lib/wmsCache';
 import { width } from '@mui/system';
 
@@ -424,6 +426,63 @@ export default function InboundPage() {
       endLiveSession();
     }
   }, [isOnMultiTab, activeWarehouse?.id, isLiveSessionActive, startLiveSession, endLiveSession]);
+
+  // ⚡ AUTO-ENABLE + AUTO-LOAD: When multi-entry tab opens, auto-enable cache and load pending data
+  useEffect(() => {
+    if (!isOnMultiTab || !activeWarehouse?.id) return;
+
+    const autoInitCache = async () => {
+      // Auto-enable cache if not already
+      if (!isWMSCacheEnabled()) {
+        enableWMSCache();
+        setPendingCacheEnabled(true);
+        console.log('⚡ Auto-enabled pending cache for multi-entry tab');
+      }
+
+      // Check if cache already has data for this warehouse
+      try {
+        const stats = await getPendingCacheStats(activeWarehouse.id);
+        setPendingCacheStats(stats.pending);
+
+        // If no data cached yet, auto-load in background
+        if (!stats.pending?.count || stats.pending.count === 0) {
+          console.log('⚡ No cached data found, auto-loading pending inventory...');
+          setPendingCacheLoading(true);
+          setPendingCacheProgress('Auto-loading pending inventory...');
+
+          const result = await loadPendingInventory(activeWarehouse.id, (loaded, total, message) => {
+            setPendingCacheProgress(message);
+          });
+
+          if (result.success && result.count > 0) {
+            // Warm up memory map from fresh data
+            await warmupMemoryCache(activeWarehouse.id);
+            const freshStats = await getPendingCacheStats(activeWarehouse.id);
+            setPendingCacheStats(freshStats.pending);
+            console.log(`✅ Auto-loaded ${result.count.toLocaleString()} pending items`);
+          }
+          setPendingCacheLoading(false);
+          setPendingCacheProgress(null);
+        }
+      } catch (err) {
+        console.warn('Auto-init cache error:', err);
+        setPendingCacheLoading(false);
+        setPendingCacheProgress(null);
+      }
+    };
+
+    autoInitCache();
+  }, [isOnMultiTab, activeWarehouse?.id]);
+
+  // ⚡ AUTO-REFRESH: Keep pending cache fresh every 30 minutes while on multi-entry tab
+  useEffect(() => {
+    if (isOnMultiTab && activeWarehouse?.id && isWMSCacheEnabled()) {
+      const cleanup = startAutoRefresh(activeWarehouse.id, 30 * 60 * 1000); // 30 min
+      return cleanup; // Stops auto-refresh when leaving tab or unmounting
+    } else {
+      stopAutoRefresh();
+    }
+  }, [isOnMultiTab, activeWarehouse?.id]);
 
   // Broadcast entries when multiRows change
   useEffect(() => {
@@ -4731,11 +4790,11 @@ export default function InboundPage() {
         offlineWarningShownRef.current = false;
       }
 
-      // Start ownership check in parallel (only if online, with fast timeout)
+      // Start ownership check in parallel (only if online, with fast 3s timeout)
       const ownershipPromise = isOnline
         ? Promise.race([
-          inboundAPI.getAll(1, 1, { search: wsnUpper }).catch(() => null),
-          new Promise<null>(resolve => setTimeout(() => resolve(null), 2000)) // 2s timeout
+          inboundAPI.getAll(1, 1, { search: wsnUpper }, { timeout: 3000 }).catch(() => null),
+          new Promise<null>(resolve => setTimeout(() => resolve(null), 3000)) // 3s hard timeout
         ])
         : Promise.resolve(null); // Skip API when offline
 
@@ -4843,31 +4902,36 @@ export default function InboundPage() {
               return updatedRows;
             });
 
-            // ✅ AUTO-PRINT: Only if multiPrintEnabled is ON
-            if (multiPrintEnabled) {
-              try {
-                const printPayload = {
-                  wsn: wsnUpper,
-                  fsn: masterInfo.fsn || '',
-                  wid: masterInfo.wid || '',
-                  product_title: masterInfo.product_title || '',
-                  brand: masterInfo.brand || '',
-                  mrp: String(masterInfo.mrp || ''),
-                  fsp: String(masterInfo.fsp || ''),
-                  copies: 1,
-                };
+            // ⚡ MOVE TO NEXT ROW IMMEDIATELY (don't wait for print/ownership)
+            moveToNextRow();
 
-                const printSuccess = await printLabel(printPayload);
-                if (printSuccess) {
-                  toast.success(`✓ Label printed: ${wsnUpper}`, { duration: 2000 });
+            // ✅ AUTO-PRINT: Only if multiPrintEnabled is ON (background, non-blocking)
+            if (multiPrintEnabled) {
+              (async () => {
+                try {
+                  const printPayload = {
+                    wsn: wsnUpper,
+                    fsn: masterInfo.fsn || '',
+                    wid: masterInfo.wid || '',
+                    product_title: masterInfo.product_title || '',
+                    brand: masterInfo.brand || '',
+                    mrp: String(masterInfo.mrp || ''),
+                    fsp: String(masterInfo.fsp || ''),
+                    copies: 1,
+                  };
+
+                  const printSuccess = await printLabel(printPayload);
+                  if (printSuccess) {
+                    toast.success(`✓ Label printed: ${wsnUpper}`, { duration: 2000 });
+                  }
+                } catch (printError: any) {
+                  toast.error(`Print error: ${printError.message}`, { duration: 3000 });
                 }
-              } catch (printError: any) {
-                toast.error(`Print error: ${printError.message}`, { duration: 3000 });
-              }
+              })();
             }
           }
 
-          // ⚡ BACKGROUND: Check ownership (won't block UI)
+          // ⚡ BACKGROUND: Check ownership (won't block cursor movement)
           const ownerResp = await ownershipPromise;
           const ownerItem = ownerResp?.data?.data?.[0] || ownerResp?.data?.[0] || null;
 
@@ -4943,17 +5007,18 @@ export default function InboundPage() {
             }
           }
 
-          // If no master data found, just move to next row
+          // If no master data found, move to next row (may not have moved yet)
           if (!masterInfo) {
             console.log('WSN not found in master data');
             moveToNextRow();
             return;
           }
 
-          // Move to next row after processing
-          moveToNextRow();
+          // moveToNextRow already called above after masterInfo display
         } catch (error) {
           console.log('WSN fetch error:', error);
+          // On error, still try to move to next row so scanner isn't stuck
+          moveToNextRow();
         }
       })();
     }

@@ -89,7 +89,9 @@ import {
   getCacheStats,
   getAvailableByWSNFast,
   warmupMemoryCache,
-  clearMemoryCache
+  clearMemoryCache,
+  startAutoRefresh,
+  stopAutoRefresh
 } from '@/lib/wmsCache';
 import AppLayout from '@/components/AppLayout';
 import { StandardPageHeader, StandardTabs, BatchManagementTab, WSNOverwriteDialog } from '@/components';
@@ -692,10 +694,43 @@ export default function QCPage() {
       warmupMemoryCache(activeWarehouse.id).catch(err => {
         console.warn('Memory cache warmup failed:', err);
       });
+
+      // ⚡ AUTO-ENABLE + AUTO-LOAD available cache on multi-tab open
+      if (!isWMSCacheEnabled()) {
+        enableWMSCache();
+        setAvailableCacheEnabled(true);
+        console.log('⚡ QC: Cache auto-enabled on multi-tab open');
+      }
+      // Load available inventory if not loaded or stale
+      getCacheStats(activeWarehouse.id).then(stats => {
+        setAvailableCacheStats({ count: stats.available.count, lastSync: stats.available.lastSync });
+        if (!stats.available.count || !stats.available.lastSync) {
+          console.log('⚡ QC: Auto-loading available cache...');
+          loadAvailableInventory(activeWarehouse.id, (loaded, total, msg) => {
+            setAvailableCacheProgress(msg);
+          }).then(result => {
+            if (result.success) {
+              setAvailableCacheStats({ count: result.count, lastSync: Date.now() });
+              warmupMemoryCache(activeWarehouse.id).catch(() => {});
+            }
+            setAvailableCacheProgress('');
+          }).catch(() => setAvailableCacheProgress(''));
+        }
+      }).catch(console.error);
     } else if (!isOnMultiTab && isLiveSessionActive) {
       endLiveSession();
     }
   }, [isOnMultiTab, activeWarehouse?.id, isLiveSessionActive, startLiveSession, endLiveSession]);
+
+  // ⚡ AUTO-REFRESH: Refresh available cache every 30 min while on multi-tab
+  useEffect(() => {
+    if (isOnMultiTab && activeWarehouse?.id) {
+      const cleanup = startAutoRefresh(activeWarehouse.id, undefined, 'available');
+      return cleanup;
+    } else {
+      stopAutoRefresh();
+    }
+  }, [isOnMultiTab, activeWarehouse?.id]);
 
   // Broadcast entries when multiRows change
   useEffect(() => {
@@ -3509,6 +3544,9 @@ export default function QCPage() {
         }
 
         // ⚡ CACHE FIRST + API FALLBACK
+        // ⚡ Move to next row IMMEDIATELY (non-blocking — don't wait for data)
+        moveToNextRow();
+
         (async () => {
           try {
             let masterInfo = null;
@@ -3523,12 +3561,24 @@ export default function QCPage() {
               } catch { /* cache miss */ }
             }
 
-            // FALLBACK TO API (only if online)
+            // FALLBACK TO API (only if online) with 3s timeout
             if (!masterInfo && isOnline) {
-              const response = await qcAPI.getPendingInbound(activeWarehouse?.id, wsn);
-              console.log('[QC] API Response for WSN:', wsn, response.data[0]);
-              if (response.data.length > 0) {
-                masterInfo = response.data[0];
+              const controller = new AbortController();
+              const timeoutId = setTimeout(() => controller.abort(), 3000);
+              try {
+                const response = await qcAPI.getPendingInbound(activeWarehouse?.id, wsn, { signal: controller.signal });
+                console.log('[QC] API Response for WSN:', wsn, response.data[0]);
+                if (response.data.length > 0) {
+                  masterInfo = response.data[0];
+                }
+              } catch (apiErr: any) {
+                if (apiErr?.name === 'CanceledError' || apiErr?.code === 'ERR_CANCELED') {
+                  console.log('[QC] API timeout for WSN:', wsn);
+                } else {
+                  throw apiErr;
+                }
+              } finally {
+                clearTimeout(timeoutId);
               }
             }
 
@@ -3570,13 +3620,11 @@ export default function QCPage() {
               });
             }
 
-            // ⚡ SCANNER: Move to next row after processing
-            moveToNextRow();
+            // Data populated in background, row already advanced
 
           } catch (error) {
             console.log('WSN not found in pending inbound');
-            // Still move to next row even if not found
-            moveToNextRow();
+            // Row already moved, no need to call moveToNextRow again
           }
         })();
       }

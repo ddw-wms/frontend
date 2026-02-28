@@ -117,8 +117,12 @@ function getDB(): WMSCacheDB {
 
 const CACHE_CONFIG = {
     // Stale thresholds
-    PENDING_STALE_MS: 60 * 60 * 1000,     // 1 hour for pending (master_data changes less)
-    AVAILABLE_STALE_MS: 30 * 60 * 1000,   // 30 mins for available (changes frequently)
+    PENDING_STALE_MS: 24 * 60 * 60 * 1000,  // 24 hours for pending (master_data rarely changes same day)
+    AVAILABLE_STALE_MS: 24 * 60 * 60 * 1000,  // 24 hours for available (auto-refresh keeps data fresh)
+
+    // Auto-refresh settings
+    AUTO_REFRESH_INTERVAL_MS: 30 * 60 * 1000,  // 30 minutes auto-refresh
+    SILENT_REFRESH_TIMEOUT_MS: 15000,           // 15 sec API timeout for background refresh
 
     // Performance tuning
     CHUNK_SIZE: 1000,     // Records per IndexedDB write
@@ -280,12 +284,10 @@ export async function getPendingByWSNFast(
     if (CACHE_CONFIG.MEMORY_CACHE_ENABLED && isMemoryWarmedUp && pendingMemoryMap && memoryWarehouseId === warehouseId) {
         const cached = pendingMemoryMap.get(normalizedWSN);
         if (cached) {
-            // Check if not stale
-            const age = Date.now() - (cached.cached_at || 0);
-            if (age < CACHE_CONFIG.PENDING_STALE_MS) {
-                console.log(`⚡ Memory HIT (pending): ${normalizedWSN}`);
-                return cached;
-            }
+            // ⚡ Always return from memory — auto-refresh keeps data fresh
+            // No stale check needed: 24hr threshold + 30min auto-refresh = always valid
+            console.log(`⚡ Memory HIT (pending): ${normalizedWSN}`);
+            return cached;
         }
     }
 
@@ -314,15 +316,12 @@ export async function getAvailableByWSNFast(
     const normalizedWSN = wsn.trim().toUpperCase();
 
     // TIER 1: Memory Map (INSTANT - sub-millisecond)
+    // No stale check here — auto-refresh keeps data fresh in background
     if (CACHE_CONFIG.MEMORY_CACHE_ENABLED && isMemoryWarmedUp && availableMemoryMap && memoryWarehouseId === warehouseId) {
         const cached = availableMemoryMap.get(normalizedWSN);
         if (cached) {
-            // Check if not stale
-            const age = Date.now() - (cached.cached_at || 0);
-            if (age < CACHE_CONFIG.AVAILABLE_STALE_MS) {
-                console.log(`⚡ Memory HIT (available): ${normalizedWSN}`);
-                return cached;
-            }
+            console.log(`⚡ Memory HIT (available): ${normalizedWSN}`);
+            return cached;
         }
     }
 
@@ -443,12 +442,10 @@ export async function getPendingByWSN(
             .first();
 
         if (cached) {
-            const age = Date.now() - (cached.cached_at || 0);
-            if (age < CACHE_CONFIG.PENDING_STALE_MS) {
-                console.log(`✅ Pending Cache HIT: ${normalizedWSN}`);
-                return cached;
-            }
-            console.log(`⚠️ Pending Cache STALE: ${normalizedWSN}`);
+            // ⚡ Always return cached data — auto-refresh keeps it updated
+            // No stale check: avoids API fallback on slow/offline internet
+            console.log(`✅ Pending Cache HIT: ${normalizedWSN}`);
+            return cached;
         }
 
         return null;
@@ -589,13 +586,10 @@ export async function getAvailableByWSN(
             .and(item => item.warehouse_id === warehouseId)
             .first();
 
+        // No stale check — auto-refresh keeps data fresh in background
         if (cached) {
-            const age = Date.now() - (cached.cached_at || 0);
-            if (age < CACHE_CONFIG.AVAILABLE_STALE_MS) {
-                console.log(`✅ Available Cache HIT: ${normalizedWSN}`);
-                return cached;
-            }
-            console.log(`⚠️ Available Cache STALE: ${normalizedWSN}`);
+            console.log(`✅ Available Cache HIT: ${normalizedWSN}`);
+            return cached;
         }
 
         return null;
@@ -878,6 +872,229 @@ export async function syncAllCaches(
     } catch (error) {
         console.error('❌ Cache sync failed:', error);
         if (onProgress) onProgress('Cache sync failed');
+    }
+}
+
+// ======================== AUTO-REFRESH (BACKGROUND) ========================
+
+let autoRefreshTimer: ReturnType<typeof setInterval> | null = null;
+let isRefreshing = false;
+
+/**
+ * Silent background refresh of pending cache
+ * - No UI toast/popup — only console logs
+ * - Chunked writes with yields — won't freeze UI
+ * - Mutex — skips if already refreshing
+ * - Offline-safe — silently skips if no internet
+ */
+export async function silentRefreshPendingCache(
+    warehouseId: number
+): Promise<boolean> {
+    // Mutex: skip if already refreshing
+    if (isRefreshing) {
+        console.log('🔄 Silent refresh already in progress, skipping');
+        return false;
+    }
+
+    // Skip if offline
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        console.log('📴 Offline — skipping silent refresh');
+        return false;
+    }
+
+    // Skip if cache disabled
+    if (!isCacheEnabled()) {
+        return false;
+    }
+
+    isRefreshing = true;
+
+    try {
+        const database = getDB();
+        console.log(`🔄 Silent refresh: fetching pending inventory for warehouse ${warehouseId}...`);
+
+        // Fetch from API with short timeout (don't block on slow connection)
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), CACHE_CONFIG.SILENT_REFRESH_TIMEOUT_MS);
+
+        let response;
+        try {
+            response = await cacheAPI.getPending(warehouseId);
+        } catch (fetchErr: any) {
+            clearTimeout(timeoutId);
+            if (fetchErr?.name === 'AbortError' || fetchErr?.code === 'ECONNABORTED') {
+                console.log('⏱️ Silent refresh timeout — will retry next interval');
+            } else {
+                console.warn('⚠️ Silent refresh API error:', fetchErr?.message);
+            }
+            return false;
+        }
+        clearTimeout(timeoutId);
+
+        const records = response?.data?.data || [];
+        const totalCount = records.length;
+
+        if (totalCount === 0) {
+            console.log('🔄 Silent refresh: no pending records found');
+            return true;
+        }
+
+        // Clear existing and re-insert (atomic refresh)
+        await database.pendingInventory
+            .where('warehouse_id')
+            .equals(warehouseId)
+            .delete();
+
+        // Add metadata to records
+        const recordsWithMeta = records.map((r: any) => ({
+            ...r,
+            wsn: (r.wsn || '').toUpperCase(),
+            warehouse_id: warehouseId,
+            cached_at: Date.now()
+        }));
+
+        // Chunked write — prevents UI freeze
+        for (let i = 0; i < recordsWithMeta.length; i += CACHE_CONFIG.CHUNK_SIZE) {
+            const chunk = recordsWithMeta.slice(i, i + CACHE_CONFIG.CHUNK_SIZE);
+            await database.pendingInventory.bulkPut(chunk);
+            // Yield to main thread between chunks
+            await new Promise(resolve => setTimeout(resolve, CACHE_CONFIG.YIELD_DELAY_MS));
+        }
+
+        // Update sync timestamp
+        await database.metadata.put({ key: `pendingSync_${warehouseId}`, value: Date.now() });
+
+        // Re-warm memory map from fresh IndexedDB data
+        if (CACHE_CONFIG.MEMORY_CACHE_ENABLED) {
+            pendingMemoryMap = new Map(recordsWithMeta.map((r: any) => [r.wsn, r]));
+            memoryWarehouseId = warehouseId;
+            isMemoryWarmedUp = true;
+        }
+
+        console.log(`✅ Silent refresh complete: ${totalCount.toLocaleString()} pending records refreshed`);
+        return true;
+    } catch (error) {
+        console.error('❌ Silent refresh failed:', error);
+        return false;
+    } finally {
+        isRefreshing = false;
+    }
+}
+
+/**
+ * Silent background refresh of available cache (QC/Picking/Outbound)
+ * Same pattern as pending: no UI, chunked writes, mutex, offline-safe
+ */
+let isRefreshingAvailable = false;
+
+export async function silentRefreshAvailableCache(
+    warehouseId: number
+): Promise<boolean> {
+    if (isRefreshingAvailable) {
+        console.log('🔄 Available refresh already in progress, skipping...');
+        return false;
+    }
+
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        console.log('📴 Offline — skipping available cache refresh');
+        return false;
+    }
+
+    isRefreshingAvailable = true;
+    try {
+        const database = getDB();
+        console.log(`🔄 Silent refreshing available cache for warehouse ${warehouseId}...`);
+
+        const response = await cacheAPI.getAvailable(warehouseId);
+        const records = response?.data?.data || [];
+        const totalCount = records.length;
+
+        if (totalCount === 0) {
+            console.log('🔄 Silent available refresh: no records found');
+            return true;
+        }
+
+        // Clear existing and re-insert (atomic refresh)
+        await database.availableInventory
+            .where('warehouse_id')
+            .equals(warehouseId)
+            .delete();
+
+        const recordsWithMeta = records.map((r: any) => ({
+            ...r,
+            wsn: (r.wsn || '').toUpperCase(),
+            warehouse_id: warehouseId,
+            cached_at: Date.now()
+        }));
+
+        for (let i = 0; i < recordsWithMeta.length; i += CACHE_CONFIG.CHUNK_SIZE) {
+            const chunk = recordsWithMeta.slice(i, i + CACHE_CONFIG.CHUNK_SIZE);
+            await database.availableInventory.bulkPut(chunk);
+            await new Promise(resolve => setTimeout(resolve, CACHE_CONFIG.YIELD_DELAY_MS));
+        }
+
+        await database.metadata.put({ key: `availableSync_${warehouseId}`, value: Date.now() });
+
+        // Re-warm memory map from fresh data
+        if (CACHE_CONFIG.MEMORY_CACHE_ENABLED) {
+            availableMemoryMap = new Map(recordsWithMeta.map((r: any) => [r.wsn, r]));
+            memoryWarehouseId = warehouseId;
+            isMemoryWarmedUp = true;
+        }
+
+        console.log(`✅ Silent available refresh complete: ${totalCount.toLocaleString()} records`);
+        return true;
+    } catch (error) {
+        console.error('❌ Silent available refresh failed:', error);
+        return false;
+    } finally {
+        isRefreshingAvailable = false;
+    }
+}
+
+/**
+ * Start auto-refresh timer for BOTH pending and available caches
+ * Refreshes every 30 minutes (configurable) while multi-entry tab is active
+ * @param cacheType - 'pending' | 'available' | 'both' (default: 'pending' for backward compat)
+ * Returns cleanup function to stop auto-refresh
+ */
+export function startAutoRefresh(
+    warehouseId: number,
+    intervalMs?: number,
+    cacheType: 'pending' | 'available' | 'both' = 'pending'
+): () => void {
+    // Stop any existing timer first
+    stopAutoRefresh();
+
+    const interval = intervalMs || CACHE_CONFIG.AUTO_REFRESH_INTERVAL_MS;
+
+    console.log(`⏰ Auto-refresh started (${cacheType}): every ${Math.round(interval / 60000)} minutes for warehouse ${warehouseId}`);
+
+    autoRefreshTimer = setInterval(() => {
+        if (cacheType === 'pending' || cacheType === 'both') {
+            silentRefreshPendingCache(warehouseId).catch(err => {
+                console.warn('Auto-refresh pending error (will retry):', err);
+            });
+        }
+        if (cacheType === 'available' || cacheType === 'both') {
+            silentRefreshAvailableCache(warehouseId).catch(err => {
+                console.warn('Auto-refresh available error (will retry):', err);
+            });
+        }
+    }, interval);
+
+    // Return cleanup function
+    return () => stopAutoRefresh();
+}
+
+/**
+ * Stop auto-refresh timer
+ */
+export function stopAutoRefresh(): void {
+    if (autoRefreshTimer) {
+        clearInterval(autoRefreshTimer);
+        autoRefreshTimer = null;
+        console.log('⏰ Auto-refresh stopped');
     }
 }
 

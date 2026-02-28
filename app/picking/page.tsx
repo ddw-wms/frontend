@@ -48,7 +48,9 @@ import {
   getCacheStats,
   getAvailableByWSNFast,
   warmupMemoryCache,
-  clearMemoryCache
+  clearMemoryCache,
+  startAutoRefresh,
+  stopAutoRefresh
 } from '@/lib/wmsCache';
 
 // Register AG Grid modules ONCE (include ClientSideRowModel for client-side features)
@@ -489,10 +491,43 @@ export default function PickingPage() {
       warmupMemoryCache(activeWarehouse.id).catch(err => {
         console.warn('Memory cache warmup failed:', err);
       });
+
+      // ⚡ AUTO-ENABLE + AUTO-LOAD available cache on multi-tab open
+      if (!isWMSCacheEnabled()) {
+        enableWMSCache();
+        setAvailableCacheEnabled(true);
+        console.log('⚡ Picking: Cache auto-enabled on multi-tab open');
+      }
+      // Load available inventory if not loaded or stale
+      getCacheStats(activeWarehouse.id).then(stats => {
+        setAvailableCacheStats({ count: stats.available.count, lastSync: stats.available.lastSync || Date.now() });
+        if (!stats.available.count || !stats.available.lastSync) {
+          console.log('⚡ Picking: Auto-loading available cache...');
+          loadAvailableInventory(activeWarehouse.id, (loaded, total, msg) => {
+            setAvailableCacheProgress(msg);
+          }).then(result => {
+            if (result.success) {
+              setAvailableCacheStats({ count: result.count, lastSync: Date.now() });
+              warmupMemoryCache(activeWarehouse.id).catch(() => {});
+            }
+            setAvailableCacheProgress('');
+          }).catch(() => setAvailableCacheProgress(''));
+        }
+      }).catch(console.error);
     } else if (!isOnMultiTab && isLiveSessionActive) {
       endLiveSession();
     }
   }, [isOnMultiTab, activeWarehouse?.id, isLiveSessionActive, startLiveSession, endLiveSession]);
+
+  // ⚡ AUTO-REFRESH: Refresh available cache every 30 min while on multi-tab
+  useEffect(() => {
+    if (isOnMultiTab && activeWarehouse?.id) {
+      const cleanup = startAutoRefresh(activeWarehouse.id, undefined, 'available');
+      return cleanup;
+    } else {
+      stopAutoRefresh();
+    }
+  }, [isOnMultiTab, activeWarehouse?.id]);
 
   // Broadcast entries when multiRows change
   useEffect(() => {
@@ -3958,8 +3993,10 @@ export default function PickingPage() {
 
     if (existingPickingWSNs.has(wsn) && isOnline) {
       // Determine whether it's in this warehouse or another warehouse (only if online)
+      const dupController = new AbortController();
+      const dupTimeout = setTimeout(() => dupController.abort(), 3000);
       try {
-        const resp = await pickingAPI.checkWSNExists(wsn, activeWarehouse?.id);
+        const resp = await pickingAPI.checkWSNExists(wsn, activeWarehouse?.id, { signal: dupController.signal });
         const existsHere = resp.data?.exists;
 
         if (existsHere) {
@@ -4016,11 +4053,33 @@ export default function PickingPage() {
 
         return;
       } catch (err) {
-        // On API error, fall through to master data fetch (best-effort)
+        // On API error (including timeout), fall through to master data fetch (best-effort)
+      } finally {
+        clearTimeout(dupTimeout);
       }
     }
 
     // ⚡ CACHE FIRST + API FALLBACK for master data
+    // ⚡ SCANNER: Move to next row IMMEDIATELY (non-blocking)
+    const moveToNextRow = () => {
+      setTimeout(() => {
+        try {
+          const nextIndex = (rowIndex ?? 0) + 1;
+          if (nextIndex < event.api.getDisplayedRowCount()) {
+            event.api.ensureIndexVisible(nextIndex, 'bottom');
+            event.api.startEditingCell({ rowIndex: nextIndex, colKey: 'wsn' });
+          } else {
+            add500Rows();
+            setTimeout(() => {
+              event.api.ensureIndexVisible(nextIndex, 'bottom');
+              event.api.startEditingCell({ rowIndex: nextIndex, colKey: 'wsn' });
+            }, 50);
+          }
+        } catch (e) { /* ignore */ }
+      }, 30);
+    };
+    moveToNextRow();
+
     try {
       let d = null;
       let fromCache = false;
@@ -4037,14 +4096,27 @@ export default function PickingPage() {
         } catch { /* cache miss */ }
       }
 
-      // FALL BACK TO API (only if online and not cached)
+      // FALL BACK TO API (only if online and not cached) with 3s timeout
       if (!d && isOnline) {
-        const res = await pickingAPI.getSourceByWSN(
-          wsn,
-          activeWarehouse?.id
-        );
-        d = res.data;
-        console.log('BACKEND DATA:', d);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3000);
+        try {
+          const res = await pickingAPI.getSourceByWSN(
+            wsn,
+            activeWarehouse?.id,
+            { signal: controller.signal }
+          );
+          d = res.data;
+          console.log('BACKEND DATA:', d);
+        } catch (apiErr: any) {
+          if (apiErr?.name === 'CanceledError' || apiErr?.code === 'ERR_CANCELED') {
+            console.log('Picking API timeout for WSN:', wsn);
+          } else {
+            throw apiErr;
+          }
+        } finally {
+          clearTimeout(timeoutId);
+        }
       }
 
       // If still no data (offline with no cache), show message
@@ -4052,10 +4124,8 @@ export default function PickingPage() {
         toast.error(`WSN ${wsn} not in cache. Enable cache refresh when online.`, {
           duration: 3000,
         });
+        // Row already advanced, clear this cell
         node.setDataValue('wsn', '');
-        setTimeout(() => {
-          event.api.startEditingCell({ rowIndex: rowIndex, colKey: 'wsn' });
-        }, 100);
         return;
       }
 
@@ -4093,35 +4163,39 @@ export default function PickingPage() {
       // If not found in picking sources, try inbound master data as a fallback (only if online)
       if (err?.response?.status === 404 && isOnline) {
         try {
-          const inboundResp = await inboundAPI.getMasterDataByWSN(wsn, activeWarehouse?.id);
-          const md = inboundResp.data;
+          const controller2 = new AbortController();
+          const timeoutId2 = setTimeout(() => controller2.abort(), 3000);
+          try {
+            const inboundResp = await inboundAPI.getMasterDataByWSN(wsn, activeWarehouse?.id, { signal: controller2.signal });
+            const md = inboundResp.data;
 
-          // ⚡ PERF: Single setData() for inbound fallback
-          const fallbackMaster = buildMasterDataFromResponse(md);
-          node.setData({ ...node.data, ...fallbackMaster });
+            // ⚡ PERF: Single setData() for inbound fallback
+            const fallbackMaster = buildMasterDataFromResponse(md);
+            node.setData({ ...node.data, ...fallbackMaster });
 
-          // Also update React state
-          setMultiRows((prev) => {
-            const rows = [...prev];
-            rows[rowIndex] = { ...rows[rowIndex], wsn, ...fallbackMaster };
-            checkDuplicates(rows);
-            // ⚡ SYNC: Broadcast inbound fallback master data to other devices
-            queueRowSync(rowIndex, rows[rowIndex]);
-            return rows;
-          });
+            // Also update React state
+            setMultiRows((prev) => {
+              const rows = [...prev];
+              rows[rowIndex] = { ...rows[rowIndex], wsn, ...fallbackMaster };
+              checkDuplicates(rows);
+              // ⚡ SYNC: Broadcast inbound fallback master data to other devices
+              queueRowSync(rowIndex, rows[rowIndex]);
+              return rows;
+            });
 
-          toast.success(`Source data loaded from Inbound for ${wsn}`);
-          return;
+            toast.success(`Source data loaded from Inbound for ${wsn}`);
+            return;
+          } finally {
+            clearTimeout(timeoutId2);
+          }
         } catch (inErr) {
           console.error('Inbound fallback failed:', inErr);
         }
       }
 
+      // Row already advanced, just clear this cell
       toast.error(`WSN ${wsn} not found`);
       node.setDataValue('wsn', '');
-      setTimeout(() => {
-        event.api.startEditingCell({ rowIndex: rowIndex, colKey: 'wsn' });
-      }, 100);
     }
   }, [multiRows, existingPickingWSNs, activeWarehouse, add500Rows, checkDuplicates, buildMasterDataFromResponse, isWMSCacheEnabled, getAvailableByWSNFast, setMultiRows, setWsnOverwriteDialog, queueRowSync]);
 

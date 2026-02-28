@@ -68,6 +68,7 @@ interface CustomerAutocompleteProps {
     placeholder?: string;
     disabled?: boolean;
     fullWidth?: boolean;
+    disablePortal?: boolean;
     sx?: any;
 }
 
@@ -85,6 +86,7 @@ export default function CustomerAutocomplete({
     placeholder = 'Type to search or select...',
     disabled = false,
     fullWidth = true,
+    disablePortal = false,
     sx = {}
 }: CustomerAutocompleteProps) {
     const theme = useTheme();
@@ -413,6 +415,7 @@ export default function CustomerAutocomplete({
                 disabled={disabled}
                 fullWidth={fullWidth}
                 size={size}
+                disablePortal={disablePortal}
                 renderOption={renderOption}
                 filterOptions={(opts, state) => {
                     // Always show "Add New" at top

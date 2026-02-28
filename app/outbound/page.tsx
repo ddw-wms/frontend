@@ -170,7 +170,9 @@ import {
     removeFromCache,
     needsCacheRefresh,
     warmupOutboundMemoryCache,
-    clearOutboundMemoryCache
+    clearOutboundMemoryCache,
+    startOutboundAutoRefresh,
+    stopOutboundAutoRefresh
 } from '@/lib/outboundInventoryCache';
 
 // Tab definitions with permission codes
@@ -370,9 +372,9 @@ export default function OutboundPage() {
     const [highlightedRows, setHighlightedRows] = useState<Set<number>>(new Set());
     const highlightTimeoutRefs = useRef<Map<number, NodeJS.Timeout>>(new Map());
 
-    // ⚡ CACHE STATE: Available inventory cache (manual toggle - Issue #6)
+    // ⚡ CACHE STATE: Available inventory cache (default ON for best performance)
     const [cacheEnabled, setCacheEnabled] = useState<boolean>(() => {
-        try { return localStorage.getItem('outbound_cacheEnabled') === 'true'; } catch { return false; }
+        try { const val = localStorage.getItem('outbound_cacheEnabled'); return val === null ? true : val === 'true'; } catch { return true; }
     });
     const [cacheStats, setCacheStats] = useState<{ totalRecords: number; isReady: boolean } | null>(null);
     const [cacheLoading, setCacheLoading] = useState(false);
@@ -571,6 +573,16 @@ export default function OutboundPage() {
         }
     }, [isOnMultiTab, activeWarehouse?.id, isLiveSessionActive, startLiveSession, endLiveSession]);
 
+    // ⚡ AUTO-REFRESH: Refresh outbound cache every 30 min while on multi-tab
+    useEffect(() => {
+        if (isOnMultiTab && activeWarehouse?.id && cacheEnabled) {
+            const cleanup = startOutboundAutoRefresh(activeWarehouse.id);
+            return cleanup;
+        } else {
+            stopOutboundAutoRefresh();
+        }
+    }, [isOnMultiTab, activeWarehouse?.id, cacheEnabled]);
+
     // Broadcast entries when multiRows change
     useEffect(() => {
         if (isLiveSessionActive && isOnMultiTab) {
@@ -643,6 +655,8 @@ export default function OutboundPage() {
 
     // ====== MULTI ENTRY COLUMN WIDTHS PERSISTENCE ======
     const [multiColumnWidths, setMultiColumnWidths] = useState<Record<string, number>>({});
+    // Ref for initial column widths to avoid columnDefs rebuild on every resize
+    const multiColumnWidthsRef = useRef<Record<string, number>>({});
 
     // ====== CTRL+O PRODUCT LINK SHORTCUT STATE ======
     const [ctrlOProductLinkEnabled, setCtrlOProductLinkEnabled] = useState(() => {
@@ -855,6 +869,7 @@ export default function OutboundPage() {
         if (savedWidths) {
             try {
                 const widths = JSON.parse(savedWidths);
+                multiColumnWidthsRef.current = widths;
                 setMultiColumnWidths(widths);
                 console.log('✅ Outbound Multi Entry column widths loaded:', widths);
             } catch (e) {
@@ -2840,6 +2855,34 @@ export default function OutboundPage() {
         syncTimeoutRef.current = setTimeout(flushSyncRows, 300);
     }, [flushSyncRows]);
 
+    // ⚡ REAL-TIME SYNC: Debounced header field sync (date, customer, vehicle) across devices
+    const headerSyncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const isHeaderSyncingRef = useRef(false);
+    const lastSentHeaderRef = useRef<{ date: string; customer: string; vehicle: string }>({ date: '', customer: '', vehicle: '' });
+
+    useEffect(() => {
+        // Skip if syncing from another device to avoid echo
+        if (isHeaderSyncingRef.current) return;
+        if (!activeWarehouse?.id) return;
+
+        // Skip initial mount (no changes yet)
+        const current = { date: commonDate, customer: selectedCustomer, vehicle: commonVehicle };
+        if (current.date === lastSentHeaderRef.current.date &&
+            current.customer === lastSentHeaderRef.current.customer &&
+            current.vehicle === lastSentHeaderRef.current.vehicle) return;
+
+        if (headerSyncTimeoutRef.current) clearTimeout(headerSyncTimeoutRef.current);
+        headerSyncTimeoutRef.current = setTimeout(() => {
+            lastSentHeaderRef.current = current;
+            outboundAPI.syncHeader(activeWarehouse.id, commonDate, selectedCustomer, commonVehicle)
+                .catch(() => { });
+        }, 500);
+
+        return () => {
+            if (headerSyncTimeoutRef.current) clearTimeout(headerSyncTimeoutRef.current);
+        };
+    }, [commonDate, selectedCustomer, commonVehicle, activeWarehouse?.id]);
+
     // ✅ AUTO-FETCH SOURCE DATA ON WSN CELL EDIT (MULTI ENTRY)
     const onCellValueChanged = useCallback(
         async (params: any) => {
@@ -2990,11 +3033,16 @@ export default function OutboundPage() {
                     return;
                 }
 
-                // Cross-warehouse detection: if WSN exists anywhere but not in this warehouse
-                try {
-                    const allWsnsResp = await outboundAPI.getAllOutboundWSNs();
-                    const allWsns: string[] = allWsnsResp.data.map((w: string) => w.toUpperCase());
-                    if (allWsns.includes(wsn) && !existingOutboundWSNs.has(wsn)) {
+                // Cross-warehouse detection: if WSN exists anywhere but not in this warehouse (skip if offline)
+                const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+                if (isOnline) {
+                  try {
+                    const crossController = new AbortController();
+                    const crossTimeout = setTimeout(() => crossController.abort(), 3000);
+                    try {
+                      const allWsnsResp = await outboundAPI.getAllOutboundWSNs({ signal: crossController.signal });
+                      const allWsns: string[] = allWsnsResp.data.map((w: string) => w.toUpperCase());
+                      if (allWsns.includes(wsn) && !existingOutboundWSNs.has(wsn)) {
                         toast.error(`WSN ${wsn} already dispatched in another warehouse`, {
                             duration: 3000,
                             style: {
@@ -3023,11 +3071,35 @@ export default function OutboundPage() {
 
                         return;
                     }
-                } catch (err) {
-                    // ignore remote lookup errors
+                    } finally {
+                      clearTimeout(crossTimeout);
+                    }
+                  } catch (err) {
+                    // ignore remote lookup errors (timeout, offline, etc.)
+                  }
                 }
 
                 // If we reach here, proceed to fetch source/master data
+                // ⚡ SCANNER: Move to next row IMMEDIATELY (non-blocking)
+                const moveToNextRow = () => {
+                    setTimeout(() => {
+                        try {
+                            const nextIndex = (rowIndex ?? 0) + 1;
+                            if (nextIndex < params.api.getDisplayedRowCount()) {
+                                params.api.ensureIndexVisible(nextIndex, 'bottom');
+                                params.api.startEditingCell({ rowIndex: nextIndex, colKey: 'wsn' });
+                            } else {
+                                add500Rows();
+                                setTimeout(() => {
+                                    params.api.ensureIndexVisible(nextIndex, 'bottom');
+                                    params.api.startEditingCell({ rowIndex: nextIndex, colKey: 'wsn' });
+                                }, 50);
+                            }
+                        } catch (e) { /* ignore */ }
+                    }, 30);
+                };
+                moveToNextRow();
+
                 // ⚡ CACHE + OFFLINE: Try ultra-fast memory cache first, fall back to API, support offline mode (Issue #7)
                 try {
                     let data = null;
@@ -3047,11 +3119,17 @@ export default function OutboundPage() {
                         }
                     }
 
-                    // Fall back to API if not in cache (only if online)
+                    // Fall back to API if not in cache (only if online) with 3s timeout
                     if (!data) {
                         try {
-                            const res = await outboundAPI.getSourceByWSN(wsn, activeWarehouse.id);
-                            data = res.data;
+                            const controller = new AbortController();
+                            const timeoutId = setTimeout(() => controller.abort(), 3000);
+                            try {
+                                const res = await outboundAPI.getSourceByWSN(wsn, activeWarehouse.id, { signal: controller.signal });
+                                data = res.data;
+                            } finally {
+                                clearTimeout(timeoutId);
+                            }
                         } catch (apiErr: any) {
                             // If API fails and we have cache enabled, show offline message
                             if (cacheEnabled) {
@@ -4103,8 +4181,6 @@ export default function OutboundPage() {
     }, [searchFilter, listData]);
 
     const handleDeleteBatch = async (batchId: string) => {
-        if (!confirm(`Delete batch ${batchId}?`)) return;
-
         try {
             await outboundAPI.deleteBatch(batchId);
             toast.success('✓ Batch deleted');
@@ -4535,21 +4611,22 @@ export default function OutboundPage() {
             suppressMovable: true,
             sortable: false,
             filter: false,
+            resizable: false,
         };
 
         const cols = visibleColumns.map((col) => {
             const isEditable = EDITABLE_COLUMNS.includes(col);
             const defaultWidth = col === 'wsn' ? 140 : col === 'dispatch_date' ? 140 : 130;
 
-            // Use saved width if available, otherwise use default
-            const savedWidth = multiColumnWidths[col];
+            // Use saved width from ref if available (loaded once from localStorage)
+            const savedWidth = multiColumnWidthsRef.current[col];
 
             return {
                 field: col,
                 headerName: col.replace(/_/g, ' ').toUpperCase(),
                 editable: isEditable,
-                width: savedWidth || defaultWidth, // Use saved width or fall back to default
-                suppressSizeToFit: true,
+                ...(savedWidth ? { width: savedWidth } : { flex: 1, minWidth: defaultWidth }),
+                suppressSizeToFit: false,
                 cellStyle: (params: any) => {
                     const wsn = params.data?.wsn?.trim()?.toUpperCase();
                     const styles: any = {};
@@ -4571,7 +4648,7 @@ export default function OutboundPage() {
         });
 
         return [srCol, ...cols];
-    }, [visibleColumns, isDarkMode, crossWarehouseWSNs, gridDuplicateWSNs, multiColumnWidths]);
+    }, [visibleColumns, isDarkMode, crossWarehouseWSNs, gridDuplicateWSNs]);
 
     const defaultColDef = useMemo(
         () => ({
@@ -4720,7 +4797,6 @@ export default function OutboundPage() {
                 return {
                     field: col,
                     headerName: col.replace(/_/g, ' ').toUpperCase(),
-                    filter: enableColumnFilters ? 'agDateColumnFilter' : undefined,
                     valueFormatter: (p: any) => formatDate(p.value),
                     tooltipField: col,
                     minWidth,
@@ -4748,7 +4824,6 @@ export default function OutboundPage() {
             return {
                 field: col,
                 headerName: col.replace(/_/g, ' ').toUpperCase(),
-                filter: enableColumnFilters ? 'agTextColumnFilter' : undefined,
                 tooltipField: col,
                 minWidth,
                 hide: false,
@@ -4756,7 +4831,7 @@ export default function OutboundPage() {
         });
 
         return [sr, ...cols];
-    }, [enableColumnFilters, enableSorting, enableColumnResize, isDarkMode]);
+    }, [isDarkMode]);
 
     // NOTE: No longer need to re-apply column state on columnDefs change
     // because columnDefs structure is now STABLE (includes ALL columns with hide property)
@@ -4765,11 +4840,28 @@ export default function OutboundPage() {
     const listDefaultColDef = useMemo(() => ({
         sortable: !!enableSorting,
         resizable: !!enableColumnResize,
-        filter: !!enableColumnFilters,
+        filter: enableColumnFilters ? 'agTextColumnFilter' : false,
         editable: false,
         suppressHeaderMenuButton: false,
         cellStyle: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
     }), [enableSorting, enableColumnFilters, enableColumnResize]);
+
+    // ⚡ Re-apply saved column state after grid settings change (prevents column reset)
+    useEffect(() => {
+        const api = listGridRef.current;
+        if (!api) return;
+        try {
+            const saved = localStorage.getItem('outbound_list_grid_state');
+            if (saved) {
+                // Delay to let ag-Grid process defaultColDef change first
+                setTimeout(() => {
+                    try {
+                        api.applyColumnState({ state: JSON.parse(saved), applyOrder: true });
+                    } catch { /* ignore */ }
+                }, 50);
+            }
+        } catch { /* ignore */ }
+    }, [enableSorting, enableColumnFilters, enableColumnResize]);
 
     // ⚡ EXTRACTED: Multi-entry grid onCellEditingStopped handler
     const handleMultiCellEditingStopped = useCallback(async (event: any) => {
@@ -4852,6 +4944,21 @@ export default function OutboundPage() {
                 try { gridRef.current?.api?.refreshCells({ force: true }); } catch { /* ignore */ }
                 isSyncingRef.current = false;
             }, 150);
+        }, []),
+        onHeaderUpdated: useCallback((data: any) => {
+            if (!data) return;
+            isHeaderSyncingRef.current = true;
+            if (data.commonDate !== undefined) setCommonDate(data.commonDate);
+            if (data.selectedCustomer !== undefined) setSelectedCustomer(data.selectedCustomer);
+            if (data.commonVehicle !== undefined) setCommonVehicle(data.commonVehicle);
+            // Update lastSentHeader to avoid echo
+            lastSentHeaderRef.current = {
+                date: data.commonDate ?? lastSentHeaderRef.current.date,
+                customer: data.selectedCustomer ?? lastSentHeaderRef.current.customer,
+                vehicle: data.commonVehicle ?? lastSentHeaderRef.current.vehicle,
+            };
+            setTimeout(() => { isHeaderSyncingRef.current = false; }, 500);
+            toast('Header fields updated from another device', { duration: 2000, icon: '📡' });
         }, []),
     });
 
@@ -6126,6 +6233,7 @@ export default function OutboundPage() {
                                                             size="small"
                                                             label="Customer *"
                                                             placeholder="Select..."
+                                                            disablePortal={isFullscreen}
                                                             sx={{
                                                                 '& .MuiInputBase-root': { height: 36, fontSize: '0.8rem' },
                                                                 '& .MuiInputLabel-root': { fontSize: '0.75rem' }
@@ -6247,6 +6355,7 @@ export default function OutboundPage() {
                                                     size="small"
                                                     label="Customer Name *"
                                                     placeholder="Type or select..."
+                                                    disablePortal={isFullscreen}
                                                     sx={{ width: '100%' }}
                                                 />
                                             </Box>
@@ -6415,9 +6524,9 @@ export default function OutboundPage() {
                                                                         checked={visibleColumns.includes(col)}
                                                                         onChange={(e) => {
                                                                             if (e.target.checked) {
-                                                                                setVisibleColumns([...visibleColumns, col]);
+                                                                                saveColumnSettings([...visibleColumns, col]);
                                                                             } else {
-                                                                                setVisibleColumns(visibleColumns.filter((c: string) => c !== col));
+                                                                                saveColumnSettings(visibleColumns.filter((c: string) => c !== col));
                                                                             }
                                                                         }}
                                                                         sx={{ py: 0.25, '&.Mui-checked': { color: '#3b82f6' } }}
@@ -6439,9 +6548,9 @@ export default function OutboundPage() {
                                                                         checked={visibleColumns.includes(col)}
                                                                         onChange={(e) => {
                                                                             if (e.target.checked) {
-                                                                                setVisibleColumns([...visibleColumns, col]);
+                                                                                saveColumnSettings([...visibleColumns, col]);
                                                                             } else {
-                                                                                setVisibleColumns(visibleColumns.filter((c: string) => c !== col));
+                                                                                saveColumnSettings(visibleColumns.filter((c: string) => c !== col));
                                                                             }
                                                                         }}
                                                                         sx={{ py: 0.25, '&.Mui-checked': { color: '#10b981' } }}
@@ -7247,6 +7356,7 @@ export default function OutboundPage() {
                                             multiple
                                             size="small"
                                             disableCloseOnSelect
+                                            disablePortal
                                             options={crossTabFilterOptions}
                                             value={crossTabFilter}
                                             onChange={(_, newValue) => setCrossTabFilter(newValue)}
@@ -7374,6 +7484,7 @@ export default function OutboundPage() {
                                         <Autocomplete
                                             multiple
                                             size="small"
+                                            disablePortal
                                             options={pivotFilterOptions.categories}
                                             value={pivotCategoryFilter}
                                             onChange={(_, newValue) => setPivotCategoryFilter(newValue)}
@@ -7457,6 +7568,7 @@ export default function OutboundPage() {
                                         <Autocomplete
                                             multiple
                                             size="small"
+                                            disablePortal
                                             options={pivotFilterOptions.brands}
                                             value={pivotBrandFilter}
                                             onChange={(_, newValue) => setPivotBrandFilter(newValue)}
@@ -7540,6 +7652,7 @@ export default function OutboundPage() {
                                         <Autocomplete
                                             multiple
                                             size="small"
+                                            disablePortal
                                             options={pivotFilterOptions.pTypes}
                                             value={pivotPTypeFilter}
                                             onChange={(_, newValue) => setPivotPTypeFilter(newValue)}
@@ -8260,67 +8373,50 @@ export default function OutboundPage() {
                                 suppressRowVirtualisation={false}
                                 suppressAnimationFrame={false}
 
-                                // ✅ Save column widths when resized (matching inbound pattern)
+                                // ✅ Save column widths when resized - use ref to avoid columnDefs rebuild
                                 onColumnResized={(params: any) => {
-                                    if (params.finished && params.column) {
+                                    if (params.finished && params.source === 'uiColumnResized' && params.column) {
                                         const colId = params.column.getColId();
                                         const newWidth = params.column.getActualWidth();
                                         // Don't save special columns
                                         if (colId === '__sr') return;
 
-                                        setMultiColumnWidths(prev => {
-                                            const updated = { ...prev, [colId]: newWidth };
-                                            localStorage.setItem('outboundMultiEntryColumnWidths', JSON.stringify(updated));
-                                            return updated;
-                                        });
+                                        multiColumnWidthsRef.current = { ...multiColumnWidthsRef.current, [colId]: newWidth };
+                                        localStorage.setItem('outboundMultiEntryColumnWidths', JSON.stringify(multiColumnWidthsRef.current));
                                     }
                                 }}
                                 onGridReady={(params: any) => {
-                                    columnApiRef.current = params.columnApi;
-                                    // Column widths are now baked into columnDefs via multiColumnWidths state
-                                    // No need to apply column state here - widths are already set
+                                    columnApiRef.current = params.api;
+                                    // Column widths are baked into columnDefs via multiColumnWidths state
                                 }}
 
-                                // ⚡ PERFORMANCE: Auto-fit columns to fill grid width on resize (no empty space)
+                                // ⚡ PERFORMANCE: Columns with flex auto-fill on resize, no manual sizeColumnsToFit needed
                                 onGridSizeChanged={() => {
+                                    // flex:1 columns auto-expand to fill grid width
+                                    // Only intervene if ALL columns have fixed widths (all saved) and there's empty space
                                     try {
-                                        const hasSavedWidths = Object.keys(multiColumnWidths).length > 0;
-                                        if (hasSavedWidths) return;
-                                        const colApi = columnApiRef.current;
                                         const api = gridRef.current?.api;
-                                        if (!colApi || !api) return;
-                                        const allCols = colApi.getAllColumns ? colApi.getAllColumns().map((c: any) => c.getColId()) : [];
-                                        if (!allCols || allCols.length === 0) return;
-                                        let total = 0;
-                                        for (const id of allCols) {
-                                            const col = colApi.getColumn(id);
-                                            total += col?.getActualWidth ? col.getActualWidth() : 0;
+                                        if (!api) return;
+                                        const cols = api.getColumns?.() || [];
+                                        const hasFlexCol = cols.some((c: any) => c.getColDef()?.flex);
+                                        if (!hasFlexCol && api.sizeColumnsToFit) {
+                                            api.sizeColumnsToFit();
                                         }
-                                        const dims = api.getSize ? api.getSize() : null;
-                                        const gridW = dims?.width || 0;
-                                        if (gridW && total < gridW) api.sizeColumnsToFit();
                                     } catch { /* ignore */ }
                                 }}
 
                                 // ⚡ Auto-fit columns on first data render
                                 onFirstDataRendered={() => {
+                                    // flex:1 columns auto-fill the grid width - no sizeColumnsToFit needed
+                                    // If all columns have saved widths (no flex), call sizeColumnsToFit to fill remaining space
                                     try {
-                                        const hasSavedWidths = Object.keys(multiColumnWidths).length > 0;
-                                        if (hasSavedWidths) return;
-                                        const colApi = columnApiRef.current;
                                         const api = gridRef.current?.api;
-                                        if (!colApi || !api) return;
-                                        const allCols = colApi.getAllColumns ? colApi.getAllColumns().map((c: any) => c.getColId()) : [];
-                                        if (allCols.length === 0) return;
-                                        colApi.autoSizeColumns(allCols, false);
-                                        let total = 0;
-                                        for (const id of allCols) {
-                                            const col = colApi.getColumn(id);
-                                            total += col?.getActualWidth ? col.getActualWidth() : 0;
+                                        if (!api) return;
+                                        const cols = api.getColumns?.() || [];
+                                        const hasFlexCol = cols.some((c: any) => c.getColDef()?.flex);
+                                        if (!hasFlexCol && api.sizeColumnsToFit) {
+                                            api.sizeColumnsToFit();
                                         }
-                                        const dims = api.getSize ? api.getSize() : null;
-                                        const gridW = dims?.width || 0;
-                                        if (gridW && total < gridW) api.sizeColumnsToFit();
                                     } catch { /* ignore */ }
                                 }}
                             />
