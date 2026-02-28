@@ -963,7 +963,7 @@ export default function InboundPage() {
     const rows = Array.from(pendingSyncRowsRef.current.entries()).map(([index, data]) => ({ index, data }));
     pendingSyncRowsRef.current.clear();
     inboundAPI.syncRows(rows, activeWarehouse.id)
-      .catch(() => {});
+      .catch(() => { });
   }, [activeWarehouse?.id]);
 
   const queueRowSync = useCallback((rowIndex: number, rowData: any) => {
@@ -1892,6 +1892,7 @@ export default function InboundPage() {
           if (typeof window !== 'undefined') {
             localStorage.removeItem('token');
             localStorage.removeItem('user');
+            document.cookie = 'wms_auth_token=; path=/; max-age=0; SameSite=Lax';
           }
           router.push('/login');
         } else {

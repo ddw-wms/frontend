@@ -999,6 +999,7 @@ export default function MasterDataPage() {
           if (typeof window !== 'undefined') {
             localStorage.removeItem('token');
             localStorage.removeItem('user');
+            document.cookie = 'wms_auth_token=; path=/; max-age=0; SameSite=Lax';
             window.location.href = '/login';
           }
           throw new Error('Unauthorized');

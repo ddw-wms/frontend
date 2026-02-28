@@ -297,6 +297,8 @@ api.interceptors.response.use(
       ) {
         localStorage.removeItem("token");
         localStorage.removeItem("user");
+        // Also clear auth cookie to keep cookie and localStorage in sync
+        document.cookie = 'wms_auth_token=; path=/; max-age=0; SameSite=Lax';
         window.location.href = "/login";
       }
     }

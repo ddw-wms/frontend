@@ -27,10 +27,12 @@ import {
 } from '@mui/icons-material';
 import toast, { Toaster } from 'react-hot-toast';
 import { login } from '@/lib/auth';
+import { useSearchParams } from 'next/navigation';
 
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [username, setUsername] = useState(''); // Default for demo
   const [password, setPassword] = useState(''); // Default for demo
   const [showPassword, setShowPassword] = useState(false);
@@ -86,8 +88,10 @@ export default function LoginPage() {
         duration: 1500,
       });
 
+      // Redirect to intended page (from middleware redirect param) or dashboard
+      const redirectTo = searchParams.get('redirect') || '/dashboard';
       setTimeout(() => {
-        router.push('/dashboard');
+        router.push(redirectTo);
       }, 500);
 
     } catch (error: any) {

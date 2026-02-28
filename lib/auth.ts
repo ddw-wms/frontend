@@ -1,6 +1,32 @@
 // File Path = warehouse-frontend\lib\auth.ts
 import { authAPI, withRetry, parseApiError, wakeUpServer } from './api';
 
+// ===================== Cookie Helpers =====================
+// Store auth token in cookie alongside localStorage for:
+// 1. Next.js middleware can read cookies (server-side) for route protection
+// 2. Cookies persist across browser restarts even if Edge clears localStorage
+// 3. Cookies are shared across all tabs automatically
+
+const AUTH_COOKIE_NAME = 'wms_auth_token';
+const AUTH_COOKIE_MAX_AGE = 7 * 24 * 60 * 60; // 7 days in seconds
+
+export const setAuthCookie = (token: string) => {
+  if (typeof document === 'undefined') return;
+  const secure = window.location.protocol === 'https:' ? '; Secure' : '';
+  document.cookie = `${AUTH_COOKIE_NAME}=${encodeURIComponent(token)}; path=/; max-age=${AUTH_COOKIE_MAX_AGE}; SameSite=Lax${secure}`;
+};
+
+export const clearAuthCookie = () => {
+  if (typeof document === 'undefined') return;
+  document.cookie = `${AUTH_COOKIE_NAME}=; path=/; max-age=0; SameSite=Lax`;
+};
+
+export const getAuthCookie = (): string | null => {
+  if (typeof document === 'undefined') return null;
+  const match = document.cookie.match(new RegExp(`(?:^|;\\s*)${AUTH_COOKIE_NAME}=([^;]*)`));
+  return match ? decodeURIComponent(match[1]) : null;
+};
+
 export interface Permission {
   can_access: boolean;
   is_visible: boolean;
@@ -73,6 +99,12 @@ export const login = async (username: string, password: string): Promise<AuthTok
       localStorage.setItem('warehouses', JSON.stringify(user.warehouses));
     }
 
+    // Also store token in cookie for:
+    // - Next.js middleware (server-side route protection)
+    // - Persistence across browser restarts (Edge clears localStorage)
+    // - Cross-tab session sharing
+    setAuthCookie(token);
+
     // Dispatch custom event to notify PermissionContext of login
     window.dispatchEvent(new CustomEvent('user-login'));
   }
@@ -86,6 +118,7 @@ export const logout = () => {
     localStorage.removeItem('user');
     localStorage.removeItem('permissions');
     localStorage.removeItem('warehouses');
+    clearAuthCookie();
   }
 };
 
@@ -97,7 +130,20 @@ export const getStoredUser = (): User | null => {
 
 export const getStoredToken = (): string | null => {
   if (typeof window === 'undefined') return null;
-  return localStorage.getItem('token');
+  // Check localStorage first, then fall back to cookie
+  // This handles cases where Edge clears localStorage on browser restart
+  const token = localStorage.getItem('token');
+  if (token) return token;
+
+  // Fallback: recover token from cookie (e.g., after browser restart cleared localStorage)
+  const cookieToken = getAuthCookie();
+  if (cookieToken) {
+    // Restore to localStorage so the rest of the app works seamlessly
+    localStorage.setItem('token', cookieToken);
+    return cookieToken;
+  }
+
+  return null;
 };
 
 export const isAuthenticated = (): boolean => {
