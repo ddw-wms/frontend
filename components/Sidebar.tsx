@@ -218,14 +218,57 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
   const [flyoutVisible, setFlyoutVisible] = useState(false);
   const [settingsHovered, setSettingsHovered] = useState(false);
   const [flyoutHovered, setFlyoutHovered] = useState(false);
+  const [settingsFlyoutClicked, setSettingsFlyoutClicked] = useState(false);
+  const settingsButtonRef = useRef<HTMLLIElement>(null);
+  const flyoutRef = useRef<HTMLDivElement>(null);
+  const [flyoutTop, setFlyoutTop] = useState(70);
+
+  // Calculate flyout position dynamically - ensure it's fully visible
+  useEffect(() => {
+    if (settingsButtonRef.current && collapsed && flyoutVisible) {
+      const btnRect = settingsButtonRef.current.getBoundingClientRect();
+      const flyoutHeight = flyoutRef.current?.offsetHeight || 500;
+      const viewportHeight = window.innerHeight;
+      const margin = 12; // margin from edges
+
+      // Try to align top of flyout with settings button
+      let top = btnRect.top;
+
+      // If flyout would overflow bottom, push it up
+      if (top + flyoutHeight > viewportHeight - margin) {
+        top = viewportHeight - flyoutHeight - margin;
+      }
+
+      // Never go above the top margin
+      if (top < margin) {
+        top = margin;
+      }
+
+      setFlyoutTop(top);
+    }
+  }, [collapsed, flyoutVisible]);
 
   useEffect(() => {
     if (collapsed) {
-      setFlyoutVisible(settingsHovered || flyoutHovered);
+      setFlyoutVisible(settingsHovered || flyoutHovered || settingsFlyoutClicked);
     } else {
       setFlyoutVisible(false);
+      setSettingsFlyoutClicked(false);
     }
-  }, [collapsed, settingsHovered, flyoutHovered]);
+  }, [collapsed, settingsHovered, flyoutHovered, settingsFlyoutClicked]);
+
+  // Close flyout on outside click
+  useEffect(() => {
+    if (!settingsFlyoutClicked) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('[data-settings-flyout]') && !target.closest('[data-settings-button]')) {
+        setSettingsFlyoutClicked(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [settingsFlyoutClicked]);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -240,6 +283,30 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
   }, [pathname, setMobileOpen]);
 
   const drawerWidth = collapsed ? 70 : 230;
+
+  // Icon color map for colorful menu icons
+  const iconColors: Record<string, string> = {
+    '/dashboard': '#60a5fa',      // Blue
+    '/inbound': '#34d399',         // Emerald
+    '/qc': '#a78bfa',             // Purple
+    '/picking': '#fbbf24',         // Amber
+    '/outbound': '#f97316',        // Orange
+    '/customers': '#38bdf8',       // Sky
+    '/reports': '#e879f9',         // Fuchsia
+    '/settings/rejections': '#f87171', // Red
+  };
+
+  const settingsIconColors: Record<string, string> = {
+    '/settings/master-data': '#60a5fa',   // Blue
+    '/settings/warehouses': '#34d399',     // Emerald
+    '/settings/racks': '#fbbf24',          // Amber
+    '/settings/users': '#38bdf8',          // Sky
+    '/settings/printers': '#a78bfa',       // Purple
+    '/settings/backups': '#f97316',        // Orange
+    '/settings/permissions': '#e879f9',    // Fuchsia
+    '/settings/appearance': '#fb7185',     // Rose
+    '/settings/error-logs': '#f87171',     // Red
+  };
 
   // Main menu items with UI access codes
   const allMainMenuItems = useMemo(() => [
@@ -447,14 +514,14 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
               >
                 <ListItemIcon
                   sx={{
-                    color: 'inherit',
+                    color: active ? '#fff' : (iconColors[item.path] || 'rgba(255,255,255,0.75)'),
                     minWidth: collapsed ? 'auto' : 40,
                     justifyContent: collapsed ? 'center' : 'flex-start',
                     pointerEvents: 'none', // Don't let icon intercept clicks
-                    transition: 'min-width 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+                    transition: 'min-width 0.25s cubic-bezier(0.4, 0, 0.2, 1), color 0.15s ease',
                   }}
                 >
-                  <Icon sx={{ fontSize: { xs: 22, sm: 24 } }} />
+                  <Icon sx={{ fontSize: { xs: 22, sm: 24 }, filter: active ? 'drop-shadow(0 0 6px rgba(255,255,255,0.4))' : 'none' }} />
                 </ListItemIcon>
 
                 {!collapsed && (
@@ -538,12 +605,21 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
           >
             <ListItem
               disablePadding
+              ref={settingsButtonRef}
+              data-settings-button
               onMouseEnter={() => setSettingsHovered(true)}
               onMouseLeave={() => setSettingsHovered(false)}
               sx={{ mb: 0.25 }}
             >
               <ListItemButton
-                onClick={() => { setSettingsOpen(!settingsOpen); }}
+                onClick={() => {
+                  if (collapsed) {
+                    // When collapsed, toggle click-based flyout
+                    setSettingsFlyoutClicked(prev => !prev);
+                  } else {
+                    setSettingsOpen(!settingsOpen);
+                  }
+                }}
                 sx={{
                   mx: 0.75,
                   py: { xs: 1.25, sm: 1 },
@@ -566,14 +642,21 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
               >
                 <ListItemIcon
                   sx={{
-                    color: 'inherit',
+                    color: flyoutVisible || settingsOpen ? '#e879f9' : '#a78bfa',
                     minWidth: collapsed ? 'auto' : 40,
                     justifyContent: collapsed ? 'center' : 'flex-start',
                     pointerEvents: 'none', // Don't let icon intercept clicks
-                    transition: 'min-width 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+                    transition: 'min-width 0.25s cubic-bezier(0.4, 0, 0.2, 1), color 0.15s ease',
                   }}
                 >
-                  <SettingsIcon sx={{ fontSize: { xs: 22, sm: 24 } }} />
+                  <SettingsIcon sx={{
+                    fontSize: { xs: 22, sm: 24 },
+                    animation: (flyoutVisible || settingsOpen) ? 'spin 2s linear infinite' : 'none',
+                    '@keyframes spin': {
+                      '0%': { transform: 'rotate(0deg)' },
+                      '100%': { transform: 'rotate(360deg)' },
+                    },
+                  }} />
                 </ListItemIcon>
 
                 {!collapsed && (
@@ -657,7 +740,7 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
                           }),
                         }}
                       >
-                        <ListItemIcon sx={{ color: 'inherit', minWidth: 32, pointerEvents: 'none' }}>
+                        <ListItemIcon sx={{ color: active ? '#fff' : (settingsIconColors[item.path] || 'rgba(255,255,255,0.7)'), minWidth: 32, pointerEvents: 'none', transition: 'color 0.15s ease' }}>
                           <Icon sx={{ fontSize: 18 }} />
                         </ListItemIcon>
                         <ListItemText
@@ -696,7 +779,7 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
                       }
                     }}
                   >
-                    <ListItemIcon sx={{ color: 'inherit', minWidth: 32, pointerEvents: 'none' }}>
+                    <ListItemIcon sx={{ color: '#f87171', minWidth: 32, pointerEvents: 'none' }}>
                       <LogoutIcon sx={{ fontSize: 18 }} />
                     </ListItemIcon>
                     <ListItemText
@@ -1039,71 +1122,108 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
       {flyoutVisible && collapsed && !isMobile && (
         <Portal>
           <Paper
+            ref={flyoutRef}
+            data-settings-flyout
             onMouseEnter={() => setFlyoutHovered(true)}
             onMouseLeave={() => setFlyoutHovered(false)}
             elevation={24}
             sx={{
               position: 'fixed',
-              top: 70,
-              left: drawerWidth,
-              width: 220,
+              top: flyoutTop,
+              left: drawerWidth + 4,
+              width: 230,
+              maxHeight: 'calc(100vh - 24px)',
+              overflowY: 'auto',
               background: "linear-gradient(180deg, #0f172a 0%, #1e293b 100%)",
               color: 'white',
-              p: 1.5,
+              py: 1.5,
+              px: 1,
               borderRadius: 2,
               zIndex: 99999,
-              boxShadow: '0 10px 40px rgba(0,0,0,0.5)',
-              border: '1px solid rgba(255,255,255,0.08)'
+              boxShadow: '0 10px 40px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.06)',
+              border: '1px solid rgba(255,255,255,0.1)',
+              animation: 'flyoutIn 0.15s ease-out',
+              '@keyframes flyoutIn': {
+                '0%': { opacity: 0, transform: 'translateX(-8px) scale(0.96)' },
+                '100%': { opacity: 1, transform: 'translateX(0) scale(1)' },
+              },
+              scrollbarWidth: 'thin',
+              scrollbarColor: 'rgba(255,255,255,0.2) transparent',
+              '&::-webkit-scrollbar': { width: '4px' },
+              '&::-webkit-scrollbar-thumb': {
+                backgroundColor: 'rgba(255,255,255,0.2)',
+                borderRadius: '10px',
+              },
             }}
           >
-            <Typography sx={{ px: 1, pb: 1.5, fontSize: 12, fontWeight: 600, opacity: 0.6, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            <Typography sx={{ px: 1, pb: 1, pt: 0.5, fontSize: 11, fontWeight: 700, opacity: 0.5, textTransform: 'uppercase', letterSpacing: '0.8px' }}>
               Settings
             </Typography>
 
             <List sx={{ py: 0 }}>
               {settingsMenu.map((item) => {
                 const Icon = item.icon;
+                const flyoutActive = pathname === item.path || pathname.startsWith(item.path + '/');
                 return (
-                  <ListItem key={item.path} disablePadding sx={{ mb: 0.25 }}>
+                  <ListItem key={item.path} disablePadding sx={{ mb: 0.15 }}>
                     <ListItemButton
-                      onClick={() => navigate(item.path)}
+                      onClick={() => {
+                        navigate(item.path);
+                        setSettingsFlyoutClicked(false);
+                      }}
                       sx={{
                         borderRadius: 1.5,
-                        color: 'rgba(255,255,255,0.8)',
-                        py: 0.875,
-                        transition: 'none',
+                        color: flyoutActive ? '#fff' : 'rgba(255,255,255,0.8)',
+                        bgcolor: flyoutActive
+                          ? 'rgba(59,130,246,0.25)'
+                          : 'transparent',
+                        py: 0.625,
+                        px: 1.5,
+                        transition: 'all 0.15s ease',
                         touchAction: 'manipulation',
                         cursor: 'pointer',
                         '&:hover': {
-                          bgcolor: 'rgba(255,255,255,0.08)',
+                          bgcolor: flyoutActive
+                            ? 'rgba(59,130,246,0.35)'
+                            : 'rgba(255,255,255,0.08)',
+                          transform: 'translateX(2px)',
                         },
                         '&:active': {
                           bgcolor: 'rgba(255,255,255,0.15)',
                         },
+                        ...(flyoutActive && {
+                          borderLeft: '2px solid #60a5fa',
+                        }),
                       }}
                     >
-                      <ListItemIcon sx={{ color: 'inherit', minWidth: 32, pointerEvents: 'none' }}>
+                      <ListItemIcon sx={{ color: flyoutActive ? '#fff' : (settingsIconColors[item.path] || 'rgba(255,255,255,0.7)'), minWidth: 32, pointerEvents: 'none', transition: 'color 0.15s ease' }}>
                         <Icon sx={{ fontSize: 18 }} />
                       </ListItemIcon>
                       <ListItemText
                         primary={item.label}
                         sx={{ pointerEvents: 'none' }}
-                        primaryTypographyProps={{ fontSize: '0.85rem' }}
+                        primaryTypographyProps={{ fontSize: '0.85rem', fontWeight: flyoutActive ? 600 : 400 }}
                       />
                     </ListItemButton>
                   </ListItem>
                 );
               })}
 
+              <Divider sx={{ my: 0.75, bgcolor: 'rgba(255,255,255,0.08)' }} />
+
               {/* Logout Button */}
-              <ListItem disablePadding sx={{ mt: 0.5 }}>
+              <ListItem disablePadding sx={{ mt: 0.25 }}>
                 <ListItemButton
-                  onClick={handleLogout}
+                  onClick={() => {
+                    handleLogout();
+                    setSettingsFlyoutClicked(false);
+                  }}
                   sx={{
                     borderRadius: 1.5,
                     color: '#fca5a5',
-                    py: 0.875,
-                    transition: 'none',
+                    py: 0.625,
+                    px: 1.5,
+                    transition: 'all 0.15s ease',
                     touchAction: 'manipulation',
                     cursor: 'pointer',
                     '&:hover': {
@@ -1114,7 +1234,7 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
                     }
                   }}
                 >
-                  <ListItemIcon sx={{ color: 'inherit', minWidth: 32, pointerEvents: 'none' }}>
+                  <ListItemIcon sx={{ color: '#f87171', minWidth: 32, pointerEvents: 'none' }}>
                     <LogoutIcon sx={{ fontSize: 18 }} />
                   </ListItemIcon>
                   <ListItemText
