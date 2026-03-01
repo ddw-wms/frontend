@@ -109,6 +109,7 @@ export default function LiveViewPanel({ warehouseId, pageType, isDarkMode = fals
   const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const initialLoadDoneRef = useRef(false);
   const initialEntriesLoadDoneRef = useRef(false);
+  const fetchInFlightRef = useRef(false); // guard against overlapping polls
 
   // Reset expanded state when drawer closes
   useEffect(() => {
@@ -147,7 +148,11 @@ export default function LiveViewPanel({ warehouseId, pageType, isDarkMode = fals
   const fetchSessions = useCallback(async (isInitial = false) => {
     if (!warehouseId) return;
 
+    // Skip if a previous fetch is still in flight (prevents overlapping requests)
+    if (fetchInFlightRef.current && !isInitial) return;
+
     try {
+      fetchInFlightRef.current = true;
       // Only show loading spinner on initial load
       if (isInitial || !initialLoadDoneRef.current) {
         setLoading(true);
@@ -159,6 +164,7 @@ export default function LiveViewPanel({ warehouseId, pageType, isDarkMode = fals
       // Silently ignore - live view is not critical
       setSessions([]);
     } finally {
+      fetchInFlightRef.current = false;
       setLoading(false);
     }
   }, [warehouseId, pageType]);
@@ -181,7 +187,7 @@ export default function LiveViewPanel({ warehouseId, pageType, isDarkMode = fals
     }
   }, []);
 
-  // Background polling - check for active sessions every 10 seconds (even when drawer is closed)
+  // Background polling - check for active sessions every 30 seconds (even when drawer is closed)
   useEffect(() => {
     if (!warehouseId) return;
 
@@ -189,12 +195,12 @@ export default function LiveViewPanel({ warehouseId, pageType, isDarkMode = fals
     initialLoadDoneRef.current = false;
     fetchSessions(true);
 
-    // Poll every 10 seconds in background
+    // Poll every 30 seconds in background (was 10s — too aggressive, caused thundering herd)
     const bgInterval = setInterval(() => {
       if (!open) {
         fetchSessions(false);
       }
-    }, 10000);
+    }, 30000);
 
     return () => clearInterval(bgInterval);
   }, [warehouseId, pageType, open, fetchSessions]);
@@ -204,13 +210,13 @@ export default function LiveViewPanel({ warehouseId, pageType, isDarkMode = fals
     if (open && warehouseId) {
       fetchSessions(false);
 
-      // Refresh every 5 seconds when open
+      // Refresh every 15 seconds when open (was 5s — too aggressive)
       refreshIntervalRef.current = setInterval(() => {
         fetchSessions(false);
         if (selectedSession) {
           fetchEntries(selectedSession.session_id, false);
         }
-      }, 5000);
+      }, 15000);
     }
 
     return () => {

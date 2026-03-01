@@ -508,7 +508,7 @@ export default function PickingPage() {
           }).then(result => {
             if (result.success) {
               setAvailableCacheStats({ count: result.count, lastSync: Date.now() });
-              warmupMemoryCache(activeWarehouse.id).catch(() => {});
+              warmupMemoryCache(activeWarehouse.id).catch(() => { });
             }
             setAvailableCacheProgress('');
           }).catch(() => setAvailableCacheProgress(''));
@@ -597,18 +597,7 @@ export default function PickingPage() {
         const parsed = JSON.parse(saved) as string[];
         // Ensure 'sno' is first
         if (!parsed.includes('sno')) parsed.unshift('sno');
-        // Ensure product_serial_number is present after wsn
-        if (!parsed.includes('product_serial_number')) {
-          const wsnIndex = parsed.indexOf('wsn');
-          const insertAt = wsnIndex >= 0 ? wsnIndex + 1 : 1;
-          parsed.splice(insertAt, 0, 'product_serial_number');
-        }
-        // Ensure rack_no is present after product_serial_number
-        if (!parsed.includes('rack_no')) {
-          const psIndex = parsed.indexOf('product_serial_number');
-          const insertAt = psIndex >= 0 ? psIndex + 1 : 2;
-          parsed.splice(insertAt, 0, 'rack_no');
-        }
+        // Respect user's saved column choices - don't force-add columns they removed
         return parsed;
       } catch (e) {
         return DEFAULT_MULTI_COLUMNS;
@@ -840,26 +829,20 @@ export default function PickingPage() {
   const ctrlOProductLinkEnabledRef = useRef(ctrlOProductLinkEnabled);
 
   // ====== MULTI ENTRY: GRID SETTINGS ======
-  const [multiGridSettings, setMultiGridSettings] = useState({
-    sortable: true,
-    filter: true,
-    resizable: true,
-    editable: true,
+  const [multiGridSettings, setMultiGridSettings] = useState(() => {
+    // Load synchronously from localStorage to prevent double-render/key change
+    const defaults = { sortable: true, filter: true, resizable: true, editable: true };
+    if (typeof window === 'undefined') return defaults;
+    try {
+      const saved = localStorage.getItem('picking_multi_grid_settings');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return { ...defaults, ...parsed };
+      }
+    } catch { /* ignore */ }
+    return defaults;
   });
   const [multiGridSettingsOpen, setMultiGridSettingsOpen] = useState(false);
-
-  // Load Multi Entry grid settings from localStorage
-  useEffect(() => {
-    const savedMultiSettings = localStorage.getItem('picking_multi_grid_settings');
-    if (savedMultiSettings) {
-      try {
-        const parsed = JSON.parse(savedMultiSettings);
-        setMultiGridSettings(parsed);
-      } catch (e) {
-        console.log('Failed to parse multi grid settings');
-      }
-    }
-  }, []);
 
   // Save Multi Entry grid settings
   const updateMultiGridSettings = (newSettings: typeof multiGridSettings) => {
@@ -2559,11 +2542,16 @@ export default function PickingPage() {
       return;
     }
 
+    // ⚡ OPTIMIZED: Send only required fields to reduce payload size
     const fixedRows = validRows.map(row => ({
-      ...row,
+      wsn: row.wsn,
       picking_date: pickingDate,
       customer_name: selectedCustomer,
       picker_name: pickerName,
+      picking_remarks: row.picking_remarks || null,
+      rack_no: row.rack_no || null,
+      other_remarks: row.other_remarks || null,
+      quantity: row.quantity || 1,
       created_by: user?.id,
       created_user_name: user?.fullName || user?.username,
       warehouse_name: activeWarehouse?.name
@@ -2597,7 +2585,8 @@ export default function PickingPage() {
         setMultiRows(generateEmptyRows(500));
         setGridDuplicateWSNs(new Set());
         setCrossWarehouseWSNs(new Set());
-        await clearDraft();
+        // Clear draft in background - don't block UI
+        clearDraft().catch(() => {});
       } else if (successCount > 0) {
         // Partial success → remove only successful WSNs, keep failed rows
         const failedWSNs = new Set(errorEntries.map(e => e.wsn?.toUpperCase()));
@@ -2610,15 +2599,25 @@ export default function PickingPage() {
         const padding = generateEmptyRows(Math.max(500 - survivingRows.length, 0));
         const newRows = [...survivingRows, ...padding];
         setMultiRows(newRows);
-        // Re-save draft with surviving rows so user doesn't lose them
-        await saveDraftImmediate(newRows);
+        // Re-save draft with surviving rows in background - don't block UI
+        saveDraftImmediate(newRows).catch(() => {});
       }
       // else: successCount === 0 → keep all rows as-is, don't touch draft
 
-      // Reload server-side data (always, so cache stays fresh)
-      const res = await pickingAPI.getExistingWSNs(activeWarehouse?.id);
-      setExistingPickingWSNs(new Set(res.data));
-      loadPickingList();
+      // Clear ALL caches to prevent stale data flash on reload
+      pageCacheRef.current.clear();
+      if (typeof window !== 'undefined') {
+        delete window.__PICKING_LIST_CACHE__;
+        try { sessionStorage.removeItem('picking_list_cache'); } catch {}
+        try { sessionStorage.removeItem('picking_list_cache_warehouseId'); } catch {}
+      }
+
+      // Reload server-side data in parallel (always, so cache stays fresh)
+      const [wsnRes] = await Promise.all([
+        pickingAPI.getExistingWSNs(activeWarehouse?.id),
+      ]);
+      setExistingPickingWSNs(new Set(wsnRes.data));
+      loadPickingList({ buttonRefresh: true });
       loadBatches();
     } catch (error: any) {
       toast.error(error.response?.data?.error || 'Submission failed');
@@ -3361,12 +3360,22 @@ export default function PickingPage() {
         await pickingAPI.deleteBatch(batchId);
         toast.success('Batch deleted successfully');
 
-        // Reload existing WSNs after deletion
-        const res = await pickingAPI.getExistingWSNs(activeWarehouse?.id);
-        setExistingPickingWSNs(new Set(res.data));
+        // Clear ALL caches to prevent stale data flash on reload
+        pageCacheRef.current.clear();
+        if (typeof window !== 'undefined') {
+          delete window.__PICKING_LIST_CACHE__;
+          try { sessionStorage.removeItem('picking_list_cache'); } catch {}
+          try { sessionStorage.removeItem('picking_list_cache_warehouseId'); } catch {}
+        }
+
+        // Reload all data in parallel, bypass cache for fresh data
+        const [wsnRes] = await Promise.all([
+          pickingAPI.getExistingWSNs(activeWarehouse?.id),
+        ]);
+        setExistingPickingWSNs(new Set(wsnRes.data));
 
         loadBatches();
-        loadPickingList();
+        loadPickingList({ buttonRefresh: true });
       } catch (error: any) {
         toast.error(error.response?.data?.error || 'Failed to delete batch');
       }
@@ -3412,18 +3421,24 @@ export default function PickingPage() {
         return;
       }
 
+      // Helper: convert to number for Excel, return null for empty/invalid
+      const toNum = (val: any) => {
+        if (val === null || val === undefined || val === '' || val === '-') return null;
+        const n = Number(val);
+        return isNaN(n) ? null : n;
+      };
+
       const exportData = dataToExport.map((item: any) => ({
-        ID: item.id || '-',
         WSN: item.wsn,
         'Product Title': item.product_title || '-',
         Brand: item.brand || '-',
         Category: item.cms_vertical || '-',
-        FSP: item.fsp || '-',
-        MRP: item.mrp || '-',
+        FSP: toNum(item.fsp),
+        MRP: toNum(item.mrp),
         'Rack No': item.rack_no || '-',
         'Batch ID': item.batch_id || '-',
         Source: item.source || '-',
-        'Picking Date': formatDate(item.picking_date),
+        'Picking Date': formatDateFull(item.picking_date),
         Customer: item.customer_name || '-',
         Picker: item.picker_name || '-',
         Quantity: item.quantity || 1,
@@ -3434,17 +3449,17 @@ export default function PickingPage() {
         'Warehouse Name': item.warehouse_name || '-',
         WID: item.wid || '-',
         FSN: item.fsn || '-',
-        'Order ID': item.order_id || '-',
-        'HSN/SAC': item.hsn_sac || '-',
-        'IGST Rate': item.igst_rate || '-',
+        'Order ID': toNum(item.order_id),
+        'HSN/SAC': toNum(item.hsn_sac),
+        'IGST Rate': toNum(item.igst_rate),
         'Product Type': item.p_type || '-',
         'Product Size': item.p_size || '-',
-        VRP: item.vrp || '-',
+        VRP: toNum(item.vrp),
         'Yield Value': item.yield_value || '-',
         'WH Location': item.wh_location || '-',
         'FK QC Remark': item.fkqc_remark || '-',
         'FK Grade': item.fk_grade || '-',
-        'Invoice Date': formatDate(item.invoice_date),
+        'Invoice Date': formatDateFull(item.invoice_date),
         'FKT Link': item.fkt_link || '-'
       }));
 
@@ -3622,7 +3637,9 @@ export default function PickingPage() {
         return {
           field: col,
           headerName: col.replace(/_/g, ' ').toUpperCase(),
-          filter: 'agDateColumnFilter',
+          filter: enableColumnFilters ? 'agDateColumnFilter' : false,
+          sortable: enableSorting,
+          resizable: enableColumnResize,
           valueFormatter: (p: any) => formatDate(p.value),
           tooltipField: col,
           minWidth,
@@ -3635,6 +3652,9 @@ export default function PickingPage() {
         return {
           field: col,
           headerName: 'SOURCE',
+          filter: enableColumnFilters ? 'agTextColumnFilter' : false,
+          sortable: enableSorting,
+          resizable: enableColumnResize,
           cellRenderer: (p: any) => {
             if (!p.value) return '-';
             const colorMap: any = { 'QC': 'success', 'INBOUND': 'warning', 'MASTER': 'info' };
@@ -3651,7 +3671,9 @@ export default function PickingPage() {
       return {
         field: col,
         headerName: col.replace(/_/g, ' ').toUpperCase(),
-        filter: 'agTextColumnFilter',
+        filter: enableColumnFilters ? 'agTextColumnFilter' : false,
+        sortable: enableSorting,
+        resizable: enableColumnResize,
         tooltipField: col,
         minWidth,
         hide: false,
@@ -3659,39 +3681,28 @@ export default function PickingPage() {
     });
 
     return [sr, ...cols];
-  }, [isDarkMode]); // Only isDarkMode - grid settings handled via defaultColDef refs
+  }, [isDarkMode, enableSorting, enableColumnFilters, enableColumnResize]);
 
   // NOTE: No longer need to re-apply column state on columnDefs change
   // because columnDefs structure is now STABLE (includes ALL columns with hide property)
   // Column visibility is controlled via setColumnsVisible() API which preserves order
 
-  // STABLE defaultColDef - no dependencies to prevent grid re-render
+  // defaultColDef - depends on grid settings so changes apply immediately
   const listDefaultColDef = useMemo(() => ({
-    sortable: true,
-    resizable: true,
-    filter: true,
+    sortable: enableSorting,
+    resizable: enableColumnResize,
+    filter: enableColumnFilters,
     editable: false,
     suppressMovable: true,
     cellStyle: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
-  }), []);
+  }), [enableSorting, enableColumnFilters, enableColumnResize]);
 
-  // Apply grid settings dynamically via API (preserves column widths)
+  // Apply grid settings dynamically — refresh header after columnDefs change
   useEffect(() => {
     const api = listGridRef.current;
     if (!api) return;
-
     try {
-      const columns = api.getColumns();
-      if (columns && columns.length > 0) {
-        columns.forEach((col: any) => {
-          const colDef = col.getColDef();
-          colDef.sortable = enableSorting;
-          colDef.resizable = enableColumnResize;
-          colDef.filter = enableColumnFilters;
-        });
-        // Refresh headers to apply changes
-        api.refreshHeader();
-      }
+      api.refreshHeader();
     } catch { /* ignore */ }
   }, [enableSorting, enableColumnFilters, enableColumnResize]);
 
@@ -3739,7 +3750,9 @@ export default function PickingPage() {
         headerName: field.replace(/_/g, ' ').toUpperCase(),
         editable: isEditable,
         suppressSizeToFit: true,
-        resizable: true,
+        sortable: multiGridSettings.sortable,
+        filter: multiGridSettings.filter,
+        resizable: multiGridSettings.resizable,
         minWidth: 80,
         ...widthConfig,
         cellStyle: (params: any) => {
@@ -3846,7 +3859,7 @@ export default function PickingPage() {
     });
 
     return [rowNumberCol, ...dataCols];
-  }, [visibleColumns, multiColumnWidths, racks, crossWarehouseWSNs, gridDuplicateWSNs, isDarkMode]);
+  }, [visibleColumns, multiColumnWidths, racks, crossWarehouseWSNs, gridDuplicateWSNs, isDarkMode, multiGridSettings]);
 
   // ⚡ EXTRACTED: Multi-entry grid onCellEditingStopped handler
   const handleMultiCellEditingStopped = useCallback(async (event: any) => {
@@ -5657,11 +5670,8 @@ export default function PickingPage() {
                       <FormControlLabel
                         control={
                           <Checkbox
-                            checked={enableSorting}
-                            onChange={(e) => {
-                              setEnableSorting(e.target.checked);
-                              localStorage.setItem('picking_enableSorting', String(e.target.checked));
-                            }}
+                            checked={multiGridSettings.sortable}
+                            onChange={(e) => updateMultiGridSettings({ ...multiGridSettings, sortable: e.target.checked })}
                             sx={{ '&.Mui-checked': { color: '#f59e0b' } }}
                           />
                         }
@@ -5675,11 +5685,8 @@ export default function PickingPage() {
                       <FormControlLabel
                         control={
                           <Checkbox
-                            checked={enableColumnFilters}
-                            onChange={(e) => {
-                              setEnableColumnFilters(e.target.checked);
-                              localStorage.setItem('picking_enableColumnFilters', String(e.target.checked));
-                            }}
+                            checked={multiGridSettings.filter}
+                            onChange={(e) => updateMultiGridSettings({ ...multiGridSettings, filter: e.target.checked })}
                             sx={{ '&.Mui-checked': { color: '#f59e0b' } }}
                           />
                         }
@@ -5693,11 +5700,8 @@ export default function PickingPage() {
                       <FormControlLabel
                         control={
                           <Checkbox
-                            checked={enableColumnResize}
-                            onChange={(e) => {
-                              setEnableColumnResize(e.target.checked);
-                              localStorage.setItem('picking_enableColumnResize', String(e.target.checked));
-                            }}
+                            checked={multiGridSettings.resizable}
+                            onChange={(e) => updateMultiGridSettings({ ...multiGridSettings, resizable: e.target.checked })}
                             sx={{ '&.Mui-checked': { color: '#f59e0b' } }}
                           />
                         }
@@ -5711,12 +5715,7 @@ export default function PickingPage() {
                       <Button
                         size="small"
                         onClick={() => {
-                          setEnableSorting(true);
-                          setEnableColumnFilters(true);
-                          setEnableColumnResize(true);
-                          localStorage.setItem('picking_enableSorting', 'true');
-                          localStorage.setItem('picking_enableColumnFilters', 'true');
-                          localStorage.setItem('picking_enableColumnResize', 'true');
+                          updateMultiGridSettings({ sortable: true, filter: true, resizable: true, editable: true });
                           toast.success('Grid settings reset');
                         }}
                         sx={{ alignSelf: 'flex-start', fontSize: '0.75rem', color: isDarkMode ? '#94a3b8' : '#64748b' }}
@@ -7982,7 +7981,10 @@ export default function PickingPage() {
                     control={
                       <Checkbox
                         checked={enableSorting}
-                        onChange={(e) => setEnableSorting(e.target.checked)}
+                        onChange={(e) => {
+                          setEnableSorting(e.target.checked);
+                          localStorage.setItem('picking_enableSorting', String(e.target.checked));
+                        }}
                         sx={{ '&.Mui-checked': { color: '#f59e0b' } }}
                       />
                     }
@@ -7997,7 +7999,10 @@ export default function PickingPage() {
                     control={
                       <Checkbox
                         checked={enableColumnFilters}
-                        onChange={(e) => setEnableColumnFilters(e.target.checked)}
+                        onChange={(e) => {
+                          setEnableColumnFilters(e.target.checked);
+                          localStorage.setItem('picking_enableColumnFilters', String(e.target.checked));
+                        }}
                         sx={{ '&.Mui-checked': { color: '#f59e0b' } }}
                       />
                     }
@@ -8012,7 +8017,10 @@ export default function PickingPage() {
                     control={
                       <Checkbox
                         checked={enableColumnResize}
-                        onChange={(e) => setEnableColumnResize(e.target.checked)}
+                        onChange={(e) => {
+                          setEnableColumnResize(e.target.checked);
+                          localStorage.setItem('picking_enableColumnResize', String(e.target.checked));
+                        }}
                         sx={{ '&.Mui-checked': { color: '#f59e0b' } }}
                       />
                     }
@@ -8029,6 +8037,9 @@ export default function PickingPage() {
                       setEnableSorting(true);
                       setEnableColumnFilters(true);
                       setEnableColumnResize(true);
+                      localStorage.setItem('picking_enableSorting', 'true');
+                      localStorage.setItem('picking_enableColumnFilters', 'true');
+                      localStorage.setItem('picking_enableColumnResize', 'true');
                       toast.success('Grid settings reset');
                     }}
                     sx={{ alignSelf: 'flex-start', fontSize: '0.75rem', color: isDarkMode ? '#94a3b8' : '#64748b' }}
