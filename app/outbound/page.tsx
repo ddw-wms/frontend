@@ -1181,6 +1181,10 @@ export default function OutboundPage() {
                 toast.success('✓ Outbound entry created');
             }
 
+            // Refresh outbound list to reflect new entry
+            pageCacheRef.current.clear();
+            loadOutboundList({ buttonRefresh: true });
+
             // Reset
             setSingleWSN('');
             setSourceData(null);
@@ -3460,6 +3464,10 @@ export default function OutboundPage() {
             // else: successCount === 0 → keep all rows as-is
 
             loadExistingWSNs();
+
+            // Refresh outbound list to reflect new entries
+            pageCacheRef.current.clear();
+            loadOutboundList({ buttonRefresh: true });
         } catch (err: any) {
             toast.error(err.response?.data?.error || 'Multi entry failed');
             setMultiErrorMessage(err.response?.data?.error || 'Failed to submit');
@@ -4186,6 +4194,9 @@ export default function OutboundPage() {
             toast.success('✓ Batch deleted');
             loadBatches();
             loadExistingWSNs();
+            // Refresh outbound list to reflect deleted batch items
+            pageCacheRef.current.clear();
+            loadOutboundList({ buttonRefresh: true });
         } catch (err: any) {
             toast.error('Failed to delete batch');
         }

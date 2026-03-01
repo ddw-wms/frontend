@@ -2693,6 +2693,9 @@ export default function QCPage() {
     try {
       await qcAPI.deleteBatch(batchId);
       toast.success('✓ Batch deleted');
+      // Clear page cache so QC list fetches fresh data
+      pageCacheRef.current.clear();
+      loadQCList({ buttonRefresh: true });
       loadBatches();
       loadStats();
     } catch (error) {
@@ -3214,7 +3217,9 @@ export default function QCPage() {
         });
       }
 
-      loadQCList();
+      // Clear page cache so QC list fetches fresh data
+      pageCacheRef.current.clear();
+      loadQCList({ buttonRefresh: true });
       loadStats();
       loadBatches();
     } catch (error: any) {
