@@ -1,12 +1,19 @@
 'use client';
 
-import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import {
     Box, Button, Paper, Typography, Chip, Alert, FormControl, InputLabel, Select, MenuItem,
     useTheme, useMediaQuery, CircularProgress, Tooltip, Stack, TextField, IconButton,
-    InputAdornment, Dialog, DialogTitle, DialogContent, DialogActions, Card, CardContent, Tabs, Tab,
-    Pagination, LinearProgress, AppBar, Toolbar
+    InputAdornment, Dialog, DialogTitle, DialogContent, DialogActions,
+    Pagination, AppBar, Toolbar,
+    Table, TableBody, TableCell, TableContainer, TableHead, TableRow
 } from '@mui/material';
+import {
+    ExpandMore as ExpandMoreIcon,
+    ExpandLess as ExpandLessIcon,
+    Person as PersonIcon,
+    InsertDriveFile as FileIcon,
+} from '@mui/icons-material';
 import {
     CloudUpload as UploadIcon, CloudDownload as DownloadIcon, Delete as DeleteIcon,
     Search as SearchIcon, Refresh as RefreshIcon,
@@ -41,7 +48,7 @@ const formatDateTimeDMY = (dateVal: any): string => {
     const min = String(d.getMinutes()).padStart(2, '0');
     return `${day}-${months[d.getMonth()]}-${d.getFullYear()} ${hr}:${min}`;
 };
-import { StandardPageHeader, BatchManagementTab } from '@/components';
+import { StandardPageHeader, StandardTabs, BatchManagementTab } from '@/components';
 import { rejectionsAPI } from '@/lib/api';
 import toast, { Toaster } from 'react-hot-toast';
 import { useWarehouse } from '@/app/context/WarehouseContext';
@@ -157,6 +164,9 @@ export default function RejectionsPage() {
     const [uploadHistoryPage, setUploadHistoryPage] = useState(1);
     const [uploadHistoryLoading, setUploadHistoryLoading] = useState(false);
 
+    // Upload history date group collapse state
+    const [uploadHistoryCollapsed, setUploadHistoryCollapsed] = useState<Record<string, boolean>>({});
+
     // Upload log detail dialog (skipped/error details)
     const [logDetailDialog, setLogDetailDialog] = useState<{ open: boolean; log: any; tab: 'skipped' | 'errors' }>({ open: false, log: null, tab: 'skipped' });
 
@@ -238,6 +248,8 @@ export default function RejectionsPage() {
                 count: parseInt(b.count) || 0,
                 created_at: b.created_at,
                 last_updated: b.last_updated || b.created_at,
+                warehouse_names: b.warehouse_names || null,
+                uploaded_by: b.uploaded_by_name || null,
             }));
             setBatchList(batchData);
         } catch (error) {
@@ -711,7 +723,7 @@ export default function RejectionsPage() {
 
     // Summary table columns
     const summaryColumns = useMemo<any[]>(() => [
-        { field: 'batch_id', headerName: 'Batch ID', width: 150 },
+        { field: 'batch_id', headerName: 'Batch ID', flex: 1, minWidth: 150 },
         { field: 'item_count', headerName: 'Items', width: 70 },
         {
             field: 'total_fsp',
@@ -804,6 +816,79 @@ export default function RejectionsPage() {
         resizable: true,
     }), []);
 
+    // Shared AG Grid dark mode styling (used by both Rejections and CN Summary grids)
+    const agGridBaseSx = {
+        height: '100%',
+        width: '100%',
+        bgcolor: isDarkMode ? '#1e293b' : '#ffffff',
+        overflow: 'hidden',
+        '--ag-row-border-width': '1px',
+        '--ag-row-border-color': isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)',
+        '--ag-borders': 'none',
+        '--ag-border-color': 'transparent',
+        '& .ag-root-wrapper': {
+            backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
+            border: 'none',
+            borderRadius: '8px',
+        },
+        '& .ag-header': {
+            backgroundColor: isDarkMode ? '#334155' : '#f8fafc',
+            borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(0,0,0,0.08)',
+            fontWeight: 600,
+            opacity: '1 !important',
+            zIndex: 15,
+            position: 'relative'
+        },
+        '& .ag-header-cell': {
+            padding: '0 12px',
+            opacity: '1 !important',
+            fontWeight: 600,
+            letterSpacing: '0.01em',
+            backgroundColor: isDarkMode ? '#334155' : 'transparent',
+            color: isDarkMode ? '#f1f5f9' : 'inherit',
+        },
+        '& .ag-header-cell-label': { color: isDarkMode ? '#f1f5f9' : 'inherit' },
+        '& .ag-icon': { color: isDarkMode ? '#94a3b8' : '#64748b' },
+        '& .ag-body-viewport': {
+            backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
+        },
+        '& .ag-row': {
+            borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.04)' : '1px solid rgba(0,0,0,0.04)',
+        },
+        '& .ag-row-even': {
+            backgroundColor: isDarkMode ? '#1e293b !important' : '#ffffff !important',
+        },
+        '& .ag-row-odd': {
+            backgroundColor: isDarkMode ? '#1a2536 !important' : '#f8fafc !important',
+        },
+        '& .ag-cell': {
+            display: 'flex',
+            alignItems: 'center',
+            lineHeight: '32px',
+            fontSize: '0.82rem',
+            padding: '0 12px',
+            color: isDarkMode ? '#f1f5f9' : 'inherit',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+        },
+        '& .ag-cell-value': {
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+        },
+        '& .ag-row-hover': {
+            backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.12) !important' : 'rgba(30,64,175,0.04) !important',
+        },
+        '& .ag-cell-focus': {
+            border: 'none !important',
+            outline: 'none !important',
+        },
+        '& .ag-center-cols-viewport, & .ag-center-cols-container': {
+            backgroundColor: isDarkMode ? '#1e293b' : '#fff'
+        },
+    };
+
     if (!canView) {
         return (
             <AppLayout>
@@ -833,924 +918,991 @@ export default function RejectionsPage() {
                     title="Rejections"
                     subtitle="Manage rejected products and credit notes"
                     icon="🚫"
+                    warehouseName={activeWarehouse?.name}
                 />
 
-                <Box sx={{ px: { xs: 0.5, md: 1.5 }, pb: 1, flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                    {/* Stats Row - Compact on Mobile */}
-                    <Stack
-                        direction="row"
-                        spacing={1}
-                        alignItems="center"
-                        justifyContent="space-between"
-                        sx={{ mb: 1, mt: 1, flexWrap: 'wrap', gap: 0.5 }}
-                    >
-                        {/* Stats Chips */}
-                        <Stack direction="row" spacing={0.75} alignItems="center" flexWrap="wrap" useFlexGap>
-                            <Chip
-                                label={`Total: ${stats.total}`}
-                                size="small"
-                                sx={{
-                                    bgcolor: '#ef4444',
-                                    color: '#fff',
-                                    fontWeight: 600,
-                                    height: { xs: 24, sm: 26 },
-                                    fontSize: { xs: '0.7rem', sm: '0.75rem' }
-                                }}
-                            />
-                            <Chip
-                                label={`Pending: ${stats.cn_pending}`}
-                                size="small"
-                                sx={{
-                                    bgcolor: '#f59e0b',
-                                    color: '#fff',
-                                    fontWeight: 600,
-                                    height: { xs: 24, sm: 26 },
-                                    fontSize: { xs: '0.7rem', sm: '0.75rem' }
-                                }}
-                            />
-                            <Chip
-                                label={`Received: ${stats.cn_received}`}
-                                size="small"
-                                sx={{
-                                    bgcolor: '#22c55e',
-                                    color: '#fff',
-                                    fontWeight: 600,
-                                    height: { xs: 24, sm: 26 },
-                                    fontSize: { xs: '0.7rem', sm: '0.75rem' }
-                                }}
-                            />
-                        </Stack>
-
-                        {/* Action Buttons - Desktop Only */}
-                        <Stack direction="row" spacing={0.5} alignItems="center" sx={{ display: { xs: 'none', md: 'flex' } }}>
-                            <Button size="small" variant="outlined" startIcon={<DownloadIcon sx={{ fontSize: 16 }} />} onClick={handleDownloadTemplate} sx={{ fontSize: '0.75rem' }}>
-                                Template
-                            </Button>
-                            {canExport && (
-                                <Button size="small" variant="outlined" startIcon={<ExcelIcon sx={{ fontSize: 16 }} />} onClick={handleExport} sx={{ fontSize: '0.75rem' }}>
-                                    Export
-                                </Button>
-                            )}
-                            {canCreate && (
-                                <Button size="small" variant="contained" startIcon={<UploadIcon sx={{ fontSize: 16 }} />} onClick={() => { fetchManagedPersons(); setUploadDialogOpen(true); }} sx={{ fontSize: '0.75rem' }}>
-                                    Upload
-                                </Button>
-                            )}
-                        </Stack>
-                    </Stack>
-
+                <Box sx={{ px: { xs: 0.5, md: 1.5 }, pb: 0.5, flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                     {/* Tabs */}
-                    <Tabs
-                        value={activeTab}
-                        onChange={(_, v) => setActiveTab(v)}
-                        variant={isSmall ? 'scrollable' : 'standard'}
-                        scrollButtons={isSmall ? 'auto' : false}
-                        sx={{
-                            minHeight: 32,
-                            mb: 1,
-                            '& .MuiTab-root': { minHeight: 32, py: 0.5, px: { xs: 1, sm: 2 }, fontSize: { xs: '0.75rem', sm: '0.8rem' } }
-                        }}
-                    >
-                        <Tab label={`Rejections (${totalCount})`} />
-                        <Tab label={`CN Summary (${summary.length})`} />
-                        <Tab label={`Batches (${batchList.length})`} />
-                        <Tab label={`Upload History (${uploadHistoryTotal})`} />
-                    </Tabs>
+                    <Box sx={{ flexShrink: 0 }}>
+                        <StandardTabs
+                            value={activeTab}
+                            onChange={(_, v) => setActiveTab(v)}
+                            tabs={[
+                                `Rejections (${totalCount})`,
+                                `CN Summary (${summary.length})`,
+                                `Batches (${batchList.length})`,
+                                `Upload History (${uploadHistoryTotal})`
+                            ]}
+                        />
+                    </Box>
 
-                    {/* Tab Panels */}
-                    {activeTab === 0 && (
-                        <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
-                            {/* Active Batch Filter Indicator */}
-                            {batchFilter && (
-                                <Alert
-                                    severity="info"
-                                    sx={{ mb: 1, py: 0, '& .MuiAlert-message': { py: 0.5 } }}
-                                    action={
-                                        <Button
-                                            size="small"
-                                            color="inherit"
-                                            onClick={() => { setBatchFilter(''); setPage(1); }}
-                                            sx={{ fontSize: '0.75rem', textTransform: 'none' }}
-                                        >
-                                            Clear Filter
-                                        </Button>
-                                    }
-                                >
-                                    <Typography variant="body2" sx={{ fontSize: '0.8rem' }}>
-                                        Filtered by batch: <strong>{batchFilter}</strong>
-                                    </Typography>
-                                </Alert>
-                            )}
+                    {/* Tab Panels - All mounted, hidden via display for instant switching */}
+                    <Box sx={{ flex: 1, display: activeTab === 0 ? 'flex' : 'none', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
+                        {/* Stats + Action Buttons Row */}
+                        <Stack
+                            direction="row"
+                            alignItems="center"
+                            justifyContent="space-between"
+                            sx={{
+                                flexShrink: 0,
+                                flexWrap: 'wrap',
+                                gap: 0.75,
+                                py: 0.75,
+                                px: 0.5,
+                                borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.06)' : '1px solid #e2e8f0',
+                            }}
+                        >
+                            {/* Left: Stats */}
+                            <Stack direction="row" spacing={0.75} alignItems="center">
+                                <Chip icon={<span>📦</span>} label={`Total: ${stats.total}`} size="small" sx={{ height: 26, fontWeight: 700, fontSize: '0.75rem', bgcolor: isDarkMode ? 'rgba(239,68,68,0.12)' : '#fef2f2', color: isDarkMode ? '#f87171' : '#dc2626', border: isDarkMode ? '1px solid rgba(239,68,68,0.25)' : '1px solid #fecaca', '& .MuiChip-icon': { fontSize: '0.85rem' } }} />
+                                <Chip icon={<span>⏳</span>} label={`Pending: ${stats.cn_pending}`} size="small" sx={{ height: 26, fontWeight: 700, fontSize: '0.75rem', bgcolor: isDarkMode ? 'rgba(245,158,11,0.12)' : '#fffbeb', color: isDarkMode ? '#fbbf24' : '#d97706', border: isDarkMode ? '1px solid rgba(245,158,11,0.25)' : '1px solid #fde68a', '& .MuiChip-icon': { fontSize: '0.85rem' } }} />
+                                <Chip icon={<span>✅</span>} label={`Received: ${stats.cn_received}`} size="small" sx={{ height: 26, fontWeight: 700, fontSize: '0.75rem', bgcolor: isDarkMode ? 'rgba(34,197,94,0.12)' : '#f0fdf4', color: isDarkMode ? '#4ade80' : '#16a34a', border: isDarkMode ? '1px solid rgba(34,197,94,0.25)' : '1px solid #bbf7d0', '& .MuiChip-icon': { fontSize: '0.85rem' } }} />
+                            </Stack>
 
-                            {/* Search & Filter Row */}
-                            <Stack
-                                direction="row"
-                                spacing={1}
-                                alignItems="center"
-                                sx={{ mb: 1.5 }}
-                            >
-                                {/* Search Box */}
-                                <TextField
+                            {/* Right: Action Buttons */}
+                            <Stack direction="row" spacing={0.5} alignItems="center" sx={{ display: { xs: 'none', md: 'flex' } }}>
+                                <Button
                                     size="small"
-                                    placeholder="Search WSN, Product..."
-                                    value={search}
-                                    onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-                                    InputProps={{
-                                        startAdornment: <InputAdornment position="start"><SearchIcon sx={{ fontSize: 18, color: 'text.secondary' }} /></InputAdornment>,
-                                    }}
+                                    variant="outlined"
+                                    startIcon={<DownloadIcon sx={{ fontSize: 14 }} />}
+                                    onClick={handleDownloadTemplate}
                                     sx={{
-                                        flex: 1,
-                                        maxWidth: { xs: '100%', md: 280 },
-                                        '& .MuiOutlinedInput-root': { height: 36, fontSize: '0.8rem' }
+                                        fontSize: '0.72rem', fontWeight: 600, textTransform: 'none',
+                                        py: 0.25, px: 1, height: 28,
+                                        borderColor: isDarkMode ? '#475569' : '#cbd5e1',
+                                        color: isDarkMode ? '#94a3b8' : '#64748b',
+                                        '&:hover': { borderColor: '#3b82f6', color: '#3b82f6' }
                                     }}
-                                />
-
-                                {/* Mobile: Filter & Refresh Buttons */}
-                                <Stack direction="row" spacing={0.5} sx={{ display: { xs: 'flex', md: 'none' } }}>
-                                    <IconButton
+                                >
+                                    Template
+                                </Button>
+                                {canExport && (
+                                    <Button
                                         size="small"
-                                        onClick={() => { fetchRejections(); fetchSummary(); }}
-                                        disabled={loading}
+                                        variant="outlined"
+                                        startIcon={<ExcelIcon sx={{ fontSize: 14 }} />}
+                                        onClick={handleExport}
                                         sx={{
-                                            bgcolor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
-                                            '&:hover': { bgcolor: isDarkMode ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)' }
+                                            fontSize: '0.72rem', fontWeight: 600, textTransform: 'none',
+                                            py: 0.25, px: 1, height: 28,
+                                            borderColor: isDarkMode ? '#475569' : '#cbd5e1',
+                                            color: isDarkMode ? '#94a3b8' : '#64748b',
+                                            '&:hover': { borderColor: '#22c55e', color: '#22c55e' }
                                         }}
                                     >
+                                        Export
+                                    </Button>
+                                )}
+                                {canCreate && (
+                                    <Button
+                                        size="small"
+                                        variant="contained"
+                                        startIcon={<UploadIcon sx={{ fontSize: 14 }} />}
+                                        onClick={() => { fetchManagedPersons(); setUploadDialogOpen(true); }}
+                                        sx={{
+                                            fontSize: '0.72rem', fontWeight: 600, textTransform: 'none',
+                                            py: 0.25, px: 1, height: 28,
+                                            bgcolor: '#1e40af',
+                                            '&:hover': { bgcolor: '#1d4ed8' }
+                                        }}
+                                    >
+                                        Upload
+                                    </Button>
+                                )}
+                            </Stack>
+                        </Stack>
+
+                        {/* Active Batch Filter Indicator */}
+                        {batchFilter && (
+                            <Alert
+                                severity="info"
+                                sx={{ mb: 1, py: 0, '& .MuiAlert-message': { py: 0.5 } }}
+                                action={
+                                    <Button
+                                        size="small"
+                                        color="inherit"
+                                        onClick={() => { setBatchFilter(''); setPage(1); }}
+                                        sx={{ fontSize: '0.75rem', textTransform: 'none' }}
+                                    >
+                                        Clear Filter
+                                    </Button>
+                                }
+                            >
+                                <Typography variant="body2" sx={{ fontSize: '0.8rem' }}>
+                                    Filtered by batch: <strong>{batchFilter}</strong>
+                                </Typography>
+                            </Alert>
+                        )}
+
+                        {/* Search & Filter Row */}
+                        <Stack
+                            direction="row"
+                            spacing={1}
+                            alignItems="center"
+                            sx={{ mb: 0.5, flexShrink: 0 }}
+                        >
+                            {/* Search Box */}
+                            <TextField
+                                size="small"
+                                placeholder="Search WSN, Product..."
+                                value={search}
+                                onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+                                InputProps={{
+                                    startAdornment: <InputAdornment position="start"><SearchIcon sx={{ fontSize: 18, color: 'text.secondary' }} /></InputAdornment>,
+                                }}
+                                sx={{
+                                    flex: 1,
+                                    maxWidth: { xs: '100%', md: 280 },
+                                    '& .MuiOutlinedInput-root': { height: 36, fontSize: '0.8rem' }
+                                }}
+                            />
+
+                            {/* Mobile: Filter & Refresh Buttons */}
+                            <Stack direction="row" spacing={0.5} sx={{ display: { xs: 'flex', md: 'none' } }}>
+                                <IconButton
+                                    size="small"
+                                    onClick={() => { fetchRejections(); fetchSummary(); }}
+                                    disabled={loading}
+                                    sx={{
+                                        bgcolor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+                                        '&:hover': { bgcolor: isDarkMode ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)' }
+                                    }}
+                                >
+                                    {loading ? <CircularProgress size={18} /> : <RefreshIcon fontSize="small" />}
+                                </IconButton>
+                                <Button
+                                    variant="contained"
+                                    color="primary"
+                                    startIcon={<TuneIcon />}
+                                    onClick={() => setMobileFiltersOpen(true)}
+                                    sx={{ height: 36, px: 1.5, textTransform: 'none', fontSize: '0.8rem', fontWeight: 600 }}
+                                >
+                                    Filters
+                                </Button>
+                            </Stack>
+
+                            {/* Desktop: Inline Filters */}
+                            <Stack direction="row" spacing={1} alignItems="center" sx={{ display: { xs: 'none', md: 'flex' } }}>
+                                {/* Type Filter */}
+                                <FormControl size="small" sx={{ minWidth: 130 }}>
+                                    <Select
+                                        value={rejectionType}
+                                        onChange={(e) => { setRejectionType(e.target.value); setPage(1); }}
+                                        displayEmpty
+                                        renderValue={(value) => (
+                                            <Typography variant="body2" sx={{ color: isDarkMode ? '#fff' : 'inherit' }} noWrap>
+                                                <span style={{ color: isDarkMode ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)' }}>Type: </span>
+                                                {value === 'all' ? 'All' : value.charAt(0).toUpperCase() + value.slice(1)}
+                                            </Typography>
+                                        )}
+                                        sx={{ height: 36, '& .MuiSelect-select': { py: 1, pr: 4 } }}
+                                    >
+                                        <MenuItem value="all">All</MenuItem>
+                                        <MenuItem value="damaged">Damaged</MenuItem>
+                                        <MenuItem value="fraud">Fraud</MenuItem>
+                                        <MenuItem value="short">Short</MenuItem>
+                                        <MenuItem value="other">Other</MenuItem>
+                                    </Select>
+                                </FormControl>
+
+                                {/* CN Status Filter */}
+                                <FormControl size="small" sx={{ minWidth: 160 }}>
+                                    <Select
+                                        value={cnStatus}
+                                        onChange={(e) => { setCnStatus(e.target.value); setPage(1); }}
+                                        displayEmpty
+                                        renderValue={(value) => (
+                                            <Typography variant="body2" sx={{ color: isDarkMode ? '#fff' : 'inherit' }} noWrap>
+                                                <span style={{ color: isDarkMode ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)' }}>CN Status: </span>
+                                                {value === 'all' ? 'All' : value.charAt(0).toUpperCase() + value.slice(1)}
+                                            </Typography>
+                                        )}
+                                        sx={{ height: 36, '& .MuiSelect-select': { py: 1, pr: 4 } }}
+                                    >
+                                        <MenuItem value="all">All</MenuItem>
+                                        <MenuItem value="pending">Pending</MenuItem>
+                                        <MenuItem value="received">Received</MenuItem>
+                                    </Select>
+                                </FormControl>
+
+                                {/* Rejected By Filter */}
+                                {persons.length > 0 && (
+                                    <FormControl size="small" sx={{ minWidth: 200 }}>
+                                        <Select
+                                            value={personFilter}
+                                            onChange={(e) => { setPersonFilter(e.target.value); setPage(1); }}
+                                            displayEmpty
+                                            renderValue={(value) => (
+                                                <Typography variant="body2" sx={{ color: isDarkMode ? '#fff' : 'inherit' }} noWrap>
+                                                    <span style={{ color: isDarkMode ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)' }}>Rejected By: </span>
+                                                    {value === '' ? 'All' : value}
+                                                </Typography>
+                                            )}
+                                            sx={{ height: 36, '& .MuiSelect-select': { py: 1, pr: 4 } }}
+                                        >
+                                            <MenuItem value="">All</MenuItem>
+                                            {persons.map((p) => <MenuItem key={p} value={p}>{p}</MenuItem>)}
+                                        </Select>
+                                    </FormControl>
+                                )}
+
+                                {/* Refresh Button */}
+                                <Tooltip title="Refresh">
+                                    <IconButton size="small" onClick={() => { fetchRejections(); fetchSummary(); }} disabled={loading}>
                                         {loading ? <CircularProgress size={18} /> : <RefreshIcon fontSize="small" />}
                                     </IconButton>
-                                    <Button
-                                        variant="contained"
-                                        color="primary"
-                                        startIcon={<TuneIcon />}
-                                        onClick={() => setMobileFiltersOpen(true)}
-                                        sx={{ height: 36, px: 1.5, textTransform: 'none', fontSize: '0.8rem', fontWeight: 600 }}
-                                    >
-                                        Filters
-                                    </Button>
-                                </Stack>
+                                </Tooltip>
+                            </Stack>
+                        </Stack>
 
-                                {/* Desktop: Inline Filters */}
-                                <Stack direction="row" spacing={1} alignItems="center" sx={{ display: { xs: 'none', md: 'flex' } }}>
-                                    {/* Type Filter */}
-                                    <FormControl size="small" sx={{ minWidth: 130 }}>
-                                        <Select
-                                            value={rejectionType}
-                                            onChange={(e) => { setRejectionType(e.target.value); setPage(1); }}
-                                            displayEmpty
-                                            renderValue={(value) => (
-                                                <Typography variant="body2" sx={{ color: isDarkMode ? '#fff' : 'inherit' }} noWrap>
-                                                    <span style={{ color: isDarkMode ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)' }}>Type: </span>
-                                                    {value === 'all' ? 'All' : value.charAt(0).toUpperCase() + value.slice(1)}
-                                                </Typography>
-                                            )}
-                                            sx={{ height: 36, '& .MuiSelect-select': { py: 1, pr: 4 } }}
-                                        >
-                                            <MenuItem value="all">All</MenuItem>
-                                            <MenuItem value="damaged">Damaged</MenuItem>
-                                            <MenuItem value="fraud">Fraud</MenuItem>
-                                            <MenuItem value="short">Short</MenuItem>
-                                            <MenuItem value="other">Other</MenuItem>
-                                        </Select>
-                                    </FormControl>
+                        {/* Grid Container with Fixed Height */}
+                        <Box sx={{
+                            position: 'relative',
+                            flex: 1,
+                            overflow: 'hidden',
+                            minHeight: 0,
+                            border: isDarkMode ? '2px solid rgba(255,255,255,0.1)' : '2px solid #e2e8f0',
+                            borderRadius: 1.5,
+                            boxShadow: isDarkMode ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.06)',
+                        }}>
 
-                                    {/* CN Status Filter */}
-                                    <FormControl size="small" sx={{ minWidth: 160 }}>
-                                        <Select
-                                            value={cnStatus}
-                                            onChange={(e) => { setCnStatus(e.target.value); setPage(1); }}
-                                            displayEmpty
-                                            renderValue={(value) => (
-                                                <Typography variant="body2" sx={{ color: isDarkMode ? '#fff' : 'inherit' }} noWrap>
-                                                    <span style={{ color: isDarkMode ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)' }}>CN Status: </span>
-                                                    {value === 'all' ? 'All' : value.charAt(0).toUpperCase() + value.slice(1)}
-                                                </Typography>
-                                            )}
-                                            sx={{ height: 36, '& .MuiSelect-select': { py: 1, pr: 4 } }}
-                                        >
-                                            <MenuItem value="all">All</MenuItem>
-                                            <MenuItem value="pending">Pending</MenuItem>
-                                            <MenuItem value="received">Received</MenuItem>
-                                        </Select>
-                                    </FormControl>
+                            {/* Loading Spinner Overlay - semi-transparent so data stays visible */}
+                            {loading && (
+                                <Box sx={{
+                                    position: 'absolute',
+                                    top: 0,
+                                    left: 0,
+                                    right: 0,
+                                    bottom: 0,
+                                    backgroundColor: isDarkMode ? 'rgba(15, 23, 42, 0.5)' : 'rgba(255, 255, 255, 0.5)',
+                                    zIndex: 10,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                }}>
+                                    <Box sx={{
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        alignItems: 'center',
+                                        gap: 1.5,
+                                        p: 3,
+                                        bgcolor: isDarkMode ? 'rgba(30, 41, 59, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+                                        borderRadius: 2,
+                                        boxShadow: '0 4px 20px rgba(0,0,0,0.15)'
+                                    }}>
+                                        <CircularProgress
+                                            size={40}
+                                            thickness={4}
+                                            sx={{ color: '#1e40af' }}
+                                        />
+                                        <Typography sx={{ fontSize: '0.85rem', fontWeight: 500, color: isDarkMode ? '#94a3b8' : '#64748b' }}>
+                                            Loading...
+                                        </Typography>
+                                    </Box>
+                                </Box>
+                            )}
 
-                                    {/* Rejected By Filter */}
-                                    {persons.length > 0 && (
-                                        <FormControl size="small" sx={{ minWidth: 200 }}>
-                                            <Select
-                                                value={personFilter}
-                                                onChange={(e) => { setPersonFilter(e.target.value); setPage(1); }}
-                                                displayEmpty
-                                                renderValue={(value) => (
-                                                    <Typography variant="body2" sx={{ color: isDarkMode ? '#fff' : 'inherit' }} noWrap>
-                                                        <span style={{ color: isDarkMode ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)' }}>Rejected By: </span>
-                                                        {value === '' ? 'All' : value}
-                                                    </Typography>
-                                                )}
-                                                sx={{ height: 36, '& .MuiSelect-select': { py: 1, pr: 4 } }}
-                                            >
-                                                <MenuItem value="">All</MenuItem>
-                                                {persons.map((p) => <MenuItem key={p} value={p}>{p}</MenuItem>)}
-                                            </Select>
-                                        </FormControl>
-                                    )}
+                            {/* Empty State Overlay */}
+                            {!loading && (!rejections || rejections.length === 0) && (
+                                <Box sx={{
+                                    position: 'absolute',
+                                    top: 60,
+                                    left: 0,
+                                    right: 0,
+                                    bottom: 0,
+                                    backgroundColor: isDarkMode ? 'rgba(15, 23, 42, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+                                    zIndex: 5,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                }}>
+                                    <Box sx={{
+                                        textAlign: 'center',
+                                        p: 4,
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        alignItems: 'center',
+                                        gap: 2
+                                    }}>
+                                        <Box sx={{
+                                            fontSize: '4rem',
+                                            opacity: 0.3,
+                                            mb: 1
+                                        }}>
+                                            📭
+                                        </Box>
+                                        <Typography variant="h5" sx={{ fontWeight: 600, color: '#6b7280', mb: 0.5 }}>
+                                            No Data Found
+                                        </Typography>
+                                        <Typography variant="body2" sx={{ color: '#9ca3af', maxWidth: 400 }}>
+                                            No rejections match your current filters. Try adjusting your search criteria or reset filters to see all items.
+                                        </Typography>
+                                    </Box>
+                                </Box>
+                            )}
 
-                                    {/* Refresh Button */}
-                                    <Tooltip title="Refresh">
-                                        <IconButton size="small" onClick={() => { fetchRejections(); fetchSummary(); }} disabled={loading}>
-                                            {loading ? <CircularProgress size={18} /> : <RefreshIcon fontSize="small" />}
-                                        </IconButton>
-                                    </Tooltip>
-                                </Stack>
+                            {/* AG Grid - Always Rendered with Fixed Height */}
+                            <Box className="ag-theme-quartz" sx={{
+                                ...agGridBaseSx,
+                            }}
+                            >
+                                <AgGridReact
+                                    ref={gridRef}
+                                    rowData={rejections}
+                                    columnDefs={columnDefs}
+                                    defaultColDef={defaultColDef}
+                                    animateRows={false}
+                                    rowSelection="multiple"
+                                    suppressCellFocus
+                                    onGridReady={onGridReady}
+                                    onColumnMoved={onColumnStateChanged}
+                                    onColumnResized={onColumnStateChanged}
+                                    suppressScrollOnNewData={true}
+                                    maintainColumnOrder={true}
+                                    enableCellTextSelection={true}
+                                    loading={false}
+                                    suppressNoRowsOverlay={true}
+                                    rowBuffer={100}
+                                    suppressRowTransform={true}
+                                    suppressAnimationFrame={true}
+                                    alwaysShowVerticalScroll={true}
+                                    debounceVerticalScrollbar={true}
+                                    containerStyle={{ height: '100%', width: '100%' }}
+                                    rowHeight={32}
+                                    headerHeight={36}
+
+                                />
+                            </Box>
+                        </Box>
+
+                        {/* Pagination */}
+                        <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{
+                            px: { xs: 1, sm: 2 },
+                            py: { xs: 0.75, sm: 0.5 },
+                            borderTop: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #ddd',
+                            bgcolor: isDarkMode ? '#1e293b' : '#fff',
+                            borderRadius: '0 0 8px 8px',
+                            mt: 0.5,
+                            minHeight: { xs: 44, sm: 52 },
+                            gap: { xs: 0.5, sm: 1 },
+                            flexWrap: 'wrap',
+                        }}>
+                            {/* Left Section: Per Page */}
+                            <Stack direction="row" spacing={{ xs: 0.5, sm: 1.5 }} alignItems="center">
+                                <Typography sx={{ fontSize: { xs: '0.7rem', sm: '0.78rem' }, whiteSpace: 'nowrap', color: isDarkMode ? '#94a3b8' : 'inherit' }}>
+                                    Per page:
+                                </Typography>
+                                <Select
+                                    size="small"
+                                    value={limit}
+                                    onChange={(e) => {
+                                        setLimit(Number(e.target.value));
+                                        setPage(1);
+                                    }}
+                                    sx={{
+                                        minWidth: { xs: 58, sm: 70 },
+                                        '& .MuiSelect-select': {
+                                            py: { xs: 0.5, sm: 0.75 },
+                                            fontSize: { xs: '0.75rem', sm: '0.875rem' },
+                                            color: isDarkMode ? '#f1f5f9' : 'inherit',
+                                        }
+                                    }}
+                                >
+                                    <MenuItem value={50}>50</MenuItem>
+                                    <MenuItem value={100}>100</MenuItem>
+                                    <MenuItem value={500}>500</MenuItem>
+                                    <MenuItem value={1000}>1000</MenuItem>
+                                </Select>
                             </Stack>
 
-                            {/* Grid Container with Fixed Height */}
-                            <Box sx={{
-                                position: 'relative',
-                                flex: 1,
-                                overflow: 'hidden',
-                                minHeight: 0,
-                                border: isDarkMode ? '2px solid rgba(255,255,255,0.1)' : '2px solid #e2e8f0',
-                                borderRadius: 1.5,
-                                boxShadow: isDarkMode ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.06)',
-                            }}>
+                            {/* Center Section: Count */}
+                            <Typography sx={{ fontSize: { xs: '0.7rem', sm: '0.78rem' }, whiteSpace: 'nowrap', color: isDarkMode ? '#94a3b8' : 'inherit' }}>
+                                {totalCount > 0 ? `${(page - 1) * limit + 1}-${Math.min(page * limit, totalCount)} of ${totalCount}` : 'No records'}
+                            </Typography>
 
-                                {/* Loading Spinner Overlay - semi-transparent so data stays visible */}
-                                {loading && rejections && rejections.length > 0 && (
-                                    <Box sx={{
-                                        position: 'absolute',
-                                        top: 0,
-                                        left: 0,
-                                        right: 0,
-                                        bottom: 0,
-                                        backgroundColor: isDarkMode ? 'rgba(15, 23, 42, 0.5)' : 'rgba(255, 255, 255, 0.5)',
-                                        zIndex: 10,
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                    }}>
-                                        <Box sx={{
-                                            display: 'flex',
-                                            flexDirection: 'column',
-                                            alignItems: 'center',
-                                            gap: 1.5,
-                                            p: 3,
-                                            bgcolor: isDarkMode ? 'rgba(30, 41, 59, 0.95)' : 'rgba(255, 255, 255, 0.95)',
-                                            borderRadius: 2,
-                                            boxShadow: '0 4px 20px rgba(0,0,0,0.15)'
-                                        }}>
-                                            <CircularProgress
-                                                size={40}
-                                                thickness={4}
-                                                sx={{ color: '#1e40af' }}
-                                            />
-                                            <Typography sx={{ fontSize: '0.85rem', fontWeight: 500, color: isDarkMode ? '#94a3b8' : '#64748b' }}>
-                                                Loading...
-                                            </Typography>
-                                        </Box>
-                                    </Box>
-                                )}
+                            {/* Right Section: Pagination */}
+                            <Pagination
+                                count={totalPages}
+                                page={page}
+                                onChange={(_, p) => setPage(p)}
+                                size="small"
+                                siblingCount={isSmall ? 0 : 1}
+                            />
+                        </Stack>
+                    </Box>
 
-                                {/* Full Loading Overlay - ONLY for initial load when no data exists */}
-                                {loading && (!rejections || rejections.length === 0) && (
-                                    <Box sx={{
-                                        position: 'absolute',
-                                        top: 48,
-                                        left: 0,
-                                        right: 0,
-                                        bottom: 0,
-                                        backgroundColor: isDarkMode ? 'rgba(15, 23, 42, 0.9)' : 'rgba(255, 255, 255, 0.9)',
-                                        backdropFilter: 'blur(3px)',
-                                        zIndex: 5,
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                    }}>
-                                        <Box sx={{
-                                            display: 'flex',
-                                            flexDirection: 'column',
-                                            alignItems: 'center',
-                                            gap: 3,
-                                            p: 4,
-                                            bgcolor: isDarkMode ? '#1e293b' : 'white',
-                                            borderRadius: 3,
-                                            boxShadow: isDarkMode ? '0 8px 32px rgba(0,0,0,0.4)' : '0 8px 24px rgba(0,0,0,0.12)'
-                                        }}>
-                                            <Box sx={{ position: 'relative' }}>
-                                                <CircularProgress
-                                                    size={56}
-                                                    thickness={3.5}
-                                                    sx={{
-                                                        color: '#1e40af',
-                                                        filter: 'drop-shadow(0 2px 8px rgba(25, 118, 210, 0.2))'
-                                                    }}
-                                                />
-                                            </Box>
-                                            <Typography
-                                                sx={{
-                                                    fontSize: '0.95rem',
-                                                    fontWeight: 500,
-                                                    color: isDarkMode ? '#94a3b8' : '#546e7a',
-                                                    letterSpacing: 0.3,
-                                                    textAlign: 'center'
-                                                }}
-                                            >
-                                                Loading data...
-                                            </Typography>
-                                        </Box>
-                                    </Box>
-                                )}
-
-                                {/* Empty State Overlay */}
-                                {!loading && (!rejections || rejections.length === 0) && (
-                                    <Box sx={{
-                                        position: 'absolute',
-                                        top: 60,
-                                        left: 0,
-                                        right: 0,
-                                        bottom: 0,
-                                        backgroundColor: isDarkMode ? 'rgba(15, 23, 42, 0.95)' : 'rgba(255, 255, 255, 0.95)',
-                                        zIndex: 5,
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                    }}>
-                                        <Box sx={{
-                                            textAlign: 'center',
-                                            p: 4,
-                                            display: 'flex',
-                                            flexDirection: 'column',
-                                            alignItems: 'center',
-                                            gap: 2
-                                        }}>
-                                            <Box sx={{
-                                                fontSize: '4rem',
-                                                opacity: 0.3,
-                                                mb: 1
-                                            }}>
-                                                📭
-                                            </Box>
-                                            <Typography variant="h5" sx={{ fontWeight: 600, color: '#6b7280', mb: 0.5 }}>
-                                                No Data Found
-                                            </Typography>
-                                            <Typography variant="body2" sx={{ color: '#9ca3af', maxWidth: 400 }}>
-                                                No rejections match your current filters. Try adjusting your search criteria or reset filters to see all items.
-                                            </Typography>
-                                        </Box>
-                                    </Box>
-                                )}
-
-                                {/* AG Grid - Always Rendered with Fixed Height */}
-                                <Box className="ag-theme-quartz" sx={{
-                                    height: '100%',
-                                    width: '100%',
-                                    bgcolor: isDarkMode ? '#1e293b' : '#ffffff',
-                                    overflow: 'hidden',
-                                    '& .ag-root-wrapper': {
-                                        backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
-                                        border: 'none',
-                                        borderRadius: '8px',
-                                    },
-                                    '& .ag-header': {
-                                        backgroundColor: isDarkMode ? '#334155' : '#f8fafc',
-                                        borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(0,0,0,0.08)',
-                                        fontWeight: 600,
-                                        opacity: '1 !important',
-                                        zIndex: 15,
-                                        position: 'relative'
-                                    },
-                                    '& .ag-header-cell': {
-                                        padding: '0 12px',
-                                        opacity: '1 !important',
-                                        fontWeight: 600,
-                                        letterSpacing: '0.01em',
-                                        backgroundColor: isDarkMode ? '#334155' : 'transparent',
-                                        color: isDarkMode ? '#f1f5f9' : 'inherit',
-                                    },
-                                    '& .ag-header-cell-label': {
-                                        color: isDarkMode ? '#f1f5f9' : 'inherit'
-                                    },
-                                    '& .ag-icon': { color: isDarkMode ? '#94a3b8' : '#64748b' },
-                                    '& .ag-body-viewport': {
-                                        opacity: loading ? 0.3 : 1,
-                                        transition: 'opacity 0.2s ease-in-out',
-                                        backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
-                                    },
-                                    '& .ag-row': {
-                                        borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.06)' : '1px solid rgba(0,0,0,0.06)',
-                                        transition: 'background-color 0.15s ease',
-                                    },
-                                    '& .ag-row-even': {
-                                        backgroundColor: isDarkMode ? '#1a2536 !important' : '#ffffff !important',
-                                    },
-                                    '& .ag-row-odd': {
-                                        backgroundColor: isDarkMode ? '#1e293b !important' : 'rgba(248,250,252,0.5) !important',
-                                    },
-                                    '& .ag-cell': {
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        lineHeight: '36px',
-                                        fontSize: '0.875rem',
-                                        padding: '0 12px',
-                                        color: isDarkMode ? '#f1f5f9' : 'inherit',
-                                        overflow: 'hidden',
-                                        textOverflow: 'ellipsis',
-                                        whiteSpace: 'nowrap',
-                                    },
-                                    '& .ag-cell-value': {
-                                        overflow: 'hidden',
-                                        textOverflow: 'ellipsis',
-                                        whiteSpace: 'nowrap',
-                                    },
-                                    '& .ag-row-hover': {
-                                        backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.15) !important' : 'rgba(30,64,175,0.04) !important',
-                                        transition: 'background-color 0.1s ease'
-                                    },
-                                    '& .ag-cell-focus': {
-                                        border: '2px solid #1e40af !important',
-                                        boxSizing: 'border-box',
-                                        outline: 'none',
-                                    },
-                                    '& .ag-cell-range-selected': {
-                                        backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.2) !important' : 'rgba(30,64,175,0.08) !important',
-                                    },
-                                    '& .ag-center-cols-viewport, & .ag-center-cols-container': {
-                                        backgroundColor: isDarkMode ? '#1e293b' : '#fff'
-                                    },
-                                }}
-                                >
-                                    <AgGridReact
-                                        ref={gridRef}
-                                        rowData={rejections}
-                                        columnDefs={columnDefs}
-                                        defaultColDef={defaultColDef}
-                                        animateRows={false}
-                                        rowSelection="multiple"
-                                        suppressCellFocus
-                                        onGridReady={onGridReady}
-                                        onColumnMoved={onColumnStateChanged}
-                                        onColumnResized={onColumnStateChanged}
-                                        suppressScrollOnNewData={true}
-                                        maintainColumnOrder={true}
-                                        enableCellTextSelection={true}
-                                        loading={false}
-                                        suppressNoRowsOverlay={true}
-                                        // ⚡ PERFORMANCE: Optimizations for smooth fast scrolling
-                                        rowBuffer={100}
-                                        suppressRowTransform={true}
-                                        suppressAnimationFrame={true}
-                                        alwaysShowVerticalScroll={true}
-                                        debounceVerticalScrollbar={true}
-                                        containerStyle={{ height: '100%', width: '100%' }}
-                                        rowHeight={36}
-                                        headerHeight={36}
-
-                                    />
-                                </Box>
-                            </Box>
-
-                            {/* Pagination */}
-                            <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{
-                                px: { xs: 1, sm: 2 },
-                                py: { xs: 0.75, sm: 0.5 },
-                                borderTop: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #ddd',
-                                bgcolor: isDarkMode ? '#1e293b' : '#fff',
-                                borderRadius: '0 0 8px 8px',
-                                mt: 0.5,
-                                minHeight: { xs: 44, sm: 52 },
-                                gap: { xs: 0.5, sm: 1 },
-                                flexWrap: 'wrap',
-                            }}>
-                                {/* Left Section: Per Page */}
-                                <Stack direction="row" spacing={{ xs: 0.5, sm: 1.5 }} alignItems="center">
-                                    <Typography sx={{ fontSize: { xs: '0.7rem', sm: '0.78rem' }, whiteSpace: 'nowrap', color: isDarkMode ? '#94a3b8' : 'inherit' }}>
-                                        Per page:
-                                    </Typography>
-                                    <Select
+                    <Box sx={{
+                        position: 'relative',
+                        flex: 1,
+                        overflow: 'hidden',
+                        minHeight: 0,
+                        mt: 0.5,
+                        display: activeTab === 1 ? 'flex' : 'none',
+                        flexDirection: 'column',
+                        border: isDarkMode ? '2px solid rgba(255,255,255,0.1)' : '2px solid #e2e8f0',
+                        borderRadius: 1.5,
+                        boxShadow: isDarkMode ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.06)',
+                    }}>
+                        {/* CN Summary Header Bar */}
+                        <Box sx={{
+                            px: 2, py: 0.75,
+                            borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.08)' : '1px solid #e2e8f0',
+                            bgcolor: isDarkMode ? '#334155' : '#f8fafc',
+                            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                            flexShrink: 0,
+                        }}>
+                            <Stack direction="row" alignItems="center" spacing={1}>
+                                <Typography sx={{ fontSize: '0.85rem' }}>📋</Typography>
+                                <Typography sx={{ fontWeight: 700, color: isDarkMode ? '#f1f5f9' : '#1e293b', fontSize: '0.85rem' }}>
+                                    Credit Note Summary
+                                </Typography>
+                                {summary.length > 0 && (
+                                    <Chip
+                                        label={`${summary.length} batches`}
                                         size="small"
-                                        value={limit}
-                                        onChange={(e) => {
-                                            setLimit(Number(e.target.value));
-                                            setPage(1);
-                                        }}
                                         sx={{
-                                            minWidth: { xs: 58, sm: 70 },
-                                            '& .MuiSelect-select': {
-                                                py: { xs: 0.5, sm: 0.75 },
-                                                fontSize: { xs: '0.75rem', sm: '0.875rem' },
-                                                color: isDarkMode ? '#f1f5f9' : 'inherit',
-                                            }
+                                            height: 20, fontSize: '0.7rem', fontWeight: 600,
+                                            bgcolor: isDarkMode ? 'rgba(96, 165, 250, 0.15)' : '#dbeafe',
+                                            color: isDarkMode ? '#60a5fa' : '#2563eb',
+                                        }}
+                                    />
+                                )}
+                            </Stack>
+                            <Stack direction="row" spacing={0.5} alignItems="center">
+                                {canUpdateCN && (
+                                    <Button
+                                        size="small"
+                                        variant="outlined"
+                                        onClick={() => setCnDialogOpen(true)}
+                                        sx={{
+                                            height: 26, fontSize: '0.7rem', fontWeight: 600, textTransform: 'none',
+                                            borderColor: isDarkMode ? '#475569' : '#cbd5e1',
+                                            color: isDarkMode ? '#94a3b8' : '#64748b',
+                                            '&:hover': { borderColor: '#22c55e', color: '#22c55e' },
                                         }}
                                     >
-                                        <MenuItem value={50}>50</MenuItem>
-                                        <MenuItem value={100}>100</MenuItem>
-                                        <MenuItem value={500}>500</MenuItem>
-                                        <MenuItem value={1000}>1000</MenuItem>
-                                    </Select>
-                                </Stack>
-
-                                {/* Center Section: Count */}
-                                <Typography sx={{ fontSize: { xs: '0.7rem', sm: '0.78rem' }, whiteSpace: 'nowrap', color: isDarkMode ? '#94a3b8' : 'inherit' }}>
-                                    {totalCount > 0 ? `${(page - 1) * limit + 1}-${Math.min(page * limit, totalCount)} of ${totalCount}` : 'No records'}
-                                </Typography>
-
-                                {/* Right Section: Pagination */}
-                                <Pagination
-                                    count={totalPages}
-                                    page={page}
-                                    onChange={(_, p) => setPage(p)}
-                                    size="small"
-                                    siblingCount={isSmall ? 0 : 1}
-                                />
+                                        Update CN
+                                    </Button>
+                                )}
+                                <Tooltip title="Refresh">
+                                    <IconButton
+                                        size="small"
+                                        onClick={fetchSummary}
+                                        sx={{ width: 26, height: 26 }}
+                                    >
+                                        <RefreshIcon sx={{ fontSize: 16 }} />
+                                    </IconButton>
+                                </Tooltip>
                             </Stack>
                         </Box>
-                    )
-                    }
 
-                    {
-                        activeTab === 1 && (
+                        {/* Empty State */}
+                        {!loading && (!summary || summary.length === 0) && (
                             <Box sx={{
-                                position: 'relative',
-                                flex: 1,
-                                overflow: 'hidden',
-                                minHeight: 0,
-                                border: isDarkMode ? '2px solid rgba(255,255,255,0.1)' : '2px solid #e2e8f0',
-                                borderRadius: 1.5,
-                                boxShadow: isDarkMode ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.06)',
+                                position: 'absolute',
+                                top: 60,
+                                left: 0,
+                                right: 0,
+                                bottom: 0,
+                                backgroundColor: isDarkMode ? 'rgba(15, 23, 42, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+                                zIndex: 5,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
                             }}>
-                                {/* Empty State */}
-                                {!loading && (!summary || summary.length === 0) && (
-                                    <Box sx={{
-                                        position: 'absolute',
-                                        top: 60,
-                                        left: 0,
-                                        right: 0,
-                                        bottom: 0,
-                                        backgroundColor: isDarkMode ? 'rgba(15, 23, 42, 0.95)' : 'rgba(255, 255, 255, 0.95)',
-                                        zIndex: 5,
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                    }}>
-                                        <Box sx={{
-                                            textAlign: 'center',
-                                            p: 4,
-                                            display: 'flex',
-                                            flexDirection: 'column',
-                                            alignItems: 'center',
-                                            gap: 2
-                                        }}>
-                                            <Box sx={{ fontSize: '4rem', opacity: 0.3, mb: 1 }}>📋</Box>
-                                            <Typography variant="h5" sx={{ fontWeight: 600, color: '#6b7280', mb: 0.5 }}>
-                                                No CN Summary
-                                            </Typography>
-                                            <Typography variant="body2" sx={{ color: '#9ca3af', maxWidth: 400 }}>
-                                                Credit note summary will appear here once rejections are uploaded.
-                                            </Typography>
-                                        </Box>
-                                    </Box>
-                                )}
-
-                                <Box className="ag-theme-quartz" sx={{
-                                    height: '100%',
-                                    width: '100%',
-                                    bgcolor: isDarkMode ? '#1e293b' : '#ffffff',
-                                    overflow: 'hidden',
-                                    '& .ag-root-wrapper': {
-                                        backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
-                                        border: 'none',
-                                        borderRadius: '8px',
-                                    },
-                                    '& .ag-header': {
-                                        backgroundColor: isDarkMode ? '#334155' : '#f8fafc',
-                                        borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(0,0,0,0.08)',
-                                        fontWeight: 600,
-                                        opacity: '1 !important',
-                                        zIndex: 15,
-                                        position: 'relative'
-                                    },
-                                    '& .ag-header-cell': {
-                                        padding: '0 12px',
-                                        opacity: '1 !important',
-                                        fontWeight: 600,
-                                        letterSpacing: '0.01em',
-                                        backgroundColor: isDarkMode ? '#334155' : 'transparent',
-                                        color: isDarkMode ? '#f1f5f9' : 'inherit',
-                                    },
-                                    '& .ag-header-cell-label': { color: isDarkMode ? '#f1f5f9' : 'inherit' },
-                                    '& .ag-icon': { color: isDarkMode ? '#94a3b8' : '#64748b' },
-                                    '& .ag-body-viewport': {
-                                        backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
-                                    },
-                                    '& .ag-row': {
-                                        borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.06)' : '1px solid rgba(0,0,0,0.06)',
-                                        transition: 'background-color 0.15s ease',
-                                    },
-                                    '& .ag-row-even': {
-                                        backgroundColor: isDarkMode ? '#1a2536 !important' : '#ffffff !important',
-                                    },
-                                    '& .ag-row-odd': {
-                                        backgroundColor: isDarkMode ? '#1e293b !important' : 'rgba(248,250,252,0.5) !important',
-                                    },
-                                    '& .ag-cell': {
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        lineHeight: '36px',
-                                        fontSize: '0.875rem',
-                                        padding: '0 12px',
-                                        color: isDarkMode ? '#f1f5f9' : 'inherit',
-                                        overflow: 'hidden',
-                                        textOverflow: 'ellipsis',
-                                        whiteSpace: 'nowrap',
-                                    },
-                                    '& .ag-cell-value': {
-                                        overflow: 'hidden',
-                                        textOverflow: 'ellipsis',
-                                        whiteSpace: 'nowrap',
-                                    },
-                                    '& .ag-row-hover': {
-                                        backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.15) !important' : 'rgba(30,64,175,0.04) !important',
-                                        transition: 'background-color 0.1s ease'
-                                    },
-                                    '& .ag-cell-focus': {
-                                        border: 'none !important',
-                                        outline: 'none !important',
-                                    },
-                                    '& .ag-center-cols-viewport, & .ag-center-cols-container': {
-                                        backgroundColor: isDarkMode ? '#1e293b' : '#fff'
-                                    },
+                                <Box sx={{
+                                    textAlign: 'center',
+                                    p: 4,
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    alignItems: 'center',
+                                    gap: 2
                                 }}>
-                                    <AgGridReact
-                                        ref={summaryGridRef}
-                                        rowData={summary}
-                                        columnDefs={summaryColumns}
-                                        defaultColDef={defaultColDef}
-                                        animateRows={false}
-                                        suppressScrollOnNewData={true}
-                                        maintainColumnOrder={true}
-                                        enableCellTextSelection={true}
-                                        loading={false}
-                                        suppressNoRowsOverlay={true}
-                                        suppressCellFocus={true}
-                                        // ⚡ PERFORMANCE: Optimizations for smooth fast scrolling
-                                        rowBuffer={100}
-                                        suppressRowTransform={true}
-                                        suppressAnimationFrame={true}
-                                        alwaysShowVerticalScroll={true}
-                                        debounceVerticalScrollbar={true}
-                                        containerStyle={{ height: '100%', width: '100%' }}
-                                        rowHeight={36}
-                                        headerHeight={36}
-                                        onGridReady={onSummaryGridReady}
-                                        onColumnMoved={onSummaryColumnStateChanged}
-                                        onColumnResized={onSummaryColumnStateChanged}
-                                    />
+                                    <Box sx={{ fontSize: '4rem', opacity: 0.3, mb: 1 }}>📋</Box>
+                                    <Typography variant="h5" sx={{ fontWeight: 600, color: '#6b7280', mb: 0.5 }}>
+                                        No CN Summary
+                                    </Typography>
+                                    <Typography variant="body2" sx={{ color: '#9ca3af', maxWidth: 400 }}>
+                                        Credit note summary will appear here once rejections are uploaded.
+                                    </Typography>
                                 </Box>
                             </Box>
-                        )
-                    }
+                        )}
 
-                    {
-                        activeTab === 2 && (
-                            <Paper elevation={2} sx={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 300, overflow: 'hidden' }}>
-                                <BatchManagementTab
-                                    batches={batchList}
-                                    loading={batchLoading}
-                                    onRefresh={fetchBatchList}
-                                    onDelete={handleDeleteBatch}
-                                    onRename={handleRenameBatch}
-                                    onView={(batchId) => {
-                                        setBatchFilter(batchId);
-                                        setPage(1);
-                                        setActiveTab(0);
-                                    }}
-                                    canDelete={canDelete}
-                                    canRename={canCreate}
-                                    canView={true}
-                                    title="Rejection Batches"
-                                    emptyMessage="No rejection batches found"
-                                    emptySubMessage="Batches will appear here after uploading rejections"
-                                />
-                                {/* Deleted Batches Section (Trash / Recovery) */}
-                                {deletedBatches.length > 0 && (
-                                    <Box sx={{ p: 2, borderTop: '1px solid', borderColor: 'divider' }}>
-                                        <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.5 }}>
-                                            <Typography variant="subtitle2" fontWeight={700} color="error.main">
-                                                🗑️ Deleted Batches ({deletedBatches.length})
-                                            </Typography>
-                                            <Button
-                                                size="small"
-                                                startIcon={deletedBatchesLoading ? <CircularProgress size={14} /> : <RefreshIcon />}
-                                                onClick={fetchDeletedBatches}
-                                                disabled={deletedBatchesLoading}
+                        <Box className="ag-theme-quartz" sx={agGridBaseSx}>
+                            <AgGridReact
+                                ref={summaryGridRef}
+                                rowData={summary}
+                                columnDefs={summaryColumns}
+                                defaultColDef={defaultColDef}
+                                animateRows={false}
+                                suppressScrollOnNewData={true}
+                                maintainColumnOrder={true}
+                                enableCellTextSelection={true}
+                                loading={false}
+                                suppressNoRowsOverlay={true}
+                                suppressCellFocus={true}
+                                // ⚡ PERFORMANCE: Optimizations for smooth fast scrolling
+                                rowBuffer={100}
+                                suppressRowTransform={true}
+                                suppressAnimationFrame={true}
+                                alwaysShowVerticalScroll={true}
+                                debounceVerticalScrollbar={true}
+                                containerStyle={{ height: '100%', width: '100%' }}
+                                rowHeight={32}
+                                headerHeight={36}
+                                onGridReady={onSummaryGridReady}
+                                onColumnMoved={onSummaryColumnStateChanged}
+                                onColumnResized={onSummaryColumnStateChanged}
+                            />
+                        </Box>
+                    </Box>
+
+                    <Paper elevation={2} sx={{ flex: 1, display: activeTab === 2 ? 'flex' : 'none', flexDirection: 'column', minHeight: 300, overflow: 'auto', mt: 0.5 }}>
+                        <BatchManagementTab
+                            batches={batchList}
+                            loading={batchLoading}
+                            onRefresh={fetchBatchList}
+                            onDelete={handleDeleteBatch}
+                            onRename={handleRenameBatch}
+                            onView={(batchId) => {
+                                setBatchFilter(batchId);
+                                setPage(1);
+                                setActiveTab(0);
+                            }}
+                            canDelete={canDelete}
+                            canRename={canCreate}
+                            canView={true}
+                            title="Rejection Batches"
+                            emptyMessage="No rejection batches found"
+                            emptySubMessage="Batches will appear here after uploading rejections"
+                        />
+                        {/* Deleted Batches Section (Trash / Recovery) */}
+                        <Box sx={{
+                            p: 2,
+                            borderTop: '2px solid',
+                            borderColor: isDarkMode ? 'rgba(239,68,68,0.2)' : '#fecaca',
+                            bgcolor: isDarkMode ? 'rgba(239,68,68,0.03)' : '#fef2f2',
+                        }}>
+                            <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.5 }}>
+                                <Stack direction="row" spacing={1} alignItems="center">
+                                    <Typography variant="subtitle2" fontWeight={700} color="error.main">
+                                        🗑️ Deleted Batches
+                                    </Typography>
+                                    <Chip
+                                        label={deletedBatches.length}
+                                        size="small"
+                                        sx={{
+                                            height: 20, minWidth: 24,
+                                            fontSize: '0.7rem', fontWeight: 700,
+                                            bgcolor: deletedBatches.length > 0 ? '#ef4444' : (isDarkMode ? '#475569' : '#94a3b8'),
+                                            color: '#fff',
+                                        }}
+                                    />
+                                </Stack>
+                                <Button
+                                    size="small"
+                                    startIcon={deletedBatchesLoading ? <CircularProgress size={14} /> : <RefreshIcon />}
+                                    onClick={fetchDeletedBatches}
+                                    disabled={deletedBatchesLoading}
+                                    sx={{ fontSize: '0.75rem', textTransform: 'none' }}
+                                >
+                                    Refresh
+                                </Button>
+                            </Stack>
+                            {deletedBatches.length === 0 ? (
+                                <Typography variant="body2" sx={{ color: isDarkMode ? '#64748b' : '#9ca3af', textAlign: 'center', py: 2 }}>
+                                    No deleted batches. Deleted batches will appear here for recovery.
+                                </Typography>
+                            ) : (
+                                <>
+                                    <Alert severity="warning" sx={{ mb: 1.5, py: 0.5 }}>
+                                        <Typography variant="caption">
+                                            Deleted batches can be <strong>restored</strong>. Permanent delete will remove data forever.
+                                        </Typography>
+                                    </Alert>
+                                    <Stack spacing={1}>
+                                        {deletedBatches.map((batch: any) => (
+                                            <Paper
+                                                key={batch.batch_id}
+                                                variant="outlined"
+                                                sx={{
+                                                    p: 1.5,
+                                                    bgcolor: isDarkMode ? 'rgba(239,68,68,0.05)' : '#fff',
+                                                    borderColor: isDarkMode ? 'rgba(239,68,68,0.15)' : '#fecaca',
+                                                    borderRadius: 1.5,
+                                                }}
                                             >
-                                                Refresh
-                                            </Button>
-                                        </Stack>
-                                        <Alert severity="warning" sx={{ mb: 1.5, py: 0.5 }}>
-                                            <Typography variant="caption">
-                                                Deleted batches can be <strong>restored</strong>. Permanent delete will remove data forever.
-                                            </Typography>
-                                        </Alert>
-                                        <Stack spacing={1}>
-                                            {deletedBatches.map((batch: any) => (
-                                                <Paper
-                                                    key={batch.batch_id}
-                                                    variant="outlined"
-                                                    sx={{ p: 1.5, bgcolor: 'action.hover', opacity: 0.85 }}
-                                                >
-                                                    <Stack direction="row" justifyContent="space-between" alignItems="center">
-                                                        <Box>
-                                                            <Typography variant="body2" fontWeight={600}>
-                                                                {batch.batch_id}
-                                                            </Typography>
-                                                            <Typography variant="caption" color="text.secondary">
-                                                                {batch.count} items • Deleted by {batch.deleted_by_name || 'Unknown'} • {formatDateDMY(batch.deleted_at)}
-                                                            </Typography>
-                                                        </Box>
-                                                        <Stack direction="row" spacing={0.5}>
-                                                            <Tooltip title="Restore Batch">
+                                                <Stack direction="row" justifyContent="space-between" alignItems="center">
+                                                    <Box>
+                                                        <Typography variant="body2" fontWeight={600} sx={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>
+                                                            {batch.batch_id}
+                                                        </Typography>
+                                                        <Typography variant="caption" color="text.secondary">
+                                                            {batch.count} items • Deleted by {batch.deleted_by_name || 'Unknown'} • {formatDateDMY(batch.deleted_at)}
+                                                        </Typography>
+                                                    </Box>
+                                                    <Stack direction="row" spacing={0.5}>
+                                                        <Tooltip title="Restore Batch">
+                                                            <IconButton
+                                                                size="small"
+                                                                color="success"
+                                                                onClick={() => handleRestoreBatch(batch.batch_id)}
+                                                            >
+                                                                <RestoreIcon fontSize="small" />
+                                                            </IconButton>
+                                                        </Tooltip>
+                                                        {canDelete && (
+                                                            <Tooltip title="Permanently Delete">
                                                                 <IconButton
                                                                     size="small"
-                                                                    color="success"
-                                                                    onClick={() => handleRestoreBatch(batch.batch_id)}
+                                                                    color="error"
+                                                                    onClick={() => handlePermanentDeleteBatch(batch.batch_id)}
                                                                 >
-                                                                    <RestoreIcon fontSize="small" />
+                                                                    <DeleteForeverIcon fontSize="small" />
                                                                 </IconButton>
                                                             </Tooltip>
-                                                            {canDelete && (
-                                                                <Tooltip title="Permanently Delete">
-                                                                    <IconButton
-                                                                        size="small"
-                                                                        color="error"
-                                                                        onClick={() => handlePermanentDeleteBatch(batch.batch_id)}
-                                                                    >
-                                                                        <DeleteForeverIcon fontSize="small" />
-                                                                    </IconButton>
-                                                                </Tooltip>
-                                                            )}
-                                                        </Stack>
+                                                        )}
                                                     </Stack>
-                                                </Paper>
-                                            ))}
-                                        </Stack>
-                                    </Box>
-                                )}
-                            </Paper>
-                        )
-                    }
+                                                </Stack>
+                                            </Paper>
+                                        ))}
+                                    </Stack>
+                                </>
+                            )}
+                        </Box>
+                    </Paper>
 
                     {/* Upload History Tab */}
-                    {
-                        activeTab === 3 && (
-                            <Paper elevation={2} sx={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 300, overflow: 'auto' }}>
-                                <Box sx={{ p: 2 }}>
-                                    {/* Header */}
-                                    <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
-                                        <Typography variant="subtitle1" fontWeight={700}>
-                                            📜 Upload History
-                                        </Typography>
-                                        <Button
+                    <Paper elevation={2} sx={{ flex: 1, display: activeTab === 3 ? 'flex' : 'none', flexDirection: 'column', minHeight: 300, overflow: 'hidden', mt: 0.5 }}>
+                        {/* Header - matches BatchManagementTab style */}
+                        <Box sx={{ p: 1 }}>
+                            <Stack
+                                direction="row"
+                                justifyContent="space-between"
+                                alignItems="center"
+                                sx={{
+                                    pb: 1,
+                                    borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.08)' : '1px solid #e5e7eb',
+                                }}
+                            >
+                                <Stack direction="row" alignItems="center" spacing={1}>
+                                    <Typography sx={{ fontSize: '0.9rem' }}>📜</Typography>
+                                    <Typography sx={{ fontWeight: 700, color: isDarkMode ? '#f1f5f9' : '#1e293b', fontSize: '0.9rem' }}>
+                                        Upload History
+                                    </Typography>
+                                    {uploadHistoryTotal > 0 && (
+                                        <Chip
+                                            label={uploadHistoryTotal}
                                             size="small"
-                                            startIcon={uploadHistoryLoading ? <CircularProgress size={14} /> : <RefreshIcon />}
-                                            onClick={fetchUploadHistory}
-                                            disabled={uploadHistoryLoading}
-                                        >
-                                            Refresh
-                                        </Button>
-                                    </Stack>
+                                            sx={{
+                                                height: 20, fontSize: '0.7rem', fontWeight: 600,
+                                                bgcolor: isDarkMode ? 'rgba(96, 165, 250, 0.15)' : '#dbeafe',
+                                                color: isDarkMode ? '#60a5fa' : '#2563eb',
+                                            }}
+                                        />
+                                    )}
+                                </Stack>
+                                <Button
+                                    size="small"
+                                    startIcon={uploadHistoryLoading ? <CircularProgress size={14} /> : <RefreshIcon sx={{ fontSize: 16 }} />}
+                                    onClick={fetchUploadHistory}
+                                    disabled={uploadHistoryLoading}
+                                    sx={{
+                                        height: 28, fontSize: '0.7rem', fontWeight: 600, textTransform: 'none',
+                                        color: isDarkMode ? '#60a5fa' : '#2563eb',
+                                        '&:hover': { bgcolor: isDarkMode ? 'rgba(96, 165, 250, 0.1)' : '#eff6ff' },
+                                    }}
+                                >
+                                    Refresh
+                                </Button>
+                            </Stack>
+                        </Box>
 
-                                    {/* Upload History Table */}
-                                    {uploadHistoryLoading && uploadHistory.length === 0 ? (
-                                        <Box sx={{ textAlign: 'center', py: 4 }}>
-                                            <CircularProgress size={32} />
-                                            <Typography variant="body2" sx={{ mt: 1, color: 'text.secondary' }}>Loading upload history...</Typography>
-                                        </Box>
-                                    ) : uploadHistory.length === 0 ? (
-                                        <Box sx={{ textAlign: 'center', py: 4 }}>
-                                            <Typography sx={{ fontSize: '3rem', opacity: 0.3 }}>📜</Typography>
-                                            <Typography variant="h6" sx={{ fontWeight: 600, color: '#6b7280', mt: 1 }}>No Upload History</Typography>
-                                            <Typography variant="body2" sx={{ color: '#9ca3af' }}>Upload history will appear here after rejection uploads</Typography>
-                                        </Box>
-                                    ) : (
-                                        <>
-                                            <Box sx={{ overflowX: 'auto' }}>
-                                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
-                                                    <thead>
-                                                        <tr style={{ borderBottom: `2px solid ${isDarkMode ? 'rgba(255,255,255,0.1)' : '#e0e0e0'}` }}>
-                                                            <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 700 }}>File</th>
-                                                            <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 700 }}>Batch</th>
-                                                            <th style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 700 }}>Status</th>
-                                                            <th style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 700 }}>Total</th>
-                                                            <th style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 700 }}>Success</th>
-                                                            <th style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 700 }}>Skipped</th>
-                                                            <th style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 700 }}>Errors</th>
-                                                            <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 700 }}>Uploaded By</th>
-                                                            <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 700 }}>Date</th>
-                                                            <th style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 700 }}>Action</th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody>
-                                                        {uploadHistory.map((log: any) => (
-                                                            <tr key={log.id} style={{ borderBottom: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.06)' : '#f0f0f0'}` }}>
-                                                                <td style={{ padding: '8px 12px', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                                                    <Tooltip title={log.original_filename || '-'}>
-                                                                        <span>{log.original_filename || '-'}</span>
+                        {/* Single Table with sticky header - matches BatchManagementTab */}
+                        <Box sx={{
+                            flex: 1,
+                            overflow: 'hidden',
+                            mx: 1, mb: 1,
+                            borderRadius: 1,
+                            border: isDarkMode ? '1px solid rgba(255,255,255,0.08)' : '1px solid #e5e7eb',
+                            bgcolor: isDarkMode ? '#1e293b' : '#fff',
+                            position: 'relative',
+                        }}>
+                            {/* Loading overlay */}
+                            {uploadHistoryLoading && (
+                                <Box sx={{
+                                    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+                                    bgcolor: isDarkMode ? 'rgba(15,23,42,0.5)' : 'rgba(255,255,255,0.5)',
+                                    zIndex: 4, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                }}>
+                                    <CircularProgress size={28} sx={{ color: isDarkMode ? '#60a5fa' : '#2563eb' }} />
+                                </Box>
+                            )}
+
+                            <TableContainer sx={{ maxHeight: 'calc(100vh - 300px)' }}>
+                                <Table size="small" stickyHeader>
+                                    <TableHead>
+                                        <TableRow>
+                                            {['File', 'Batch ID', 'Status', 'Total', 'Success', 'Skipped', 'Errors', 'Uploaded By', 'Date', ''].map((header) => (
+                                                <TableCell
+                                                    key={header || 'actions'}
+                                                    align={['Status', 'Total', 'Success', 'Skipped', 'Errors', ''].includes(header) ? 'center' : 'left'}
+                                                    sx={{
+                                                        bgcolor: isDarkMode ? '#334155' : '#f8fafc',
+                                                        color: isDarkMode ? '#94a3b8' : '#64748b',
+                                                        fontWeight: 600,
+                                                        fontSize: '0.7rem',
+                                                        textTransform: 'uppercase',
+                                                        letterSpacing: '0.5px',
+                                                        py: 1,
+                                                        borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.08)' : '1px solid #e5e7eb',
+                                                        whiteSpace: 'nowrap',
+                                                    }}
+                                                >
+                                                    {header}
+                                                </TableCell>
+                                            ))}
+                                        </TableRow>
+                                    </TableHead>
+                                    <TableBody>
+                                        {uploadHistory.length === 0 && !uploadHistoryLoading ? (
+                                            <TableRow>
+                                                <TableCell colSpan={10} align="center" sx={{ py: 4 }}>
+                                                    <Typography sx={{ fontSize: '2rem', opacity: 0.3 }}>📜</Typography>
+                                                    <Typography sx={{ fontSize: '0.8rem', fontWeight: 600, color: isDarkMode ? '#64748b' : '#94a3b8', mt: 0.5 }}>
+                                                        No Upload History
+                                                    </Typography>
+                                                    <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#475569' : '#cbd5e1' }}>
+                                                        Upload history will appear here after rejection uploads
+                                                    </Typography>
+                                                </TableCell>
+                                            </TableRow>
+                                        ) : (() => {
+                                            const now = new Date();
+                                            const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                                            const yesterday = new Date(today); yesterday.setDate(yesterday.getDate() - 1);
+                                            const weekAgo = new Date(today); weekAgo.setDate(weekAgo.getDate() - 7);
+
+                                            const groups: { label: string; items: any[] }[] = [
+                                                { label: 'Today', items: [] },
+                                                { label: 'Yesterday', items: [] },
+                                                { label: 'This Week', items: [] },
+                                                { label: 'Older', items: [] },
+                                            ];
+
+                                            uploadHistory.forEach((log: any) => {
+                                                const d = new Date(log.uploaded_at);
+                                                if (d >= today) groups[0].items.push(log);
+                                                else if (d >= yesterday) groups[1].items.push(log);
+                                                else if (d >= weekAgo) groups[2].items.push(log);
+                                                else groups[3].items.push(log);
+                                            });
+
+                                            return groups.filter(g => g.items.length > 0).map((group) => (
+                                                <React.Fragment key={group.label}>
+                                                    {/* Date Group Header Row - Clickable to collapse */}
+                                                    <TableRow>
+                                                        <TableCell
+                                                            colSpan={10}
+                                                            sx={{
+                                                                py: 0.5,
+                                                                px: 1,
+                                                                bgcolor: isDarkMode ? 'rgba(96, 165, 250, 0.06)' : '#f0f9ff',
+                                                                borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.06)' : '1px solid #e0f2fe',
+                                                                cursor: 'pointer',
+                                                                userSelect: 'none',
+                                                            }}
+                                                            onClick={() => setUploadHistoryCollapsed(prev => ({ ...prev, [group.label]: !prev[group.label] }))}
+                                                        >
+                                                            <Stack direction="row" alignItems="center" spacing={0.5}>
+                                                                {uploadHistoryCollapsed[group.label]
+                                                                    ? <ExpandMoreIcon sx={{ fontSize: 16, color: isDarkMode ? '#60a5fa' : '#2563eb' }} />
+                                                                    : <ExpandLessIcon sx={{ fontSize: 16, color: isDarkMode ? '#60a5fa' : '#2563eb' }} />
+                                                                }
+                                                                <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: isDarkMode ? '#60a5fa' : '#1e40af' }}>
+                                                                    {group.label}
+                                                                </Typography>
+                                                                <Chip label={group.items.length} size="small" sx={{ height: 18, fontSize: '0.65rem', fontWeight: 600, bgcolor: isDarkMode ? 'rgba(96,165,250,0.12)' : '#dbeafe', color: isDarkMode ? '#60a5fa' : '#2563eb' }} />
+                                                            </Stack>
+                                                        </TableCell>
+                                                    </TableRow>
+                                                    {/* Data rows - collapsible */}
+                                                    {!uploadHistoryCollapsed[group.label] && group.items.map((log: any, idx: number) => (
+                                                        <TableRow
+                                                            key={log.id}
+                                                            sx={{
+                                                                bgcolor: isDarkMode
+                                                                    ? idx % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.02)'
+                                                                    : idx % 2 === 0 ? 'transparent' : '#fafafa',
+                                                                '&:hover': { bgcolor: isDarkMode ? 'rgba(96, 165, 250, 0.08)' : '#f0f9ff' },
+                                                                '& td': {
+                                                                    py: 0.75,
+                                                                    borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.04)' : '1px solid #f1f5f9',
+                                                                },
+                                                            }}
+                                                        >
+                                                            <TableCell>
+                                                                <Stack direction="row" spacing={0.75} alignItems="center">
+                                                                    <FileIcon sx={{ fontSize: 16, color: isDarkMode ? '#64748b' : '#94a3b8', flexShrink: 0 }} />
+                                                                    <Box sx={{ minWidth: 0 }}>
+                                                                        <Tooltip title={log.original_filename || '-'}>
+                                                                            <Typography sx={{ fontSize: '0.73rem', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: isDarkMode ? '#e2e8f0' : 'inherit' }}>
+                                                                                {log.original_filename || '-'}
+                                                                            </Typography>
+                                                                        </Tooltip>
+                                                                        {log.file_size_bytes > 0 && (
+                                                                            <Typography sx={{ fontSize: '0.6rem', color: isDarkMode ? '#64748b' : '#9ca3af' }}>
+                                                                                {(log.file_size_bytes / 1024).toFixed(1)} KB
+                                                                            </Typography>
+                                                                        )}
+                                                                    </Box>
+                                                                </Stack>
+                                                            </TableCell>
+                                                            <TableCell>
+                                                                <Typography sx={{
+                                                                    fontFamily: 'monospace', fontSize: '0.73rem', fontWeight: 600,
+                                                                    color: isDarkMode ? '#60a5fa' : '#2563eb',
+                                                                    bgcolor: isDarkMode ? 'rgba(96, 165, 250, 0.1)' : '#eff6ff',
+                                                                    px: 1, py: 0.25, borderRadius: 0.5,
+                                                                    display: 'inline-block',
+                                                                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 200,
+                                                                }}>
+                                                                    {log.batch_id}
+                                                                </Typography>
+                                                            </TableCell>
+                                                            <TableCell align="center">
+                                                                <Chip
+                                                                    label={log.status === 'completed' ? 'Success' : 'Failed'}
+                                                                    size="small"
+                                                                    sx={{
+                                                                        height: 20, fontSize: '0.65rem', fontWeight: 700,
+                                                                        bgcolor: log.status === 'completed' ? '#22c55e' : '#ef4444',
+                                                                        color: '#fff'
+                                                                    }}
+                                                                />
+                                                            </TableCell>
+                                                            <TableCell align="center">
+                                                                <Typography sx={{ fontSize: '0.72rem', fontWeight: 600, color: isDarkMode ? '#e2e8f0' : '#1e293b' }}>{log.total_rows}</Typography>
+                                                            </TableCell>
+                                                            <TableCell align="center">
+                                                                <Chip
+                                                                    label={log.success_count}
+                                                                    size="small"
+                                                                    sx={{
+                                                                        height: 20, fontSize: '0.65rem', fontWeight: 600,
+                                                                        bgcolor: isDarkMode ? 'rgba(34, 197, 94, 0.12)' : '#f0fdf4',
+                                                                        color: isDarkMode ? '#4ade80' : '#16a34a',
+                                                                        border: isDarkMode ? '1px solid rgba(34, 197, 94, 0.2)' : '1px solid #bbf7d0',
+                                                                    }}
+                                                                />
+                                                            </TableCell>
+                                                            <TableCell align="center">
+                                                                {log.skipped_count > 0 ? (
+                                                                    <Tooltip title="Click to view skipped WSN details">
+                                                                        <Chip
+                                                                            label={log.skipped_count}
+                                                                            size="small"
+                                                                            onClick={() => setLogDetailDialog({ open: true, log, tab: 'skipped' })}
+                                                                            sx={{
+                                                                                height: 20, fontSize: '0.65rem', fontWeight: 600, cursor: 'pointer',
+                                                                                bgcolor: isDarkMode ? 'rgba(245, 158, 11, 0.12)' : '#fffbeb',
+                                                                                color: isDarkMode ? '#fbbf24' : '#d97706',
+                                                                                border: isDarkMode ? '1px solid rgba(245, 158, 11, 0.2)' : '1px solid #fde68a',
+                                                                            }}
+                                                                        />
                                                                     </Tooltip>
-                                                                    {log.file_size_bytes > 0 && (
-                                                                        <Typography variant="caption" display="block" sx={{ color: 'text.secondary', fontSize: '0.65rem' }}>
-                                                                            {(log.file_size_bytes / 1024).toFixed(1)} KB
-                                                                        </Typography>
-                                                                    )}
-                                                                </td>
-                                                                <td style={{ padding: '8px 12px' }}>
-                                                                    <Typography variant="body2" sx={{ color: '#1e40af', fontWeight: 500, fontSize: '0.78rem' }}>
-                                                                        {log.batch_id}
+                                                                ) : (
+                                                                    <Typography sx={{ fontSize: '0.72rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>0</Typography>
+                                                                )}
+                                                            </TableCell>
+                                                            <TableCell align="center">
+                                                                {log.error_count > 0 ? (
+                                                                    <Tooltip title="Click to view error details">
+                                                                        <Chip
+                                                                            label={log.error_count}
+                                                                            size="small"
+                                                                            onClick={() => setLogDetailDialog({ open: true, log, tab: 'errors' })}
+                                                                            sx={{
+                                                                                height: 20, fontSize: '0.65rem', fontWeight: 600, cursor: 'pointer',
+                                                                                bgcolor: isDarkMode ? 'rgba(239, 68, 68, 0.12)' : '#fef2f2',
+                                                                                color: '#ef4444',
+                                                                                border: isDarkMode ? '1px solid rgba(239, 68, 68, 0.2)' : '1px solid #fecaca',
+                                                                            }}
+                                                                        />
+                                                                    </Tooltip>
+                                                                ) : (
+                                                                    <Typography sx={{ fontSize: '0.72rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>0</Typography>
+                                                                )}
+                                                            </TableCell>
+                                                            <TableCell>
+                                                                <Stack direction="row" spacing={0.5} alignItems="center">
+                                                                    <PersonIcon sx={{ fontSize: 13, color: isDarkMode ? '#64748b' : '#94a3b8' }} />
+                                                                    <Typography sx={{ fontSize: '0.72rem', color: isDarkMode ? '#94a3b8' : '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                                        {log.uploaded_by_name || '-'}
                                                                     </Typography>
-                                                                </td>
-                                                                <td style={{ padding: '8px 12px', textAlign: 'center' }}>
-                                                                    <Chip
-                                                                        label={log.status === 'completed' ? 'Success' : 'Failed'}
-                                                                        size="small"
-                                                                        sx={{
-                                                                            height: 22,
-                                                                            fontSize: '0.7rem',
-                                                                            fontWeight: 600,
-                                                                            bgcolor: log.status === 'completed' ? '#22c55e' : '#ef4444',
-                                                                            color: '#fff'
-                                                                        }}
-                                                                    />
-                                                                </td>
-                                                                <td style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 600 }}>{log.total_rows}</td>
-                                                                <td style={{ padding: '8px 12px', textAlign: 'center', color: '#22c55e', fontWeight: 600 }}>{log.success_count}</td>
-                                                                <td style={{ padding: '8px 12px', textAlign: 'center', color: '#f59e0b', fontWeight: 600 }}>
-                                                                    {log.skipped_count > 0 ? (
-                                                                        <Tooltip title="Click to view skipped WSN details">
-                                                                            <span
-                                                                                style={{ cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted' }}
-                                                                                onClick={() => setLogDetailDialog({ open: true, log, tab: 'skipped' })}
-                                                                            >
-                                                                                {log.skipped_count}
-                                                                            </span>
-                                                                        </Tooltip>
-                                                                    ) : log.skipped_count}
-                                                                </td>
-                                                                <td style={{ padding: '8px 12px', textAlign: 'center', color: '#ef4444', fontWeight: 600 }}>
-                                                                    {log.error_count > 0 ? (
-                                                                        <Tooltip title="Click to view error details">
-                                                                            <span
-                                                                                style={{ cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted' }}
-                                                                                onClick={() => setLogDetailDialog({ open: true, log, tab: 'errors' })}
-                                                                            >
-                                                                                {log.error_count}
-                                                                            </span>
-                                                                        </Tooltip>
-                                                                    ) : log.error_count}
-                                                                </td>
-                                                                <td style={{ padding: '8px 12px' }}>{log.uploaded_by_name || '-'}</td>
-                                                                <td style={{ padding: '8px 12px', fontSize: '0.75rem' }}>
+                                                                </Stack>
+                                                            </TableCell>
+                                                            <TableCell>
+                                                                <Typography sx={{ fontSize: '0.72rem', color: isDarkMode ? '#94a3b8' : '#64748b' }}>
                                                                     {formatDateTimeDMY(log.uploaded_at)}
-                                                                </td>
-                                                                <td style={{ padding: '8px 12px', textAlign: 'center' }}>
-                                                                    {canDelete && (
-                                                                        <Tooltip title="Delete log">
-                                                                            <IconButton
-                                                                                size="small"
-                                                                                onClick={() => handleDeleteUploadLog(log.id, log.original_filename || 'unknown')}
-                                                                                sx={{ width: 28, height: 28, color: '#ef4444' }}
-                                                                            >
-                                                                                <DeleteIcon sx={{ fontSize: 16 }} />
-                                                                            </IconButton>
-                                                                        </Tooltip>
-                                                                    )}
-                                                                </td>
-                                                            </tr>
-                                                        ))}
-                                                    </tbody>
-                                                </table>
-                                            </Box>
+                                                                </Typography>
+                                                            </TableCell>
+                                                            <TableCell align="center">
+                                                                {canDelete && (
+                                                                    <Tooltip title="Delete log">
+                                                                        <IconButton
+                                                                            size="small"
+                                                                            onClick={() => handleDeleteUploadLog(log.id, log.original_filename || 'unknown')}
+                                                                            sx={{
+                                                                                width: 26, height: 26,
+                                                                                bgcolor: isDarkMode ? 'rgba(239, 68, 68, 0.1)' : '#fef2f2',
+                                                                                color: '#ef4444',
+                                                                                '&:hover': { bgcolor: isDarkMode ? 'rgba(239, 68, 68, 0.2)' : '#fee2e2' },
+                                                                            }}
+                                                                        >
+                                                                            <DeleteIcon sx={{ fontSize: 14 }} />
+                                                                        </IconButton>
+                                                                    </Tooltip>
+                                                                )}
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    ))}
+                                                </React.Fragment>
+                                            ));
+                                        })()}
+                                    </TableBody>
+                                </Table>
+                            </TableContainer>
 
-                                            {/* Pagination */}
-                                            {uploadHistoryTotal > 20 && (
-                                                <Stack direction="row" justifyContent="center" sx={{ mt: 2 }}>
-                                                    <Pagination
-                                                        count={Math.ceil(uploadHistoryTotal / 20)}
-                                                        page={uploadHistoryPage}
-                                                        onChange={(_, p) => setUploadHistoryPage(p)}
-                                                        size="small"
-                                                    />
-                                                </Stack>
-                                            )}
-                                        </>
+                            {/* Footer */}
+                            {uploadHistoryTotal > 0 && (
+                                <Box sx={{
+                                    px: 1.5, py: 0.75,
+                                    borderTop: isDarkMode ? '1px solid rgba(255,255,255,0.08)' : '1px solid #e5e7eb',
+                                    bgcolor: isDarkMode ? '#1e293b' : '#f8fafc',
+                                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                                }}>
+                                    <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>
+                                        Showing {uploadHistory.length} of {uploadHistoryTotal}
+                                    </Typography>
+                                    {uploadHistoryTotal > 20 && (
+                                        <Pagination
+                                            count={Math.ceil(uploadHistoryTotal / 20)}
+                                            page={uploadHistoryPage}
+                                            onChange={(_, p) => setUploadHistoryPage(p)}
+                                            size="small"
+                                        />
                                     )}
                                 </Box>
-                            </Paper>
-                        )
-                    }
-                </Box >
-            </Box >
+                            )}
+                        </Box>
+                    </Paper>
+                </Box>
+            </Box>
 
             {/* Upload Dialog */}
-            < Dialog open={uploadDialogOpen} onClose={() => { setUploadDialogOpen(false); setUploadError(''); setFileValidationError(''); setAddingNewPerson(false); setNewPersonName(''); }} maxWidth="sm" fullWidth >
+            <Dialog open={uploadDialogOpen} onClose={() => { setUploadDialogOpen(false); setUploadError(''); setFileValidationError(''); setAddingNewPerson(false); setNewPersonName(''); }} maxWidth="sm" fullWidth>
                 <DialogTitle sx={{ pb: 1 }}>
                     Upload Rejection Excel
                     <IconButton onClick={() => { setUploadDialogOpen(false); setUploadError(''); setFileValidationError(''); setAddingNewPerson(false); setNewPersonName(''); }} sx={{ position: 'absolute', right: 8, top: 8 }}>

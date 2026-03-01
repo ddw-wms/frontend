@@ -70,6 +70,7 @@ import { useBackupsPermissions } from '@/hooks/usePagePermissions';
 import { alpha } from '@mui/material/styles';
 import { CheckCircleOutline as CheckIcon } from '@mui/icons-material';
 import BackupTimeline from '@/components/BackupTimeline';
+import AutoBackupSettings from '@/components/AutoBackupSettings';
 
 interface Backup {
     id: number;
@@ -712,6 +713,7 @@ export default function BackupPage() {
                 >
                     <Tab label="💾 Backups" />
                     <Tab label="📊 Timeline (PITR)" />
+                    <Tab label="⚙️ Auto-Backup Settings" />
                 </Tabs>
 
                 {/* Content */}
@@ -750,6 +752,11 @@ export default function BackupPage() {
                     {/* ==================== TIMELINE TAB ==================== */}
                     {activeTab === 1 && (
                         <BackupTimeline warehouseId={activeWarehouse?.id?.toString()} />
+                    )}
+
+                    {/* ==================== AUTO-BACKUP SETTINGS TAB ==================== */}
+                    {activeTab === 2 && (
+                        <AutoBackupSettings />
                     )}
 
                     {/* ==================== BACKUPS TAB ==================== */}
