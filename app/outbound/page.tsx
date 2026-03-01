@@ -4652,9 +4652,9 @@ export default function OutboundPage() {
 
     const defaultColDef = useMemo(
         () => ({
-            sortable: false,
-            filter: false,
-            resizable: true,
+            sortable: enableSorting,
+            filter: enableColumnFilters,
+            resizable: enableColumnResize,
             editable: (params: any) => {
                 const field = params.colDef.field as string;
                 const wsn = params.data?.wsn?.trim()?.toUpperCase();
@@ -4730,7 +4730,7 @@ export default function OutboundPage() {
                 return '';
             },
         }),
-        [gridDuplicateWSNs, crossWarehouseWSNs, isDarkMode]
+        [gridDuplicateWSNs, crossWarehouseWSNs, isDarkMode, enableSorting, enableColumnFilters, enableColumnResize]
     );
 
     // Column minWidth config based on content type for Outbound List

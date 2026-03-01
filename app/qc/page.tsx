@@ -4451,8 +4451,8 @@ export default function QCPage() {
                   <FormControlLabel
                     control={
                       <Checkbox
-                        checked={enableSorting}
-                        onChange={(e) => setEnableSorting(e.target.checked)}
+                        checked={gridSettings.sortable}
+                        onChange={(e) => updateGridSettings({ ...gridSettings, sortable: e.target.checked })}
                         sx={{ '&.Mui-checked': { color: '#f59e0b' } }}
                       />
                     }
@@ -4475,8 +4475,8 @@ export default function QCPage() {
                   <FormControlLabel
                     control={
                       <Checkbox
-                        checked={enableColumnFilters}
-                        onChange={(e) => setEnableColumnFilters(e.target.checked)}
+                        checked={gridSettings.filter}
+                        onChange={(e) => updateGridSettings({ ...gridSettings, filter: e.target.checked })}
                         sx={{ '&.Mui-checked': { color: '#f59e0b' } }}
                       />
                     }
@@ -4499,8 +4499,8 @@ export default function QCPage() {
                   <FormControlLabel
                     control={
                       <Checkbox
-                        checked={enableColumnResize}
-                        onChange={(e) => setEnableColumnResize(e.target.checked)}
+                        checked={gridSettings.resizable}
+                        onChange={(e) => updateGridSettings({ ...gridSettings, resizable: e.target.checked })}
                         sx={{ '&.Mui-checked': { color: '#f59e0b' } }}
                       />
                     }
@@ -4522,9 +4522,7 @@ export default function QCPage() {
             <DialogActions sx={{ p: 2, background: '#fef3c7', gap: 1 }}>
               <Button
                 onClick={() => {
-                  setEnableSorting(true);
-                  setEnableColumnFilters(true);
-                  setEnableColumnResize(true);
+                  updateGridSettings({ sortable: true, filter: true, resizable: true, editable: true });
                   toast.success('Settings reset to default');
                 }}
                 sx={{
@@ -5519,9 +5517,9 @@ export default function QCPage() {
                                         checked={visibleColumns.includes(col)}
                                         onChange={(e) => {
                                           if (e.target.checked) {
-                                            setVisibleColumns([...visibleColumns, col]);
+                                            saveColumnSettings([...visibleColumns, col]);
                                           } else {
-                                            setVisibleColumns(visibleColumns.filter((c: string) => c !== col));
+                                            saveColumnSettings(visibleColumns.filter((c: string) => c !== col));
                                           }
                                         }}
                                         sx={{ py: 0.25, '&.Mui-checked': { color: '#3b82f6' } }}
@@ -5543,9 +5541,9 @@ export default function QCPage() {
                                         checked={visibleColumns.includes(col)}
                                         onChange={(e) => {
                                           if (e.target.checked) {
-                                            setVisibleColumns([...visibleColumns, col]);
+                                            saveColumnSettings([...visibleColumns, col]);
                                           } else {
-                                            setVisibleColumns(visibleColumns.filter((c: string) => c !== col));
+                                            saveColumnSettings(visibleColumns.filter((c: string) => c !== col));
                                           }
                                         }}
                                         sx={{ py: 0.25, '&.Mui-checked': { color: '#10b981' } }}
@@ -5594,11 +5592,8 @@ export default function QCPage() {
                               <FormControlLabel
                                 control={
                                   <Checkbox
-                                    checked={enableSorting}
-                                    onChange={(e) => {
-                                      setEnableSorting(e.target.checked);
-                                      localStorage.setItem('qc_enableSorting', String(e.target.checked));
-                                    }}
+                                    checked={gridSettings.sortable}
+                                    onChange={(e) => updateGridSettings({ ...gridSettings, sortable: e.target.checked })}
                                     sx={{ '&.Mui-checked': { color: '#f59e0b' } }}
                                   />
                                 }
@@ -5612,11 +5607,8 @@ export default function QCPage() {
                               <FormControlLabel
                                 control={
                                   <Checkbox
-                                    checked={enableColumnFilters}
-                                    onChange={(e) => {
-                                      setEnableColumnFilters(e.target.checked);
-                                      localStorage.setItem('qc_enableColumnFilters', String(e.target.checked));
-                                    }}
+                                    checked={gridSettings.filter}
+                                    onChange={(e) => updateGridSettings({ ...gridSettings, filter: e.target.checked })}
                                     sx={{ '&.Mui-checked': { color: '#f59e0b' } }}
                                   />
                                 }
@@ -5630,11 +5622,8 @@ export default function QCPage() {
                               <FormControlLabel
                                 control={
                                   <Checkbox
-                                    checked={enableColumnResize}
-                                    onChange={(e) => {
-                                      setEnableColumnResize(e.target.checked);
-                                      localStorage.setItem('qc_enableColumnResize', String(e.target.checked));
-                                    }}
+                                    checked={gridSettings.resizable}
+                                    onChange={(e) => updateGridSettings({ ...gridSettings, resizable: e.target.checked })}
                                     sx={{ '&.Mui-checked': { color: '#f59e0b' } }}
                                   />
                                 }
@@ -5648,12 +5637,7 @@ export default function QCPage() {
                               <Button
                                 size="small"
                                 onClick={() => {
-                                  setEnableSorting(true);
-                                  setEnableColumnFilters(true);
-                                  setEnableColumnResize(true);
-                                  localStorage.setItem('qc_enableSorting', 'true');
-                                  localStorage.setItem('qc_enableColumnFilters', 'true');
-                                  localStorage.setItem('qc_enableColumnResize', 'true');
+                                  updateGridSettings({ sortable: true, filter: true, resizable: true, editable: true });
                                   toast.success('Grid settings reset');
                                 }}
                                 sx={{ alignSelf: 'flex-start', fontSize: '0.75rem', color: isDarkMode ? '#94a3b8' : '#64748b' }}
