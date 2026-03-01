@@ -1092,6 +1092,8 @@ export default function MasterDataPage() {
       // ✅ Format lastupdated with created_at_display (datetime format)
       const formattedBatches = batchesArray.map((batch: any) => ({
         ...batch,
+        last_updated: batch.lastupdated || batch.created_at,
+        created_at: batch.created_at || batch.lastupdated,
         lastupdated_display: formatDateToIST(batch.lastupdated, 'datetime'),
         warehouse_names: batch.warehouse_name || '-',
         uploaded_by: batch.uploaded_by_name || '-'
@@ -1658,9 +1660,11 @@ export default function MasterDataPage() {
       toast.success('✓ Batch deleted (snapshot saved for 90 days)');
       loadMasterData();
       loadBatches();
-    } catch (error) {
+      loadSnapshots();
+      loadDeletedRecords();
+    } catch (error: any) {
       console.error('Delete error:', error);
-      toast.error('Failed to delete');
+      toast.error(error?.response?.data?.error || 'Failed to delete batch');
     }
   };
 
@@ -1884,7 +1888,7 @@ export default function MasterDataPage() {
         )}
 
         {/* Scrollable Content Area */}
-        <Box sx={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
+        <Box sx={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
           {/* Tabs */}
           {(() => {
             // Define all tabs with their permission codes
@@ -1923,20 +1927,94 @@ export default function MasterDataPage() {
             const actualTabIndex = getActualTabIndex(tabValue);
 
             return (
-              <>
-                <Paper elevation={0} sx={{ borderBottom: '1px solid #e0e0e0' }}>
-                  <Tabs value={tabValue} onChange={(e, v) => setTabValue(v)} sx={{ minHeight: 42 }}>
+              <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+                <Paper elevation={0} sx={{
+                  borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e0e0e0',
+                  position: 'sticky',
+                  top: 0,
+                  zIndex: 90,
+                  bgcolor: isDarkMode ? '#1e293b' : 'white',
+                  boxShadow: isDarkMode ? 'none' : '0 1px 3px rgba(0,0,0,0.05)',
+                }}>
+                  <Tabs
+                    value={tabValue}
+                    onChange={(e, v) => setTabValue(v)}
+                    variant="scrollable"
+                    scrollButtons="auto"
+                    allowScrollButtonsMobile
+                    sx={{
+                      minHeight: { xs: 40, md: 42 },
+                      '& .MuiTabs-scrollButtons': {
+                        width: 32,
+                        '&.Mui-disabled': { opacity: 0.3 },
+                      },
+                      '& .MuiTabs-indicator': {
+                        height: 3,
+                        bgcolor: '#1e40af',
+                        borderRadius: '3px 3px 0 0',
+                      },
+                      '& .MuiTab-root': {
+                        fontWeight: 600,
+                        fontSize: { xs: '0.78rem', sm: '0.85rem' },
+                        textTransform: 'none',
+                        minHeight: { xs: 40, md: 42 },
+                        py: 1,
+                        px: { xs: 1.5, sm: 2 },
+                        color: '#64748b',
+                        '&.Mui-selected': { color: '#1e40af', fontWeight: 700 },
+                      },
+                    }}
+                  >
                     {visibleTabs.map((tab, idx) => (
-                      <Tab key={idx} label={tab.label} sx={{ minHeight: 42, py: 0 }} />
+                      <Tab key={idx} label={tab.label} />
                     ))}
                   </Tabs>
                 </Paper>
 
                 {/* Tab 1: Master Data List */}
                 {actualTabIndex === 0 && (
-                  <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', p: { xs: 0.25, sm: 0.5 } }}>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 120px)', overflow: 'hidden', p: { xs: 0.25, sm: 0.5 } }}>
                     {/* SEARCH BAR + OPTIONS BUTTON */}
-                    <Box sx={{ flexShrink: 0, mb: 1, position: 'relative', zIndex: 95 }}>
+                    <Box sx={{
+                      flexShrink: 0,
+                      mb: 1, position: 'relative', zIndex: 95,
+                      // Paste inside the existing sx object
+                      '& .MuiOutlinedInput-root': {
+                        bgcolor: 'transparent !important',
+                        boxShadow: 'none !important',
+                        '&:hover': { bgcolor: 'transparent !important' },
+                        '&.Mui-focused': { bgcolor: 'transparent !important', boxShadow: 'none !important' },
+                      },
+                      '& .MuiOutlinedInput-input': {
+                        background: 'transparent !important',
+                      },
+                      '& input[type="date"], & .MuiOutlinedInput-input[type="date"], & .MuiInputBase-input[type="date"]': {
+                        background: 'transparent !important',
+                        color: 'inherit !important',
+                        WebkitAppearance: 'none !important',
+                        MozAppearance: 'textfield !important',
+                        appearance: 'none !important',
+                        borderRadius: '6px !important',
+                        padding: '0 6px !important',
+                      },
+                      '& input[type="date"]::-webkit-datetime-edit, & input[type="date"]::-webkit-datetime-edit-text, & input[type="date"]::-webkit-datetime-edit-month-field, & input[type="date"]::-webkit-datetime-edit-day-field, & input[type="date"]::-webkit-datetime-edit-year-field': {
+                        background: 'transparent !important',
+                        color: 'inherit !important',
+                      },
+                      '& input[type="date"]::-webkit-calendar-picker-indicator': {
+                        WebkitAppearance: 'none',
+                        appearance: 'none',
+                        background: 'transparent',
+                        padding: 0,
+                        margin: 0,
+                      },
+                      '& input:-webkit-autofill': {
+                        WebkitBoxShadow: '0 0 0 1000px transparent inset',
+                        boxShadow: '0 0 0 1000px transparent inset',
+                        WebkitTextFillColor: 'inherit',
+                      },
+
+                    }}>
                       <Stack direction="row" spacing={1} alignItems="stretch">
                         {/* Search Field */}
                         <TextField
@@ -2031,6 +2109,7 @@ export default function MasterDataPage() {
                       borderRight: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e0e0e0',
                       position: 'relative',
                       bgcolor: isDarkMode ? '#1e293b' : '#ffffff',
+
                     }}>
 
                       {/* Loading Spinner Overlay - semi-transparent so data stays visible */}
@@ -2613,21 +2692,23 @@ export default function MasterDataPage() {
 
                 {/* Tab 2: Batch Management */}
                 {actualTabIndex === 1 && (
-                  <BatchManagementTab
-                    batches={batches}
-                    loading={loading}
-                    onRefresh={loadBatches}
-                    onDelete={canSeeButton('batches:delete') ? handleDeleteBatch : undefined}
-                    canDelete={canSeeButton('batches:delete')}
-                    title="Batch Management"
-                    emptyMessage="No batches available"
-                    emptySubMessage="Batches will appear here after master data uploads"
-                  />
+                  <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
+                    <BatchManagementTab
+                      batches={batches}
+                      loading={loading}
+                      onRefresh={loadBatches}
+                      onDelete={canSeeButton('batches:delete') ? handleDeleteBatch : undefined}
+                      canDelete={canSeeButton('batches:delete')}
+                      title="Batch Management"
+                      emptyMessage="No batches available"
+                      emptySubMessage="Batches will appear here after master data uploads"
+                    />
+                  </Box>
                 )}
 
                 {/* Tab 3: Upload History */}
                 {actualTabIndex === 2 && (
-                  <Box sx={{ p: 2 }}>
+                  <Box sx={{ p: 2, flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
                     <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
                       <Typography variant="h6" fontWeight={700}>
                         <HistoryIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
@@ -2654,19 +2735,19 @@ export default function MasterDataPage() {
                       </Paper>
                     ) : (
                       <>
-                        <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2 }}>
-                          <Table size="small">
+                        <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2, flex: 1, overflow: 'auto' }}>
+                          <Table size="small" stickyHeader>
                             <TableHead>
-                              <TableRow sx={{ bgcolor: '#f1f5f9' }}>
-                                <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem' }}>Filename</TableCell>
-                                <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem' }}>Batch</TableCell>
-                                <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem' }}>Status</TableCell>
-                                <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem' }} align="right">Total</TableCell>
-                                <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem' }} align="right">Success</TableCell>
-                                <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem' }} align="right">Duplicates</TableCell>
-                                <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem' }}>Strategy</TableCell>
-                                <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem' }}>Date</TableCell>
-                                {(isAdmin || canSeeButton('batches:delete')) && <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem' }} align="center">Actions</TableCell>}
+                              <TableRow>
+                                <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem', bgcolor: '#f1f5f9' }}>Filename</TableCell>
+                                <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem', bgcolor: '#f1f5f9' }}>Batch</TableCell>
+                                <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem', bgcolor: '#f1f5f9' }}>Status</TableCell>
+                                <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem', bgcolor: '#f1f5f9' }} align="right">Total</TableCell>
+                                <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem', bgcolor: '#f1f5f9' }} align="right">Success</TableCell>
+                                <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem', bgcolor: '#f1f5f9' }} align="right">Duplicates</TableCell>
+                                <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem', bgcolor: '#f1f5f9' }}>Strategy</TableCell>
+                                <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem', bgcolor: '#f1f5f9' }}>Date</TableCell>
+                                {(isAdmin || canSeeButton('batches:delete')) && <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem', bgcolor: '#f1f5f9' }} align="center">Actions</TableCell>}
                               </TableRow>
                             </TableHead>
                             <TableBody>
@@ -2761,7 +2842,43 @@ export default function MasterDataPage() {
 
                 {/* Tab 4: Deleted Records (Trash) */}
                 {actualTabIndex === 3 && (
-                  <Box sx={{ p: 2 }}>
+                  <Box sx={{
+                    p: 2, flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden',
+                    '& .MuiOutlinedInput-root': {
+                      bgcolor: 'transparent !important',
+                      boxShadow: 'none !important',
+                      '&:hover': { bgcolor: 'transparent !important' },
+                      '&.Mui-focused': { bgcolor: 'transparent !important', boxShadow: 'none !important' },
+                    },
+                    '& .MuiOutlinedInput-input': {
+                      background: 'transparent !important',
+                    },
+                    '& input[type="date"], & .MuiOutlinedInput-input[type="date"], & .MuiInputBase-input[type="date"]': {
+                      background: 'transparent !important',
+                      color: 'inherit !important',
+                      WebkitAppearance: 'none !important',
+                      MozAppearance: 'textfield !important',
+                      appearance: 'none !important',
+                      borderRadius: '6px !important',
+                      padding: '0 6px !important',
+                    },
+                    '& input[type="date"]::-webkit-datetime-edit, & input[type="date"]::-webkit-datetime-edit-text, & input[type="date"]::-webkit-datetime-edit-month-field, & input[type="date"]::-webkit-datetime-edit-day-field, & input[type="date"]::-webkit-datetime-edit-year-field': {
+                      background: 'transparent !important',
+                      color: 'inherit !important',
+                    },
+                    '& input[type="date"]::-webkit-calendar-picker-indicator': {
+                      WebkitAppearance: 'none',
+                      appearance: 'none',
+                      background: 'transparent',
+                      padding: 0,
+                      margin: 0,
+                    },
+                    '& input:-webkit-autofill': {
+                      WebkitBoxShadow: '0 0 0 1000px transparent inset',
+                      boxShadow: '0 0 0 1000px transparent inset',
+                      WebkitTextFillColor: 'inherit',
+                    },
+                  }}>
                     <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
                       <Stack direction="row" alignItems="center" spacing={1}>
                         <Typography variant="h6" fontWeight={700}>
@@ -2800,17 +2917,17 @@ export default function MasterDataPage() {
                       </Paper>
                     ) : (
                       <>
-                        <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2 }}>
-                          <Table size="small">
+                        <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2, flex: 1, overflow: 'auto' }}>
+                          <Table size="small" stickyHeader>
                             <TableHead>
-                              <TableRow sx={{ bgcolor: '#fef2f2' }}>
-                                <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem' }}>WSN</TableCell>
-                                <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem' }}>WID</TableCell>
-                                <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem' }}>Product</TableCell>
-                                <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem' }}>Batch</TableCell>
-                                <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem' }}>Deleted At</TableCell>
-                                <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem' }}>Deleted By</TableCell>
-                                <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem' }} align="right">Actions</TableCell>
+                              <TableRow>
+                                <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem', bgcolor: '#fef2f2' }}>WSN</TableCell>
+                                <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem', bgcolor: '#fef2f2' }}>WID</TableCell>
+                                <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem', bgcolor: '#fef2f2' }}>Product</TableCell>
+                                <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem', bgcolor: '#fef2f2' }}>Batch</TableCell>
+                                <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem', bgcolor: '#fef2f2' }}>Deleted At</TableCell>
+                                <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem', bgcolor: '#fef2f2' }}>Deleted By</TableCell>
+                                <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem', bgcolor: '#fef2f2' }} align="right">Actions</TableCell>
                               </TableRow>
                             </TableHead>
                             <TableBody>
@@ -2883,7 +3000,7 @@ export default function MasterDataPage() {
 
                 {/* Tab 5: Snapshots */}
                 {actualTabIndex === 4 && (
-                  <Box sx={{ p: 2 }}>
+                  <Box sx={{ p: 2, flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
                     <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
                       <Typography variant="h6" fontWeight={700}>
                         📸 Batch Snapshots
@@ -3009,7 +3126,7 @@ export default function MasterDataPage() {
                     )}
                   </Box>
                 )}
-              </>
+              </Box>
             );
           })()}
         </Box>

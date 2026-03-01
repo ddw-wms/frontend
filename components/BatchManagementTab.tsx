@@ -362,7 +362,45 @@ export default function BatchManagementTab({
     );
 
     return (
-        <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', p: 1 }}>
+        <Box sx={{
+            display: 'flex',
+            flexDirection: 'column', flex: 1, p: 1, minHeight: 0,
+            // Paste inside the existing sx object
+            '& .MuiOutlinedInput-root': {
+                bgcolor: 'transparent !important',
+                boxShadow: 'none !important',
+                '&:hover': { bgcolor: 'transparent !important' },
+                '&.Mui-focused': { bgcolor: 'transparent !important', boxShadow: 'none !important' },
+            },
+            '& .MuiOutlinedInput-input': {
+                background: 'transparent !important',
+            },
+            '& input[type="date"], & .MuiOutlinedInput-input[type="date"], & .MuiInputBase-input[type="date"]': {
+                background: 'transparent !important',
+                color: 'inherit !important',
+                WebkitAppearance: 'none !important',
+                MozAppearance: 'textfield !important',
+                appearance: 'none !important',
+                borderRadius: '6px !important',
+                padding: '0 6px !important',
+            },
+            '& input[type="date"]::-webkit-datetime-edit, & input[type="date"]::-webkit-datetime-edit-text, & input[type="date"]::-webkit-datetime-edit-month-field, & input[type="date"]::-webkit-datetime-edit-day-field, & input[type="date"]::-webkit-datetime-edit-year-field': {
+                background: 'transparent !important',
+                color: 'inherit !important',
+            },
+            '& input[type="date"]::-webkit-calendar-picker-indicator': {
+                WebkitAppearance: 'none',
+                appearance: 'none',
+                background: 'transparent',
+                padding: 0,
+                margin: 0,
+            },
+            '& input:-webkit-autofill': {
+                WebkitBoxShadow: '0 0 0 1000px transparent inset',
+                boxShadow: '0 0 0 1000px transparent inset',
+                WebkitTextFillColor: 'inherit',
+            },
+        }}>
             {/* Header + Search */}
             <Stack
                 direction="row"
@@ -447,13 +485,16 @@ export default function BatchManagementTab({
             <Box
                 sx={{
                     flex: 1,
+                    display: 'flex',
+                    flexDirection: 'column',
                     overflow: 'hidden',
+                    minHeight: 0,
                     borderRadius: 1,
                     border: isDarkMode ? '1px solid rgba(255,255,255,0.08)' : '1px solid #e5e7eb',
                     bgcolor: isDarkMode ? '#1e293b' : '#fff',
                 }}
             >
-                <TableContainer sx={{ maxHeight: 'calc(100vh - 300px)' }}>
+                <TableContainer sx={{ flex: 1, overflow: 'auto' }}>
                     <Table size="small" stickyHeader>
                         <TableHead>
                             <TableRow>
@@ -563,6 +604,7 @@ export default function BatchManagementTab({
                 <Box
                     sx={{
                         mt: 1,
+
                         py: 0.75,
                         px: 1.5,
                         bgcolor: isDarkMode ? 'rgba(96, 165, 250, 0.05)' : '#f8fafc',
