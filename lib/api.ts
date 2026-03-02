@@ -466,6 +466,8 @@ export const inboundAPI = {
     headers: { 'Content-Type': 'multipart/form-data' }
   }),
   getAllInboundWSNs: () => api.get('inbound/wsns/all'),
+  bulkCheckWSNs: (wsns: string[], warehouse_id: number) =>
+    api.post('inbound/bulk-check-wsns', { wsns, warehouse_id }),
   multiEntry: (entries: any[], warehouse_id: number) =>
     api.post('inbound/multi-entry', { entries, warehouse_id }),
   getWarehouseRacks: (warehouseId: number) => api.get(`inbound/racks/${warehouseId}`),

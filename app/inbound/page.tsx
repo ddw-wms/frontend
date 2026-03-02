@@ -105,6 +105,16 @@ const INBOUND_LIST_COLUMNS = [
 
 const EDITABLE_COLUMNS = ['wsn', 'product_serial_number', 'rack_no', 'unload_remarks'];
 
+// ⚡ PERF: Module-level constant — avoids creating a new object per cellStyle call (thousands/sec during drag)
+const SELECTION_RESET_STYLE = {
+  backgroundColor: undefined as any,
+  boxShadow: undefined as any,
+  borderTop: undefined as any,
+  borderBottom: undefined as any,
+  borderLeft: undefined as any,
+  borderRight: undefined as any,
+};
+
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
 import React from 'react';
 import localforage from 'localforage';
@@ -985,11 +995,11 @@ export default function InboundPage() {
     // Don't save if draft hasn't been loaded yet (prevents empty rows overwriting real draft)
     if (!draftLoadedRef.current) return;
 
-    // 🛡️ SAFEGUARD: Never overwrite a real draft with empty rows
-    // If current rows have NO WSNs but DB has data OR load failed, skip save to prevent data loss
+    // 🛡️ SAFEGUARD: Only block empty overwrite if draft load FAILED (prevents accidental data loss)
+    // If load succeeded (draftLoadFailedRef = false), user intentionally cleared WSNs → allow save
     const hasAnyData = rowsToSave.some((r: any) => r.wsn?.trim());
-    if (!hasAnyData && (draftExists || draftLoadFailedRef.current)) {
-      console.warn('[DRAFT] 🛡️ Blocked: refusing to overwrite (draftExists:', draftExists, 'loadFailed:', draftLoadFailedRef.current, ')');
+    if (!hasAnyData && draftLoadFailedRef.current) {
+      console.warn('[DRAFT] 🛡️ Blocked: refusing to overwrite — draft load had failed, cannot confirm user intent');
       return;
     }
 
@@ -1104,10 +1114,10 @@ export default function InboundPage() {
     }
 
     try {
-      // ⚡ Add timeout to prevent hanging
+      // ⚡ Add timeout to prevent hanging (15s for large batches)
       await Promise.race([
         inboundAPI.syncReceivingWSNs(wsns, activeWarehouse.id),
-        new Promise<void>((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000))
+        new Promise<void>((_, reject) => setTimeout(() => reject(new Error('Timeout')), 15000))
       ]);
       lastSyncedWSNsRef.current = wsnsHash;
       hasEverSyncedWSNsRef.current = true;
@@ -1482,35 +1492,23 @@ export default function InboundPage() {
           if ((wsnCountMap.get(wsn) || 0) > 1) gridDupWSNs.add(wsn);
         });
 
-        // 2) ALREADY INBOUNDED + CROSS WAREHOUSE: Batch API check
+        // 2) ALREADY INBOUNDED + CROSS WAREHOUSE: Single bulk API check (replaces N individual calls)
         const alreadyInboundedWSNs = new Set<string>();
         const crossWarehouseDetected = new Set<string>();
         const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
 
-        if (isOnline) {
-          const API_BATCH = 20;
-          for (let i = 0; i < uniqueWSNs.length; i += API_BATCH) {
-            const batch = uniqueWSNs.slice(i, i + API_BATCH);
-            await Promise.allSettled(batch.map(async (wsn) => {
-              try {
-                const resp = await Promise.race([
-                  inboundAPI.getAll(1, 1, { search: wsn }),
-                  new Promise<null>(resolve => setTimeout(() => resolve(null), 3000))
-                ]);
-                if (!resp) return;
-                const item = resp?.data?.data?.[0] || resp?.data?.[0] || null;
-                if (item) {
-                  const itemWSN = (item.wsn || '').trim().toUpperCase();
-                  if (itemWSN !== wsn) return; // search result doesn't exactly match
-                  const itemWhId = item.warehouse_id ?? item.warehouseId ?? item.warehouseid ?? null;
-                  if (itemWhId && itemWhId !== activeWarehouse?.id) {
-                    crossWarehouseDetected.add(wsn);
-                  } else {
-                    alreadyInboundedWSNs.add(wsn);
-                  }
-                }
-              } catch { /* ignore */ }
-            }));
+        if (isOnline && activeWarehouse?.id) {
+          try {
+            const resp = await Promise.race([
+              inboundAPI.bulkCheckWSNs(uniqueWSNs, activeWarehouse.id),
+              new Promise<null>(resolve => setTimeout(() => resolve(null), 10000))
+            ]);
+            if (resp?.data) {
+              (resp.data.alreadyInbounded || []).forEach((wsn: string) => alreadyInboundedWSNs.add(wsn));
+              (resp.data.crossWarehouse || []).forEach((wsn: string) => crossWarehouseDetected.add(wsn));
+            }
+          } catch (err) {
+            console.error('Bulk WSN check failed, skipping duplicate detection:', err);
           }
         }
 
@@ -2726,14 +2724,20 @@ export default function InboundPage() {
     endCol: string;
     colIndexMap: Map<string, number>;
   } | null>(null);
-  const prevSelectionBoundsRef = useRef<{ minRow: number; maxRow: number } | null>(null);
 
-  // ⚡ PERF: Update selection refs + redraw cells WITHOUT triggering React re-render.
-  // Called directly during drag to avoid re-rendering the entire component on every mouseMove.
-  const updateSelectionRange = useCallback((range: typeof selectedRange) => {
-    selectedRangeRef.current = range;
+  // ⚡ PERF: Track previous full bounds (row + col) for smart diff — only refresh changed rows
+  const prevBoundsFullRef = useRef<{ minRow: number; maxRow: number; minCol: number; maxCol: number } | null>(null);
+  // ⚡ PERF: requestAnimationFrame ID for batching drag selection updates (one per frame)
+  const rafIdRef = useRef<number>(0);
 
-    // Pre-compute selection bounds
+  // ⚡ CORE: Flush pending selection update — computes bounds, smart row diff, refreshCells
+  // Called either synchronously (final events) or from requestAnimationFrame (during drag)
+  const flushSelectionUpdate = useCallback(() => {
+    rafIdRef.current = 0;
+    const range = selectedRangeRef.current;
+
+    // 1. Pre-compute selection bounds
+    let newBounds: typeof selectionBoundsRef.current = null;
     if (range && gridRef.current) {
       const api = gridRef.current;
       const allColumns = api.getAllDisplayedColumns?.() || [];
@@ -2741,12 +2745,10 @@ export default function InboundPage() {
       allColumns.forEach((c: any, idx: number) => {
         colIndexMap.set(c.getColId(), idx);
       });
-
       const startColIndex = colIndexMap.get(range.startCol) ?? -1;
       const endColIndex = colIndexMap.get(range.endCol) ?? -1;
-
       if (startColIndex !== -1 && endColIndex !== -1) {
-        selectionBoundsRef.current = {
+        newBounds = {
           minRow: Math.min(range.startRow, range.endRow),
           maxRow: Math.max(range.startRow, range.endRow),
           minCol: Math.min(startColIndex, endColIndex),
@@ -2755,51 +2757,89 @@ export default function InboundPage() {
           endCol: range.endCol,
           colIndexMap,
         };
-      } else {
-        selectionBoundsRef.current = null;
       }
-    } else {
-      selectionBoundsRef.current = null;
     }
 
-    // Row-scoped redraw — uses redrawRows to fully recreate DOM (clearing stale classes/styles)
+    // 2. Skip if bounds are identical (no visual change needed)
+    const prev = prevBoundsFullRef.current;
+    if (newBounds && prev &&
+      newBounds.minRow === prev.minRow && newBounds.maxRow === prev.maxRow &&
+      newBounds.minCol === prev.minCol && newBounds.maxCol === prev.maxCol) {
+      return;
+    }
+
+    // 3. Update bounds ref
+    selectionBoundsRef.current = newBounds;
+
+    // 4. Smart row diff — only refresh rows that actually changed
     const api = gridRef.current;
-    if (api) {
-      const bounds = selectionBoundsRef.current;
-      const prevBounds = prevSelectionBoundsRef.current;
-      const rowsToRefresh = new Set<number>();
+    if (!api) { prevBoundsFullRef.current = null; return; }
 
-      if (bounds) {
-        for (let r = bounds.minRow; r <= bounds.maxRow; r++) rowsToRefresh.add(r);
-      }
-      if (prevBounds) {
-        for (let r = prevBounds.minRow; r <= prevBounds.maxRow; r++) rowsToRefresh.add(r);
-      }
+    const rowsToRefresh = new Set<number>();
+    const colsChanged = !prev || !newBounds ||
+      (prev.minCol !== newBounds?.minCol) || (prev.maxCol !== newBounds?.maxCol);
 
-      prevSelectionBoundsRef.current = bounds ? { minRow: bounds.minRow, maxRow: bounds.maxRow } : null;
+    if (colsChanged) {
+      // Column bounds changed — must refresh all affected rows in both old & new
+      if (newBounds) { for (let r = newBounds.minRow; r <= newBounds.maxRow; r++) rowsToRefresh.add(r); }
+      if (prev) { for (let r = prev.minRow; r <= prev.maxRow; r++) rowsToRefresh.add(r); }
+    } else if (newBounds && prev) {
+      // Only row bounds changed — smart diff: entering + leaving + edge rows only
+      // Rows entering selection (in new but not old)
+      for (let r = newBounds.minRow; r < prev.minRow; r++) rowsToRefresh.add(r);
+      for (let r = prev.maxRow + 1; r <= newBounds.maxRow; r++) rowsToRefresh.add(r);
+      // Rows leaving selection (in old but not new)
+      for (let r = prev.minRow; r < newBounds.minRow; r++) rowsToRefresh.add(r);
+      for (let r = newBounds.maxRow + 1; r <= prev.maxRow; r++) rowsToRefresh.add(r);
+      // Edge rows always refresh (border-top/bottom changes)
+      rowsToRefresh.add(newBounds.minRow);
+      rowsToRefresh.add(newBounds.maxRow);
+      rowsToRefresh.add(prev.minRow);
+      rowsToRefresh.add(prev.maxRow);
+    } else if (newBounds) {
+      for (let r = newBounds.minRow; r <= newBounds.maxRow; r++) rowsToRefresh.add(r);
+    } else if (prev) {
+      for (let r = prev.minRow; r <= prev.maxRow; r++) rowsToRefresh.add(r);
+    }
 
-      if (rowsToRefresh.size > 0) {
-        const rowNodes: any[] = [];
-        rowsToRefresh.forEach((rowIndex) => {
-          const node = api.getDisplayedRowAtIndex(rowIndex);
-          if (node) rowNodes.push(node);
-        });
-        if (rowNodes.length > 0) {
-          // ✅ FIX: Use redrawRows instead of refreshCells to fully recreate DOM elements.
-          // refreshCells does NOT re-evaluate cellClass and does NOT clear old inline styles,
-          // causing stale selection highlights (CSS classes with !important) to persist.
-          api.redrawRows({ rowNodes });
-        }
+    // 5. Save full bounds for next diff
+    prevBoundsFullRef.current = newBounds
+      ? { minRow: newBounds.minRow, maxRow: newBounds.maxRow, minCol: newBounds.minCol, maxCol: newBounds.maxCol }
+      : null;
+
+    // 6. Refresh only changed rows — in-place style update, zero DOM destruction
+    if (rowsToRefresh.size > 0) {
+      const rowNodes: any[] = [];
+      rowsToRefresh.forEach((rowIndex) => {
+        const node = api.getDisplayedRowAtIndex(rowIndex);
+        if (node) rowNodes.push(node);
+      });
+      if (rowNodes.length > 0) {
+        api.refreshCells({ rowNodes, force: true });
       }
     }
   }, []);
 
-  // ⚡ PERF: Wrapper that updates refs/cells AND triggers React re-render (for JSX chip display).
-  // Use this for final/clear events (mouseUp, Escape, Shift+Click, keyboard selection, etc.).
+  // ⚡ PERF: Schedule selection update via requestAnimationFrame — batches rapid drag events.
+  // Multiple cell crossings within a single 16ms frame are collapsed into ONE refreshCells call.
+  const updateSelectionRange = useCallback((range: typeof selectedRange) => {
+    selectedRangeRef.current = range;
+    if (!rafIdRef.current) {
+      rafIdRef.current = requestAnimationFrame(flushSelectionUpdate);
+    }
+  }, [flushSelectionUpdate]);
+
+  // ⚡ PERF: Immediate selection update + React state — for final events (mouseUp, Escape, Shift+Click).
+  // Cancels any pending RAF and flushes synchronously for instant visual feedback.
   const setSelectionRange = useCallback((range: typeof selectedRange) => {
-    updateSelectionRange(range);
+    selectedRangeRef.current = range;
+    if (rafIdRef.current) {
+      cancelAnimationFrame(rafIdRef.current);
+      rafIdRef.current = 0;
+    }
+    flushSelectionUpdate();
     setSelectedRange(range);
-  }, [updateSelectionRange]);
+  }, [flushSelectionUpdate]);
 
   // ✅ EXCEL ENHANCEMENT: Fill Down (Ctrl+D) - copy value from FIRST selected cell to all cells below
   const handleFillDown = useCallback(() => {
@@ -3146,19 +3186,29 @@ export default function InboundPage() {
     });
   }, []);
 
-  // ✅ EXCEL ENHANCEMENT: Handle mouse up - end drag selection
+  // ✅ EXCEL ENHANCEMENT: Handle mouse up — end drag selection + cleanup RAF
   useEffect(() => {
     const handleMouseUp = () => {
       if (isDraggingRef.current) {
         isDraggingRef.current = false;
-        // ⚡ PERF: Sync ref → React state on drag end so JSX chip updates
+        // Cancel pending RAF and flush immediately so final state is visible
+        if (rafIdRef.current) {
+          cancelAnimationFrame(rafIdRef.current);
+          rafIdRef.current = 0;
+        }
+        flushSelectionUpdate();
+        // Sync ref → React state so JSX chip updates
         setSelectedRange(selectedRangeRef.current);
       }
     };
 
     window.addEventListener('mouseup', handleMouseUp);
-    return () => window.removeEventListener('mouseup', handleMouseUp);
-  }, []);
+    return () => {
+      window.removeEventListener('mouseup', handleMouseUp);
+      // Cleanup any pending RAF on unmount
+      if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
+    };
+  }, [flushSelectionUpdate]);
 
   // ✅ EXCEL ENHANCEMENT: Handle Shift+Click for range selection
   // FIXED: Skip if a drag selection just happened (onCellClicked fires AFTER drag ends)
@@ -3201,10 +3251,10 @@ export default function InboundPage() {
     }
 
     const currentRange = selectedRangeRef.current || {
-      startRow: rowIndex,
-      endRow: rowIndex,
-      startCol: colId,
-      endCol: colId,
+      startRow: rangeStartCellRef.current.rowIndex,
+      endRow: rangeStartCellRef.current.rowIndex,
+      startCol: rangeStartCellRef.current.colId,
+      endCol: rangeStartCellRef.current.colId,
     };
 
     let newEndRow = currentRange.endRow;
@@ -3229,7 +3279,8 @@ export default function InboundPage() {
         newEndRow = currentRange.endRow + 1;
       }
     } else if (direction === 'left' || direction === 'right') {
-      const allColumns = api.getColumns();
+      // ✅ FIX: Use getAllDisplayedColumns (visible only) instead of getColumns (may include hidden)
+      const allColumns = api.getAllDisplayedColumns();
       if (allColumns) {
         const colIndex = allColumns.findIndex((c: any) => c.getColId() === currentRange.endCol);
         if (jump) {
@@ -3252,7 +3303,7 @@ export default function InboundPage() {
       endCol: newEndCol,
     });
 
-    // Move focus to follow selection
+    // Move focus to follow selection end
     api.setFocusedCell(newEndRow, newEndCol);
     api.ensureIndexVisible(newEndRow, 'middle');
   }, [multiRows.length, setSelectionRange]);
@@ -4131,6 +4182,14 @@ export default function InboundPage() {
     }));
 
     const filtered = rowsWithDefaults.filter((r: any) => r.wsn && r.wsn.trim() !== "");
+
+    // ✅ UX: Confirmation dialog before submitting large batches
+    if (filtered.length > 0) {
+      const confirmed = window.confirm(
+        `Submit ${filtered.length} inbound entr${filtered.length === 1 ? 'y' : 'ies'}?\n\nDate: ${commonDate}\nVehicle: ${commonVehicle || '(none)'}\nWarehouse: ${activeWarehouse?.name || activeWarehouse?.id}`
+      );
+      if (!confirmed) return;
+    }
 
     if (filtered.length === 0) {
       toast.error("No valid WSN rows");
@@ -5024,7 +5083,8 @@ export default function InboundPage() {
                 });
                 return updated;
               });
-              checkDuplicates(newRows);
+              // ✅ FIX: Use multiRowsRef.current after state update settles (newRows is stale here)
+              setTimeout(() => checkDuplicates(multiRowsRef.current), 100);
 
               setTimeout(() => {
                 event.api.startEditingCell({
@@ -5058,7 +5118,8 @@ export default function InboundPage() {
                 });
                 return updated;
               });
-              checkDuplicates(newRows);
+              // ✅ FIX: Use multiRowsRef.current after state update settles (newRows is stale here)
+              setTimeout(() => checkDuplicates(multiRowsRef.current), 100);
 
               setTimeout(() => {
                 event.api.startEditingCell({
@@ -6941,7 +7002,7 @@ export default function InboundPage() {
               <Box
                 ref={multiEntryContainerRef}
                 sx={{
-                  mt: -1.5,
+                  mt: 0.50,
                   display: 'flex',
                   flexDirection: 'column',
                   height: '100%', overflow: 'hidden',
@@ -6957,6 +7018,7 @@ export default function InboundPage() {
                     boxShadow: isDarkMode ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.06)',
                     flexShrink: 0, // Don't shrink this card
                     mb: 1,
+
                     bgcolor: isDarkMode ? '#1e293b' : 'white',
                     overflow: 'visible', // Allow content to overflow for scrolling
                   }}
@@ -7175,11 +7237,15 @@ export default function InboundPage() {
                                         size="small"
                                         checked={visibleColumns.includes(col)}
                                         onChange={(e) => {
+                                          let next: string[];
                                           if (e.target.checked) {
-                                            setVisibleColumns([...visibleColumns, col]);
+                                            next = [...visibleColumns, col];
                                           } else {
-                                            setVisibleColumns(visibleColumns.filter(c => c !== col));
+                                            next = visibleColumns.filter(c => c !== col);
                                           }
+                                          // ✅ FIX: Maintain column ordering and persist to localStorage
+                                          const ordered = [...EDITABLE_COLUMNS, ...ALL_MASTER_COLUMNS].filter(c => next.includes(c));
+                                          saveColumnSettings(ordered);
                                         }}
                                         sx={{ py: 0.25, '&.Mui-checked': { color: '#3b82f6' } }}
                                       />
@@ -7199,11 +7265,15 @@ export default function InboundPage() {
                                         size="small"
                                         checked={visibleColumns.includes(col)}
                                         onChange={(e) => {
+                                          let next: string[];
                                           if (e.target.checked) {
-                                            setVisibleColumns([...visibleColumns, col]);
+                                            next = [...visibleColumns, col];
                                           } else {
-                                            setVisibleColumns(visibleColumns.filter(c => c !== col));
+                                            next = visibleColumns.filter(c => c !== col);
                                           }
+                                          // ✅ FIX: Maintain column ordering and persist to localStorage
+                                          const ordered = [...EDITABLE_COLUMNS, ...ALL_MASTER_COLUMNS].filter(c => next.includes(c));
+                                          saveColumnSettings(ordered);
                                         }}
                                         sx={{ py: 0.25, '&.Mui-checked': { color: '#10b981' } }}
                                       />
@@ -7661,8 +7731,8 @@ export default function InboundPage() {
                     // This stops ghost selections (blue highlights) that overlap with custom cyan selection
                     userSelect: 'none',
                     WebkitUserSelect: 'none',
-                    // Prevent white flash in dark mode - target all possible AG Grid containers
-                    '& *': { transition: 'none !important' },
+                    // Prevent transitions on grid cells and rows (targeted, not wildcard)
+                    '& .ag-row, & .ag-cell, & .ag-header-cell': { transition: 'none !important' },
                     '& .ag-theme-quartz, & .ag-theme-quartz-dark': { backgroundColor: isDarkMode ? '#1e293b !important' : '#ffffff !important' },
                     '& .ag-root-wrapper, & .ag-root, & .ag-body': { backgroundColor: isDarkMode ? '#1e293b !important' : '#ffffff !important', border: 'none' },
                     '& .ag-body-viewport, & .ag-body-horizontal-scroll-viewport': { backgroundColor: isDarkMode ? '#1e293b !important' : '#ffffff !important' },
@@ -7739,26 +7809,12 @@ export default function InboundPage() {
                       boxShadow: isDarkMode ? '0 0 16px rgba(34, 211, 238, 0.5)' : '0 0 8px rgba(37, 99, 235, 0.3)',
                     },
 
-                    // ⚡ ENHANCED: Custom range selection styles via data attributes
-                    '& .ag-cell[style*="border-top: 3px"]': {
-                      borderTop: isDarkMode ? '3px solid #60a5fa !important' : '3px solid #2563eb !important',
-                    },
-                    '& .ag-cell[style*="border-bottom: 3px"]': {
-                      borderBottom: isDarkMode ? '3px solid #22d3ee !important' : '3px solid #2563eb !important',
-                    },
-                    '& .ag-cell[style*="border-left: 3px"]': {
-                      borderLeft: isDarkMode ? '3px solid #22d3ee !important' : '3px solid #2563eb !important',
-                    },
-                    '& .ag-cell[style*="border-right: 3px"]': {
-                      borderRight: isDarkMode ? '3px solid #22d3ee !important' : '3px solid #2563eb !important',
-                    },
+                    // Selection styling is handled entirely by cellStyle inline styles.
+                    // No CSS class selectors or attribute selectors needed — keeps browser fast.
 
-                    // ⚡ EXCEL-LIKE: Custom range selection CSS classes - Enhanced visibility for dark mode
+                    // ⚡ EXCEL-LIKE: Custom range selection CSS classes — matches Outbound styling
                     '& .custom-range-selected': {
                       backgroundColor: isDarkMode ? 'rgba(34, 211, 238, 0.25) !important' : 'rgba(37, 99, 235, 0.15) !important',
-                      boxShadow: isDarkMode
-                        ? 'inset 0 0 0 1px rgba(34, 211, 238, 0.6)'
-                        : 'inset 0 0 0 1px rgba(37, 99, 235, 0.5)',
                     },
                     '& .custom-range-top': {
                       borderTop: isDarkMode ? '3px solid #22d3ee !important' : '3px solid #2563eb !important',
@@ -7771,40 +7827,6 @@ export default function InboundPage() {
                     },
                     '& .custom-range-right': {
                       borderRight: isDarkMode ? '3px solid #22d3ee !important' : '3px solid #2563eb !important',
-                    },
-
-                    // Range selection
-                    '& .ag-cell-range-selected': {
-                      backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.25) !important' : '#dbeafe !important',
-                    },
-                    '& .ag-cell-range-single-cell': {
-                      backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.2) !important' : '#eff6ff !important',
-                    },
-
-                    // ⚡ EXCEL-LIKE: Cell range selection highlight (specific column only)
-                    '& .ag-cell-in-selection': {
-                      backgroundColor: isDarkMode ? 'rgba(16, 185, 129, 0.4) !important' : '#a7f3d0 !important',
-                      borderTop: '1px solid #10b981',
-                      borderBottom: '1px solid #10b981',
-                    },
-                    '& .ag-cell-selection-start': {
-                      borderTop: '2px solid #059669 !important',
-                    },
-                    '& .ag-cell-selection-end': {
-                      borderBottom: '2px solid #059669 !important',
-                    },
-                    '& .ag-cell-selection-left': {
-                      borderLeft: '2px solid #059669 !important',
-                    },
-                    '& .ag-cell-selection-right': {
-                      borderRight: '2px solid #059669 !important',
-                    },
-
-                    // Row indicator for selected range (left border)
-                    '& .ag-row-range-selected': {
-                      '& .ag-cell:first-of-type': {
-                        borderLeft: '3px solid #10b981 !important',
-                      },
                     },
 
                     // Hover effect
@@ -7879,6 +7901,21 @@ export default function InboundPage() {
                       sortable: multiGridSettings.sortable,  // ✅ Multi Entry Settings
                       filter: multiGridSettings.filter,      // ✅ Multi Entry Settings
                       resizable: multiGridSettings.resizable, // ✅ Multi Entry Settings
+
+                      // ⚡ CRITICAL: Suppress AG Grid's built-in Ctrl+Arrow / Shift+Arrow handling
+                      // so our custom onCellKeyDown handler gets the CORRECT focused cell position.
+                      // Without this, AG Grid moves focus first, then our handler reads the wrong cell.
+                      suppressKeyboardEvent: (params: any) => {
+                        const event = params.event;
+                        if (!event) return false;
+                        const ctrlKey = event.ctrlKey || event.metaKey;
+                        const shiftKey = event.shiftKey;
+                        const arrowKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
+                        // Suppress Ctrl+Arrow (navigation) and Ctrl+Shift+Arrow (selection extension)
+                        if (ctrlKey && arrowKeys.includes(event.key)) return true;
+                        return false;
+                      },
+
                       editable: (params) => {
                         // ✅ Check multi grid settings first
                         if (!multiGridSettings.editable) return false;
@@ -7905,43 +7942,62 @@ export default function InboundPage() {
                       // AG Grid's refreshCells/redrawRows can leave stale CSS classes with !important that
                       // override inline styles, causing ghost selections to persist.
                       cellStyle: (params: any) => {
+                        // ⚡ EXCEL-LIKE: Precise O(1) selection highlighting per cell.
+                        // Uses module-level SELECTION_RESET_STYLE constant (zero allocations).
                         const bounds = selectionBoundsRef.current;
-                        if (!bounds) return null;
+                        if (!bounds) return SELECTION_RESET_STYLE;
 
                         const rowIndex = params.rowIndex;
                         const colId = params.colDef?.field;
-                        if (rowIndex === null || rowIndex === undefined || !colId) return null;
+                        if (rowIndex === null || rowIndex === undefined || !colId) return SELECTION_RESET_STYLE;
 
-                        // Fast O(1) lookup from pre-computed map
                         const currentColIndex = bounds.colIndexMap.get(colId);
-                        if (currentColIndex === undefined) return null;
+                        if (currentColIndex === undefined) return SELECTION_RESET_STYLE;
 
-                        // Check if cell is within the rectangular selection range
-                        const isInRowRange = rowIndex >= bounds.minRow && rowIndex <= bounds.maxRow;
-                        const isInColRange = currentColIndex >= bounds.minCol && currentColIndex <= bounds.maxCol;
+                        const isInRange = rowIndex >= bounds.minRow && rowIndex <= bounds.maxRow &&
+                          currentColIndex >= bounds.minCol && currentColIndex <= bounds.maxCol;
 
-                        if (isInRowRange && isInColRange) {
-                          // Use consistent cyan color matching Outbound
-                          const borderColor = isDarkMode ? '#22d3ee' : '#2563eb';
-                          const bgColor = isDarkMode ? 'rgba(34, 211, 238, 0.25)' : 'rgba(37, 99, 235, 0.15)';
-
-                          const style: any = {
+                        if (isInRange) {
+                          const borderColor = isDarkMode ? '#60a5fa' : '#2563eb';
+                          const bgColor = isDarkMode ? 'rgba(96, 165, 250, 0.35)' : 'rgba(37, 99, 235, 0.2)';
+                          return {
                             backgroundColor: bgColor,
                             boxShadow: isDarkMode
-                              ? 'inset 0 0 0 1px rgba(34, 211, 238, 0.6)'
+                              ? 'inset 0 0 0 1px rgba(96, 165, 250, 0.6)'
                               : 'inset 0 0 0 1px rgba(37, 99, 235, 0.4)',
+                            borderTop: rowIndex === bounds.minRow ? `3px solid ${borderColor}` : undefined as any,
+                            borderBottom: rowIndex === bounds.maxRow ? `3px solid ${borderColor}` : undefined as any,
+                            borderLeft: currentColIndex === bounds.minCol ? `3px solid ${borderColor}` : undefined as any,
+                            borderRight: currentColIndex === bounds.maxCol ? `3px solid ${borderColor}` : undefined as any,
                           };
-
-                          // Add THICK borders for edges of selection
-                          if (rowIndex === bounds.minRow) style.borderTop = `3px solid ${borderColor}`;
-                          if (rowIndex === bounds.maxRow) style.borderBottom = `3px solid ${borderColor}`;
-                          if (currentColIndex === bounds.minCol) style.borderLeft = `3px solid ${borderColor}`;
-                          if (currentColIndex === bounds.maxCol) style.borderRight = `3px solid ${borderColor}`;
-
-                          return style;
                         }
 
-                        return null;
+                        return SELECTION_RESET_STYLE;
+                      },
+                      // ⚡ EXCEL-LIKE: CSS classes for selection — backup with !important for reliable highlighting
+                      cellClass: (params: any) => {
+                        const bounds = selectionBoundsRef.current;
+                        if (!bounds) return '';
+
+                        const rowIndex = params.rowIndex;
+                        const colId = params.colDef?.field;
+                        if (rowIndex === null || rowIndex === undefined || !colId) return '';
+
+                        const currentColIndex = bounds.colIndexMap.get(colId);
+                        if (currentColIndex === undefined) return '';
+
+                        const isInRange = rowIndex >= bounds.minRow && rowIndex <= bounds.maxRow &&
+                          currentColIndex >= bounds.minCol && currentColIndex <= bounds.maxCol;
+
+                        if (isInRange) {
+                          const classes = ['custom-range-selected'];
+                          if (rowIndex === bounds.minRow) classes.push('custom-range-top');
+                          if (rowIndex === bounds.maxRow) classes.push('custom-range-bottom');
+                          if (currentColIndex === bounds.minCol) classes.push('custom-range-left');
+                          if (currentColIndex === bounds.maxCol) classes.push('custom-range-right');
+                          return classes.join(' ');
+                        }
+                        return '';
                       },
                     }}
 
@@ -8015,29 +8071,30 @@ export default function InboundPage() {
 
                     // ⚡ SMOOTH SCROLL: Detect user manual scroll to avoid overriding it
                     onBodyScroll={(event) => {
-                      // If we're NOT auto-scrolling, this is a user-initiated scroll
-                      if (!isAutoScrollingRef.current) {
-                        const currentScrollTop = event.top;
-                        const scrollDelta = Math.abs(currentScrollTop - lastGridScrollTopRef.current);
-
-                        // Only mark as user scroll if there's significant movement (>10px)
-                        // This filters out tiny adjustments from AG Grid's internal operations
-                        if (scrollDelta > 10) {
-                          userScrolledRef.current = true;
-
-                          // Clear user scroll flag after 1.5 seconds of no scanning activity
-                          // This allows auto-scroll to resume for continuous scanning
-                          if (userScrollTimeoutRef.current) {
-                            window.clearTimeout(userScrollTimeoutRef.current);
-                          }
-                          userScrollTimeoutRef.current = window.setTimeout(() => {
-                            userScrolledRef.current = false;
-                            userScrollTimeoutRef.current = null;
-                          }, 1500);
-                        }
-
-                        lastGridScrollTopRef.current = currentScrollTop;
+                      // If we're auto-scrolling (programmatic), skip — don't flag as user scroll
+                      if (isAutoScrollingRef.current) {
+                        lastGridScrollTopRef.current = event.top;
+                        return;
                       }
+
+                      const currentScrollTop = event.top;
+                      const scrollDelta = Math.abs(currentScrollTop - lastGridScrollTopRef.current);
+
+                      // Only mark as user scroll if there's significant movement (>10px)
+                      if (scrollDelta > 10) {
+                        userScrolledRef.current = true;
+
+                        // Clear user scroll flag after 1.5 seconds of no scanning activity
+                        if (userScrollTimeoutRef.current) {
+                          window.clearTimeout(userScrollTimeoutRef.current);
+                        }
+                        userScrollTimeoutRef.current = window.setTimeout(() => {
+                          userScrolledRef.current = false;
+                          userScrollTimeoutRef.current = null;
+                        }, 1500);
+                      }
+
+                      lastGridScrollTopRef.current = currentScrollTop;
                     }}
 
                     // ✅ Save column widths when resized
@@ -8129,44 +8186,165 @@ export default function InboundPage() {
                         }
                       }
 
-                      // Arrow key navigation with Ctrl → Jump to edge of data
-                      if (ctrlKey && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(key || '')) {
+                      // ✅ EXCEL-LIKE: Ctrl+Arrow navigation — true Excel boundary-jumping behavior
+                      // Skip if Shift is held — Ctrl+Shift+Arrow is handled by global handler for selection
+                      if (ctrlKey && !nativeEvent?.shiftKey && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(key || '')) {
                         nativeEvent?.preventDefault();
+                        nativeEvent?.stopPropagation();
                         const api = event.api;
                         const focusedCell = api.getFocusedCell();
                         if (!focusedCell) return;
 
                         const currentRow = focusedCell.rowIndex;
                         const currentCol = focusedCell.column;
-                        const colId = currentCol.getColId();
+                        const currentColId = currentCol.getColId();
                         const totalRows = api.getDisplayedRowCount();
                         const allColumns = api.getAllDisplayedColumns();
 
                         let targetRow = currentRow;
                         let targetCol = currentCol;
 
-                        if (key === 'ArrowUp') {
-                          // Jump to first row with data in this column
-                          targetRow = 0;
-                        } else if (key === 'ArrowDown') {
-                          // Jump to last row with data
-                          for (let i = totalRows - 1; i >= 0; i--) {
-                            const rowData = api.getDisplayedRowAtIndex(i)?.data;
-                            if (rowData?.wsn?.trim()) {
-                              targetRow = i;
-                              break;
+                        // Helper: check if a cell has data
+                        const hasCellData = (r: number, colId: string): boolean => {
+                          const rowData = api.getDisplayedRowAtIndex(r)?.data;
+                          if (!rowData) return false;
+                          const val = rowData[colId];
+                          return val !== undefined && val !== null && String(val).trim() !== '';
+                        };
+
+                        if (key === 'ArrowDown') {
+                          const currentHasData = hasCellData(currentRow, currentColId);
+                          if (currentHasData) {
+                            const nextRow = currentRow + 1;
+                            if (nextRow >= totalRows) {
+                              targetRow = currentRow; // Already at last row
+                            } else if (hasCellData(nextRow, currentColId)) {
+                              // Next cell also has data → skip to END of contiguous filled block
+                              let r = nextRow;
+                              while (r + 1 < totalRows && hasCellData(r + 1, currentColId)) r++;
+                              targetRow = r;
+                            } else {
+                              // Next cell is empty → jump to next filled cell below
+                              let found = false;
+                              for (let r = nextRow + 1; r < totalRows; r++) {
+                                if (hasCellData(r, currentColId)) { targetRow = r; found = true; break; }
+                              }
+                              // If no data found below, stay at current row (already at last data boundary)
+                              if (!found) targetRow = currentRow;
                             }
+                          } else {
+                            // Current cell is empty → jump to next filled cell below
+                            let found = false;
+                            for (let r = currentRow + 1; r < totalRows; r++) {
+                              if (hasCellData(r, currentColId)) { targetRow = r; found = true; break; }
+                            }
+                            if (!found) targetRow = totalRows - 1; // No data below → go to last row
+                          }
+                        } else if (key === 'ArrowUp') {
+                          const currentHasData = hasCellData(currentRow, currentColId);
+                          if (currentHasData) {
+                            const prevRow = currentRow - 1;
+                            if (prevRow < 0) {
+                              targetRow = 0;
+                            } else if (hasCellData(prevRow, currentColId)) {
+                              // Previous cell has data → skip to START of contiguous block
+                              let r = prevRow;
+                              while (r - 1 >= 0 && hasCellData(r - 1, currentColId)) r--;
+                              targetRow = r;
+                            } else {
+                              // Previous cell empty → jump to next filled cell above
+                              let found = false;
+                              for (let r = prevRow - 1; r >= 0; r--) {
+                                if (hasCellData(r, currentColId)) { targetRow = r; found = true; break; }
+                              }
+                              // If no data found above, stay at current row (already at first data boundary)
+                              if (!found) targetRow = currentRow;
+                            }
+                          } else {
+                            let found = false;
+                            for (let r = currentRow - 1; r >= 0; r--) {
+                              if (hasCellData(r, currentColId)) { targetRow = r; found = true; break; }
+                            }
+                            if (!found) targetRow = 0;
                           }
                         } else if (key === 'ArrowLeft') {
-                          // Jump to first column
-                          targetCol = allColumns[0];
+                          const colIds = allColumns.map((c: any) => c.getColId());
+                          const colIdx = colIds.indexOf(currentColId);
+                          if (colIdx > 0) {
+                            const currentHasData = hasCellData(currentRow, currentColId);
+                            if (currentHasData) {
+                              const prevColId = colIds[colIdx - 1];
+                              if (hasCellData(currentRow, prevColId)) {
+                                let c = colIdx - 1;
+                                while (c - 1 >= 0 && hasCellData(currentRow, colIds[c - 1])) c--;
+                                targetCol = allColumns[c];
+                              } else {
+                                let found = false;
+                                for (let c = colIdx - 2; c >= 0; c--) {
+                                  if (hasCellData(currentRow, colIds[c])) { targetCol = allColumns[c]; found = true; break; }
+                                }
+                                if (!found) targetCol = allColumns[0];
+                              }
+                            } else {
+                              let found = false;
+                              for (let c = colIdx - 1; c >= 0; c--) {
+                                if (hasCellData(currentRow, colIds[c])) { targetCol = allColumns[c]; found = true; break; }
+                              }
+                              if (!found) targetCol = allColumns[0];
+                            }
+                          }
                         } else if (key === 'ArrowRight') {
-                          // Jump to last column
-                          targetCol = allColumns[allColumns.length - 1];
+                          const colIds = allColumns.map((c: any) => c.getColId());
+                          const colIdx = colIds.indexOf(currentColId);
+                          if (colIdx < colIds.length - 1) {
+                            const currentHasData = hasCellData(currentRow, currentColId);
+                            if (currentHasData) {
+                              const nextColId = colIds[colIdx + 1];
+                              if (hasCellData(currentRow, nextColId)) {
+                                let c = colIdx + 1;
+                                while (c + 1 < colIds.length && hasCellData(currentRow, colIds[c + 1])) c++;
+                                targetCol = allColumns[c];
+                              } else {
+                                let found = false;
+                                for (let c = colIdx + 2; c < colIds.length; c++) {
+                                  if (hasCellData(currentRow, colIds[c])) { targetCol = allColumns[c]; found = true; break; }
+                                }
+                                if (!found) targetCol = allColumns[colIds.length - 1];
+                              }
+                            } else {
+                              let found = false;
+                              for (let c = colIdx + 1; c < colIds.length; c++) {
+                                if (hasCellData(currentRow, colIds[c])) { targetCol = allColumns[c]; found = true; break; }
+                              }
+                              if (!found) targetCol = allColumns[colIds.length - 1];
+                            }
+                          }
                         }
 
+                        // Clear selection (Excel behavior)
+                        setSelectionRange(null);
+                        rangeStartCellRef.current = { rowIndex: targetRow, colId: targetCol.getColId() };
+
+                        // Scroll + focus — mark as auto-scroll so onBodyScroll ignores it
+                        isAutoScrollingRef.current = true;
+                        api.ensureIndexVisible(targetRow);
                         api.setFocusedCell(targetRow, targetCol);
-                        ensureRowVisible(targetRow, 'middle', 3, undefined, true);
+                        setTimeout(() => { isAutoScrollingRef.current = false; }, 100);
+                        return;
+                      }
+
+                      // ✅ EXCEL: Plain arrow keys (no Ctrl, no Shift) → Clear selection
+                      if (!ctrlKey && !nativeEvent?.shiftKey && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(key || '')) {
+                        if (selectedRangeRef.current) {
+                          setSelectionRange(null);
+                        }
+                        // Update anchor to current position after AG Grid moves focus
+                        setTimeout(() => {
+                          const focused = event.api.getFocusedCell();
+                          if (focused) {
+                            rangeStartCellRef.current = { rowIndex: focused.rowIndex, colId: focused.column.getColId() };
+                          }
+                        }, 0);
                       }
                     }}
 
