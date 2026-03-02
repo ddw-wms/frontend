@@ -503,6 +503,10 @@ export default function MasterDataPage() {
   const retryCountRef = useRef(0);
   const MAX_RETRIES = 2;
 
+  // ⚡ ABORT CONTROLLER: Cancel in-flight requests when pagination/filters change
+  // Prevents stale requests from piling up and exhausting the backend connection pool
+  const abortControllerRef = useRef<AbortController | null>(null);
+
   // ⚡ LAZY FILTER LOADING: Load filters after initial data
   const [filtersLoaded, setFiltersLoaded] = useState(false);
 
@@ -864,7 +868,7 @@ export default function MasterDataPage() {
 
   // Force reset if rowsPerPage is too large
   useEffect(() => {
-    if (rowsPerPage > 1000) {
+    if (rowsPerPage > 500) {
       setRowsPerPage(100);
       setPage(0);
       toast('Rows per page reset to 100 for performance', { icon: '⚡' });
@@ -938,6 +942,14 @@ export default function MasterDataPage() {
   const loadMasterData = useCallback(async ({ buttonRefresh = false } = {}) => {
     const cacheKey = getCacheKey();
 
+    // ⚡ ABORT: Cancel any in-flight request before starting a new one
+    // Prevents stale requests from holding backend DB connections when user rapidly changes pagination
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     // ⚡ PAGE CACHE: Check cache first (unless force refresh)
     if (!buttonRefresh) {
       const cached = pageCacheRef.current.get(cacheKey);
@@ -946,7 +958,7 @@ export default function MasterDataPage() {
         setTotalRecords(cached.total);
         setLastRefreshTime(new Date(cached.timestamp));
         setLoading(false);
-        setTimeout(() => prefetchNextPage(), 100);
+        setTimeout(() => prefetchNextPage(), 2000);
         return;
       }
     }
@@ -989,7 +1001,8 @@ export default function MasterDataPage() {
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/master-data?${params.toString()}`,
         {
-          headers: { 'Authorization': `Bearer ${token}` }
+          headers: { 'Authorization': `Bearer ${token}` },
+          signal: controller.signal,
         }
       );
 
@@ -1029,8 +1042,8 @@ export default function MasterDataPage() {
       });
       retryCountRef.current = 0; // Reset retry count on success
 
-      // ⚡ PREFETCH: Trigger prefetch of next page
-      setTimeout(() => prefetchNextPage(), 100);
+      // ⚡ PREFETCH: Trigger prefetch of next page (delayed to reduce DB pressure)
+      setTimeout(() => prefetchNextPage(), 2000);
 
       // Update grid if available
       if (gridRef.current && typeof gridRef.current.setRowData === 'function') {
@@ -1044,7 +1057,9 @@ export default function MasterDataPage() {
         setRefreshSuccess(true);
         setTimeout(() => setRefreshSuccess(false), 2000);
       }
-    } catch (error) {
+    } catch (error: any) {
+      // ⚡ ABORT: Silently ignore aborted requests (user changed pagination/filters)
+      if (error?.name === 'AbortError') return;
       console.error('Load error:', error);
       // ⚡ AUTO-RETRY: Retry on network errors (max 2 times)
       if (retryCountRef.current < MAX_RETRIES && !buttonRefresh) {
@@ -2525,7 +2540,7 @@ export default function MasterDataPage() {
                               size="small"
                               value={rowsPerPage}
                               onChange={(e) => {
-                                const value = Math.min(Number(e.target.value), 1000);
+                                const value = Math.min(Number(e.target.value), 500);
                                 setRowsPerPage(value);
                                 setPage(0);
                               }}
@@ -2538,8 +2553,8 @@ export default function MasterDataPage() {
                               }}
                             >
                               <MenuItem value={100}>100</MenuItem>
+                              <MenuItem value={250}>250</MenuItem>
                               <MenuItem value={500}>500</MenuItem>
-                              <MenuItem value={1000}>1000</MenuItem>
                             </Select>
 
                             {/* Last Refresh Time Indicator */}
