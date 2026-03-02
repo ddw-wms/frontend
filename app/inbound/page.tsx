@@ -9225,7 +9225,7 @@ export default function InboundPage() {
             </AccordionDetails>
           </Accordion>
 
-          {/* ═══════════ ACTIONS SECTION ═══════════ */}
+          {/* ═══════════   ACTIONS SECTION  ═══════════ */}
           <Box sx={{ p: 2, borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0' }}>
             <Typography sx={{ fontWeight: 700, fontSize: '0.8rem', color: isDarkMode ? '#94a3b8' : '#64748b', mb: 1.5, textTransform: 'uppercase' }}>
               Actions
