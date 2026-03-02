@@ -1091,9 +1091,10 @@ export default function InboundPage() {
     // Skip if no change
     if (wsnsHash === lastSyncedWSNsRef.current) return;
 
-    // Skip API call if no valid WSNs (just update ref to avoid re-calling)
+    // If no valid WSNs remain, clear them from DB (user deleted all WSNs)
     if (wsns.length === 0) {
       lastSyncedWSNsRef.current = wsnsHash;
+      await clearReceivingWSNs();
       return;
     }
 
@@ -1242,9 +1243,9 @@ export default function InboundPage() {
     // Skip if no warehouse selected
     if (!activeWarehouse?.id) return;
 
-    // Skip initial sync when rows are empty (avoid unnecessary API calls)
-    const hasAnyWSN = multiRows.some(r => r.wsn?.trim());
-    if (!hasAnyWSN) return;
+    // Skip initial mount when draft hasn't loaded yet (avoid unnecessary API calls)
+    // Once draftLoadedRef is true, allow sync even when all WSNs are deleted (to clear DB)
+    if (!draftLoadedRef.current) return;
 
     // Debounce sync (longer interval than draft save)
     if (receivingSyncTimeoutRef.current) clearTimeout(receivingSyncTimeoutRef.current);
@@ -3002,6 +3003,16 @@ export default function InboundPage() {
 
       setMultiRows(newRows);
       api.refreshCells({ force: true });
+
+      // ⚡ If any WSN cells were cleared, trigger immediate sync to remove from DB receiving table
+      const clearedAnyWSN = newRows.some((r: any, idx: number) => {
+        if (idx < startRow || idx > endRow) return false;
+        return multiRows[idx]?.wsn?.trim() && !r.wsn?.trim();
+      });
+      if (clearedAnyWSN) {
+        syncReceivingWSNs(newRows);
+      }
+
       toast.success(`Cleared ${clearedCount} cells`, { duration: 1500 });
       return;
     }
@@ -3028,6 +3039,11 @@ export default function InboundPage() {
 
     setMultiRows(newRows);
     api.refreshCells({ rowNodes: [api.getRowNode(String(rowIndex))], columns: [colId] });
+
+    // ⚡ If WSN was cleared, trigger immediate sync to remove from DB receiving table
+    if (colId === 'wsn' && oldValue?.trim()) {
+      syncReceivingWSNs(newRows);
+    }
   }, [multiRows, saveCellUndoAction]);
 
   // ✅ EXCEL ENHANCEMENT: Select All (Ctrl+A)

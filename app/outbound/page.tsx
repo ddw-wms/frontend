@@ -402,6 +402,8 @@ export default function OutboundPage() {
     // ⚡ EXCEL-LIKE: Track mouse drag state
     const isDraggingRef = useRef(false);
     const dragStartCellRef = useRef<{ rowIndex: number; colId: string } | null>(null);
+    // Track if a drag selection actually occurred (moved to a different cell)
+    const didDragSelectRef = useRef(false);
 
     // ⚡ EXCEL-LIKE: Selection statistics (sum, count, average for numeric cells)
     const [selectionStats, setSelectionStats] = useState<{
@@ -1733,10 +1735,10 @@ export default function OutboundPage() {
     }, [saveCellUndoAction]);
 
     // Store previous selection for smart refresh
-    const prevSelectionBoundsRef = useRef<{ minRow: number; maxRow: number } | null>(null);
+    const prevSelectionBoundsRef = useRef<{ minRow: number; maxRow: number; minCol: number; maxCol: number } | null>(null);
 
-    // ⚡ PERF: Update selection refs + refresh cells WITHOUT triggering React re-render.
-    // Called directly during drag to avoid re-rendering the entire component on every mouseMove.
+    // ⚡ PERF: Update selection refs + redraw ONLY changed rows WITHOUT triggering React re-render.
+    // Uses DELTA computation: only redraws rows that entered or left the selection rectangle.
     const updateSelectionRange = useCallback((range: typeof selectedRange) => {
         selectedRangeRef.current = range;
 
@@ -1820,30 +1822,45 @@ export default function OutboundPage() {
             setSelectionStats(null);
         }
 
-        // Row-scoped refresh — only refreshes affected rows instead of entire grid
+        // ⚡ SMART DELTA REDRAW: Only redraw rows whose selection state actually changed.
         const api = gridRef.current?.api;
         if (api) {
             const bounds = selectionBoundsRef.current;
-            const prevBounds = prevSelectionBoundsRef.current;
-            const rowsToRefresh = new Set<number>();
+            const prev = prevSelectionBoundsRef.current;
+            const rowsToRedraw = new Set<number>();
 
-            if (bounds) {
-                for (let r = bounds.minRow; r <= bounds.maxRow; r++) rowsToRefresh.add(r);
+            if (bounds && prev) {
+                const { minRow: nMin, maxRow: nMax, minCol: nMinC, maxCol: nMaxC } = bounds;
+                const { minRow: oMin, maxRow: oMax, minCol: oMinC, maxCol: oMaxC } = prev;
+                for (let r = nMin; r <= nMax; r++) {
+                    if (r < oMin || r > oMax) rowsToRedraw.add(r);
+                }
+                for (let r = oMin; r <= oMax; r++) {
+                    if (r < nMin || r > nMax) rowsToRedraw.add(r);
+                }
+                if (nMinC !== oMinC || nMaxC !== oMaxC) {
+                    const overlapMin = Math.max(nMin, oMin);
+                    const overlapMax = Math.min(nMax, oMax);
+                    for (let r = overlapMin; r <= overlapMax; r++) rowsToRedraw.add(r);
+                }
+            } else if (bounds) {
+                for (let r = bounds.minRow; r <= bounds.maxRow; r++) rowsToRedraw.add(r);
+            } else if (prev) {
+                for (let r = prev.minRow; r <= prev.maxRow; r++) rowsToRedraw.add(r);
             }
-            if (prevBounds) {
-                for (let r = prevBounds.minRow; r <= prevBounds.maxRow; r++) rowsToRefresh.add(r);
-            }
 
-            prevSelectionBoundsRef.current = bounds ? { minRow: bounds.minRow, maxRow: bounds.maxRow } : null;
+            prevSelectionBoundsRef.current = bounds
+                ? { minRow: bounds.minRow, maxRow: bounds.maxRow, minCol: bounds.minCol, maxCol: bounds.maxCol }
+                : null;
 
-            if (rowsToRefresh.size > 0) {
+            if (rowsToRedraw.size > 0) {
                 const rowNodes: any[] = [];
-                rowsToRefresh.forEach((rowIndex) => {
+                rowsToRedraw.forEach((rowIndex) => {
                     const node = api.getDisplayedRowAtIndex(rowIndex);
                     if (node) rowNodes.push(node);
                 });
                 if (rowNodes.length > 0) {
-                    api.refreshCells({ rowNodes, force: true });
+                    api.redrawRows({ rowNodes });
                 }
             }
         }
@@ -1981,9 +1998,12 @@ export default function OutboundPage() {
 
     // ⚡ EXCEL-LIKE: Handle cell mouse down - start drag selection
     // FIXED: Only allow left mouse button (button === 0) for drag selection
-    const handleCellMouseDown = useCallback((rowIndex: number, colId: string, shiftKey: boolean, mouseButton: number) => {
+    const handleCellMouseDown = useCallback((rowIndex: number, colId: string, shiftKey: boolean, mouseButton: number, browserEvent?: MouseEvent) => {
         // Only allow left mouse button (button === 0) for selection
         if (mouseButton !== 0) return;
+
+        // ✅ FIX: Prevent browser native text selection during drag
+        if (browserEvent) browserEvent.preventDefault();
 
         if (shiftKey && rangeStartCellRef.current) {
             setSelectionRange({
@@ -1994,6 +2014,7 @@ export default function OutboundPage() {
             });
         } else {
             isDraggingRef.current = true;
+            didDragSelectRef.current = false;
             dragStartCellRef.current = { rowIndex, colId };
             rangeStartCellRef.current = { rowIndex, colId };
             setSelectionRange(null);
@@ -2024,7 +2045,10 @@ export default function OutboundPage() {
             return;
         }
 
-        // ⚡ PERF: Update refs + refresh cells only — no React re-render during drag
+        // Mark that a real drag selection happened (moved to different cell)
+        didDragSelectRef.current = true;
+
+        // ⚡ PERF: Update refs + redraw cells only — no React re-render during drag
         updateSelectionRange({
             startRow: startRow,
             endRow: rowIndex,
@@ -2034,7 +2058,14 @@ export default function OutboundPage() {
     }, [updateSelectionRange]);
 
     // ⚡ EXCEL-LIKE: Handle cell click for shift+click selection
+    // FIXED: Skip if a drag selection just happened (onCellClicked fires AFTER drag ends)
     const handleCellClick = useCallback((rowIndex: number, colId: string, shiftKey: boolean) => {
+        // ✅ FIX: If a drag selection just occurred, don't let onClick clear it
+        if (didDragSelectRef.current) {
+            didDragSelectRef.current = false;
+            return;
+        }
+
         if (shiftKey && rangeStartCellRef.current) {
             setSelectionRange({
                 startRow: rangeStartCellRef.current.rowIndex,
@@ -2743,7 +2774,6 @@ export default function OutboundPage() {
                 if (api) {
                     api.deselectAll();
                     api.stopEditing(true);
-                    api.refreshCells({ force: true });
                 }
                 toast('Selection cleared', { icon: '✓', duration: 1000 });
                 return;
@@ -4682,23 +4712,23 @@ export default function OutboundPage() {
 
                 return EDITABLE_COLUMNS.includes(field);
             },
-            // ⚡ EXCEL-LIKE: Optimized cell style for selection
+            // ⚡ EXCEL-LIKE: Optimized cell style for selection (SOLE source of selection styling)
+            // ✅ FIX: cellClass removed — stale CSS classes with !important persist across selections
             cellStyle: (params: any) => {
                 const bounds = selectionBoundsRef.current;
-                if (!bounds) return undefined;
+                if (!bounds) return null;
 
                 const rowIndex = params.rowIndex;
                 const colId = params.colDef?.field;
-                if (rowIndex === null || rowIndex === undefined || !colId) return undefined;
+                if (rowIndex === null || rowIndex === undefined || !colId) return null;
 
                 const currentColIndex = bounds.colIndexMap.get(colId);
-                if (currentColIndex === undefined) return undefined;
+                if (currentColIndex === undefined) return null;
 
                 const isInRowRange = rowIndex >= bounds.minRow && rowIndex <= bounds.maxRow;
                 const isInColRange = currentColIndex >= bounds.minCol && currentColIndex <= bounds.maxCol;
 
                 if (isInRowRange && isInColRange) {
-                    // Use consistent blue color matching CSS rules
                     const borderColor = isDarkMode ? '#60a5fa' : '#2563eb';
                     const bgColor = isDarkMode ? 'rgba(96, 165, 250, 0.35)' : 'rgba(37, 99, 235, 0.2)';
 
@@ -4714,31 +4744,7 @@ export default function OutboundPage() {
                     if (currentColIndex === bounds.maxCol) style.borderRight = `3px solid ${borderColor}`;
                     return style;
                 }
-                return undefined;
-            },
-            cellClass: (params: any) => {
-                const bounds = selectionBoundsRef.current;
-                if (!bounds) return '';
-
-                const rowIndex = params.rowIndex;
-                const colId = params.colDef?.field;
-                if (rowIndex === null || rowIndex === undefined || !colId) return '';
-
-                const currentColIndex = bounds.colIndexMap.get(colId);
-                if (currentColIndex === undefined) return '';
-
-                const isInRowRange = rowIndex >= bounds.minRow && rowIndex <= bounds.maxRow;
-                const isInColRange = currentColIndex >= bounds.minCol && currentColIndex <= bounds.maxCol;
-
-                if (isInRowRange && isInColRange) {
-                    const classes = ['custom-range-selected'];
-                    if (rowIndex === bounds.minRow) classes.push('custom-range-top');
-                    if (rowIndex === bounds.maxRow) classes.push('custom-range-bottom');
-                    if (currentColIndex === bounds.minCol) classes.push('custom-range-left');
-                    if (currentColIndex === bounds.maxCol) classes.push('custom-range-right');
-                    return classes.join(' ');
-                }
-                return '';
+                return null;
             },
         }),
         [gridDuplicateWSNs, crossWarehouseWSNs, isDarkMode, enableSorting, enableColumnFilters, enableColumnResize]
@@ -8231,6 +8237,9 @@ export default function OutboundPage() {
                             border: isDarkMode ? '1px solid #334155' : '2px solid #94a3b8',
                             bgcolor: isDarkMode ? '#1e293b' : '#ffffff',
                             boxShadow: isDarkMode ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.12)',
+                            // ✅ FIX: Prevent browser native text selection on grid cells during drag
+                            userSelect: 'none',
+                            WebkitUserSelect: 'none',
                             '& .ag-root-wrapper': { borderRadius: 0, backgroundColor: isDarkMode ? '#1e293b' : '#ffffff', border: 'none' },
 
                             // Professional dark header
@@ -8334,8 +8343,8 @@ export default function OutboundPage() {
                                     const colId = event.column?.getColId();
                                     if (rowIndex === null || rowIndex === undefined || !colId) return;
                                     const browserEvent = event.event as MouseEvent;
-                                    // Pass mouse button to handler (0 = left, 1 = middle, 2 = right)
-                                    handleCellMouseDown(rowIndex, colId, browserEvent?.shiftKey || false, browserEvent?.button ?? 0);
+                                    // Pass mouse button + browser event to handler for preventDefault
+                                    handleCellMouseDown(rowIndex, colId, browserEvent?.shiftKey || false, browserEvent?.button ?? 0, browserEvent);
                                 }}
                                 onCellMouseOver={(event) => {
                                     const rowIndex = event.rowIndex;
