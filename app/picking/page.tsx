@@ -226,7 +226,6 @@ export default function PickingPage() {
   // ⚡ EXCEL-LIKE: Track mouse drag state
   const isDraggingRef = useRef(false);
   const dragStartCellRef = useRef<{ rowIndex: number; colId: string } | null>(null);
-  const didDragSelectRef = useRef(false);
 
   // ⚡ EXCEL-LIKE: Undo/Redo support with batch operations
   interface UndoAction {
@@ -260,10 +259,10 @@ export default function PickingPage() {
   const selectionStatsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // ⚡ EXCEL-LIKE: Previous selection bounds for smart refresh
-  const prevSelectionBoundsRef = useRef<{ minRow: number; maxRow: number; minCol: number; maxCol: number } | null>(null);
+  const prevSelectionBoundsRef = useRef<{ minRow: number; maxRow: number } | null>(null);
 
-  // ⚡ PERF: Update selection refs + redraw ONLY changed rows WITHOUT triggering React re-render.
-  // Uses DELTA computation: only redraws rows that entered or left the selection rectangle.
+  // ⚡ PERF: Update selection refs + refresh cells WITHOUT triggering React re-render.
+  // Called directly during drag to avoid re-rendering the entire component on every mouseMove.
   const updateSelectionRange = useCallback((range: typeof selectedRange) => {
     selectedRangeRef.current = range;
 
@@ -347,45 +346,30 @@ export default function PickingPage() {
       setSelectionStats(null);
     }
 
-    // ⚡ SMART DELTA REDRAW: Only redraw rows whose selection state actually changed.
+    // Row-scoped refresh — only refreshes affected rows instead of entire grid
     const api = gridRef.current;
     if (api) {
       const bounds = selectionBoundsRef.current;
-      const prev = prevSelectionBoundsRef.current;
-      const rowsToRedraw = new Set<number>();
+      const prevBounds = prevSelectionBoundsRef.current;
+      const rowsToRefresh = new Set<number>();
 
-      if (bounds && prev) {
-        const { minRow: nMin, maxRow: nMax, minCol: nMinC, maxCol: nMaxC } = bounds;
-        const { minRow: oMin, maxRow: oMax, minCol: oMinC, maxCol: oMaxC } = prev;
-        for (let r = nMin; r <= nMax; r++) {
-          if (r < oMin || r > oMax) rowsToRedraw.add(r);
-        }
-        for (let r = oMin; r <= oMax; r++) {
-          if (r < nMin || r > nMax) rowsToRedraw.add(r);
-        }
-        if (nMinC !== oMinC || nMaxC !== oMaxC) {
-          const overlapMin = Math.max(nMin, oMin);
-          const overlapMax = Math.min(nMax, oMax);
-          for (let r = overlapMin; r <= overlapMax; r++) rowsToRedraw.add(r);
-        }
-      } else if (bounds) {
-        for (let r = bounds.minRow; r <= bounds.maxRow; r++) rowsToRedraw.add(r);
-      } else if (prev) {
-        for (let r = prev.minRow; r <= prev.maxRow; r++) rowsToRedraw.add(r);
+      if (bounds) {
+        for (let r = bounds.minRow; r <= bounds.maxRow; r++) rowsToRefresh.add(r);
+      }
+      if (prevBounds) {
+        for (let r = prevBounds.minRow; r <= prevBounds.maxRow; r++) rowsToRefresh.add(r);
       }
 
-      prevSelectionBoundsRef.current = bounds
-        ? { minRow: bounds.minRow, maxRow: bounds.maxRow, minCol: bounds.minCol, maxCol: bounds.maxCol }
-        : null;
+      prevSelectionBoundsRef.current = bounds ? { minRow: bounds.minRow, maxRow: bounds.maxRow } : null;
 
-      if (rowsToRedraw.size > 0) {
+      if (rowsToRefresh.size > 0) {
         const rowNodes: any[] = [];
-        rowsToRedraw.forEach((rowIndex) => {
+        rowsToRefresh.forEach((rowIndex) => {
           const node = api.getDisplayedRowAtIndex(rowIndex);
           if (node) rowNodes.push(node);
         });
         if (rowNodes.length > 0) {
-          api.redrawRows({ rowNodes });
+          api.refreshCells({ rowNodes, force: true });
         }
       }
     }
@@ -1303,10 +1287,9 @@ export default function PickingPage() {
 
   // ⚡ EXCEL-LIKE: Handle cell mouse down - start drag selection
   // FIXED: Only allow left mouse button (button === 0) for drag selection
-  const handleCellMouseDown = useCallback((rowIndex: number, colId: string, shiftKey: boolean, mouseButton: number, browserEvent?: MouseEvent) => {
+  const handleCellMouseDown = useCallback((rowIndex: number, colId: string, shiftKey: boolean, mouseButton: number) => {
+    // Only allow left mouse button (button === 0) for selection
     if (mouseButton !== 0) return;
-
-    if (browserEvent) browserEvent.preventDefault();
 
     if (shiftKey && rangeStartCellRef.current) {
       setSelectionRange({
@@ -1317,7 +1300,6 @@ export default function PickingPage() {
       });
     } else {
       isDraggingRef.current = true;
-      didDragSelectRef.current = false;
       dragStartCellRef.current = { rowIndex, colId };
       rangeStartCellRef.current = { rowIndex, colId };
       setSelectionRange(null);
@@ -1348,9 +1330,7 @@ export default function PickingPage() {
       return;
     }
 
-    didDragSelectRef.current = true;
-
-    // ⚡ PERF: Update refs + redraw only delta rows — no React re-render during drag
+    // ⚡ PERF: Update refs + refresh cells only — no React re-render during drag
     updateSelectionRange({
       startRow: startRow,
       endRow: rowIndex,
@@ -1361,11 +1341,6 @@ export default function PickingPage() {
 
   // ⚡ EXCEL-LIKE: Handle cell click for shift+click selection
   const handleCellClick = useCallback((rowIndex: number, colId: string, shiftKey: boolean) => {
-    if (didDragSelectRef.current) {
-      didDragSelectRef.current = false;
-      return;
-    }
-
     if (shiftKey && rangeStartCellRef.current) {
       setSelectionRange({
         startRow: rangeStartCellRef.current.rowIndex,
@@ -2611,7 +2586,7 @@ export default function PickingPage() {
         setGridDuplicateWSNs(new Set());
         setCrossWarehouseWSNs(new Set());
         // Clear draft in background - don't block UI
-        clearDraft().catch(() => {});
+        clearDraft().catch(() => { });
       } else if (successCount > 0) {
         // Partial success → remove only successful WSNs, keep failed rows
         const failedWSNs = new Set(errorEntries.map(e => e.wsn?.toUpperCase()));
@@ -2625,7 +2600,7 @@ export default function PickingPage() {
         const newRows = [...survivingRows, ...padding];
         setMultiRows(newRows);
         // Re-save draft with surviving rows in background - don't block UI
-        saveDraftImmediate(newRows).catch(() => {});
+        saveDraftImmediate(newRows).catch(() => { });
       }
       // else: successCount === 0 → keep all rows as-is, don't touch draft
 
@@ -2633,8 +2608,8 @@ export default function PickingPage() {
       pageCacheRef.current.clear();
       if (typeof window !== 'undefined') {
         delete window.__PICKING_LIST_CACHE__;
-        try { sessionStorage.removeItem('picking_list_cache'); } catch {}
-        try { sessionStorage.removeItem('picking_list_cache_warehouseId'); } catch {}
+        try { sessionStorage.removeItem('picking_list_cache'); } catch { }
+        try { sessionStorage.removeItem('picking_list_cache_warehouseId'); } catch { }
       }
 
       // Reload server-side data in parallel (always, so cache stays fresh)
@@ -3389,8 +3364,8 @@ export default function PickingPage() {
         pageCacheRef.current.clear();
         if (typeof window !== 'undefined') {
           delete window.__PICKING_LIST_CACHE__;
-          try { sessionStorage.removeItem('picking_list_cache'); } catch {}
-          try { sessionStorage.removeItem('picking_list_cache_warehouseId'); } catch {}
+          try { sessionStorage.removeItem('picking_list_cache'); } catch { }
+          try { sessionStorage.removeItem('picking_list_cache_warehouseId'); } catch { }
         }
 
         // Reload all data in parallel, bypass cache for fresh data
@@ -5971,8 +5946,6 @@ export default function PickingPage() {
                 overflow: 'hidden',
                 bgcolor: isDarkMode ? '#1e293b' : '#ffffff',
                 boxShadow: isDarkMode ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.12)',
-                userSelect: 'none',
-                WebkitUserSelect: 'none',
                 '& .ag-root-wrapper': { borderRadius: 0, height: '100%', backgroundColor: isDarkMode ? '#1e293b' : '#ffffff', border: 'none' },
 
                 // Professional dark header
@@ -6098,22 +6071,23 @@ export default function PickingPage() {
                     if (gridDuplicateWSNs.has(wsn)) return field === 'wsn';
                     return EDITABLE_COLUMNS.includes(field);
                   },
-                  // ⚡ EXCEL-LIKE: Optimized cell style for selection (SOLE source of selection styling)
+                  // ⚡ EXCEL-LIKE: Optimized cell style for selection
                   cellStyle: (params: any) => {
                     const bounds = selectionBoundsRef.current;
-                    if (!bounds) return null;
+                    if (!bounds) return undefined;
 
                     const rowIndex = params.rowIndex;
                     const colId = params.colDef?.field;
-                    if (rowIndex === null || rowIndex === undefined || !colId) return null;
+                    if (rowIndex === null || rowIndex === undefined || !colId) return undefined;
 
                     const currentColIndex = bounds.colIndexMap.get(colId);
-                    if (currentColIndex === undefined) return null;
+                    if (currentColIndex === undefined) return undefined;
 
                     const isInRowRange = rowIndex >= bounds.minRow && rowIndex <= bounds.maxRow;
                     const isInColRange = currentColIndex >= bounds.minCol && currentColIndex <= bounds.maxCol;
 
                     if (isInRowRange && isInColRange) {
+                      // Use consistent cyan color matching Outbound
                       const borderColor = isDarkMode ? '#22d3ee' : '#2563eb';
                       const bgColor = isDarkMode ? 'rgba(34, 211, 238, 0.25)' : 'rgba(37, 99, 235, 0.15)';
 
@@ -6129,7 +6103,31 @@ export default function PickingPage() {
                       if (currentColIndex === bounds.maxCol) style.borderRight = `3px solid ${borderColor}`;
                       return style;
                     }
-                    return null;
+                    return undefined;
+                  },
+                  cellClass: (params: any) => {
+                    const bounds = selectionBoundsRef.current;
+                    if (!bounds) return '';
+
+                    const rowIndex = params.rowIndex;
+                    const colId = params.colDef?.field;
+                    if (rowIndex === null || rowIndex === undefined || !colId) return '';
+
+                    const currentColIndex = bounds.colIndexMap.get(colId);
+                    if (currentColIndex === undefined) return '';
+
+                    const isInRowRange = rowIndex >= bounds.minRow && rowIndex <= bounds.maxRow;
+                    const isInColRange = currentColIndex >= bounds.minCol && currentColIndex <= bounds.maxCol;
+
+                    if (isInRowRange && isInColRange) {
+                      const classes = ['custom-range-selected'];
+                      if (rowIndex === bounds.minRow) classes.push('custom-range-top');
+                      if (rowIndex === bounds.maxRow) classes.push('custom-range-bottom');
+                      if (currentColIndex === bounds.minCol) classes.push('custom-range-left');
+                      if (currentColIndex === bounds.maxCol) classes.push('custom-range-right');
+                      return classes.join(' ');
+                    }
+                    return '';
                   },
                 }}
 
@@ -6140,7 +6138,7 @@ export default function PickingPage() {
                   if (rowIndex === null || rowIndex === undefined || !colId) return;
                   const browserEvent = event.event as MouseEvent;
                   // Pass mouse button to handler (0 = left, 1 = middle, 2 = right)
-                  handleCellMouseDown(rowIndex, colId, browserEvent?.shiftKey || false, browserEvent?.button ?? 0, browserEvent);
+                  handleCellMouseDown(rowIndex, colId, browserEvent?.shiftKey || false, browserEvent?.button ?? 0);
                 }}
                 onCellMouseOver={(event) => {
                   const rowIndex = event.rowIndex;

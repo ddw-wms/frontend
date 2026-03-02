@@ -395,6 +395,7 @@ export default function InboundPage() {
   // ---- Receiving WSNs Sync (for master data "Receiving" status) ----
   const receivingSyncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastSyncedWSNsRef = useRef<string>(''); // JSON string for comparison
+  const hasEverSyncedWSNsRef = useRef<boolean>(false); // Track if WSNs were ever synced (to handle deletion)
 
   // ---- Offline Warning Tracker ----
   const offlineWarningShownRef = useRef<boolean>(false);
@@ -1091,10 +1092,14 @@ export default function InboundPage() {
     // Skip if no change
     if (wsnsHash === lastSyncedWSNsRef.current) return;
 
-    // If no valid WSNs remain, clear them from DB (user deleted all WSNs)
+    // If all WSNs were removed but we previously had synced WSNs, clear them from DB
     if (wsns.length === 0) {
       lastSyncedWSNsRef.current = wsnsHash;
-      await clearReceivingWSNs();
+      if (hasEverSyncedWSNsRef.current) {
+        hasEverSyncedWSNsRef.current = false;
+        console.log('🗑️ All WSNs removed from grid — clearing receiving_wsns from DB');
+        clearReceivingWSNs();
+      }
       return;
     }
 
@@ -1105,6 +1110,7 @@ export default function InboundPage() {
         new Promise<void>((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000))
       ]);
       lastSyncedWSNsRef.current = wsnsHash;
+      hasEverSyncedWSNsRef.current = true;
       console.log('📡 Synced receiving WSNs:', wsns.length);
     } catch (err) {
       console.error('Failed to sync receiving WSNs', err);
@@ -1243,9 +1249,11 @@ export default function InboundPage() {
     // Skip if no warehouse selected
     if (!activeWarehouse?.id) return;
 
-    // Skip initial mount when draft hasn't loaded yet (avoid unnecessary API calls)
-    // Once draftLoadedRef is true, allow sync even when all WSNs are deleted (to clear DB)
-    if (!draftLoadedRef.current) return;
+    const hasAnyWSN = multiRows.some(r => r.wsn?.trim());
+
+    // Skip initial sync when rows are empty (before user ever entered anything)
+    // But allow sync if user previously had WSNs (to handle deletion from DB)
+    if (!hasAnyWSN && !hasEverSyncedWSNsRef.current) return;
 
     // Debounce sync (longer interval than draft save)
     if (receivingSyncTimeoutRef.current) clearTimeout(receivingSyncTimeoutRef.current);
@@ -2718,11 +2726,10 @@ export default function InboundPage() {
     endCol: string;
     colIndexMap: Map<string, number>;
   } | null>(null);
-  const prevSelectionBoundsRef = useRef<{ minRow: number; maxRow: number; minCol: number; maxCol: number } | null>(null);
+  const prevSelectionBoundsRef = useRef<{ minRow: number; maxRow: number } | null>(null);
 
-  // ⚡ PERF: Update selection refs + redraw ONLY changed rows WITHOUT triggering React re-render.
+  // ⚡ PERF: Update selection refs + redraw cells WITHOUT triggering React re-render.
   // Called directly during drag to avoid re-rendering the entire component on every mouseMove.
-  // Uses DELTA computation: only redraws rows that entered or left the selection rectangle.
   const updateSelectionRange = useCallback((range: typeof selectedRange) => {
     selectedRangeRef.current = range;
 
@@ -2755,55 +2762,32 @@ export default function InboundPage() {
       selectionBoundsRef.current = null;
     }
 
-    // ⚡ SMART DELTA REDRAW: Only redraw rows whose selection state actually changed.
-    // During drag this means ~1-2 rows per mouse move instead of the entire selection.
+    // Row-scoped redraw — uses redrawRows to fully recreate DOM (clearing stale classes/styles)
     const api = gridRef.current;
     if (api) {
       const bounds = selectionBoundsRef.current;
-      const prev = prevSelectionBoundsRef.current;
-      const rowsToRedraw = new Set<number>();
+      const prevBounds = prevSelectionBoundsRef.current;
+      const rowsToRefresh = new Set<number>();
 
-      if (bounds && prev) {
-        // Both exist: find rows that ENTERED or LEFT the selection
-        const { minRow: nMin, maxRow: nMax, minCol: nMinC, maxCol: nMaxC } = bounds;
-        const { minRow: oMin, maxRow: oMax, minCol: oMinC, maxCol: oMaxC } = prev;
-
-        // Rows newly included (in new range but NOT in old range)
-        for (let r = nMin; r <= nMax; r++) {
-          if (r < oMin || r > oMax) rowsToRedraw.add(r);
-        }
-        // Rows newly excluded (in old range but NOT in new range)
-        for (let r = oMin; r <= oMax; r++) {
-          if (r < nMin || r > nMax) rowsToRedraw.add(r);
-        }
-        // If column bounds changed, redraw overlapping rows (border edges moved)
-        if (nMinC !== oMinC || nMaxC !== oMaxC) {
-          const overlapMin = Math.max(nMin, oMin);
-          const overlapMax = Math.min(nMax, oMax);
-          for (let r = overlapMin; r <= overlapMax; r++) rowsToRedraw.add(r);
-        }
-      } else if (bounds) {
-        // New selection started — redraw all new rows
-        for (let r = bounds.minRow; r <= bounds.maxRow; r++) rowsToRedraw.add(r);
-      } else if (prev) {
-        // Selection cleared — redraw all old rows to remove styling
-        for (let r = prev.minRow; r <= prev.maxRow; r++) rowsToRedraw.add(r);
+      if (bounds) {
+        for (let r = bounds.minRow; r <= bounds.maxRow; r++) rowsToRefresh.add(r);
+      }
+      if (prevBounds) {
+        for (let r = prevBounds.minRow; r <= prevBounds.maxRow; r++) rowsToRefresh.add(r);
       }
 
-      prevSelectionBoundsRef.current = bounds
-        ? { minRow: bounds.minRow, maxRow: bounds.maxRow, minCol: bounds.minCol, maxCol: bounds.maxCol }
-        : null;
+      prevSelectionBoundsRef.current = bounds ? { minRow: bounds.minRow, maxRow: bounds.maxRow } : null;
 
-      if (rowsToRedraw.size > 0) {
+      if (rowsToRefresh.size > 0) {
         const rowNodes: any[] = [];
-        rowsToRedraw.forEach((rowIndex) => {
+        rowsToRefresh.forEach((rowIndex) => {
           const node = api.getDisplayedRowAtIndex(rowIndex);
           if (node) rowNodes.push(node);
         });
         if (rowNodes.length > 0) {
-          // ✅ FIX: Use redrawRows to fully recreate DOM elements.
-          // refreshCells does NOT clear old inline styles set by cellStyle,
-          // causing ghost selection highlights to persist across selections.
+          // ✅ FIX: Use redrawRows instead of refreshCells to fully recreate DOM elements.
+          // refreshCells does NOT re-evaluate cellClass and does NOT clear old inline styles,
+          // causing stale selection highlights (CSS classes with !important) to persist.
           api.redrawRows({ rowNodes });
         }
       }
@@ -3003,16 +2987,6 @@ export default function InboundPage() {
 
       setMultiRows(newRows);
       api.refreshCells({ force: true });
-
-      // ⚡ If any WSN cells were cleared, trigger immediate sync to remove from DB receiving table
-      const clearedAnyWSN = newRows.some((r: any, idx: number) => {
-        if (idx < startRow || idx > endRow) return false;
-        return multiRows[idx]?.wsn?.trim() && !r.wsn?.trim();
-      });
-      if (clearedAnyWSN) {
-        syncReceivingWSNs(newRows);
-      }
-
       toast.success(`Cleared ${clearedCount} cells`, { duration: 1500 });
       return;
     }
@@ -3039,11 +3013,6 @@ export default function InboundPage() {
 
     setMultiRows(newRows);
     api.refreshCells({ rowNodes: [api.getRowNode(String(rowIndex))], columns: [colId] });
-
-    // ⚡ If WSN was cleared, trigger immediate sync to remove from DB receiving table
-    if (colId === 'wsn' && oldValue?.trim()) {
-      syncReceivingWSNs(newRows);
-    }
   }, [multiRows, saveCellUndoAction]);
 
   // ✅ EXCEL ENHANCEMENT: Select All (Ctrl+A)
@@ -6988,7 +6957,6 @@ export default function InboundPage() {
                     boxShadow: isDarkMode ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.06)',
                     flexShrink: 0, // Don't shrink this card
                     mb: 1,
-                    mt: 1.5,
                     bgcolor: isDarkMode ? '#1e293b' : 'white',
                     overflow: 'visible', // Allow content to overflow for scrolling
                   }}
