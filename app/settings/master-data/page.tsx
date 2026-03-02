@@ -1218,7 +1218,18 @@ export default function MasterDataPage() {
 
           if (prog.status === 'completed') {
             const dupInfo = prog.duplicateCount > 0 ? ` | ${formatNumber(prog.duplicateCount)} duplicates` : '';
-            toast.success(`✓ Upload complete! ${formatNumber(prog.successCount)} records added${dupInfo}`, { duration: 5000 });
+            // ✅ Show validation rejection warning if rows were rejected
+            if (prog.error && prog.error.includes('rejected')) {
+              toast(`⚠️ Upload complete with warnings: ${formatNumber(prog.successCount)} records added${dupInfo}`, {
+                duration: 8000,
+                icon: '⚠️',
+                style: { fontWeight: 600 }
+              });
+              setUploadError(prog.error);
+              setUploadDialogOpen(true);
+            } else {
+              toast.success(`✓ Upload complete! ${formatNumber(prog.successCount)} records added${dupInfo}`, { duration: 5000 });
+            }
             loadMasterData();
             loadBatches();
           } else {

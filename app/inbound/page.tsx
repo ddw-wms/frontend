@@ -1556,7 +1556,8 @@ export default function InboundPage() {
             });
           }
 
-          // Apply master data for valid WSNs
+          // Apply master data for valid WSNs, clear WSNs without master data
+          const noMasterDataWSNs = new Set<string>();
           validPastedCells.forEach(({ rowIndex: rIdx, wsn }) => {
             if (rIdx < updated.length) {
               const masterInfo = masterDataMap.get(wsn);
@@ -1565,6 +1566,11 @@ export default function InboundPage() {
                 ALL_MASTER_COLUMNS.forEach(col => {
                   updated[rIdx][col] = masterInfo[col] || null;
                 });
+              } else {
+                // ✅ WSN not found in master data — clear it
+                noMasterDataWSNs.add(wsn);
+                updated[rIdx] = { ...updated[rIdx], wsn: '' };
+                ALL_MASTER_COLUMNS.forEach(col => { updated[rIdx][col] = null; });
               }
             }
           });
@@ -1588,7 +1594,11 @@ export default function InboundPage() {
           const found = masterDataMap.size;
           const notFound = validUniqueWSNs.length - found;
           if (notFound > 0) {
-            toast(`Master data: ${found} found, ${notFound} not found`, { duration: 3000, icon: 'ℹ️' });
+            toast.error(`${notFound} WSN(s) not found in master data — removed from grid. Upload product data first.`, {
+              duration: 6000,
+              style: { fontWeight: 600, fontSize: '14px' },
+              icon: '❌'
+            });
           } else if (found > 0) {
             toast.success(`Master data loaded for ${found} WSN${found > 1 ? 's' : ''}`, { duration: 2000 });
           }
@@ -2325,6 +2335,15 @@ export default function InboundPage() {
       return;
     }
 
+    // ✅ Block submit if master data not found for this WSN
+    if (!masterData) {
+      toast.error('WSN not found in master data. Upload product data first before inbounding.', {
+        duration: 5000,
+        icon: '❌'
+      });
+      return;
+    }
+
     // ⚡ OFFLINE CHECK: Prevent submit when offline
     const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
     if (!isOnline) {
@@ -2698,10 +2717,11 @@ export default function InboundPage() {
     endCol: string;
     colIndexMap: Map<string, number>;
   } | null>(null);
-  const prevSelectionBoundsRef = useRef<{ minRow: number; maxRow: number } | null>(null);
+  const prevSelectionBoundsRef = useRef<{ minRow: number; maxRow: number; minCol: number; maxCol: number } | null>(null);
 
-  // ⚡ PERF: Update selection refs + refresh cells WITHOUT triggering React re-render.
+  // ⚡ PERF: Update selection refs + redraw ONLY changed rows WITHOUT triggering React re-render.
   // Called directly during drag to avoid re-rendering the entire component on every mouseMove.
+  // Uses DELTA computation: only redraws rows that entered or left the selection rectangle.
   const updateSelectionRange = useCallback((range: typeof selectedRange) => {
     selectedRangeRef.current = range;
 
@@ -2734,30 +2754,56 @@ export default function InboundPage() {
       selectionBoundsRef.current = null;
     }
 
-    // Row-scoped refresh — only refreshes affected rows instead of entire grid
+    // ⚡ SMART DELTA REDRAW: Only redraw rows whose selection state actually changed.
+    // During drag this means ~1-2 rows per mouse move instead of the entire selection.
     const api = gridRef.current;
     if (api) {
       const bounds = selectionBoundsRef.current;
-      const prevBounds = prevSelectionBoundsRef.current;
-      const rowsToRefresh = new Set<number>();
+      const prev = prevSelectionBoundsRef.current;
+      const rowsToRedraw = new Set<number>();
 
-      if (bounds) {
-        for (let r = bounds.minRow; r <= bounds.maxRow; r++) rowsToRefresh.add(r);
+      if (bounds && prev) {
+        // Both exist: find rows that ENTERED or LEFT the selection
+        const { minRow: nMin, maxRow: nMax, minCol: nMinC, maxCol: nMaxC } = bounds;
+        const { minRow: oMin, maxRow: oMax, minCol: oMinC, maxCol: oMaxC } = prev;
+
+        // Rows newly included (in new range but NOT in old range)
+        for (let r = nMin; r <= nMax; r++) {
+          if (r < oMin || r > oMax) rowsToRedraw.add(r);
+        }
+        // Rows newly excluded (in old range but NOT in new range)
+        for (let r = oMin; r <= oMax; r++) {
+          if (r < nMin || r > nMax) rowsToRedraw.add(r);
+        }
+        // If column bounds changed, redraw overlapping rows (border edges moved)
+        if (nMinC !== oMinC || nMaxC !== oMaxC) {
+          const overlapMin = Math.max(nMin, oMin);
+          const overlapMax = Math.min(nMax, oMax);
+          for (let r = overlapMin; r <= overlapMax; r++) rowsToRedraw.add(r);
+        }
+      } else if (bounds) {
+        // New selection started — redraw all new rows
+        for (let r = bounds.minRow; r <= bounds.maxRow; r++) rowsToRedraw.add(r);
+      } else if (prev) {
+        // Selection cleared — redraw all old rows to remove styling
+        for (let r = prev.minRow; r <= prev.maxRow; r++) rowsToRedraw.add(r);
       }
-      if (prevBounds) {
-        for (let r = prevBounds.minRow; r <= prevBounds.maxRow; r++) rowsToRefresh.add(r);
-      }
 
-      prevSelectionBoundsRef.current = bounds ? { minRow: bounds.minRow, maxRow: bounds.maxRow } : null;
+      prevSelectionBoundsRef.current = bounds
+        ? { minRow: bounds.minRow, maxRow: bounds.maxRow, minCol: bounds.minCol, maxCol: bounds.maxCol }
+        : null;
 
-      if (rowsToRefresh.size > 0) {
+      if (rowsToRedraw.size > 0) {
         const rowNodes: any[] = [];
-        rowsToRefresh.forEach((rowIndex) => {
+        rowsToRedraw.forEach((rowIndex) => {
           const node = api.getDisplayedRowAtIndex(rowIndex);
           if (node) rowNodes.push(node);
         });
         if (rowNodes.length > 0) {
-          api.refreshCells({ rowNodes, force: true });
+          // ✅ FIX: Use redrawRows to fully recreate DOM elements.
+          // refreshCells does NOT clear old inline styles set by cellStyle,
+          // causing ghost selection highlights to persist across selections.
+          api.redrawRows({ rowNodes });
         }
       }
     }
@@ -3047,12 +3093,17 @@ export default function InboundPage() {
   // ⚡ EXCEL-LIKE: Track mouse drag state for multi-cell selection
   const isDraggingRef = useRef(false);
   const dragStartCellRef = useRef<{ rowIndex: number; colId: string } | null>(null);
+  // Track if a drag selection actually occurred (moved to a different cell)
+  const didDragSelectRef = useRef(false);
 
   // ✅ EXCEL ENHANCEMENT: Handle cell mouse down - start drag selection
   // FIXED: Only allow left mouse button (button === 0) for drag selection
-  const handleCellMouseDown = useCallback((rowIndex: number, colId: string, shiftKey: boolean, mouseButton: number) => {
+  const handleCellMouseDown = useCallback((rowIndex: number, colId: string, shiftKey: boolean, mouseButton: number, browserEvent?: MouseEvent) => {
     // Only allow left mouse button (button === 0) for selection
     if (mouseButton !== 0) return;
+
+    // ✅ FIX: Prevent browser native text selection during drag to avoid ghost highlights
+    if (browserEvent) browserEvent.preventDefault();
 
     if (shiftKey && rangeStartCellRef.current) {
       // Shift+Click: Extend selection from start cell to this cell
@@ -3065,6 +3116,7 @@ export default function InboundPage() {
     } else {
       // Start new drag selection - just set anchor, don't create selection yet
       isDraggingRef.current = true;
+      didDragSelectRef.current = false;
       dragStartCellRef.current = { rowIndex, colId };
       rangeStartCellRef.current = { rowIndex, colId };
       // Clear any existing selection on new click
@@ -3097,7 +3149,10 @@ export default function InboundPage() {
       return;
     }
 
-    // ⚡ PERF: Update refs + refresh cells only — no React re-render during drag
+    // Mark that a real drag selection happened (moved to different cell)
+    didDragSelectRef.current = true;
+
+    // ⚡ PERF: Update refs + redraw cells only — no React re-render during drag
     updateSelectionRange({
       startRow: startRow,
       endRow: rowIndex,
@@ -3120,8 +3175,15 @@ export default function InboundPage() {
     return () => window.removeEventListener('mouseup', handleMouseUp);
   }, []);
 
-  // ✅ EXCEL ENHANCEMENT: Handle Shift+Click for range selection (legacy - keep for compatibility)
+  // ✅ EXCEL ENHANCEMENT: Handle Shift+Click for range selection
+  // FIXED: Skip if a drag selection just happened (onCellClicked fires AFTER drag ends)
   const handleCellClick = useCallback((rowIndex: number, colId: string, shiftKey: boolean) => {
+    // ✅ FIX: If a drag selection just occurred, don't let onClick clear it
+    if (didDragSelectRef.current) {
+      didDragSelectRef.current = false;
+      return;
+    }
+
     if (shiftKey && rangeStartCellRef.current) {
       // Extend selection from start cell to this cell
       setSelectionRange({
@@ -3374,7 +3436,6 @@ export default function InboundPage() {
         if (api) {
           api.deselectAll();
           api.stopEditing(true);  // Cancel any cell editing
-          api.refreshCells({ force: true });
         }
         toast('Selection cleared', { icon: '✓', duration: 1000 });
         return;
@@ -4107,6 +4168,23 @@ export default function InboundPage() {
 
     if (hasGridDup) {
       toast.error('Duplicate WSN in grid');
+      return;
+    }
+
+    // ✅ Pre-submit validation: Check for WSNs without master data
+    const rowsWithoutMasterData = filtered.filter((r: any) => {
+      // A row has no master data if product_title is empty/null (it's always present in master_data)
+      return !r.product_title || String(r.product_title).trim() === '';
+    });
+
+    if (rowsWithoutMasterData.length > 0) {
+      const wsnsWithout = rowsWithoutMasterData.slice(0, 10).map((r: any) => r.wsn).join(', ');
+      const moreText = rowsWithoutMasterData.length > 10 ? ` and ${rowsWithoutMasterData.length - 10} more` : '';
+      toast.error(`${rowsWithoutMasterData.length} WSN(s) have no master data: ${wsnsWithout}${moreText}. Remove them or upload product data first.`, {
+        duration: 8000,
+        style: { fontWeight: 600, fontSize: '13px' },
+        icon: '❌'
+      });
       return;
     }
 
@@ -5010,7 +5088,30 @@ export default function InboundPage() {
           // If no master data found, move to next row (may not have moved yet)
           if (!masterInfo) {
             console.log('WSN not found in master data');
-            moveToNextRow();
+            toast.error(`WSN ${wsnUpper} not found in master data. Upload product data first.`, {
+              duration: 4000,
+              icon: '❌'
+            });
+
+            // ✅ Clear the WSN from grid — don't allow entries without master data
+            setMultiRows(prev => {
+              const updated = [...prev];
+              if (updated[rowIndex]) {
+                updated[rowIndex] = { ...updated[rowIndex], wsn: '' };
+                ALL_MASTER_COLUMNS.forEach((col) => {
+                  updated[rowIndex][col] = null;
+                });
+              }
+              return updated;
+            });
+
+            // Re-focus on same cell for retry
+            setTimeout(() => {
+              event.api.startEditingCell({
+                rowIndex: rowIndex,
+                colKey: 'wsn',
+              });
+            }, 100);
             return;
           }
 
@@ -5143,21 +5244,22 @@ export default function InboundPage() {
         }}>
 
           {/* ==================== MAIN CONTENT AREA ==================== */}
-          <Paper
-            sx={{
-              p: 0,
-              borderRadius: 2,
-              boxShadow: isDarkMode ? '0 4px 20px rgba(0,0,0,0.3)' : '0 4px 20px rgba(0,0,0,0.08)',
-              transition: 'opacity 0.15s ease-in-out',
-              background: isDarkMode ? '#0f172a' : '#f8fafc',
-              flex: 1,
-              display: 'flex',
-              flexDirection: 'column',
-              //overflow: 'hidden',
-            }}
-          >
-            {/* ==================== TAB: INBOUND LIST ==================== */}
-            {visibleTabCodes[tabValue] === 'list' && (
+          {visibleTabCodes[tabValue] === 'list' && (
+            <Paper
+              sx={{
+                p: 0,
+                borderRadius: 2,
+                boxShadow: isDarkMode ? '0 4px 20px rgba(0,0,0,0.3)' : '0 4px 20px rgba(0,0,0,0.08)',
+                transition: 'opacity 0.15s ease-in-out',
+                background: isDarkMode ? '#0f172a' : '#f8fafc',
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                //overflow: 'hidden',
+              }}
+            >
+              {/* ==================== TAB: INBOUND LIST ==================== */}
+
               <Box
                 sx={{
                   background: isDarkMode ? '#0f172a' : '#f8fafc',
@@ -6352,9 +6454,8 @@ export default function InboundPage() {
 
 
               </Box>
-            )
-            }
-          </Paper >
+            </Paper >
+          )}
 
           {/* TAB: SINGLE ENTRY */}
           {
@@ -6558,7 +6659,7 @@ export default function InboundPage() {
                           variant="contained"
                           size="small"
                           onClick={handleSingleSubmit}
-                          disabled={singleLoading}
+                          disabled={singleLoading || (!!singleWSN.trim() && !masterData)}
                           sx={{
                             background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
                             py: { xs: 0.9, sm: 0.8 },
@@ -6566,7 +6667,7 @@ export default function InboundPage() {
                             fontWeight: 700
                           }}
                         >
-                          ✓ Add Entry
+                          {(!!singleWSN.trim() && !masterData) ? '⚠ No Master Data' : '✓ Add Entry'}
                         </Button>
                       )}
                     </Stack>
@@ -6871,6 +6972,7 @@ export default function InboundPage() {
                     boxShadow: isDarkMode ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.06)',
                     flexShrink: 0, // Don't shrink this card
                     mb: 1,
+                    mt: 1.5,
                     bgcolor: isDarkMode ? '#1e293b' : 'white',
                     overflow: 'visible', // Allow content to overflow for scrolling
                   }}
@@ -7571,6 +7673,10 @@ export default function InboundPage() {
                     overflow: 'hidden',
                     bgcolor: isDarkMode ? '#1e293b' : '#ffffff',
                     boxShadow: isDarkMode ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.12)',
+                    // ✅ FIX: Prevent browser native text selection on grid cells during drag
+                    // This stops ghost selections (blue highlights) that overlap with custom cyan selection
+                    userSelect: 'none',
+                    WebkitUserSelect: 'none',
                     // Prevent white flash in dark mode - target all possible AG Grid containers
                     '& *': { transition: 'none !important' },
                     '& .ag-theme-quartz, & .ag-theme-quartz-dark': { backgroundColor: isDarkMode ? '#1e293b !important' : '#ffffff !important' },
@@ -7811,17 +7917,20 @@ export default function InboundPage() {
                       },
                       // ⚡ EXCEL-LIKE: Cell style for precise rectangular selection highlighting (OPTIMIZED)
                       // Uses pre-computed selectionBoundsRef for O(1) lookups instead of O(n) column search
+                      // ✅ FIX: This is the SOLE source of selection styling. cellClass was removed because
+                      // AG Grid's refreshCells/redrawRows can leave stale CSS classes with !important that
+                      // override inline styles, causing ghost selections to persist.
                       cellStyle: (params: any) => {
                         const bounds = selectionBoundsRef.current;
-                        if (!bounds) return undefined;
+                        if (!bounds) return null;
 
                         const rowIndex = params.rowIndex;
                         const colId = params.colDef?.field;
-                        if (rowIndex === null || rowIndex === undefined || !colId) return undefined;
+                        if (rowIndex === null || rowIndex === undefined || !colId) return null;
 
                         // Fast O(1) lookup from pre-computed map
                         const currentColIndex = bounds.colIndexMap.get(colId);
-                        if (currentColIndex === undefined) return undefined;
+                        if (currentColIndex === undefined) return null;
 
                         // Check if cell is within the rectangular selection range
                         const isInRowRange = rowIndex >= bounds.minRow && rowIndex <= bounds.maxRow;
@@ -7848,39 +7957,12 @@ export default function InboundPage() {
                           return style;
                         }
 
-                        return undefined;
-                      },
-                      // ⚡ EXCEL-LIKE: Add CSS class for selected cells (OPTIMIZED)
-                      cellClass: (params: any) => {
-                        const bounds = selectionBoundsRef.current;
-                        if (!bounds) return '';
-
-                        const rowIndex = params.rowIndex;
-                        const colId = params.colDef?.field;
-                        if (rowIndex === null || rowIndex === undefined || !colId) return '';
-
-                        // Fast O(1) lookup from pre-computed map
-                        const currentColIndex = bounds.colIndexMap.get(colId);
-                        if (currentColIndex === undefined) return '';
-
-                        const isInRowRange = rowIndex >= bounds.minRow && rowIndex <= bounds.maxRow;
-                        const isInColRange = currentColIndex >= bounds.minCol && currentColIndex <= bounds.maxCol;
-
-                        if (isInRowRange && isInColRange) {
-                          const classes = ['custom-range-selected'];
-                          if (rowIndex === bounds.minRow) classes.push('custom-range-top');
-                          if (rowIndex === bounds.maxRow) classes.push('custom-range-bottom');
-                          if (currentColIndex === bounds.minCol) classes.push('custom-range-left');
-                          if (currentColIndex === bounds.maxCol) classes.push('custom-range-right');
-                          return classes.join(' ');
-                        }
-
-                        return '';
+                        return null;
                       },
                     }}
 
                     // ⚡ CLIPBOARD & SELECTION FEATURES
-                    enableCellTextSelection={true}
+                    enableCellTextSelection={false}
                     suppressCopyRowsToClipboard={false}
                     rowSelection={undefined}
                     suppressRowDeselection={false}
@@ -7922,8 +8004,8 @@ export default function InboundPage() {
                       if (rowIndex === null || rowIndex === undefined || !colId) return;
 
                       const browserEvent = event.event as MouseEvent;
-                      // Pass mouse button to handler (0 = left, 1 = middle, 2 = right)
-                      handleCellMouseDown(rowIndex, colId, browserEvent?.shiftKey || false, browserEvent?.button ?? 0);
+                      // Pass mouse button + browser event to handler for preventDefault
+                      handleCellMouseDown(rowIndex, colId, browserEvent?.shiftKey || false, browserEvent?.button ?? 0, browserEvent);
                     }}
 
                     // ⚡ EXCEL-LIKE: Handle cell mouse over for drag selection extend
@@ -8212,7 +8294,6 @@ export default function InboundPage() {
                       onDelete={() => {
                         setSelectionRange(null);
                         rangeStartCellRef.current = null;
-                        gridRef.current?.refreshCells({ force: true });
                       }}
                       sx={{
                         fontWeight: 600,
