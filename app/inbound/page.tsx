@@ -8321,15 +8321,37 @@ export default function InboundPage() {
                           }
                         }
 
-                        // Clear selection (Excel behavior)
-                        setSelectionRange(null);
+                        // ⚡ FLICKER-FREE: Clear selection via REFS only — no React re-render during navigation.
+                        // React re-render from setSelectedRange() disrupts AG Grid's internal focus tracking,
+                        // causing subsequent plain arrow keys to scroll instead of moving focus.
+                        const hadSelection = !!selectedRangeRef.current;
+                        if (hadSelection) {
+                          selectedRangeRef.current = null;
+                          if (rafIdRef.current) { cancelAnimationFrame(rafIdRef.current); rafIdRef.current = 0; }
+                          const prevBounds = prevBoundsFullRef.current;
+                          selectionBoundsRef.current = null;
+                          prevBoundsFullRef.current = null;
+                          if (prevBounds) {
+                            const rowNodes: any[] = [];
+                            for (let r = prevBounds.minRow; r <= prevBounds.maxRow; r++) {
+                              const node = api.getDisplayedRowAtIndex(r);
+                              if (node) rowNodes.push(node);
+                            }
+                            if (rowNodes.length > 0) api.refreshCells({ rowNodes, force: true });
+                          }
+                        }
                         rangeStartCellRef.current = { rowIndex: targetRow, colId: targetCol.getColId() };
 
-                        // Scroll + focus — mark as auto-scroll so onBodyScroll ignores it
+                        // Scroll + focus — sync, then defer React state update so re-render doesn't steal focus
                         isAutoScrollingRef.current = true;
                         api.ensureIndexVisible(targetRow);
+                        api.ensureColumnVisible(targetCol);
                         api.setFocusedCell(targetRow, targetCol);
-                        setTimeout(() => { isAutoScrollingRef.current = false; }, 100);
+                        setTimeout(() => {
+                          isAutoScrollingRef.current = false;
+                          // Sync React state AFTER focus is fully settled
+                          if (hadSelection) setSelectedRange(null);
+                        }, 120);
                         return;
                       }
 
