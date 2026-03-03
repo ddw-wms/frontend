@@ -4460,32 +4460,34 @@ export default function InboundPage() {
   };
 
   //multi entry column width config - default widths for each column, can be overridden by user resizing (saved in multiColumnWidths)
+  // ⚡ All columns use minWidth (not width) so defaultColDef flex:1 can stretch them to fill the grid.
+  // product_title gets flex:2 for extra space. No empty gap on any screen size.
   const COLUMN_WIDTHS: Record<string, any> = useMemo(() => ({
-    wsn: { width: 80 },
-    product_serial_number: { width: 120 },
-    rack_no: { width: 30 },
-    unload_remarks: { width: 120 },
+    wsn: { minWidth: 80 },
+    product_serial_number: { minWidth: 120 },
+    rack_no: { minWidth: 30 },
+    unload_remarks: { minWidth: 120 },
 
     // ---- MASTER / READ ONLY COLUMNS ----
-    wid: { width: 80 },
-    fsn: { width: 100 },
-    order_id: { width: 70 },
+    wid: { minWidth: 80 },
+    fsn: { minWidth: 100 },
+    order_id: { minWidth: 70 },
 
     product_title: { flex: 2, minWidth: 220 },
-    brand: { width: 100 },
-    cms_vertical: { width: 100 },
-    mrp: { width: 60 },
-    fsp: { width: 60 },
-    hsn_sac: { width: 80 },
-    igst_rate: { width: 40 },
-    fkqc_remark: { width: 50 },
-    p_type: { width: 100 },
-    p_size: { width: 80 },
-    vrp: { width: 70 },
-    yield_value: { width: 60 },
-    fk_grade: { width: 50 },
-    inbound_date: { width: 90 },
-    fkt_link: { width: 50 },
+    brand: { minWidth: 100 },
+    cms_vertical: { minWidth: 100 },
+    mrp: { minWidth: 60 },
+    fsp: { minWidth: 60 },
+    hsn_sac: { minWidth: 80 },
+    igst_rate: { minWidth: 40 },
+    fkqc_remark: { minWidth: 50 },
+    p_type: { minWidth: 100 },
+    p_size: { minWidth: 80 },
+    vrp: { minWidth: 70 },
+    yield_value: { minWidth: 60 },
+    fk_grade: { minWidth: 50 },
+    inbound_date: { minWidth: 90 },
+    fkt_link: { minWidth: 50 },
   }), []);
 
 
@@ -4566,22 +4568,23 @@ export default function InboundPage() {
         editable: isEditable,
         resizable: true,
         minWidth: 50,
-        ...(savedWidth ? { width: savedWidth } : {}),
+        // ⚡ Saved widths become minWidth (not width) so flex from defaultColDef can still stretch
+        ...(savedWidth ? { minWidth: savedWidth } : {}),
       };
 
-      const columnWidthConfig = savedWidth ? {} : (COLUMN_WIDTHS[col] || {});
+      const columnWidthConfig = COLUMN_WIDTHS[col] || {};
 
       if (col === 'rack_no' && isEditable) {
         return {
           ...baseColDef,
-          width: savedWidth || 110,
+          minWidth: savedWidth || 110,
           cellEditor: 'agSelectCellEditor',
           cellEditorParams: { values: racks.map(r => r.rack_name) }
         };
       } else if (col.includes('date')) {
         return {
           ...baseColDef,
-          width: savedWidth || 130,
+          minWidth: savedWidth || 130,
           cellDataType: 'date'
         };
       } else {
@@ -7847,6 +7850,8 @@ export default function InboundPage() {
                     onGridReady={(params: any) => {
                       gridRef.current = params.api;
                       columnApiRef.current = params.columnApi;
+                      // ⚡ Ensure grid fills full width immediately
+                      try { params.api.sizeColumnsToFit(); } catch { /* ignore */ }
                     }}
                     onModelUpdated={(params: any) => {
                       try {
@@ -7898,6 +7903,7 @@ export default function InboundPage() {
                     overlayNoRowsTemplate='<span style="padding: 20px; font-size: 14px; color: #666;">Click on any cell to start entering data</span>'
 
                     defaultColDef={{
+                      flex: 1,  // ⚡ All columns flex to fill grid width — no empty space on any screen
                       sortable: multiGridSettings.sortable,  // ✅ Multi Entry Settings
                       filter: multiGridSettings.filter,      // ✅ Multi Entry Settings
                       resizable: multiGridSettings.resizable, // ✅ Multi Entry Settings
