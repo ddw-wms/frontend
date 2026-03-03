@@ -6453,9 +6453,11 @@ export default function OutboundPage() {
                             display: 'flex',
                             flexDirection: 'column',
                             flex: 1,
+                            mt: 1,
                             minHeight: 0,
                             overflow: 'hidden',
-                            bgcolor: isDarkMode ? '#0f172a' : '#f5f7fa',
+                            bgcolor: isDarkMode ? 'transparent' : '#f5f7fa',
+
                             // Prevent white flash during tab switch
                             '& *': { transition: 'none !important' },
                             '& .ag-root-wrapper': { backgroundColor: isDarkMode ? '#1e293b !important' : '#ffffff !important' },
@@ -6463,7 +6465,12 @@ export default function OutboundPage() {
 
                         {/* Common Fields */}
                         <Card sx={{ mb: 0.5, borderRadius: 1, boxShadow: isDarkMode ? '0 1px 3px rgba(0,0,0,0.3)' : '0 1px 3px rgba(0,0,0,0.05)', bgcolor: isDarkMode ? '#1e293b' : 'white' }}>
-                            <CardContent sx={{ p: { xs: 1.5, md: 1 }, pt: { xs: 2, md: 1 }, '&:last-child': { pb: { xs: 1.5, md: 1 } } }}>
+                            <CardContent sx={{
+                                p: {
+                                    xs: 1.5,
+                                    md: 1
+                                }, pt: { xs: 2, md: 1 }, '&:last-child': { pb: { xs: 1.5, md: 1 } }
+                            }}>
                                 {isMobile ? (
                                     /* MOBILE: Single Row - Scrollable Inputs + Fixed Buttons */
                                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, width: '100%', mt: 1 }}>
@@ -6480,6 +6487,7 @@ export default function OutboundPage() {
                                                     color: isDarkMode ? '#64748b' : '#94a3b8',
                                                     fontSize: '0.7rem',
                                                     flexShrink: 0,
+
                                                 }}
                                             >
                                                 ◀
@@ -6616,7 +6624,11 @@ export default function OutboundPage() {
                                     /* Desktop: Clean Single Row Layout - like Inbound */
                                     <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
                                         {/* LEFT: Input Fields */}
-                                        <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', flex: 1, maxWidth: 550 }}>
+                                        <Stack direction="row" spacing={1.5} sx={{
+                                            alignItems: 'center', flex: 1,
+
+                                            maxWidth: 550
+                                        }}>
                                             <TextField
                                                 label="Dispatch Date *"
                                                 type="date"
@@ -6634,7 +6646,10 @@ export default function OutboundPage() {
                                                     }
                                                 }}
                                             />
-                                            <Box sx={{ flex: 1, minWidth: 180, maxWidth: 240 }}>
+                                            <Box sx={{
+                                                flex: 1, minWidth: 180,
+                                                maxWidth: 240
+                                            }}>
                                                 <CustomerAutocomplete
                                                     value={selectedCustomer}
                                                     onChange={(newValue) => setSelectedCustomer(newValue)}

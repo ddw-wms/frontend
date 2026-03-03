@@ -1799,812 +1799,823 @@ export default function DashboardPage() {
           </Box>
 
 
-          {/* ================= FILTER BAR ================= */}
+          {/* ================= STICKY WRAPPER: FILTER BAR + TABLE ================= */}
           <Box
             sx={{
-              mb: 0.5,
-              background: isDarkMode ? '#0f172a' : '#f8fafc',
-              py: { xs: 0.5, sm: 0.75, md: 0.95 },
-              display: "flex",
-              flexDirection: "column",
-              gap: { xs: 0.1, md: 1.0 },
-              flexShrink: 0,
-              borderBottom: 'transparent',
               position: 'sticky',
               top: 0,
               zIndex: 10,
-              boxShadow: { md: isDarkMode ? '0 4px 12px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.08)' },
-
-              // Paste inside the existing sx object
-              '& .MuiOutlinedInput-root': {
-                bgcolor: 'transparent !important',
-                boxShadow: 'none !important',
-                '&:hover': { bgcolor: 'transparent !important' },
-                '&.Mui-focused': { bgcolor: 'transparent !important', boxShadow: 'none !important' },
-              },
-              '& .MuiOutlinedInput-input': {
-                background: 'transparent !important',
-              },
-              '& input[type="date"], & .MuiOutlinedInput-input[type="date"], & .MuiInputBase-input[type="date"]': {
-                background: 'transparent !important',
-                color: 'inherit !important',
-                WebkitAppearance: 'none !important',
-                MozAppearance: 'textfield !important',
-                appearance: 'none !important',
-                borderRadius: '6px !important',
-                padding: '0 6px !important',
-              },
-              '& input[type="date"]::-webkit-datetime-edit, & input[type="date"]::-webkit-datetime-edit-text, & input[type="date"]::-webkit-datetime-edit-month-field, & input[type="date"]::-webkit-datetime-edit-day-field, & input[type="date"]::-webkit-datetime-edit-year-field': {
-                background: 'transparent !important',
-                color: 'inherit !important',
-              },
-              '& input[type="date"]::-webkit-calendar-picker-indicator': {
-                WebkitAppearance: 'none',
-                appearance: 'none',
-                background: 'transparent',
-                padding: 0,
-                margin: 0,
-              },
-              '& input:-webkit-autofill': {
-                WebkitBoxShadow: '0 0 0 1000px transparent inset',
-                boxShadow: '0 0 0 1000px transparent inset',
-                WebkitTextFillColor: 'inherit',
-              },
+              display: 'flex',
+              flexDirection: 'column',
+              height: 'calc(100vh - 90px)',
+              flexShrink: 0,
+              background: isDarkMode ? '#0f172a' : '#f8fafc',
             }}
-
           >
-            {/* TOP ROW: Search + Pivot + Menu/Reset */}
+
+            {/* ================= FILTER BAR ================= */}
             <Box
               sx={{
+                mb: 0.5,
+                background: isDarkMode ? '#0f172a' : '#f8fafc',
+                py: { xs: 0.5, sm: 0.75, md: 0.95 },
                 display: "flex",
-                flexDirection: "row",
-                gap: { xs: 0.75, md: 1 },
-                alignItems: "center",
+                flexDirection: "column",
+                gap: { xs: 0.1, md: 1.0 },
+                flexShrink: 0,
+                borderBottom: 'transparent',
+                boxShadow: { md: isDarkMode ? '0 4px 12px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.08)' },
+
+                // Paste inside the existing sx object
+                '& .MuiOutlinedInput-root': {
+                  bgcolor: 'transparent !important',
+                  boxShadow: 'none !important',
+                  '&:hover': { bgcolor: 'transparent !important' },
+                  '&.Mui-focused': { bgcolor: 'transparent !important', boxShadow: 'none !important' },
+                },
+                '& .MuiOutlinedInput-input': {
+                  background: 'transparent !important',
+                },
+                '& input[type="date"], & .MuiOutlinedInput-input[type="date"], & .MuiInputBase-input[type="date"]': {
+                  background: 'transparent !important',
+                  color: 'inherit !important',
+                  WebkitAppearance: 'none !important',
+                  MozAppearance: 'textfield !important',
+                  appearance: 'none !important',
+                  borderRadius: '6px !important',
+                  padding: '0 6px !important',
+                },
+                '& input[type="date"]::-webkit-datetime-edit, & input[type="date"]::-webkit-datetime-edit-text, & input[type="date"]::-webkit-datetime-edit-month-field, & input[type="date"]::-webkit-datetime-edit-day-field, & input[type="date"]::-webkit-datetime-edit-year-field': {
+                  background: 'transparent !important',
+                  color: 'inherit !important',
+                },
+                '& input[type="date"]::-webkit-calendar-picker-indicator': {
+                  WebkitAppearance: 'none',
+                  appearance: 'none',
+                  background: 'transparent',
+                  padding: 0,
+                  margin: 0,
+                },
+                '& input:-webkit-autofill': {
+                  WebkitBoxShadow: '0 0 0 1000px transparent inset',
+                  boxShadow: '0 0 0 1000px transparent inset',
+                  WebkitTextFillColor: 'inherit',
+                },
               }}
+
             >
-              {/* Search Field */}
-              <TextField
-                size="small"
-                placeholder="🔍 Search WSN or Product"
-                value={searchWSN}
-                onChange={(e) => {
-                  setSearchWSN(e.target.value);
-                  setPage(1);
-                }}
-                fullWidth
+              {/* TOP ROW: Search + Pivot + Menu/Reset */}
+              <Box
                 sx={{
-                  "& .MuiOutlinedInput-root": {
-                    height: { xs: 40, sm: 42 },
-                    bgcolor: isDarkMode ? '#1e293b' : '#f8fafc',
-                    borderRadius: 2.5,
-                    transition: "all 0.2s ease",
-                    "&:hover": {
-                      bgcolor: isDarkMode ? '#334155' : '#f1f5f9',
-                    },
-                    "&.Mui-focused": {
-                      bgcolor: isDarkMode ? '#1e293b' : 'white',
-                      "& .MuiOutlinedInput-notchedOutline": {
-                        borderColor: "primary.main",
-                        borderWidth: 2,
+                  display: "flex",
+                  flexDirection: "row",
+                  gap: { xs: 0.75, md: 1 },
+                  alignItems: "center",
+                }}
+              >
+                {/* Search Field */}
+                <TextField
+                  size="small"
+                  placeholder="🔍 Search WSN or Product"
+                  value={searchWSN}
+                  onChange={(e) => {
+                    setSearchWSN(e.target.value);
+                    setPage(1);
+                  }}
+                  fullWidth
+                  sx={{
+                    "& .MuiOutlinedInput-root": {
+                      height: { xs: 40, sm: 42 },
+                      bgcolor: isDarkMode ? '#1e293b' : '#f8fafc',
+                      borderRadius: 2.5,
+                      transition: "all 0.2s ease",
+                      "&:hover": {
+                        bgcolor: isDarkMode ? '#334155' : '#f1f5f9',
+                      },
+                      "&.Mui-focused": {
+                        bgcolor: isDarkMode ? '#1e293b' : 'white',
+                        "& .MuiOutlinedInput-notchedOutline": {
+                          borderColor: "primary.main",
+                          borderWidth: 2,
+                        },
                       },
                     },
-                  },
-                  "& .MuiOutlinedInput-notchedOutline": {
-                    borderColor: isDarkMode ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)',
-                  },
-                }}
-              />
+                    "& .MuiOutlinedInput-notchedOutline": {
+                      borderColor: isDarkMode ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)',
+                    },
+                  }}
+                />
 
-              {/* Pivot Table Button */}
-              <Tooltip title="Open Pivot Analysis - Excel-style pivot table">
-                <Button
-                  variant={pivotOpen ? "contained" : "outlined"}
-                  size="small"
-                  onClick={() => setPivotOpen(!pivotOpen)}
-                  sx={{
-                    height: { xs: 40, md: 42 },
-                    minWidth: { xs: 'auto', md: 100 },
-                    px: { xs: 1.5, md: 2 },
-                    fontSize: "0.75rem",
-                    fontWeight: 600,
-                    whiteSpace: "nowrap",
-                    borderRadius: 2,
-                    flexShrink: 0,
-                    ...(pivotOpen ? {
-                      background: "linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)",
-                    } : {
-                      borderColor: '#7c3aed',
-                      color: '#7c3aed',
+                {/* Pivot Table Button */}
+                <Tooltip title="Open Pivot Analysis - Excel-style pivot table">
+                  <Button
+                    variant={pivotOpen ? "contained" : "outlined"}
+                    size="small"
+                    onClick={() => setPivotOpen(!pivotOpen)}
+                    sx={{
+                      height: { xs: 40, md: 42 },
+                      minWidth: { xs: 'auto', md: 100 },
+                      px: { xs: 1.5, md: 2 },
+                      fontSize: "0.75rem",
+                      fontWeight: 600,
+                      whiteSpace: "nowrap",
+                      borderRadius: 2,
+                      flexShrink: 0,
+                      ...(pivotOpen ? {
+                        background: "linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)",
+                      } : {
+                        borderColor: '#7c3aed',
+                        color: '#7c3aed',
+                        borderWidth: 1.5,
+                        "&:hover": {
+                          borderWidth: 1.5,
+                          borderColor: '#6d28d9',
+                          bgcolor: 'rgba(124, 58, 237, 0.08)',
+                        },
+                      }),
+                    }}
+                  >
+                    <PivotIcon sx={{ fontSize: '1.1rem', mr: { xs: 0, md: 0.5 } }} />
+                    <Box component="span" sx={{ display: { xs: 'none', md: 'inline' } }}>Pivot</Box>
+                  </Button>
+                </Tooltip>
+
+                {/* Options Button - Always visible with green dot indicator when filters active */}
+                <Tooltip title="Open Options Panel">
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={() => {
+                      setSettingsPanelOpen(true);
+                      // ⚡ LAZY LOAD: Load filter options when settings panel opens
+                      if (!filtersLoaded) {
+                        loadFilterOptions();
+                      }
+                    }}
+                    sx={{
+                      height: { xs: 40, md: 42 },
+                      minWidth: { xs: 'auto', md: 100 },
+                      px: { xs: 1.5, md: 2 },
+                      fontSize: "0.75rem",
+                      fontWeight: 600,
+                      whiteSpace: "nowrap",
+                      borderRadius: 2,
+                      flexShrink: 0,
+                      borderColor: isDarkMode ? '#3b82f6' : '#1e40af',
+                      color: isDarkMode ? '#60a5fa' : '#1e40af',
+                      bgcolor: isDarkMode ? 'rgba(59, 130, 246, 0.08)' : 'rgba(30, 64, 175, 0.04)',
                       borderWidth: 1.5,
+                      position: 'relative',
                       "&:hover": {
                         borderWidth: 1.5,
-                        borderColor: '#6d28d9',
-                        bgcolor: 'rgba(124, 58, 237, 0.08)',
+                        borderColor: '#3b82f6',
+                        bgcolor: 'rgba(59, 130, 246, 0.12)',
                       },
-                    }),
-                  }}
-                >
-                  <PivotIcon sx={{ fontSize: '1.1rem', mr: { xs: 0, md: 0.5 } }} />
-                  <Box component="span" sx={{ display: { xs: 'none', md: 'inline' } }}>Pivot</Box>
-                </Button>
-              </Tooltip>
-
-              {/* Options Button - Always visible with green dot indicator when filters active */}
-              <Tooltip title="Open Options Panel">
-                <Button
-                  variant="outlined"
-                  size="small"
-                  onClick={() => {
-                    setSettingsPanelOpen(true);
-                    // ⚡ LAZY LOAD: Load filter options when settings panel opens
-                    if (!filtersLoaded) {
-                      loadFilterOptions();
-                    }
-                  }}
-                  sx={{
-                    height: { xs: 40, md: 42 },
-                    minWidth: { xs: 'auto', md: 100 },
-                    px: { xs: 1.5, md: 2 },
-                    fontSize: "0.75rem",
-                    fontWeight: 600,
-                    whiteSpace: "nowrap",
-                    borderRadius: 2,
-                    flexShrink: 0,
-                    borderColor: isDarkMode ? '#3b82f6' : '#1e40af',
-                    color: isDarkMode ? '#60a5fa' : '#1e40af',
-                    bgcolor: isDarkMode ? 'rgba(59, 130, 246, 0.08)' : 'rgba(30, 64, 175, 0.04)',
-                    borderWidth: 1.5,
-                    position: 'relative',
-                    "&:hover": {
-                      borderWidth: 1.5,
-                      borderColor: '#3b82f6',
-                      bgcolor: 'rgba(59, 130, 246, 0.12)',
-                    },
-                  }}
-                >
-                  <MenuIcon sx={{ fontSize: '1.1rem', mr: { xs: 0, md: 0.5 } }} />
-                  <Box component="span" sx={{ display: { xs: 'none', md: 'inline' } }}>Options</Box>
-                  {/* Green dot indicator when filters are active */}
-                  {filtersActive && (
-                    <Box sx={{
-                      position: 'absolute',
-                      top: -4,
-                      right: -4,
-                      width: 12,
-                      height: 12,
-                      borderRadius: '50%',
-                      bgcolor: '#10b981',
-                      border: '2px solid white',
-                      boxShadow: '0 2px 4px rgba(16, 185, 129, 0.4)'
-                    }} />
-                  )}
-                </Button>
-              </Tooltip>
+                    }}
+                  >
+                    <MenuIcon sx={{ fontSize: '1.1rem', mr: { xs: 0, md: 0.5 } }} />
+                    <Box component="span" sx={{ display: { xs: 'none', md: 'inline' } }}>Options</Box>
+                    {/* Green dot indicator when filters are active */}
+                    {filtersActive && (
+                      <Box sx={{
+                        position: 'absolute',
+                        top: -4,
+                        right: -4,
+                        width: 12,
+                        height: 12,
+                        borderRadius: '50%',
+                        bgcolor: '#10b981',
+                        border: '2px solid white',
+                        boxShadow: '0 2px 4px rgba(16, 185, 129, 0.4)'
+                      }} />
+                    )}
+                  </Button>
+                </Tooltip>
+              </Box>
             </Box>
-          </Box>
 
 
-          {/* ================= TABLE AREA ================= */}
-          <Box
-            sx={{
-              height: 'calc(100vh - 180px)',
-              minHeight: 400,
-              display: "flex",
-              flexDirection: "column",
-              overflow: "hidden",
-              bgcolor: isDarkMode ? '#0f172a' : 'transparent',
-            }}
-          >
-            <Paper
+            {/* ================= TABLE AREA ================= */}
+            <Box
               sx={{
                 flex: 1,
                 display: "flex",
                 flexDirection: "column",
                 overflow: "hidden",
-                bgcolor: isDarkMode ? '#0f172a' : '#f8fafc',
+                bgcolor: isDarkMode ? '#0f172a' : 'transparent',
               }}
             >
-              {/* Table Container - AG Grid */}
-              <Box sx={{
-                flex: 1,
-                display: 'flex',
-                flexDirection: 'column',
-                overflow: 'hidden',
-                position: 'relative',
-                bgcolor: isDarkMode ? '#1e293b' : 'transparent',
-              }}>
-                {/* ⚡ SUBTLE PROGRESS BAR - Shows during background refresh without blocking UI */}
-                {isBackgroundRefresh && (
-                  <LinearProgress
-                    sx={{
+              <Paper
+                sx={{
+                  flex: 1,
+                  display: "flex",
+                  flexDirection: "column",
+                  overflow: "hidden",
+                  bgcolor: isDarkMode ? '#0f172a' : '#f8fafc',
+                }}
+              >
+                {/* Table Container - AG Grid */}
+                <Box sx={{
+                  flex: 1,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  overflow: 'hidden',
+                  position: 'relative',
+                  bgcolor: isDarkMode ? '#1e293b' : 'transparent',
+                }}>
+                  {/* ⚡ SUBTLE PROGRESS BAR - Shows during background refresh without blocking UI */}
+                  {isBackgroundRefresh && (
+                    <LinearProgress
+                      sx={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        zIndex: 15,
+                        height: 3,
+                        '& .MuiLinearProgress-bar': {
+                          backgroundColor: '#1e40af'
+                        },
+                        backgroundColor: isDarkMode ? 'rgba(30, 64, 175, 0.2)' : 'rgba(30, 64, 175, 0.1)'
+                      }}
+                    />
+                  )}
+
+                  {/* NOTE: Skeleton loading overlay removed - now handled inside AG Grid Box below */}
+
+                  {/* Empty State Overlay - shows when no data but headers remain visible */}
+                  {!activeWarehouse && (!filteredData || filteredData.length === 0) && !loading && (
+                    <Box sx={{
                       position: 'absolute',
-                      top: 0,
+                      top: 60,
                       left: 0,
                       right: 0,
-                      zIndex: 15,
-                      height: 3,
-                      '& .MuiLinearProgress-bar': {
-                        backgroundColor: '#1e40af'
-                      },
-                      backgroundColor: isDarkMode ? 'rgba(30, 64, 175, 0.2)' : 'rgba(30, 64, 175, 0.1)'
-                    }}
-                  />
-                )}
-
-                {/* NOTE: Skeleton loading overlay removed - now handled inside AG Grid Box below */}
-
-                {/* Empty State Overlay - shows when no data but headers remain visible */}
-                {!activeWarehouse && (!filteredData || filteredData.length === 0) && !loading && (
-                  <Box sx={{
-                    position: 'absolute',
-                    top: 60,
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    backgroundColor: isDarkMode ? 'rgba(15, 23, 42, 0.97)' : 'rgba(255, 255, 255, 0.97)',
-                    backdropFilter: 'blur(4px)',
-                    zIndex: 5,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}>
-                    <Box
-                      sx={{
-                        p: { xs: 3, md: 5 },
-                        textAlign: 'center',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        flexDirection: 'column',
-                      }}
-                    >
+                      bottom: 0,
+                      backgroundColor: isDarkMode ? 'rgba(15, 23, 42, 0.97)' : 'rgba(255, 255, 255, 0.97)',
+                      backdropFilter: 'blur(4px)',
+                      zIndex: 5,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}>
                       <Box
                         sx={{
                           p: { xs: 3, md: 5 },
-                          background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
-                          borderRadius: 4,
-                          color: 'white',
-                          boxShadow: '0 20px 60px rgba(30, 64, 175, 0.35)',
+                          textAlign: 'center',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexDirection: 'column',
                         }}
                       >
-                        <Typography variant="h5" sx={{ fontWeight: 700, mb: 1, fontSize: { xs: '1.1rem', md: '1.5rem' } }}>
-                          No active warehouse selected
-                        </Typography>
-                        <Typography variant="body2" sx={{ opacity: 0.9, fontSize: { xs: '0.8rem', md: '0.875rem' } }}>
-                          Please go to Settings &gt; Warehouses to set one
-                        </Typography>
-                      </Box>
-                    </Box>
-                  </Box>
-                )}
-
-                {activeWarehouse && (!filteredData || filteredData.length === 0) && !loading && !isBackgroundRefresh && isMounted && (
-                  <Box sx={{
-                    position: 'absolute',
-                    top: 35, // Start below AG Grid header (35px height)
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    backgroundColor: isDarkMode ? 'rgba(15, 23, 42, 0.97)' : 'rgba(255, 255, 255, 0.97)',
-                    backdropFilter: 'blur(4px)',
-                    zIndex: 5,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}>
-                    <Box sx={{
-                      textAlign: 'center',
-                      p: { xs: 3, md: 4 },
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      gap: 1.5
-                    }}>
-                      <Box sx={{
-                        fontSize: { xs: '3rem', md: '4rem' },
-                        opacity: 0.25,
-                        mb: 0.5
-                      }}>
-                        📭
-                      </Box>
-                      <Typography variant="h5" sx={{ fontWeight: 600, color: isDarkMode ? '#94a3b8' : '#475569', mb: 0.5, fontSize: { xs: '1.1rem', md: '1.5rem' } }}>
-                        No Data Found
-                      </Typography>
-                      <Typography variant="body2" sx={{ color: '#94a3b8', maxWidth: 400, fontSize: { xs: '0.8rem', md: '0.875rem' } }}>
-                        No items match your current filters. Try adjusting your search criteria or reset filters to see all items.
-                      </Typography>
-                    </Box>
-                  </Box>
-                )}
-
-                {/* AG Grid - Always rendered, covered by skeleton overlay when loading */}
-                <Box sx={{
-                  flex: 1,
-                  overflow: 'hidden',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  position: 'relative',
-                  border: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #d1d5db',
-                  borderBottom: 'none',
-                  borderRadius: '12px 12px 0 0',
-                  boxShadow: isDarkMode ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.06)',
-                  bgcolor: isDarkMode ? '#1e293b' : 'transparent',
-                  '& .ag-root-wrapper': {
-                    height: '100%',
-                    overflow: 'hidden',
-                    border: 'none',
-                    backgroundColor: isDarkMode ? '#1e293b' : 'transparent',
-                  },
-                  '& .ag-header': {
-                    backgroundColor: '#1e3a5f !important',
-                    borderBottom: isDarkMode ? '2px solid #10b981' : '2px solid #059669',
-                    fontWeight: 700,
-                    opacity: '1 !important',
-                    zIndex: 15,
-                    position: 'relative'
-                  },
-                  '& .ag-header-cell': {
-                    padding: '0 12px',
-                    opacity: '1 !important',
-                    fontWeight: 700,
-                    fontSize: '0.75rem',
-                    backgroundColor: '#1e3a5f !important',
-                    color: '#ffffff !important',
-                    borderRight: '1px solid #3b5998',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.02em',
-                  },
-                  '& .ag-header-cell:last-child': {
-                    borderRight: 'none',
-                  },
-                  '& .ag-header-row': {
-                    backgroundColor: '#1e3a5f !important',
-                  },
-                  '& .ag-header-viewport': {
-                    backgroundColor: '#1e3a5f !important',
-                  },
-                  '& .ag-header-container': {
-                    backgroundColor: '#1e3a5f !important',
-                  },
-                  '& .ag-header-cell-label': {
-                    color: '#ffffff !important',
-                  },
-                  '& .ag-header-cell-text': {
-                    color: '#ffffff !important',
-                  },
-                  '& .ag-icon': {
-                    color: '#94a3b8 !important',
-                  },
-                  // ⚡ FLASH FIX: Hide body viewport until rows are rendered
-                  // This prevents the empty white flash during hydration
-                  '& .ag-body-viewport': {
-                    opacity: (loading && gridRowData.length === 0) ? 0.3 : 1,
-                    // Match background to prevent white flash
-                    backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
-                  },
-                  // ⚡ FLASH FIX: Ensure center viewport also has correct background
-                  '& .ag-center-cols-viewport': {
-                    backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
-                  },
-                  '& .ag-center-cols-container': {
-                    backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
-                  },
-                  '& .ag-body': {
-                    backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
-                  },
-                  '& .ag-row': {
-                    height: { xs: 44, md: 44 },
-                    overflow: 'visible',
-                    borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #e5e7eb',
-                  },
-                  '& .ag-row-even': {
-                    backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
-                  },
-                  '& .ag-row-odd': {
-                    backgroundColor: isDarkMode ? '#1a2536' : '#f8fafc',
-                  },
-                  '& .ag-cell': {
-                    display: 'flex',
-                    alignItems: 'center',
-                    lineHeight: { xs: '44px', md: '44px' },
-                    fontSize: '0.875rem',
-                    padding: '0 12px',
-                    color: isDarkMode ? '#f1f5f9' : '#1e293b',
-                    borderRight: isDarkMode ? '1px solid #334155' : '1px solid #e5e7eb',
-                  },
-                  '& .ag-cell:last-child': {
-                    borderRight: 'none',
-                  },
-                  '& .ag-cell-focus': {
-                    border: isDarkMode ? '2px solid #38bdf8 !important' : '2px solid #2563eb !important',
-                    boxSizing: 'border-box',
-                    outline: 'none'
-                  },
-                  '& .ag-cell-range-selected': {
-                    backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.25) !important' : '#dbeafe !important',
-                  },
-                  '& .ag-row-hover': {
-                    backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.15) !important' : '#eff6ff !important',
-                  },
-                }}>
-                  <div className="ag-theme-quartz" style={{ height: '100%', width: '100%', position: 'relative', zIndex: 1 }}>
-                    <AgGridReact
-                      ref={gridRef}
-                      rowData={gridRowData}
-                      columnDefs={columnDefs}
-                      defaultColDef={defaultColDef}
-                      rowSelection={{ mode: 'singleRow', checkboxes: false, enableClickSelection: true }}
-                      loading={false}
-                      suppressNoRowsOverlay={true}
-                      enableCellTextSelection={true}
-                      ensureDomOrder={true}
-                      getRowId={(params: any) => String(params.data?.wsn || params.data?.wid || params.rowIndex)}
-                      onGridReady={(params: any) => {
-                        gridRef.current = params.api;
-                        columnApiRef.current = params.columnApi;
-                        // Restore saved column state from localStorage
-                        try {
-                          const saved = localStorage.getItem('dashboard_grid_state');
-                          if (saved) {
-                            const state = JSON.parse(saved);
-                            params.api.applyColumnState({ state, applyOrder: true });
-                            hasAutoFittedRef.current = true;
-                          }
-                        } catch { /* ignore */ }
-                      }}
-                      onFirstDataRendered={(params: any) => {
-                        // Auto-size columns on first load if no saved state
-                        if (!hasAutoFittedRef.current && params.api) {
-                          try {
-                            const allColIds = params.api.getColumns()
-                              ?.filter((col: any) => col.getColId() !== '__action')
-                              .map((col: any) => col.getColId()) || [];
-                            if (allColIds.length > 0) {
-                              params.api.autoSizeColumns(allColIds);
-                            }
-                            hasAutoFittedRef.current = true;
-                          } catch { /* ignore */ }
-                        }
-                        // ⚡ Hide overlay immediately after columns sized
-                        requestAnimationFrame(() => {
-                          setGridDataRendered(true);
-                        });
-                      }}
-                      onColumnResized={(params: any) => {
-                        // Save state when user finishes resizing
-                        if (params.finished && params.api) {
-                          try {
-                            const state = params.api.getColumnState();
-                            localStorage.setItem('dashboard_grid_state', JSON.stringify(state));
-                          } catch { /* ignore */ }
-                        }
-                      }}
-                      onColumnMoved={(params: any) => {
-                        // Save state when user finishes moving columns
-                        if (params.finished && params.api) {
-                          try {
-                            const state = params.api.getColumnState();
-                            localStorage.setItem('dashboard_grid_state', JSON.stringify(state));
-                          } catch { /* ignore */ }
-                        }
-                      }}
-                      onColumnVisible={(params: any) => {
-                        // Save state when column visibility changes
-                        if (params.api) {
-                          try {
-                            const state = params.api.getColumnState();
-                            localStorage.setItem('dashboard_grid_state', JSON.stringify(state));
-                          } catch { /* ignore */ }
-                        }
-                      }}
-                      animateRows={false}
-                      // ⚡ PERFORMANCE: Optimizations for smooth fast scrolling
-                      rowBuffer={100}
-                      suppressRowTransform={true}
-                      suppressAnimationFrame={true}
-                      debounceVerticalScrollbar={true}
-                      suppressScrollOnNewData={true}
-                      alwaysShowVerticalScroll={true}
-                      rowHeight={tableRowHeight}
-                      headerHeight={35}
-
-                    />
-                  </div>
-
-                  {/* Initial Loading Overlay - positioned below header */}
-                  {((loading && gridRowData.length === 0 && activeWarehouse) || (gridRowData.length > 0 && !gridDataRendered)) && (
-                    <Box sx={{
-                      position: 'absolute',
-                      top: 35,
-                      left: 0,
-                      right: 0,
-                      bottom: 0,
-                      bgcolor: isDarkMode ? '#1e293b' : '#ffffff',
-                      zIndex: 50,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}>
-                      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-                        <CircularProgress size={40} thickness={4} sx={{ color: '#1e40af' }} />
-                        <Typography sx={{ fontSize: '0.85rem', fontWeight: 500, color: isDarkMode ? '#94a3b8' : '#64748b' }}>
-                          Loading inventory...
-                        </Typography>
+                        <Box
+                          sx={{
+                            p: { xs: 3, md: 5 },
+                            background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
+                            borderRadius: 4,
+                            color: 'white',
+                            boxShadow: '0 20px 60px rgba(30, 64, 175, 0.35)',
+                          }}
+                        >
+                          <Typography variant="h5" sx={{ fontWeight: 700, mb: 1, fontSize: { xs: '1.1rem', md: '1.5rem' } }}>
+                            No active warehouse selected
+                          </Typography>
+                          <Typography variant="body2" sx={{ opacity: 0.9, fontSize: { xs: '0.8rem', md: '0.875rem' } }}>
+                            Please go to Settings &gt; Warehouses to set one
+                          </Typography>
+                        </Box>
                       </Box>
                     </Box>
                   )}
 
-                  {/* Loading Spinner Overlay - shows when fetching data with existing data visible */}
-                  {(loading || isFetching) && gridRowData.length > 0 && gridDataRendered && (
+                  {activeWarehouse && (!filteredData || filteredData.length === 0) && !loading && !isBackgroundRefresh && isMounted && (
                     <Box sx={{
                       position: 'absolute',
-                      top: 0,
+                      top: 35, // Start below AG Grid header (35px height)
                       left: 0,
                       right: 0,
                       bottom: 0,
-                      backgroundColor: isDarkMode ? 'rgba(15, 23, 42, 0.5)' : 'rgba(255, 255, 255, 0.5)',
-                      zIndex: 100,
+                      backgroundColor: isDarkMode ? 'rgba(15, 23, 42, 0.97)' : 'rgba(255, 255, 255, 0.97)',
+                      backdropFilter: 'blur(4px)',
+                      zIndex: 5,
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                     }}>
                       <Box sx={{
+                        textAlign: 'center',
+                        p: { xs: 3, md: 4 },
                         display: 'flex',
                         flexDirection: 'column',
                         alignItems: 'center',
-                        gap: 1.5,
-                        p: 3,
-                        bgcolor: isDarkMode ? 'rgba(30, 41, 59, 0.95)' : 'rgba(255, 255, 255, 0.95)',
-                        borderRadius: 2,
-                        boxShadow: '0 4px 20px rgba(0,0,0,0.15)'
+                        gap: 1.5
                       }}>
-                        <CircularProgress
-                          size={40}
-                          thickness={4}
-                          sx={{ color: '#1e40af' }}
-                        />
-                        <Typography sx={{ fontSize: '0.85rem', fontWeight: 500, color: isDarkMode ? '#94a3b8' : '#64748b' }}>
-                          Loading...
+                        <Box sx={{
+                          fontSize: { xs: '3rem', md: '4rem' },
+                          opacity: 0.25,
+                          mb: 0.5
+                        }}>
+                          📭
+                        </Box>
+                        <Typography variant="h5" sx={{ fontWeight: 600, color: isDarkMode ? '#94a3b8' : '#475569', mb: 0.5, fontSize: { xs: '1.1rem', md: '1.5rem' } }}>
+                          No Data Found
+                        </Typography>
+                        <Typography variant="body2" sx={{ color: '#94a3b8', maxWidth: 400, fontSize: { xs: '0.8rem', md: '0.875rem' } }}>
+                          No items match your current filters. Try adjusting your search criteria or reset filters to see all items.
                         </Typography>
                       </Box>
                     </Box>
                   )}
-                </Box>
-              </Box>
-              {/* ================= PAGINATION (ENHANCED WITH ALL IMPROVEMENTS) ================= */}
-              <Fade in={true} timeout={300}>
-                <Box
-                  sx={{
-                    px: { xs: 1, sm: 2 },
-                    py: { xs: 0.75, sm: 0.5 },
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    borderTop: isDarkMode ? "1px solid rgba(255,255,255,0.1)" : "1px solid #d1d5db",
-                    borderLeft: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #d1d5db',
-                    borderRight: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #d1d5db',
-                    borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #d1d5db',
-                    borderRadius: '0 0 12px 12px',
-                    bgcolor: isDarkMode ? '#1e293b' : "white",
-                    flexShrink: 0,
-                    minHeight: { xs: 44, sm: 52 },
-                    gap: { xs: 0.5, sm: 1 },
-                    flexWrap: 'wrap',
-                  }}
-                >
-                  {/* Left Section: Per Page + Last Refresh */}
-                  <Stack direction="row" spacing={{ xs: 0.5, sm: 1.5 }} alignItems="center">
-                    <Typography sx={{ fontSize: { xs: "0.7rem", sm: "0.78rem" }, whiteSpace: "nowrap", color: isDarkMode ? '#94a3b8' : 'inherit' }}>
-                      Per page:
-                    </Typography>
 
-                    <Select
-                      size="small"
-                      value={limit}
-                      onChange={(e) => {
-                        setLimit(Number(e.target.value));
-                        setPage(1);
-                      }}
-                      sx={{
-                        minWidth: { xs: 58, sm: 70 },
-                        '& .MuiSelect-select': {
-                          py: { xs: 0.5, sm: 0.75 },
-                          fontSize: { xs: '0.75rem', sm: '0.875rem' },
-                        }
-                      }}
-                    >
-                      <MenuItem value={50}>50</MenuItem>
-                      <MenuItem value={100}>100</MenuItem>
-                      <MenuItem value={500}>500</MenuItem>
-                      <MenuItem value={1000}>1000</MenuItem>
-                    </Select>
-
-                    {/* ⚡ Last Refresh Time Indicator */}
-                    {lastRefreshTime && !isMobile && (
-                      <Tooltip title={`Last updated: ${lastRefreshTime.toLocaleTimeString()}`}>
-                        <Stack direction="row" spacing={0.5} alignItems="center" sx={{ ml: 1 }}>
-                          <AccessTime sx={{ fontSize: 14, color: isDarkMode ? '#64748b' : '#94a3b8' }} />
-                          <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>
-                            {getTimeAgo(lastRefreshTime)}
-                          </Typography>
-                        </Stack>
-                      </Tooltip>
-                    )}
-                  </Stack>
-
-                  {/* Center Section: Count + Quick Page Jump */}
-                  <Stack direction="row" spacing={1} alignItems="center">
-                    <Typography
-                      sx={{
-                        fontSize: { xs: "0.7rem", sm: "0.78rem" },
-                        whiteSpace: "nowrap",
-                        color: isDarkMode ? '#94a3b8' : 'inherit',
-                      }}
-                    >
-                      {(page - 1) * limit + 1} – {Math.min(page * limit, total)} of {total}
-                    </Typography>
-
-                    {/* ⚡ Quick Page Jump Input */}
-                    {showPageInput && !isMobile && (
-                      <Fade in={showPageInput}>
-                        <Stack direction="row" spacing={0.5} alignItems="center">
-                          <InputBase
-                            autoFocus
-                            placeholder="Page #"
-                            value={pageInputValue}
-                            onChange={(e) => setPageInputValue(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') handlePageJump();
-                              if (e.key === 'Escape') {
-                                setShowPageInput(false);
-                                setPageInputValue('');
+                  {/* AG Grid - Always rendered, covered by skeleton overlay when loading */}
+                  <Box sx={{
+                    flex: 1,
+                    overflow: 'hidden',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    position: 'relative',
+                    border: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #d1d5db',
+                    borderBottom: 'none',
+                    borderRadius: '12px 12px 0 0',
+                    boxShadow: isDarkMode ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.06)',
+                    bgcolor: isDarkMode ? '#1e293b' : 'transparent',
+                    '& .ag-root-wrapper': {
+                      height: '100%',
+                      overflow: 'hidden',
+                      border: 'none',
+                      backgroundColor: isDarkMode ? '#1e293b' : 'transparent',
+                    },
+                    '& .ag-header': {
+                      backgroundColor: '#1e3a5f !important',
+                      borderBottom: isDarkMode ? '2px solid #10b981' : '2px solid #059669',
+                      fontWeight: 700,
+                      opacity: '1 !important',
+                      zIndex: 15,
+                      position: 'relative'
+                    },
+                    '& .ag-header-cell': {
+                      padding: '0 12px',
+                      opacity: '1 !important',
+                      fontWeight: 700,
+                      fontSize: '0.75rem',
+                      backgroundColor: '#1e3a5f !important',
+                      color: '#ffffff !important',
+                      borderRight: '1px solid #3b5998',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.02em',
+                    },
+                    '& .ag-header-cell:last-child': {
+                      borderRight: 'none',
+                    },
+                    '& .ag-header-row': {
+                      backgroundColor: '#1e3a5f !important',
+                    },
+                    '& .ag-header-viewport': {
+                      backgroundColor: '#1e3a5f !important',
+                    },
+                    '& .ag-header-container': {
+                      backgroundColor: '#1e3a5f !important',
+                    },
+                    '& .ag-header-cell-label': {
+                      color: '#ffffff !important',
+                    },
+                    '& .ag-header-cell-text': {
+                      color: '#ffffff !important',
+                    },
+                    '& .ag-icon': {
+                      color: '#94a3b8 !important',
+                    },
+                    // ⚡ FLASH FIX: Hide body viewport until rows are rendered
+                    // This prevents the empty white flash during hydration
+                    '& .ag-body-viewport': {
+                      opacity: (loading && gridRowData.length === 0) ? 0.3 : 1,
+                      // Match background to prevent white flash
+                      backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
+                    },
+                    // ⚡ FLASH FIX: Ensure center viewport also has correct background
+                    '& .ag-center-cols-viewport': {
+                      backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
+                    },
+                    '& .ag-center-cols-container': {
+                      backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
+                    },
+                    '& .ag-body': {
+                      backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
+                    },
+                    '& .ag-row': {
+                      height: { xs: 44, md: 44 },
+                      overflow: 'visible',
+                      borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #e5e7eb',
+                    },
+                    '& .ag-row-even': {
+                      backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
+                    },
+                    '& .ag-row-odd': {
+                      backgroundColor: isDarkMode ? '#1a2536' : '#f8fafc',
+                    },
+                    '& .ag-cell': {
+                      display: 'flex',
+                      alignItems: 'center',
+                      lineHeight: { xs: '44px', md: '44px' },
+                      fontSize: '0.875rem',
+                      padding: '0 12px',
+                      color: isDarkMode ? '#f1f5f9' : '#1e293b',
+                      borderRight: isDarkMode ? '1px solid #334155' : '1px solid #e5e7eb',
+                    },
+                    '& .ag-cell:last-child': {
+                      borderRight: 'none',
+                    },
+                    '& .ag-cell-focus': {
+                      border: isDarkMode ? '2px solid #38bdf8 !important' : '2px solid #2563eb !important',
+                      boxSizing: 'border-box',
+                      outline: 'none'
+                    },
+                    '& .ag-cell-range-selected': {
+                      backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.25) !important' : '#dbeafe !important',
+                    },
+                    '& .ag-row-hover': {
+                      backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.15) !important' : '#eff6ff !important',
+                    },
+                  }}>
+                    <div className="ag-theme-quartz" style={{ height: '100%', width: '100%', position: 'relative', zIndex: 1 }}>
+                      <AgGridReact
+                        ref={gridRef}
+                        rowData={gridRowData}
+                        columnDefs={columnDefs}
+                        defaultColDef={defaultColDef}
+                        rowSelection={{ mode: 'singleRow', checkboxes: false, enableClickSelection: true }}
+                        loading={false}
+                        suppressNoRowsOverlay={true}
+                        enableCellTextSelection={true}
+                        ensureDomOrder={true}
+                        getRowId={(params: any) => String(params.data?.wsn || params.data?.wid || params.rowIndex)}
+                        onGridReady={(params: any) => {
+                          gridRef.current = params.api;
+                          columnApiRef.current = params.columnApi;
+                          // Restore saved column state from localStorage
+                          try {
+                            const saved = localStorage.getItem('dashboard_grid_state');
+                            if (saved) {
+                              const state = JSON.parse(saved);
+                              params.api.applyColumnState({ state, applyOrder: true });
+                              hasAutoFittedRef.current = true;
+                            }
+                          } catch { /* ignore */ }
+                        }}
+                        onFirstDataRendered={(params: any) => {
+                          // Auto-size columns on first load if no saved state
+                          if (!hasAutoFittedRef.current && params.api) {
+                            try {
+                              const allColIds = params.api.getColumns()
+                                ?.filter((col: any) => col.getColId() !== '__action')
+                                .map((col: any) => col.getColId()) || [];
+                              if (allColIds.length > 0) {
+                                params.api.autoSizeColumns(allColIds);
                               }
-                            }}
-                            sx={{
-                              width: 60,
-                              px: 1,
-                              py: 0.25,
-                              fontSize: '0.75rem',
-                              border: isDarkMode ? '1px solid #475569' : '1px solid #cbd5e1',
-                              borderRadius: 1,
-                              bgcolor: isDarkMode ? '#0f172a' : '#f8fafc',
-                              color: isDarkMode ? '#f1f5f9' : 'inherit',
-                            }}
+                              hasAutoFittedRef.current = true;
+                            } catch { /* ignore */ }
+                          }
+                          // ⚡ Hide overlay immediately after columns sized
+                          requestAnimationFrame(() => {
+                            setGridDataRendered(true);
+                          });
+                        }}
+                        onColumnResized={(params: any) => {
+                          // Save state when user finishes resizing
+                          if (params.finished && params.api) {
+                            try {
+                              const state = params.api.getColumnState();
+                              localStorage.setItem('dashboard_grid_state', JSON.stringify(state));
+                            } catch { /* ignore */ }
+                          }
+                        }}
+                        onColumnMoved={(params: any) => {
+                          // Save state when user finishes moving columns
+                          if (params.finished && params.api) {
+                            try {
+                              const state = params.api.getColumnState();
+                              localStorage.setItem('dashboard_grid_state', JSON.stringify(state));
+                            } catch { /* ignore */ }
+                          }
+                        }}
+                        onColumnVisible={(params: any) => {
+                          // Save state when column visibility changes
+                          if (params.api) {
+                            try {
+                              const state = params.api.getColumnState();
+                              localStorage.setItem('dashboard_grid_state', JSON.stringify(state));
+                            } catch { /* ignore */ }
+                          }
+                        }}
+                        animateRows={false}
+                        // ⚡ PERFORMANCE: Optimizations for smooth fast scrolling
+                        rowBuffer={100}
+                        suppressRowTransform={true}
+                        suppressAnimationFrame={true}
+                        debounceVerticalScrollbar={true}
+                        suppressScrollOnNewData={true}
+                        alwaysShowVerticalScroll={true}
+                        rowHeight={tableRowHeight}
+                        headerHeight={35}
+
+                      />
+                    </div>
+
+                    {/* Initial Loading Overlay - positioned below header */}
+                    {((loading && gridRowData.length === 0 && activeWarehouse) || (gridRowData.length > 0 && !gridDataRendered)) && (
+                      <Box sx={{
+                        position: 'absolute',
+                        top: 35,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        bgcolor: isDarkMode ? '#1e293b' : '#ffffff',
+                        zIndex: 50,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}>
+                        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                          <CircularProgress size={40} thickness={4} sx={{ color: '#1e40af' }} />
+                          <Typography sx={{ fontSize: '0.85rem', fontWeight: 500, color: isDarkMode ? '#94a3b8' : '#64748b' }}>
+                            Loading inventory...
+                          </Typography>
+                        </Box>
+                      </Box>
+                    )}
+
+                    {/* Loading Spinner Overlay - shows when fetching data with existing data visible */}
+                    {(loading || isFetching) && gridRowData.length > 0 && gridDataRendered && (
+                      <Box sx={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        backgroundColor: isDarkMode ? 'rgba(15, 23, 42, 0.5)' : 'rgba(255, 255, 255, 0.5)',
+                        zIndex: 100,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}>
+                        <Box sx={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          gap: 1.5,
+                          p: 3,
+                          bgcolor: isDarkMode ? 'rgba(30, 41, 59, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+                          borderRadius: 2,
+                          boxShadow: '0 4px 20px rgba(0,0,0,0.15)'
+                        }}>
+                          <CircularProgress
+                            size={40}
+                            thickness={4}
+                            sx={{ color: '#1e40af' }}
                           />
-                          <Button size="small" onClick={handlePageJump} sx={{ minWidth: 40, fontSize: '0.7rem' }}>
-                            Go
-                          </Button>
-                        </Stack>
-                      </Fade>
+                          <Typography sx={{ fontSize: '0.85rem', fontWeight: 500, color: isDarkMode ? '#94a3b8' : '#64748b' }}>
+                            Loading...
+                          </Typography>
+                        </Box>
+                      </Box>
                     )}
-
-                    {/* ⚡ Show page jump button on desktop */}
-                    {!showPageInput && !isMobile && Math.ceil(total / limit) > 5 && (
-                      <Tooltip title="Press 'G' to jump to page">
-                        <Button
-                          size="small"
-                          onClick={() => setShowPageInput(true)}
-                          sx={{
-                            minWidth: 'auto',
-                            px: 1,
-                            py: 0.25,
-                            fontSize: '0.65rem',
-                            color: isDarkMode ? '#64748b' : '#94a3b8',
-                          }}
-                        >
-                          Go to...
-                        </Button>
-                      </Tooltip>
-                    )}
-                  </Stack>
-
-                  {/* Right Section: Pagination Controls */}
-                  {(isMobile ? (
-                    // MOBILE COMPACT PAGINATION
-                    <Stack direction="row" spacing={0.5} alignItems="center">
-                      <IconButton
-                        size="small"
-                        disabled={page === 1}
-                        onClick={() => setPage(1)}
-                        sx={{ p: 0.5 }}
-                      >
-                        <FirstPage fontSize="small" />
-                      </IconButton>
-                      <IconButton
-                        size="small"
-                        disabled={page === 1}
-                        onClick={() => setPage(page - 1)}
-                        sx={{ p: 0.5 }}
-                      >
-                        <KeyboardArrowLeft fontSize="small" />
-                      </IconButton>
-
-                      <Typography sx={{ fontSize: "0.75rem", fontWeight: 600, minWidth: 50, textAlign: 'center' }}>
-                        {page} / {Math.ceil(total / limit)}
+                  </Box>
+                </Box>
+                {/* ================= PAGINATION (ENHANCED WITH ALL IMPROVEMENTS) ================= */}
+                <Fade in={true} timeout={300}>
+                  <Box
+                    sx={{
+                      px: { xs: 1, sm: 2 },
+                      py: { xs: 0.75, sm: 0.5 },
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      borderTop: isDarkMode ? "1px solid rgba(255,255,255,0.1)" : "1px solid #d1d5db",
+                      borderLeft: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #d1d5db',
+                      borderRight: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #d1d5db',
+                      borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #d1d5db',
+                      borderRadius: '0 0 12px 12px',
+                      bgcolor: isDarkMode ? '#1e293b' : "white",
+                      flexShrink: 0,
+                      minHeight: { xs: 44, sm: 52 },
+                      gap: { xs: 0.5, sm: 1 },
+                      flexWrap: 'wrap',
+                    }}
+                  >
+                    {/* Left Section: Per Page + Last Refresh */}
+                    <Stack direction="row" spacing={{ xs: 0.5, sm: 1.5 }} alignItems="center">
+                      <Typography sx={{ fontSize: { xs: "0.7rem", sm: "0.78rem" }, whiteSpace: "nowrap", color: isDarkMode ? '#94a3b8' : 'inherit' }}>
+                        Per page:
                       </Typography>
 
-                      <IconButton
+                      <Select
                         size="small"
-                        disabled={page === Math.ceil(total / limit)}
-                        onClick={() => setPage(page + 1)}
-                        sx={{ p: 0.5 }}
+                        value={limit}
+                        onChange={(e) => {
+                          setLimit(Number(e.target.value));
+                          setPage(1);
+                        }}
+                        sx={{
+                          minWidth: { xs: 58, sm: 70 },
+                          '& .MuiSelect-select': {
+                            py: { xs: 0.5, sm: 0.75 },
+                            fontSize: { xs: '0.75rem', sm: '0.875rem' },
+                          }
+                        }}
                       >
-                        <KeyboardArrowRight fontSize="small" />
-                      </IconButton>
-                      <IconButton
-                        size="small"
-                        disabled={page === Math.ceil(total / limit)}
-                        onClick={() => setPage(Math.ceil(total / limit))}
-                        sx={{ p: 0.5 }}
-                      >
-                        <LastPage fontSize="small" />
-                      </IconButton>
+                        <MenuItem value={50}>50</MenuItem>
+                        <MenuItem value={100}>100</MenuItem>
+                        <MenuItem value={500}>500</MenuItem>
+                        <MenuItem value={1000}>1000</MenuItem>
+                      </Select>
+
+                      {/* ⚡ Last Refresh Time Indicator */}
+                      {lastRefreshTime && !isMobile && (
+                        <Tooltip title={`Last updated: ${lastRefreshTime.toLocaleTimeString()}`}>
+                          <Stack direction="row" spacing={0.5} alignItems="center" sx={{ ml: 1 }}>
+                            <AccessTime sx={{ fontSize: 14, color: isDarkMode ? '#64748b' : '#94a3b8' }} />
+                            <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>
+                              {getTimeAgo(lastRefreshTime)}
+                            </Typography>
+                          </Stack>
+                        </Tooltip>
+                      )}
                     </Stack>
-                  ) : (
-                    // DESKTOP: Enhanced pagination
+
+                    {/* Center Section: Count + Quick Page Jump */}
                     <Stack direction="row" spacing={1} alignItems="center">
-                      <Tooltip title="First page">
-                        <span>
-                          <IconButton
-                            size="small"
-                            disabled={page === 1}
-                            onClick={() => setPage(1)}
-                          >
-                            <FirstPage fontSize="small" />
-                          </IconButton>
-                        </span>
-                      </Tooltip>
+                      <Typography
+                        sx={{
+                          fontSize: { xs: "0.7rem", sm: "0.78rem" },
+                          whiteSpace: "nowrap",
+                          color: isDarkMode ? '#94a3b8' : 'inherit',
+                        }}
+                      >
+                        {(page - 1) * limit + 1} – {Math.min(page * limit, total)} of {total}
+                      </Typography>
 
-                      <Tooltip title="Previous page">
-                        <span>
-                          <IconButton
-                            size="small"
-                            disabled={page === 1}
-                            onClick={() => setPage(page - 1)}
-                          >
-                            <KeyboardArrowLeft />
-                          </IconButton>
-                        </span>
-                      </Tooltip>
+                      {/* ⚡ Quick Page Jump Input */}
+                      {showPageInput && !isMobile && (
+                        <Fade in={showPageInput}>
+                          <Stack direction="row" spacing={0.5} alignItems="center">
+                            <InputBase
+                              autoFocus
+                              placeholder="Page #"
+                              value={pageInputValue}
+                              onChange={(e) => setPageInputValue(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handlePageJump();
+                                if (e.key === 'Escape') {
+                                  setShowPageInput(false);
+                                  setPageInputValue('');
+                                }
+                              }}
+                              sx={{
+                                width: 60,
+                                px: 1,
+                                py: 0.25,
+                                fontSize: '0.75rem',
+                                border: isDarkMode ? '1px solid #475569' : '1px solid #cbd5e1',
+                                borderRadius: 1,
+                                bgcolor: isDarkMode ? '#0f172a' : '#f8fafc',
+                                color: isDarkMode ? '#f1f5f9' : 'inherit',
+                              }}
+                            />
+                            <Button size="small" onClick={handlePageJump} sx={{ minWidth: 40, fontSize: '0.7rem' }}>
+                              Go
+                            </Button>
+                          </Stack>
+                        </Fade>
+                      )}
 
-                      <Pagination
-                        page={page}
-                        count={Math.ceil(total / limit)}
-                        size="small"
-                        onChange={(_, v) => setPage(v)}
-                        siblingCount={1}
-                        boundaryCount={1}
-                      />
-
-                      <Tooltip title="Next page">
-                        <span>
-                          <IconButton
+                      {/* ⚡ Show page jump button on desktop */}
+                      {!showPageInput && !isMobile && Math.ceil(total / limit) > 5 && (
+                        <Tooltip title="Press 'G' to jump to page">
+                          <Button
                             size="small"
-                            disabled={page === Math.ceil(total / limit)}
-                            onClick={() => setPage(page + 1)}
+                            onClick={() => setShowPageInput(true)}
+                            sx={{
+                              minWidth: 'auto',
+                              px: 1,
+                              py: 0.25,
+                              fontSize: '0.65rem',
+                              color: isDarkMode ? '#64748b' : '#94a3b8',
+                            }}
                           >
-                            <KeyboardArrowRight />
-                          </IconButton>
-                        </span>
-                      </Tooltip>
-
-                      <Tooltip title="Last page">
-                        <span>
-                          <IconButton
-                            size="small"
-                            disabled={page === Math.ceil(total / limit)}
-                            onClick={() => setPage(Math.ceil(total / limit))}
-                          >
-                            <LastPage fontSize="small" />
-                          </IconButton>
-                        </span>
-                      </Tooltip>
+                            Go to...
+                          </Button>
+                        </Tooltip>
+                      )}
                     </Stack>
-                  ))}
-                </Box>
-              </Fade>
-            </Paper>
-          </Box>
+
+                    {/* Right Section: Pagination Controls */}
+                    {(isMobile ? (
+                      // MOBILE COMPACT PAGINATION
+                      <Stack direction="row" spacing={0.5} alignItems="center">
+                        <IconButton
+                          size="small"
+                          disabled={page === 1}
+                          onClick={() => setPage(1)}
+                          sx={{ p: 0.5 }}
+                        >
+                          <FirstPage fontSize="small" />
+                        </IconButton>
+                        <IconButton
+                          size="small"
+                          disabled={page === 1}
+                          onClick={() => setPage(page - 1)}
+                          sx={{ p: 0.5 }}
+                        >
+                          <KeyboardArrowLeft fontSize="small" />
+                        </IconButton>
+
+                        <Typography sx={{ fontSize: "0.75rem", fontWeight: 600, minWidth: 50, textAlign: 'center' }}>
+                          {page} / {Math.ceil(total / limit)}
+                        </Typography>
+
+                        <IconButton
+                          size="small"
+                          disabled={page === Math.ceil(total / limit)}
+                          onClick={() => setPage(page + 1)}
+                          sx={{ p: 0.5 }}
+                        >
+                          <KeyboardArrowRight fontSize="small" />
+                        </IconButton>
+                        <IconButton
+                          size="small"
+                          disabled={page === Math.ceil(total / limit)}
+                          onClick={() => setPage(Math.ceil(total / limit))}
+                          sx={{ p: 0.5 }}
+                        >
+                          <LastPage fontSize="small" />
+                        </IconButton>
+                      </Stack>
+                    ) : (
+                      // DESKTOP: Enhanced pagination
+                      <Stack direction="row" spacing={1} alignItems="center">
+                        <Tooltip title="First page">
+                          <span>
+                            <IconButton
+                              size="small"
+                              disabled={page === 1}
+                              onClick={() => setPage(1)}
+                            >
+                              <FirstPage fontSize="small" />
+                            </IconButton>
+                          </span>
+                        </Tooltip>
+
+                        <Tooltip title="Previous page">
+                          <span>
+                            <IconButton
+                              size="small"
+                              disabled={page === 1}
+                              onClick={() => setPage(page - 1)}
+                            >
+                              <KeyboardArrowLeft />
+                            </IconButton>
+                          </span>
+                        </Tooltip>
+
+                        <Pagination
+                          page={page}
+                          count={Math.ceil(total / limit)}
+                          size="small"
+                          onChange={(_, v) => setPage(v)}
+                          siblingCount={1}
+                          boundaryCount={1}
+                        />
+
+                        <Tooltip title="Next page">
+                          <span>
+                            <IconButton
+                              size="small"
+                              disabled={page === Math.ceil(total / limit)}
+                              onClick={() => setPage(page + 1)}
+                            >
+                              <KeyboardArrowRight />
+                            </IconButton>
+                          </span>
+                        </Tooltip>
+
+                        <Tooltip title="Last page">
+                          <span>
+                            <IconButton
+                              size="small"
+                              disabled={page === Math.ceil(total / limit)}
+                              onClick={() => setPage(Math.ceil(total / limit))}
+                            >
+                              <LastPage fontSize="small" />
+                            </IconButton>
+                          </span>
+                        </Tooltip>
+                      </Stack>
+                    ))}
+                  </Box>
+                </Fade>
+              </Paper>
+            </Box>
+          </Box>{/* END STICKY WRAPPER */}
         </Box>{/* END SCROLLABLE CONTENT AREA */}
       </Box>{/* END MAIN WRAPPER */}
 
