@@ -472,10 +472,96 @@ export default function OutboundPage() {
         setMultiRows(prev => [...prev, ...generateEmptyRows(500)] as OutboundItem[]);
     };
 
-    // ⚡ MULTI ENTRY: Export entered data to Excel (with all columns - user input + master data)
+    // ⚡ EXPORT COLUMN PICKER: All available export columns with labels & row data keys
+    const EXPORT_COLUMNS_CONFIG: { key: string; label: string; getValue: (row: any, idx: number, customerForExport: string, vehicleForExport: string, dateForExport: string) => any }[] = [
+        { key: 'sr_no', label: 'Sr No', getValue: (_r, idx) => idx + 1 },
+        { key: 'wsn', label: 'WSN', getValue: (r) => r.wsn || '' },
+        { key: 'dispatch_date', label: 'Dispatch Date', getValue: (r, _i, _c, _v, d) => r.dispatch_date || d },
+        { key: 'customer_name', label: 'Customer Name', getValue: (r, _i, c) => r.customer_name || c },
+        { key: 'vehicle_no', label: 'Vehicle No', getValue: (_r, _i, _c, v) => v },
+        { key: 'product_title', label: 'Product Title', getValue: (r) => r.product_title || '' },
+        { key: 'brand', label: 'Brand', getValue: (r) => r.brand || '' },
+        { key: 'source', label: 'Source', getValue: (r) => r.source || '' },
+        { key: 'quantity', label: 'Quantity', getValue: (r) => r.quantity || 1 },
+        { key: 'mrp', label: 'MRP', getValue: (r) => r.mrp || '' },
+        { key: 'fsp', label: 'FSP', getValue: (r) => r.fsp || '' },
+        { key: 'vrp', label: 'VRP', getValue: (r) => r.vrp || '' },
+        { key: 'dispatch_remarks', label: 'Dispatch Remarks', getValue: (r) => r.dispatch_remarks || '' },
+        { key: 'other_remarks', label: 'Other Remarks', getValue: (r) => r.other_remarks || '' },
+        { key: 'cms_vertical', label: 'CMS Vertical', getValue: (r) => r.cms_vertical || '' },
+        { key: 'wid', label: 'WID', getValue: (r) => r.wid || '' },
+        { key: 'fsn', label: 'FSN', getValue: (r) => r.fsn || '' },
+        { key: 'order_id', label: 'Order ID', getValue: (r) => r.order_id || '' },
+        { key: 'fkqc_remark', label: 'FKQC Remark', getValue: (r) => r.fkqc_remark || '' },
+        { key: 'fk_grade', label: 'FK Grade', getValue: (r) => r.fk_grade || '' },
+        { key: 'hsn_sac', label: 'HSN/SAC', getValue: (r) => r.hsn_sac || '' },
+        { key: 'igst_rate', label: 'IGST Rate', getValue: (r) => r.igst_rate || '' },
+        { key: 'yield_value', label: 'Yield Value', getValue: (r) => r.yield_value || '' },
+        { key: 'invoice_date', label: 'Invoice Date', getValue: (r) => r.invoice_date || '' },
+        { key: 'fkt_link', label: 'FKT Link', getValue: (r) => r.fkt_link || '' },
+        { key: 'wh_location', label: 'WH Location', getValue: (r) => r.wh_location || '' },
+        { key: 'p_type', label: 'Product Type', getValue: (r) => r.p_type || '' },
+        { key: 'p_size', label: 'Product Size', getValue: (r) => r.p_size || '' },
+    ];
+
+    const DEFAULT_EXPORT_COLUMNS = ['sr_no', 'wsn', 'dispatch_date', 'customer_name', 'vehicle_no', 'product_title', 'brand', 'source', 'quantity', 'mrp', 'fsp', 'dispatch_remarks', 'other_remarks'];
+
+    // Export column picker state
+    const [preSubmitExportDialogOpen, setPreSubmitExportDialogOpen] = useState(false);
+    const [multiExportDialogOpen, setMultiExportDialogOpen] = useState(false);
+    const [exportSelectedColumns, setExportSelectedColumns] = useState<string[]>(() => {
+        try {
+            const saved = localStorage.getItem('outboundExportColumns');
+            if (saved) return JSON.parse(saved);
+        } catch { /* ignore */ }
+        return DEFAULT_EXPORT_COLUMNS;
+    });
+    const [exportRememberColumns, setExportRememberColumns] = useState(() => {
+        try { return localStorage.getItem('outboundExportRemember') === 'true'; } catch { return false; }
+    });
+
+    const handleOpenExportDialog = () => {
+        // Load saved columns if "remember" is on, else use defaults
+        if (exportRememberColumns) {
+            try {
+                const saved = localStorage.getItem('outboundExportColumns');
+                if (saved) setExportSelectedColumns(JSON.parse(saved));
+            } catch { /* ignore */ }
+        }
+        setPreSubmitExportDialogOpen(false);
+        setMultiExportDialogOpen(true);
+    };
+
+    // Skip export and submit directly
+    const handleSkipExportAndSubmit = () => {
+        setPreSubmitExportDialogOpen(false);
+        executeMultiSubmit();
+    };
+
+    const handleToggleExportColumn = (key: string) => {
+        setExportSelectedColumns(prev =>
+            prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]
+        );
+    };
+
+    // ⚡ MULTI ENTRY: Export entered data to Excel (with column picker + custom filename)
     const exportMultiEntryToExcel = async () => {
         try {
-            // Get fresh data directly from AG Grid to ensure we have all the latest values
+            if (exportSelectedColumns.length === 0) {
+                toast.error('Select at least one column to export');
+                return;
+            }
+
+            // Save column preference if "remember" is checked
+            if (exportRememberColumns) {
+                localStorage.setItem('outboundExportColumns', JSON.stringify(exportSelectedColumns));
+                localStorage.setItem('outboundExportRemember', 'true');
+            } else {
+                localStorage.removeItem('outboundExportColumns');
+                localStorage.setItem('outboundExportRemember', 'false');
+            }
+
+            // Get fresh data directly from AG Grid
             const allGridRows: any[] = [];
             gridRef.current?.api?.forEachNode((node: any) => {
                 if (node.data) allGridRows.push(node.data);
@@ -488,49 +574,24 @@ export default function OutboundPage() {
             }
             const XLSX = await import('xlsx');
 
-            // Get customer name from form (selectedCustomer is the active field)
             const customerForExport = selectedCustomer || commonCustomer || '';
             const vehicleForExport = commonVehicle || '';
             const dateForExport = commonDate || new Date().toISOString().split('T')[0];
 
-            // Prepare export data with all columns (user input + master data)
-            const exportData = dataToExport.map((row: any, idx: number) => ({
-                'Sr No': idx + 1,
-                // User Input Columns
-                'WSN': row.wsn || '',
-                'Dispatch Date': row.dispatch_date || dateForExport,
-                'Customer Name': row.customer_name || customerForExport,
-                'Vehicle No': vehicleForExport, // Use only common vehicle field, not row data (which may have inbound vehicle)
-                'Dispatch Remarks': row.dispatch_remarks || '',
-                'Other Remarks': row.other_remarks || '',
-                'Quantity': row.quantity || 1,
-                // Master Data Columns
-                'Source': row.source || '',
-                'Product Title': row.product_title || '',
-                'Brand': row.brand || '',
-                'CMS Vertical': row.cms_vertical || '',
-                'WID': row.wid || '',
-                'FSN': row.fsn || '',
-                'Order ID': row.order_id || '',
-                'FKQC Remark': row.fkqc_remark || '',
-                'FK Grade': row.fk_grade || '',
-                'HSN/SAC': row.hsn_sac || '',
-                'IGST Rate': row.igst_rate || '',
-                'FSP': row.fsp || '',
-                'MRP': row.mrp || '',
-                'VRP': row.vrp || '',
-                'Yield Value': row.yield_value || '',
-                'Invoice Date': row.invoice_date || '',
-                'FKT Link': row.fkt_link || '',
-                'WH Location': row.wh_location || '',
-                'Product Type': row.p_type || '',
-                'Product Size': row.p_size || '',
-            }));
+            // Build export data with only selected columns (preserve order from config)
+            const selectedConfigs = EXPORT_COLUMNS_CONFIG.filter(c => exportSelectedColumns.includes(c.key));
+            const exportData = dataToExport.map((row: any, idx: number) => {
+                const obj: Record<string, any> = {};
+                selectedConfigs.forEach(col => {
+                    obj[col.label] = col.getValue(row, idx, customerForExport, vehicleForExport, dateForExport);
+                });
+                return obj;
+            });
 
             // Create workbook and worksheet
             const ws = XLSX.utils.json_to_sheet(exportData);
             const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, 'Multi Outbound');
+            XLSX.utils.book_append_sheet(wb, ws, 'Dispatch');
 
             // Auto-fit column widths
             const colWidths = Object.keys(exportData[0]).map(key => ({
@@ -538,13 +599,20 @@ export default function OutboundPage() {
             }));
             ws['!cols'] = colWidths;
 
-            // Generate filename with timestamp
-            const timestamp = new Date().toISOString().slice(0, 19).replace(/[:-]/g, '');
-            const filename = `Outbound_MultiEntry_${timestamp}.xlsx`;
+            // Filename: CustomerName_Dispatch_DD-MMM-YYYY.xlsx
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            const dispatchDate = dateForExport ? new Date(dateForExport) : new Date();
+            const dd = String(dispatchDate.getDate()).padStart(2, '0');
+            const mmm = months[dispatchDate.getMonth()];
+            const yyyy = dispatchDate.getFullYear();
+            const safeCustomerName = (customerForExport || 'Unknown').replace(/[^a-zA-Z0-9\s-]/g, '').trim().replace(/\s+/g, '_');
+            const filename = `${safeCustomerName}_Dispatch_${dd}-${mmm}-${yyyy}.xlsx`;
 
-            // Download the file
             XLSX.writeFile(wb, filename);
             toast.success(`✅ Exported ${dataToExport.length} rows to ${filename}`);
+            setMultiExportDialogOpen(false);
+            // After export, proceed with submit
+            executeMultiSubmit();
         } catch (error) {
             console.error('Export error:', error);
             toast.error('Export failed');
@@ -3519,7 +3587,7 @@ export default function OutboundPage() {
         pendingWSNRef.current = null;
     };
 
-    // ✅ MULTI ENTRY SUBMIT
+    // ✅ MULTI ENTRY SUBMIT — Step 1: Validate & show export confirmation
     const handleMultiSubmit = async () => {
         if (!activeWarehouse) {
             toast.error('Please select a warehouse');
@@ -3574,6 +3642,22 @@ export default function OutboundPage() {
             toast.error('Some WSNs already dispatched from other warehouses');
             return;
         }
+
+        // All validations passed — ask user if they want to export before submitting
+        setPreSubmitExportDialogOpen(true);
+    };
+
+    // ✅ MULTI ENTRY SUBMIT — Step 2: Actual submit (called after export or skip)
+    const executeMultiSubmit = async () => {
+        if (!activeWarehouse) return;
+
+        // Re-gather filled rows from grid
+        const rows: any[] = [];
+        gridRef.current?.api.forEachNode((node: any) => {
+            if (node.data) rows.push(node.data);
+        });
+        const filledRows = rows.filter((r: any) => r.wsn?.trim());
+        if (filledRows.length === 0) return;
 
         setMultiLoading(true);
 
@@ -8687,7 +8771,7 @@ export default function OutboundPage() {
                                 {/* Right Arrow */}
                                 <Box sx={{ width: 16, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', color: isDarkMode ? '#64748b' : '#94a3b8', fontSize: '0.65rem', flexShrink: 0 }}>▶</Box>
                             </Box>
-                            {/* Right: Fixed Submit Button */}
+                            {/* Right: Submit Button */}
                             <Button
                                 variant="contained"
                                 onClick={handleMultiSubmit}
@@ -8795,6 +8879,122 @@ export default function OutboundPage() {
                         </Box>
                     </Box>
                 )}
+
+                {/* ⚡ PRE-SUBMIT: Export Confirmation Dialog */}
+                <Dialog open={preSubmitExportDialogOpen} onClose={() => setPreSubmitExportDialogOpen(false)} maxWidth="xs" fullWidth container={isFullscreen ? multiEntryContainerRef.current : undefined}>
+                    <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1, pb: 1 }}>
+                        <DownloadIcon sx={{ color: '#16a34a' }} />
+                        Export Before Submit?
+                    </DialogTitle>
+                    <DialogContent>
+                        <Typography variant="body2" color="text.secondary">
+                            Do you want to export <strong>{multiRows.filter((r) => r.wsn?.trim()).length} rows</strong> to Excel before submitting?
+                        </Typography>
+                    </DialogContent>
+                    <DialogActions sx={{ px: 3, pb: 2, gap: 1 }}>
+                        <Button onClick={() => setPreSubmitExportDialogOpen(false)} size="small" sx={{ color: 'text.secondary' }}>Cancel</Button>
+                        <Button
+                            variant="outlined"
+                            onClick={handleSkipExportAndSubmit}
+                            startIcon={<CheckCircle sx={{ fontSize: 16 }} />}
+                            sx={{ fontWeight: 600, borderColor: '#3b82f6', color: '#3b82f6' }}
+                        >
+                            No, Submit Directly
+                        </Button>
+                        <Button
+                            variant="contained"
+                            onClick={handleOpenExportDialog}
+                            startIcon={<DownloadIcon sx={{ fontSize: 16 }} />}
+                            sx={{ fontWeight: 700, background: 'linear-gradient(135deg, #16a34a 0%, #22c55e 100%)' }}
+                        >
+                            Yes, Export First
+                        </Button>
+                    </DialogActions>
+                </Dialog>
+
+                {/* ⚡ EXPORT COLUMN PICKER DIALOG */}
+                <Dialog open={multiExportDialogOpen} onClose={() => setMultiExportDialogOpen(false)} maxWidth="sm" fullWidth container={isFullscreen ? multiEntryContainerRef.current : undefined}>
+                    <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <DownloadIcon sx={{ color: '#16a34a' }} />
+                        Export to Excel — Select Columns
+                    </DialogTitle>
+                    <DialogContent>
+                        <Typography variant="caption" color="text.secondary" sx={{ mb: 1.5, display: 'block' }}>
+                            Choose which columns to include in the exported Excel file.
+                            Filename: <strong>{(selectedCustomer || commonCustomer || 'Customer').replace(/[^a-zA-Z0-9\s-]/g, '').trim().replace(/\s+/g, '_')}_Dispatch_{(() => { const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']; const d = commonDate ? new Date(commonDate) : new Date(); return `${String(d.getDate()).padStart(2, '0')}-${months[d.getMonth()]}-${d.getFullYear()}`; })()}.xlsx</strong>
+                        </Typography>
+
+                        {/* Select All / Deselect All */}
+                        <Stack direction="row" spacing={1} sx={{ mb: 1 }}>
+                            <Button size="small" variant="text" onClick={() => setExportSelectedColumns(EXPORT_COLUMNS_CONFIG.map(c => c.key))} sx={{ fontSize: '0.7rem', textTransform: 'none' }}>Select All</Button>
+                            <Button size="small" variant="text" onClick={() => setExportSelectedColumns([])} sx={{ fontSize: '0.7rem', textTransform: 'none' }}>Deselect All</Button>
+                            <Button size="small" variant="text" onClick={() => setExportSelectedColumns([...DEFAULT_EXPORT_COLUMNS])} sx={{ fontSize: '0.7rem', textTransform: 'none', color: '#7c3aed' }}>Reset Default</Button>
+                        </Stack>
+
+                        <Divider sx={{ mb: 1.5 }} />
+
+                        {/* Column checkboxes in 2-column grid */}
+                        <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0.5 }}>
+                            {EXPORT_COLUMNS_CONFIG.map((col) => (
+                                <FormControlLabel
+                                    key={col.key}
+                                    control={
+                                        <Checkbox
+                                            size="small"
+                                            checked={exportSelectedColumns.includes(col.key)}
+                                            onChange={() => handleToggleExportColumn(col.key)}
+                                        />
+                                    }
+                                    label={<Typography variant="body2" sx={{ fontSize: '0.8rem' }}>{col.label}</Typography>}
+                                    sx={{ m: 0 }}
+                                />
+                            ))}
+                        </Box>
+
+                        <Divider sx={{ my: 1.5 }} />
+
+                        {/* Remember for future exports */}
+                        <FormControlLabel
+                            control={
+                                <Checkbox
+                                    checked={exportRememberColumns}
+                                    onChange={(e) => {
+                                        setExportRememberColumns(e.target.checked);
+                                        if (e.target.checked) {
+                                            localStorage.setItem('outboundExportColumns', JSON.stringify(exportSelectedColumns));
+                                            localStorage.setItem('outboundExportRemember', 'true');
+                                        } else {
+                                            localStorage.removeItem('outboundExportColumns');
+                                            localStorage.setItem('outboundExportRemember', 'false');
+                                        }
+                                    }}
+                                    sx={{ color: '#7c3aed', '&.Mui-checked': { color: '#7c3aed' } }}
+                                />
+                            }
+                            label={
+                                <Typography variant="body2" sx={{ fontWeight: 600, fontSize: '0.8rem' }}>
+                                    💾 Remember my column selection for future exports
+                                </Typography>
+                            }
+                        />
+
+                        <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+                            Selected: {exportSelectedColumns.length} / {EXPORT_COLUMNS_CONFIG.length} columns • {multiRows.filter((r) => r.wsn?.trim()).length} rows to export
+                        </Typography>
+                    </DialogContent>
+                    <DialogActions sx={{ px: 3, pb: 2 }}>
+                        <Button onClick={() => setMultiExportDialogOpen(false)}>Cancel</Button>
+                        <Button
+                            variant="contained"
+                            onClick={exportMultiEntryToExcel}
+                            disabled={exportSelectedColumns.length === 0}
+                            startIcon={<DownloadIcon />}
+                            sx={{ background: 'linear-gradient(135deg, #16a34a 0%, #22c55e 100%)', fontWeight: 700 }}
+                        >
+                            Export ({multiRows.filter((r) => r.wsn?.trim()).length} rows)
+                        </Button>
+                    </DialogActions>
+                </Dialog>
 
                 {/* Column Settings Dialog - Outside flex container */}
                 <Dialog open={columnSettingsOpen} onClose={() => setColumnSettingsOpen(false)} maxWidth="sm" fullWidth container={isFullscreen ? multiEntryContainerRef.current : undefined}>
