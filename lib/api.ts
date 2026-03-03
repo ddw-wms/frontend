@@ -513,7 +513,8 @@ export const inboundAPI = {
         dateFrom: filters?.dateFrom,
         dateTo: filters?.dateTo,
         // Send batch IDs as comma-separated string for reliable parsing
-        batchId: Array.isArray(filters?.batchId) ? filters.batchId.join(',') : filters?.batchId
+        batchId: Array.isArray(filters?.batchId) ? filters.batchId.join(',') : filters?.batchId,
+        statusFilter: filters?.statusFilter
       },
       ...(config || {})
     }),
@@ -776,6 +777,14 @@ export const outboundAPI = {
   // Real-time header field sync across devices (SSE relay, no DB write)
   syncHeader: (warehouseId: number, commonDate: string, selectedCustomer: string, commonVehicle: string) =>
     api.post('outbound/sync-header', { warehouseId, commonDate, selectedCustomer, commonVehicle }),
+
+  // Dispatching WSNs tracking (for "Outbound in Process" status in inbound list)
+  syncDispatchingWSNs: (wsns: string[], warehouseId: number) =>
+    api.post('outbound/dispatching-wsns/sync', { wsns, warehouseId }),
+  clearDispatchingWSNs: (warehouseId: number) =>
+    api.post('outbound/dispatching-wsns/clear', { warehouseId }),
+  getDispatchingWSNs: (warehouseId: number) =>
+    api.get('outbound/dispatching-wsns', { params: { warehouseId } }),
 };
 
 // ==========================PICKING API ==============================

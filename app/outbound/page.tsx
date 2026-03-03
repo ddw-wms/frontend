@@ -368,6 +368,11 @@ export default function OutboundPage() {
     const draftLoadedRef = useRef(false);
     const draftLoadFailedRef = useRef(false); // Track if draft load failed (prevents empty overwrite)
 
+    // ⚡ DISPATCHING WSNs SYNC: Track WSNs entered in multi-entry grid for "Outbound in Process" status
+    const dispatchingSyncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const lastSyncedDispatchWSNsRef = useRef<string>(''); // JSON string for comparison
+    const hasEverSyncedDispatchWSNsRef = useRef<boolean>(false); // Track if WSNs were ever synced
+
     // ⚡ ROW HIGHLIGHTING: For newly scanned/added rows
     const [highlightedRows, setHighlightedRows] = useState<Set<number>>(new Set());
     const highlightTimeoutRefs = useRef<Map<number, NodeJS.Timeout>>(new Map());
@@ -572,6 +577,104 @@ export default function OutboundPage() {
             endLiveSession();
         }
     }, [isOnMultiTab, activeWarehouse?.id, isLiveSessionActive, startLiveSession, endLiveSession]);
+
+    // ⚡ AUTO-UPDATE: Dispatch date to today when entering Multi Entry tab
+    useEffect(() => {
+        if (isOnMultiTab) {
+            const today = new Date().toISOString().split('T')[0];
+            if (commonDate !== today) {
+                setCommonDate(today);
+            }
+        }
+    }, [isOnMultiTab]);
+
+    // ⚡ DISPATCHING WSNs SYNC: Sync WSN list to dispatching_wsns table for "Outbound in Process" in inbound list
+    const syncDispatchingWSNs = async (rowsToSync = multiRows) => {
+        if (!activeWarehouse?.id) return;
+
+        // OFFLINE CHECK: Skip sync when offline
+        const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+        if (!isOnline) {
+            console.log('📴 Offline - skipping dispatching WSNs sync');
+            return;
+        }
+
+        // Extract valid WSNs from rows
+        const wsns = rowsToSync
+            .map((r: any) => r.wsn?.trim()?.toUpperCase())
+            .filter((w: string) => w && w.length > 0);
+
+        // Create a hash to compare with last synced
+        const wsnsHash = JSON.stringify(wsns.sort());
+
+        // Skip if no change
+        if (wsnsHash === lastSyncedDispatchWSNsRef.current) return;
+
+        // If all WSNs were removed but we previously had synced WSNs, clear them from DB
+        if (wsns.length === 0) {
+            lastSyncedDispatchWSNsRef.current = wsnsHash;
+            if (hasEverSyncedDispatchWSNsRef.current) {
+                hasEverSyncedDispatchWSNsRef.current = false;
+                console.log('🗑️ All WSNs removed from outbound grid — clearing dispatching_wsns from DB');
+                clearDispatchingWSNs();
+            }
+            return;
+        }
+
+        try {
+            // Add timeout to prevent hanging (15s for large batches)
+            await Promise.race([
+                outboundAPI.syncDispatchingWSNs(wsns, activeWarehouse.id),
+                new Promise<void>((_, reject) => setTimeout(() => reject(new Error('Timeout')), 15000))
+            ]);
+            lastSyncedDispatchWSNsRef.current = wsnsHash;
+            hasEverSyncedDispatchWSNsRef.current = true;
+            console.log('📡 Synced dispatching WSNs:', wsns.length);
+        } catch (err) {
+            console.error('Failed to sync dispatching WSNs', err);
+        }
+    };
+
+    const clearDispatchingWSNs = async () => {
+        if (!activeWarehouse?.id) return;
+
+        // OFFLINE CHECK: Skip clear when offline
+        const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+        if (!isOnline) {
+            console.log('📴 Offline - skipping clear dispatching WSNs');
+            return;
+        }
+
+        try {
+            await outboundAPI.clearDispatchingWSNs(activeWarehouse.id);
+            lastSyncedDispatchWSNsRef.current = '';
+            console.log('🧹 Cleared dispatching WSNs');
+        } catch (err) {
+            console.error('Failed to clear dispatching WSNs', err);
+        }
+    };
+
+    // Debounced sync of dispatching WSNs whenever multiRows change
+    useEffect(() => {
+        // Skip if no warehouse selected
+        if (!activeWarehouse?.id) return;
+
+        const hasAnyWSN = multiRows.some(r => r.wsn?.trim());
+
+        // Skip initial sync when rows are empty (before user ever entered anything)
+        // But allow sync if user previously had WSNs (to handle deletion from DB)
+        if (!hasAnyWSN && !hasEverSyncedDispatchWSNsRef.current) return;
+
+        // Debounce sync (1 second)
+        if (dispatchingSyncTimeoutRef.current) clearTimeout(dispatchingSyncTimeoutRef.current);
+        dispatchingSyncTimeoutRef.current = setTimeout(() => {
+            syncDispatchingWSNs(multiRows);
+        }, 1000);
+
+        return () => {
+            if (dispatchingSyncTimeoutRef.current) clearTimeout(dispatchingSyncTimeoutRef.current);
+        };
+    }, [multiRows, activeWarehouse?.id]);
 
     // ⚡ AUTO-REFRESH: Refresh outbound cache every 30 min while on multi-tab
     useEffect(() => {
@@ -2235,7 +2338,7 @@ export default function OutboundPage() {
         });
     }, []);
 
-    // ⚡ EXCEL-LIKE: Paste from clipboard (Ctrl+V)
+    // ⚡ EXCEL-LIKE: Paste from clipboard (Ctrl+V) — Inbound-aligned comprehensive paste handler
     const handlePaste = useCallback(async () => {
         const api = gridRef.current?.api;
         if (!api) return;
@@ -2270,8 +2373,8 @@ export default function OutboundPage() {
             }
 
             // Parse clipboard data (TSV format - Tab and Newline separated)
-            const lines = clipboardText.split(/\r?\n/).filter(line => line.length > 0);
-            const pasteData = lines.map(line => line.split('\t'));
+            const clipRows = clipboardText.split(/\r?\n/).filter(line => line.length > 0);
+            const pasteData = clipRows.map(line => line.split('\t'));
 
             const allColumns = api.getAllDisplayedColumns?.() || [];
             const colIds = allColumns.map((c: any) => c.getColId());
@@ -2279,185 +2382,246 @@ export default function OutboundPage() {
 
             if (startColIndex === -1) return;
 
-            const newRows = [...multiRowsRef.current];
-            let pastedCount = 0;
-            const pastedWSNRows: { rowIndex: number; wsn: string }[] = []; // Track pasted WSNs for lookup
-            const batchChanges: Array<{ rowIndex: number; field: string; oldValue: any; newValue: any }> = []; // For batch undo
+            const pastedWSNCells: { rowIndex: number; wsn: string }[] = [];
+            const lastPasteRow = startRow + clipRows.length - 1;
 
-            for (let rowOffset = 0; rowOffset < pasteData.length; rowOffset++) {
-                const targetRowIndex = startRow + rowOffset;
-                if (targetRowIndex >= newRows.length) break; // Don't paste beyond grid
+            // ⚡ SNAPSHOT rows BEFORE paste for undo
+            const prevSnapshot = multiRowsRef.current;
+            const oldRowsSnapshot = prevSnapshot.slice(startRow, lastPasteRow + 1).map(r => ({ ...r }));
 
-                const rowData = pasteData[rowOffset];
+            // ⚡ FIX: Compute new rows SYNCHRONOUSLY before calling setMultiRows
+            // React 18 batches state updates even in async functions, so the updater
+            // may not run immediately. We must compute everything before setState.
+            let computedNewRows = [...multiRowsRef.current];
 
-                for (let colOffset = 0; colOffset < rowData.length; colOffset++) {
-                    const targetColIndex = startColIndex + colOffset;
-                    if (targetColIndex >= colIds.length) break;
-
-                    const colId = colIds[targetColIndex];
-
-                    // Only paste to editable columns
-                    if (!EDITABLE_COLUMNS.includes(colId)) continue;
-
-                    const newValue = rowData[colOffset];
-                    const oldValue = newRows[targetRowIndex]?.[colId];
-
-                    // Track change for batch undo (instead of individual saveCellUndoAction)
-                    if (oldValue !== newValue) {
-                        batchChanges.push({ rowIndex: targetRowIndex, field: colId, oldValue, newValue });
-                    }
-
-                    // Apply WSN uppercase conversion if it's the WSN column
-                    const finalValue = colId === 'wsn' ? newValue.trim().toUpperCase() : newValue;
-                    newRows[targetRowIndex] = { ...newRows[targetRowIndex], [colId]: finalValue };
-                    pastedCount++;
-
-                    // Track WSN pastes for product lookup
-                    if (colId === 'wsn' && finalValue) {
-                        pastedWSNRows.push({ rowIndex: targetRowIndex, wsn: finalValue });
-                    }
+            // Auto-extend rows if needed
+            if (lastPasteRow >= computedNewRows.length) {
+                const extraNeeded = lastPasteRow - computedNewRows.length + 1 + 50;
+                for (let x = 0; x < extraNeeded; x++) {
+                    rowIdCounterRef.current += 1;
+                    computedNewRows.push({
+                        _rowId: `row_${rowIdCounterRef.current}_${Date.now()}`,
+                        id: 0,
+                        wsn: '', dispatch_remarks: '', other_remarks: '', quantity: '',
+                    });
                 }
             }
 
-            if (pastedCount > 0) {
-                // ⚡ BATCH UNDO: Save all paste changes as a single undo action
-                if (batchChanges.length > 0) {
-                    const batchAction: UndoAction = {
-                        type: 'batch',
-                        rowIndex: batchChanges[0].rowIndex,
-                        field: batchChanges[0].field,
-                        oldValue: null,
-                        newValue: null,
-                        batchChanges: batchChanges,
-                    };
-                    undoStackRef.current.push(batchAction);
-                    if (undoStackRef.current.length > MAX_UNDO_HISTORY) {
-                        undoStackRef.current.shift();
+            pasteData.forEach((rowData, i) => {
+                const rowIdx = startRow + i;
+                if (rowIdx >= computedNewRows.length) return;
+                rowData.forEach((cellValue, j) => {
+                    const colIndex = startColIndex + j;
+                    if (colIndex >= colIds.length) return;
+                    const colId = colIds[colIndex];
+                    if (!EDITABLE_COLUMNS.includes(colId)) return;
+                    const val = colId === 'wsn' ? (cellValue?.trim()?.toUpperCase() || '') : cellValue;
+                    computedNewRows[rowIdx] = { ...computedNewRows[rowIdx], [colId]: val };
+                    if (colId === 'wsn' && val) {
+                        pastedWSNCells.push({ rowIndex: rowIdx, wsn: val });
                     }
-                    redoStackRef.current = [];
+                });
+            });
+
+            // Step 1: Apply computed rows to state and ref in one go
+            multiRowsRef.current = computedNewRows;
+            setMultiRows(computedNewRows);
+
+            toast.success(`Pasted ${clipRows.length} row${clipRows.length > 1 ? 's' : ''} — checking duplicates & loading data...`, { duration: 2500 });
+
+            // Step 2: Comprehensive duplicate check for pasted WSNs (like inbound)
+            if (pastedWSNCells.length > 0 && activeWarehouse?.id) {
+                const MASTER_DATA_COLUMNS = [
+                    'source', 'product_title', 'brand', 'cms_vertical', 'wid', 'fsn',
+                    'order_id', 'fkqc_remark', 'fk_grade', 'hsn_sac', 'igst_rate',
+                    'fsp', 'mrp', 'vrp', 'yield_value', 'invoice_date', 'fkt_link',
+                    'wh_location', 'p_type', 'p_size', 'quantity'
+                ];
+
+                const uniqueWSNs = Array.from(new Set(pastedWSNCells.map(c => c.wsn)));
+
+                // 2a) GRID DUPLICATES: Check against computed new rows (synchronously available)
+                const gridRows = computedNewRows;
+                const wsnCountMap = new Map<string, number>();
+                gridRows.forEach(r => {
+                    const w = r.wsn?.trim()?.toUpperCase();
+                    if (w) wsnCountMap.set(w, (wsnCountMap.get(w) || 0) + 1);
+                });
+                const gridDupWSNs = new Set<string>();
+                uniqueWSNs.forEach(wsn => {
+                    if ((wsnCountMap.get(wsn) || 0) > 1) gridDupWSNs.add(wsn);
+                });
+
+                // 2b) ALREADY DISPATCHED: Check against existingOutboundWSNs (already loaded in memory)
+                const alreadyDispatchedWSNs = new Set<string>();
+                uniqueWSNs.forEach(wsn => {
+                    if (existingOutboundWSNs.has(wsn)) alreadyDispatchedWSNs.add(wsn);
+                });
+
+                // 2c) CROSS-WAREHOUSE: Check against all outbound WSNs if online
+                const crossWarehouseDetected = new Set<string>();
+                const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+                if (isOnline) {
+                    try {
+                        const resp = await Promise.race([
+                            outboundAPI.getAllOutboundWSNs(),
+                            new Promise<null>(resolve => setTimeout(() => resolve(null), 10000))
+                        ]);
+                        if (resp?.data) {
+                            const allOutboundWSNs = new Set<string>(
+                                (resp.data as string[]).map((w: string) => w.toUpperCase())
+                            );
+                            uniqueWSNs.forEach(wsn => {
+                                if (allOutboundWSNs.has(wsn) && !existingOutboundWSNs.has(wsn)) {
+                                    crossWarehouseDetected.add(wsn);
+                                }
+                            });
+                        }
+                    } catch (err) {
+                        console.error('Cross-warehouse WSN check failed:', err);
+                    }
                 }
 
-                setMultiRows(newRows);
-                api.refreshCells({ force: true });
-                toast.success(`Pasted ${pastedCount} cells`, { duration: 1500 });
+                // 3) Combine all problematic WSNs
+                const allProblematic = new Set<string>();
+                gridDupWSNs.forEach(w => allProblematic.add(w));
+                alreadyDispatchedWSNs.forEach(w => allProblematic.add(w));
+                crossWarehouseDetected.forEach(w => allProblematic.add(w));
 
-                // ⚡ ULTRA-FAST PARALLEL WSN LOOKUPS: Process multiple batches concurrently
-                if (pastedWSNRows.length > 0 && activeWarehouse?.id) {
-                    const toastId = toast.loading(`Loading ${pastedWSNRows.length} WSNs...`);
+                // 4) Master data lookup for valid WSNs
+                const validPastedCells = pastedWSNCells.filter(c => !allProblematic.has(c.wsn));
+                const validUniqueWSNs = Array.from(new Set(validPastedCells.map(c => c.wsn)));
+                const LOOKUP_BATCH = 50;
+                const masterDataMap = new Map<string, any>();
 
-                    const BATCH_SIZE = 100; // Items per batch
-                    const CONCURRENT_BATCHES = 10; // Run 10 batches simultaneously
-                    let successCount = 0;
-                    let failCount = 0;
-                    let processedCount = 0;
+                if (validUniqueWSNs.length > 0) {
+                    const toastId = toast.loading(`Loading ${validUniqueWSNs.length} WSNs...`);
 
-                    // Helper function to lookup a single WSN
-                    const lookupWSN = async (rowIndex: number, wsn: string): Promise<{ rowIndex: number; data: any | null }> => {
-                        try {
-                            // Try ultra-fast memory + IndexedDB cache first
-                            if (cacheEnabled && cacheStats?.isReady) {
+                    for (let i = 0; i < validUniqueWSNs.length; i += LOOKUP_BATCH) {
+                        const batch = validUniqueWSNs.slice(i, i + LOOKUP_BATCH);
+                        const results = await Promise.allSettled(
+                            batch.map(async (wsn) => {
                                 try {
-                                    const cached = await getAvailableInventoryByWSNFast(wsn, activeWarehouse.id);
-                                    if (cached) return { rowIndex, data: cached };
-                                } catch { /* cache miss */ }
-                            }
-                            // Fall back to API
-                            const res = await outboundAPI.getSourceByWSN(wsn, activeWarehouse.id);
-                            return { rowIndex, data: res.data };
-                        } catch {
-                            return { rowIndex, data: null };
-                        }
-                    };
-
-                    // Split into batches
-                    const batches: Array<typeof pastedWSNRows> = [];
-                    for (let i = 0; i < pastedWSNRows.length; i += BATCH_SIZE) {
-                        batches.push(pastedWSNRows.slice(i, i + BATCH_SIZE));
-                    }
-
-                    // Process batches in parallel groups
-                    const allResults: Array<{ rowIndex: number; data: any }> = [];
-
-                    for (let i = 0; i < batches.length; i += CONCURRENT_BATCHES) {
-                        const concurrentBatches = batches.slice(i, i + CONCURRENT_BATCHES);
-
-                        // Run multiple batches in parallel
-                        const batchPromises = concurrentBatches.map(batch =>
-                            Promise.all(batch.map(({ rowIndex, wsn }) => lookupWSN(rowIndex, wsn)))
+                                    // Try ultra-fast memory + IndexedDB cache first
+                                    if (cacheEnabled && cacheStats?.isReady) {
+                                        try {
+                                            const cached = await getAvailableInventoryByWSNFast(wsn, activeWarehouse!.id);
+                                            if (cached) return { wsn, data: cached };
+                                        } catch { /* cache miss */ }
+                                    }
+                                    // Fall back to API
+                                    const res = await outboundAPI.getSourceByWSN(wsn, activeWarehouse!.id);
+                                    return { wsn, data: res.data };
+                                } catch { return { wsn, data: null }; }
+                            })
                         );
-
-                        const batchResults = await Promise.all(batchPromises);
-
-                        // Flatten and collect results
-                        for (const results of batchResults) {
-                            allResults.push(...results);
-                        }
-
-                        processedCount += concurrentBatches.reduce((sum, b) => sum + b.length, 0);
-                        toast.loading(`Loading ${processedCount}/${pastedWSNRows.length} WSNs...`, { id: toastId });
-                    }
-
-                    // Apply all results to grid at once (batch update for performance)
-                    const updatedRowsMap = new Map<number, any>();
-
-                    for (const { rowIndex, data } of allResults) {
-                        if (data) {
-                            const rowNode = api.getDisplayedRowAtIndex(rowIndex);
-                            if (rowNode) {
-                                updatedRowsMap.set(rowIndex, {
-                                    ...rowNode.data,
-                                    source: data.source || '',
-                                    product_title: data.product_title || '',
-                                    brand: data.brand || '',
-                                    cms_vertical: data.cms_vertical || '',
-                                    wid: data.wid || '',
-                                    fsn: data.fsn || '',
-                                    order_id: data.order_id || '',
-                                    fkqc_remark: data.fkqc_remark || '',
-                                    fk_grade: data.fk_grade || '',
-                                    hsn_sac: data.hsn_sac || '',
-                                    igst_rate: data.igst_rate || '',
-                                    fsp: data.fsp || '',
-                                    mrp: data.mrp || '',
-                                    vrp: data.vrp || '',
-                                    yield_value: data.yield_value || '',
-                                    invoice_date: data.invoice_date || '',
-                                    fkt_link: data.fkt_link || '',
-                                    wh_location: data.wh_location || '',
-                                    p_type: data.p_type || '',
-                                    p_size: data.p_size || '',
-                                    quantity: data.quantity || 1,
-                                });
-                                successCount++;
+                        results.forEach(result => {
+                            if (result.status === 'fulfilled' && result.value.data) {
+                                masterDataMap.set(result.value.wsn, result.value.data);
                             }
-                        } else {
-                            failCount++;
-                        }
+                        });
+                        toast.loading(`Loading ${Math.min(i + LOOKUP_BATCH, validUniqueWSNs.length)}/${validUniqueWSNs.length} WSNs...`, { id: toastId });
                     }
+                    toast.dismiss(toastId);
+                }
 
-                    // Apply all updates at once using transaction for maximum speed
-                    const rowNodesToUpdate: any[] = [];
-                    updatedRowsMap.forEach((data, rowIndex) => {
-                        const rowNode = api.getDisplayedRowAtIndex(rowIndex);
-                        if (rowNode) {
-                            rowNode.setData(data);
-                            rowNodesToUpdate.push(rowNode);
+                // 5) Apply master data and remove problematic WSNs synchronously
+                const noMasterDataWSNs = new Set<string>();
+                const finalRows = [...multiRowsRef.current];
+
+                // Clear problematic WSNs
+                if (allProblematic.size > 0) {
+                    pastedWSNCells.forEach(({ rowIndex: rIdx, wsn }) => {
+                        if (allProblematic.has(wsn) && rIdx < finalRows.length) {
+                            finalRows[rIdx] = { ...finalRows[rIdx], wsn: '' };
+                            MASTER_DATA_COLUMNS.forEach(col => { finalRows[rIdx][col] = ''; });
                         }
                     });
-
-                    // Sync to React state after all lookups
-                    const updatedRows: any[] = [];
-                    api.forEachNode((node: any) => { if (node.data) updatedRows.push(node.data); });
-                    setMultiRows(updatedRows);
-
-                    toast.dismiss(toastId);
-                    if (successCount > 0) {
-                        toast.success(`✓ Loaded ${successCount}/${pastedWSNRows.length} WSNs`, { duration: 2000 });
-                    }
-                    if (failCount > 0) {
-                        toast.error(`${failCount} WSNs not found`, { duration: 2000 });
-                    }
                 }
+
+                // Apply master data for valid WSNs, clear WSNs without master data
+                validPastedCells.forEach(({ rowIndex: rIdx, wsn }) => {
+                    if (rIdx < finalRows.length) {
+                        const masterInfo = masterDataMap.get(wsn);
+                        if (masterInfo) {
+                            finalRows[rIdx] = { ...finalRows[rIdx] };
+                            MASTER_DATA_COLUMNS.forEach(col => {
+                                finalRows[rIdx][col] = masterInfo[col] || '';
+                            });
+                            // Ensure quantity defaults to 1
+                            if (!finalRows[rIdx].quantity) finalRows[rIdx].quantity = 1;
+                        } else {
+                            // WSN not found in source data — clear it
+                            noMasterDataWSNs.add(wsn);
+                            finalRows[rIdx] = { ...finalRows[rIdx], wsn: '' };
+                            MASTER_DATA_COLUMNS.forEach(col => { finalRows[rIdx][col] = ''; });
+                        }
+                    }
+                });
+
+                // ⚡ Update ref and state synchronously
+                multiRowsRef.current = finalRows;
+                setMultiRows(finalRows);
+
+                // 6) Show summary messages
+                if (allProblematic.size > 0) {
+                    const msgs: string[] = [];
+                    if (gridDupWSNs.size > 0) msgs.push(`${gridDupWSNs.size} duplicate in grid`);
+                    if (alreadyDispatchedWSNs.size > 0) msgs.push(`${alreadyDispatchedWSNs.size} already dispatched`);
+                    if (crossWarehouseDetected.size > 0) msgs.push(`${crossWarehouseDetected.size} cross-warehouse`);
+                    toast.error(`Removed: ${msgs.join(', ')}`, {
+                        duration: 5000,
+                        style: { fontWeight: 600, fontSize: '14px' },
+                    });
+                }
+
+                if (noMasterDataWSNs.size > 0) {
+                    toast.error(`${noMasterDataWSNs.size} WSN(s) not found in source data — removed from grid.`, {
+                        duration: 6000,
+                        style: { fontWeight: 600, fontSize: '14px' },
+                        icon: '❌'
+                    });
+                } else if (masterDataMap.size > 0) {
+                    toast.success(`✓ Source data loaded for ${masterDataMap.size} WSN${masterDataMap.size > 1 ? 's' : ''}`, { duration: 2000 });
+                }
+
+                // 7) Run full duplicate check to update UI state
+                setTimeout(() => {
+                    checkDuplicates(multiRowsRef.current);
+                }, 300);
+
+                // 8) SAVE BATCH UNDO ACTION
+                setTimeout(() => {
+                    const newRowsSnapshot = multiRowsRef.current.slice(startRow, lastPasteRow + 1).map(r => ({ ...r }));
+                    const pasteUndoAction: UndoAction = {
+                        type: 'batch',
+                        rowIndex: startRow,
+                        field: 'wsn',
+                        oldValue: null,
+                        newValue: null,
+                        batchChanges: oldRowsSnapshot.map((oldRow, i) => ({
+                            rowIndex: startRow + i,
+                            field: 'wsn',
+                            oldValue: oldRow.wsn || '',
+                            newValue: newRowsSnapshot[i]?.wsn || '',
+                        })),
+                    };
+                    undoStackRef.current.push(pasteUndoAction);
+                    if (undoStackRef.current.length > MAX_UNDO_HISTORY) undoStackRef.current.shift();
+                    redoStackRef.current = [];
+                }, 500);
+
+                // Refresh grid
+                setTimeout(() => {
+                    if (api) api.refreshCells({ force: true });
+                }, 350);
+
+            } else {
+                // No WSN cells pasted — just non-WSN columns
+                toast.success(`Pasted ${clipRows.length} row${clipRows.length > 1 ? 's' : ''} successfully`, { duration: 1500 });
+                setTimeout(() => {
+                    if (api) api.refreshCells({ force: true });
+                }, 100);
             }
         } catch (err: any) {
             // Clipboard access denied or other error
@@ -2467,7 +2631,7 @@ export default function OutboundPage() {
                 toast.error('Failed to paste from clipboard', { duration: 1500 });
             }
         }
-    }, [saveCellUndoAction, activeWarehouse, cacheEnabled, cacheStats]);
+    }, [activeWarehouse, cacheEnabled, cacheStats, existingOutboundWSNs, checkDuplicates]);
 
     // ⚡ EXCEL-LIKE: Select All (Ctrl+A)
     const handleSelectAll = useCallback(() => {
@@ -2941,6 +3105,8 @@ export default function OutboundPage() {
                     const updatedRows: any[] = [];
                     gridRef.current?.api.forEachNode((node: any) => { if (node.data) updatedRows.push(node.data); });
                     setMultiRows(updatedRows);
+                    // ⚡ FIX: Re-run duplicate check so duplicate errors clear when WSN is removed
+                    checkDuplicates(updatedRows);
                     // ⚡ SYNC: Broadcast cleared row to other devices
                     if (rowIndex != null) queueRowSync(rowIndex, clearedData);
                     return;
@@ -3085,17 +3251,23 @@ export default function OutboundPage() {
 
                 // If we reach here, proceed to fetch source/master data
                 // ⚡ SCANNER: Move to next row IMMEDIATELY (non-blocking)
+                // Only scroll if next row is not already visible (prevents unwanted auto-scroll-up)
                 const moveToNextRow = () => {
                     setTimeout(() => {
                         try {
                             const nextIndex = (rowIndex ?? 0) + 1;
                             if (nextIndex < params.api.getDisplayedRowCount()) {
-                                params.api.ensureIndexVisible(nextIndex, 'bottom');
+                                // Only scroll if the next row is outside the visible viewport
+                                const firstVisible = params.api.getFirstDisplayedRowIndex?.() ?? 0;
+                                const lastVisible = params.api.getLastDisplayedRowIndex?.() ?? params.api.getDisplayedRowCount() - 1;
+                                if (nextIndex < firstVisible || nextIndex > lastVisible) {
+                                    params.api.ensureIndexVisible(nextIndex, 'middle');
+                                }
                                 params.api.startEditingCell({ rowIndex: nextIndex, colKey: 'wsn' });
                             } else {
                                 add500Rows();
                                 setTimeout(() => {
-                                    params.api.ensureIndexVisible(nextIndex, 'bottom');
+                                    params.api.ensureIndexVisible(nextIndex, 'middle');
                                     params.api.startEditingCell({ rowIndex: nextIndex, colKey: 'wsn' });
                                 }, 50);
                             }
@@ -3191,7 +3363,24 @@ export default function OutboundPage() {
 
                     toast.success(`✓ ${fromCache ? '(Cache)' : ''} Data loaded for ${wsn}`);
                 } catch (err: any) {
-                    // Already handled above
+                    // ⚡ AUTO-REMOVE: Clear WSN from grid when product data not found
+                    const clearedData = {
+                        ...rowNode.data,
+                        wsn: '',
+                        source: '', product_title: '', brand: '', cms_vertical: '', wid: '', fsn: '',
+                        order_id: '', fkqc_remark: '', fk_grade: '', hsn_sac: '', igst_rate: '',
+                        fsp: '', mrp: '', vrp: '', yield_value: '', invoice_date: '', fkt_link: '',
+                        wh_location: '', p_type: '', p_size: '', quantity: ''
+                    };
+                    rowNode.setData(clearedData);
+                    toast.error(`${wsn}: Product data not found — removed from grid`, {
+                        duration: 3000,
+                        icon: '❌'
+                    });
+                    // Refocus the cell for re-entry
+                    setTimeout(() => {
+                        params.api.startEditingCell({ rowIndex: params.rowIndex, colKey: 'wsn' });
+                    }, 100);
                 }
             }
 
@@ -3433,6 +3622,9 @@ export default function OutboundPage() {
                 setCommonVehicle('');
                 await clearDraft();
 
+                // Clear dispatching WSNs since all entries submitted
+                clearDispatchingWSNs();
+
                 if (isWMSCacheEnabled()) {
                     const dispatchedWSNs = entriesWithCommonFields.map((r: any) => r.wsn?.trim()?.toUpperCase()).filter(Boolean);
                     removeMultipleFromAvailableCache(dispatchedWSNs).catch(() => { });
@@ -3555,6 +3747,8 @@ export default function OutboundPage() {
         setCommonVehicle('');
         undoStackRef.current = [];
         redoStackRef.current = [];
+        // Clear dispatching WSNs when draft is cleared
+        clearDispatchingWSNs();
         toast.success('Draft cleared');
     };
 
@@ -8537,11 +8731,11 @@ export default function OutboundPage() {
                                     label={
                                         <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center' }}>
                                             <span style={{ color: isDarkMode ? '#22d3ee' : '#2563eb' }}>
-                                                Sum: ₹{selectionStats.sum.toLocaleString()}
+                                                Sum: {selectionStats.sum.toLocaleString()}
                                             </span>
                                             <span style={{ color: isDarkMode ? '#94a3b8' : '#64748b' }}>|</span>
                                             <span style={{ color: isDarkMode ? '#a78bfa' : '#7c3aed' }}>
-                                                Avg: ₹{selectionStats.average.toLocaleString()}
+                                                Avg: {selectionStats.average.toLocaleString()}
                                             </span>
                                             <span style={{ color: isDarkMode ? '#94a3b8' : '#64748b' }}>|</span>
                                             <span style={{ color: isDarkMode ? '#4ade80' : '#16a34a' }}>

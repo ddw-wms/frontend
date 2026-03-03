@@ -596,6 +596,7 @@ export default function InboundPage() {
 
   const [brandFilter, setBrandFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
   const [dateFromFilter, setDateFromFilter] = useState('');
   const [dateToFilter, setDateToFilter] = useState('');
   const [brands, setBrands] = useState<string[]>([]);
@@ -606,6 +607,7 @@ export default function InboundPage() {
     (searchFilter && searchFilter.trim() !== '') ||
     (brandFilter && brandFilter !== '') ||
     (categoryFilter && categoryFilter !== '') ||
+    (statusFilter && statusFilter !== '') ||
     (dateFromFilter && dateFromFilter !== '') ||
     (dateToFilter && dateToFilter !== '')
   );
@@ -1767,7 +1769,51 @@ export default function InboundPage() {
       return base;
     });
 
-    return [srCol, ...cols];
+    // "Outbound in Process" status column — shows badge when WSN is in someone's outbound multi-entry grid
+    const statusCol = {
+      headerName: 'STATUS',
+      field: 'outbound_in_process',
+      width: 160,
+      minWidth: 140,
+      sortable: true,
+      filter: true,
+      cellRenderer: (params: any) => {
+        if (params.value) {
+          return React.createElement('span', {
+            style: {
+              background: '#f59e0b',
+              color: '#fff',
+              padding: '2px 8px',
+              borderRadius: '4px',
+              fontSize: '11px',
+              fontWeight: 600,
+              whiteSpace: 'nowrap',
+            }
+          }, 'Outbound in Process');
+        }
+        if (params.data?.dispatched) {
+          return React.createElement('span', {
+            style: {
+              background: '#22c55e',
+              color: '#fff',
+              padding: '2px 8px',
+              borderRadius: '4px',
+              fontSize: '11px',
+              fontWeight: 600,
+              whiteSpace: 'nowrap',
+            }
+          }, 'Dispatched');
+        }
+        return React.createElement('span', {
+          style: {
+            color: '#94a3b8',
+            fontSize: '11px',
+          }
+        }, 'Available');
+      },
+    };
+
+    return [srCol, statusCol, ...cols];
   }, [ALL_LIST_COLUMNS, formatInboundDate, isDarkMode]);
 
   const inboundDefaultColDef = useMemo(() => ({
@@ -1808,8 +1854,9 @@ export default function InboundPage() {
       category: categoryFilter,
       dateFrom: dateFromFilter,
       dateTo: dateToFilter,
+      statusFilter,
     });
-  }, [activeWarehouse?.id, page, limit, searchFilter, brandFilter, categoryFilter, dateFromFilter, dateToFilter]);
+  }, [activeWarehouse?.id, page, limit, searchFilter, brandFilter, categoryFilter, dateFromFilter, dateToFilter, statusFilter]);
 
   // ⚡ PREFETCH: Prefetch next page in background
   const prefetchNextPage = useCallback(async () => {
@@ -1825,6 +1872,7 @@ export default function InboundPage() {
       category: categoryFilter,
       dateFrom: dateFromFilter,
       dateTo: dateToFilter,
+      statusFilter,
     });
 
     const cached = pageCacheRef.current.get(nextPageCacheKey);
@@ -1838,6 +1886,7 @@ export default function InboundPage() {
         category: categoryFilter,
         dateFrom: dateFromFilter,
         dateTo: dateToFilter,
+        statusFilter,
       });
       const rows = response.data?.data || [];
       pageCacheRef.current.set(nextPageCacheKey, {
@@ -1846,7 +1895,7 @@ export default function InboundPage() {
         timestamp: Date.now(),
       });
     } catch { /* Silently fail - prefetch is optional */ }
-  }, [activeWarehouse?.id, page, limit, total, searchFilter, brandFilter, categoryFilter, dateFromFilter, dateToFilter]);
+  }, [activeWarehouse?.id, page, limit, total, searchFilter, brandFilter, categoryFilter, dateFromFilter, dateToFilter, statusFilter]);
 
   const loadInboundList = useCallback(async ({ buttonRefresh = false } = {}) => {
     const t0 = Date.now();
@@ -1910,7 +1959,8 @@ export default function InboundPage() {
         brand: brandFilter,
         category: categoryFilter,
         dateFrom: dateFromFilter,
-        dateTo: dateToFilter
+        dateTo: dateToFilter,
+        statusFilter,
       }, { signal: controller.signal });
 
       // Only apply if this is the latest load
@@ -2018,7 +2068,7 @@ export default function InboundPage() {
       setListLoading(false);
       setRefreshing(false);
     }
-  }, [activeWarehouse?.id, page, limit, searchFilter, brandFilter, categoryFilter, dateFromFilter, dateToFilter, router, getCacheKey, prefetchNextPage]);
+  }, [activeWarehouse?.id, page, limit, searchFilter, brandFilter, categoryFilter, dateFromFilter, dateToFilter, statusFilter, router, getCacheKey, prefetchNextPage]);
 
   const loadBrands = useCallback(async () => {
     try {
@@ -2110,7 +2160,7 @@ export default function InboundPage() {
         listLoadDebounceRef.current = null;
       }
     };
-  }, [activeWarehouse, tabValue, page, limit, searchFilter, brandFilter, categoryFilter, dateFromFilter, dateToFilter, loadInboundList]);
+  }, [activeWarehouse, tabValue, page, limit, searchFilter, brandFilter, categoryFilter, dateFromFilter, dateToFilter, statusFilter, loadInboundList]);
 
 
 
@@ -9253,6 +9303,27 @@ export default function InboundPage() {
                   {(brandFilter ? filteredCategories : categories).map((c) => (
                     <MenuItem key={c} value={c}>{c}</MenuItem>
                   ))}
+                </TextField>
+
+                {/* Status Filter (Outbound in Process) */}
+                <TextField
+                  select
+                  size="small"
+                  label="Status"
+                  value={statusFilter}
+                  onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
+                  fullWidth
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      height: 40,
+                      bgcolor: isDarkMode ? '#0f172a' : '#f8fafc',
+                    }
+                  }}
+                >
+                  <MenuItem value="">All Status</MenuItem>
+                  <MenuItem value="outbound_in_process">Outbound in Process</MenuItem>
+                  <MenuItem value="dispatched">Dispatched</MenuItem>
+                  <MenuItem value="available">Available</MenuItem>
                 </TextField>
               </Stack>
             </AccordionDetails>
