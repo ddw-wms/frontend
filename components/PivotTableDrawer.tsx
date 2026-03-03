@@ -559,7 +559,7 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
 
     // Unique brands in drilldown data for the brand filter dropdown
     const drilldownBrands = useMemo(() => {
-        const brands = [...new Set(drilldownData.map(row => row.brand).filter(Boolean))] as string[];
+        const brands = Array.from(new Set(drilldownData.map(row => row.brand).filter(Boolean))) as string[];
         return brands.sort();
     }, [drilldownData]);
 
