@@ -138,6 +138,7 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
     const [drilldownOpen, setDrilldownOpen] = useState(false);
     const [drilldownFullscreen, setDrilldownFullscreen] = useState(false);
     const [drilldownCategory, setDrilldownCategory] = useState<string>('');
+    const [drilldownBrandFilter, setDrilldownBrandFilter] = useState<string>('');
     const [drilldownData, setDrilldownData] = useState<any[]>([]);
     const [drilldownLoading, setDrilldownLoading] = useState(false);
     const [drilldownPage, setDrilldownPage] = useState(1);
@@ -234,12 +235,12 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
         { field: 'current_stage', headerName: 'Stage', width: isMobile ? 75 : 100, minWidth: isMobile ? 65 : 80 },
     ], [isMobile]);
 
-    // Fetch pivot filters (brands, categories) when drawer opens
+    // Fetch pivot filters dynamically when brand or category changes
     useEffect(() => {
         if (open && warehouseId) {
-            fetchPivotFilters();
+            fetchPivotFilters(brandFilter, categoryFilter);
         }
-    }, [open, warehouseId]);
+    }, [open, warehouseId, brandFilter, categoryFilter]);
 
     // Fetch pivot summary when drawer opens or filters change
     useEffect(() => {
@@ -248,14 +249,28 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
         }
     }, [open, warehouseId, groupBy, brandFilter, categoryFilter]);
 
-    // Fetch filter options from API
-    const fetchPivotFilters = async () => {
+    // Fetch filter options from API (dynamic: pass current selections)
+    const fetchPivotFilters = async (currentBrand?: string, currentCategory?: string) => {
         if (!warehouseId) return;
         try {
-            const response = await dashboardAPI.getPivotFilters({ warehouseId });
+            const response = await dashboardAPI.getPivotFilters({
+                warehouseId,
+                brand: currentBrand || undefined,
+                category: currentCategory || undefined,
+            });
             if (response.data?.success) {
-                setAllBrands(response.data.brands || []);
-                setAllCategories(response.data.categories || []);
+                const newBrands = response.data.brands || [];
+                const newCategories = response.data.categories || [];
+                setAllBrands(newBrands);
+                setAllCategories(newCategories);
+                // Reset category if it's no longer in the filtered list
+                if (currentBrand && categoryFilter && !newCategories.includes(categoryFilter)) {
+                    setCategoryFilter('');
+                }
+                // Reset brand if it's no longer in the filtered list
+                if (currentCategory && brandFilter && !newBrands.includes(brandFilter)) {
+                    setBrandFilter('');
+                }
             }
         } catch (err) {
             console.error('Failed to load pivot filters:', err);
@@ -322,6 +337,7 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
         setDrilldownCategory(category);
         setDrilldownPage(1);
         setDrilldownSearch('');
+        setDrilldownBrandFilter('');
         setDrilldownOpen(true);
         // Fetch all data for proper AG Grid client-side pagination
         fetchDrilldownData(category, 1, 10000);
@@ -524,14 +540,28 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
         }
     };
 
-    // Filtered drilldown data based on search
-    const filteredDrilldownData = drilldownSearch
-        ? drilldownData.filter(row =>
-            row.wsn?.toLowerCase().includes(drilldownSearch.toLowerCase()) ||
-            row.product_title?.toLowerCase().includes(drilldownSearch.toLowerCase()) ||
-            row.brand?.toLowerCase().includes(drilldownSearch.toLowerCase())
-        )
-        : drilldownData;
+    // Filtered drilldown data based on search and brand filter
+    const filteredDrilldownData = useMemo(() => {
+        let data = drilldownData;
+        if (drilldownBrandFilter) {
+            data = data.filter(row => row.brand === drilldownBrandFilter);
+        }
+        if (drilldownSearch) {
+            const search = drilldownSearch.toLowerCase();
+            data = data.filter(row =>
+                row.wsn?.toLowerCase().includes(search) ||
+                row.product_title?.toLowerCase().includes(search) ||
+                row.brand?.toLowerCase().includes(search)
+            );
+        }
+        return data;
+    }, [drilldownData, drilldownBrandFilter, drilldownSearch]);
+
+    // Unique brands in drilldown data for the brand filter dropdown
+    const drilldownBrands = useMemo(() => {
+        const brands = [...new Set(drilldownData.map(row => row.brand).filter(Boolean))] as string[];
+        return brands.sort();
+    }, [drilldownData]);
 
     const groupByOptions = [
         { value: 'cms_vertical', label: 'Category' },
@@ -1086,7 +1116,7 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
                     </Box>
                 </DialogTitle>
 
-                <Box sx={{ p: { xs: 0.5, md: 2 }, borderBottom: '1px solid rgba(0,0,0,0.1)', display: 'flex', alignItems: 'center', gap: { xs: 0.5, md: 2 } }}>
+                <Box sx={{ p: { xs: 0.5, md: 2 }, borderBottom: '1px solid rgba(0,0,0,0.1)', display: 'flex', alignItems: 'center', gap: { xs: 0.5, md: 2 }, flexWrap: 'wrap' }}>
                     <TextField
                         size="small"
                         placeholder="Search WSN, Product, Brand..."
@@ -1102,6 +1132,37 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
                         }}
                         sx={{ flex: { xs: 1, md: 'none' }, width: { md: 300 } }}
                     />
+                    {/* Brand Filter in Drill-down */}
+                    <FormControl
+                        size="small"
+                        variant="outlined"
+                        sx={{
+                            minWidth: { xs: 90, md: 140 },
+                            '& .MuiInputBase-root': {
+                                height: { xs: 32, md: 40 },
+                                borderRadius: 1,
+                            },
+                            '& .MuiSelect-select': {
+                                fontSize: { xs: '0.75rem', md: '0.85rem' },
+                                py: '6px',
+                                px: '10px',
+                                pr: '28px !important',
+                                fontWeight: 500,
+                            },
+                        }}
+                    >
+                        <Select
+                            value={drilldownBrandFilter}
+                            onChange={(e) => setDrilldownBrandFilter(e.target.value)}
+                            displayEmpty
+                            renderValue={(value) => value || 'All Brands'}
+                        >
+                            <MenuItem value="" sx={{ fontSize: '0.85rem' }}>All Brands</MenuItem>
+                            {drilldownBrands.map(brand => (
+                                <MenuItem key={brand} value={brand} sx={{ fontSize: '0.85rem' }}>{brand}</MenuItem>
+                            ))}
+                        </Select>
+                    </FormControl>
                     <Tooltip title="Grid Settings">
                         <IconButton
                             onClick={() => setGridSettingsOpen(true)}

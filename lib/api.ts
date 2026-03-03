@@ -890,8 +890,8 @@ export const dashboardAPI = {
   getPivotSummary: (params: { warehouseId: number; groupBy?: string; brand?: string; category?: string }) =>
     api.get('/dashboard/pivot-summary', { params }),
 
-  // Get pivot filter options (brands, categories)
-  getPivotFilters: (params: { warehouseId: number }) =>
+  // Get pivot filter options (brands, categories) - dynamic based on selected filters
+  getPivotFilters: (params: { warehouseId: number; brand?: string; category?: string }) =>
     api.get('/dashboard/pivot-filters', { params }),
 
   // Get drill-down data for a specific category (with all master_data columns)
