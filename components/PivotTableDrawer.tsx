@@ -40,6 +40,7 @@ import {
     Menu,
     ListItemIcon,
     ListItemText,
+    Portal,
 } from '@mui/material';
 import {
     Close as CloseIcon,
@@ -138,13 +139,13 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
     const [drilldownOpen, setDrilldownOpen] = useState(false);
     const [drilldownFullscreen, setDrilldownFullscreen] = useState(false);
     const [drilldownCategory, setDrilldownCategory] = useState<string>('');
-    const [drilldownBrandFilter, setDrilldownBrandFilter] = useState<string>('');
     const [drilldownData, setDrilldownData] = useState<any[]>([]);
     const [drilldownLoading, setDrilldownLoading] = useState(false);
     const [drilldownPage, setDrilldownPage] = useState(1);
     const [drilldownTotal, setDrilldownTotal] = useState(0);
     const [drilldownTotalPages, setDrilldownTotalPages] = useState(0);
     const [drilldownSearch, setDrilldownSearch] = useState('');
+    const [drilldownBrandFilter, setDrilldownBrandFilter] = useState<string>('');
     const [exportingExcel, setExportingExcel] = useState(false);
     const [exportingAllData, setExportingAllData] = useState(false);
     const [drilldownLimit, setDrilldownLimit] = useState(100);
@@ -235,7 +236,7 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
         { field: 'current_stage', headerName: 'Stage', width: isMobile ? 75 : 100, minWidth: isMobile ? 65 : 80 },
     ], [isMobile]);
 
-    // Fetch pivot filters dynamically when brand or category changes
+    // Fetch pivot filters (brands, categories) when drawer opens or filters change
     useEffect(() => {
         if (open && warehouseId) {
             fetchPivotFilters(brandFilter, categoryFilter);
@@ -249,27 +250,26 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
         }
     }, [open, warehouseId, groupBy, brandFilter, categoryFilter]);
 
-    // Fetch filter options from API (dynamic: pass current selections)
-    const fetchPivotFilters = async (currentBrand?: string, currentCategory?: string) => {
+    // Fetch filter options from API — accepts current brand/category for cross-filtering
+    const fetchPivotFilters = async (brand?: string, category?: string) => {
         if (!warehouseId) return;
         try {
             const response = await dashboardAPI.getPivotFilters({
                 warehouseId,
-                brand: currentBrand || undefined,
-                category: currentCategory || undefined,
+                brand: brand || undefined,
+                category: category || undefined,
             });
             if (response.data?.success) {
                 const newBrands = response.data.brands || [];
                 const newCategories = response.data.categories || [];
                 setAllBrands(newBrands);
                 setAllCategories(newCategories);
-                // Reset category if it's no longer in the filtered list
-                if (currentBrand && categoryFilter && !newCategories.includes(categoryFilter)) {
-                    setCategoryFilter('');
-                }
-                // Reset brand if it's no longer in the filtered list
-                if (currentCategory && brandFilter && !newBrands.includes(brandFilter)) {
+                // Auto-reset selection if it's no longer in the filtered list
+                if (brandFilter && !newBrands.includes(brandFilter)) {
                     setBrandFilter('');
+                }
+                if (categoryFilter && !newCategories.includes(categoryFilter)) {
+                    setCategoryFilter('');
                 }
             }
         } catch (err) {
@@ -338,6 +338,8 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
         setDrilldownPage(1);
         setDrilldownSearch('');
         setDrilldownBrandFilter('');
+        setDrilldownData([]);
+        setDrilldownLoading(true);
         setDrilldownOpen(true);
         // Fetch all data for proper AG Grid client-side pagination
         fetchDrilldownData(category, 1, 10000);
@@ -348,6 +350,20 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
         setDrilldownPage(page);
         fetchDrilldownData(drilldownCategory, page);
     };
+
+    // Lock body scroll & handle Escape when drill-down overlay is open
+    useEffect(() => {
+        if (!drilldownOpen) return;
+        document.body.style.overflow = 'hidden';
+        const handleEsc = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') setDrilldownOpen(false);
+        };
+        document.addEventListener('keydown', handleEsc);
+        return () => {
+            document.body.style.overflow = '';
+            document.removeEventListener('keydown', handleEsc);
+        };
+    }, [drilldownOpen]);
 
     // Export drill-down to Excel
     const handleExportDrilldown = async () => {
@@ -540,6 +556,12 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
         }
     };
 
+    // Unique brands available in drilldown data (for drilldown brand filter dropdown)
+    const drilldownBrands = useMemo(() => {
+        const brands = Array.from(new Set(drilldownData.map(row => row.brand).filter(Boolean))) as string[];
+        return brands.sort();
+    }, [drilldownData]);
+
     // Filtered drilldown data based on search and brand filter
     const filteredDrilldownData = useMemo(() => {
         let data = drilldownData;
@@ -556,12 +578,6 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
         }
         return data;
     }, [drilldownData, drilldownBrandFilter, drilldownSearch]);
-
-    // Unique brands in drilldown data for the brand filter dropdown
-    const drilldownBrands = useMemo(() => {
-        const brands = Array.from(new Set(drilldownData.map(row => row.brand).filter(Boolean))) as string[];
-        return brands.sort();
-    }, [drilldownData]);
 
     const groupByOptions = [
         { value: 'cms_vertical', label: 'Category' },
@@ -1027,386 +1043,432 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
                 )}
             </Drawer>
 
-            {/* Drill-Down Dialog */}
-            <Dialog
-                open={drilldownOpen}
-                onClose={() => setDrilldownOpen(false)}
-                maxWidth={isMobile ? false : (drilldownFullscreen ? false : 'xl')}
-                fullWidth={isMobile ? true : !drilldownFullscreen}
-                fullScreen={isMobile ? true : drilldownFullscreen}
-                PaperProps={{
-                    sx: {
-                        borderRadius: (isMobile || drilldownFullscreen) ? 0 : 2,
-                        maxHeight: (isMobile || drilldownFullscreen) ? '100vh' : '90vh',
-                        height: (isMobile || drilldownFullscreen) ? '100vh' : '90vh',
-                        width: (isMobile || drilldownFullscreen) ? '100vw' : undefined,
-                        margin: (isMobile || drilldownFullscreen) ? 0 : undefined,
-                        transition: 'all 0.2s ease-in-out',
-                        // Mobile: position below header with safe area padding
-                        ...(isMobile && {
-                            top: '42px',
-                            height: 'calc(100vh - 42px)',
-                            maxHeight: 'calc(100vh - 42px)',
-                            paddingBottom: 'env(safe-area-inset-bottom, 0px)',
-                        }),
-                    },
-                }}
-            >
-                <DialogTitle
-                    sx={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        background: 'linear-gradient(135deg, #0d9488 0%, #0f766e 100%)',
-                        color: 'white',
-                        py: { xs: 0.75, md: 1.5 },
-                        px: { xs: 1.5, md: 3 },
-                        minHeight: { xs: 48, md: 64 },
-                    }}
-                >
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 0.75, md: 1 }, minWidth: 0, flex: 1 }}>
-                        <TableIcon sx={{ fontSize: { xs: 20, md: 24 } }} />
-                        <Box sx={{ minWidth: 0 }}>
-                            <Typography variant="h6" sx={{ fontSize: { xs: '0.85rem', md: '1rem' }, fontWeight: 700, lineHeight: 1.2 }} noWrap>
-                                {drilldownCategory}
-                            </Typography>
-                            <Typography
-                                variant="caption"
-                                sx={{
-                                    color: 'rgba(255,255,255,0.95)',
-                                    fontSize: { xs: '0.6rem', md: '0.75rem' },
-                                    lineHeight: 1.1,
-                                    display: 'block',
-                                }}
-                            >
-                                {formatNumber(drilldownTotal)} items • All Master Data Columns
-                            </Typography>
-                        </Box>
-                    </Box>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 0.5, md: 1 }, flexShrink: 0 }}>
-                        <Button
-                            variant="contained"
-                            size="small"
-                            startIcon={exportingExcel ? <CircularProgress size={14} color="inherit" /> : <DownloadIcon sx={{ fontSize: { xs: 16, md: 20 } }} />}
-                            onClick={handleExportDrilldown}
-                            disabled={exportingExcel || drilldownLoading}
-                            sx={{
-                                bgcolor: 'rgba(255,255,255,0.2)',
-                                '&:hover': { bgcolor: 'rgba(255,255,255,0.3)' },
-                                fontSize: { xs: '0.65rem', md: '0.875rem' },
-                                py: { xs: 0.5, md: 0.75 },
-                                px: { xs: 1, md: 2 },
-                                minWidth: 'auto',
-                            }}
-                        >
-                            {exportingExcel ? '...' : (isMobile ? 'Export' : 'Export to Excel')}
-                        </Button>
-                        {/* Fullscreen button - desktop only */}
-                        <Tooltip title={drilldownFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}>
-                            <IconButton
-                                onClick={() => setDrilldownFullscreen(!drilldownFullscreen)}
-                                sx={{ color: 'white', display: { xs: 'none', md: 'flex' }, p: { xs: 0.5, md: 1 } }}
-                            >
-                                {drilldownFullscreen ? <FullscreenExitIcon /> : <FullscreenIcon />}
-                            </IconButton>
-                        </Tooltip>
-                        <IconButton onClick={() => setDrilldownOpen(false)} sx={{ color: 'white', p: { xs: 0.5, md: 1 } }}>
-                            <CloseIcon sx={{ fontSize: { xs: 20, md: 24 } }} />
-                        </IconButton>
-                    </Box>
-                </DialogTitle>
-
-                <Box sx={{ p: { xs: 0.5, md: 2 }, borderBottom: '1px solid rgba(0,0,0,0.1)', display: 'flex', alignItems: 'center', gap: { xs: 0.5, md: 2 }, flexWrap: 'wrap' }}>
-                    <TextField
-                        size="small"
-                        placeholder="Search WSN, Product, Brand..."
-                        value={drilldownSearch}
-                        onChange={(e) => setDrilldownSearch(e.target.value)}
-                        InputProps={{
-                            startAdornment: (
-                                <InputAdornment position="start">
-                                    <SearchIcon sx={{ fontSize: { xs: 16, md: 20 }, color: 'text.secondary' }} />
-                                </InputAdornment>
-                            ),
-                            sx: { fontSize: { xs: '0.75rem', md: '1rem' }, height: { xs: 32, md: 40 } },
-                        }}
-                        sx={{ flex: { xs: 1, md: 'none' }, width: { md: 300 } }}
-                    />
-                    {/* Brand Filter in Drill-down */}
-                    <FormControl
-                        size="small"
-                        variant="outlined"
+            {/* Drill-Down Dialog - Portal overlay, no MUI Dialog transition */}
+            {drilldownOpen && (
+                <Portal>
+                    {/* Backdrop */}
+                    <Box
+                        onClick={() => setDrilldownOpen(false)}
                         sx={{
-                            minWidth: { xs: 90, md: 140 },
-                            '& .MuiInputBase-root': {
-                                height: { xs: 32, md: 40 },
-                                borderRadius: 1,
-                            },
-                            '& .MuiSelect-select': {
-                                fontSize: { xs: '0.75rem', md: '0.85rem' },
-                                py: '6px',
-                                px: '10px',
-                                pr: '28px !important',
-                                fontWeight: 500,
-                            },
+                            position: 'fixed',
+                            inset: 0,
+                            zIndex: 1300,
+                            backgroundColor: isDarkMode ? 'rgba(15,23,42,0.6)' : 'rgba(248,250,252,0.6)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
                         }}
                     >
-                        <Select
-                            value={drilldownBrandFilter}
-                            onChange={(e) => setDrilldownBrandFilter(e.target.value)}
-                            displayEmpty
-                            renderValue={(value) => value || 'All Brands'}
-                        >
-                            <MenuItem value="" sx={{ fontSize: '0.85rem' }}>All Brands</MenuItem>
-                            {drilldownBrands.map(brand => (
-                                <MenuItem key={brand} value={brand} sx={{ fontSize: '0.85rem' }}>{brand}</MenuItem>
-                            ))}
-                        </Select>
-                    </FormControl>
-                    <Tooltip title="Grid Settings">
-                        <IconButton
-                            onClick={() => setGridSettingsOpen(true)}
-                            sx={{
-                                bgcolor: 'rgba(13, 148, 136, 0.1)',
-                                '&:hover': { bgcolor: 'rgba(13, 148, 136, 0.2)' },
-                                p: { xs: 0.5, md: 1 },
-                            }}
-                        >
-                            <SettingsIcon sx={{ color: '#0d9488', fontSize: { xs: 18, md: 24 } }} />
-                        </IconButton>
-                    </Tooltip>
-                </Box>
-
-                <DialogContent sx={{ p: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                    {drilldownLoading ? (
-                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1 }}>
-                            <CircularProgress />
-                        </Box>
-                    ) : (
+                        {/* Paper / Content */}
                         <Box
-                            className="ag-theme-quartz"
+                            onClick={(e) => e.stopPropagation()}
                             sx={{
-                                flex: 1,
-                                width: '100%',
-                                mb: { xs: 'calc(env(safe-area-inset-bottom, 16px) + 20px)', md: 0 },
-                                // Desktop default styles
-                                '--ag-header-height': '42px',
-                                '--ag-row-height': '38px',
-                                '--ag-header-foreground-color': '#ffffff',
-                                '--ag-header-background-color': '#0f766e',
-                                '--ag-border-color': 'rgba(0,0,0,0.12)',
-                                '--ag-odd-row-background-color': 'rgba(240, 247, 244, 0.5)',
-                                '--ag-row-hover-color': 'rgba(13, 148, 136, 0.08)',
-                                '--ag-selected-row-background-color': 'rgba(13, 148, 136, 0.12)',
-                                '--ag-font-size': '12px',
-                                '--ag-font-family': 'Inter, -apple-system, sans-serif',
-                                '--ag-cell-horizontal-padding': '8px',
-                                '& .ag-root-wrapper': {
-                                    border: 'none',
-                                },
-                                '& .ag-header': {
-                                    borderBottom: '2px solid #0d9488',
-                                    fontWeight: 600,
-                                },
-                                '& .ag-header-cell': {
-                                    fontWeight: 600,
-                                    fontSize: '11px',
-                                    padding: '0 8px',
-                                },
-                                '& .ag-header-cell-text': {
-                                    overflow: 'hidden',
-                                    textOverflow: 'ellipsis',
-                                    whiteSpace: 'nowrap',
-                                },
-                                '& .ag-row': {
-                                    transition: 'background-color 0.15s ease',
-                                    borderBottom: '1px solid rgba(0,0,0,0.06)',
-                                },
-                                '& .ag-cell': {
-                                    lineHeight: '36px',
-                                    padding: '0 8px',
-                                    overflow: 'hidden',
-                                    textOverflow: 'ellipsis',
-                                    whiteSpace: 'nowrap',
-                                    borderRight: '1px solid rgba(0,0,0,0.06)',
-                                },
-                                '& .ag-cell-value': {
-                                    overflow: 'hidden',
-                                    textOverflow: 'ellipsis',
-                                    whiteSpace: 'nowrap',
-                                },
-                                // Pagination Panel Styles
-                                '& .ag-paging-panel': {
-                                    height: '52px',
-                                    borderTop: '2px solid #0d9488',
-                                    background: '#f0fdfa !important',
-                                    color: '#1e293b !important',
-                                    fontWeight: 500,
-                                    padding: '0 16px',
-                                },
-                                '& .ag-paging-panel *': {
-                                    color: '#1e293b !important',
-                                },
-                                '& .ag-paging-button': {
-                                    cursor: 'pointer',
-                                    backgroundColor: '#ffffff !important',
-                                    border: '1px solid #0d9488 !important',
-                                    borderRadius: '4px !important',
-                                    margin: '0 3px !important',
-                                    minWidth: '32px !important',
-                                    height: '32px !important',
-                                    display: 'flex !important',
-                                    alignItems: 'center !important',
-                                    justifyContent: 'center !important',
-                                },
-                                '& .ag-paging-button:hover': {
-                                    backgroundColor: '#ccfbf1 !important',
-                                },
-                                '& .ag-paging-button.ag-disabled': {
-                                    opacity: '0.4 !important',
-                                    cursor: 'not-allowed !important',
-                                    backgroundColor: '#e2e8f0 !important',
-                                },
-                                '& .ag-paging-button .ag-icon': {
-                                    color: '#0f766e !important',
-                                    fontSize: '18px !important',
-                                    display: 'block !important',
-                                },
-                                '& .ag-icon-first, & .ag-icon-previous, & .ag-icon-next, & .ag-icon-last': {
-                                    color: '#0f766e !important',
-                                    display: 'block !important',
-                                },
-                                '& .ag-paging-row-summary-panel': {
-                                    color: '#475569 !important',
-                                    fontWeight: '500 !important',
-                                    fontSize: '13px !important',
-                                },
-                                '& .ag-paging-row-summary-panel-number': {
-                                    fontWeight: '700 !important',
-                                    color: '#0f766e !important',
-                                },
-                                '& .ag-paging-page-summary-panel': {
-                                    color: '#1e293b !important',
-                                    fontWeight: '600 !important',
-                                    fontSize: '13px !important',
-                                },
-                                '& .ag-paging-number': {
-                                    fontWeight: '700 !important',
-                                    color: '#0f766e !important',
-                                },
-                                '& .ag-picker-field-wrapper, & .ag-paging-page-size .ag-picker-field-wrapper': {
-                                    backgroundColor: '#ffffff !important',
-                                    border: '1px solid #0d9488 !important',
-                                    borderRadius: '4px !important',
-                                    minHeight: '32px !important',
-                                },
-                                '& .ag-picker-field-display': {
-                                    color: '#1e293b !important',
-                                    fontWeight: '600 !important',
-                                },
-                                '& .ag-label': {
-                                    color: '#475569 !important',
-                                    fontWeight: '500 !important',
-                                },
-                                // ======= MOBILE ONLY STYLES (< 900px) =======
-                                '@media (max-width: 899px)': {
-                                    '--ag-header-height': '32px',
-                                    '--ag-row-height': '28px',
-                                    '--ag-font-size': '11px',
-                                    '--ag-cell-horizontal-padding': '4px',
-                                    '--ag-border-color': 'rgba(0,0,0,0.18)',
-                                    '--ag-row-border-color': 'rgba(0,0,0,0.18)',
-                                    '& .ag-root-wrapper': {
-                                        border: '1px solid rgba(0,0,0,0.2)',
-                                    },
-                                    '& .ag-header-cell': {
-                                        fontSize: '10px',
-                                        padding: '0 3px',
-                                        borderRight: '1px solid rgba(255,255,255,0.25) !important',
-                                    },
-                                    '& .ag-row': {
-                                        borderBottom: '1px solid rgba(0,0,0,0.18) !important',
-                                    },
-                                    '& .ag-cell': {
-                                        lineHeight: '26px',
-                                        padding: '0 3px',
-                                        fontSize: '11px',
-                                        borderRight: '1px solid rgba(0,0,0,0.18) !important',
-                                    },
-                                    // Mobile Pagination - Compact & Aligned
-                                    '& .ag-paging-panel': {
-                                        height: '38px !important',
-                                        minHeight: '38px !important',
-                                        padding: '0 6px !important',
-                                        gap: '2px !important',
-                                        justifyContent: 'space-between !important',
-                                        flexWrap: 'nowrap !important',
-                                    },
-                                    '& .ag-paging-panel *': {
-                                        fontSize: '10px !important',
-                                    },
-                                    // Hide row summary on mobile (1 to 100 of 228)
-                                    '& .ag-paging-row-summary-panel': {
-                                        display: 'none !important',
-                                    },
-                                    '& .ag-paging-page-size': {
-                                        marginRight: 'auto !important',
-                                    },
-                                    '& .ag-paging-page-size .ag-picker-field-wrapper': {
-                                        minHeight: '26px !important',
-                                        height: '26px !important',
-                                    },
-                                    '& .ag-paging-page-size .ag-picker-field-display': {
-                                        fontSize: '10px !important',
-                                        padding: '0 4px !important',
-                                    },
-                                    '& .ag-paging-button': {
-                                        minWidth: '24px !important',
-                                        height: '24px !important',
-                                        margin: '0 1px !important',
-                                    },
-                                    '& .ag-paging-button .ag-icon': {
-                                        fontSize: '14px !important',
-                                    },
-                                    '& .ag-paging-page-summary-panel': {
-                                        fontSize: '10px !important',
-                                        gap: '2px !important',
-                                    },
-                                    '& .ag-paging-number': {
-                                        fontSize: '10px !important',
-                                    },
-                                    '& .ag-label': {
-                                        fontSize: '10px !important',
-                                    },
-                                },
+                                position: 'relative',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                backgroundColor: isDarkMode ? '#0f172a' : '#f8fafc',
+                                borderRadius: (isMobile || drilldownFullscreen) ? 0 : 2,
+                                height: (isMobile || drilldownFullscreen) ? '100vh' : '90vh',
+                                maxHeight: (isMobile || drilldownFullscreen) ? '100vh' : '90vh',
+                                width: (isMobile || drilldownFullscreen) ? '100vw' : '90vw',
+                                maxWidth: (isMobile || drilldownFullscreen) ? '100vw' : '1536px',
+                                boxShadow: '0 24px 48px rgba(0,0,0,0.2)',
+                                overflow: 'hidden',
+                                ...(isMobile && {
+                                    top: 0,
+                                    marginTop: '42px',
+                                    height: 'calc(100vh - 42px)',
+                                    maxHeight: 'calc(100vh - 42px)',
+                                    paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+                                }),
                             }}
                         >
-                            <AgGridReact
-                                ref={gridRef}
-                                rowData={filteredDrilldownData}
-                                columnDefs={drilldownColumnDefs}
-                                defaultColDef={defaultColDef}
-                                pagination={true}
-                                paginationPageSize={100}
-                                paginationPageSizeSelector={[50, 100, 200, 500]}
-                                animateRows={false}
-                                enableCellTextSelection={true}
-                                suppressMovableColumns={false}
-                                // ⚡ PERFORMANCE: Optimizations for smooth fast scrolling
-                                rowBuffer={100}
-                                suppressRowTransform={true}
-                                suppressAnimationFrame={true}
-                                alwaysShowVerticalScroll={true}
-                                debounceVerticalScrollbar={true}
-                                suppressScrollOnNewData={true}
-                                headerHeight={isMobile ? 32 : 44}
-                                rowHeight={isMobile ? 28 : 40}
-                                tooltipShowDelay={500}
-                            />
+                            <Box
+                                sx={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    background: 'linear-gradient(135deg, #0d9488 0%, #0f766e 100%)',
+                                    color: 'white',
+                                    py: { xs: 0.75, md: 1.5 },
+                                    px: { xs: 1.5, md: 3 },
+                                    minHeight: { xs: 48, md: 64 },
+                                }}
+                            >
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 0.75, md: 1 }, minWidth: 0, flex: 1 }}>
+                                    <TableIcon sx={{ fontSize: { xs: 20, md: 24 } }} />
+                                    <Box sx={{ minWidth: 0 }}>
+                                        <Typography variant="h6" sx={{ fontSize: { xs: '0.85rem', md: '1rem' }, fontWeight: 700, lineHeight: 1.2 }} noWrap>
+                                            {drilldownCategory}
+                                        </Typography>
+                                        <Typography
+                                            variant="caption"
+                                            sx={{
+                                                color: 'rgba(255,255,255,0.95)',
+                                                fontSize: { xs: '0.6rem', md: '0.75rem' },
+                                                lineHeight: 1.1,
+                                                display: 'block',
+                                            }}
+                                        >
+                                            {formatNumber(drilldownTotal)} items • All Master Data Columns
+                                        </Typography>
+                                    </Box>
+                                </Box>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 0.5, md: 1 }, flexShrink: 0 }}>
+                                    <Button
+                                        variant="contained"
+                                        size="small"
+                                        startIcon={exportingExcel ? <CircularProgress size={14} color="inherit" /> : <DownloadIcon sx={{ fontSize: { xs: 16, md: 20 } }} />}
+                                        onClick={handleExportDrilldown}
+                                        disabled={exportingExcel || drilldownLoading}
+                                        sx={{
+                                            bgcolor: 'rgba(255,255,255,0.2)',
+                                            '&:hover': { bgcolor: 'rgba(255,255,255,0.3)' },
+                                            fontSize: { xs: '0.65rem', md: '0.875rem' },
+                                            py: { xs: 0.5, md: 0.75 },
+                                            px: { xs: 1, md: 2 },
+                                            minWidth: 'auto',
+                                        }}
+                                    >
+                                        {exportingExcel ? '...' : (isMobile ? 'Export' : 'Export to Excel')}
+                                    </Button>
+                                    {/* Fullscreen button - desktop only */}
+                                    <Tooltip title={drilldownFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}>
+                                        <IconButton
+                                            onClick={() => setDrilldownFullscreen(!drilldownFullscreen)}
+                                            sx={{ color: 'white', display: { xs: 'none', md: 'flex' }, p: { xs: 0.5, md: 1 } }}
+                                        >
+                                            {drilldownFullscreen ? <FullscreenExitIcon /> : <FullscreenIcon />}
+                                        </IconButton>
+                                    </Tooltip>
+                                    <IconButton onClick={() => setDrilldownOpen(false)} sx={{ color: 'white', p: { xs: 0.5, md: 1 } }}>
+                                        <CloseIcon sx={{ fontSize: { xs: 20, md: 24 } }} />
+                                    </IconButton>
+                                </Box>
+                            </Box>
+
+                            <Box sx={{ p: { xs: 0.5, md: 2 }, borderBottom: '1px solid rgba(0,0,0,0.1)', display: 'flex', alignItems: 'center', gap: { xs: 0.5, md: 2 }, flexWrap: 'wrap' }}>
+                                <TextField
+                                    size="small"
+                                    placeholder="Search WSN, Product, Brand..."
+                                    value={drilldownSearch}
+                                    onChange={(e) => setDrilldownSearch(e.target.value)}
+                                    InputProps={{
+                                        startAdornment: (
+                                            <InputAdornment position="start">
+                                                <SearchIcon sx={{ fontSize: { xs: 16, md: 20 }, color: 'text.secondary' }} />
+                                            </InputAdornment>
+                                        ),
+                                        sx: { fontSize: { xs: '0.75rem', md: '1rem' }, height: { xs: 32, md: 40 } },
+                                    }}
+                                    sx={{ flex: { xs: 1, md: 'none' }, width: { md: 300 } }}
+                                />
+                                {/* Brand Filter in Drill-down */}
+                                <FormControl
+                                    size="small"
+                                    variant="outlined"
+                                    sx={{
+                                        minWidth: { xs: 90, md: 140 },
+                                        '& .MuiInputBase-root': {
+                                            height: { xs: 32, md: 40 },
+                                            borderRadius: 1,
+                                        },
+                                        '& .MuiSelect-select': {
+                                            fontSize: { xs: '0.75rem', md: '0.85rem' },
+                                            py: '6px',
+                                            px: '10px',
+                                            pr: '28px !important',
+                                            fontWeight: 500,
+                                        },
+                                    }}
+                                >
+                                    <Select
+                                        value={drilldownBrandFilter}
+                                        onChange={(e) => setDrilldownBrandFilter(e.target.value)}
+                                        displayEmpty
+                                        renderValue={(value) => value || 'All Brands'}
+                                    >
+                                        <MenuItem value="" sx={{ fontSize: '0.85rem' }}>All Brands</MenuItem>
+                                        {drilldownBrands.map(brand => (
+                                            <MenuItem key={brand} value={brand} sx={{ fontSize: '0.85rem' }}>{brand}</MenuItem>
+                                        ))}
+                                    </Select>
+                                </FormControl>
+                                <Tooltip title="Grid Settings">
+                                    <IconButton
+                                        onClick={() => setGridSettingsOpen(true)}
+                                        sx={{
+                                            bgcolor: 'rgba(13, 148, 136, 0.1)',
+                                            '&:hover': { bgcolor: 'rgba(13, 148, 136, 0.2)' },
+                                            p: { xs: 0.5, md: 1 },
+                                        }}
+                                    >
+                                        <SettingsIcon sx={{ color: '#0d9488', fontSize: { xs: 18, md: 24 } }} />
+                                    </IconButton>
+                                </Tooltip>
+                            </Box>
+
+                            <Box
+                                sx={{ p: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', flex: 1, backgroundColor: isDarkMode ? '#0f172a' : '#f8fafc', position: 'relative' }}
+                            >
+                                {/* Loading overlay — sits on TOP of the grid so the grid renders behind it */}
+                                {drilldownLoading && (
+                                    <Box
+                                        sx={{
+                                            position: 'absolute',
+                                            inset: 0,
+                                            zIndex: 10,
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            backgroundColor: isDarkMode ? '#0f172a' : '#f8fafc',
+                                        }}
+                                    >
+                                        <CircularProgress />
+                                    </Box>
+                                )}
+                                <Box
+                                    className="ag-theme-quartz"
+                                    sx={{
+                                        flex: 1,
+                                        width: '100%',
+                                        backgroundColor: isDarkMode ? '#0f172a' : '#f8fafc',
+                                        mb: { xs: 'calc(env(safe-area-inset-bottom, 16px) + 20px)', md: 0 },
+                                        // Override ag-theme-quartz default white backgrounds
+                                        '--ag-background-color': isDarkMode ? '#0f172a' : '#f8fafc',
+                                        '--ag-wrapper-background-color': isDarkMode ? '#0f172a' : '#f8fafc',
+                                        '--ag-modal-overlay-background-color': isDarkMode ? 'rgba(15,23,42,0.5)' : 'rgba(248,250,252,0.5)',
+                                        '& .ag-root-wrapper': {
+                                            border: 'none',
+                                            backgroundColor: isDarkMode ? '#0f172a' : '#f8fafc',
+                                        },
+                                        '& .ag-overlay-loading-wrapper': {
+                                            backgroundColor: isDarkMode ? '#0f172a' : '#f8fafc',
+                                        },
+                                        '& .ag-body-viewport': {
+                                            backgroundColor: isDarkMode ? '#0f172a' : '#f8fafc',
+                                        },
+                                        // Desktop default styles
+                                        '--ag-header-height': '32px',
+                                        '--ag-row-height': '28px',
+                                        '--ag-header-foreground-color': '#ffffff',
+                                        '--ag-header-background-color': '#0f766e',
+                                        '--ag-border-color': '#d1d5db',
+                                        '--ag-row-border-color': '#d1d5db',
+                                        '--ag-odd-row-background-color': 'transparent',
+                                        '--ag-row-hover-color': 'rgba(13, 148, 136, 0.06)',
+                                        '--ag-selected-row-background-color': 'rgba(13, 148, 136, 0.10)',
+                                        '--ag-font-size': '12px',
+                                        '--ag-font-family': 'Inter, -apple-system, sans-serif',
+                                        '--ag-cell-horizontal-padding': '8px',
+                                        '& .ag-header': {
+                                            borderBottom: '1px solid #0d9488',
+                                            fontWeight: 600,
+                                        },
+                                        '& .ag-header-cell': {
+                                            fontWeight: 600,
+                                            fontSize: '11px',
+                                            padding: '0 6px',
+                                            borderRight: '1px solid rgba(255,255,255,0.2)',
+                                        },
+                                        '& .ag-header-cell-text': {
+                                            overflow: 'hidden',
+                                            textOverflow: 'ellipsis',
+                                            whiteSpace: 'nowrap',
+                                        },
+                                        '& .ag-row': {
+                                            borderBottom: '1px solid #e5e7eb',
+                                        },
+                                        '& .ag-cell': {
+                                            lineHeight: '28px',
+                                            padding: '0 6px',
+                                            overflow: 'hidden',
+                                            textOverflow: 'ellipsis',
+                                            whiteSpace: 'nowrap',
+                                            borderRight: '1px solid #e5e7eb',
+                                        },
+                                        '& .ag-cell-value': {
+                                            overflow: 'hidden',
+                                            textOverflow: 'ellipsis',
+                                            whiteSpace: 'nowrap',
+                                        },
+                                        // Pagination Panel Styles
+                                        '& .ag-paging-panel': {
+                                            height: '52px',
+                                            borderTop: '2px solid #0d9488',
+                                            background: '#f0fdfa !important',
+                                            color: '#1e293b !important',
+                                            fontWeight: 500,
+                                            padding: '0 16px',
+                                        },
+                                        '& .ag-paging-panel *': {
+                                            color: '#1e293b !important',
+                                        },
+                                        '& .ag-paging-button': {
+                                            cursor: 'pointer',
+                                            backgroundColor: '#ffffff !important',
+                                            border: '1px solid #0d9488 !important',
+                                            borderRadius: '4px !important',
+                                            margin: '0 3px !important',
+                                            minWidth: '32px !important',
+                                            height: '32px !important',
+                                            display: 'flex !important',
+                                            alignItems: 'center !important',
+                                            justifyContent: 'center !important',
+                                        },
+                                        '& .ag-paging-button:hover': {
+                                            backgroundColor: '#ccfbf1 !important',
+                                        },
+                                        '& .ag-paging-button.ag-disabled': {
+                                            opacity: '0.4 !important',
+                                            cursor: 'not-allowed !important',
+                                            backgroundColor: '#e2e8f0 !important',
+                                        },
+                                        '& .ag-paging-button .ag-icon': {
+                                            color: '#0f766e !important',
+                                            fontSize: '18px !important',
+                                            display: 'block !important',
+                                        },
+                                        '& .ag-icon-first, & .ag-icon-previous, & .ag-icon-next, & .ag-icon-last': {
+                                            color: '#0f766e !important',
+                                            display: 'block !important',
+                                        },
+                                        '& .ag-paging-row-summary-panel': {
+                                            color: '#475569 !important',
+                                            fontWeight: '500 !important',
+                                            fontSize: '13px !important',
+                                        },
+                                        '& .ag-paging-row-summary-panel-number': {
+                                            fontWeight: '700 !important',
+                                            color: '#0f766e !important',
+                                        },
+                                        '& .ag-paging-page-summary-panel': {
+                                            color: '#1e293b !important',
+                                            fontWeight: '600 !important',
+                                            fontSize: '13px !important',
+                                        },
+                                        '& .ag-paging-number': {
+                                            fontWeight: '700 !important',
+                                            color: '#0f766e !important',
+                                        },
+                                        '& .ag-picker-field-wrapper, & .ag-paging-page-size .ag-picker-field-wrapper': {
+                                            backgroundColor: '#ffffff !important',
+                                            border: '1px solid #0d9488 !important',
+                                            borderRadius: '4px !important',
+                                            minHeight: '32px !important',
+                                        },
+                                        '& .ag-picker-field-display': {
+                                            color: '#1e293b !important',
+                                            fontWeight: '600 !important',
+                                        },
+                                        '& .ag-label': {
+                                            color: '#475569 !important',
+                                            fontWeight: '500 !important',
+                                        },
+                                        // ======= MOBILE ONLY STYLES (< 900px) =======
+                                        '@media (max-width: 899px)': {
+                                            '--ag-header-height': '28px',
+                                            '--ag-row-height': '24px',
+                                            '--ag-font-size': '11px',
+                                            '--ag-cell-horizontal-padding': '4px',
+                                            '--ag-border-color': '#d1d5db',
+                                            '--ag-row-border-color': '#d1d5db',
+                                            '--ag-odd-row-background-color': 'transparent',
+                                            '& .ag-root-wrapper': {
+                                                border: '1px solid #d1d5db',
+                                            },
+                                            '& .ag-header-cell': {
+                                                fontSize: '10px',
+                                                padding: '0 3px',
+                                                borderRight: '1px solid rgba(255,255,255,0.2) !important',
+                                            },
+                                            '& .ag-row': {
+                                                borderBottom: '1px solid #e5e7eb !important',
+                                            },
+                                            '& .ag-cell': {
+                                                lineHeight: '24px',
+                                                padding: '0 3px',
+                                                fontSize: '11px',
+                                                borderRight: '1px solid #e5e7eb !important',
+                                            },
+                                            // Mobile Pagination - Compact & Aligned
+                                            '& .ag-paging-panel': {
+                                                height: '38px !important',
+                                                minHeight: '38px !important',
+                                                padding: '0 6px !important',
+                                                gap: '2px !important',
+                                                justifyContent: 'space-between !important',
+                                                flexWrap: 'nowrap !important',
+                                            },
+                                            '& .ag-paging-panel *': {
+                                                fontSize: '10px !important',
+                                            },
+                                            // Hide row summary on mobile (1 to 100 of 228)
+                                            '& .ag-paging-row-summary-panel': {
+                                                display: 'none !important',
+                                            },
+                                            '& .ag-paging-page-size': {
+                                                marginRight: 'auto !important',
+                                            },
+                                            '& .ag-paging-page-size .ag-picker-field-wrapper': {
+                                                minHeight: '26px !important',
+                                                height: '26px !important',
+                                            },
+                                            '& .ag-paging-page-size .ag-picker-field-display': {
+                                                fontSize: '10px !important',
+                                                padding: '0 4px !important',
+                                            },
+                                            '& .ag-paging-button': {
+                                                minWidth: '24px !important',
+                                                height: '24px !important',
+                                                margin: '0 1px !important',
+                                            },
+                                            '& .ag-paging-button .ag-icon': {
+                                                fontSize: '14px !important',
+                                            },
+                                            '& .ag-paging-page-summary-panel': {
+                                                fontSize: '10px !important',
+                                                gap: '2px !important',
+                                            },
+                                            '& .ag-paging-number': {
+                                                fontSize: '10px !important',
+                                            },
+                                            '& .ag-label': {
+                                                fontSize: '10px !important',
+                                            },
+                                        },
+                                    }}
+                                >
+                                    <AgGridReact
+                                        ref={gridRef}
+                                        rowData={filteredDrilldownData}
+                                        columnDefs={drilldownColumnDefs}
+                                        defaultColDef={defaultColDef}
+                                        pagination={true}
+                                        paginationPageSize={100}
+                                        paginationPageSizeSelector={[50, 100, 200, 500]}
+                                        animateRows={false}
+                                        enableCellTextSelection={true}
+                                        suppressMovableColumns={false}
+                                        // ⚡ PERFORMANCE: Optimizations for smooth fast scrolling
+                                        rowBuffer={100}
+                                        suppressRowTransform={true}
+                                        suppressAnimationFrame={true}
+                                        alwaysShowVerticalScroll={true}
+                                        debounceVerticalScrollbar={true}
+                                        suppressScrollOnNewData={true}
+                                        suppressLoadingOverlay={true}
+                                        suppressNoRowsOverlay={true}
+                                        headerHeight={isMobile ? 28 : 32}
+                                        rowHeight={isMobile ? 24 : 28}
+                                        tooltipShowDelay={500}
+                                    />
+                                </Box>
+                            </Box>
                         </Box>
-                    )}
-                </DialogContent>
-            </Dialog>
+                    </Box>
+                </Portal>
+            )}
 
             {/* Grid Settings Dialog */}
             <Dialog
