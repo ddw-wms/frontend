@@ -9566,6 +9566,7 @@ export default function InboundPage() {
                     setSearchFilter('');
                     setBrandFilter('');
                     setCategoryFilter('');
+                    setStatusFilter('');
                     setDateFromFilter('');
                     setDateToFilter('');
                     setPage(1);
