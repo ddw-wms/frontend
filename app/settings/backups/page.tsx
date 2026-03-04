@@ -34,6 +34,7 @@ import {
     Divider,
     Collapse,
     Checkbox,
+    FormControlLabel,
     InputAdornment,
     Accordion,
     AccordionSummary,
@@ -57,7 +58,8 @@ import {
     SelectAll as SelectAllIcon,
     DeleteSweep as DeleteSweepIcon,
     CalendarMonth as CalendarIcon,
-    FilterList as FilterIcon
+    FilterList as FilterIcon,
+    UploadFile as UploadFileIcon
 } from '@mui/icons-material';
 
 import AppLayout from '@/components/AppLayout';
@@ -147,6 +149,19 @@ export default function BackupPage() {
     const [backupType, setBackupType] = useState<'full' | 'selective'>('full');
     const [description, setDescription] = useState('');
     const [confirmRestore, setConfirmRestore] = useState('');
+    const [restoreTableSelectOpen, setRestoreTableSelectOpen] = useState(false);
+    const [restorePreviewTables, setRestorePreviewTables] = useState<{ table: string; backupRows: number; dbRows: number }[]>([]);
+    const [restoreSelectedTables, setRestoreSelectedTables] = useState<string[]>([]);
+    const [restorePreviewLoading, setRestorePreviewLoading] = useState(false);
+    const [restoreResultDialogOpen, setRestoreResultDialogOpen] = useState(false);
+    const [restoreResult, setRestoreResult] = useState<any>(null);
+    const [uploadRestoreFile, setUploadRestoreFile] = useState<File | null>(null);
+    const [uploadRestoreLoading, setUploadRestoreLoading] = useState(false);
+    const [uploadTempFilePath, setUploadTempFilePath] = useState<string>('');
+    const [cloudRestoreDialogOpen, setCloudRestoreDialogOpen] = useState(false);
+    const [cloudRestoreLoading, setCloudRestoreLoading] = useState(false);
+    const [cloudTempFilePath, setCloudTempFilePath] = useState<string>('');
+    const [cloudFileName, setCloudFileName] = useState<string>('');
     const [dbStats, setDbStats] = useState<DatabaseStats | null>(null);
     const [statsDialogOpen, setStatsDialogOpen] = useState(false);
     const [mobileMenuOpen, setMobileMenuOpen] = useState<number | null>(null);
@@ -484,12 +499,13 @@ export default function BackupPage() {
     const pollRestoreProgress = async (restoreId: string, toastId: string) => {
         let attempts = 0;
         let consecutiveErrors = 0;
-        const maxAttempts = 1800; // 30 minutes max (1 second intervals)
-        const maxConsecutiveErrors = 15; // Give up after 15 consecutive errors
+        const POLL_INTERVAL = 3000; // 3 seconds between polls
+        const maxAttempts = 600; // 30 minutes max (3-second intervals)
+        const maxConsecutiveErrors = 10; // Give up after 10 consecutive errors
 
         const poll = async () => {
             try {
-                const response = await api.get(`/backups/progress/${restoreId}`, { timeout: 10000 });
+                const response = await api.get(`/backups/progress/${restoreId}`, { timeout: 30000 });
                 const { status, progress, message, details, result } = response.data;
 
                 // Reset error counter on success
@@ -530,15 +546,25 @@ export default function BackupPage() {
                 if (status === 'completed') {
                     const successCount = result?.success?.length || 0;
                     const totalRows = result?.totalRows || 0;
+                    const failedCount = result?.failed?.length || 0;
                     toast.success(
                         <div>
                             <div style={{ fontWeight: 600 }}>✅ Restore Complete!</div>
                             <div style={{ fontSize: '0.85em' }}>
                                 {successCount} tables, {totalRows.toLocaleString()} rows restored
+                                {failedCount > 0 && ` (${failedCount} failed)`}
                             </div>
+                            {result?.preRestoreBackup && (
+                                <div style={{ fontSize: '0.75em', color: '#16a34a', marginTop: 4 }}>
+                                    🛡️ Safety backup: {result.preRestoreBackup}
+                                </div>
+                            )}
                         </div>,
-                        { id: toastId, duration: 6000 }
+                        { id: toastId, duration: 8000 }
                     );
+                    // Store result and open result dialog
+                    setRestoreResult(result);
+                    setRestoreResultDialogOpen(true);
                     setRestoreDialogOpen(false);
                     setSelectedBackup(null);
                     setConfirmRestore('');
@@ -558,7 +584,7 @@ export default function BackupPage() {
                 // Continue polling
                 attempts++;
                 if (attempts < maxAttempts) {
-                    setTimeout(poll, 1000);
+                    setTimeout(poll, POLL_INTERVAL);
                 } else {
                     toast.error('Restore timeout - please check restore logs', { id: toastId });
                 }
@@ -578,7 +604,7 @@ export default function BackupPage() {
 
                 // Keep trying if under error limit
                 if (consecutiveErrors < maxConsecutiveErrors && attempts < maxAttempts) {
-                    setTimeout(poll, 2000); // Slower polling on errors
+                    setTimeout(poll, POLL_INTERVAL + 2000); // Slower polling on errors
                 } else {
                     toast.dismiss(toastId);
                     toast.error('Lost connection to server - please refresh and check restore status');
@@ -588,6 +614,201 @@ export default function BackupPage() {
         };
 
         poll();
+    };
+
+    // ===== Upload & Restore: upload file to server for preview =====
+    const handleUploadFileSelected = async (file: File) => {
+        setUploadRestoreFile(file);
+        setRestorePreviewLoading(true);
+        setRestorePreviewTables([]);
+        setRestoreSelectedTables([]);
+        setUploadTempFilePath('');
+        setSelectedBackup(null);
+        // Open the SAME table selection dialog used for regular restores
+        setRestoreTableSelectOpen(true);
+
+        try {
+            // Upload to server for server-side parsing (handles .gz too)
+            const formData = new FormData();
+            formData.append('backupFile', file);
+
+            const response = await api.post('/backups/upload-preview', formData, {
+                timeout: 120000,
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+
+            const tables = response.data.tables || [];
+            setRestorePreviewTables(tables);
+            setRestoreSelectedTables(tables.map((t: any) => t.table));
+            setUploadTempFilePath(response.data.filePath || '');
+        } catch (err: any) {
+            console.error('Upload preview error:', err);
+            toast.error('Failed to parse backup file: ' + (err.response?.data?.error || err.message));
+            setRestoreTableSelectOpen(false);
+        }
+        setRestorePreviewLoading(false);
+    };
+
+    const handleUploadRestore = async () => {
+        if (!uploadRestoreFile && !uploadTempFilePath) return;
+        if (confirmRestore !== 'RESTORE') {
+            toast.error('Please type RESTORE to confirm');
+            return;
+        }
+
+        const toastId = toast.loading('Starting restore...');
+        setUploadRestoreLoading(true);
+
+        try {
+            // Wake up server
+            try { await api.get('/health', { timeout: 30000 }); } catch {
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                await api.get('/health', { timeout: 30000 });
+            }
+
+            // Close dialogs
+            setRestoreDialogOpen(false);
+            setConfirmRestore('');
+
+            let response;
+            if (uploadTempFilePath) {
+                // File already on server from preview step — send path instead of re-uploading
+                response = await api.post('/backups/upload-restore', {
+                    tempFilePath: uploadTempFilePath,
+                    originalName: uploadRestoreFile?.name || 'uploaded-backup',
+                    selectedTables: JSON.stringify(restoreSelectedTables)
+                }, { timeout: 60000 });
+            } else {
+                // Fallback: upload file fresh
+                const formData = new FormData();
+                formData.append('backupFile', uploadRestoreFile!);
+                if (restoreSelectedTables.length > 0) {
+                    formData.append('selectedTables', JSON.stringify(restoreSelectedTables));
+                }
+                response = await api.post('/backups/upload-restore', formData, {
+                    timeout: 60000,
+                    headers: { 'Content-Type': 'multipart/form-data' }
+                });
+            }
+
+            if (response.data.restoreId && response.data.status === 'in_progress') {
+                toast.loading(
+                    <div style={{ minWidth: '250px' }}>
+                        <div style={{ fontWeight: 600, marginBottom: 4 }}>🔄 Restoring Database</div>
+                        <div style={{ fontSize: '0.85em', color: '#666' }}>Restore started, tracking progress...</div>
+                    </div>,
+                    { id: toastId }
+                );
+                pollRestoreProgress(response.data.restoreId, toastId);
+            } else {
+                toast.success('✅ Database restored successfully!', { id: toastId, duration: 6000 });
+                refreshBackups();
+                loadDatabaseStats();
+                loadHealthStats();
+            }
+        } catch (error: any) {
+            const errorMsg = error.response?.data?.error || error.message || 'Upload & restore failed';
+            toast.error(`❌ ${errorMsg}`, { id: toastId, duration: 8000 });
+            console.error('Upload restore error:', error.response?.data || error);
+        } finally {
+            setUploadRestoreLoading(false);
+            setUploadRestoreFile(null);
+            setUploadTempFilePath('');
+        }
+    };
+
+    // ===== Restore Latest from Cloud =====
+    const handleCloudRestore = async () => {
+        // Step 1: Download and preview (get table comparison)
+        setCloudRestoreLoading(true);
+        setRestorePreviewLoading(true);
+        setRestorePreviewTables([]);
+        setRestoreSelectedTables([]);
+        setSelectedBackup(null);
+        setUploadRestoreFile(null);
+        setUploadTempFilePath('');
+        setCloudTempFilePath('');
+        setCloudFileName('');
+
+        // Close the simple cloud dialog, open the table selection dialog
+        setCloudRestoreDialogOpen(false);
+        setRestoreTableSelectOpen(true);
+
+        try {
+            const response = await api.post('/backups/cloud-preview', {}, {
+                timeout: 120000
+            });
+
+            const tables = response.data.tables || [];
+            setRestorePreviewTables(tables);
+            setRestoreSelectedTables(tables.map((t: any) => t.table));
+            setCloudTempFilePath(response.data.filePath || '');
+            setCloudFileName(response.data.fileName || '');
+        } catch (error: any) {
+            const errorMsg = error.response?.data?.error || error.message || 'Cloud preview failed';
+            toast.error(`❌ ${errorMsg}`);
+            setRestoreTableSelectOpen(false);
+            console.error('Cloud preview error:', error.response?.data || error);
+        } finally {
+            setRestorePreviewLoading(false);
+            setCloudRestoreLoading(false);
+        }
+    };
+
+    // Step 2: Actually restore from cloud (called from Confirmation Dialog)
+    const handleCloudRestoreConfirmed = async () => {
+        if (!cloudTempFilePath) return;
+        if (confirmRestore !== 'RESTORE') {
+            toast.error('Please type RESTORE to confirm');
+            return;
+        }
+
+        const toastId = toast.loading('Starting cloud restore...');
+        setCloudRestoreLoading(true);
+
+        try {
+            // Wake up server
+            try { await api.get('/health', { timeout: 30000 }); } catch {
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                await api.get('/health', { timeout: 30000 });
+            }
+
+            // Close dialogs
+            setRestoreDialogOpen(false);
+            setConfirmRestore('');
+
+            const response = await api.post('/backups/restore-latest-cloud', {
+                confirm: true,
+                selectedTables: restoreSelectedTables,
+                tempFilePath: cloudTempFilePath
+            }, { timeout: 60000 });
+
+            if (response.data.restoreId && response.data.status === 'in_progress') {
+                toast.loading(
+                    <div style={{ minWidth: '250px' }}>
+                        <div style={{ fontWeight: 600, marginBottom: 4 }}>☁️ Restoring from Cloud</div>
+                        <div style={{ fontSize: '0.85em', color: '#666' }}>
+                            {response.data.fileName ? `File: ${response.data.fileName}` : 'Restoring...'}
+                        </div>
+                    </div>,
+                    { id: toastId }
+                );
+                pollRestoreProgress(response.data.restoreId, toastId);
+            } else {
+                toast.success('✅ Database restored successfully!', { id: toastId, duration: 6000 });
+                refreshBackups();
+                loadDatabaseStats();
+                loadHealthStats();
+            }
+        } catch (error: any) {
+            const errorMsg = error.response?.data?.error || error.message || 'Cloud restore failed';
+            toast.error(`❌ ${errorMsg}`, { id: toastId, duration: 8000 });
+            console.error('Cloud restore error:', error.response?.data || error);
+        } finally {
+            setCloudRestoreLoading(false);
+            setCloudTempFilePath('');
+            setCloudFileName('');
+        }
     };
 
     const handleRestoreBackup = async () => {
@@ -612,13 +833,24 @@ export default function BackupPage() {
 
             toast.loading('Starting restore...', { id: toastId });
 
-            const response = await api.post(`/backups/restore/${selectedBackup.id}`, {
-                confirm: true
-            });
+            // Close the dialog immediately so user sees progress toast
+            setRestoreDialogOpen(false);
+            setConfirmRestore('');
 
-            // Check if async mode
+            const response = await api.post(`/backups/restore/${selectedBackup.id}`, {
+                confirm: true,
+                selectedTables: restoreSelectedTables
+            }, { timeout: 30000 }); // 30s — backend returns restoreId immediately
+
+            // Async mode: poll for progress
             if (response.data.restoreId && response.data.status === 'in_progress') {
-                toast.loading('Restore started, please wait...', { id: toastId });
+                toast.loading(
+                    <div style={{ minWidth: '250px' }}>
+                        <div style={{ fontWeight: 600, marginBottom: 4 }}>🔄 Restoring Database</div>
+                        <div style={{ fontSize: '0.85em', color: '#666' }}>Restore started, tracking progress...</div>
+                    </div>,
+                    { id: toastId }
+                );
                 pollRestoreProgress(response.data.restoreId, toastId);
             } else {
                 // Sync mode completed (shouldn't happen with new code)
@@ -626,10 +858,7 @@ export default function BackupPage() {
                     id: toastId,
                     duration: 6000
                 });
-                setRestoreDialogOpen(false);
                 setSelectedBackup(null);
-                setConfirmRestore('');
-                // Reload all data without full page reload
                 refreshBackups();
                 loadDatabaseStats();
                 loadHealthStats();
@@ -990,7 +1219,7 @@ export default function BackupPage() {
                         )}
 
                         {/* Action Buttons */}
-                        <Box sx={{ mb: 3 }}>
+                        <Box sx={{ mb: 3, display: 'flex', gap: 2, flexWrap: 'wrap' }}>
                             {canSeeButton('create') && (
                                 <Button
                                     variant="contained"
@@ -1014,6 +1243,65 @@ export default function BackupPage() {
                                 >
                                     Create New Backup
                                 </Button>
+                            )}
+                            {canSeeButton('restore') && (
+                                <>
+                                    <input
+                                        type="file"
+                                        id="upload-restore-input"
+                                        accept=".json,.gz"
+                                        style={{ display: 'none' }}
+                                        onChange={(e) => {
+                                            const file = e.target.files?.[0];
+                                            if (file) handleUploadFileSelected(file);
+                                            e.target.value = '';
+                                        }}
+                                    />
+                                    <Button
+                                        variant="outlined"
+                                        size="large"
+                                        startIcon={<UploadFileIcon />}
+                                        onClick={() => document.getElementById('upload-restore-input')?.click()}
+                                        sx={{
+                                            py: 1.5,
+                                            px: 3,
+                                            fontWeight: 600,
+                                            fontSize: '1rem',
+                                            borderColor: '#16a34a',
+                                            color: '#16a34a',
+                                            '&:hover': {
+                                                borderColor: '#15803d',
+                                                bgcolor: 'rgba(22, 163, 74, 0.04)',
+                                                transform: 'translateY(-2px)',
+                                            },
+                                            transition: 'all 0.2s'
+                                        }}
+                                    >
+                                        Upload & Restore
+                                    </Button>
+                                    <Button
+                                        variant="outlined"
+                                        size="large"
+                                        startIcon={<DownloadIcon />}
+                                        onClick={handleCloudRestore}
+                                        sx={{
+                                            py: 1.5,
+                                            px: 3,
+                                            fontWeight: 600,
+                                            fontSize: '1rem',
+                                            borderColor: '#7c3aed',
+                                            color: '#7c3aed',
+                                            '&:hover': {
+                                                borderColor: '#6d28d9',
+                                                bgcolor: 'rgba(124, 58, 237, 0.04)',
+                                                transform: 'translateY(-2px)',
+                                            },
+                                            transition: 'all 0.2s'
+                                        }}
+                                    >
+                                        Restore from Cloud
+                                    </Button>
+                                </>
                             )}
                         </Box>
 
@@ -1331,7 +1619,18 @@ export default function BackupPage() {
                                                                                         color="success"
                                                                                         onClick={() => {
                                                                                             setSelectedBackup(backup);
-                                                                                            setRestoreDialogOpen(true);
+                                                                                            setRestoreTableSelectOpen(true);
+                                                                                            setRestorePreviewLoading(true);
+                                                                                            setRestorePreviewTables([]);
+                                                                                            setRestoreSelectedTables([]);
+                                                                                            api.get(`/backups/restore-preview/${backup.id}`, { timeout: 60000 })
+                                                                                                .then(res => {
+                                                                                                    const tables = res.data.tables || [];
+                                                                                                    setRestorePreviewTables(tables);
+                                                                                                    setRestoreSelectedTables(tables.map((t: any) => t.table));
+                                                                                                })
+                                                                                                .catch(() => toast.error('Failed to load backup preview'))
+                                                                                                .finally(() => setRestorePreviewLoading(false));
                                                                                         }}
                                                                                     >
                                                                                         <RestoreIcon fontSize="small" />
@@ -1407,7 +1706,18 @@ export default function BackupPage() {
                                                                                     color="success"
                                                                                     onClick={() => {
                                                                                         setSelectedBackup(backup);
-                                                                                        setRestoreDialogOpen(true);
+                                                                                        setRestoreTableSelectOpen(true);
+                                                                                        setRestorePreviewLoading(true);
+                                                                                        setRestorePreviewTables([]);
+                                                                                        setRestoreSelectedTables([]);
+                                                                                        api.get(`/backups/restore-preview/${backup.id}`, { timeout: 60000 })
+                                                                                            .then(res => {
+                                                                                                const tables = res.data.tables || [];
+                                                                                                setRestorePreviewTables(tables);
+                                                                                                setRestoreSelectedTables(tables.map((t: any) => t.table));
+                                                                                            })
+                                                                                            .catch(() => toast.error('Failed to load backup preview'))
+                                                                                            .finally(() => setRestorePreviewLoading(false));
                                                                                     }}
                                                                                     sx={{ fontSize: '0.75rem' }}
                                                                                 >
@@ -1804,6 +2114,223 @@ export default function BackupPage() {
                             </DialogActions>
                         </Dialog>
 
+                        {/* Table Selection Dialog (before restore) — Enhanced with Backup vs DB comparison */}
+                        <Dialog
+                            open={restoreTableSelectOpen}
+                            onClose={() => { setRestoreTableSelectOpen(false); if (!selectedBackup) { setUploadRestoreFile(null); setUploadTempFilePath(''); setCloudTempFilePath(''); setCloudFileName(''); } }}
+                            maxWidth="md"
+                            fullWidth
+                            fullScreen={isMobile}
+                            PaperProps={{ sx: { borderRadius: { xs: 0, sm: 3 }, m: { xs: 0, sm: 2 } } }}
+                        >
+                            <DialogTitle sx={{
+                                background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
+                                color: 'white',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                py: 2.5
+                            }}>
+                                <Stack direction="row" alignItems="center" spacing={1.5}>
+                                    <RestoreIcon />
+                                    <Box>
+                                        <Typography variant="h6" fontWeight={600}>
+                                            {uploadRestoreFile ? 'Upload & Restore' : 'Select Tables to Restore'}
+                                        </Typography>
+                                        {selectedBackup && (
+                                            <Typography variant="caption" sx={{ opacity: 0.85 }}>
+                                                {selectedBackup.file_name}
+                                            </Typography>
+                                        )}
+                                        {!selectedBackup && uploadRestoreFile && (
+                                            <Typography variant="caption" sx={{ opacity: 0.85 }}>
+                                                {uploadRestoreFile.name} ({(uploadRestoreFile.size / (1024 * 1024)).toFixed(2)} MB)
+                                            </Typography>
+                                        )}
+                                        {!selectedBackup && !uploadRestoreFile && cloudFileName && (
+                                            <Typography variant="caption" sx={{ opacity: 0.85 }}>
+                                                ☁️ {cloudFileName}
+                                            </Typography>
+                                        )}
+                                    </Box>
+                                </Stack>
+                                <IconButton onClick={() => { setRestoreTableSelectOpen(false); if (!selectedBackup) { setUploadRestoreFile(null); setUploadTempFilePath(''); setCloudTempFilePath(''); setCloudFileName(''); } }} sx={{ color: 'white' }}>
+                                    <CloseIcon />
+                                </IconButton>
+                            </DialogTitle>
+                            <DialogContent sx={{ pt: 3, pb: 1 }}>
+                                {restorePreviewLoading ? (
+                                    <Box display="flex" flexDirection="column" justifyContent="center" alignItems="center" py={8}>
+                                        <CircularProgress size={48} />
+                                        <Typography mt={2} color="text.secondary" fontWeight={500}>Analyzing backup & database...</Typography>
+                                        <Typography variant="caption" color="text.secondary" mt={0.5}>
+                                            Comparing row counts for each table
+                                        </Typography>
+                                    </Box>
+                                ) : (
+                                    <Stack spacing={2}>
+                                        {/* Safe mode badge */}
+                                        <Alert severity="success" icon={false} sx={{ borderRadius: 2, py: 0.5 }}>
+                                            <Stack direction="row" spacing={1} alignItems="center">
+                                                <Typography fontSize="1.1rem">🛡️</Typography>
+                                                <Box>
+                                                    <Typography variant="body2" fontWeight={600}>Safe Merge Mode</Typography>
+                                                    <Typography variant="caption" color="text.secondary">
+                                                        Data will be merged — existing rows updated, new rows inserted. Nothing will be deleted.
+                                                    </Typography>
+                                                </Box>
+                                            </Stack>
+                                        </Alert>
+
+                                        <Stack direction="row" spacing={1} justifyContent="space-between" alignItems="center">
+                                            <Typography variant="body2" color="text.secondary" fontWeight={500}>
+                                                {restoreSelectedTables.length} of {restorePreviewTables.length} tables selected
+                                            </Typography>
+                                            <Stack direction="row" spacing={1}>
+                                                <Button size="small" onClick={() => setRestoreSelectedTables(restorePreviewTables.map(t => t.table))}>
+                                                    Select All
+                                                </Button>
+                                                <Button size="small" onClick={() => setRestoreSelectedTables([])}>
+                                                    Deselect All
+                                                </Button>
+                                            </Stack>
+                                        </Stack>
+
+                                        {/* Table comparison header */}
+                                        <Box sx={{ maxHeight: isMobile ? 350 : 420, overflowY: 'auto', border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
+                                            <Table size="small" stickyHeader>
+                                                <TableHead>
+                                                    <TableRow>
+                                                        <TableCell padding="checkbox" sx={{ bgcolor: 'background.paper' }}>
+                                                            <Checkbox
+                                                                checked={restoreSelectedTables.length === restorePreviewTables.length && restorePreviewTables.length > 0}
+                                                                indeterminate={restoreSelectedTables.length > 0 && restoreSelectedTables.length < restorePreviewTables.length}
+                                                                onChange={() => {
+                                                                    if (restoreSelectedTables.length === restorePreviewTables.length) {
+                                                                        setRestoreSelectedTables([]);
+                                                                    } else {
+                                                                        setRestoreSelectedTables(restorePreviewTables.map(t => t.table));
+                                                                    }
+                                                                }}
+                                                                size="small"
+                                                            />
+                                                        </TableCell>
+                                                        <TableCell sx={{ fontWeight: 700, fontSize: '0.8rem', bgcolor: 'background.paper' }}>Table</TableCell>
+                                                        <TableCell align="right" sx={{ fontWeight: 700, fontSize: '0.8rem', bgcolor: 'background.paper' }}>Backup Rows</TableCell>
+                                                        <TableCell align="right" sx={{ fontWeight: 700, fontSize: '0.8rem', bgcolor: 'background.paper' }}>DB Rows</TableCell>
+                                                        <TableCell align="center" sx={{ fontWeight: 700, fontSize: '0.8rem', bgcolor: 'background.paper' }}>Status</TableCell>
+                                                    </TableRow>
+                                                </TableHead>
+                                                <TableBody>
+                                                    {restorePreviewTables.map((t) => {
+                                                        const isSelected = restoreSelectedTables.includes(t.table);
+                                                        const hasBackupData = t.backupRows > 0;
+                                                        const willUpdate = t.backupRows > 0 && t.dbRows > 0;
+                                                        const willInsertNew = t.backupRows > 0 && t.dbRows === 0;
+                                                        return (
+                                                            <TableRow
+                                                                key={t.table}
+                                                                hover
+                                                                selected={isSelected}
+                                                                onClick={() => {
+                                                                    if (isSelected) {
+                                                                        setRestoreSelectedTables(prev => prev.filter(n => n !== t.table));
+                                                                    } else {
+                                                                        setRestoreSelectedTables(prev => [...prev, t.table]);
+                                                                    }
+                                                                }}
+                                                                sx={{ cursor: 'pointer' }}
+                                                            >
+                                                                <TableCell padding="checkbox">
+                                                                    <Checkbox checked={isSelected} size="small" />
+                                                                </TableCell>
+                                                                <TableCell>
+                                                                    <Typography variant="body2" fontWeight={500} fontSize="0.85rem">{t.table}</Typography>
+                                                                </TableCell>
+                                                                <TableCell align="right">
+                                                                    <Typography variant="body2" fontSize="0.85rem" fontWeight={hasBackupData ? 600 : 400} color={hasBackupData ? 'primary.main' : 'text.secondary'}>
+                                                                        {t.backupRows.toLocaleString()}
+                                                                    </Typography>
+                                                                </TableCell>
+                                                                <TableCell align="right">
+                                                                    <Typography variant="body2" fontSize="0.85rem" color="text.secondary">
+                                                                        {t.dbRows.toLocaleString()}
+                                                                    </Typography>
+                                                                </TableCell>
+                                                                <TableCell align="center">
+                                                                    {!hasBackupData ? (
+                                                                        <Chip label="Empty" size="small" variant="outlined" color="default" sx={{ fontSize: '0.7rem', height: 22 }} />
+                                                                    ) : willInsertNew ? (
+                                                                        <Chip label="New Data" size="small" color="success" sx={{ fontSize: '0.7rem', height: 22 }} />
+                                                                    ) : willUpdate ? (
+                                                                        <Chip label="Merge" size="small" color="info" sx={{ fontSize: '0.7rem', height: 22 }} />
+                                                                    ) : (
+                                                                        <Chip label="Merge" size="small" color="info" sx={{ fontSize: '0.7rem', height: 22 }} />
+                                                                    )}
+                                                                </TableCell>
+                                                            </TableRow>
+                                                        );
+                                                    })}
+                                                </TableBody>
+                                            </Table>
+                                        </Box>
+
+                                        {/* Summary */}
+                                        <Paper sx={{ p: 1.5, bgcolor: isDarkMode ? 'rgba(59,130,246,0.08)' : 'rgba(59,130,246,0.04)', borderRadius: 2 }}>
+                                            <Stack direction="row" spacing={2} justifyContent="space-around">
+                                                <Box textAlign="center">
+                                                    <Typography variant="h6" fontWeight={700} color="primary.main">
+                                                        {restoreSelectedTables.length}
+                                                    </Typography>
+                                                    <Typography variant="caption" color="text.secondary">Tables</Typography>
+                                                </Box>
+                                                <Box textAlign="center">
+                                                    <Typography variant="h6" fontWeight={700} color="primary.main">
+                                                        {restorePreviewTables
+                                                            .filter(t => restoreSelectedTables.includes(t.table))
+                                                            .reduce((sum, t) => sum + t.backupRows, 0)
+                                                            .toLocaleString()}
+                                                    </Typography>
+                                                    <Typography variant="caption" color="text.secondary">Rows to Process</Typography>
+                                                </Box>
+                                                <Box textAlign="center">
+                                                    <Typography variant="h6" fontWeight={700} color="success.main">
+                                                        🛡️
+                                                    </Typography>
+                                                    <Typography variant="caption" color="text.secondary">Auto Backup</Typography>
+                                                </Box>
+                                            </Stack>
+                                        </Paper>
+                                    </Stack>
+                                )}
+                            </DialogContent>
+                            <DialogActions sx={{ px: 3, pb: 3, gap: 1 }}>
+                                <Button onClick={() => { setRestoreTableSelectOpen(false); if (!selectedBackup) { setUploadRestoreFile(null); setUploadTempFilePath(''); setCloudTempFilePath(''); setCloudFileName(''); } }} fullWidth={isMobile}>
+                                    Cancel
+                                </Button>
+                                <Button
+                                    variant="contained"
+                                    disabled={restoreSelectedTables.length === 0 || restorePreviewLoading}
+                                    startIcon={<RestoreIcon />}
+                                    fullWidth={isMobile}
+                                    onClick={() => {
+                                        setRestoreTableSelectOpen(false);
+                                        setRestoreDialogOpen(true);
+                                    }}
+                                    sx={{
+                                        background: restoreSelectedTables.length > 0
+                                            ? 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)'
+                                            : undefined,
+                                        '&:hover': {
+                                            background: 'linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%)'
+                                        }
+                                    }}
+                                >
+                                    Next: Confirm Restore ({restoreSelectedTables.length} Tables)
+                                </Button>
+                            </DialogActions>
+                        </Dialog>
+
                         {/* Restore Confirmation Dialog */}
                         <Dialog
                             open={restoreDialogOpen}
@@ -1846,26 +2373,22 @@ export default function BackupPage() {
                             </DialogTitle>
                             <DialogContent sx={{ pt: 3, pb: 2 }}>
                                 <Stack spacing={2.5}>
-                                    <Alert severity="error" sx={{ borderRadius: 2 }}>
-                                        <Typography variant="body2" fontWeight={600} mb={0.5}>
-                                            ⚠️ CRITICAL WARNING
-                                        </Typography>
-                                        <Typography variant="body2" component="div" fontSize="0.85rem">
-                                            • All current data will be DELETED
-                                            <br />
-                                            • Tables will be replaced with backup data
-                                            <br />
-                                            • This action CANNOT be undone
-                                        </Typography>
-                                    </Alert>
-
-                                    <Alert severity="info" sx={{ borderRadius: 2 }}>
-                                        <Typography variant="body2" fontWeight={500}>
-                                            💡 Recommendation
-                                        </Typography>
-                                        <Typography variant="caption" display="block">
-                                            Create a backup of current state before restoring
-                                        </Typography>
+                                    <Alert severity="success" icon={false} sx={{ borderRadius: 2 }}>
+                                        <Stack direction="row" spacing={1} alignItems="center">
+                                            <Typography fontSize="1.2rem">🛡️</Typography>
+                                            <Box>
+                                                <Typography variant="body2" fontWeight={600}>Safe Merge Mode</Typography>
+                                                <Typography variant="body2" component="div" fontSize="0.85rem">
+                                                    • Existing rows matching by ID will be <strong>updated</strong>
+                                                    <br />
+                                                    • New rows will be <strong>inserted</strong>
+                                                    <br />
+                                                    • Rows NOT in backup will stay <strong>untouched</strong>
+                                                    <br />
+                                                    • A safety backup of current data will be created first
+                                                </Typography>
+                                            </Box>
+                                        </Stack>
                                     </Alert>
 
                                     {selectedBackup && (
@@ -1878,6 +2401,33 @@ export default function BackupPage() {
                                                 <Typography variant="body2" sx={{ color: isDarkMode ? '#f1f5f9' : 'inherit' }}><strong>Type:</strong> {selectedBackup?.backup_type?.toUpperCase() ?? ''}</Typography>
                                                 <Typography variant="body2" sx={{ color: isDarkMode ? '#f1f5f9' : 'inherit' }}><strong>Date:</strong> {formatDate(selectedBackup?.created_at ?? '')}</Typography>
                                                 <Typography variant="body2" sx={{ color: isDarkMode ? '#f1f5f9' : 'inherit' }}><strong>Size:</strong> {selectedBackup?.file_size_mb ?? 0} MB</Typography>
+                                                <Typography variant="body2" sx={{ color: isDarkMode ? '#f1f5f9' : 'inherit' }}><strong>Tables:</strong> {restoreSelectedTables.length} selected</Typography>
+                                            </Stack>
+                                        </Paper>
+                                    )}
+
+                                    {!selectedBackup && uploadRestoreFile && (
+                                        <Paper sx={{ p: 2, bgcolor: isDarkMode ? '#334155' : 'grey.50', borderRadius: 2 }}>
+                                            <Typography variant="caption" sx={{ color: isDarkMode ? '#94a3b8' : 'text.secondary' }} display="block" mb={1}>
+                                                UPLOADED FILE:
+                                            </Typography>
+                                            <Stack spacing={0.5}>
+                                                <Typography variant="body2" sx={{ color: isDarkMode ? '#f1f5f9' : 'inherit' }}><strong>File:</strong> {uploadRestoreFile.name}</Typography>
+                                                <Typography variant="body2" sx={{ color: isDarkMode ? '#f1f5f9' : 'inherit' }}><strong>Size:</strong> {(uploadRestoreFile.size / (1024 * 1024)).toFixed(2)} MB</Typography>
+                                                <Typography variant="body2" sx={{ color: isDarkMode ? '#f1f5f9' : 'inherit' }}><strong>Tables:</strong> {restoreSelectedTables.length} selected</Typography>
+                                            </Stack>
+                                        </Paper>
+                                    )}
+
+                                    {!selectedBackup && !uploadRestoreFile && cloudTempFilePath && (
+                                        <Paper sx={{ p: 2, bgcolor: isDarkMode ? '#334155' : 'grey.50', borderRadius: 2 }}>
+                                            <Typography variant="caption" sx={{ color: isDarkMode ? '#94a3b8' : 'text.secondary' }} display="block" mb={1}>
+                                                ☁️ CLOUD BACKUP:
+                                            </Typography>
+                                            <Stack spacing={0.5}>
+                                                <Typography variant="body2" sx={{ color: isDarkMode ? '#f1f5f9' : 'inherit' }}><strong>File:</strong> {cloudFileName}</Typography>
+                                                <Typography variant="body2" sx={{ color: isDarkMode ? '#f1f5f9' : 'inherit' }}><strong>Source:</strong> Cloud Storage</Typography>
+                                                <Typography variant="body2" sx={{ color: isDarkMode ? '#f1f5f9' : 'inherit' }}><strong>Tables:</strong> {restoreSelectedTables.length} selected</Typography>
                                             </Stack>
                                         </Paper>
                                     )}
@@ -1911,18 +2461,181 @@ export default function BackupPage() {
                                 </Button>
                                 <Button
                                     variant="contained"
-                                    color="error"
-                                    onClick={handleRestoreBackup}
+                                    onClick={cloudTempFilePath ? handleCloudRestoreConfirmed : uploadRestoreFile ? handleUploadRestore : handleRestoreBackup}
                                     disabled={confirmRestore !== 'RESTORE'}
                                     startIcon={<RestoreIcon />}
                                     fullWidth={isMobile}
                                     sx={{
                                         background: confirmRestore === 'RESTORE'
-                                            ? 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)'
-                                            : undefined
+                                            ? 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)'
+                                            : undefined,
+                                        '&:hover': {
+                                            background: 'linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%)'
+                                        }
                                     }}
                                 >
                                     Restore Now
+                                </Button>
+                            </DialogActions>
+                        </Dialog>
+
+                        {/* Restore Results Dialog */}
+                        <Dialog
+                            open={restoreResultDialogOpen}
+                            onClose={() => setRestoreResultDialogOpen(false)}
+                            maxWidth="md"
+                            fullWidth
+                            fullScreen={isMobile}
+                            PaperProps={{ sx: { borderRadius: { xs: 0, sm: 3 }, m: { xs: 0, sm: 2 } } }}
+                        >
+                            <DialogTitle sx={{
+                                background: restoreResult?.failed?.length > 0
+                                    ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)'
+                                    : 'linear-gradient(135deg, #16a34a 0%, #15803d 100%)',
+                                color: 'white',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                py: 2.5
+                            }}>
+                                <Stack direction="row" alignItems="center" spacing={1.5}>
+                                    <CheckIcon />
+                                    <Typography variant="h6" fontWeight={600}>
+                                        Restore Complete
+                                    </Typography>
+                                </Stack>
+                                <IconButton onClick={() => setRestoreResultDialogOpen(false)} sx={{ color: 'white' }}>
+                                    <CloseIcon />
+                                </IconButton>
+                            </DialogTitle>
+                            <DialogContent sx={{ pt: 3, pb: 2 }}>
+                                {restoreResult && (
+                                    <Stack spacing={2.5}>
+                                        {/* Summary Cards */}
+                                        <Stack direction="row" spacing={2} justifyContent="space-around">
+                                            <Paper sx={{ p: 2, textAlign: 'center', flex: 1, borderRadius: 2, bgcolor: isDarkMode ? 'rgba(22,163,74,0.1)' : 'rgba(22,163,74,0.05)' }}>
+                                                <Typography variant="h5" fontWeight={700} color="success.main">
+                                                    {restoreResult.success?.length || 0}
+                                                </Typography>
+                                                <Typography variant="caption" color="text.secondary">Tables Restored</Typography>
+                                            </Paper>
+                                            <Paper sx={{ p: 2, textAlign: 'center', flex: 1, borderRadius: 2, bgcolor: isDarkMode ? 'rgba(59,130,246,0.1)' : 'rgba(59,130,246,0.05)' }}>
+                                                <Typography variant="h5" fontWeight={700} color="primary.main">
+                                                    {(restoreResult.totalRows || 0).toLocaleString()}
+                                                </Typography>
+                                                <Typography variant="caption" color="text.secondary">Rows Processed</Typography>
+                                            </Paper>
+                                            {(restoreResult.failed?.length || 0) > 0 && (
+                                                <Paper sx={{ p: 2, textAlign: 'center', flex: 1, borderRadius: 2, bgcolor: isDarkMode ? 'rgba(239,68,68,0.1)' : 'rgba(239,68,68,0.05)' }}>
+                                                    <Typography variant="h5" fontWeight={700} color="error.main">
+                                                        {restoreResult.failed?.length || 0}
+                                                    </Typography>
+                                                    <Typography variant="caption" color="text.secondary">Tables Failed</Typography>
+                                                </Paper>
+                                            )}
+                                        </Stack>
+
+                                        {/* Pre-restore backup info */}
+                                        {restoreResult.preRestoreBackup && (
+                                            <Alert severity="success" icon={false} sx={{ borderRadius: 2 }}>
+                                                <Stack direction="row" spacing={1} alignItems="center">
+                                                    <Typography fontSize="1.1rem">🛡️</Typography>
+                                                    <Box>
+                                                        <Typography variant="body2" fontWeight={600}>Safety Backup Created</Typography>
+                                                        <Typography variant="caption" color="text.secondary">
+                                                            {restoreResult.preRestoreBackup}
+                                                        </Typography>
+                                                    </Box>
+                                                </Stack>
+                                            </Alert>
+                                        )}
+
+                                        {/* Detailed table results */}
+                                        <Box sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, overflow: 'hidden' }}>
+                                            <Table size="small">
+                                                <TableHead>
+                                                    <TableRow sx={{ bgcolor: isDarkMode ? 'rgba(0,0,0,0.2)' : 'grey.50' }}>
+                                                        <TableCell sx={{ fontWeight: 700, fontSize: '0.8rem' }}>Table</TableCell>
+                                                        <TableCell align="right" sx={{ fontWeight: 700, fontSize: '0.8rem' }}>Total Rows</TableCell>
+                                                        <TableCell align="right" sx={{ fontWeight: 700, fontSize: '0.8rem' }}>Processed</TableCell>
+                                                        <TableCell align="right" sx={{ fontWeight: 700, fontSize: '0.8rem' }}>Failed</TableCell>
+                                                        <TableCell align="center" sx={{ fontWeight: 700, fontSize: '0.8rem' }}>Status</TableCell>
+                                                    </TableRow>
+                                                </TableHead>
+                                                <TableBody>
+                                                    {restoreResult.success?.map((t: any) => (
+                                                        <TableRow key={t.table}>
+                                                            <TableCell>
+                                                                <Typography variant="body2" fontWeight={500} fontSize="0.85rem">{t.table}</Typography>
+                                                            </TableCell>
+                                                            <TableCell align="right">
+                                                                <Typography variant="body2" fontSize="0.85rem">{(t.total || 0).toLocaleString()}</Typography>
+                                                            </TableCell>
+                                                            <TableCell align="right">
+                                                                <Typography variant="body2" fontSize="0.85rem" color="success.main" fontWeight={600}>
+                                                                    {(t.inserted || 0).toLocaleString()}
+                                                                </Typography>
+                                                            </TableCell>
+                                                            <TableCell align="right">
+                                                                <Typography variant="body2" fontSize="0.85rem" color={t.failed > 0 ? 'error.main' : 'text.secondary'}>
+                                                                    {(t.failed || 0).toLocaleString()}
+                                                                </Typography>
+                                                            </TableCell>
+                                                            <TableCell align="center">
+                                                                <Chip label="✓ Done" size="small" color="success" sx={{ fontSize: '0.7rem', height: 22 }} />
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    ))}
+                                                    {restoreResult.failed?.map((t: any) => (
+                                                        <TableRow key={t.table}>
+                                                            <TableCell>
+                                                                <Typography variant="body2" fontWeight={500} fontSize="0.85rem">{t.table}</Typography>
+                                                            </TableCell>
+                                                            <TableCell align="right" colSpan={2}>
+                                                                <Typography variant="caption" color="error.main">{t.error?.substring(0, 60)}</Typography>
+                                                            </TableCell>
+                                                            <TableCell align="right">-</TableCell>
+                                                            <TableCell align="center">
+                                                                <Chip label="✗ Failed" size="small" color="error" sx={{ fontSize: '0.7rem', height: 22 }} />
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    ))}
+                                                    {restoreResult.skipped?.map((t: any) => (
+                                                        <TableRow key={t.table}>
+                                                            <TableCell>
+                                                                <Typography variant="body2" fontWeight={500} fontSize="0.85rem" color="text.secondary">{t.table}</Typography>
+                                                            </TableCell>
+                                                            <TableCell align="right" colSpan={2}>
+                                                                <Typography variant="caption" color="text.secondary">{t.reason}</Typography>
+                                                            </TableCell>
+                                                            <TableCell align="right">-</TableCell>
+                                                            <TableCell align="center">
+                                                                <Chip label="Skipped" size="small" variant="outlined" sx={{ fontSize: '0.7rem', height: 22 }} />
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    ))}
+                                                </TableBody>
+                                            </Table>
+                                        </Box>
+
+                                        {/* Mode info */}
+                                        <Typography variant="caption" color="text.secondary" textAlign="center">
+                                            Mode: Safe Merge (UPSERT) — No data was deleted during this restore
+                                        </Typography>
+                                    </Stack>
+                                )}
+                            </DialogContent>
+                            <DialogActions sx={{ px: 3, pb: 3 }}>
+                                <Button
+                                    variant="contained"
+                                    onClick={() => setRestoreResultDialogOpen(false)}
+                                    fullWidth={isMobile}
+                                    sx={{
+                                        background: 'linear-gradient(135deg, #16a34a 0%, #15803d 100%)',
+                                        '&:hover': { background: 'linear-gradient(135deg, #15803d 0%, #166534 100%)' }
+                                    }}
+                                >
+                                    Close
                                 </Button>
                             </DialogActions>
                         </Dialog>
