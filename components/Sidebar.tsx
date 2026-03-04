@@ -609,7 +609,7 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
               data-settings-button
               onMouseEnter={() => setSettingsHovered(true)}
               onMouseLeave={() => setSettingsHovered(false)}
-              sx={{ mb: 0.25 }}
+              sx={{ mb: 0.25, mt: -1.5 }}
             >
               <ListItemButton
                 onClick={() => {
@@ -834,7 +834,7 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
                 }
               }}
             >
-              <Box sx={{ px: 1, pb: 1 }}>
+              <Box sx={{ px: 1, mt: 10, pb: 1 }}>
                 <ListItemButton
                   onClick={() => setSidebarControlOpen(!sidebarControlOpen)}
                   sx={{
