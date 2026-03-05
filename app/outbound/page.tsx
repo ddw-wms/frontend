@@ -6233,6 +6233,7 @@ export default function OutboundPage() {
                                     startIcon={<QrCodeScannerIcon sx={{ fontSize: 16 }} />}
                                     onClick={() => router.push('/mobile-scan?mode=outbound')}
                                     sx={{
+                                        display: { xs: 'flex', md: 'none' },
                                         mb: 1.5,
                                         textTransform: 'none',
                                         fontWeight: 700,

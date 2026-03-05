@@ -1,20 +1,24 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import {
     Box, Typography, Button, TextField, Stack, Card, CardContent,
-    Select, MenuItem, FormControl, InputLabel, IconButton, Chip, Alert,
-    CircularProgress, Divider, useTheme, AppBar, Toolbar, ToggleButton,
-    ToggleButtonGroup, Fade,
+    IconButton, Chip, Alert, CircularProgress, Divider, useTheme,
+    AppBar, Toolbar, ToggleButton, ToggleButtonGroup, Dialog, DialogTitle,
+    DialogContent, DialogActions, Collapse,
 } from '@mui/material';
 import {
     ArrowBack as ArrowBackIcon,
     CameraAlt as CameraIcon,
     CheckCircle as CheckCircleIcon,
-    Replay as ReplayIcon,
     VolumeUp as VolumeUpIcon,
     VolumeOff as VolumeOffIcon,
+    Delete as DeleteIcon,
+    Send as SendIcon,
+    PlayArrow as StartIcon,
+    ExpandMore as ExpandMoreIcon,
+    Settings as SetupIcon,
 } from '@mui/icons-material';
 import { qcAPI, outboundAPI, pickingAPI } from '@/lib/api';
 import { useWarehouse } from '@/app/context/WarehouseContext';
@@ -25,7 +29,22 @@ import toast, { Toaster } from 'react-hot-toast';
 
 type ScanMode = 'qc' | 'outbound' | 'picking';
 
-// Audio beep for successful scan
+interface ScannedEntry {
+    id: string;
+    wsn: string;
+    scannedAt: number;
+    qcGrade?: string;
+    productSerialNumber?: string;
+    rackNo?: string;
+    qcRemarks?: string;
+}
+
+const MODE_CONFIG: Record<ScanMode, { title: string; color: string; icon: string }> = {
+    qc: { title: 'QC Scan', color: '#7c3aed', icon: '🔍' },
+    outbound: { title: 'Dispatch Scan', color: '#1e40af', icon: '📦' },
+    picking: { title: 'Picking Scan', color: '#059669', icon: '📋' },
+};
+
 function playBeep() {
     try {
         const ctx = new AudioContext();
@@ -37,282 +56,297 @@ function playBeep() {
         gain.gain.value = 0.3;
         osc.start();
         osc.stop(ctx.currentTime + 0.1);
-    } catch {
-        // AudioContext not available
-    }
+    } catch { /* no audio */ }
 }
 
-const MODE_CONFIG: Record<ScanMode, { title: string; color: string; icon: string }> = {
-    qc: { title: 'QC Scan', color: '#7c3aed', icon: '🔍' },
-    outbound: { title: 'Dispatch Scan', color: '#1e40af', icon: '📦' },
-    picking: { title: 'Picking Scan', color: '#059669', icon: '📋' },
-};
+const DRAFT_LS_KEY = 'mobileScan_draft';
 
 export default function MobileScanPage() {
     const searchParams = useSearchParams();
     const router = useRouter();
     const theme = useTheme();
-    const isDarkMode = theme.palette.mode === 'dark';
+    const isDark = theme.palette.mode === 'dark';
     const { activeWarehouse } = useWarehouse();
     const mode = (searchParams.get('mode') as ScanMode) || 'qc';
-
-    // Scanner state
-    const [cameraOpen, setCameraOpen] = useState(false);
-    const [lastScannedWSN, setLastScannedWSN] = useState('');
-    const [manualWSN, setManualWSN] = useState('');
-    const [productInfo, setProductInfo] = useState<any>(null);
-    const [loading, setLoading] = useState(false);
-    const [submitting, setSubmitting] = useState(false);
-    const [soundOn, setSoundOn] = useState(true);
-    const [sessionCount, setSessionCount] = useState(0);
-    const [lastEntry, setLastEntry] = useState<string | null>(null);
-    const [error, setError] = useState<string | null>(null);
-
-    // QC-specific state
-    const [qcGrade, setQcGrade] = useState(() =>
-        typeof window !== 'undefined' ? localStorage.getItem('mobileScan_qcGrade') || '' : ''
-    );
-    const [qcByName, setQcByName] = useState(() =>
-        typeof window !== 'undefined' ? localStorage.getItem('mobileScan_qcByName') || '' : ''
-    );
-    const [qcDate, setQcDate] = useState(new Date().toISOString().split('T')[0]);
-    const [rackNo, setRackNo] = useState('');
-    const [qcRemarks, setQcRemarks] = useState('');
-    const [racks, setRacks] = useState<string[]>([]);
-
-    // Outbound-specific state
-    const [customerName, setCustomerName] = useState(() =>
-        typeof window !== 'undefined' ? localStorage.getItem('mobileScan_customerName') || '' : ''
-    );
-    const [vehicleNo, setVehicleNo] = useState(() =>
-        typeof window !== 'undefined' ? localStorage.getItem('mobileScan_vehicleNo') || '' : ''
-    );
-    const [dispatchDate, setDispatchDate] = useState(new Date().toISOString().split('T')[0]);
-    const [dispatchRemarks, setDispatchRemarks] = useState('');
-    const [customers, setCustomers] = useState<string[]>([]);
-
-    // Picking-specific state
-    const [pickerName, setPickerName] = useState(() =>
-        typeof window !== 'undefined' ? localStorage.getItem('mobileScan_pickerName') || '' : ''
-    );
-    const [pickingDate, setPickingDate] = useState(new Date().toISOString().split('T')[0]);
-    const [pickingRemarks, setPickingRemarks] = useState('');
-
-    const wsnInputRef = useRef<HTMLInputElement>(null);
     const config = MODE_CONFIG[mode] || MODE_CONFIG.qc;
 
-    // Load racks for QC mode
-    useEffect(() => {
-        if (mode === 'qc' && activeWarehouse?.id) {
-            qcAPI.getWarehouseRacks(activeWarehouse.id)
-                .then((res) => {
-                    const rackList = (res.data?.racks || res.data || []).map((r: any) => r.rack_no || r);
-                    setRacks(rackList);
-                })
-                .catch(() => { });
-        }
-    }, [mode, activeWarehouse?.id]);
+    // Phase
+    const [phase, setPhase] = useState<'setup' | 'scanning'>('setup');
+    const [cameraOpen, setCameraOpen] = useState(false);
+    const [soundOn, setSoundOn] = useState(true);
+    const [submitting, setSubmitting] = useState(false);
+    const [manualWSN, setManualWSN] = useState('');
+    const [resultDialog, setResultDialog] = useState<{ open: boolean; batchId: string; count: number }>({
+        open: false, batchId: '', count: 0,
+    });
 
-    // Load customers for Outbound mode
+    // Scanned entries
+    const [scannedEntries, setScannedEntries] = useState<ScannedEntry[]>([]);
+    const [expandedEntry, setExpandedEntry] = useState<string | null>(null);
+    const wsnInputRef = useRef<HTMLInputElement>(null);
+    const draftSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    // QC setup
+    const [qcByName, setQcByName] = useState('');
+    const [qcDate, setQcDate] = useState(new Date().toISOString().split('T')[0]);
+
+    // Outbound setup
+    const [customerName, setCustomerName] = useState('');
+    const [dispatchDate, setDispatchDate] = useState(new Date().toISOString().split('T')[0]);
+    const [vehicleNo, setVehicleNo] = useState('');
+    const [customers, setCustomers] = useState<string[]>([]);
+
+    // Picking setup
+    const [pickerName, setPickerName] = useState('');
+    const [pickingDate, setPickingDate] = useState(new Date().toISOString().split('T')[0]);
+    const [pickingCustomer, setPickingCustomer] = useState('');
+    const [pickingCustomers, setPickingCustomers] = useState<string[]>([]);
+
+    // Auto-fill user info
     useEffect(() => {
-        if (mode === 'outbound' && activeWarehouse?.id) {
+        const user = getStoredUser();
+        if (user) {
+            if (mode === 'qc') setQcByName(user.fullName || user.username || '');
+            else if (mode === 'picking') setPickerName(user.fullName || user.username || '');
+        }
+    }, [mode]);
+
+    // Load customers
+    useEffect(() => {
+        if ((mode === 'outbound' || mode === 'picking') && activeWarehouse?.id) {
             outboundAPI.getCustomers(activeWarehouse.id)
-                .then((res) => {
+                .then(res => {
                     const list = (res.data || []).map((c: any) => c.customer_name || c);
-                    setCustomers(list);
+                    if (mode === 'outbound') setCustomers(list);
+                    else setPickingCustomers(list);
                 })
                 .catch(() => { });
         }
     }, [mode, activeWarehouse?.id]);
 
-    // Persist remembered fields
+    // Load draft on mount
     useEffect(() => {
-        if (qcByName) localStorage.setItem('mobileScan_qcByName', qcByName);
-    }, [qcByName]);
-    useEffect(() => {
-        if (qcGrade) localStorage.setItem('mobileScan_qcGrade', qcGrade);
-    }, [qcGrade]);
-    useEffect(() => {
-        if (customerName) localStorage.setItem('mobileScan_customerName', customerName);
-    }, [customerName]);
-    useEffect(() => {
-        if (vehicleNo) localStorage.setItem('mobileScan_vehicleNo', vehicleNo);
-    }, [vehicleNo]);
-    useEffect(() => {
-        if (pickerName) localStorage.setItem('mobileScan_pickerName', pickerName);
-    }, [pickerName]);
+        if (!activeWarehouse?.id) return;
+        const load = async () => {
+            try {
+                let res: any;
+                if (mode === 'qc') res = await qcAPI.loadDraft(activeWarehouse.id);
+                else if (mode === 'outbound') res = await outboundAPI.loadDraft(activeWarehouse.id);
+                else res = await pickingAPI.loadDraft(activeWarehouse.id);
 
-    // Fetch product info by WSN
-    const fetchWSNData = useCallback(async (wsn: string) => {
-        if (!wsn || !activeWarehouse?.id) return;
-        setLoading(true);
-        setError(null);
-        setProductInfo(null);
+                const draft = res?.data?.draft || res?.data;
+                if (draft?.draft_data?.length > 0) {
+                    const entries: ScannedEntry[] = draft.draft_data.map((d: any, i: number) => ({
+                        id: `draft_${i}_${Date.now()}`,
+                        wsn: d.wsn || '',
+                        scannedAt: Date.now(),
+                        qcGrade: d.qc_grade || 'A',
+                        productSerialNumber: d.product_serial_number || '',
+                        rackNo: d.rack_no || '',
+                        qcRemarks: d.qc_remarks || '',
+                    }));
+                    setScannedEntries(entries);
+                    if (mode === 'qc' && draft.common_date) setQcDate(draft.common_date);
+                    if (mode === 'outbound') {
+                        if (draft.customer_name) setCustomerName(draft.customer_name);
+                        if (draft.common_date) setDispatchDate(draft.common_date);
+                    }
+                    if (mode === 'picking') {
+                        if (draft.customer_name) setPickingCustomer(draft.customer_name);
+                        if (draft.common_date) setPickingDate(draft.common_date);
+                    }
+                    setPhase('scanning');
+                    toast.success(`Restored ${entries.length} draft entries`);
+                    return;
+                }
+            } catch { /* server draft failed, try localStorage */ }
 
-        try {
-            if (mode === 'qc') {
-                const res = await qcAPI.getPendingInbound(activeWarehouse.id, wsn);
-                const items = res.data?.data || res.data || [];
-                const match = items.find((i: any) => (i.wsn || '').toUpperCase() === wsn.toUpperCase());
-                if (match) {
-                    setProductInfo(match);
-                } else {
-                    setError('WSN not found in pending inbound.');
+            try {
+                const ls = localStorage.getItem(`${DRAFT_LS_KEY}_${mode}`);
+                if (ls) {
+                    const data = JSON.parse(ls);
+                    if (data?.entries?.length > 0) {
+                        setScannedEntries(data.entries);
+                        if (data.qcByName) setQcByName(data.qcByName);
+                        if (data.qcDate) setQcDate(data.qcDate);
+                        if (data.customerName) setCustomerName(data.customerName);
+                        if (data.dispatchDate) setDispatchDate(data.dispatchDate);
+                        if (data.vehicleNo) setVehicleNo(data.vehicleNo);
+                        if (data.pickerName) setPickerName(data.pickerName);
+                        if (data.pickingDate) setPickingDate(data.pickingDate);
+                        if (data.pickingCustomer) setPickingCustomer(data.pickingCustomer);
+                        setPhase('scanning');
+                        toast.success(`Restored ${data.entries.length} draft entries (local)`);
+                    }
                 }
-            } else if (mode === 'outbound') {
-                const res = await outboundAPI.getSourceByWSN(wsn, activeWarehouse.id);
-                if (res.data) {
-                    setProductInfo(res.data);
-                } else {
-                    setError('WSN not found for outbound.');
-                }
-            } else if (mode === 'picking') {
-                const res = await pickingAPI.getSourceByWSN(wsn, activeWarehouse.id);
-                if (res.data) {
-                    setProductInfo(res.data);
-                    // Auto-fill rack from source data
-                    if (res.data.rack_no) setRackNo(res.data.rack_no);
-                } else {
-                    setError('WSN not found for picking.');
-                }
-            }
-        } catch (err: any) {
-            const msg = err?.response?.data?.error || err?.message || 'Failed to fetch WSN data';
-            setError(msg);
-        } finally {
-            setLoading(false);
-        }
+            } catch { /* ignore */ }
+        };
+        load();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [activeWarehouse?.id, mode]);
 
-    // Handle scan from camera
+    // Auto-save drafts
+    const saveDraft = useCallback(async (entries: ScannedEntry[]) => {
+        if (!activeWarehouse?.id || entries.length === 0) return;
+
+        // Instant localStorage save
+        try {
+            const localData: any = { entries, mode };
+            if (mode === 'qc') { localData.qcByName = qcByName; localData.qcDate = qcDate; }
+            if (mode === 'outbound') { localData.customerName = customerName; localData.dispatchDate = dispatchDate; localData.vehicleNo = vehicleNo; }
+            if (mode === 'picking') { localData.pickerName = pickerName; localData.pickingDate = pickingDate; localData.pickingCustomer = pickingCustomer; }
+            localStorage.setItem(`${DRAFT_LS_KEY}_${mode}`, JSON.stringify(localData));
+        } catch { /* storage full */ }
+
+        // Debounced server save
+        if (draftSaveTimer.current) clearTimeout(draftSaveTimer.current);
+        draftSaveTimer.current = setTimeout(async () => {
+            try {
+                const draftRows = entries.map(e => ({
+                    wsn: e.wsn,
+                    qc_grade: e.qcGrade || '',
+                    product_serial_number: e.productSerialNumber || '',
+                    rack_no: e.rackNo || '',
+                    qc_remarks: e.qcRemarks || '',
+                }));
+
+                if (mode === 'qc') {
+                    await qcAPI.saveDraft(draftRows, activeWarehouse.id, qcDate);
+                } else if (mode === 'outbound') {
+                    await outboundAPI.saveDraft(draftRows, activeWarehouse.id, customerName, '', dispatchDate);
+                } else {
+                    await pickingAPI.saveDraft(draftRows, activeWarehouse.id, pickingCustomer, pickingDate);
+                }
+            } catch { /* silent */ }
+        }, 500);
+    }, [activeWarehouse?.id, mode, qcByName, qcDate, customerName, dispatchDate, vehicleNo, pickerName, pickingDate, pickingCustomer]);
+
+    useEffect(() => {
+        if (scannedEntries.length > 0) saveDraft(scannedEntries);
+    }, [scannedEntries, saveDraft]);
+
+    // Scan handler
     const handleScan = useCallback((wsn: string) => {
-        if (soundOn) playBeep();
-        setLastScannedWSN(wsn);
-        setManualWSN(wsn);
-        fetchWSNData(wsn);
-    }, [fetchWSNData, soundOn]);
-
-    // Handle manual WSN entry
-    const handleManualSubmit = useCallback(() => {
-        const wsn = manualWSN.trim().toUpperCase();
-        if (!wsn) return;
-        setLastScannedWSN(wsn);
-        fetchWSNData(wsn);
-    }, [manualWSN, fetchWSNData]);
-
-    // Submit entry
-    const handleSubmit = useCallback(async () => {
-        if (!lastScannedWSN || !activeWarehouse?.id) {
-            toast.error('Please scan a WSN first');
+        if (scannedEntries.some(e => e.wsn === wsn)) {
+            toast.error(`${wsn} already scanned`);
             return;
         }
+        if (soundOn) playBeep();
+        setScannedEntries(prev => [{
+            id: `${wsn}_${Date.now()}`,
+            wsn,
+            scannedAt: Date.now(),
+            qcGrade: 'A',
+        }, ...prev]);
+        toast.success(`Scanned: ${wsn}`, { duration: 1000 });
+    }, [scannedEntries, soundOn]);
 
+    // Manual add
+    const handleManualAdd = useCallback(() => {
+        const wsn = manualWSN.trim().toUpperCase();
+        if (!wsn) return;
+        handleScan(wsn);
+        setManualWSN('');
+        wsnInputRef.current?.focus();
+    }, [manualWSN, handleScan]);
+
+    const handleDeleteEntry = useCallback((id: string) => {
+        setScannedEntries(prev => prev.filter(e => e.id !== id));
+    }, []);
+
+    const handleUpdateEntry = useCallback((id: string, field: keyof ScannedEntry, value: string) => {
+        setScannedEntries(prev => prev.map(e => e.id === id ? { ...e, [field]: value } : e));
+    }, []);
+
+    // Start session
+    const handleStartSession = useCallback(() => {
+        if (mode === 'qc' && !qcByName.trim()) { toast.error('QC By Name is required'); return; }
+        if (mode === 'outbound' && !customerName.trim()) { toast.error('Customer name is required'); return; }
+        if (mode === 'picking' && !pickerName.trim()) { toast.error('Picker name is required'); return; }
+        setPhase('scanning');
+        setCameraOpen(true);
+    }, [mode, qcByName, customerName, pickerName]);
+
+    // Submit all
+    const handleSubmitAll = useCallback(async () => {
+        if (scannedEntries.length === 0 || !activeWarehouse?.id) return;
         setSubmitting(true);
+
         try {
+            const user = getStoredUser();
+            let batchId = '';
+
             if (mode === 'qc') {
-                if (!qcByName.trim()) {
-                    toast.error('QC By Name is required');
-                    setSubmitting(false);
-                    return;
-                }
-                await qcAPI.createEntry({
-                    wsn: lastScannedWSN,
+                const entries = scannedEntries.map(e => ({
+                    wsn: e.wsn,
                     qc_date: qcDate,
                     qc_by_name: qcByName.trim(),
-                    qc_grade: qcGrade,
-                    qc_remarks: qcRemarks,
+                    qc_grade: e.qcGrade || 'A',
+                    product_serial_number: e.productSerialNumber || '',
+                    rack_no: e.rackNo || '',
+                    qc_remarks: e.qcRemarks || '',
                     other_remarks: '',
-                    product_serial_number: productInfo?.product_serial_number || '',
-                    rack_no: rackNo,
-                    warehouse_id: activeWarehouse.id,
-                    update_existing: false,
-                });
-                setLastEntry(`${lastScannedWSN} → Grade ${qcGrade || 'N/A'}`);
+                }));
+                const res = await qcAPI.multiEntry({ entries, warehouse_id: activeWarehouse.id });
+                batchId = res.data?.batch_id || res.data?.batchId || '';
             } else if (mode === 'outbound') {
-                if (!customerName.trim()) {
-                    toast.error('Customer name is required');
-                    setSubmitting(false);
-                    return;
-                }
-                await outboundAPI.createSingle({
-                    wsn: lastScannedWSN,
+                const entries = scannedEntries.map(e => ({
+                    wsn: e.wsn,
                     dispatch_date: dispatchDate,
                     customer_name: customerName.trim(),
                     vehicle_no: vehicleNo,
-                    dispatch_remarks: dispatchRemarks,
-                    other_remarks: '',
-                    warehouse_id: activeWarehouse.id,
-                    update_existing: false,
-                });
-                setLastEntry(`${lastScannedWSN} → ${customerName}`);
-            } else if (mode === 'picking') {
-                await pickingAPI.multiEntry(
-                    [{
-                        wsn: lastScannedWSN,
-                        picking_date: pickingDate,
-                        picker_name: pickerName.trim(),
-                        picking_remarks: pickingRemarks,
-                        rack_no: productInfo?.rack_no || rackNo || '',
-                        product_serial_number: productInfo?.product_serial_number || '',
-                    }],
-                    activeWarehouse.id
-                );
-                setLastEntry(`${lastScannedWSN} → Picked`);
-            }
-
-            toast.success('Entry saved!');
-            setSessionCount(prev => prev + 1);
-
-            // Reset for next scan
-            setLastScannedWSN('');
-            setManualWSN('');
-            setProductInfo(null);
-            setQcRemarks('');
-            setDispatchRemarks('');
-            setPickingRemarks('');
-            setError(null);
-
-            // Auto-open camera for next scan
-            if (cameraOpen) {
-                // Camera stays open, user scans next
+                }));
+                const res = await outboundAPI.multiEntry({ entries, warehouse_id: activeWarehouse.id });
+                batchId = res.data?.batch_id || res.data?.batchId || '';
             } else {
-                // Focus manual input
-                setTimeout(() => wsnInputRef.current?.focus(), 200);
+                const entries = scannedEntries.map(e => ({
+                    wsn: e.wsn,
+                    picking_date: pickingDate,
+                    customer_name: pickingCustomer.trim(),
+                    picker_name: pickerName.trim(),
+                    picking_remarks: '',
+                    rack_no: '',
+                    other_remarks: '',
+                    quantity: 1,
+                    created_by: user?.id,
+                    created_user_name: user?.fullName || user?.username,
+                    warehouse_name: activeWarehouse?.name,
+                }));
+                const res = await pickingAPI.multiEntry(entries, activeWarehouse.id);
+                batchId = res.data?.batch_id || res.data?.batchId || '';
             }
+
+            // Clear drafts
+            try {
+                if (mode === 'qc') await qcAPI.clearDraft(activeWarehouse.id);
+                else if (mode === 'outbound') await outboundAPI.clearDraft(activeWarehouse.id);
+                else await pickingAPI.clearDraft(activeWarehouse.id);
+            } catch { /* ignore */ }
+            localStorage.removeItem(`${DRAFT_LS_KEY}_${mode}`);
+
+            setResultDialog({ open: true, batchId, count: scannedEntries.length });
+            setScannedEntries([]);
+            setCameraOpen(false);
         } catch (err: any) {
-            const msg = err?.response?.data?.error || err?.message || 'Submit failed';
-            toast.error(msg);
+            toast.error(err?.response?.data?.error || err?.message || 'Submission failed');
         } finally {
             setSubmitting(false);
         }
-    }, [
-        lastScannedWSN, activeWarehouse?.id, mode,
-        qcByName, qcDate, qcGrade, qcRemarks, rackNo, productInfo,
-        customerName, dispatchDate, vehicleNo, dispatchRemarks,
-        pickerName, pickingDate, pickingRemarks, cameraOpen
-    ]);
+    }, [scannedEntries, activeWarehouse, mode, qcByName, qcDate, customerName, dispatchDate, vehicleNo, pickerName, pickingDate, pickingCustomer]);
 
-    const canSubmit = lastScannedWSN && !submitting && !loading;
+    const canStart = useMemo(() => {
+        if (mode === 'qc') return !!qcByName.trim();
+        if (mode === 'outbound') return !!customerName.trim();
+        if (mode === 'picking') return !!pickerName.trim();
+        return false;
+    }, [mode, qcByName, customerName, pickerName]);
 
     return (
-        <Box
-            sx={{
-                minHeight: '100dvh',
-                bgcolor: isDarkMode ? '#0f172a' : '#f5f7fa',
-                display: 'flex',
-                flexDirection: 'column',
-            }}
-        >
+        <Box sx={{ minHeight: '100dvh', bgcolor: isDark ? '#0f172a' : '#f5f7fa', display: 'flex', flexDirection: 'column' }}>
             <Toaster position="top-center" />
 
             {/* App Bar */}
-            <AppBar
-                position="sticky"
-                elevation={0}
-                sx={{
-                    background: `linear-gradient(135deg, ${config.color} 0%, ${config.color}cc 100%)`,
-                }}
-            >
+            <AppBar position="sticky" elevation={0} sx={{ background: `linear-gradient(135deg, ${config.color} 0%, ${config.color}cc 100%)` }}>
                 <Toolbar sx={{ minHeight: '48px !important', px: 1.5 }}>
                     <IconButton edge="start" color="inherit" onClick={() => router.back()} sx={{ mr: 0.5 }}>
                         <ArrowBackIcon />
@@ -320,388 +354,352 @@ export default function MobileScanPage() {
                     <Typography sx={{ fontWeight: 800, fontSize: '1rem', flex: 1 }}>
                         {config.icon} {config.title}
                     </Typography>
-                    <IconButton color="inherit" onClick={() => setSoundOn(!soundOn)} size="small">
-                        {soundOn ? <VolumeUpIcon fontSize="small" /> : <VolumeOffIcon fontSize="small" />}
-                    </IconButton>
-                    {sessionCount > 0 && (
-                        <Chip
-                            label={sessionCount}
-                            size="small"
-                            sx={{
-                                ml: 0.5,
-                                bgcolor: 'rgba(255,255,255,0.2)',
-                                color: '#fff',
-                                fontWeight: 700,
-                                fontSize: '0.75rem',
-                                height: 24,
-                            }}
-                        />
+                    {phase === 'scanning' && (
+                        <>
+                            <IconButton color="inherit" onClick={() => setSoundOn(!soundOn)} size="small">
+                                {soundOn ? <VolumeUpIcon fontSize="small" /> : <VolumeOffIcon fontSize="small" />}
+                            </IconButton>
+                            {scannedEntries.length > 0 && (
+                                <Chip
+                                    label={scannedEntries.length}
+                                    size="small"
+                                    sx={{ ml: 0.5, bgcolor: 'rgba(255,255,255,0.2)', color: '#fff', fontWeight: 700, fontSize: '0.75rem', height: 24 }}
+                                />
+                            )}
+                        </>
                     )}
                 </Toolbar>
             </AppBar>
 
-            {/* Warehouse indicator */}
+            {/* Warehouse */}
             {activeWarehouse && (
-                <Box sx={{ px: 2, py: 0.5, bgcolor: isDarkMode ? '#1e293b' : '#e2e8f0' }}>
-                    <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#94a3b8' : '#64748b', fontWeight: 600 }}>
+                <Box sx={{ px: 2, py: 0.5, bgcolor: isDark ? '#1e293b' : '#e2e8f0' }}>
+                    <Typography sx={{ fontSize: '0.7rem', color: isDark ? '#94a3b8' : '#64748b', fontWeight: 600 }}>
                         📍 {activeWarehouse.name || activeWarehouse.warehouse_name || 'Warehouse'}
                     </Typography>
                 </Box>
             )}
 
-            {/* Main Content */}
+            {/* Content */}
             <Box sx={{ flex: 1, overflow: 'auto', p: 1.5 }}>
 
-                {/* Camera Scanner */}
-                <CameraScanner
-                    isOpen={cameraOpen}
-                    onScan={handleScan}
-                    onClose={() => setCameraOpen(false)}
-                    title={`Scan WSN for ${config.title}`}
-                />
-
-                {/* Camera toggle + Manual WSN input */}
-                <Card
-                    sx={{
-                        mt: cameraOpen ? 1.5 : 0,
-                        borderRadius: 2,
-                        boxShadow: isDarkMode ? '0 2px 12px rgba(0,0,0,0.4)' : '0 2px 12px rgba(0,0,0,0.08)',
-                        bgcolor: isDarkMode ? '#1e293b' : '#fff',
-                    }}
-                >
-                    <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
-                        <Stack spacing={1.5}>
-                            {/* Camera Toggle Button */}
-                            {!cameraOpen && (
-                                <Button
-                                    fullWidth
-                                    variant="contained"
-                                    size="large"
-                                    startIcon={<CameraIcon />}
-                                    onClick={() => setCameraOpen(true)}
-                                    sx={{
-                                        py: 1.5,
-                                        fontWeight: 800,
-                                        fontSize: '0.95rem',
-                                        borderRadius: 2,
-                                        background: `linear-gradient(135deg, ${config.color} 0%, ${config.color}bb 100%)`,
-                                        textTransform: 'none',
-                                        boxShadow: `0 4px 14px ${config.color}40`,
-                                    }}
-                                >
-                                    Open Camera & Scan
-                                </Button>
-                            )}
-
-                            {/* Manual WSN input */}
-                            <Stack direction="row" spacing={1} alignItems="center">
-                                <TextField
-                                    fullWidth
-                                    size="small"
-                                    label="Manual WSN"
-                                    value={manualWSN}
-                                    onChange={(e) => setManualWSN(e.target.value.toUpperCase())}
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter') {
-                                            e.preventDefault();
-                                            handleManualSubmit();
-                                        }
-                                    }}
-                                    inputRef={wsnInputRef}
-                                    placeholder="Type or paste WSN..."
-                                    sx={{
-                                        '& .MuiInputBase-root': {
-                                            bgcolor: isDarkMode ? '#0f172a' : '#f8fafc',
-                                        },
-                                    }}
-                                />
-                                <Button
-                                    variant="outlined"
-                                    onClick={handleManualSubmit}
-                                    sx={{
-                                        minWidth: 60,
-                                        fontWeight: 700,
-                                        borderColor: config.color,
-                                        color: config.color,
-                                    }}
-                                >
-                                    Go
-                                </Button>
-                            </Stack>
-                        </Stack>
-                    </CardContent>
-                </Card>
-
-                {/* Loading */}
-                {loading && (
-                    <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
-                        <CircularProgress size={28} sx={{ color: config.color }} />
-                    </Box>
-                )}
-
-                {/* Error */}
-                {error && (
-                    <Alert severity="error" sx={{ mt: 1.5, borderRadius: 1.5, fontSize: '0.8rem' }}>
-                        {error}
-                    </Alert>
-                )}
-
-                {/* Product Info Card */}
-                {productInfo && (
-                    <Fade in>
-                        <Card
-                            sx={{
-                                mt: 1.5,
-                                borderRadius: 2,
-                                border: `2px solid ${config.color}40`,
-                                bgcolor: isDarkMode ? '#1e293b' : '#fff',
-                            }}
-                        >
-                            <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
-                                <Typography sx={{ fontWeight: 800, fontSize: '0.8rem', color: config.color, mb: 0.5 }}>
-                                    ✅ WSN: {lastScannedWSN}
+                {/* ===== SETUP PHASE ===== */}
+                {phase === 'setup' && (
+                    <Card sx={{ borderRadius: 2, bgcolor: isDark ? '#1e293b' : '#fff', boxShadow: isDark ? '0 2px 12px rgba(0,0,0,0.4)' : '0 2px 12px rgba(0,0,0,0.08)' }}>
+                        <CardContent sx={{ p: 2 }}>
+                            <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
+                                <SetupIcon sx={{ color: config.color, fontSize: 20 }} />
+                                <Typography sx={{ fontWeight: 800, fontSize: '0.9rem', color: isDark ? '#e2e8f0' : '#1e293b' }}>
+                                    Session Setup
                                 </Typography>
-                                <Stack spacing={0.3}>
-                                    {productInfo.product_title && (
-                                        <Typography sx={{ fontSize: '0.78rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>
-                                            📦 {productInfo.product_title}
-                                        </Typography>
-                                    )}
-                                    <Stack direction="row" spacing={1} flexWrap="wrap">
-                                        {productInfo.brand && (
-                                            <Chip label={productInfo.brand} size="small" sx={{ fontSize: '0.7rem', height: 22 }} />
-                                        )}
-                                        {productInfo.mrp && (
-                                            <Chip label={`MRP: ₹${productInfo.mrp}`} size="small" sx={{ fontSize: '0.7rem', height: 22 }} />
-                                        )}
-                                        {productInfo.fsp && (
-                                            <Chip label={`FSP: ₹${productInfo.fsp}`} size="small" sx={{ fontSize: '0.7rem', height: 22 }} />
-                                        )}
-                                        {productInfo.rack_no && (
-                                            <Chip label={`Rack: ${productInfo.rack_no}`} size="small" sx={{ fontSize: '0.7rem', height: 22 }} />
-                                        )}
-                                    </Stack>
-                                </Stack>
-                            </CardContent>
-                        </Card>
-                    </Fade>
-                )}
+                            </Stack>
 
-                {/* Mode-specific form fields */}
-                {lastScannedWSN && (
-                    <Card
-                        sx={{
-                            mt: 1.5,
-                            borderRadius: 2,
-                            bgcolor: isDarkMode ? '#1e293b' : '#fff',
-                            boxShadow: isDarkMode ? '0 2px 12px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.06)',
-                        }}
-                    >
-                        <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
-
-                            {/* ===== QC FIELDS ===== */}
                             {mode === 'qc' && (
-                                <Stack spacing={1.5}>
-                                    {/* QC Grade - Quick tap buttons */}
-                                    <Box>
-                                        <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, mb: 0.5, color: isDarkMode ? '#94a3b8' : '#64748b' }}>
-                                            QC Grade
-                                        </Typography>
-                                        <ToggleButtonGroup
-                                            value={qcGrade}
-                                            exclusive
-                                            onChange={(_, val) => { if (val !== null) setQcGrade(val); }}
-                                            fullWidth
-                                            size="small"
-                                            sx={{
-                                                '& .MuiToggleButton-root': {
-                                                    fontWeight: 800,
-                                                    fontSize: '0.85rem',
-                                                    py: 1,
-                                                    textTransform: 'none',
-                                                    '&.Mui-selected': {
-                                                        bgcolor: config.color,
-                                                        color: '#fff',
-                                                        '&:hover': { bgcolor: config.color },
-                                                    },
-                                                },
-                                            }}
-                                        >
-                                            <ToggleButton value="A">A</ToggleButton>
-                                            <ToggleButton value="B">B</ToggleButton>
-                                            <ToggleButton value="C">C</ToggleButton>
-                                            <ToggleButton value="D">D</ToggleButton>
-                                        </ToggleButtonGroup>
-                                    </Box>
-
-                                    <TextField
-                                        fullWidth size="small" label="QC By Name *"
-                                        value={qcByName}
-                                        onChange={(e) => setQcByName(e.target.value)}
-                                        placeholder="Your name"
-                                    />
-
-                                    <FormControl fullWidth size="small">
-                                        <InputLabel>Rack Location</InputLabel>
-                                        <Select
-                                            value={rackNo}
-                                            onChange={(e) => setRackNo(e.target.value)}
-                                            label="Rack Location"
-                                        >
-                                            <MenuItem value="">None</MenuItem>
-                                            {racks.map((r) => (
-                                                <MenuItem key={r} value={r}>{r}</MenuItem>
-                                            ))}
-                                        </Select>
-                                    </FormControl>
-
-                                    <TextField
-                                        fullWidth size="small" label="QC Date" type="date"
-                                        value={qcDate}
-                                        onChange={(e) => setQcDate(e.target.value)}
-                                        InputLabelProps={{ shrink: true }}
-                                    />
-
-                                    <TextField
-                                        fullWidth size="small" label="Remarks (optional)"
-                                        value={qcRemarks}
-                                        onChange={(e) => setQcRemarks(e.target.value)}
-                                        multiline rows={2}
-                                        placeholder="Any remarks..."
-                                    />
+                                <Stack spacing={2}>
+                                    <TextField fullWidth size="small" label="QC By Name *" value={qcByName}
+                                        onChange={e => setQcByName(e.target.value)} placeholder="Your name" />
+                                    <TextField fullWidth size="small" label="QC Date" type="date" value={qcDate}
+                                        onChange={e => setQcDate(e.target.value)} InputLabelProps={{ shrink: true }} />
+                                    <Typography sx={{ fontSize: '0.7rem', color: isDark ? '#64748b' : '#94a3b8' }}>
+                                        Grade, serial number, rack & remarks can be set per entry after scanning.
+                                    </Typography>
                                 </Stack>
                             )}
 
-                            {/* ===== OUTBOUND FIELDS ===== */}
                             {mode === 'outbound' && (
-                                <Stack spacing={1.5}>
+                                <Stack spacing={2}>
                                     <CustomerAutocomplete
-                                        value={customerName}
-                                        onChange={(val) => setCustomerName(val)}
-                                        customers={customers}
-                                        warehouseId={activeWarehouse?.id}
+                                        value={customerName} onChange={setCustomerName}
+                                        customers={customers} warehouseId={activeWarehouse?.id}
                                         onCustomerAdded={() => {
                                             if (activeWarehouse?.id) {
                                                 outboundAPI.getCustomers(activeWarehouse.id)
-                                                    .then((res) => setCustomers((res.data || []).map((c: any) => c.customer_name || c)))
+                                                    .then(res => setCustomers((res.data || []).map((c: any) => c.customer_name || c)))
                                                     .catch(() => { });
                                             }
                                         }}
-                                        size="small"
-                                        label="Customer Name *"
-                                        placeholder="Type or select..."
+                                        size="small" label="Customer Name *" placeholder="Select customer..."
                                     />
-
-                                    <TextField
-                                        fullWidth size="small" label="Vehicle No"
-                                        value={vehicleNo}
-                                        onChange={(e) => setVehicleNo(e.target.value.toUpperCase())}
-                                        placeholder="MH-01-AB-1234"
-                                    />
-
-                                    <TextField
-                                        fullWidth size="small" label="Dispatch Date" type="date"
-                                        value={dispatchDate}
-                                        onChange={(e) => setDispatchDate(e.target.value)}
-                                        InputLabelProps={{ shrink: true }}
-                                    />
-
-                                    <TextField
-                                        fullWidth size="small" label="Remarks (optional)"
-                                        value={dispatchRemarks}
-                                        onChange={(e) => setDispatchRemarks(e.target.value)}
-                                        multiline rows={2}
-                                    />
+                                    <TextField fullWidth size="small" label="Vehicle No" value={vehicleNo}
+                                        onChange={e => setVehicleNo(e.target.value.toUpperCase())} placeholder="MH-01-AB-1234" />
+                                    <TextField fullWidth size="small" label="Dispatch Date" type="date" value={dispatchDate}
+                                        onChange={e => setDispatchDate(e.target.value)} InputLabelProps={{ shrink: true }} />
                                 </Stack>
                             )}
 
-                            {/* ===== PICKING FIELDS ===== */}
                             {mode === 'picking' && (
-                                <Stack spacing={1.5}>
-                                    <TextField
-                                        fullWidth size="small" label="Picker Name"
-                                        value={pickerName}
-                                        onChange={(e) => setPickerName(e.target.value)}
-                                        placeholder="Your name"
+                                <Stack spacing={2}>
+                                    <TextField fullWidth size="small" label="Picker Name *" value={pickerName}
+                                        onChange={e => setPickerName(e.target.value)} placeholder="Your name" />
+                                    <CustomerAutocomplete
+                                        value={pickingCustomer} onChange={setPickingCustomer}
+                                        customers={pickingCustomers} warehouseId={activeWarehouse?.id}
+                                        size="small" label="Customer Name" placeholder="Select customer (optional)..."
                                     />
-
-                                    <TextField
-                                        fullWidth size="small" label="Picking Date" type="date"
-                                        value={pickingDate}
-                                        onChange={(e) => setPickingDate(e.target.value)}
-                                        InputLabelProps={{ shrink: true }}
-                                    />
-
-                                    <TextField
-                                        fullWidth size="small" label="Remarks (optional)"
-                                        value={pickingRemarks}
-                                        onChange={(e) => setPickingRemarks(e.target.value)}
-                                        multiline rows={2}
-                                    />
+                                    <TextField fullWidth size="small" label="Picking Date" type="date" value={pickingDate}
+                                        onChange={e => setPickingDate(e.target.value)} InputLabelProps={{ shrink: true }} />
                                 </Stack>
                             )}
+
+                            <Button
+                                fullWidth variant="contained" size="large" startIcon={<StartIcon />}
+                                onClick={handleStartSession} disabled={!canStart}
+                                sx={{
+                                    mt: 2.5, py: 1.5, fontWeight: 800, fontSize: '0.95rem', borderRadius: 2,
+                                    background: canStart ? `linear-gradient(135deg, ${config.color} 0%, ${config.color}bb 100%)` : undefined,
+                                    textTransform: 'none',
+                                    boxShadow: canStart ? `0 4px 14px ${config.color}40` : 'none',
+                                }}
+                            >
+                                Start Scanning Session
+                            </Button>
                         </CardContent>
                     </Card>
                 )}
 
-                {/* Last entry indicator */}
-                {lastEntry && (
-                    <Box
-                        sx={{
-                            mt: 1.5,
-                            px: 1.5,
-                            py: 0.8,
-                            borderRadius: 1.5,
-                            bgcolor: isDarkMode ? 'rgba(34,197,94,0.1)' : 'rgba(34,197,94,0.08)',
-                            border: '1px solid rgba(34,197,94,0.3)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 0.5,
-                        }}
-                    >
-                        <CheckCircleIcon sx={{ color: '#22c55e', fontSize: 16 }} />
-                        <Typography sx={{ fontSize: '0.75rem', color: '#22c55e', fontWeight: 600 }}>
-                            Last: {lastEntry}
-                        </Typography>
-                    </Box>
+                {/* ===== SCANNING PHASE ===== */}
+                {phase === 'scanning' && (
+                    <>
+                        {/* Camera */}
+                        <CameraScanner
+                            isOpen={cameraOpen} onScan={handleScan}
+                            onClose={() => setCameraOpen(false)}
+                            title={`Scan WSN for ${config.title}`}
+                        />
+
+                        {/* Camera toggle + Manual input */}
+                        <Card sx={{
+                            mt: cameraOpen ? 1 : 0, borderRadius: 2,
+                            bgcolor: isDark ? '#1e293b' : '#fff',
+                            boxShadow: isDark ? '0 2px 8px rgba(0,0,0,0.3)' : '0 1px 6px rgba(0,0,0,0.06)',
+                        }}>
+                            <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+                                <Stack spacing={1}>
+                                    {!cameraOpen && (
+                                        <Button
+                                            fullWidth variant="contained" startIcon={<CameraIcon />}
+                                            onClick={() => setCameraOpen(true)}
+                                            sx={{
+                                                py: 1, fontWeight: 700, fontSize: '0.85rem', borderRadius: 1.5,
+                                                background: `linear-gradient(135deg, ${config.color} 0%, ${config.color}bb 100%)`,
+                                                textTransform: 'none',
+                                            }}
+                                        >
+                                            Open Camera
+                                        </Button>
+                                    )}
+                                    <Stack direction="row" spacing={1} alignItems="center">
+                                        <TextField
+                                            fullWidth size="small" label="Manual WSN"
+                                            value={manualWSN}
+                                            onChange={e => setManualWSN(e.target.value.toUpperCase())}
+                                            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleManualAdd(); } }}
+                                            inputRef={wsnInputRef}
+                                            placeholder="Type or paste WSN..."
+                                            sx={{ '& .MuiInputBase-root': { bgcolor: isDark ? '#0f172a' : '#f8fafc' } }}
+                                        />
+                                        <Button
+                                            variant="outlined" onClick={handleManualAdd}
+                                            sx={{ minWidth: 50, fontWeight: 700, borderColor: config.color, color: config.color }}
+                                        >
+                                            Add
+                                        </Button>
+                                    </Stack>
+                                </Stack>
+                            </CardContent>
+                        </Card>
+
+                        {/* Setup summary */}
+                        <Box sx={{
+                            mt: 1, px: 1.5, py: 0.8, borderRadius: 1.5,
+                            bgcolor: isDark ? '#1e293b80' : '#e2e8f040',
+                            border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
+                        }}>
+                            <Stack direction="row" justifyContent="space-between" alignItems="center">
+                                <Typography sx={{ fontSize: '0.7rem', color: isDark ? '#94a3b8' : '#64748b' }}>
+                                    {mode === 'qc' && `👤 ${qcByName} • 📅 ${qcDate}`}
+                                    {mode === 'outbound' && `🏢 ${customerName} • 🚛 ${vehicleNo || 'N/A'} • 📅 ${dispatchDate}`}
+                                    {mode === 'picking' && `👤 ${pickerName}${pickingCustomer ? ` • 🏢 ${pickingCustomer}` : ''} • 📅 ${pickingDate}`}
+                                </Typography>
+                                <Button
+                                    size="small"
+                                    onClick={() => { setPhase('setup'); setCameraOpen(false); }}
+                                    sx={{ minWidth: 'auto', fontSize: '0.65rem', color: config.color, textTransform: 'none' }}
+                                >
+                                    Edit
+                                </Button>
+                            </Stack>
+                        </Box>
+
+                        {/* Scanned Entries */}
+                        {scannedEntries.length > 0 && (
+                            <Box sx={{ mt: 1 }}>
+                                <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: isDark ? '#94a3b8' : '#64748b', mb: 0.5, px: 0.5 }}>
+                                    Scanned ({scannedEntries.length})
+                                </Typography>
+                                <Stack spacing={0.5}>
+                                    {scannedEntries.map((entry) => (
+                                        <Card key={entry.id} sx={{
+                                            borderRadius: 1.5, bgcolor: isDark ? '#1e293b' : '#fff',
+                                            border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
+                                        }}>
+                                            <Box sx={{ px: 1.5, py: 0.8, display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                <Typography sx={{
+                                                    fontSize: '0.78rem', fontWeight: 700,
+                                                    color: isDark ? '#e2e8f0' : '#1e293b',
+                                                    flex: 1, fontFamily: 'monospace',
+                                                }}>
+                                                    {entry.wsn}
+                                                </Typography>
+
+                                                {mode === 'qc' && (
+                                                    <ToggleButtonGroup
+                                                        value={entry.qcGrade || 'A'} exclusive
+                                                        onChange={(_, v) => { if (v) handleUpdateEntry(entry.id, 'qcGrade', v); }}
+                                                        size="small"
+                                                        sx={{
+                                                            '& .MuiToggleButton-root': {
+                                                                px: 0.8, py: 0.1, fontSize: '0.65rem', fontWeight: 700, minWidth: 24,
+                                                                '&.Mui-selected': { bgcolor: config.color, color: '#fff' },
+                                                            },
+                                                        }}
+                                                    >
+                                                        <ToggleButton value="A">A</ToggleButton>
+                                                        <ToggleButton value="B">B</ToggleButton>
+                                                        <ToggleButton value="C">C</ToggleButton>
+                                                        <ToggleButton value="D">D</ToggleButton>
+                                                    </ToggleButtonGroup>
+                                                )}
+
+                                                {mode === 'qc' && (
+                                                    <IconButton
+                                                        size="small"
+                                                        onClick={() => setExpandedEntry(expandedEntry === entry.id ? null : entry.id)}
+                                                        sx={{ color: isDark ? '#64748b' : '#94a3b8', width: 24, height: 24 }}
+                                                    >
+                                                        <ExpandMoreIcon sx={{
+                                                            fontSize: 16,
+                                                            transform: expandedEntry === entry.id ? 'rotate(180deg)' : 'none',
+                                                            transition: '0.2s',
+                                                        }} />
+                                                    </IconButton>
+                                                )}
+
+                                                <IconButton
+                                                    size="small" onClick={() => handleDeleteEntry(entry.id)}
+                                                    sx={{ color: '#ef4444', width: 24, height: 24 }}
+                                                >
+                                                    <DeleteIcon sx={{ fontSize: 14 }} />
+                                                </IconButton>
+                                            </Box>
+
+                                            {mode === 'qc' && (
+                                                <Collapse in={expandedEntry === entry.id}>
+                                                    <Box sx={{ px: 1.5, pb: 1, pt: 0.5 }}>
+                                                        <Divider sx={{ mb: 1 }} />
+                                                        <Stack spacing={1}>
+                                                            <TextField
+                                                                fullWidth size="small" label="Product Serial No."
+                                                                value={entry.productSerialNumber || ''}
+                                                                onChange={e => handleUpdateEntry(entry.id, 'productSerialNumber', e.target.value)}
+                                                                placeholder="Scan or type..."
+                                                            />
+                                                            <TextField
+                                                                fullWidth size="small" label="Rack"
+                                                                value={entry.rackNo || ''}
+                                                                onChange={e => handleUpdateEntry(entry.id, 'rackNo', e.target.value)}
+                                                                placeholder="Rack location"
+                                                            />
+                                                            <TextField
+                                                                fullWidth size="small" label="Remarks"
+                                                                value={entry.qcRemarks || ''}
+                                                                onChange={e => handleUpdateEntry(entry.id, 'qcRemarks', e.target.value)}
+                                                                multiline rows={1}
+                                                            />
+                                                        </Stack>
+                                                    </Box>
+                                                </Collapse>
+                                            )}
+                                        </Card>
+                                    ))}
+                                </Stack>
+                            </Box>
+                        )}
+
+                        {scannedEntries.length === 0 && (
+                            <Box sx={{ mt: 4, textAlign: 'center' }}>
+                                <Typography sx={{ fontSize: '2rem', mb: 0.5 }}>📷</Typography>
+                                <Typography sx={{ fontSize: '0.8rem', color: isDark ? '#64748b' : '#94a3b8', fontWeight: 600 }}>
+                                    Scan barcodes to add entries
+                                </Typography>
+                            </Box>
+                        )}
+                    </>
                 )}
             </Box>
 
             {/* Fixed Bottom Submit Bar */}
-            {lastScannedWSN && (
-                <Box
-                    sx={{
-                        p: 1.5,
-                        borderTop: `1px solid ${isDarkMode ? '#334155' : '#e2e8f0'}`,
-                        bgcolor: isDarkMode ? '#1e293b' : '#fff',
-                        position: 'sticky',
-                        bottom: 0,
-                        zIndex: 10,
-                    }}
-                >
+            {phase === 'scanning' && scannedEntries.length > 0 && (
+                <Box sx={{
+                    p: 1.5, borderTop: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
+                    bgcolor: isDark ? '#1e293b' : '#fff', position: 'sticky', bottom: 0, zIndex: 10,
+                }}>
                     <Button
-                        fullWidth
-                        variant="contained"
-                        size="large"
-                        onClick={handleSubmit}
-                        disabled={!canSubmit}
-                        startIcon={submitting ? <CircularProgress size={18} color="inherit" /> : <CheckCircleIcon />}
+                        fullWidth variant="contained" size="large"
+                        onClick={handleSubmitAll} disabled={submitting}
+                        startIcon={submitting ? <CircularProgress size={18} color="inherit" /> : <SendIcon />}
                         sx={{
-                            py: 1.5,
-                            fontWeight: 800,
-                            fontSize: '1rem',
-                            borderRadius: 2,
-                            background: canSubmit
-                                ? 'linear-gradient(135deg, #16a34a 0%, #22c55e 100%)'
-                                : undefined,
+                            py: 1.5, fontWeight: 800, fontSize: '0.95rem', borderRadius: 2,
+                            background: !submitting ? 'linear-gradient(135deg, #16a34a 0%, #22c55e 100%)' : undefined,
                             textTransform: 'none',
-                            boxShadow: canSubmit ? '0 4px 14px rgba(34,197,94,0.3)' : 'none',
+                            boxShadow: !submitting ? '0 4px 14px rgba(34,197,94,0.3)' : 'none',
                         }}
                     >
-                        {submitting ? 'Saving...' : 'Submit & Scan Next'}
+                        {submitting ? 'Submitting...' : `Submit All (${scannedEntries.length} entries)`}
                     </Button>
                 </Box>
             )}
+
+            {/* Result Dialog */}
+            <Dialog
+                open={resultDialog.open}
+                onClose={() => setResultDialog({ open: false, batchId: '', count: 0 })}
+                PaperProps={{ sx: { borderRadius: 3, minWidth: 280 } }}
+            >
+                <DialogTitle sx={{ textAlign: 'center', pt: 3, pb: 0 }}>
+                    <CheckCircleIcon sx={{ fontSize: 48, color: '#22c55e', mb: 1, display: 'block', mx: 'auto' }} />
+                    <Typography sx={{ fontWeight: 800, fontSize: '1.1rem' }}>Submitted!</Typography>
+                </DialogTitle>
+                <DialogContent sx={{ textAlign: 'center', pt: 1 }}>
+                    <Typography sx={{ fontSize: '0.85rem', color: isDark ? '#94a3b8' : '#64748b', mb: 1 }}>
+                        {resultDialog.count} entries submitted successfully
+                    </Typography>
+                    {resultDialog.batchId && (
+                        <Chip
+                            label={`Batch: ${resultDialog.batchId}`}
+                            sx={{ fontWeight: 700, fontSize: '0.75rem', bgcolor: isDark ? '#1e293b' : '#f1f5f9' }}
+                        />
+                    )}
+                </DialogContent>
+                <DialogActions sx={{ justifyContent: 'center', pb: 2.5, gap: 1 }}>
+                    <Button
+                        variant="outlined"
+                        onClick={() => { setResultDialog({ open: false, batchId: '', count: 0 }); setPhase('scanning'); setCameraOpen(true); }}
+                        sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 700 }}
+                    >
+                        Scan More
+                    </Button>
+                    <Button
+                        variant="contained" onClick={() => router.back()}
+                        sx={{
+                            borderRadius: 2, textTransform: 'none', fontWeight: 700,
+                            background: `linear-gradient(135deg, ${config.color} 0%, ${config.color}bb 100%)`,
+                        }}
+                    >
+                        Done
+                    </Button>
+                </DialogActions>
+            </Dialog>
         </Box>
     );
 }

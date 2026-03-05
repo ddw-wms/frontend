@@ -5056,6 +5056,7 @@ export default function QCPage() {
                         startIcon={<QrCodeScannerIcon sx={{ fontSize: 16 }} />}
                         onClick={() => router.push('/mobile-scan?mode=qc')}
                         sx={{
+                          display: { xs: 'flex', md: 'none' },
                           mb: 1.5,
                           textTransform: 'none',
                           fontWeight: 700,

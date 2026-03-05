@@ -5523,33 +5523,6 @@ export default function PickingPage() {
                   </IconButton>
                 </Tooltip>
 
-                {/* Mobile Scan Button (Desktop) */}
-                <Tooltip title="Open Mobile Camera Scan" placement="top">
-                  <Button
-                    size="small"
-                    variant="outlined"
-                    startIcon={<QrCodeScannerIcon sx={{ fontSize: 18 }} />}
-                    onClick={() => router.push('/mobile-scan?mode=picking')}
-                    sx={{
-                      height: 38,
-                      px: 2,
-                      borderRadius: 1.5,
-                      fontWeight: 600,
-                      fontSize: '0.8rem',
-                      textTransform: 'none',
-                      borderColor: '#059669',
-                      color: '#059669',
-                      bgcolor: 'rgba(5, 150, 105, 0.04)',
-                      '&:hover': {
-                        borderColor: '#059669',
-                        bgcolor: 'rgba(5, 150, 105, 0.12)'
-                      }
-                    }}
-                  >
-                    📱 Scan
-                  </Button>
-                </Tooltip>
-
                 {/* Live View Panel */}
                 <LiveViewPanel
                   warehouseId={activeWarehouse?.id}
