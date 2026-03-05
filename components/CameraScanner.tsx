@@ -70,8 +70,11 @@ export default function CameraScanner({ onScan, onClose, isOpen, title = 'Scan B
         if (!track) return;
         try {
             const caps = track.getCapabilities?.() as any;
-            // Torch
-            if (caps?.torch) {
+            // Torch - always assume available on back camera, actual toggle will verify
+            if (caps?.torch === true) {
+                setTorchSupported(true);
+            } else if (facingBack) {
+                // Most back cameras have torch - optimistically enable button
                 setTorchSupported(true);
             }
             // Zoom
@@ -84,38 +87,23 @@ export default function CameraScanner({ onScan, onClose, isOpen, title = 'Scan B
                 track.applyConstraints({ advanced: [{ zoom: clamped } as any] }).catch(() => { });
             }
         } catch { /* ignore */ }
-    }, [getTrack]);
+    }, [getTrack, facingBack]);
 
     const applyTorch = useCallback(async (on: boolean) => {
         const track = getTrack();
         if (!track) return false;
         try {
-            // Use ImageCapture API as primary method (works on more devices)
-            if (typeof ImageCapture !== 'undefined') {
-                try {
-                    const imgCapture = new ImageCapture(track);
-                    const photoCapabilities = await imgCapture.getPhotoCapabilities?.().catch(() => null);
-                    // fillLightMode check
-                    if (photoCapabilities?.fillLightMode?.includes('flash')) {
-                        await (imgCapture as any).setOptions({ fillLightMode: on ? 'flash' : 'off' }).catch(() => { });
-                    }
-                } catch { /* ImageCapture failed, fall through */ }
-            }
-
-            // Primary method: applyConstraints with torch
-            const caps = track.getCapabilities?.() as any;
-            if (caps?.torch) {
-                await track.applyConstraints({ advanced: [{ torch: on } as any] });
+            // Direct approach: apply torch constraint regardless of getCapabilities() result
+            // This works on most modern mobile browsers
+            await track.applyConstraints({ advanced: [{ torch: on } as any] });
+            return true;
+        } catch {
+            // Fallback: try without 'advanced' wrapper
+            try {
+                await track.applyConstraints({ torch: on } as any);
                 return true;
-            }
-
-            // Fallback: try setting torch via getSettings
-            const settings = track.getSettings?.() as any;
-            if (settings && 'torch' in settings) {
-                await track.applyConstraints({ advanced: [{ torch: on } as any] });
-                return true;
-            }
-        } catch { /* torch not supported */ }
+            } catch { /* torch not supported on this device */ }
+        }
         return false;
     }, [getTrack]);
 
@@ -144,38 +132,11 @@ export default function CameraScanner({ onScan, onClose, isOpen, title = 'Scan B
         setZoomRange(null);
     }, [getTrack, torchOn]);
 
-    const requestCameraPermission = useCallback(async (): Promise<boolean> => {
-        try {
-            // First try to get a stream to trigger browser permission prompt
-            const testStream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: 'environment' }
-            });
-            // Permission granted, stop test stream
-            testStream.getTracks().forEach(t => t.stop());
-            return true;
-        } catch (err: any) {
-            const msg = err?.name || err?.message || '';
-            if (msg === 'NotAllowedError' || msg.includes('Permission')) {
-                return false;
-            }
-            // Other errors (NotFoundError etc.) — permission might be OK, camera issue
-            return true;
-        }
-    }, []);
-
     const startScanner = useCallback(async (useFrontCamera = false) => {
         setError(null);
         try {
             await stopScanner();
             await new Promise(r => setTimeout(r, 300));
-
-            // Pre-check camera permission
-            const hasPermission = await requestCameraPermission();
-            if (!hasPermission) {
-                setError('Camera permission denied.\n\n• Android Chrome: Settings → Site Settings → Camera → Allow\n• iPhone Safari: Settings → Safari → Camera → Allow\n• Other browsers: Tap the lock/info icon in the address bar → Camera → Allow\n\nThen reload this page.');
-                setScanning(false);
-                return;
-            }
 
             if (!scannerRef.current) {
                 scannerRef.current = new Html5Qrcode(SCANNER_REGION_ID);
@@ -252,7 +213,7 @@ export default function CameraScanner({ onScan, onClose, isOpen, title = 'Scan B
             }
             setScanning(false);
         }
-    }, [onScan, stopScanner, getTrack, setupTrackCapabilities, requestCameraPermission]);
+    }, [onScan, stopScanner, getTrack, setupTrackCapabilities]);
 
     useEffect(() => {
         if (isOpen) {
@@ -270,18 +231,10 @@ export default function CameraScanner({ onScan, onClose, isOpen, title = 'Scan B
         if (ok) {
             setTorchOn(newState);
         } else {
-            // If torch toggle failed, try re-acquiring the track and retrying
-            const track = getTrack();
-            if (track) {
-                try {
-                    await track.applyConstraints({ advanced: [{ torch: newState } as any] });
-                    setTorchOn(newState);
-                } catch {
-                    // Truly not supported
-                }
-            }
+            // Torch not supported - disable button
+            setTorchSupported(false);
         }
-    }, [torchOn, applyTorch, getTrack]);
+    }, [torchOn, applyTorch]);
 
     const handleFlipCamera = useCallback(async () => {
         const newFacingBack = !facingBack;

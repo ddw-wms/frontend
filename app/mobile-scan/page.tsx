@@ -51,12 +51,15 @@ interface ScannedEntry {
     rackNo?: string;
     qcRemarks?: string;
     otherRemarks?: string;
+    // Outbound per-entry fields
+    dispatchRemarks?: string;
     // Picking per-entry fields
     pickingRemarks?: string;
     // Product info (all modes)
     productInfo?: ProductInfo;
-    // Duplicate flag
+    // Duplicate flags
     isDuplicate?: boolean;
+    dupType?: 'grid' | 'same-wh' | 'cross-wh';
 }
 
 const MODE_CONFIG: Record<ScanMode, { title: string; color: string; icon: string }> = {
@@ -109,8 +112,9 @@ export default function MobileScanPage() {
     const draftSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const draftLoadedRef = useRef(false);
 
-    // Existing WSNs for duplicate check
-    const [existingWSNs, setExistingWSNs] = useState<Set<string>>(new Set());
+    // Existing WSNs for duplicate check: wsn -> warehouseId (null if unknown)
+    const [existingWSNs, setExistingWSNs] = useState<Map<string, number | null>>(new Map());
+    const [dupCheckReady, setDupCheckReady] = useState(false);
 
     // Rack list for QC
     const [racks, setRacks] = useState<string[]>([]);
@@ -156,20 +160,36 @@ export default function MobileScanPage() {
     // Load existing WSNs for duplicate check
     useEffect(() => {
         if (!activeWarehouse?.id) return;
+        setDupCheckReady(false);
         const loadExisting = async () => {
             try {
+                const map = new Map<string, number | null>();
                 if (mode === 'qc') {
                     const res = await qcAPI.getAllQCWSNs();
-                    const wsns = (res.data || []).map((item: any) => (typeof item === 'string' ? item : item.wsn || '').toUpperCase());
-                    setExistingWSNs(new Set(wsns));
+                    (res.data || []).forEach((item: any) => {
+                        const wsn = (typeof item === 'string' ? item : item.wsn || '').toUpperCase();
+                        const whId = typeof item === 'object' ? (item.warehouseid ?? null) : null;
+                        if (wsn) map.set(wsn, whId);
+                    });
                 } else if (mode === 'outbound') {
                     const res = await outboundAPI.getExistingWSNs(activeWarehouse.id);
-                    setExistingWSNs(new Set((res.data || []).map((w: string) => w.toUpperCase())));
+                    (res.data || []).forEach((w: any) => {
+                        const wsn = (typeof w === 'string' ? w : '').toUpperCase();
+                        if (wsn) map.set(wsn, activeWarehouse!.id);
+                    });
                 } else {
                     const res = await pickingAPI.getExistingWSNs(activeWarehouse.id);
-                    setExistingWSNs(new Set((res.data || []).map((w: string) => (typeof w === 'string' ? w : '').toUpperCase())));
+                    (res.data || []).forEach((w: any) => {
+                        const wsn = (typeof w === 'string' ? w : '').toUpperCase();
+                        if (wsn) map.set(wsn, activeWarehouse!.id);
+                    });
                 }
-            } catch { /* ignore */ }
+                setExistingWSNs(map);
+            } catch (err) {
+                console.error('Failed to load existing WSNs for duplicate check:', err);
+            } finally {
+                setDupCheckReady(true);
+            }
         };
         loadExisting();
     }, [mode, activeWarehouse?.id]);
@@ -216,6 +236,7 @@ export default function MobileScanPage() {
                         rackNo: d.rack_no || '',
                         qcRemarks: d.qc_remarks || '',
                         otherRemarks: d.other_remarks || '',
+                        dispatchRemarks: d.dispatch_remarks || '',
                         pickingRemarks: d.picking_remarks || '',
                         productInfo: d.productInfo || undefined,
                     }));
@@ -337,6 +358,7 @@ export default function MobileScanPage() {
                     rack_no: e.rackNo || '',
                     qc_remarks: e.qcRemarks || '',
                     other_remarks: e.otherRemarks || '',
+                    dispatch_remarks: e.dispatchRemarks || '',
                     picking_remarks: e.pickingRemarks || '',
                     productInfo: e.productInfo || undefined,
                 }));
@@ -356,16 +378,27 @@ export default function MobileScanPage() {
         saveDraft(scannedEntries);
     }, [scannedEntries, saveDraft]);
 
-    // Scan handler with duplicate check + product fetch
+    // Scan handler with proper 3-level duplicate check + product fetch
     const handleScan = useCallback(async (wsn: string) => {
-        // Local list duplicate check
+        // Level 1: Grid duplicate (already in current scan list)
         if (scannedEntries.some(e => e.wsn === wsn)) {
-            toast.error(`${wsn} already in scan list`, { duration: 2000 });
-            if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+            toast.error(`${wsn} already in scan list!`, { duration: 2500 });
+            if (navigator.vibrate) navigator.vibrate([100, 50, 100, 50, 100]);
             return;
         }
-        // Server duplicate check
-        const isServerDup = existingWSNs.has(wsn);
+
+        // Level 2 & 3: Server duplicate check (same-warehouse / cross-warehouse)
+        let isDuplicate = false;
+        let dupType: 'same-wh' | 'cross-wh' | undefined;
+        if (existingWSNs.has(wsn)) {
+            isDuplicate = true;
+            const existingWhId = existingWSNs.get(wsn);
+            if (mode === 'qc' && existingWhId !== null && existingWhId !== undefined && activeWarehouse?.id && existingWhId !== activeWarehouse.id) {
+                dupType = 'cross-wh';
+            } else {
+                dupType = 'same-wh';
+            }
+        }
 
         if (soundOn) playBeep();
         const newEntry: ScannedEntry = {
@@ -373,12 +406,16 @@ export default function MobileScanPage() {
             wsn,
             scannedAt: Date.now(),
             qcGrade: 'A',
-            isDuplicate: isServerDup,
+            isDuplicate,
+            dupType,
         };
 
         setScannedEntries(prev => [newEntry, ...prev]);
-        if (isServerDup) {
-            toast(`⚠️ ${wsn} already exists in database`, { icon: '⚠️', duration: 3000 });
+        if (isDuplicate) {
+            const dupMsg = dupType === 'cross-wh'
+                ? `⚠️ ${wsn} exists in another warehouse`
+                : `⚠️ ${wsn} already exists in database`;
+            toast(dupMsg, { icon: '⚠️', duration: 3000 });
         } else {
             toast.success(`✓ ${wsn}`, { duration: 800 });
         }
@@ -387,7 +424,7 @@ export default function MobileScanPage() {
         fetchProductInfo(wsn).then(info => {
             if (info) {
                 setScannedEntries(prev => prev.map(e =>
-                    e.wsn === wsn ? {
+                    e.id === newEntry.id ? {
                         ...e,
                         productInfo: info,
                         rackNo: e.rackNo || info.rack_no || '',
@@ -395,7 +432,7 @@ export default function MobileScanPage() {
                 ));
             }
         });
-    }, [scannedEntries, existingWSNs, soundOn, fetchProductInfo]);
+    }, [scannedEntries, existingWSNs, soundOn, fetchProductInfo, mode, activeWarehouse?.id]);
 
     // Handle serial number scan result
     const handleSerialScan = useCallback((serial: string) => {
@@ -486,6 +523,8 @@ export default function MobileScanPage() {
                     dispatch_date: dispatchDate,
                     customer_name: customerName.trim(),
                     vehicle_no: vehicleNo,
+                    dispatch_remarks: e.dispatchRemarks || '',
+                    other_remarks: e.otherRemarks || '',
                 }));
                 const res = await outboundAPI.multiEntry({ entries, warehouse_id: activeWarehouse.id });
                 batchId = res.data?.batch_id || res.data?.batchId || '';
@@ -534,17 +573,35 @@ export default function MobileScanPage() {
 
     const dupCount = useMemo(() => scannedEntries.filter(e => e.isDuplicate).length, [scannedEntries]);
 
-    // Compact product info line
+    // Product info display - comprehensive like multi-entry
     const ProductInfoLine = ({ info }: { info?: ProductInfo }) => {
-        if (!info?.product_title) return null;
+        if (!info) return null;
+        const hasAny = info.product_title || info.brand || info.mrp || info.fsn;
+        if (!hasAny) return null;
         return (
-            <Box sx={{ px: 1.5, pb: 0.5 }}>
-                <Typography sx={{ fontSize: '0.65rem', color: isDark ? '#94a3b8' : '#64748b', lineHeight: 1.3 }} noWrap>
-                    {info.product_title}
-                    {info.brand ? ` • ${info.brand}` : ''}
-                    {info.mrp ? ` • ₹${info.mrp}` : ''}
-                    {info.rack_no ? ` • 📍${info.rack_no}` : ''}
-                </Typography>
+            <Box sx={{ px: 1.5, pb: 0.8, pt: 0.2 }}>
+                {info.product_title && (
+                    <Typography sx={{ fontSize: '0.7rem', color: isDark ? '#cbd5e1' : '#334155', fontWeight: 600, lineHeight: 1.4 }}>
+                        {info.product_title}
+                    </Typography>
+                )}
+                <Stack direction="row" flexWrap="wrap" gap={0.5} sx={{ mt: 0.3 }}>
+                    {info.brand && (
+                        <Chip label={info.brand} size="small" sx={{ height: 18, fontSize: '0.6rem', fontWeight: 600, bgcolor: isDark ? '#1e3a5f' : '#dbeafe', color: isDark ? '#93c5fd' : '#1e40af' }} />
+                    )}
+                    {info.mrp && (
+                        <Chip label={`MRP ₹${info.mrp}`} size="small" sx={{ height: 18, fontSize: '0.6rem', fontWeight: 600, bgcolor: isDark ? '#14532d' : '#dcfce7', color: isDark ? '#86efac' : '#166534' }} />
+                    )}
+                    {info.fsp && (
+                        <Chip label={`FSP ₹${info.fsp}`} size="small" sx={{ height: 18, fontSize: '0.6rem', fontWeight: 600, bgcolor: isDark ? '#3b1764' : '#f3e8ff', color: isDark ? '#c084fc' : '#7c3aed' }} />
+                    )}
+                    {info.fsn && (
+                        <Chip label={`FSN: ${info.fsn}`} size="small" sx={{ height: 18, fontSize: '0.6rem', fontWeight: 600, bgcolor: isDark ? '#422006' : '#fef3c7', color: isDark ? '#fbbf24' : '#92400e' }} />
+                    )}
+                    {info.rack_no && (
+                        <Chip label={`📍 ${info.rack_no}`} size="small" sx={{ height: 18, fontSize: '0.6rem', fontWeight: 600, bgcolor: isDark ? '#1c1917' : '#f5f5f4', color: isDark ? '#a8a29e' : '#57534e' }} />
+                    )}
+                </Stack>
             </Box>
         );
     };
@@ -765,6 +822,15 @@ export default function MobileScanPage() {
                             </Stack>
                         </Box>
 
+                        {/* Duplicate check status */}
+                        {!dupCheckReady && (
+                            <Alert severity="info" sx={{ mt: 0.5, py: 0, fontSize: '0.7rem', borderRadius: 1 }}
+                                icon={<CircularProgress size={14} />}
+                            >
+                                Loading duplicate check data...
+                            </Alert>
+                        )}
+
                         {/* Duplicate warning */}
                         {dupCount > 0 && (
                             <Alert severity="warning" sx={{ mt: 0.5, py: 0, fontSize: '0.7rem', borderRadius: 1 }}
@@ -798,10 +864,15 @@ export default function MobileScanPage() {
                                                             {entry.wsn}
                                                         </Typography>
                                                         {entry.isDuplicate && (
-                                                            <Chip label="DUP" size="small" sx={{
-                                                                height: 16, fontSize: '0.55rem', fontWeight: 800,
-                                                                bgcolor: '#fef3c7', color: '#92400e',
-                                                            }} />
+                                                            <Chip
+                                                                label={entry.dupType === 'cross-wh' ? 'OTHER WH' : 'EXISTS'}
+                                                                size="small"
+                                                                sx={{
+                                                                    height: 16, fontSize: '0.55rem', fontWeight: 800,
+                                                                    bgcolor: entry.dupType === 'cross-wh' ? '#fecaca' : '#fef3c7',
+                                                                    color: entry.dupType === 'cross-wh' ? '#991b1b' : '#92400e',
+                                                                }}
+                                                            />
                                                         )}
                                                     </Stack>
                                                 </Box>
@@ -825,7 +896,7 @@ export default function MobileScanPage() {
                                                     </ToggleButtonGroup>
                                                 )}
 
-                                                {(mode === 'qc' || mode === 'picking') && (
+                                                {(mode === 'qc' || mode === 'outbound' || mode === 'picking') && (
                                                     <IconButton
                                                         size="small"
                                                         onClick={() => setExpandedEntry(expandedEntry === entry.id ? null : entry.id)}
@@ -924,6 +995,33 @@ export default function MobileScanPage() {
                                                             placeholder="Add remarks..."
                                                             sx={{ '& .MuiInputBase-root': { fontSize: '0.8rem' } }}
                                                         />
+                                                    </Box>
+                                                </Collapse>
+                                            )}
+
+                                            {/* Outbound expanded fields */}
+                                            {mode === 'outbound' && (
+                                                <Collapse in={expandedEntry === entry.id}>
+                                                    <Box sx={{ px: 1.5, pb: 1, pt: 0.5 }}>
+                                                        <Divider sx={{ mb: 1 }} />
+                                                        <Stack spacing={1}>
+                                                            <TextField
+                                                                fullWidth size="small" label="Dispatch Remarks"
+                                                                value={entry.dispatchRemarks || ''}
+                                                                onChange={e => handleUpdateEntry(entry.id, 'dispatchRemarks', e.target.value)}
+                                                                multiline rows={1}
+                                                                placeholder="Add dispatch remarks..."
+                                                                sx={{ '& .MuiInputBase-root': { fontSize: '0.8rem' } }}
+                                                            />
+                                                            <TextField
+                                                                fullWidth size="small" label="Other Remarks"
+                                                                value={entry.otherRemarks || ''}
+                                                                onChange={e => handleUpdateEntry(entry.id, 'otherRemarks', e.target.value)}
+                                                                multiline rows={1}
+                                                                placeholder="Add other remarks..."
+                                                                sx={{ '& .MuiInputBase-root': { fontSize: '0.8rem' } }}
+                                                            />
+                                                        </Stack>
                                                     </Box>
                                                 </Collapse>
                                             )}
