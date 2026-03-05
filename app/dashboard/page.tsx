@@ -251,6 +251,21 @@ declare global {
   }
 }
 
+// Helper: Get user-specific grid state localStorage key
+// Ensures each user's column widths are saved/restored independently
+const getDashboardGridStateKey = (): string => {
+  try {
+    if (typeof window !== 'undefined') {
+      const userStr = localStorage.getItem('user');
+      if (userStr) {
+        const u = JSON.parse(userStr);
+        if (u?.id) return `dashboard_grid_state_user_${u.id}`;
+      }
+    }
+  } catch { /* ignore */ }
+  return 'dashboard_grid_state';
+};
+
 // Helper to get current warehouse ID from localStorage
 const getCurrentWarehouseId = (): number | null => {
   try {
@@ -514,7 +529,7 @@ export default function DashboardPage() {
     resizable: !!enableColumnResize,
     filter: !!enableColumnFilters,
     editable: false,
-    flex: 1,
+    minWidth: 80,
     tooltipComponentParams: { color: '#ececec' },
     cellStyle: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   }), [enableSorting, enableColumnFilters, enableColumnResize]);
@@ -744,7 +759,8 @@ export default function DashboardPage() {
   useEffect(() => {
     if (gridRef.current) {
       try {
-        const saved = localStorage.getItem('dashboard_grid_state');
+        const stateKey = getDashboardGridStateKey();
+        const saved = localStorage.getItem(stateKey);
         if (saved) {
           const state = JSON.parse(saved);
           gridRef.current.applyColumnState({ state, applyOrder: false });
@@ -1311,26 +1327,41 @@ export default function DashboardPage() {
 
   // Content-based auto-sizing: auto-size columns to their content, then fallback to sizeColumnsToFit if there's extra space
   // Only runs after initial render is complete (gridDataRendered = true)
+  // IMPORTANT: Does NOT run if user already has saved column widths (preserves user customization)
   useEffect(() => {
     if (!gridDataRendered) return; // Don't run until overlay is hidden
 
+    // If user has saved column state, respect it — don't auto-size
+    const stateKey = getDashboardGridStateKey();
+    if (localStorage.getItem(stateKey)) return;
+
     const autoSize = () => {
       try {
-        const colApi = columnApiRef.current;
         const api = gridRef.current;
-        if (!colApi || !api) return;
-        const allCols = (colApi.getAllColumns && colApi.getAllColumns()) ? colApi.getAllColumns().map((c: any) => c.getColId()) : [];
-        if (!allCols || allCols.length === 0) return;
-        colApi.autoSizeColumns(allCols, false);
+        if (!api) return;
+        const allColIds = api.getColumns
+          ? api.getColumns()?.map((c: any) => c.getColId()) || []
+          : (columnApiRef.current?.getAllColumns?.() || []).map((c: any) => c.getColId());
+        if (!allColIds || allColIds.length === 0) return;
+
+        // Auto-size to content
+        if (api.autoSizeColumns) {
+          api.autoSizeColumns(allColIds, false);
+        } else if (columnApiRef.current?.autoSizeColumns) {
+          columnApiRef.current.autoSizeColumns(allColIds, false);
+        }
 
         // If total column width is less than grid width, stretch to fit
         let total = 0;
-        for (const id of allCols) {
-          const col = colApi.getColumn(id);
-          total += col?.getActualWidth ? col.getActualWidth() : 0;
+        const getCol = api.getColumn?.bind(api) || columnApiRef.current?.getColumn?.bind(columnApiRef.current);
+        if (getCol) {
+          for (const id of allColIds) {
+            const col = getCol(id);
+            total += col?.getActualWidth ? col.getActualWidth() : 0;
+          }
         }
-        const dims = api.getSize ? api.getSize() : (api.gridPanel && api.gridPanel.getBodyClientRect && api.gridPanel.getBodyClientRect());
-        const gridW = dims?.width || 0;
+        const gridEl = document.querySelector('.ag-theme-quartz');
+        const gridW = gridEl?.clientWidth || 0;
         if (gridW && total < gridW) {
           api.sizeColumnsToFit();
         }
@@ -1338,19 +1369,8 @@ export default function DashboardPage() {
     };
 
     const t = setTimeout(autoSize, 50);
-    let r: any;
-    const onResize = () => {
-      clearTimeout(r);
-      r = setTimeout(autoSize, 150);
-    };
-
-    window.addEventListener('resize', onResize);
-    return () => {
-      clearTimeout(t);
-      clearTimeout(r);
-      window.removeEventListener('resize', onResize);
-    };
-  }, [filteredData, columnDefs, gridDataRendered]);
+    return () => { clearTimeout(t); };
+  }, [columnDefs, gridDataRendered]);
 
 
   const memoizedFilteredBrands = useMemo(() => {
@@ -2252,9 +2272,19 @@ export default function DashboardPage() {
                         onGridReady={(params: any) => {
                           gridRef.current = params.api;
                           columnApiRef.current = params.columnApi;
-                          // Restore saved column state from localStorage
+                          // Restore saved column state from user-specific localStorage key
                           try {
-                            const saved = localStorage.getItem('dashboard_grid_state');
+                            const stateKey = getDashboardGridStateKey();
+                            let saved = localStorage.getItem(stateKey);
+                            // Migrate from old non-user-specific key if exists
+                            if (!saved) {
+                              const legacy = localStorage.getItem('dashboard_grid_state');
+                              if (legacy) {
+                                saved = legacy;
+                                localStorage.setItem(stateKey, legacy);
+                                localStorage.removeItem('dashboard_grid_state');
+                              }
+                            }
                             if (saved) {
                               const state = JSON.parse(saved);
                               params.api.applyColumnState({ state, applyOrder: true });
@@ -2285,7 +2315,8 @@ export default function DashboardPage() {
                           if (params.finished && params.api) {
                             try {
                               const state = params.api.getColumnState();
-                              localStorage.setItem('dashboard_grid_state', JSON.stringify(state));
+                              const stateKey = getDashboardGridStateKey();
+                              localStorage.setItem(stateKey, JSON.stringify(state));
                             } catch { /* ignore */ }
                           }
                         }}
@@ -2294,7 +2325,8 @@ export default function DashboardPage() {
                           if (params.finished && params.api) {
                             try {
                               const state = params.api.getColumnState();
-                              localStorage.setItem('dashboard_grid_state', JSON.stringify(state));
+                              const stateKey = getDashboardGridStateKey();
+                              localStorage.setItem(stateKey, JSON.stringify(state));
                             } catch { /* ignore */ }
                           }
                         }}
@@ -2303,7 +2335,8 @@ export default function DashboardPage() {
                           if (params.api) {
                             try {
                               const state = params.api.getColumnState();
-                              localStorage.setItem('dashboard_grid_state', JSON.stringify(state));
+                              const stateKey = getDashboardGridStateKey();
+                              localStorage.setItem(stateKey, JSON.stringify(state));
                             } catch { /* ignore */ }
                           }
                         }}

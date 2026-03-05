@@ -282,6 +282,37 @@ const ALL_MASTER_COLUMNS = [
 
 const EDITABLE_COLUMNS = ['wsn', 'product_serial_number', 'rack_no', 'qc_grade', 'qc_remarks', 'other_remarks'];
 
+// All exportable columns with display names
+const EXPORT_COLUMN_MAP: { key: string; label: string; dataKey: string }[] = [
+  { key: 'sno', label: 'S.No', dataKey: 'sno' },
+  { key: 'wsn', label: 'WSN', dataKey: 'wsn' },
+  { key: 'productserialnumber', label: 'Product Serial Number', dataKey: 'productserialnumber' },
+  { key: 'rackno', label: 'Rack No', dataKey: 'rackno' },
+  { key: 'qcgrade', label: 'QC Grade', dataKey: 'qcgrade' },
+  { key: 'qcremarks', label: 'QC Remarks', dataKey: 'qcremarks' },
+  { key: 'otherremarks', label: 'Other Remarks', dataKey: 'otherremarks' },
+  { key: 'fsn', label: 'FSN', dataKey: 'fsn' },
+  { key: 'producttitle', label: 'Product Title', dataKey: 'producttitle' },
+  { key: 'brand', label: 'Brand', dataKey: 'brand' },
+  { key: 'cmsvertical', label: 'CMS Vertical', dataKey: 'cmsvertical' },
+  { key: 'hsnsac', label: 'HSN/SAC', dataKey: 'hsnsac' },
+  { key: 'igstrate', label: 'IGST Rate', dataKey: 'igstrate' },
+  { key: 'mrp', label: 'MRP', dataKey: 'mrp' },
+  { key: 'fsp', label: 'FSP', dataKey: 'fsp' },
+  { key: 'vrp', label: 'VRP', dataKey: 'vrp' },
+  { key: 'yieldvalue', label: 'Yield Value', dataKey: 'yieldvalue' },
+  { key: 'ptype', label: 'Product Type', dataKey: 'ptype' },
+  { key: 'psize', label: 'Product Size', dataKey: 'psize' },
+  { key: 'fktlink', label: 'FKT Link', dataKey: 'fktlink' },
+  { key: 'whlocation', label: 'WH Location', dataKey: 'whlocation' },
+  { key: 'orderid', label: 'Order ID', dataKey: 'orderid' },
+  { key: 'fkqcremark', label: 'FK QC Remark', dataKey: 'fkqcremark' },
+  { key: 'fkgrade', label: 'FK Grade', dataKey: 'fkgrade' },
+  { key: 'invoicedate', label: 'Invoice Date', dataKey: 'invoicedate' },
+];
+
+const DEFAULT_EXPORT_COLUMNS = EXPORT_COLUMN_MAP.map(c => c.key);
+
 interface QCItem {
   id: number;
   [key: string]: any;
@@ -825,6 +856,19 @@ export default function QCPage() {
       }
     }
     return DEFAULT_MULTI_COLUMNS;
+  });
+
+  // ====== MULTI ENTRY EXPORT COLUMN SELECTION ======
+  const [exportColumnsDialogOpen, setExportColumnsDialogOpen] = useState(false);
+  const [exportSelectedColumns, setExportSelectedColumns] = useState<string[]>(() => {
+    const saved = localStorage.getItem('qcMultiEntryExportColumns');
+    if (saved) {
+      try { return JSON.parse(saved); } catch { /* ignore */ }
+    }
+    return DEFAULT_EXPORT_COLUMNS;
+  });
+  const [exportSavePreference, setExportSavePreference] = useState(() => {
+    return localStorage.getItem('qcMultiEntryExportColumns') !== null;
   });
 
   // ====== MULTI ENTRY COLUMN WIDTHS PERSISTENCE ======
@@ -3196,32 +3240,36 @@ export default function QCPage() {
     setMultiRows([...multiRows, ...generateEmptyRows(500)]);
   };
 
-  // ⚡ MULTI ENTRY: Export entered data to Excel
-  const exportMultiEntryToExcel = async () => {
+  // ⚡ MULTI ENTRY: Export entered data to Excel with selected columns
+  const exportMultiEntryToExcel = async (selectedCols: string[]) => {
     try {
       const dataToExport = multiRows.filter((row: any) => row.wsn?.trim());
       if (dataToExport.length === 0) {
         toast.error('No data to export');
         return;
       }
+      const columnsToExport = EXPORT_COLUMN_MAP.filter(c => selectedCols.includes(c.key));
+      if (columnsToExport.length === 0) {
+        toast.error('No columns selected for export');
+        return;
+      }
       const XLSX = await import('xlsx');
-      const exportData = dataToExport.map((row: any, idx: number) => ({
-        'S.No': idx + 1,
-        'WSN': row.wsn || '',
-        'Product Serial': row.product_serial_number || '',
-        'Rack No': row.rack_no || '',
-        'QC Grade': row.qc_grade || '',
-        'QC Remarks': row.qc_remarks || '',
-        'Other Remarks': row.other_remarks || '',
-        'Brand': row.brand || '',
-        'Category': row.cms_vertical || '',
-        'Model': row.product_title || ''
-      }));
+      const exportData = dataToExport.map((row: any, idx: number) => {
+        const obj: Record<string, any> = {};
+        columnsToExport.forEach(col => {
+          if (col.key === 'sno') {
+            obj[col.label] = idx + 1;
+          } else {
+            obj[col.label] = row[col.dataKey] || '';
+          }
+        });
+        return obj;
+      });
       const ws = XLSX.utils.json_to_sheet(exportData);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'Multi QC');
       XLSX.writeFile(wb, `QC_MultiEntry_${new Date().toISOString().split('T')[0]}_${Date.now()}.xlsx`);
-      toast.success(`✓ Exported ${dataToExport.length} rows`);
+      toast.success(`✓ Exported ${dataToExport.length} rows with ${columnsToExport.length} columns`);
     } catch (error) {
       toast.error('Export failed');
     }
@@ -6173,7 +6221,7 @@ export default function QCPage() {
                             fullWidth
                             variant="contained"
                             startIcon={<DownloadIcon />}
-                            onClick={() => { exportMultiEntryToExcel(); setQcSettingsPanelOpen(false); }}
+                            onClick={() => { setQcSettingsPanelOpen(false); setExportColumnsDialogOpen(true); }}
                             disabled={!multiRows.some((r: any) => r.wsn?.trim())}
                             sx={{
                               height: 44,
@@ -7169,6 +7217,136 @@ export default function QCPage() {
             <Button onClick={() => setListColumnSettingsOpen(false)}>Done</Button>
           </DialogActions>
         </Dialog >
+
+        {/* ═══════════ EXPORT COLUMNS SELECTION DIALOG ═══════════ */}
+        <Dialog
+          open={exportColumnsDialogOpen}
+          onClose={() => setExportColumnsDialogOpen(false)}
+          maxWidth="sm"
+          fullWidth
+          container={isFullscreen ? multiEntryContainerRef.current : undefined}
+          PaperProps={{
+            sx: {
+              borderRadius: '12px',
+              bgcolor: isDarkMode ? '#1e293b' : '#fff',
+              color: isDarkMode ? '#e2e8f0' : '#1e293b',
+            }
+          }}
+        >
+          <DialogTitle sx={{ fontWeight: 700, borderBottom: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0', pb: 1.5 }}>
+            Select Export Columns
+          </DialogTitle>
+          <DialogContent sx={{ pt: '16px !important' }}>
+            {/* Select All / None */}
+            <Box sx={{ display: 'flex', gap: 1, mb: 1.5 }}>
+              <Button
+                size="small"
+                variant="outlined"
+                onClick={() => setExportSelectedColumns(DEFAULT_EXPORT_COLUMNS)}
+                sx={{ textTransform: 'none', fontSize: '12px' }}
+              >
+                Select All
+              </Button>
+              <Button
+                size="small"
+                variant="outlined"
+                onClick={() => setExportSelectedColumns([])}
+                sx={{ textTransform: 'none', fontSize: '12px' }}
+              >
+                Select None
+              </Button>
+            </Box>
+
+            {/* User Input Columns */}
+            <Typography variant="caption" sx={{ fontWeight: 700, color: isDarkMode ? '#94a3b8' : '#64748b', display: 'block', mb: 0.5, mt: 1 }}>
+              USER INPUT COLUMNS
+            </Typography>
+            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 0 }}>
+              {EXPORT_COLUMN_MAP.filter(c => c.key === 'sno' || !ALL_MASTER_COLUMNS.includes(c.key)).map(col => (
+                <FormControlLabel
+                  key={col.key}
+                  control={
+                    <Checkbox
+                      size="small"
+                      checked={exportSelectedColumns.includes(col.key)}
+                      onChange={(e) => {
+                        setExportSelectedColumns(prev =>
+                          e.target.checked ? [...prev, col.key] : prev.filter(k => k !== col.key)
+                        );
+                      }}
+                    />
+                  }
+                  label={<Typography variant="body2">{col.label}</Typography>}
+                />
+              ))}
+            </Box>
+
+            {/* Master Data Columns */}
+            <Typography variant="caption" sx={{ fontWeight: 700, color: isDarkMode ? '#94a3b8' : '#64748b', display: 'block', mb: 0.5, mt: 2 }}>
+              MASTER DATA COLUMNS
+            </Typography>
+            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 0 }}>
+              {EXPORT_COLUMN_MAP.filter(c => ALL_MASTER_COLUMNS.includes(c.key)).map(col => (
+                <FormControlLabel
+                  key={col.key}
+                  control={
+                    <Checkbox
+                      size="small"
+                      checked={exportSelectedColumns.includes(col.key)}
+                      onChange={(e) => {
+                        setExportSelectedColumns(prev =>
+                          e.target.checked ? [...prev, col.key] : prev.filter(k => k !== col.key)
+                        );
+                      }}
+                    />
+                  }
+                  label={<Typography variant="body2">{col.label}</Typography>}
+                />
+              ))}
+            </Box>
+
+            {/* Save preference checkbox */}
+            <Box sx={{ mt: 2, pt: 1.5, borderTop: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0' }}>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    size="small"
+                    checked={exportSavePreference}
+                    onChange={(e) => setExportSavePreference(e.target.checked)}
+                    sx={{ '&.Mui-checked': { color: '#8b5cf6' } }}
+                  />
+                }
+                label={<Typography variant="body2" sx={{ fontWeight: 600 }}>Save column selection for next time</Typography>}
+              />
+            </Box>
+          </DialogContent>
+          <DialogActions sx={{ px: 3, pb: 2 }}>
+            <Button onClick={() => setExportColumnsDialogOpen(false)} sx={{ textTransform: 'none' }}>
+              Cancel
+            </Button>
+            <Button
+              variant="contained"
+              disabled={exportSelectedColumns.length === 0}
+              onClick={() => {
+                if (exportSavePreference) {
+                  localStorage.setItem('qcMultiEntryExportColumns', JSON.stringify(exportSelectedColumns));
+                } else {
+                  localStorage.removeItem('qcMultiEntryExportColumns');
+                }
+                setExportColumnsDialogOpen(false);
+                exportMultiEntryToExcel(exportSelectedColumns);
+              }}
+              sx={{
+                textTransform: 'none',
+                fontWeight: 600,
+                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                '&:hover': { background: 'linear-gradient(135deg, #059669 0%, #047857 100%)' },
+              }}
+            >
+              Export ({exportSelectedColumns.length} columns)
+            </Button>
+          </DialogActions>
+        </Dialog>
 
         {/* WSN Overwrite Warning Dialog */}
         < WSNOverwriteDialog
