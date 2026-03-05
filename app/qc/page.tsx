@@ -795,6 +795,17 @@ export default function QCPage() {
     return DEFAULT_MULTI_COLUMNS;
   });
 
+  // ====== MULTI ENTRY COLUMN WIDTHS PERSISTENCE ======
+  const [multiColumnWidths, setMultiColumnWidths] = useState<Record<string, number>>(() => {
+    const savedWidths = localStorage.getItem('qcMultiEntryColumnWidths');
+    if (savedWidths) {
+      try {
+        return JSON.parse(savedWidths);
+      } catch { return {}; }
+    }
+    return {};
+  });
+
 
 
   // Grid settings with localStorage
@@ -1680,21 +1691,46 @@ export default function QCPage() {
         toast.success(`Pasted ${clipRows.length} row(s)`, { duration: 2000 });
       }
 
-      // Run duplicate check after paste
+      // Run comprehensive duplicate check and auto-removal after paste
       try {
-        const rows = multiRowsRef.current;
-        const wsnMap = new Map<string, number>();
-        const gridDups = new Set<string>();
-        for (const row of rows) {
-          const w = row.wsn?.trim().toUpperCase();
-          if (!w) continue;
-          wsnMap.set(w, (wsnMap.get(w) || 0) + 1);
-        }
-        wsnMap.forEach((count, wsn) => {
-          if (count > 1) gridDups.add(wsn);
-        });
-        if (gridDups.size > 0) {
-          toast.error(`${gridDups.size} duplicate WSN(s) found in grid`, { duration: 3000 });
+        if (wsnsToPrefetch.length > 0) {
+          const currentRows = [...multiRowsRef.current];
+          const uniquePastedWSNs = Array.from(new Set(wsnsToPrefetch));
+
+          // Grid duplicates: Check if any WSN appears more than once in the grid
+          const wsnCountMap = new Map<string, number>();
+          currentRows.forEach(r => {
+            const w = r.wsn?.trim()?.toUpperCase();
+            if (w) wsnCountMap.set(w, (wsnCountMap.get(w) || 0) + 1);
+          });
+          const gridDupWSNs = new Set<string>();
+          uniquePastedWSNs.forEach(wsn => {
+            if ((wsnCountMap.get(wsn) || 0) > 1) gridDupWSNs.add(wsn);
+          });
+
+          // Auto-remove duplicate WSNs from pasted rows (clear WSN + master data)
+          if (gridDupWSNs.size > 0) {
+            let removedCount = 0;
+            for (let r = startRow; r <= endRow && r < currentRows.length; r++) {
+              const w = currentRows[r].wsn?.trim()?.toUpperCase();
+              if (w && gridDupWSNs.has(w)) {
+                currentRows[r] = { ...currentRows[r], wsn: '' };
+                ALL_MASTER_COLUMNS.forEach(col => { currentRows[r][col] = ''; });
+                removedCount++;
+              }
+            }
+
+            if (removedCount > 0) {
+              multiRowsRef.current = currentRows;
+              setMultiRows(currentRows);
+              api.refreshCells({ force: true });
+
+              toast.error(`Removed ${gridDupWSNs.size} duplicate WSN(s) from pasted data`, {
+                duration: 5000,
+                style: { fontWeight: 600, fontSize: '14px' },
+              });
+            }
+          }
         }
       } catch { }
     };
@@ -1717,7 +1753,15 @@ export default function QCPage() {
       if (!EDITABLE_COLUMNS.includes(colId)) return;
 
       const newRows = [...multiRowsRef.current];
-      newRows[rowIndex] = { ...newRows[rowIndex], [colId]: '' };
+
+      // If WSN is being cleared, also clear all master data columns
+      if (colId === 'wsn') {
+        const clearedRow = { ...newRows[rowIndex], wsn: '' };
+        ALL_MASTER_COLUMNS.forEach(col => { clearedRow[col] = ''; });
+        newRows[rowIndex] = clearedRow;
+      } else {
+        newRows[rowIndex] = { ...newRows[rowIndex], [colId]: '' };
+      }
       setMultiRows(newRows);
       api.refreshCells({ force: true });
       return;
@@ -1736,15 +1780,30 @@ export default function QCPage() {
     const newRows = [...multiRowsRef.current];
     let cleared = 0;
 
+    // Track which rows have WSN cleared so we can clear their master data
+    const rowsWithWsnCleared = new Set<number>();
+
     for (let r = minRow; r <= maxRow; r++) {
       for (let c = minCol; c <= maxCol; c++) {
         const colId = colIds[c];
         if (EDITABLE_COLUMNS.includes(colId)) {
           newRows[r] = { ...newRows[r], [colId]: '' };
           cleared++;
+
+          // Track if WSN was cleared for this row
+          if (colId === 'wsn') {
+            rowsWithWsnCleared.add(r);
+          }
         }
       }
     }
+
+    // Clear master data columns for rows where WSN was cleared
+    rowsWithWsnCleared.forEach(r => {
+      ALL_MASTER_COLUMNS.forEach(col => {
+        newRows[r] = { ...newRows[r], [col]: '' };
+      });
+    });
 
     if (cleared > 0) {
       setMultiRows(newRows);
@@ -1841,7 +1900,7 @@ export default function QCPage() {
         return;
       }
 
-      // ⚡ EXCEL-LIKE: Ctrl+Arrow - Jump to last cell with data in direction
+      // ⚡ EXCEL-LIKE: Ctrl+Arrow - Excel boundary-jumping behavior
       if (ctrlKey && !shiftKey && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key) && !isEditing) {
         const api = gridRef.current;
         if (!api) return;
@@ -1851,41 +1910,130 @@ export default function QCPage() {
         e.preventDefault();
         e.stopImmediatePropagation();
 
-        const { rowIndex, column } = focusedCell;
-        const colId = column.getColId();
+        const currentRow = focusedCell.rowIndex;
+        const currentColId = focusedCell.column.getColId();
+        const totalRows = api.getDisplayedRowCount();
         const allColumns = api.getAllDisplayedColumns() || [];
         const colIds = allColumns.map((c: any) => c.getColId());
-        const currentColIndex = colIds.indexOf(colId);
 
-        let targetRow = rowIndex;
-        let targetColIndex = currentColIndex;
+        let targetRow = currentRow;
+        let targetColId = currentColId;
+
+        // Helper: check if a cell has data
+        const hasCellData = (r: number, colId: string): boolean => {
+          const rowData = api.getDisplayedRowAtIndex(r)?.data;
+          if (!rowData) return false;
+          const val = rowData[colId];
+          return val !== undefined && val !== null && String(val).trim() !== '';
+        };
 
         if (e.key === 'ArrowDown') {
-          for (let r = multiRowsRef.current.length - 1; r > rowIndex; r--) {
-            if (multiRowsRef.current[r]?.[colId]?.toString().trim()) {
+          const currentHasData = hasCellData(currentRow, currentColId);
+          if (currentHasData) {
+            const nextRow = currentRow + 1;
+            if (nextRow >= totalRows) {
+              targetRow = currentRow;
+            } else if (hasCellData(nextRow, currentColId)) {
+              let r = nextRow;
+              while (r + 1 < totalRows && hasCellData(r + 1, currentColId)) r++;
               targetRow = r;
-              break;
+            } else {
+              let found = false;
+              for (let r = nextRow + 1; r < totalRows; r++) {
+                if (hasCellData(r, currentColId)) { targetRow = r; found = true; break; }
+              }
+              if (!found) targetRow = currentRow;
             }
+          } else {
+            let found = false;
+            for (let r = currentRow + 1; r < totalRows; r++) {
+              if (hasCellData(r, currentColId)) { targetRow = r; found = true; break; }
+            }
+            if (!found) targetRow = totalRows - 1;
           }
-          if (targetRow === rowIndex) targetRow = multiRowsRef.current.length - 1;
         } else if (e.key === 'ArrowUp') {
-          for (let r = 0; r < rowIndex; r++) {
-            if (multiRowsRef.current[r]?.[colId]?.toString().trim()) {
+          const currentHasData = hasCellData(currentRow, currentColId);
+          if (currentHasData) {
+            const prevRow = currentRow - 1;
+            if (prevRow < 0) {
+              targetRow = 0;
+            } else if (hasCellData(prevRow, currentColId)) {
+              let r = prevRow;
+              while (r - 1 >= 0 && hasCellData(r - 1, currentColId)) r--;
               targetRow = r;
-              break;
+            } else {
+              let found = false;
+              for (let r = prevRow - 1; r >= 0; r--) {
+                if (hasCellData(r, currentColId)) { targetRow = r; found = true; break; }
+              }
+              if (!found) targetRow = currentRow;
+            }
+          } else {
+            let found = false;
+            for (let r = currentRow - 1; r >= 0; r--) {
+              if (hasCellData(r, currentColId)) { targetRow = r; found = true; break; }
+            }
+            if (!found) targetRow = 0;
+          }
+        } else if (e.key === 'ArrowRight') {
+          const colIdx = colIds.indexOf(currentColId);
+          if (colIdx < colIds.length - 1) {
+            const currentHasData = hasCellData(currentRow, currentColId);
+            if (currentHasData) {
+              const nextColId = colIds[colIdx + 1];
+              if (hasCellData(currentRow, nextColId)) {
+                let c = colIdx + 1;
+                while (c + 1 < colIds.length && hasCellData(currentRow, colIds[c + 1])) c++;
+                targetColId = colIds[c];
+              } else {
+                let found = false;
+                for (let c = colIdx + 2; c < colIds.length; c++) {
+                  if (hasCellData(currentRow, colIds[c])) { targetColId = colIds[c]; found = true; break; }
+                }
+                if (!found) targetColId = colIds[colIds.length - 1];
+              }
+            } else {
+              let found = false;
+              for (let c = colIdx + 1; c < colIds.length; c++) {
+                if (hasCellData(currentRow, colIds[c])) { targetColId = colIds[c]; found = true; break; }
+              }
+              if (!found) targetColId = colIds[colIds.length - 1];
             }
           }
-          if (targetRow === rowIndex) targetRow = 0;
-        } else if (e.key === 'ArrowRight') {
-          targetColIndex = colIds.length - 1;
         } else if (e.key === 'ArrowLeft') {
-          targetColIndex = 1;
+          const colIdx = colIds.indexOf(currentColId);
+          if (colIdx > 0) {
+            const currentHasData = hasCellData(currentRow, currentColId);
+            if (currentHasData) {
+              const prevColId = colIds[colIdx - 1];
+              if (hasCellData(currentRow, prevColId)) {
+                let c = colIdx - 1;
+                while (c - 1 >= 0 && hasCellData(currentRow, colIds[c - 1])) c--;
+                targetColId = colIds[c];
+              } else {
+                let found = false;
+                for (let c = colIdx - 2; c >= 0; c--) {
+                  if (hasCellData(currentRow, colIds[c])) { targetColId = colIds[c]; found = true; break; }
+                }
+                if (!found) targetColId = colIds[0];
+              }
+            } else {
+              let found = false;
+              for (let c = colIdx - 1; c >= 0; c--) {
+                if (hasCellData(currentRow, colIds[c])) { targetColId = colIds[c]; found = true; break; }
+              }
+              if (!found) targetColId = colIds[0];
+            }
+          }
         }
 
         setSelectionRange(null);
         rangeStartCellRef.current = null;
-        api.setFocusedCell(targetRow, colIds[targetColIndex]);
-        api.ensureIndexVisible(targetRow, 'middle');
+        api.setFocusedCell(targetRow, targetColId);
+        // Only scroll when row changes (not for horizontal movement)
+        if (targetRow !== currentRow) {
+          api.ensureIndexVisible(targetRow, 'middle');
+        }
         api.refreshCells({ force: true });
         return;
       }
@@ -1953,8 +2101,8 @@ export default function QCPage() {
         return;
       }
 
-      // Shift+Arrow keys - Extend selection
-      if (shiftKey && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key) && !isEditing) {
+      // Shift+Arrow keys - Extend selection (Excel-like from current end position)
+      if (shiftKey && !ctrlKey && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key) && !isEditing) {
         const api = gridRef.current;
         if (!api) return;
 
@@ -1962,37 +2110,52 @@ export default function QCPage() {
         if (!focusedCell) return;
 
         e.preventDefault();
+        e.stopImmediatePropagation(); // Stop AG Grid from handling this
 
         const { rowIndex, column } = focusedCell;
         const colId = column.getColId();
 
+        const allColumns = api.getAllDisplayedColumns() || [];
+        const colIds = allColumns.map((c: any) => c.getColId());
+
+        // If no anchor set, use current focused cell as anchor (starting point)
         if (!rangeStartCellRef.current) {
           rangeStartCellRef.current = { rowIndex, colId };
         }
 
-        const allColumns = api.getAllDisplayedColumns() || [];
-        const colIds = allColumns.map((c: any) => c.getColId());
-        const currentColIndex = colIds.indexOf(colId);
+        // Get current end position from existing selection, or use anchor as starting point
+        const currentRange = selectedRangeRef.current;
+        let currentEndRow = currentRange ? currentRange.endRow : rangeStartCellRef.current.rowIndex;
+        let currentEndCol = currentRange ? currentRange.endCol : rangeStartCellRef.current.colId;
+        const currentEndColIndex = colIds.indexOf(currentEndCol);
 
-        let newRowIndex = rowIndex;
-        let newColIndex = currentColIndex;
+        let newEndRow = currentEndRow;
+        let newEndCol = currentEndCol;
 
-        if (e.key === 'ArrowUp') newRowIndex = Math.max(0, rowIndex - 1);
-        if (e.key === 'ArrowDown') newRowIndex = Math.min(multiRowsRef.current.length - 1, rowIndex + 1);
-        if (e.key === 'ArrowLeft') newColIndex = Math.max(0, currentColIndex - 1);
-        if (e.key === 'ArrowRight') newColIndex = Math.min(colIds.length - 1, currentColIndex + 1);
+        // Extend selection from current end point
+        if (e.key === 'ArrowUp') newEndRow = Math.max(0, currentEndRow - 1);
+        if (e.key === 'ArrowDown') newEndRow = Math.min(multiRowsRef.current.length - 1, currentEndRow + 1);
+        if (e.key === 'ArrowLeft') {
+          const newColIndex = Math.max(0, currentEndColIndex - 1);
+          newEndCol = colIds[newColIndex];
+        }
+        if (e.key === 'ArrowRight') {
+          const newColIndex = Math.min(colIds.length - 1, currentEndColIndex + 1);
+          newEndCol = colIds[newColIndex];
+        }
 
-        const newColId = colIds[newColIndex];
-
+        // Update range - use rangeStartCellRef as anchor
         setSelectionRange({
           startRow: rangeStartCellRef.current.rowIndex,
-          endRow: newRowIndex,
+          endRow: newEndRow,
           startCol: rangeStartCellRef.current.colId,
-          endCol: newColId,
+          endCol: newEndCol,
         });
 
-        api.setFocusedCell(newRowIndex, newColId);
-        api.ensureIndexVisible(newRowIndex, 'middle');
+        // Move focus to follow selection end
+        api.setFocusedCell(newEndRow, newEndCol);
+        api.ensureIndexVisible(newEndRow, 'middle');
+        return; // Exit early
       }
     };
 
@@ -2885,10 +3048,15 @@ export default function QCPage() {
       const key = String(field).replace(/_/g, '').toLowerCase();
       const widthConfig = COLUMN_WIDTHS[key] || {};
 
+      // Use saved width if available, otherwise use default
+      const savedWidth = multiColumnWidths[field];
+
       const baseColDef: any = {
         field,
         headerName: field === 'sno' ? 'S.No' : String(field).replace(/_/g, ' ').toUpperCase(),
         ...widthConfig,
+        // ⚡ Saved widths override defaults
+        ...(savedWidth ? { width: savedWidth, flex: undefined } : {}),
         cellStyle: (params: any) => {
           const styles: any = {};
           if (field === 'sno') {
@@ -2924,7 +3092,7 @@ export default function QCPage() {
 
       return baseColDef;
     });
-  }, [visibleColumns, racks, isDarkMode]);
+  }, [visibleColumns, racks, isDarkMode, multiColumnWidths]);
 
   // ====== WSN OVERWRITE DIALOG HANDLERS ======
   const handleOverwriteCancel = useCallback(() => {
@@ -3498,19 +3666,13 @@ export default function QCPage() {
             if (nextIndex < event.api.getDisplayedRowCount()) {
               desiredRowIndexRef.current = nextIndex;
               ensureRowVisible(nextIndex, 'bottom');
-              event.api.startEditingCell({
-                rowIndex: nextIndex,
-                colKey: 'wsn',
-              });
+              event.api.setFocusedCell(nextIndex, 'wsn');
             } else {
               add500Rows();
               setTimeout(() => {
                 desiredRowIndexRef.current = nextIndex;
                 ensureRowVisible(nextIndex, 'bottom');
-                event.api.startEditingCell({
-                  rowIndex: nextIndex,
-                  colKey: 'wsn',
-                });
+                event.api.setFocusedCell(nextIndex, 'wsn');
               }, 50);
             }
           } catch (e) { /* ignore */ }
@@ -5521,11 +5683,15 @@ export default function QCPage() {
                                         size="small"
                                         checked={visibleColumns.includes(col)}
                                         onChange={(e) => {
+                                          let next: string[];
                                           if (e.target.checked) {
-                                            saveColumnSettings([...visibleColumns, col]);
+                                            next = [...visibleColumns, col];
                                           } else {
-                                            saveColumnSettings(visibleColumns.filter((c: string) => c !== col));
+                                            next = visibleColumns.filter((c: string) => c !== col);
                                           }
+                                          // ✅ FIX: Maintain column ordering
+                                          const ordered = ['sno', ...EDITABLE_COLUMNS, ...ALL_MASTER_COLUMNS].filter(c => next.includes(c));
+                                          saveColumnSettings(ordered);
                                         }}
                                         sx={{ py: 0.25, '&.Mui-checked': { color: '#3b82f6' } }}
                                       />
@@ -5545,11 +5711,15 @@ export default function QCPage() {
                                         size="small"
                                         checked={visibleColumns.includes(col)}
                                         onChange={(e) => {
+                                          let next: string[];
                                           if (e.target.checked) {
-                                            saveColumnSettings([...visibleColumns, col]);
+                                            next = [...visibleColumns, col];
                                           } else {
-                                            saveColumnSettings(visibleColumns.filter((c: string) => c !== col));
+                                            next = visibleColumns.filter((c: string) => c !== col);
                                           }
+                                          // ✅ FIX: Maintain column ordering
+                                          const ordered = ['sno', ...EDITABLE_COLUMNS, ...ALL_MASTER_COLUMNS].filter(c => next.includes(c));
+                                          saveColumnSettings(ordered);
                                         }}
                                         sx={{ py: 0.25, '&.Mui-checked': { color: '#10b981' } }}
                                       />
@@ -5893,19 +6063,22 @@ export default function QCPage() {
                     onGridReady={(params: any) => {
                       gridRef.current = params.api;
                       columnApiRef.current = params.columnApi;
-                      // Restore column state from localStorage
-                      try {
-                        const savedState = localStorage.getItem('qc_multi_grid_state');
-                        if (savedState && params.api) {
-                          params.api.applyColumnState({ state: JSON.parse(savedState), applyOrder: true });
-                        }
-                      } catch { /* ignore */ }
                     }}
 
                     defaultColDef={{
                       sortable: gridSettings.sortable,
                       filter: gridSettings.filter,
                       resizable: gridSettings.resizable,
+                      // ⚡ CRITICAL: Suppress AG Grid's built-in Ctrl+Arrow / Shift+Arrow handling
+                      // so our custom handlers get the CORRECT focused cell position.
+                      suppressKeyboardEvent: (params: any) => {
+                        const event = params.event;
+                        if (!event) return false;
+                        const ctrlKey = event.ctrlKey || event.metaKey;
+                        const arrowKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
+                        if (ctrlKey && arrowKeys.includes(event.key)) return true;
+                        return false;
+                      },
                       editable: (params: any) => {
                         if (!gridSettings.editable) return false;
                         const field = params.colDef.field as string;
@@ -6030,13 +6203,18 @@ export default function QCPage() {
                     valueCache={true}
                     className="ag-theme-quartz"
                     containerStyle={{ height: '100%', width: '100%' }}
-                    // ? Save column state when resized
+                    // ✅ Save per-column width when resized
                     onColumnResized={(params: any) => {
-                      if (params.finished && params.api) {
-                        try {
-                          const columnState = params.api.getColumnState();
-                          localStorage.setItem('qc_multi_grid_state', JSON.stringify(columnState));
-                        } catch { /* ignore */ }
+                      if (params.finished && params.column) {
+                        const colId = params.column.getColId();
+                        const newWidth = params.column.getActualWidth();
+                        // Don't save sno column
+                        if (colId === 'sno') return;
+                        setMultiColumnWidths(prev => {
+                          const updated = { ...prev, [colId]: newWidth };
+                          localStorage.setItem('qcMultiEntryColumnWidths', JSON.stringify(updated));
+                          return updated;
+                        });
                       }
                     }}
 
@@ -6046,9 +6224,9 @@ export default function QCPage() {
                         const colApi = columnApiRef.current;
                         const api = gridRef.current;
                         if (!colApi || !api) return;
-                        // Check if user has saved column state
-                        const savedState = localStorage.getItem('qc_multi_grid_state');
-                        if (savedState) return;
+                        // Skip auto-fit if user has saved custom widths
+                        const hasSavedWidths = Object.keys(multiColumnWidths).length > 0;
+                        if (hasSavedWidths) return;
                         const allCols = colApi.getAllColumns ? colApi.getAllColumns().map((c: any) => c.getColId()) : [];
                         if (!allCols || allCols.length === 0) return;
                         let total = 0;
@@ -6065,8 +6243,8 @@ export default function QCPage() {
                     // ⚡ Auto-fit columns on first data render
                     onFirstDataRendered={() => {
                       try {
-                        const savedState = localStorage.getItem('qc_multi_grid_state');
-                        if (savedState) return;
+                        const hasSavedWidths = Object.keys(multiColumnWidths).length > 0;
+                        if (hasSavedWidths) return;
                         const colApi = columnApiRef.current;
                         const api = gridRef.current;
                         if (!colApi || !api) return;
