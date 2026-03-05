@@ -1770,8 +1770,69 @@ export default function QCPage() {
       }
     };
 
+    // ⚡ EXCEL-LIKE: Copy handler (Ctrl+C for single cell or selected range)
+    const handleCopy = (e: ClipboardEvent) => {
+      const activeEl = document.activeElement;
+      const isEditing = activeEl?.tagName === 'INPUT' || activeEl?.tagName === 'TEXTAREA';
+      if (isEditing) return; // Let native copy work in inputs
+
+      const api = gridRef.current;
+      if (!api) return;
+
+      const range = selectedRangeRef.current;
+      const rows = multiRowsRef.current;
+      const allColumns = api.getAllDisplayedColumns() || [];
+      const colIds = allColumns.map((c: any) => c.getColId());
+
+      let text = '';
+
+      if (range) {
+        // Multi-cell range copy
+        const minRow = Math.min(range.startRow, range.endRow);
+        const maxRow = Math.max(range.startRow, range.endRow);
+        const startColIdx = colIds.indexOf(range.startCol);
+        const endColIdx = colIds.indexOf(range.endCol);
+        const minCol = Math.min(startColIdx, endColIdx);
+        const maxCol = Math.max(startColIdx, endColIdx);
+
+        const lines: string[] = [];
+        for (let r = minRow; r <= maxRow; r++) {
+          const cells: string[] = [];
+          for (let c = minCol; c <= maxCol; c++) {
+            const colId = colIds[c];
+            const val = rows[r]?.[colId];
+            cells.push(val != null ? String(val) : '');
+          }
+          lines.push(cells.join('\t'));
+        }
+        text = lines.join('\n');
+      } else {
+        // Single focused cell copy
+        const focusedCell = api.getFocusedCell();
+        if (!focusedCell) return;
+        const { rowIndex, column } = focusedCell;
+        const colId = column.getColId();
+        const val = rows[rowIndex]?.[colId];
+        text = val != null ? String(val) : '';
+      }
+
+      if (text) {
+        e.preventDefault();
+        navigator.clipboard.writeText(text).catch(() => {
+          // Fallback for older browsers
+          try {
+            e.clipboardData?.setData('text/plain', text);
+          } catch { /* ignore */ }
+        });
+      }
+    };
+
     document.addEventListener('paste', handlePaste);
-    return () => document.removeEventListener('paste', handlePaste);
+    document.addEventListener('copy', handleCopy);
+    return () => {
+      document.removeEventListener('paste', handlePaste);
+      document.removeEventListener('copy', handleCopy);
+    };
   }, [currentTabCode, activeWarehouse?.id, saveCellUndoAction]);
 
   // ⚡ EXCEL-LIKE: Clear selected cells (Delete/Backspace)
@@ -6313,6 +6374,8 @@ export default function QCPage() {
                       // ⚡ CRITICAL: Suppress AG Grid's built-in Ctrl+Arrow / Shift+Arrow handling
                       // so our custom handlers get the CORRECT focused cell position.
                       suppressKeyboardEvent: (params: any) => {
+                        // Don't suppress when editing a cell — let native input handle Shift+Arrow, Ctrl+Arrow etc.
+                        if (params.editing) return false;
                         const event = params.event;
                         if (!event) return false;
                         const ctrlKey = event.ctrlKey || event.metaKey;
