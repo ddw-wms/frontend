@@ -76,8 +76,12 @@ import {
   ViewColumn as ViewColumnIcon,
   TableChart as TableChartIcon,
   Inventory as InventoryIcon,
+  Print as PrintIcon,
+  Keyboard as KeyboardIcon,
+  Link as LinkIcon,
 } from '@mui/icons-material';
 import { qcAPI } from '@/lib/api';
+import { printLabel, isAgentRunning } from '@/lib/printAgent';
 import { useWarehouse } from '@/app/context/WarehouseContext';
 import { getStoredUser } from '@/lib/auth';
 import {
@@ -361,6 +365,12 @@ export default function QCPage() {
   // ⚡ OFFLINE: Track if offline warning has been shown
   const offlineWarningShownRef = useRef<boolean>(false);
   const wsnFetchMapRef = useRef<Map<number, string>>(new Map());
+
+  // 🖨️ PRINT AGENT: State for printing & shortcuts
+  const [agentReady, setAgentReady] = useState(false);
+  const [ctrlPPrintEnabled, setCtrlPPrintEnabled] = useState(false);
+  const [ctrlOProductLinkEnabled, setCtrlOProductLinkEnabled] = useState(false);
+  const lastScannedRowRef = useRef<any>(null);
 
   // ⚡ EXCEL-LIKE: Track selected cell range for multi-cell operations
   const [selectedRange, setSelectedRange] = useState<{
@@ -731,6 +741,28 @@ export default function QCPage() {
       stopAutoRefresh();
     }
   }, [isOnMultiTab, activeWarehouse?.id]);
+
+  // 🖨️ PRINT AGENT: Check if print agent is running (poll every 10s) & load settings
+  useEffect(() => {
+    // Load saved toggle states from localStorage
+    const savedCtrlP = localStorage.getItem('qc_ctrlP_print_enabled');
+    const savedCtrlO = localStorage.getItem('qc_ctrlO_productlink_enabled');
+    if (savedCtrlP === 'true') setCtrlPPrintEnabled(true);
+    if (savedCtrlO === 'true') setCtrlOProductLinkEnabled(true);
+
+    let cancelled = false;
+    const checkAgent = async () => {
+      try {
+        const running = await isAgentRunning();
+        if (!cancelled) setAgentReady(running);
+      } catch {
+        if (!cancelled) setAgentReady(false);
+      }
+    };
+    checkAgent();
+    const interval = setInterval(checkAgent, 10000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, []);
 
   // Broadcast entries when multiRows change
   useEffect(() => {
@@ -1615,21 +1647,61 @@ export default function QCPage() {
         },
       });
 
+      // --- Duplicate check BEFORE master data fetch ---
+      // Check if any pasted WSN already exists elsewhere in the grid
+      let wsnsToFetch: string[] = [];
+      if (wsnsToPrefetch.length > 0) {
+        const uniquePastedWSNs = Array.from(new Set(wsnsToPrefetch));
+
+        // Count WSN occurrences across entire grid
+        const wsnCountMap = new Map<string, number>();
+        currentRows.forEach(r => {
+          const w = r.wsn?.trim()?.toUpperCase();
+          if (w) wsnCountMap.set(w, (wsnCountMap.get(w) || 0) + 1);
+        });
+        const gridDupWSNs = new Set<string>();
+        uniquePastedWSNs.forEach(wsn => {
+          if ((wsnCountMap.get(wsn) || 0) > 1) gridDupWSNs.add(wsn);
+        });
+
+        // Auto-remove duplicate WSNs from pasted rows BEFORE fetch
+        if (gridDupWSNs.size > 0) {
+          let removedCount = 0;
+          for (let r = startRow; r <= endRow && r < currentRows.length; r++) {
+            const w = currentRows[r].wsn?.trim()?.toUpperCase();
+            if (w && gridDupWSNs.has(w)) {
+              currentRows[r] = { ...currentRows[r], wsn: '' };
+              ALL_MASTER_COLUMNS.forEach(col => { currentRows[r][col] = ''; });
+              removedCount++;
+            }
+          }
+          if (removedCount > 0) {
+            toast.error(`Removed ${gridDupWSNs.size} duplicate WSN(s) from pasted data`, {
+              duration: 5000,
+              style: { fontWeight: 600, fontSize: '14px' },
+            });
+          }
+        }
+
+        // Only fetch for non-duplicate WSNs that remain in the grid
+        wsnsToFetch = uniquePastedWSNs.filter(wsn => !gridDupWSNs.has(wsn));
+      }
+
+      // Update state with paste data (including duplicate removals)
+      multiRowsRef.current = currentRows;
       setMultiRows(currentRows);
       api.refreshCells({ force: true });
 
-      // Fetch master data for pasted WSNs
-      if (wsnsToPrefetch.length > 0) {
-        const uniqueWSNs = Array.from(new Set(wsnsToPrefetch));
-        toast.loading(`Fetching data for ${uniqueWSNs.length} WSN(s)...`, { id: 'paste-fetch' });
+      // Fetch master data for non-duplicate pasted WSNs
+      if (wsnsToFetch.length > 0) {
+        toast.loading(`Fetching data for ${wsnsToFetch.length} WSN(s)...`, { id: 'paste-fetch' });
 
-        const updatedRows = [...currentRows];
         let fetchedCount = 0;
 
         // Batch fetch with concurrency limit
         const BATCH_SIZE = 20;
-        for (let i = 0; i < uniqueWSNs.length; i += BATCH_SIZE) {
-          const batch = uniqueWSNs.slice(i, i + BATCH_SIZE);
+        for (let i = 0; i < wsnsToFetch.length; i += BATCH_SIZE) {
+          const batch = wsnsToFetch.slice(i, i + BATCH_SIZE);
           const results = await Promise.allSettled(
             batch.map(async (wsn) => {
               try {
@@ -1649,15 +1721,18 @@ export default function QCPage() {
             })
           );
 
+          // Use multiRowsRef.current for freshest state (not stale copy)
+          const latestRows = [...multiRowsRef.current];
+
           for (const result of results) {
             if (result.status !== 'fulfilled' || !result.value?.data) continue;
             const { wsn, data } = result.value;
 
             // Find all rows with this WSN and populate master data
-            for (let r = startRow; r <= endRow && r < updatedRows.length; r++) {
-              if (updatedRows[r].wsn?.toUpperCase() === wsn.toUpperCase()) {
-                updatedRows[r] = {
-                  ...updatedRows[r],
+            for (let r = startRow; r <= endRow && r < latestRows.length; r++) {
+              if (latestRows[r].wsn?.toUpperCase() === wsn.toUpperCase()) {
+                latestRows[r] = {
+                  ...latestRows[r],
                   fsn: data.fsn || data.FSN || '',
                   producttitle: data.product_title || data.producttitle || '',
                   brand: data.brand || '',
@@ -1681,58 +1756,18 @@ export default function QCPage() {
               }
             }
           }
+
+          // Commit fetched data back to state
+          multiRowsRef.current = latestRows;
+          setMultiRows([...latestRows]);
+          api.refreshCells({ force: true });
         }
 
-        setMultiRows(updatedRows);
-        api.refreshCells({ force: true });
         toast.dismiss('paste-fetch');
         toast.success(`Pasted ${clipRows.length} row(s), fetched data for ${fetchedCount} WSN(s)`, { duration: 3000 });
-      } else {
+      } else if (wsnsToPrefetch.length === 0) {
         toast.success(`Pasted ${clipRows.length} row(s)`, { duration: 2000 });
       }
-
-      // Run comprehensive duplicate check and auto-removal after paste
-      try {
-        if (wsnsToPrefetch.length > 0) {
-          const currentRows = [...multiRowsRef.current];
-          const uniquePastedWSNs = Array.from(new Set(wsnsToPrefetch));
-
-          // Grid duplicates: Check if any WSN appears more than once in the grid
-          const wsnCountMap = new Map<string, number>();
-          currentRows.forEach(r => {
-            const w = r.wsn?.trim()?.toUpperCase();
-            if (w) wsnCountMap.set(w, (wsnCountMap.get(w) || 0) + 1);
-          });
-          const gridDupWSNs = new Set<string>();
-          uniquePastedWSNs.forEach(wsn => {
-            if ((wsnCountMap.get(wsn) || 0) > 1) gridDupWSNs.add(wsn);
-          });
-
-          // Auto-remove duplicate WSNs from pasted rows (clear WSN + master data)
-          if (gridDupWSNs.size > 0) {
-            let removedCount = 0;
-            for (let r = startRow; r <= endRow && r < currentRows.length; r++) {
-              const w = currentRows[r].wsn?.trim()?.toUpperCase();
-              if (w && gridDupWSNs.has(w)) {
-                currentRows[r] = { ...currentRows[r], wsn: '' };
-                ALL_MASTER_COLUMNS.forEach(col => { currentRows[r][col] = ''; });
-                removedCount++;
-              }
-            }
-
-            if (removedCount > 0) {
-              multiRowsRef.current = currentRows;
-              setMultiRows(currentRows);
-              api.refreshCells({ force: true });
-
-              toast.error(`Removed ${gridDupWSNs.size} duplicate WSN(s) from pasted data`, {
-                duration: 5000,
-                style: { fontWeight: 600, fontSize: '14px' },
-              });
-            }
-          }
-        }
-      } catch { }
     };
 
     document.addEventListener('paste', handlePaste);
@@ -1837,22 +1872,91 @@ export default function QCPage() {
     toast('All rows selected', { icon: '✓', duration: 1500 });
   }, [setSelectionRange]);
 
-  // ⚡ EXCEL-LIKE: Smooth scroll to row
-  const ensureRowVisible = useCallback((rowIndex: number, position: 'top' | 'middle' | 'bottom' = 'middle') => {
-    const api = gridRef.current;
-    if (!api) return;
-
-    if (userScrolledRef.current) return;
+  // ⚡ EXCEL-LIKE: Smooth scroll to row (Inbound-style with visibility check)
+  const ensureRowVisible = useCallback((rowIndex: number, position: 'top' | 'middle' | 'bottom' = 'bottom', rowsBelow = 3, onComplete?: () => void, immediate = false) => {
+    // If user recently scrolled manually, don't auto-scroll (prevents jarring jumps)
+    if (userScrolledRef.current && !immediate) {
+      onComplete?.();
+      return;
+    }
 
     isAutoScrollingRef.current = true;
+
     try {
-      api.ensureIndexVisible(rowIndex, position);
-    } finally {
+      const api = gridRef.current;
+      if (!api) {
+        isAutoScrollingRef.current = false;
+        onComplete?.();
+        return;
+      }
+
+      // Get visible row range to check if row is already visible
+      const firstVisibleRow = api.getFirstDisplayedRowIndex?.() ?? 0;
+      const lastVisibleRow = api.getLastDisplayedRowIndex?.() ?? 0;
+
+      // Calculate comfortable visible range (with some buffer)
+      const topBuffer = 2;
+      const bottomBuffer = rowsBelow;
+
+      const isAlreadyVisible = rowIndex >= (firstVisibleRow + topBuffer) &&
+        rowIndex <= (lastVisibleRow - bottomBuffer);
+
+      // If row is already comfortably visible, don't scroll
+      if (isAlreadyVisible) {
+        isAutoScrollingRef.current = false;
+        onComplete?.();
+        return;
+      }
+
+      // Dynamic position: scanner mode uses 'middle' for minimal movement
+      const effectivePosition = (scanningModeRef.current || immediate)
+        ? 'middle'
+        : (rowIndex < firstVisibleRow ? 'top' : position);
+
+      api.ensureIndexVisible(rowIndex, effectivePosition);
+
+      // Small delay to let AG Grid finish scrolling, then invoke callback
       setTimeout(() => {
         isAutoScrollingRef.current = false;
-      }, 100);
+        onComplete?.();
+      }, 50);
+
+    } catch (e) {
+      isAutoScrollingRef.current = false;
+      onComplete?.();
     }
   }, []);
+
+  // 🖨️ PRINT: Print a WSN label for a specific row
+  const printRowWSN = useCallback(async (rowData: any) => {
+    if (!rowData?.wsn) {
+      toast.error('No WSN to print');
+      return;
+    }
+    if (!agentReady) {
+      toast.error('Print agent is not running. Please start the WMS Print Agent app.', { duration: 4000 });
+      return;
+    }
+    try {
+      const payload = {
+        wsn: rowData.wsn || '',
+        fsn: rowData.fsn || '',
+        product_title: rowData.producttitle || '',
+        brand: rowData.brand || '',
+        mrp: rowData.mrp || '',
+        fsp: rowData.fsp || '',
+        cms_vertical: rowData.cmsvertical || '',
+        p_type: rowData.ptype || '',
+        p_size: rowData.psize || '',
+        rack_no: rowData.rackno || '',
+        qc_grade: rowData.qcgrade || '',
+      };
+      await printLabel(payload);
+      toast.success(`Printing label for ${rowData.wsn}`, { duration: 2000 });
+    } catch (err: any) {
+      toast.error(`Print failed: ${err.message || 'Unknown error'}`, { duration: 4000 });
+    }
+  }, [agentReady]);
 
   // ⚡ EXCEL-LIKE: Keyboard shortcuts for Multi QC tab
   useEffect(() => {
@@ -1897,6 +2001,58 @@ export default function QCPage() {
       if (ctrlKey && e.key.toLowerCase() === 'd' && !isEditing) {
         e.preventDefault();
         handleFillDown();
+        return;
+      }
+
+      // 🖨️ Ctrl+P - Print last scanned WSN label
+      if (ctrlKey && e.key.toLowerCase() === 'p' && !isEditing) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        if (!ctrlPPrintEnabled) return;
+        const rowData = lastScannedRowRef.current;
+        if (rowData && rowData.wsn) {
+          printRowWSN(rowData);
+        } else {
+          // Fallback: try focused row
+          const api = gridRef.current;
+          if (api) {
+            const focusedCell = api.getFocusedCell();
+            if (focusedCell) {
+              const row = multiRowsRef.current[focusedCell.rowIndex];
+              if (row?.wsn) {
+                printRowWSN(row);
+              } else {
+                toast.error('No WSN in focused row to print');
+              }
+            }
+          }
+        }
+        return;
+      }
+
+      // 🔗 Ctrl+O - Open product link for last scanned WSN
+      if (ctrlKey && e.key.toLowerCase() === 'o' && !isEditing) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        if (!ctrlOProductLinkEnabled) return;
+        const rowData = lastScannedRowRef.current;
+        let fktLink = rowData?.fktlink;
+        if (!fktLink) {
+          // Fallback: try focused row
+          const api = gridRef.current;
+          if (api) {
+            const focusedCell = api.getFocusedCell();
+            if (focusedCell) {
+              fktLink = multiRowsRef.current[focusedCell.rowIndex]?.fktlink;
+            }
+          }
+        }
+        if (fktLink) {
+          const url = fktLink.startsWith('http') ? fktLink : `https://${fktLink}`;
+          window.open(url, '_blank');
+        } else {
+          toast.error('No product link available for this WSN');
+        }
         return;
       }
 
@@ -2161,7 +2317,7 @@ export default function QCPage() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [currentTabCode, handleSelectAll, handleClearCells, handleUndo, handleRedo, handleFillDown, setSelectionRange]);
+  }, [currentTabCode, handleSelectAll, handleClearCells, handleUndo, handleRedo, handleFillDown, setSelectionRange, ctrlPPrintEnabled, ctrlOProductLinkEnabled, printRowWSN]);
 
 
   // FETCH PRODUCT DETAILS FOR SINGLE ENTRY
@@ -3044,7 +3200,7 @@ export default function QCPage() {
 
   // ⚡ PERFORMANCE: Memoize multi-entry column definitions to prevent AG Grid full rebuild on every render
   const multiColumnDefs = useMemo(() => {
-    return visibleColumns.map((field: string) => {
+    const cols = visibleColumns.map((field: string) => {
       const key = String(field).replace(/_/g, '').toLowerCase();
       const widthConfig = COLUMN_WIDTHS[key] || {};
 
@@ -3092,7 +3248,39 @@ export default function QCPage() {
 
       return baseColDef;
     });
-  }, [visibleColumns, racks, isDarkMode, multiColumnWidths]);
+
+    // 🖨️ PRINT: Add print action column at the end
+    cols.push({
+      headerName: '🖨️',
+      field: 'print_action',
+      width: 55,
+      minWidth: 55,
+      maxWidth: 55,
+      editable: false,
+      sortable: false,
+      filter: false,
+      resizable: false,
+      suppressNavigable: true,
+      cellRenderer: (params: any) => {
+        const wsn = params.data?.wsn;
+        if (!wsn) return null;
+        return (
+          <span
+            title="Print WSN Label"
+            style={{ cursor: 'pointer', fontSize: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}
+            onClick={(e) => {
+              e.stopPropagation();
+              printRowWSN(params.data);
+            }}
+          >
+            🖨️
+          </span>
+        );
+      },
+    });
+
+    return cols;
+  }, [visibleColumns, racks, isDarkMode, multiColumnWidths, printRowWSN]);
 
   // ====== WSN OVERWRITE DIALOG HANDLERS ======
   const handleOverwriteCancel = useCallback(() => {
@@ -3783,6 +3971,8 @@ export default function QCPage() {
                 };
                 // ⚡ SYNC: Broadcast row with master data to other devices
                 queueRowSync(rowIndex, updatedRows[rowIndex]);
+                // 🖨️ PRINT: Save last scanned row for Ctrl+P / Ctrl+O
+                lastScannedRowRef.current = { ...updatedRows[rowIndex] };
                 return updatedRows;
               });
             }
@@ -5935,6 +6125,57 @@ export default function QCPage() {
                             Export to Excel
                           </Button>
                         </Box>
+
+                        {/* ═══════════ PRINT & SHORTCUTS ═══════════ */}
+                        <Box sx={{ p: 2 }}>
+                          <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <PrintIcon fontSize="small" /> Print & Shortcuts
+                          </Typography>
+
+                          {/* Print Agent Status */}
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5, p: 1, borderRadius: 1, bgcolor: agentReady ? (isDarkMode ? '#064e3b' : '#ecfdf5') : (isDarkMode ? '#7f1d1d' : '#fef2f2') }}>
+                            <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: agentReady ? '#10b981' : '#ef4444' }} />
+                            <Typography variant="caption" sx={{ fontWeight: 600 }}>
+                              Print Agent: {agentReady ? 'Connected' : 'Not Running'}
+                            </Typography>
+                          </Box>
+
+                          {/* Ctrl+P Toggle */}
+                          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <KeyboardIcon fontSize="small" sx={{ color: isDarkMode ? '#94a3b8' : '#64748b' }} />
+                              <Typography variant="body2">Ctrl+P Print Label</Typography>
+                            </Box>
+                            <Switch
+                              size="small"
+                              checked={ctrlPPrintEnabled}
+                              onChange={(e) => {
+                                setCtrlPPrintEnabled(e.target.checked);
+                                localStorage.setItem('qc_ctrlP_print_enabled', String(e.target.checked));
+                              }}
+                            />
+                          </Box>
+
+                          {/* Ctrl+O Toggle */}
+                          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <LinkIcon fontSize="small" sx={{ color: isDarkMode ? '#94a3b8' : '#64748b' }} />
+                              <Typography variant="body2">Ctrl+O Product Link</Typography>
+                            </Box>
+                            <Switch
+                              size="small"
+                              checked={ctrlOProductLinkEnabled}
+                              onChange={(e) => {
+                                setCtrlOProductLinkEnabled(e.target.checked);
+                                localStorage.setItem('qc_ctrlO_productlink_enabled', String(e.target.checked));
+                              }}
+                            />
+                          </Box>
+
+                          <Typography variant="caption" sx={{ color: isDarkMode ? '#64748b' : '#94a3b8', display: 'block', mt: 1 }}>
+                            Enable shortcuts to quickly print labels or open product pages after scanning a WSN.
+                          </Typography>
+                        </Box>
                       </Box>
                     </Drawer>
 
@@ -6075,8 +6316,11 @@ export default function QCPage() {
                         const event = params.event;
                         if (!event) return false;
                         const ctrlKey = event.ctrlKey || event.metaKey;
+                        const shiftKey = event.shiftKey;
                         const arrowKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
-                        if (ctrlKey && arrowKeys.includes(event.key)) return true;
+                        // Suppress both Ctrl+Arrow and Shift+Arrow so our custom handlers
+                        // get the CORRECT focused cell position (AG Grid won't move focus first)
+                        if ((ctrlKey || shiftKey) && arrowKeys.includes(event.key)) return true;
                         return false;
                       },
                       editable: (params: any) => {
@@ -6171,18 +6415,25 @@ export default function QCPage() {
 
                     // ⚡ SMOOTH SCROLL: Detect user manual scroll
                     onBodyScroll={(event) => {
-                      if (!isAutoScrollingRef.current) {
-                        const currentScrollTop = event.top;
-                        const scrollDelta = Math.abs(currentScrollTop - lastGridScrollTopRef.current);
-                        if (scrollDelta > 10) {
-                          userScrolledRef.current = true;
-                          if (userScrollTimeoutRef.current) window.clearTimeout(userScrollTimeoutRef.current);
-                          userScrollTimeoutRef.current = setTimeout(() => {
-                            userScrolledRef.current = false;
-                          }, 1500) as unknown as number;
-                          lastGridScrollTopRef.current = currentScrollTop;
-                        }
+                      // Always update lastGridScrollTopRef during auto-scroll to prevent stale deltas
+                      if (isAutoScrollingRef.current) {
+                        lastGridScrollTopRef.current = event.top;
+                        return;
                       }
+
+                      const currentScrollTop = event.top;
+                      const scrollDelta = Math.abs(currentScrollTop - lastGridScrollTopRef.current);
+
+                      if (scrollDelta > 10) {
+                        userScrolledRef.current = true;
+                        if (userScrollTimeoutRef.current) window.clearTimeout(userScrollTimeoutRef.current);
+                        userScrollTimeoutRef.current = setTimeout(() => {
+                          userScrolledRef.current = false;
+                          userScrollTimeoutRef.current = null;
+                        }, 1500) as unknown as number;
+                      }
+
+                      lastGridScrollTopRef.current = currentScrollTop;
                     }}
 
                     stopEditingWhenCellsLoseFocus={true}
