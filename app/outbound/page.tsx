@@ -3778,7 +3778,8 @@ export default function OutboundPage() {
                 activeWarehouse.id,
                 selectedCustomer || commonCustomer,
                 '', // dispatch_mode
-                commonDate
+                commonDate,
+                'desktop'
             );
             setDraftSavedAt(Date.now());
             setDraftExists(true);
@@ -3812,7 +3813,7 @@ export default function OutboundPage() {
         try {
             // Clear from DB
             if (activeWarehouse?.id) {
-                await outboundAPI.clearDraft(activeWarehouse.id);
+                await outboundAPI.clearDraft(activeWarehouse.id, 'desktop');
             }
         } catch (err) {
             console.error('Failed to clear outbound draft from DB', err);
@@ -3847,7 +3848,7 @@ export default function OutboundPage() {
             let anyLoadSucceeded = false;
             try {
                 // Primary: Load from server-side DB
-                const res = await outboundAPI.loadDraft(activeWarehouse.id);
+                const res = await outboundAPI.loadDraft(activeWarehouse.id, 'desktop');
                 anyLoadSucceeded = true; // DB call completed (even if no draft found)
                 const dbDraft = res.data;
                 if (dbDraft?.exists && dbDraft.draft?.rows?.length > 0 && mounted) {
@@ -3910,7 +3911,7 @@ export default function OutboundPage() {
                     }
                     // Sync local draft to DB
                     if (activeWarehouse?.id) {
-                        try { await outboundAPI.saveDraft(restored, activeWarehouse.id, draft.customerName || '', '', draft.dispatchDate || ''); } catch { }
+                        try { await outboundAPI.saveDraft(restored, activeWarehouse.id, draft.customerName || '', '', draft.dispatchDate || '', 'desktop'); } catch { }
                     }
                 }
             } catch (err) {

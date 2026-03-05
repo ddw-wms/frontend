@@ -377,7 +377,7 @@ export default function MobileScanPage() {
                     await pickingAPI.saveDraft(draftRows, activeWarehouse.id, pickingCustomer, pickingDate, 'mobile');
                 }
             } catch { /* silent */ }
-        }, 500);
+        }, 3000);
     }, [activeWarehouse?.id, mode, qcByName, qcDate, customerName, dispatchDate, vehicleNo, pickerName, pickingDate, pickingCustomer]);
 
     useEffect(() => {

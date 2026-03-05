@@ -636,7 +636,7 @@ export default function PickingPage() {
     setDraftSaving(true);
     try {
       // Primary: Save to server-side DB
-      await pickingAPI.saveDraft(rowsToSave, activeWarehouse.id, selectedCustomer, pickingDate);
+      await pickingAPI.saveDraft(rowsToSave, activeWarehouse.id, selectedCustomer, pickingDate, 'desktop');
       setDraftSavedAt(Date.now());
       setDraftExists(true);
     } catch (err) {
@@ -679,7 +679,7 @@ export default function PickingPage() {
     try {
       // Clear from DB
       if (activeWarehouse?.id) {
-        await pickingAPI.clearDraft(activeWarehouse.id);
+        await pickingAPI.clearDraft(activeWarehouse.id, 'desktop');
       }
     } catch (err) {
       console.error('Failed to clear picking draft from DB', err);
@@ -709,7 +709,7 @@ export default function PickingPage() {
       let anyLoadSucceeded = false;
       try {
         // Primary: Load from server-side DB
-        const res = await pickingAPI.loadDraft(activeWarehouse.id);
+        const res = await pickingAPI.loadDraft(activeWarehouse.id, 'desktop');
         anyLoadSucceeded = true; // DB call completed (even if no draft found)
         const dbDraft = res.data;
         if (dbDraft?.exists && dbDraft.draft?.rows?.length > 0 && mounted) {
@@ -747,7 +747,7 @@ export default function PickingPage() {
           setDraftExists(true);
           // Sync local draft to DB
           if (activeWarehouse?.id) {
-            try { await pickingAPI.saveDraft(restored, activeWarehouse.id, selectedCustomer, pickingDate); } catch { }
+            try { await pickingAPI.saveDraft(restored, activeWarehouse.id, selectedCustomer, pickingDate, 'desktop'); } catch { }
           }
         }
       } catch (err) {

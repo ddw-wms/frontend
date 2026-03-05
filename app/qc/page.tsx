@@ -951,7 +951,7 @@ export default function QCPage() {
     setDraftSaving(true);
     try {
       // Primary: Save to server-side DB
-      await qcAPI.saveDraft(rowsToSave, activeWarehouse.id, commonQcDate);
+      await qcAPI.saveDraft(rowsToSave, activeWarehouse.id, commonQcDate, 'desktop');
       setDraftSavedAt(Date.now());
       setDraftExists(true);
     } catch (err) {
@@ -994,7 +994,7 @@ export default function QCPage() {
     try {
       // Clear from DB
       if (activeWarehouse?.id) {
-        await qcAPI.clearDraft(activeWarehouse.id);
+        await qcAPI.clearDraft(activeWarehouse.id, 'desktop');
       }
     } catch (err) {
       console.error('Failed to clear QC draft from DB', err);
@@ -1024,7 +1024,7 @@ export default function QCPage() {
       let anyLoadSucceeded = false;
       try {
         // Primary: Load from server-side DB
-        const res = await qcAPI.loadDraft(activeWarehouse.id);
+        const res = await qcAPI.loadDraft(activeWarehouse.id, 'desktop');
         anyLoadSucceeded = true; // DB call completed (even if no draft found)
         const dbDraft = res.data;
         if (dbDraft?.exists && dbDraft.draft?.rows?.length > 0 && mounted) {
@@ -1068,7 +1068,7 @@ export default function QCPage() {
           setDraftExists(true);
           // Sync local draft to DB
           if (activeWarehouse?.id) {
-            try { await qcAPI.saveDraft(restored, activeWarehouse.id, commonQcDate); } catch { }
+            try { await qcAPI.saveDraft(restored, activeWarehouse.id, commonQcDate, 'desktop'); } catch { }
           }
         }
       } catch (err) {
