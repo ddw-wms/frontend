@@ -23,15 +23,21 @@ interface CameraScannerProps {
 
 const SCANNER_REGION_ID = 'mobile-camera-scanner-region';
 const ZOOM_STORAGE_KEY = 'mobileScan_cameraZoom';
+const SAME_BARCODE_COOLDOWN = 3000; // 3 seconds before accepting same barcode again
+const SCAN_PAUSE_DURATION = 1200; // 1.2 second pause after successful scan
 
 export default function CameraScanner({ onScan, onClose, isOpen, title = 'Scan Barcode' }: CameraScannerProps) {
     const scannerRef = useRef<Html5Qrcode | null>(null);
-    const streamRef = useRef<MediaStream | null>(null);
+    // We keep our OWN MediaStream reference for torch control
+    const ownStreamRef = useRef<MediaStream | null>(null);
+    const torchTrackRef = useRef<MediaStreamTrack | null>(null);
     const [torchOn, setTorchOn] = useState(false);
     const [torchSupported, setTorchSupported] = useState(false);
     const [facingBack, setFacingBack] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [scanning, setScanning] = useState(false);
+    const [scanPaused, setScanPaused] = useState(false);
+    const [lastScannedWSN, setLastScannedWSN] = useState('');
     const [zoomLevel, setZoomLevel] = useState<number>(() => {
         if (typeof window !== 'undefined') {
             const saved = localStorage.getItem(ZOOM_STORAGE_KEY);
@@ -43,20 +49,15 @@ export default function CameraScanner({ onScan, onClose, isOpen, title = 'Scan B
     const [showZoom, setShowZoom] = useState(false);
     const lastScanRef = useRef<string>('');
     const lastScanTimeRef = useRef<number>(0);
+    const isPausedRef = useRef(false);
+    const pauseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    // Get the active video track directly from the stream we captured
-    const getTrack = useCallback((): MediaStreamTrack | null => {
+    // Get the video track from html5-qrcode's video element (for zoom)
+    const getVideoTrack = useCallback((): MediaStreamTrack | null => {
         try {
-            // Method 1: From our saved stream ref
-            if (streamRef.current) {
-                const tracks = streamRef.current.getVideoTracks();
-                if (tracks.length > 0 && tracks[0].readyState === 'live') return tracks[0];
-            }
-            // Method 2: From the video element in DOM
             const video = document.querySelector(`#${SCANNER_REGION_ID} video`) as HTMLVideoElement;
             if (video?.srcObject) {
                 const stream = video.srcObject as MediaStream;
-                streamRef.current = stream;
                 const tracks = stream.getVideoTracks();
                 if (tracks.length > 0 && tracks[0].readyState === 'live') return tracks[0];
             }
@@ -64,20 +65,72 @@ export default function CameraScanner({ onScan, onClose, isOpen, title = 'Scan B
         return null;
     }, []);
 
-    // Setup track capabilities (torch, zoom) after camera starts
-    const setupTrackCapabilities = useCallback(() => {
-        const track = getTrack();
+    // Acquire our own camera stream JUST for torch control
+    const acquireTorchStream = useCallback(async (deviceId?: string) => {
+        // Release any previous stream
+        if (ownStreamRef.current) {
+            ownStreamRef.current.getTracks().forEach(t => t.stop());
+            ownStreamRef.current = null;
+            torchTrackRef.current = null;
+        }
+        try {
+            const constraints: MediaStreamConstraints = {
+                video: deviceId
+                    ? { deviceId: { exact: deviceId } }
+                    : { facingMode: 'environment' },
+            };
+            const stream = await navigator.mediaDevices.getUserMedia(constraints);
+            ownStreamRef.current = stream;
+            const track = stream.getVideoTracks()[0];
+            torchTrackRef.current = track;
+
+            // Check torch capability
+            const caps = track.getCapabilities?.() as any;
+            if (caps?.torch === true) {
+                setTorchSupported(true);
+                return true;
+            } else {
+                // Try to set torch anyway — some devices don't report capability
+                try {
+                    await track.applyConstraints({ advanced: [{ torch: true } as any] });
+                    await track.applyConstraints({ advanced: [{ torch: false } as any] });
+                    setTorchSupported(true);
+                    return true;
+                } catch {
+                    // Torch really not supported
+                    setTorchSupported(false);
+                    // Stop this stream since we don't need it
+                    stream.getTracks().forEach(t => t.stop());
+                    ownStreamRef.current = null;
+                    torchTrackRef.current = null;
+                    return false;
+                }
+            }
+        } catch {
+            setTorchSupported(false);
+            return false;
+        }
+    }, []);
+
+    const applyTorch = useCallback(async (on: boolean) => {
+        const track = torchTrackRef.current;
+        if (!track || track.readyState !== 'live') return false;
+        try {
+            await track.applyConstraints({ advanced: [{ torch: on } as any] });
+            return true;
+        } catch {
+            try {
+                await track.applyConstraints({ torch: on } as any);
+                return true;
+            } catch { return false; }
+        }
+    }, []);
+
+    const setupZoom = useCallback(() => {
+        const track = getVideoTrack();
         if (!track) return;
         try {
             const caps = track.getCapabilities?.() as any;
-            // Torch - always assume available on back camera, actual toggle will verify
-            if (caps?.torch === true) {
-                setTorchSupported(true);
-            } else if (facingBack) {
-                // Most back cameras have torch - optimistically enable button
-                setTorchSupported(true);
-            }
-            // Zoom
             if (caps?.zoom) {
                 setZoomRange({ min: caps.zoom.min, max: caps.zoom.max });
                 const saved = localStorage.getItem(ZOOM_STORAGE_KEY);
@@ -87,36 +140,23 @@ export default function CameraScanner({ onScan, onClose, isOpen, title = 'Scan B
                 track.applyConstraints({ advanced: [{ zoom: clamped } as any] }).catch(() => { });
             }
         } catch { /* ignore */ }
-    }, [getTrack, facingBack]);
-
-    const applyTorch = useCallback(async (on: boolean) => {
-        const track = getTrack();
-        if (!track) return false;
-        try {
-            // Direct approach: apply torch constraint regardless of getCapabilities() result
-            // This works on most modern mobile browsers
-            await track.applyConstraints({ advanced: [{ torch: on } as any] });
-            return true;
-        } catch {
-            // Fallback: try without 'advanced' wrapper
-            try {
-                await track.applyConstraints({ torch: on } as any);
-                return true;
-            } catch { /* torch not supported on this device */ }
-        }
-        return false;
-    }, [getTrack]);
+    }, [getVideoTrack]);
 
     const stopScanner = useCallback(async () => {
-        // Turn off torch before stopping
-        if (torchOn) {
+        // Clear pause
+        if (pauseTimerRef.current) clearTimeout(pauseTimerRef.current);
+        isPausedRef.current = false;
+        setScanPaused(false);
+        setLastScannedWSN('');
+
+        // Turn off torch via our own stream
+        if (torchTrackRef.current && torchTrackRef.current.readyState === 'live') {
             try {
-                const track = getTrack();
-                if (track) {
-                    await track.applyConstraints({ advanced: [{ torch: false } as any] }).catch(() => { });
-                }
+                await torchTrackRef.current.applyConstraints({ advanced: [{ torch: false } as any] });
             } catch { /* ignore */ }
         }
+
+        // Stop html5-qrcode scanner
         try {
             if (scannerRef.current) {
                 const state = scannerRef.current.getState();
@@ -125,38 +165,66 @@ export default function CameraScanner({ onScan, onClose, isOpen, title = 'Scan B
                 }
             }
         } catch { /* ignore */ }
-        streamRef.current = null;
+
+        // Stop our torch stream
+        if (ownStreamRef.current) {
+            ownStreamRef.current.getTracks().forEach(t => t.stop());
+            ownStreamRef.current = null;
+            torchTrackRef.current = null;
+        }
+
         setScanning(false);
         setTorchOn(false);
         setTorchSupported(false);
         setZoomRange(null);
-    }, [getTrack, torchOn]);
+    }, []);
 
     const startScanner = useCallback(async (useFrontCamera = false) => {
         setError(null);
         try {
             await stopScanner();
-            await new Promise(r => setTimeout(r, 300));
+            await new Promise(r => setTimeout(r, 200));
 
             if (!scannerRef.current) {
                 scannerRef.current = new Html5Qrcode(SCANNER_REGION_ID);
             }
 
+            const facingMode = useFrontCamera ? 'user' : 'environment';
+
             await scannerRef.current.start(
-                { facingMode: useFrontCamera ? 'user' : 'environment' },
+                { facingMode },
                 {
-                    fps: 15,
-                    qrbox: { width: 220, height: 80 },
+                    fps: 12,
+                    qrbox: { width: 280, height: 100 },
                     aspectRatio: 1.5,
                     disableFlip: false,
                 },
                 (decodedText) => {
+                    // Check if paused
+                    if (isPausedRef.current) return;
+
                     const now = Date.now();
-                    if (decodedText === lastScanRef.current && now - lastScanTimeRef.current < 1500) return;
-                    lastScanRef.current = decodedText;
+                    const text = decodedText.trim().toUpperCase();
+                    // Same barcode cooldown
+                    if (text === lastScanRef.current && now - lastScanTimeRef.current < SAME_BARCODE_COOLDOWN) return;
+
+                    lastScanRef.current = text;
                     lastScanTimeRef.current = now;
+
+                    // Pause scanning briefly
+                    isPausedRef.current = true;
+                    setScanPaused(true);
+                    setLastScannedWSN(text);
                     if (navigator.vibrate) navigator.vibrate(100);
-                    onScan(decodedText.trim().toUpperCase());
+
+                    onScan(text);
+
+                    // Resume after pause duration
+                    pauseTimerRef.current = setTimeout(() => {
+                        isPausedRef.current = false;
+                        setScanPaused(false);
+                        setLastScannedWSN('');
+                    }, SCAN_PAUSE_DURATION);
                 },
                 () => { }
             );
@@ -164,46 +232,71 @@ export default function CameraScanner({ onScan, onClose, isOpen, title = 'Scan B
             setScanning(true);
             setFacingBack(!useFrontCamera);
 
-            // Grab the stream and setup capabilities with retry
-            const trySetup = (attempt: number) => {
-                setTimeout(() => {
-                    const track = getTrack();
+            // After scanner starts, get the camera deviceId and acquire torch stream
+            if (!useFrontCamera) {
+                setTimeout(async () => {
+                    const track = getVideoTrack();
                     if (track) {
-                        setupTrackCapabilities();
-                    } else if (attempt < 5) {
-                        trySetup(attempt + 1);
+                        const settings = track.getSettings?.();
+                        const deviceId = settings?.deviceId;
+                        // Acquire our own stream for the same camera for torch control
+                        await acquireTorchStream(deviceId);
+                    } else {
+                        // No track yet, retry
+                        setTimeout(async () => {
+                            const t2 = getVideoTrack();
+                            if (t2) {
+                                const s2 = t2.getSettings?.();
+                                await acquireTorchStream(s2?.deviceId);
+                            }
+                        }, 1000);
                     }
-                }, attempt === 0 ? 500 : 800);
-            };
-            trySetup(0);
+                    setupZoom();
+                }, 800);
+            } else {
+                setTimeout(setupZoom, 800);
+            }
         } catch (err: any) {
             const msg = err?.message || err?.name || String(err);
             if (msg.includes('NotAllowedError') || msg.includes('Permission') || msg.includes('permission')) {
-                setError('Camera permission denied.\n\n• Android Chrome: Settings → Site Settings → Camera → Allow\n• iPhone Safari: Settings → Safari → Camera → Allow\n• Other browsers: Tap the lock/info icon in the address bar → Camera → Allow\n\nThen reload this page.');
+                setError('Camera permission denied.\n\n• Android Chrome: Tap lock icon → Camera → Allow\n• iPhone Safari: Settings → Safari → Camera → Allow\n\nRefresh page after enabling.');
             } else if (msg.includes('NotFoundError') || msg.includes('Requested device not found')) {
                 setError('No camera found on this device.');
             } else if (msg.includes('NotReadableError') || msg.includes('Could not start')) {
                 setError('Camera is in use by another app. Close other camera apps and try again.');
             } else if (msg.includes('OverconstrainedError')) {
-                // Try again without specific facing mode
                 try {
                     if (scannerRef.current) {
                         await scannerRef.current.start(
                             { facingMode: 'environment' },
-                            { fps: 10, qrbox: { width: 200, height: 80 } },
+                            { fps: 10, qrbox: { width: 240, height: 90 } },
                             (decodedText) => {
+                                if (isPausedRef.current) return;
                                 const now = Date.now();
-                                if (decodedText === lastScanRef.current && now - lastScanTimeRef.current < 1500) return;
-                                lastScanRef.current = decodedText;
+                                const text = decodedText.trim().toUpperCase();
+                                if (text === lastScanRef.current && now - lastScanTimeRef.current < SAME_BARCODE_COOLDOWN) return;
+                                lastScanRef.current = text;
                                 lastScanTimeRef.current = now;
+                                isPausedRef.current = true;
+                                setScanPaused(true);
+                                setLastScannedWSN(text);
                                 if (navigator.vibrate) navigator.vibrate(100);
-                                onScan(decodedText.trim().toUpperCase());
+                                onScan(text);
+                                pauseTimerRef.current = setTimeout(() => {
+                                    isPausedRef.current = false;
+                                    setScanPaused(false);
+                                    setLastScannedWSN('');
+                                }, SCAN_PAUSE_DURATION);
                             },
                             () => { }
                         );
                         setScanning(true);
                         setFacingBack(true);
-                        setTimeout(() => setupTrackCapabilities(), 800);
+                        setTimeout(async () => {
+                            const t = getVideoTrack();
+                            if (t) await acquireTorchStream(t.getSettings?.()?.deviceId);
+                            setupZoom();
+                        }, 800);
                         return;
                     }
                 } catch { /* ignore fallback */ }
@@ -213,7 +306,20 @@ export default function CameraScanner({ onScan, onClose, isOpen, title = 'Scan B
             }
             setScanning(false);
         }
-    }, [onScan, stopScanner, getTrack, setupTrackCapabilities]);
+    }, [onScan, stopScanner, getVideoTrack, setupZoom, acquireTorchStream]);
+
+    // Handle page visibility change (phone sleep/wake)
+    useEffect(() => {
+        if (!isOpen) return;
+        const handleVisibility = () => {
+            if (document.visibilityState === 'visible' && isOpen && !scanning) {
+                startScanner(!facingBack ? true : false);
+            }
+        };
+        document.addEventListener('visibilitychange', handleVisibility);
+        return () => document.removeEventListener('visibilitychange', handleVisibility);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isOpen, scanning, facingBack]);
 
     useEffect(() => {
         if (isOpen) {
@@ -231,10 +337,18 @@ export default function CameraScanner({ onScan, onClose, isOpen, title = 'Scan B
         if (ok) {
             setTorchOn(newState);
         } else {
-            // Torch not supported - disable button
+            // Maybe our torch stream died, try re-acquiring
+            const track = getVideoTrack();
+            if (track) {
+                const ok2 = await acquireTorchStream(track.getSettings?.()?.deviceId);
+                if (ok2) {
+                    const ok3 = await applyTorch(newState);
+                    if (ok3) { setTorchOn(newState); return; }
+                }
+            }
             setTorchSupported(false);
         }
-    }, [torchOn, applyTorch]);
+    }, [torchOn, applyTorch, getVideoTrack, acquireTorchStream]);
 
     const handleFlipCamera = useCallback(async () => {
         const newFacingBack = !facingBack;
@@ -245,12 +359,12 @@ export default function CameraScanner({ onScan, onClose, isOpen, title = 'Scan B
     const handleZoomChange = useCallback((_: Event, val: number | number[]) => {
         const level = val as number;
         setZoomLevel(level);
-        const track = getTrack();
+        const track = getVideoTrack();
         if (track) {
             track.applyConstraints({ advanced: [{ zoom: level } as any] }).catch(() => { });
         }
         localStorage.setItem(ZOOM_STORAGE_KEY, String(level));
-    }, [getTrack]);
+    }, [getVideoTrack]);
 
     const handleRetry = useCallback(() => {
         setError(null);
@@ -260,47 +374,78 @@ export default function CameraScanner({ onScan, onClose, isOpen, title = 'Scan B
     if (!isOpen) return null;
 
     return (
-        <Box sx={{ position: 'relative', width: '100%', bgcolor: '#000', borderRadius: 1.5, overflow: 'hidden' }}>
+        <Box sx={{ position: 'relative', width: '100%', bgcolor: '#000', borderRadius: 2, overflow: 'hidden' }}>
             {/* Header */}
             <Box sx={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                px: 1, py: 0.5, bgcolor: 'rgba(0,0,0,0.8)', zIndex: 2,
+                px: 1.5, py: 0.8, bgcolor: 'rgba(0,0,0,0.85)', zIndex: 2,
             }}>
-                <Typography sx={{ color: '#fff', fontWeight: 700, fontSize: '0.75rem' }}>
+                <Typography sx={{ color: '#fff', fontWeight: 700, fontSize: '0.8rem' }}>
                     {title}
                 </Typography>
                 <Stack direction="row" spacing={0.5} alignItems="center">
-                    <IconButton size="small" onClick={handleToggleTorch} sx={{
-                        color: torchOn ? '#fbbf24' : (torchSupported ? '#94a3b8' : '#374151'),
-                        width: 30, height: 30,
-                        bgcolor: torchOn ? 'rgba(251,191,36,0.25)' : 'transparent',
-                    }}>
-                        {torchOn ? <FlashOnIcon sx={{ fontSize: 16 }} /> : <FlashOffIcon sx={{ fontSize: 16 }} />}
+                    {/* Torch button — large & prominent */}
+                    <IconButton
+                        size="small" onClick={handleToggleTorch}
+                        sx={{
+                            width: 36, height: 36,
+                            color: torchOn ? '#fbbf24' : (torchSupported ? '#e2e8f0' : '#4b5563'),
+                            bgcolor: torchOn ? 'rgba(251,191,36,0.3)' : 'rgba(255,255,255,0.08)',
+                            border: torchOn ? '1.5px solid #fbbf24' : '1px solid rgba(255,255,255,0.15)',
+                            '&:active': { bgcolor: 'rgba(251,191,36,0.4)' },
+                        }}
+                    >
+                        {torchOn ? <FlashOnIcon sx={{ fontSize: 20 }} /> : <FlashOffIcon sx={{ fontSize: 20 }} />}
                     </IconButton>
                     {zoomRange && (
                         <IconButton size="small" onClick={() => setShowZoom(!showZoom)} sx={{
-                            color: showZoom ? '#60a5fa' : '#64748b', width: 30, height: 30,
+                            color: showZoom ? '#60a5fa' : '#94a3b8', width: 32, height: 32,
                             bgcolor: showZoom ? 'rgba(96,165,250,0.2)' : 'transparent',
                         }}>
-                            <ZoomInIcon sx={{ fontSize: 16 }} />
+                            <ZoomInIcon sx={{ fontSize: 18 }} />
                         </IconButton>
                     )}
-                    <IconButton size="small" onClick={handleFlipCamera} sx={{ color: '#64748b', width: 30, height: 30 }}>
-                        {facingBack ? <CameraFrontIcon sx={{ fontSize: 16 }} /> : <CameraRearIcon sx={{ fontSize: 16 }} />}
+                    <IconButton size="small" onClick={handleFlipCamera} sx={{ color: '#94a3b8', width: 32, height: 32 }}>
+                        {facingBack ? <CameraFrontIcon sx={{ fontSize: 18 }} /> : <CameraRearIcon sx={{ fontSize: 18 }} />}
                     </IconButton>
-                    <IconButton size="small" onClick={onClose} sx={{ color: '#fff', width: 30, height: 30 }}>
-                        <CloseIcon sx={{ fontSize: 16 }} />
+                    <IconButton size="small" onClick={onClose} sx={{ color: '#fff', width: 32, height: 32 }}>
+                        <CloseIcon sx={{ fontSize: 18 }} />
                     </IconButton>
                 </Stack>
             </Box>
 
-            {/* Camera View — compact */}
+            {/* Camera View */}
             <Box sx={{
-                position: 'relative', width: '100%', maxHeight: 180, overflow: 'hidden',
-                '& video': { width: '100% !important', objectFit: 'cover !important', maxHeight: '180px !important' },
-                '& #qr-shaded-region': { borderColor: '#22c55e !important' },
+                position: 'relative', width: '100%', minHeight: 200, maxHeight: 240, overflow: 'hidden',
+                '& video': { width: '100% !important', objectFit: 'cover !important', maxHeight: '240px !important' },
+                '& #qr-shaded-region': { borderColor: scanPaused ? '#22c55e !important' : '#60a5fa !important' },
             }}>
                 <div id={SCANNER_REGION_ID} style={{ width: '100%' }} />
+
+                {/* Scan success flash overlay */}
+                {scanPaused && (
+                    <Box sx={{
+                        position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
+                        alignItems: 'center', justifyContent: 'center',
+                        bgcolor: 'rgba(34,197,94,0.2)', zIndex: 3,
+                        animation: 'flashIn 0.15s ease-out',
+                        '@keyframes flashIn': { '0%': { bgcolor: 'rgba(34,197,94,0.5)' }, '100%': { bgcolor: 'rgba(34,197,94,0.15)' } },
+                    }}>
+                        <Box sx={{
+                            px: 2, py: 0.8, borderRadius: 2,
+                            bgcolor: 'rgba(34,197,94,0.9)', backdropFilter: 'blur(4px)',
+                        }}>
+                            <Typography sx={{
+                                color: '#fff', fontWeight: 800, fontSize: '0.85rem',
+                                fontFamily: 'monospace', textAlign: 'center',
+                            }}>
+                                ✓ {lastScannedWSN}
+                            </Typography>
+                        </Box>
+                    </Box>
+                )}
+
+                {/* Error overlay */}
                 {error && (
                     <Box sx={{
                         position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
@@ -308,39 +453,42 @@ export default function CameraScanner({ onScan, onClose, isOpen, title = 'Scan B
                         bgcolor: 'rgba(0,0,0,0.92)', p: 2, zIndex: 3,
                     }}>
                         <Typography sx={{
-                            color: '#f87171', fontSize: '0.72rem', textAlign: 'center',
+                            color: '#f87171', fontSize: '0.75rem', textAlign: 'center',
                             whiteSpace: 'pre-line', lineHeight: 1.5,
                         }}>{error}</Typography>
                         <Button
                             size="small" variant="outlined"
                             onClick={handleRetry}
                             sx={{
-                                mt: 1, color: '#60a5fa', borderColor: '#60a5fa',
-                                fontSize: '0.7rem', textTransform: 'none', fontWeight: 700,
+                                mt: 1.5, color: '#60a5fa', borderColor: '#60a5fa',
+                                fontSize: '0.75rem', textTransform: 'none', fontWeight: 700,
+                                px: 3,
                             }}
                         >
                             Retry Camera
                         </Button>
                     </Box>
                 )}
-                {scanning && !error && (
+
+                {/* Scanning indicator */}
+                {scanning && !error && !scanPaused && (
                     <Box sx={{
-                        position: 'absolute', bottom: 4, left: '50%', transform: 'translateX(-50%)',
-                        px: 1, py: 0.2, borderRadius: 1, bgcolor: 'rgba(34,197,94,0.25)',
+                        position: 'absolute', bottom: 6, left: '50%', transform: 'translateX(-50%)',
+                        px: 1.5, py: 0.3, borderRadius: 1, bgcolor: 'rgba(96,165,250,0.25)',
                     }}>
                         <Typography sx={{
-                            color: '#22c55e', fontSize: '0.6rem', fontWeight: 700,
+                            color: '#60a5fa', fontSize: '0.65rem', fontWeight: 700,
                             animation: 'pulse 1.5s infinite',
                             '@keyframes pulse': { '0%,100%': { opacity: 1 }, '50%': { opacity: 0.4 } },
-                        }}>● Scanning</Typography>
+                        }}>● Ready to scan</Typography>
                     </Box>
                 )}
             </Box>
 
             {/* Zoom Slider */}
             {showZoom && zoomRange && (
-                <Box sx={{ px: 2, py: 0.5, bgcolor: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Typography sx={{ color: '#94a3b8', fontSize: '0.65rem', minWidth: 14 }}>1x</Typography>
+                <Box sx={{ px: 2, py: 0.5, bgcolor: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Typography sx={{ color: '#94a3b8', fontSize: '0.7rem', minWidth: 14 }}>1x</Typography>
                     <Slider
                         value={zoomLevel}
                         min={zoomRange.min}
@@ -349,11 +497,11 @@ export default function CameraScanner({ onScan, onClose, isOpen, title = 'Scan B
                         onChange={handleZoomChange}
                         size="small"
                         sx={{
-                            color: '#60a5fa', height: 3,
-                            '& .MuiSlider-thumb': { width: 14, height: 14 },
+                            color: '#60a5fa', height: 4,
+                            '& .MuiSlider-thumb': { width: 16, height: 16 },
                         }}
                     />
-                    <Typography sx={{ color: '#94a3b8', fontSize: '0.65rem', minWidth: 22 }}>
+                    <Typography sx={{ color: '#94a3b8', fontSize: '0.7rem', minWidth: 22 }}>
                         {zoomLevel.toFixed(1)}x
                     </Typography>
                 </Box>

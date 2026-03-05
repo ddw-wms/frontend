@@ -641,12 +641,12 @@ export const qcAPI = {
     }),
 
   // Multi-entry draft persistence (save/load/clear draft from database)
-  saveDraft: (draft_data: any[], warehouse_id: number, common_date?: string) =>
-    api.put('qc/draft', { draft_data, warehouse_id, common_date }),
-  loadDraft: (warehouse_id: number) =>
-    api.get('qc/draft', { params: { warehouse_id } }),
-  clearDraft: (warehouse_id: number) =>
-    api.delete('qc/draft', { params: { warehouse_id } }),
+  saveDraft: (draft_data: any[], warehouse_id: number, common_date?: string, draft_source?: string) =>
+    api.put('qc/draft', { draft_data, warehouse_id, common_date, draft_source }),
+  loadDraft: (warehouse_id: number, draft_source?: string) =>
+    api.get('qc/draft', { params: { warehouse_id, draft_source } }),
+  clearDraft: (warehouse_id: number, draft_source?: string) =>
+    api.delete('qc/draft', { params: { warehouse_id, draft_source } }),
 
   // Real-time multi-entry row sync across devices (SSE relay, no DB write)
   syncRows: (rows: Array<{ index: number; data: any }>, warehouseId: number) =>
@@ -763,12 +763,12 @@ export const outboundAPI = {
     api.get('outbound/available-inventory', { params: { warehouseId } }),
 
   // Multi-entry draft persistence (save/load/clear draft from database)
-  saveDraft: (draft_data: any[], warehouse_id: number, customer_name?: string, dispatch_mode?: string, common_date?: string) =>
-    api.put('outbound/draft', { draft_data, warehouse_id, customer_name, dispatch_mode, common_date }),
-  loadDraft: (warehouse_id: number) =>
-    api.get('outbound/draft', { params: { warehouse_id } }),
-  clearDraft: (warehouse_id: number) =>
-    api.delete('outbound/draft', { params: { warehouse_id } }),
+  saveDraft: (draft_data: any[], warehouse_id: number, customer_name?: string, dispatch_mode?: string, common_date?: string, draft_source?: string) =>
+    api.put('outbound/draft', { draft_data, warehouse_id, customer_name, dispatch_mode, common_date, draft_source }),
+  loadDraft: (warehouse_id: number, draft_source?: string) =>
+    api.get('outbound/draft', { params: { warehouse_id, draft_source } }),
+  clearDraft: (warehouse_id: number, draft_source?: string) =>
+    api.delete('outbound/draft', { params: { warehouse_id, draft_source } }),
 
   // Real-time multi-entry row sync across devices (SSE relay, no DB write)
   syncRows: (rows: Array<{ index: number; data: any }>, warehouseId: number) =>
@@ -849,12 +849,12 @@ export const pickingAPI = {
     api.get('/picking/categories', { params: { warehouseId } }),
 
   // Multi-entry draft persistence (save/load/clear draft from database)
-  saveDraft: (draft_data: any[], warehouse_id: number, customer_name?: string, common_date?: string) =>
-    api.put('picking/draft', { draft_data, warehouse_id, customer_name, common_date }),
-  loadDraft: (warehouse_id: number) =>
-    api.get('picking/draft', { params: { warehouse_id } }),
-  clearDraft: (warehouse_id: number) =>
-    api.delete('picking/draft', { params: { warehouse_id } }),
+  saveDraft: (draft_data: any[], warehouse_id: number, customer_name?: string, common_date?: string, draft_source?: string) =>
+    api.put('picking/draft', { draft_data, warehouse_id, customer_name, common_date, draft_source }),
+  loadDraft: (warehouse_id: number, draft_source?: string) =>
+    api.get('picking/draft', { params: { warehouse_id, draft_source } }),
+  clearDraft: (warehouse_id: number, draft_source?: string) =>
+    api.delete('picking/draft', { params: { warehouse_id, draft_source } }),
 
   // Real-time multi-entry row sync across devices (SSE relay, no DB write)
   syncRows: (rows: Array<{ index: number; data: any }>, warehouseId: number) =>

@@ -111,6 +111,8 @@ export default function MobileScanPage() {
     const wsnInputRef = useRef<HTMLInputElement>(null);
     const draftSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const draftLoadedRef = useRef(false);
+    // Ref-based duplicate check (avoids stale closure in scan callback)
+    const scannedWSNsRef = useRef<Set<string>>(new Set());
 
     // Existing WSNs for duplicate check: wsn -> warehouseId (null if unknown)
     const [existingWSNs, setExistingWSNs] = useState<Map<string, number | null>>(new Map());
@@ -221,13 +223,14 @@ export default function MobileScanPage() {
         const load = async () => {
             try {
                 let res: any;
-                if (mode === 'qc') res = await qcAPI.loadDraft(activeWarehouse.id);
-                else if (mode === 'outbound') res = await outboundAPI.loadDraft(activeWarehouse.id);
-                else res = await pickingAPI.loadDraft(activeWarehouse.id);
+                if (mode === 'qc') res = await qcAPI.loadDraft(activeWarehouse.id, 'mobile');
+                else if (mode === 'outbound') res = await outboundAPI.loadDraft(activeWarehouse.id, 'mobile');
+                else res = await pickingAPI.loadDraft(activeWarehouse.id, 'mobile');
 
                 const draft = res?.data?.draft || res?.data;
-                if (draft?.draft_data?.length > 0) {
-                    const entries: ScannedEntry[] = draft.draft_data.map((d: any, i: number) => ({
+                const draftRows = draft?.rows || draft?.draft_data;
+                if (draftRows?.length > 0) {
+                    const entries: ScannedEntry[] = draftRows.map((d: any, i: number) => ({
                         id: `draft_${i}_${Date.now()}`,
                         wsn: d.wsn || '',
                         scannedAt: Date.now(),
@@ -241,6 +244,8 @@ export default function MobileScanPage() {
                         productInfo: d.productInfo || undefined,
                     }));
                     setScannedEntries(entries);
+                    // Sync ref with loaded entries
+                    scannedWSNsRef.current = new Set(entries.map(e => e.wsn));
                     if (mode === 'qc' && draft.common_date) setQcDate(draft.common_date);
                     if (mode === 'outbound') {
                         if (draft.customer_name) setCustomerName(draft.customer_name);
@@ -262,6 +267,7 @@ export default function MobileScanPage() {
                     const data = JSON.parse(ls);
                     if (data?.entries?.length > 0) {
                         setScannedEntries(data.entries);
+                        scannedWSNsRef.current = new Set(data.entries.map((e: any) => e.wsn));
                         if (data.qcByName) setQcByName(data.qcByName);
                         if (data.qcDate) setQcDate(data.qcDate);
                         if (data.customerName) setCustomerName(data.customerName);
@@ -364,11 +370,11 @@ export default function MobileScanPage() {
                 }));
 
                 if (mode === 'qc') {
-                    await qcAPI.saveDraft(draftRows, activeWarehouse.id, qcDate);
+                    await qcAPI.saveDraft(draftRows, activeWarehouse.id, qcDate, 'mobile');
                 } else if (mode === 'outbound') {
-                    await outboundAPI.saveDraft(draftRows, activeWarehouse.id, customerName, '', dispatchDate);
+                    await outboundAPI.saveDraft(draftRows, activeWarehouse.id, customerName, '', dispatchDate, 'mobile');
                 } else {
-                    await pickingAPI.saveDraft(draftRows, activeWarehouse.id, pickingCustomer, pickingDate);
+                    await pickingAPI.saveDraft(draftRows, activeWarehouse.id, pickingCustomer, pickingDate, 'mobile');
                 }
             } catch { /* silent */ }
         }, 500);
@@ -380,8 +386,8 @@ export default function MobileScanPage() {
 
     // Scan handler with proper 3-level duplicate check + product fetch
     const handleScan = useCallback(async (wsn: string) => {
-        // Level 1: Grid duplicate (already in current scan list)
-        if (scannedEntries.some(e => e.wsn === wsn)) {
+        // Level 1: Grid duplicate — uses ref (NOT state) to avoid stale closure
+        if (scannedWSNsRef.current.has(wsn)) {
             toast.error(`${wsn} already in scan list!`, { duration: 2500 });
             if (navigator.vibrate) navigator.vibrate([100, 50, 100, 50, 100]);
             return;
@@ -410,6 +416,8 @@ export default function MobileScanPage() {
             dupType,
         };
 
+        // Add to ref immediately (synchronous — prevents rapid-fire duplicates)
+        scannedWSNsRef.current.add(wsn);
         setScannedEntries(prev => [newEntry, ...prev]);
         if (isDuplicate) {
             const dupMsg = dupType === 'cross-wh'
@@ -432,7 +440,7 @@ export default function MobileScanPage() {
                 ));
             }
         });
-    }, [scannedEntries, existingWSNs, soundOn, fetchProductInfo, mode, activeWarehouse?.id]);
+    }, [existingWSNs, soundOn, fetchProductInfo, mode, activeWarehouse?.id]);
 
     // Handle serial number scan result
     const handleSerialScan = useCallback((serial: string) => {
@@ -455,7 +463,11 @@ export default function MobileScanPage() {
     }, [manualWSN, handleScan]);
 
     const handleDeleteEntry = useCallback((id: string) => {
-        setScannedEntries(prev => prev.filter(e => e.id !== id));
+        setScannedEntries(prev => {
+            const removed = prev.find(e => e.id === id);
+            if (removed) scannedWSNsRef.current.delete(removed.wsn);
+            return prev.filter(e => e.id !== id);
+        });
     }, []);
 
     const handleUpdateEntry = useCallback((id: string, field: keyof ScannedEntry, value: string) => {
@@ -466,14 +478,15 @@ export default function MobileScanPage() {
     const handleClearDraft = useCallback(async () => {
         setClearConfirmOpen(false);
         setScannedEntries([]);
+        scannedWSNsRef.current.clear();
         // Clear localStorage
         try { localStorage.removeItem(`${DRAFT_LS_KEY}_${mode}`); } catch { /* ignore */ }
-        // Clear server draft
+        // Clear server draft (mobile source)
         try {
             if (activeWarehouse?.id) {
-                if (mode === 'qc') await qcAPI.clearDraft(activeWarehouse.id);
-                else if (mode === 'outbound') await outboundAPI.clearDraft(activeWarehouse.id);
-                else await pickingAPI.clearDraft(activeWarehouse.id);
+                if (mode === 'qc') await qcAPI.clearDraft(activeWarehouse.id, 'mobile');
+                else if (mode === 'outbound') await outboundAPI.clearDraft(activeWarehouse.id, 'mobile');
+                else await pickingAPI.clearDraft(activeWarehouse.id, 'mobile');
             }
         } catch { /* ignore */ }
         toast.success('Draft cleared');
@@ -546,16 +559,24 @@ export default function MobileScanPage() {
                 batchId = res.data?.batch_id || res.data?.batchId || '';
             }
 
-            // Clear drafts
+            // Clear drafts (mobile source)
             try {
-                if (mode === 'qc') await qcAPI.clearDraft(activeWarehouse.id);
-                else if (mode === 'outbound') await outboundAPI.clearDraft(activeWarehouse.id);
-                else await pickingAPI.clearDraft(activeWarehouse.id);
+                if (mode === 'qc') await qcAPI.clearDraft(activeWarehouse.id, 'mobile');
+                else if (mode === 'outbound') await outboundAPI.clearDraft(activeWarehouse.id, 'mobile');
+                else await pickingAPI.clearDraft(activeWarehouse.id, 'mobile');
             } catch { /* ignore */ }
             localStorage.removeItem(`${DRAFT_LS_KEY}_${mode}`);
 
+            // Add submitted WSNs to existingWSNs so they can't be re-scanned
+            setExistingWSNs(prev => {
+                const updated = new Map(prev);
+                validEntries.forEach(e => updated.set(e.wsn, activeWarehouse!.id));
+                return updated;
+            });
+
             setResultDialog({ open: true, batchId, count: validEntries.length });
             setScannedEntries([]);
+            scannedWSNsRef.current.clear();
             setCameraOpen(false);
         } catch (err: any) {
             toast.error(err?.response?.data?.error || err?.message || 'Submission failed');
