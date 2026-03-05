@@ -6,7 +6,7 @@ import {
     Box, Typography, Button, TextField, Stack, Card, CardContent,
     IconButton, Chip, Alert, CircularProgress, Divider, useTheme,
     AppBar, Toolbar, ToggleButton, ToggleButtonGroup, Dialog, DialogTitle,
-    DialogContent, DialogActions, Collapse,
+    DialogContent, DialogActions, Collapse, Autocomplete,
 } from '@mui/material';
 import {
     ArrowBack as ArrowBackIcon,
@@ -19,8 +19,11 @@ import {
     PlayArrow as StartIcon,
     ExpandMore as ExpandMoreIcon,
     Settings as SetupIcon,
+    DeleteSweep as ClearAllIcon,
+    Warning as WarningIcon,
+    QrCodeScanner as ScanIcon,
 } from '@mui/icons-material';
-import { qcAPI, outboundAPI, pickingAPI } from '@/lib/api';
+import { qcAPI, outboundAPI, pickingAPI, rackAPI } from '@/lib/api';
 import { useWarehouse } from '@/app/context/WarehouseContext';
 import { getStoredUser } from '@/lib/auth';
 import CameraScanner from '@/components/CameraScanner';
@@ -29,14 +32,31 @@ import toast, { Toaster } from 'react-hot-toast';
 
 type ScanMode = 'qc' | 'outbound' | 'picking';
 
+interface ProductInfo {
+    product_title?: string;
+    brand?: string;
+    mrp?: string | number;
+    fsp?: string | number;
+    rack_no?: string;
+    fsn?: string;
+}
+
 interface ScannedEntry {
     id: string;
     wsn: string;
     scannedAt: number;
+    // QC per-entry fields
     qcGrade?: string;
     productSerialNumber?: string;
     rackNo?: string;
     qcRemarks?: string;
+    otherRemarks?: string;
+    // Picking per-entry fields
+    pickingRemarks?: string;
+    // Product info (all modes)
+    productInfo?: ProductInfo;
+    // Duplicate flag
+    isDuplicate?: boolean;
 }
 
 const MODE_CONFIG: Record<ScanMode, { title: string; color: string; icon: string }> = {
@@ -79,12 +99,21 @@ export default function MobileScanPage() {
     const [resultDialog, setResultDialog] = useState<{ open: boolean; batchId: string; count: number }>({
         open: false, batchId: '', count: 0,
     });
+    const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
+    const [serialScanEntry, setSerialScanEntry] = useState<string | null>(null); // entry ID for scanning serial number
 
     // Scanned entries
     const [scannedEntries, setScannedEntries] = useState<ScannedEntry[]>([]);
     const [expandedEntry, setExpandedEntry] = useState<string | null>(null);
     const wsnInputRef = useRef<HTMLInputElement>(null);
     const draftSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const draftLoadedRef = useRef(false);
+
+    // Existing WSNs for duplicate check
+    const [existingWSNs, setExistingWSNs] = useState<Set<string>>(new Set());
+
+    // Rack list for QC
+    const [racks, setRacks] = useState<string[]>([]);
 
     // QC setup
     const [qcByName, setQcByName] = useState('');
@@ -124,9 +153,51 @@ export default function MobileScanPage() {
         }
     }, [mode, activeWarehouse?.id]);
 
-    // Load draft on mount
+    // Load existing WSNs for duplicate check
     useEffect(() => {
         if (!activeWarehouse?.id) return;
+        const loadExisting = async () => {
+            try {
+                if (mode === 'qc') {
+                    const res = await qcAPI.getAllQCWSNs();
+                    const wsns = (res.data || []).map((item: any) => (typeof item === 'string' ? item : item.wsn || '').toUpperCase());
+                    setExistingWSNs(new Set(wsns));
+                } else if (mode === 'outbound') {
+                    const res = await outboundAPI.getExistingWSNs(activeWarehouse.id);
+                    setExistingWSNs(new Set((res.data || []).map((w: string) => w.toUpperCase())));
+                } else {
+                    const res = await pickingAPI.getExistingWSNs(activeWarehouse.id);
+                    setExistingWSNs(new Set((res.data || []).map((w: string) => (typeof w === 'string' ? w : '').toUpperCase())));
+                }
+            } catch { /* ignore */ }
+        };
+        loadExisting();
+    }, [mode, activeWarehouse?.id]);
+
+    // Load racks for QC
+    useEffect(() => {
+        if (mode === 'qc' && activeWarehouse?.id) {
+            rackAPI.getByWarehouse(activeWarehouse.id)
+                .then(res => {
+                    const list = (res.data || []).map((r: any) => r.rack_no || r.rack_name || r.name || String(r));
+                    setRacks(list.filter(Boolean));
+                })
+                .catch(() => {
+                    // Fallback to inbound racks API
+                    qcAPI.getWarehouseRacks?.(activeWarehouse!.id)
+                        ?.then((res: any) => {
+                            const list = (res.data?.racks || res.data || []).map((r: any) => r.rack_no || r);
+                            setRacks(list.filter(Boolean));
+                        })
+                        .catch(() => { });
+                });
+        }
+    }, [mode, activeWarehouse?.id]);
+
+    // Load draft on mount
+    useEffect(() => {
+        if (!activeWarehouse?.id || draftLoadedRef.current) return;
+        draftLoadedRef.current = true;
         const load = async () => {
             try {
                 let res: any;
@@ -144,6 +215,9 @@ export default function MobileScanPage() {
                         productSerialNumber: d.product_serial_number || '',
                         rackNo: d.rack_no || '',
                         qcRemarks: d.qc_remarks || '',
+                        otherRemarks: d.other_remarks || '',
+                        pickingRemarks: d.picking_remarks || '',
+                        productInfo: d.productInfo || undefined,
                     }));
                     setScannedEntries(entries);
                     if (mode === 'qc' && draft.common_date) setQcDate(draft.common_date);
@@ -185,9 +259,63 @@ export default function MobileScanPage() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [activeWarehouse?.id, mode]);
 
+    // Fetch product info for a WSN
+    const fetchProductInfo = useCallback(async (wsn: string): Promise<ProductInfo | undefined> => {
+        if (!activeWarehouse?.id) return undefined;
+        try {
+            if (mode === 'qc') {
+                const res = await qcAPI.getPendingInbound(activeWarehouse.id, wsn);
+                const items = res.data?.data || res.data || [];
+                const match = items.find((i: any) => (i.wsn || '').toUpperCase() === wsn.toUpperCase()) || items[0];
+                if (match) {
+                    return {
+                        product_title: match.product_title || '',
+                        brand: match.brand || '',
+                        mrp: match.mrp || '',
+                        fsp: match.fsp || '',
+                        rack_no: match.rack_no || '',
+                        fsn: match.fsn || '',
+                    };
+                }
+            } else if (mode === 'outbound') {
+                const res = await outboundAPI.getSourceByWSN(wsn, activeWarehouse.id);
+                if (res.data) {
+                    const d = res.data;
+                    return {
+                        product_title: d.product_title || '',
+                        brand: d.brand || '',
+                        mrp: d.mrp || '',
+                        fsp: d.fsp || '',
+                        rack_no: d.rack_no || '',
+                        fsn: d.fsn || '',
+                    };
+                }
+            } else {
+                const res = await pickingAPI.getSourceByWSN(wsn, activeWarehouse.id);
+                if (res.data) {
+                    const d = res.data;
+                    return {
+                        product_title: d.product_title || '',
+                        brand: d.brand || '',
+                        mrp: d.mrp || '',
+                        fsp: d.fsp || '',
+                        rack_no: d.rack_no || '',
+                        fsn: d.fsn || '',
+                    };
+                }
+            }
+        } catch { /* ignore */ }
+        return undefined;
+    }, [activeWarehouse?.id, mode]);
+
     // Auto-save drafts
     const saveDraft = useCallback(async (entries: ScannedEntry[]) => {
-        if (!activeWarehouse?.id || entries.length === 0) return;
+        if (!activeWarehouse?.id) return;
+        if (entries.length === 0) {
+            // Clear drafts when no entries
+            try { localStorage.removeItem(`${DRAFT_LS_KEY}_${mode}`); } catch { /* ignore */ }
+            return;
+        }
 
         // Instant localStorage save
         try {
@@ -208,6 +336,9 @@ export default function MobileScanPage() {
                     product_serial_number: e.productSerialNumber || '',
                     rack_no: e.rackNo || '',
                     qc_remarks: e.qcRemarks || '',
+                    other_remarks: e.otherRemarks || '',
+                    picking_remarks: e.pickingRemarks || '',
+                    productInfo: e.productInfo || undefined,
                 }));
 
                 if (mode === 'qc') {
@@ -222,24 +353,60 @@ export default function MobileScanPage() {
     }, [activeWarehouse?.id, mode, qcByName, qcDate, customerName, dispatchDate, vehicleNo, pickerName, pickingDate, pickingCustomer]);
 
     useEffect(() => {
-        if (scannedEntries.length > 0) saveDraft(scannedEntries);
+        saveDraft(scannedEntries);
     }, [scannedEntries, saveDraft]);
 
-    // Scan handler
-    const handleScan = useCallback((wsn: string) => {
+    // Scan handler with duplicate check + product fetch
+    const handleScan = useCallback(async (wsn: string) => {
+        // Local list duplicate check
         if (scannedEntries.some(e => e.wsn === wsn)) {
-            toast.error(`${wsn} already scanned`);
+            toast.error(`${wsn} already in scan list`, { duration: 2000 });
+            if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
             return;
         }
+        // Server duplicate check
+        const isServerDup = existingWSNs.has(wsn);
+
         if (soundOn) playBeep();
-        setScannedEntries(prev => [{
+        const newEntry: ScannedEntry = {
             id: `${wsn}_${Date.now()}`,
             wsn,
             scannedAt: Date.now(),
             qcGrade: 'A',
-        }, ...prev]);
-        toast.success(`Scanned: ${wsn}`, { duration: 1000 });
-    }, [scannedEntries, soundOn]);
+            isDuplicate: isServerDup,
+        };
+
+        setScannedEntries(prev => [newEntry, ...prev]);
+        if (isServerDup) {
+            toast(`⚠️ ${wsn} already exists in database`, { icon: '⚠️', duration: 3000 });
+        } else {
+            toast.success(`✓ ${wsn}`, { duration: 800 });
+        }
+
+        // Fetch product info in background
+        fetchProductInfo(wsn).then(info => {
+            if (info) {
+                setScannedEntries(prev => prev.map(e =>
+                    e.wsn === wsn ? {
+                        ...e,
+                        productInfo: info,
+                        rackNo: e.rackNo || info.rack_no || '',
+                    } : e
+                ));
+            }
+        });
+    }, [scannedEntries, existingWSNs, soundOn, fetchProductInfo]);
+
+    // Handle serial number scan result
+    const handleSerialScan = useCallback((serial: string) => {
+        if (serialScanEntry) {
+            setScannedEntries(prev => prev.map(e =>
+                e.id === serialScanEntry ? { ...e, productSerialNumber: serial } : e
+            ));
+            toast.success(`Serial: ${serial}`, { duration: 1000 });
+        }
+        setSerialScanEntry(null);
+    }, [serialScanEntry]);
 
     // Manual add
     const handleManualAdd = useCallback(() => {
@@ -258,6 +425,23 @@ export default function MobileScanPage() {
         setScannedEntries(prev => prev.map(e => e.id === id ? { ...e, [field]: value } : e));
     }, []);
 
+    // Clear all drafts with confirmation
+    const handleClearDraft = useCallback(async () => {
+        setClearConfirmOpen(false);
+        setScannedEntries([]);
+        // Clear localStorage
+        try { localStorage.removeItem(`${DRAFT_LS_KEY}_${mode}`); } catch { /* ignore */ }
+        // Clear server draft
+        try {
+            if (activeWarehouse?.id) {
+                if (mode === 'qc') await qcAPI.clearDraft(activeWarehouse.id);
+                else if (mode === 'outbound') await outboundAPI.clearDraft(activeWarehouse.id);
+                else await pickingAPI.clearDraft(activeWarehouse.id);
+            }
+        } catch { /* ignore */ }
+        toast.success('Draft cleared');
+    }, [mode, activeWarehouse?.id]);
+
     // Start session
     const handleStartSession = useCallback(() => {
         if (mode === 'qc' && !qcByName.trim()) { toast.error('QC By Name is required'); return; }
@@ -270,14 +454,21 @@ export default function MobileScanPage() {
     // Submit all
     const handleSubmitAll = useCallback(async () => {
         if (scannedEntries.length === 0 || !activeWarehouse?.id) return;
-        setSubmitting(true);
 
+        // Filter out duplicate entries if user wants
+        const validEntries = scannedEntries.filter(e => !e.isDuplicate);
+        if (validEntries.length === 0) {
+            toast.error('All entries are duplicates. Remove them or scan new WSNs.');
+            return;
+        }
+
+        setSubmitting(true);
         try {
             const user = getStoredUser();
             let batchId = '';
 
             if (mode === 'qc') {
-                const entries = scannedEntries.map(e => ({
+                const entries = validEntries.map(e => ({
                     wsn: e.wsn,
                     qc_date: qcDate,
                     qc_by_name: qcByName.trim(),
@@ -285,12 +476,12 @@ export default function MobileScanPage() {
                     product_serial_number: e.productSerialNumber || '',
                     rack_no: e.rackNo || '',
                     qc_remarks: e.qcRemarks || '',
-                    other_remarks: '',
+                    other_remarks: e.otherRemarks || '',
                 }));
                 const res = await qcAPI.multiEntry({ entries, warehouse_id: activeWarehouse.id });
                 batchId = res.data?.batch_id || res.data?.batchId || '';
             } else if (mode === 'outbound') {
-                const entries = scannedEntries.map(e => ({
+                const entries = validEntries.map(e => ({
                     wsn: e.wsn,
                     dispatch_date: dispatchDate,
                     customer_name: customerName.trim(),
@@ -299,13 +490,13 @@ export default function MobileScanPage() {
                 const res = await outboundAPI.multiEntry({ entries, warehouse_id: activeWarehouse.id });
                 batchId = res.data?.batch_id || res.data?.batchId || '';
             } else {
-                const entries = scannedEntries.map(e => ({
+                const entries = validEntries.map(e => ({
                     wsn: e.wsn,
                     picking_date: pickingDate,
                     customer_name: pickingCustomer.trim(),
                     picker_name: pickerName.trim(),
-                    picking_remarks: '',
-                    rack_no: '',
+                    picking_remarks: e.pickingRemarks || '',
+                    rack_no: e.productInfo?.rack_no || '',
                     other_remarks: '',
                     quantity: 1,
                     created_by: user?.id,
@@ -324,7 +515,7 @@ export default function MobileScanPage() {
             } catch { /* ignore */ }
             localStorage.removeItem(`${DRAFT_LS_KEY}_${mode}`);
 
-            setResultDialog({ open: true, batchId, count: scannedEntries.length });
+            setResultDialog({ open: true, batchId, count: validEntries.length });
             setScannedEntries([]);
             setCameraOpen(false);
         } catch (err: any) {
@@ -340,6 +531,23 @@ export default function MobileScanPage() {
         if (mode === 'picking') return !!pickerName.trim();
         return false;
     }, [mode, qcByName, customerName, pickerName]);
+
+    const dupCount = useMemo(() => scannedEntries.filter(e => e.isDuplicate).length, [scannedEntries]);
+
+    // Compact product info line
+    const ProductInfoLine = ({ info }: { info?: ProductInfo }) => {
+        if (!info?.product_title) return null;
+        return (
+            <Box sx={{ px: 1.5, pb: 0.5 }}>
+                <Typography sx={{ fontSize: '0.65rem', color: isDark ? '#94a3b8' : '#64748b', lineHeight: 1.3 }} noWrap>
+                    {info.product_title}
+                    {info.brand ? ` • ${info.brand}` : ''}
+                    {info.mrp ? ` • ₹${info.mrp}` : ''}
+                    {info.rack_no ? ` • 📍${info.rack_no}` : ''}
+                </Typography>
+            </Box>
+        );
+    };
 
     return (
         <Box sx={{ minHeight: '100dvh', bgcolor: isDark ? '#0f172a' : '#f5f7fa', display: 'flex', flexDirection: 'column' }}>
@@ -460,22 +668,36 @@ export default function MobileScanPage() {
                 {/* ===== SCANNING PHASE ===== */}
                 {phase === 'scanning' && (
                     <>
-                        {/* Camera */}
-                        <CameraScanner
-                            isOpen={cameraOpen} onScan={handleScan}
-                            onClose={() => setCameraOpen(false)}
-                            title={`Scan WSN for ${config.title}`}
-                        />
+                        {/* Serial number scanner overlay for QC */}
+                        {serialScanEntry && (
+                            <Box sx={{ mb: 1 }}>
+                                <CameraScanner
+                                    isOpen={true}
+                                    onScan={handleSerialScan}
+                                    onClose={() => setSerialScanEntry(null)}
+                                    title="Scan Product Serial Number"
+                                />
+                            </Box>
+                        )}
+
+                        {/* Main WSN Camera (hidden when scanning serial) */}
+                        {!serialScanEntry && (
+                            <CameraScanner
+                                isOpen={cameraOpen} onScan={handleScan}
+                                onClose={() => setCameraOpen(false)}
+                                title={`Scan WSN for ${config.title}`}
+                            />
+                        )}
 
                         {/* Camera toggle + Manual input */}
                         <Card sx={{
-                            mt: cameraOpen ? 1 : 0, borderRadius: 2,
+                            mt: (cameraOpen || serialScanEntry) ? 1 : 0, borderRadius: 2,
                             bgcolor: isDark ? '#1e293b' : '#fff',
                             boxShadow: isDark ? '0 2px 8px rgba(0,0,0,0.3)' : '0 1px 6px rgba(0,0,0,0.06)',
                         }}>
                             <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
                                 <Stack spacing={1}>
-                                    {!cameraOpen && (
+                                    {!cameraOpen && !serialScanEntry && (
                                         <Button
                                             fullWidth variant="contained" startIcon={<CameraIcon />}
                                             onClick={() => setCameraOpen(true)}
@@ -509,27 +731,48 @@ export default function MobileScanPage() {
                             </CardContent>
                         </Card>
 
-                        {/* Setup summary */}
+                        {/* Setup summary + Clear button */}
                         <Box sx={{
                             mt: 1, px: 1.5, py: 0.8, borderRadius: 1.5,
                             bgcolor: isDark ? '#1e293b80' : '#e2e8f040',
                             border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
                         }}>
                             <Stack direction="row" justifyContent="space-between" alignItems="center">
-                                <Typography sx={{ fontSize: '0.7rem', color: isDark ? '#94a3b8' : '#64748b' }}>
+                                <Typography sx={{ fontSize: '0.7rem', color: isDark ? '#94a3b8' : '#64748b', flex: 1 }}>
                                     {mode === 'qc' && `👤 ${qcByName} • 📅 ${qcDate}`}
                                     {mode === 'outbound' && `🏢 ${customerName} • 🚛 ${vehicleNo || 'N/A'} • 📅 ${dispatchDate}`}
                                     {mode === 'picking' && `👤 ${pickerName}${pickingCustomer ? ` • 🏢 ${pickingCustomer}` : ''} • 📅 ${pickingDate}`}
                                 </Typography>
-                                <Button
-                                    size="small"
-                                    onClick={() => { setPhase('setup'); setCameraOpen(false); }}
-                                    sx={{ minWidth: 'auto', fontSize: '0.65rem', color: config.color, textTransform: 'none' }}
-                                >
-                                    Edit
-                                </Button>
+                                <Stack direction="row" spacing={0.5}>
+                                    {scannedEntries.length > 0 && (
+                                        <Button
+                                            size="small"
+                                            onClick={() => setClearConfirmOpen(true)}
+                                            sx={{ minWidth: 'auto', fontSize: '0.6rem', color: '#ef4444', textTransform: 'none', px: 0.5 }}
+                                            startIcon={<ClearAllIcon sx={{ fontSize: '12px !important' }} />}
+                                        >
+                                            Clear
+                                        </Button>
+                                    )}
+                                    <Button
+                                        size="small"
+                                        onClick={() => { setPhase('setup'); setCameraOpen(false); }}
+                                        sx={{ minWidth: 'auto', fontSize: '0.65rem', color: config.color, textTransform: 'none', px: 0.5 }}
+                                    >
+                                        Edit
+                                    </Button>
+                                </Stack>
                             </Stack>
                         </Box>
+
+                        {/* Duplicate warning */}
+                        {dupCount > 0 && (
+                            <Alert severity="warning" sx={{ mt: 0.5, py: 0, fontSize: '0.7rem', borderRadius: 1 }}
+                                icon={<WarningIcon sx={{ fontSize: 16 }} />}
+                            >
+                                {dupCount} WSN(s) already exist in database — they will be skipped on submit
+                            </Alert>
+                        )}
 
                         {/* Scanned Entries */}
                         {scannedEntries.length > 0 && (
@@ -541,16 +784,27 @@ export default function MobileScanPage() {
                                     {scannedEntries.map((entry) => (
                                         <Card key={entry.id} sx={{
                                             borderRadius: 1.5, bgcolor: isDark ? '#1e293b' : '#fff',
-                                            border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
+                                            border: `1px solid ${entry.isDuplicate ? '#f59e0b' : (isDark ? '#334155' : '#e2e8f0')}`,
+                                            opacity: entry.isDuplicate ? 0.7 : 1,
                                         }}>
-                                            <Box sx={{ px: 1.5, py: 0.8, display: 'flex', alignItems: 'center', gap: 1 }}>
-                                                <Typography sx={{
-                                                    fontSize: '0.78rem', fontWeight: 700,
-                                                    color: isDark ? '#e2e8f0' : '#1e293b',
-                                                    flex: 1, fontFamily: 'monospace',
-                                                }}>
-                                                    {entry.wsn}
-                                                </Typography>
+                                            <Box sx={{ px: 1.5, py: 0.6, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                                <Box sx={{ flex: 1, minWidth: 0 }}>
+                                                    <Stack direction="row" alignItems="center" spacing={0.5}>
+                                                        <Typography sx={{
+                                                            fontSize: '0.75rem', fontWeight: 700,
+                                                            color: entry.isDuplicate ? '#f59e0b' : (isDark ? '#e2e8f0' : '#1e293b'),
+                                                            fontFamily: 'monospace',
+                                                        }} noWrap>
+                                                            {entry.wsn}
+                                                        </Typography>
+                                                        {entry.isDuplicate && (
+                                                            <Chip label="DUP" size="small" sx={{
+                                                                height: 16, fontSize: '0.55rem', fontWeight: 800,
+                                                                bgcolor: '#fef3c7', color: '#92400e',
+                                                            }} />
+                                                        )}
+                                                    </Stack>
+                                                </Box>
 
                                                 {mode === 'qc' && (
                                                     <ToggleButtonGroup
@@ -559,7 +813,7 @@ export default function MobileScanPage() {
                                                         size="small"
                                                         sx={{
                                                             '& .MuiToggleButton-root': {
-                                                                px: 0.8, py: 0.1, fontSize: '0.65rem', fontWeight: 700, minWidth: 24,
+                                                                px: 0.6, py: 0, fontSize: '0.6rem', fontWeight: 700, minWidth: 22, height: 22,
                                                                 '&.Mui-selected': { bgcolor: config.color, color: '#fff' },
                                                             },
                                                         }}
@@ -571,14 +825,14 @@ export default function MobileScanPage() {
                                                     </ToggleButtonGroup>
                                                 )}
 
-                                                {mode === 'qc' && (
+                                                {(mode === 'qc' || mode === 'picking') && (
                                                     <IconButton
                                                         size="small"
                                                         onClick={() => setExpandedEntry(expandedEntry === entry.id ? null : entry.id)}
-                                                        sx={{ color: isDark ? '#64748b' : '#94a3b8', width: 24, height: 24 }}
+                                                        sx={{ color: isDark ? '#64748b' : '#94a3b8', width: 22, height: 22 }}
                                                     >
                                                         <ExpandMoreIcon sx={{
-                                                            fontSize: 16,
+                                                            fontSize: 14,
                                                             transform: expandedEntry === entry.id ? 'rotate(180deg)' : 'none',
                                                             transition: '0.2s',
                                                         }} />
@@ -587,36 +841,89 @@ export default function MobileScanPage() {
 
                                                 <IconButton
                                                     size="small" onClick={() => handleDeleteEntry(entry.id)}
-                                                    sx={{ color: '#ef4444', width: 24, height: 24 }}
+                                                    sx={{ color: '#ef4444', width: 22, height: 22 }}
                                                 >
-                                                    <DeleteIcon sx={{ fontSize: 14 }} />
+                                                    <DeleteIcon sx={{ fontSize: 13 }} />
                                                 </IconButton>
                                             </Box>
 
+                                            {/* Compact product info */}
+                                            <ProductInfoLine info={entry.productInfo} />
+
+                                            {/* QC expanded fields */}
                                             {mode === 'qc' && (
                                                 <Collapse in={expandedEntry === entry.id}>
                                                     <Box sx={{ px: 1.5, pb: 1, pt: 0.5 }}>
                                                         <Divider sx={{ mb: 1 }} />
                                                         <Stack spacing={1}>
-                                                            <TextField
-                                                                fullWidth size="small" label="Product Serial No."
-                                                                value={entry.productSerialNumber || ''}
-                                                                onChange={e => handleUpdateEntry(entry.id, 'productSerialNumber', e.target.value)}
-                                                                placeholder="Scan or type..."
-                                                            />
-                                                            <TextField
-                                                                fullWidth size="small" label="Rack"
+                                                            <Stack direction="row" spacing={0.5} alignItems="center">
+                                                                <TextField
+                                                                    fullWidth size="small" label="Product Serial No."
+                                                                    value={entry.productSerialNumber || ''}
+                                                                    onChange={e => handleUpdateEntry(entry.id, 'productSerialNumber', e.target.value)}
+                                                                    placeholder="Scan or type..."
+                                                                    sx={{ '& .MuiInputBase-root': { fontSize: '0.8rem' } }}
+                                                                />
+                                                                <IconButton
+                                                                    size="small"
+                                                                    onClick={() => {
+                                                                        setCameraOpen(false);
+                                                                        setSerialScanEntry(entry.id);
+                                                                    }}
+                                                                    sx={{
+                                                                        color: config.color, width: 34, height: 34,
+                                                                        border: `1px solid ${config.color}40`,
+                                                                    }}
+                                                                >
+                                                                    <ScanIcon sx={{ fontSize: 18 }} />
+                                                                </IconButton>
+                                                            </Stack>
+                                                            <Autocomplete
+                                                                freeSolo
+                                                                options={racks}
                                                                 value={entry.rackNo || ''}
-                                                                onChange={e => handleUpdateEntry(entry.id, 'rackNo', e.target.value)}
-                                                                placeholder="Rack location"
+                                                                onChange={(_, v) => handleUpdateEntry(entry.id, 'rackNo', v || '')}
+                                                                onInputChange={(_, v) => handleUpdateEntry(entry.id, 'rackNo', v || '')}
+                                                                renderInput={(params) => (
+                                                                    <TextField {...params} size="small" label="Rack"
+                                                                        placeholder="Select or type rack..."
+                                                                        sx={{ '& .MuiInputBase-root': { fontSize: '0.8rem' } }}
+                                                                    />
+                                                                )}
+                                                                size="small"
                                                             />
                                                             <TextField
-                                                                fullWidth size="small" label="Remarks"
+                                                                fullWidth size="small" label="QC Remarks"
                                                                 value={entry.qcRemarks || ''}
                                                                 onChange={e => handleUpdateEntry(entry.id, 'qcRemarks', e.target.value)}
                                                                 multiline rows={1}
+                                                                sx={{ '& .MuiInputBase-root': { fontSize: '0.8rem' } }}
+                                                            />
+                                                            <TextField
+                                                                fullWidth size="small" label="Other Remarks"
+                                                                value={entry.otherRemarks || ''}
+                                                                onChange={e => handleUpdateEntry(entry.id, 'otherRemarks', e.target.value)}
+                                                                multiline rows={1}
+                                                                sx={{ '& .MuiInputBase-root': { fontSize: '0.8rem' } }}
                                                             />
                                                         </Stack>
+                                                    </Box>
+                                                </Collapse>
+                                            )}
+
+                                            {/* Picking expanded fields */}
+                                            {mode === 'picking' && (
+                                                <Collapse in={expandedEntry === entry.id}>
+                                                    <Box sx={{ px: 1.5, pb: 1, pt: 0.5 }}>
+                                                        <Divider sx={{ mb: 1 }} />
+                                                        <TextField
+                                                            fullWidth size="small" label="Picking Remarks"
+                                                            value={entry.pickingRemarks || ''}
+                                                            onChange={e => handleUpdateEntry(entry.id, 'pickingRemarks', e.target.value)}
+                                                            multiline rows={1}
+                                                            placeholder="Add remarks..."
+                                                            sx={{ '& .MuiInputBase-root': { fontSize: '0.8rem' } }}
+                                                        />
                                                     </Box>
                                                 </Collapse>
                                             )}
@@ -655,7 +962,7 @@ export default function MobileScanPage() {
                             boxShadow: !submitting ? '0 4px 14px rgba(34,197,94,0.3)' : 'none',
                         }}
                     >
-                        {submitting ? 'Submitting...' : `Submit All (${scannedEntries.length} entries)`}
+                        {submitting ? 'Submitting...' : `Submit All (${scannedEntries.filter(e => !e.isDuplicate).length} entries)`}
                     </Button>
                 </Box>
             )}
@@ -697,6 +1004,33 @@ export default function MobileScanPage() {
                         }}
                     >
                         Done
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* Clear Draft Confirmation Dialog */}
+            <Dialog
+                open={clearConfirmOpen}
+                onClose={() => setClearConfirmOpen(false)}
+                PaperProps={{ sx: { borderRadius: 2.5, minWidth: 260 } }}
+            >
+                <DialogTitle sx={{ fontSize: '1rem', fontWeight: 800, pb: 0.5 }}>
+                    Clear All Scanned Data?
+                </DialogTitle>
+                <DialogContent>
+                    <Typography sx={{ fontSize: '0.82rem', color: isDark ? '#94a3b8' : '#64748b' }}>
+                        This will remove all {scannedEntries.length} scanned entries and clear saved drafts. This cannot be undone.
+                    </Typography>
+                </DialogContent>
+                <DialogActions sx={{ px: 2, pb: 2, gap: 1 }}>
+                    <Button onClick={() => setClearConfirmOpen(false)}
+                        sx={{ textTransform: 'none', fontWeight: 600, borderRadius: 1.5 }}>
+                        Cancel
+                    </Button>
+                    <Button variant="contained" color="error" onClick={handleClearDraft}
+                        startIcon={<ClearAllIcon />}
+                        sx={{ textTransform: 'none', fontWeight: 700, borderRadius: 1.5 }}>
+                        Clear All
                     </Button>
                 </DialogActions>
             </Dialog>
