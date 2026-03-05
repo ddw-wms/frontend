@@ -74,6 +74,7 @@ import {
     ViewColumn as ViewColumnIcon,
     TableChart as TableChartIcon,
     Link as LinkIcon,
+    QrCodeScanner as QrCodeScannerIcon,
 } from '@mui/icons-material';
 import { outboundAPI, customerAPI } from '@/lib/api';
 import { useWarehouse } from '@/app/context/WarehouseContext';
@@ -6226,6 +6227,24 @@ export default function OutboundPage() {
                         <Card sx={{ borderRadius: 1.5, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
                             <CardContent sx={{ p: 2 }}>
                                 <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 2, color: '#1a237e', fontSize: '0.9rem' }}>📝 Dispatch Entry Form</Typography>
+                                <Button
+                                    size="small"
+                                    variant="outlined"
+                                    startIcon={<QrCodeScannerIcon sx={{ fontSize: 16 }} />}
+                                    onClick={() => router.push('/mobile-scan?mode=outbound')}
+                                    sx={{
+                                        mb: 1.5,
+                                        textTransform: 'none',
+                                        fontWeight: 700,
+                                        fontSize: '0.75rem',
+                                        borderRadius: 1.5,
+                                        borderColor: '#1e40af',
+                                        color: '#1e40af',
+                                        '&:hover': { bgcolor: 'rgba(30,64,175,0.08)', borderColor: '#1e40af' },
+                                    }}
+                                >
+                                    📱 Mobile Scan
+                                </Button>
                                 <Stack spacing={1.5}>
                                     <TextField
                                         fullWidth

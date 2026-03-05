@@ -79,6 +79,7 @@ import {
   Print as PrintIcon,
   Keyboard as KeyboardIcon,
   Link as LinkIcon,
+  QrCodeScanner as QrCodeScannerIcon,
 } from '@mui/icons-material';
 import { qcAPI } from '@/lib/api';
 import { printLabel, isAgentRunning } from '@/lib/printAgent';
@@ -5048,6 +5049,25 @@ export default function QCPage() {
                         }}
                       >Single QC Entry
                       </Typography>
+
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        startIcon={<QrCodeScannerIcon sx={{ fontSize: 16 }} />}
+                        onClick={() => router.push('/mobile-scan?mode=qc')}
+                        sx={{
+                          mb: 1.5,
+                          textTransform: 'none',
+                          fontWeight: 700,
+                          fontSize: '0.75rem',
+                          borderRadius: 1.5,
+                          borderColor: '#7c3aed',
+                          color: '#7c3aed',
+                          '&:hover': { bgcolor: 'rgba(124,58,237,0.08)', borderColor: '#7c3aed' },
+                        }}
+                      >
+                        📱 Mobile Scan
+                      </Button>
 
                       {duplicateQC && (
                         <Alert

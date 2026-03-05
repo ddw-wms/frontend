@@ -19,7 +19,8 @@ import {
   Tune as TuneIcon, Close as CloseIcon, KeyboardArrowLeft, KeyboardArrowRight, FirstPage, LastPage, AccessTime,
   PieChart as PieChartIcon, Link as LinkIcon,
   Fullscreen as FullscreenIcon, FullscreenExit as FullscreenExitIcon,
-  Menu as MenuIcon, ViewColumn as ViewColumnIcon, TableChart as TableChartIcon
+  Menu as MenuIcon, ViewColumn as ViewColumnIcon, TableChart as TableChartIcon,
+  QrCodeScanner as QrCodeScannerIcon
 } from '@mui/icons-material';
 import { pickingAPI, rackAPI, inboundAPI } from '@/lib/api';
 import { useWarehouse } from '@/app/context/WarehouseContext';
@@ -5391,6 +5392,27 @@ export default function PickingPage() {
               </Stack>
             </Box>
 
+            {/* Mobile Scan Button - visible on all screens */}
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={<QrCodeScannerIcon sx={{ fontSize: 16 }} />}
+              onClick={() => router.push('/mobile-scan?mode=picking')}
+              sx={{
+                display: { xs: 'flex', md: 'none' },
+                mb: 0.5,
+                textTransform: 'none',
+                fontWeight: 700,
+                fontSize: '0.75rem',
+                borderRadius: 1.5,
+                borderColor: '#059669',
+                color: '#059669',
+                '&:hover': { bgcolor: 'rgba(5,150,105,0.08)', borderColor: '#059669' },
+              }}
+            >
+              📱 Mobile Scan
+            </Button>
+
             {/* ===== DESKTOP: Clean Single Row Layout ===== */}
             <Stack
               direction="row"
@@ -5499,6 +5521,33 @@ export default function PickingPage() {
                   >
                     {isFullscreen ? <FullscreenExitIcon sx={{ fontSize: 20 }} /> : <FullscreenIcon sx={{ fontSize: 20 }} />}
                   </IconButton>
+                </Tooltip>
+
+                {/* Mobile Scan Button (Desktop) */}
+                <Tooltip title="Open Mobile Camera Scan" placement="top">
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    startIcon={<QrCodeScannerIcon sx={{ fontSize: 18 }} />}
+                    onClick={() => router.push('/mobile-scan?mode=picking')}
+                    sx={{
+                      height: 38,
+                      px: 2,
+                      borderRadius: 1.5,
+                      fontWeight: 600,
+                      fontSize: '0.8rem',
+                      textTransform: 'none',
+                      borderColor: '#059669',
+                      color: '#059669',
+                      bgcolor: 'rgba(5, 150, 105, 0.04)',
+                      '&:hover': {
+                        borderColor: '#059669',
+                        bgcolor: 'rgba(5, 150, 105, 0.12)'
+                      }
+                    }}
+                  >
+                    📱 Scan
+                  </Button>
                 </Tooltip>
 
                 {/* Live View Panel */}
