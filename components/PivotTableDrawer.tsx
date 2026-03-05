@@ -190,7 +190,7 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
         },
     }), [enableSorting, enableColumnFilters, enableColumnResize]);
 
-    // AG Grid column definitions for drill-down
+    // AG Grid column definitions for drill-down Table
     const drilldownColumnDefs: ColDef[] = useMemo(() => [
         {
             field: 'srNo',
@@ -220,19 +220,13 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
         { field: 'product_title', headerName: 'Product Title', width: isMobile ? 180 : 300, minWidth: isMobile ? 150 : 200, tooltipField: 'product_title' },
         { field: 'brand', headerName: 'Brand', width: isMobile ? 85 : 120, minWidth: isMobile ? 70 : 90 },
         { field: 'cms_vertical', headerName: 'Category', width: isMobile ? 100 : 130, minWidth: isMobile ? 85 : 100 },
-        { field: 'hsn_sac', headerName: 'HSN/SAC', width: isMobile ? 80 : 100, minWidth: isMobile ? 65 : 80 },
-        { field: 'igst_rate', headerName: 'IGST', width: isMobile ? 55 : 70, minWidth: isMobile ? 45 : 60 },
         { field: 'fsp', headerName: 'FSP', width: isMobile ? 75 : 100, minWidth: isMobile ? 65 : 80, valueFormatter: (params: any) => params.value ? `₹${Number(params.value).toLocaleString('en-IN')}` : '' },
         { field: 'mrp', headerName: 'MRP', width: isMobile ? 75 : 100, minWidth: isMobile ? 65 : 80, valueFormatter: (params: any) => params.value ? `₹${Number(params.value).toLocaleString('en-IN')}` : '' },
-        { field: 'vrp', headerName: 'VRP', width: isMobile ? 75 : 100, minWidth: isMobile ? 65 : 80, valueFormatter: (params: any) => params.value ? `₹${Number(params.value).toLocaleString('en-IN')}` : '' },
-        { field: 'yield_value', headerName: 'Yield', width: isMobile ? 65 : 90, minWidth: isMobile ? 55 : 70 },
+        { field: 'fkqc_remark', headerName: 'FK QC Remark', width: isMobile ? 120 : 180, minWidth: isMobile ? 90 : 140, tooltipField: 'fkqc_remark' },
         { field: 'rack_no', headerName: 'Rack', width: isMobile ? 60 : 80, minWidth: isMobile ? 50 : 60 },
         { field: 'wh_location', headerName: 'WH Location', width: isMobile ? 85 : 110, minWidth: isMobile ? 70 : 90 },
         { field: 'p_type', headerName: 'P Type', width: isMobile ? 65 : 80, minWidth: isMobile ? 55 : 70 },
-        { field: 'p_size', headerName: 'P Size', width: isMobile ? 65 : 80, minWidth: isMobile ? 55 : 70 },
         { field: 'inbound_date', headerName: 'Inbound Date', width: isMobile ? 90 : 115, minWidth: isMobile ? 80 : 100, valueFormatter: (params: any) => formatDate(params.value) },
-        { field: 'qc_grade', headerName: 'QC Grade', width: isMobile ? 75 : 95, minWidth: isMobile ? 65 : 80 },
-        { field: 'qc_date', headerName: 'QC Date', width: isMobile ? 85 : 105, minWidth: isMobile ? 70 : 90, valueFormatter: (params: any) => formatDate(params.value) },
         { field: 'current_stage', headerName: 'Stage', width: isMobile ? 75 : 100, minWidth: isMobile ? 65 : 80 },
     ], [isMobile]);
 
