@@ -62,6 +62,9 @@ import {
   Menu as MenuIcon,
   ViewColumn as ViewColumnIcon,
   TableChart as TableChartIcon,
+  CameraAlt as CameraIcon,
+  Search as SearchIcon,
+  OpenInNew as OpenInNewIcon,
 } from "@mui/icons-material";
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { dashboardAPI, inventoryAPI, inboundAPI, pickingAPI, outboundAPI } from "@/lib/api";
@@ -73,6 +76,7 @@ import AppLayout from "@/components/AppLayout";
 import { StandardPageHeader } from '@/components';
 import { useTableRowHeight } from '@/app/context/AppearanceContext';
 import PivotTableDrawer from '@/components/PivotTableDrawer';
+import CameraScanner from '@/components/CameraScanner';
 import toast, { Toaster } from "react-hot-toast";
 // ⚡ OPTIMIZED: XLSX loaded dynamically on export to reduce bundle size
 // import * as XLSX from "xlsx"; // Removed static import
@@ -770,6 +774,37 @@ export default function DashboardPage() {
   }, [columnDefs]);
 
   const [searchWSN, setSearchWSN] = useState("");
+
+  // WSN Product Lookup
+  const [lookupWSN, setLookupWSN] = useState('');
+  const [lookupCameraOpen, setLookupCameraOpen] = useState(false);
+  const [lookupLoading, setLookupLoading] = useState(false);
+  const [lookupResult, setLookupResult] = useState<any>(null);
+  const [lookupError, setLookupError] = useState('');
+
+  const handleWSNLookup = useCallback(async (wsn: string) => {
+    const trimmed = wsn.trim().toUpperCase();
+    if (!trimmed || !activeWarehouse?.id) return;
+    setLookupWSN(trimmed);
+    setLookupLoading(true);
+    setLookupError('');
+    setLookupResult(null);
+    try {
+      const res = await pickingAPI.getSourceByWSN(trimmed, activeWarehouse.id);
+      if (res.data) { setLookupResult(res.data); return; }
+    } catch { /* try fallback */ }
+    try {
+      const res = await inboundAPI.getMasterDataByWSN(trimmed, activeWarehouse.id);
+      if (res.data) { setLookupResult(res.data); return; }
+    } catch { /* ignore */ }
+    setLookupError(`No product found for WSN: ${trimmed}`);
+    setLookupLoading(false);
+  }, [activeWarehouse?.id]);
+
+  // Clear loading when result or error is set
+  useEffect(() => {
+    if (lookupResult || lookupError) setLookupLoading(false);
+  }, [lookupResult, lookupError]);
 
   const [stageFilter, setStageFilter] = useState("all");
   const [availableOnly, setAvailableOnly] = useState(false);
@@ -1818,6 +1853,185 @@ export default function DashboardPage() {
             ))}
           </Box>
 
+          {/* ================= WSN PRODUCT LOOKUP ================= */}
+          <Card
+            elevation={0}
+            sx={{
+              my: { xs: 0.75, md: 1 },
+              borderRadius: 2,
+              background: isDarkMode ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.8)',
+              border: isDarkMode ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(0,0,0,0.06)',
+              backdropFilter: 'blur(12px)',
+              flexShrink: 0,
+              overflow: 'hidden',
+            }}
+          >
+            <Box sx={{ px: { xs: 1, md: 1.5 }, py: { xs: 0.75, md: 1 } }}>
+              <Stack direction="row" spacing={1} alignItems="center">
+                <TextField
+                  size="small"
+                  placeholder="Enter WSN to lookup product..."
+                  value={lookupWSN}
+                  onChange={e => setLookupWSN(e.target.value.toUpperCase())}
+                  onKeyDown={e => { if (e.key === 'Enter') handleWSNLookup(lookupWSN); }}
+                  fullWidth
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      height: 40,
+                      bgcolor: isDarkMode ? '#1e293b' : '#f8fafc',
+                      borderRadius: 2,
+                      '&:hover': { bgcolor: isDarkMode ? '#334155' : '#f1f5f9' },
+                      '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#3b82f6', borderWidth: 2 },
+                    },
+                    '& .MuiOutlinedInput-notchedOutline': {
+                      borderColor: isDarkMode ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)',
+                    },
+                  }}
+                />
+                <Tooltip title="Scan with Camera">
+                  <IconButton
+                    onClick={() => setLookupCameraOpen(true)}
+                    sx={{
+                      display: { xs: 'flex', md: 'none' },
+                      width: 40, height: 40, borderRadius: 2,
+                      border: '1.5px solid',
+                      borderColor: '#3b82f6',
+                      color: '#3b82f6',
+                      bgcolor: 'rgba(59,130,246,0.06)',
+                      '&:hover': { bgcolor: 'rgba(59,130,246,0.15)' },
+                    }}
+                  >
+                    <CameraIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+                <Button
+                  variant="contained" size="small"
+                  onClick={() => handleWSNLookup(lookupWSN)}
+                  disabled={!lookupWSN.trim() || lookupLoading}
+                  startIcon={lookupLoading ? <CircularProgress size={16} color="inherit" /> : <SearchIcon />}
+                  sx={{
+                    height: 40, minWidth: 90, borderRadius: 2,
+                    textTransform: 'none', fontWeight: 700, fontSize: '0.8rem',
+                    background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+                    boxShadow: '0 2px 8px rgba(59,130,246,0.25)',
+                  }}
+                >
+                  Search
+                </Button>
+              </Stack>
+            </Box>
+
+            {/* Camera Scanner for WSN lookup */}
+            {lookupCameraOpen && (
+              <Box sx={{ px: { xs: 1, md: 1.5 }, pb: 1 }}>
+                <CameraScanner
+                  isOpen={lookupCameraOpen}
+                  onScan={(wsn) => { setLookupCameraOpen(false); handleWSNLookup(wsn); }}
+                  onClose={() => setLookupCameraOpen(false)}
+                  title="Scan WSN Barcode"
+                />
+              </Box>
+            )}
+
+            {/* Error */}
+            {lookupError && (
+              <Box sx={{ px: { xs: 1, md: 1.5 }, pb: 1 }}>
+                <Alert severity="warning" onClose={() => setLookupError('')}
+                  sx={{ borderRadius: 1.5, fontSize: '0.8rem', py: 0 }}>
+                  {lookupError}
+                </Alert>
+              </Box>
+            )}
+
+            {/* Product Details Result */}
+            {lookupResult && (
+              <Box sx={{
+                px: { xs: 1, md: 1.5 }, pb: { xs: 1, md: 1.5 },
+              }}>
+                <Box sx={{
+                  p: { xs: 1, md: 1.5 },
+                  borderRadius: 2,
+                  bgcolor: isDarkMode ? 'rgba(59,130,246,0.06)' : '#f0f7ff',
+                  border: isDarkMode ? '1px solid rgba(59,130,246,0.15)' : '1px solid #dbeafe',
+                }}>
+                  {/* Product Title */}
+                  {lookupResult.product_title && (
+                    <Typography sx={{
+                      fontWeight: 700, fontSize: { xs: '0.8rem', md: '0.9rem' },
+                      color: isDarkMode ? '#e2e8f0' : '#1e293b',
+                      lineHeight: 1.4, mb: 1,
+                    }}>
+                      {lookupResult.product_title}
+                    </Typography>
+                  )}
+
+                  {/* Detail Chips */}
+                  <Stack direction="row" flexWrap="wrap" gap={0.75} sx={{ mb: lookupResult.fkt_link ? 1 : 0 }}>
+                    {lookupResult.brand && (
+                      <Chip label={`Brand: ${lookupResult.brand}`} size="small" sx={{
+                        fontWeight: 700, fontSize: '0.72rem', height: 26,
+                        bgcolor: isDarkMode ? '#1e3a5f' : '#dbeafe',
+                        color: isDarkMode ? '#93c5fd' : '#1e40af',
+                      }} />
+                    )}
+                    {lookupResult.cms_vertical && (
+                      <Chip label={`Category: ${lookupResult.cms_vertical}`} size="small" sx={{
+                        fontWeight: 700, fontSize: '0.72rem', height: 26,
+                        bgcolor: isDarkMode ? '#3b1764' : '#f3e8ff',
+                        color: isDarkMode ? '#c084fc' : '#7c3aed',
+                      }} />
+                    )}
+                    {lookupResult.mrp && (
+                      <Chip label={`MRP: \u20B9${lookupResult.mrp}`} size="small" sx={{
+                        fontWeight: 700, fontSize: '0.72rem', height: 26,
+                        bgcolor: isDarkMode ? '#14532d' : '#dcfce7',
+                        color: isDarkMode ? '#86efac' : '#166534',
+                      }} />
+                    )}
+                    {lookupResult.fsp && (
+                      <Chip label={`FSP: \u20B9${lookupResult.fsp}`} size="small" sx={{
+                        fontWeight: 700, fontSize: '0.72rem', height: 26,
+                        bgcolor: isDarkMode ? '#422006' : '#fef3c7',
+                        color: isDarkMode ? '#fbbf24' : '#92400e',
+                      }} />
+                    )}
+                    {lookupResult.fsn && (
+                      <Chip label={`FSN: ${lookupResult.fsn}`} size="small" sx={{
+                        fontWeight: 700, fontSize: '0.72rem', height: 26,
+                        bgcolor: isDarkMode ? '#1c1917' : '#f5f5f4',
+                        color: isDarkMode ? '#a8a29e' : '#57534e',
+                      }} />
+                    )}
+                    {lookupResult.rack_no && (
+                      <Chip label={`Rack: ${lookupResult.rack_no}`} size="small" sx={{
+                        fontWeight: 700, fontSize: '0.72rem', height: 26,
+                        bgcolor: isDarkMode ? '#0c4a6e' : '#e0f2fe',
+                        color: isDarkMode ? '#7dd3fc' : '#0369a1',
+                      }} />
+                    )}
+                  </Stack>
+
+                  {/* Product Link */}
+                  {lookupResult.fkt_link && (
+                    <Button
+                      size="small" variant="text"
+                      href={lookupResult.fkt_link}
+                      target="_blank" rel="noopener noreferrer"
+                      startIcon={<OpenInNewIcon sx={{ fontSize: '14px !important' }} />}
+                      sx={{
+                        textTransform: 'none', fontWeight: 700,
+                        fontSize: '0.75rem', color: '#3b82f6',
+                        px: 1, borderRadius: 1.5,
+                        '&:hover': { bgcolor: 'rgba(59,130,246,0.08)' },
+                      }}
+                    >
+                      View Product
+                    </Button>
+                  )}
+                </Box>
+              </Box>
+            )}
+          </Card>
 
           {/* ================= STICKY WRAPPER: FILTER BAR + TABLE ================= */}
           <Box
