@@ -5337,8 +5337,8 @@ export default function InboundPage() {
           overflow: 'auto',
           display: 'flex',
           flexDirection: 'column',
-          gap: { xs: 0.75, sm: 1.5, md: 2 },
-          py: { xs: 0.5, sm: 0.5, md: 0.5 },
+          gap: { xs: 0, sm: 1.5, md: 2 },
+          py: { xs: 0, sm: 0.5, md: 0.5 },
           background: isDarkMode ? '#0f172a' : '#f8fafc',
         }}>
 
@@ -5411,13 +5411,13 @@ export default function InboundPage() {
                 {/* SEARCH BAR + FILTERS TOGGLE */}
                 <Box sx={{
                   flexShrink: 0,
-                  mb: 0.10,
+                  mb: 0,
                   background: isDarkMode ? '#0f172a' : '#f8fafc',
                   borderBottom: 'transparent',
                   position: 'relative',
                   zIndex: 95
                 }}>
-                  <Stack direction="row" spacing={1} alignItems="stretch" sx={{ mb: 1, }}>
+                  <Stack direction="row" spacing={1} alignItems="stretch" sx={{ mb: { xs: 0.5, sm: 1 }, }}>
                     <TextField
                       fullWidth
                       size="small"

@@ -4302,7 +4302,7 @@ export default function PickingPage() {
         {/* ========== TAB: PICKING LIST ========== */}
         {currentTabCode === 'list' && (
           <Box sx={{
-            mt: 0.5,
+            mt: { xs: 0, sm: 0.5 },
             display: 'flex', flexDirection: 'column',
             flex: 1, minHeight: 0, overflow: 'hidden',
             background: isDarkMode ? '#0f172a' : '#f8fafc',
@@ -4311,10 +4311,10 @@ export default function PickingPage() {
             {/* FILTERS - REDESIGNED LIKE INBOUND */}
             <Box sx={{
               background: isDarkMode ? '#0f172a' : '#f8fafc',
-              mb: 0.5,
+              mb: { xs: 0, sm: 0.5 },
               minHeight: 0,
               overflow: 'hidden',
-              py: { xs: 0.25, sm: 0.50 },
+              py: { xs: 0, sm: 0.25, md: 0.50 },
               borderRadius: 2,
 
               // Paste inside the existing sx object

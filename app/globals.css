@@ -1714,13 +1714,11 @@ select {
   .MuiButton-root {
     padding: 6px 12px !important;
     font-size: 0.75rem !important;
-    min-height: 32px !important;
   }
 
   .MuiButton-sizeSmall {
     padding: 4px 10px !important;
     font-size: 0.6875rem !important;
-    min-height: 28px !important;
   }
 
   .MuiIconButton-root {
@@ -1840,10 +1838,8 @@ select {
     padding: 8px !important;
   }
 
-  /* Stack spacing compact */
-  .MuiStack-root {
-    gap: 6px !important;
-  }
+  /* Stack spacing compact - only for stacks without explicit gap */
+  /* Removed global .MuiStack-root gap override that broke custom spacing across pages */
 
   /* Avatar compact */
   .MuiAvatar-root {

@@ -1999,11 +1999,11 @@ export default function MasterDataPage() {
 
                 {/* Tab 1: Master Data List */}
                 {actualTabIndex === 0 && (
-                  <Box sx={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 120px)', overflow: 'hidden', p: { xs: 0.25, sm: 0.5 } }}>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', height: { xs: 'calc(100vh - 100px)', sm: 'calc(100vh - 120px)' }, overflow: 'hidden', p: { xs: 0, sm: 0.5 } }}>
                     {/* SEARCH BAR + OPTIONS BUTTON */}
                     <Box sx={{
                       flexShrink: 0,
-                      mb: 1, position: 'relative', zIndex: 95,
+                      mb: { xs: 0.5, sm: 1 }, position: 'relative', zIndex: 95,
                       // Paste inside the existing sx object
                       '& .MuiOutlinedInput-root': {
                         bgcolor: 'transparent !important',

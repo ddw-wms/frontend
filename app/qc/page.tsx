@@ -4262,14 +4262,14 @@ export default function QCPage() {
             >
               <Box sx={{
                 flexShrink: 0,
-                mt: 0.5,
-                mb: 0.1,
+                mt: { xs: 0, sm: 0.5 },
+                mb: 0,
                 background: isDarkMode ? '#0f172a' : '#f8fafc',
                 borderBottom: 'transparent',
                 position: 'relative',
                 zIndex: 95
               }}>
-                <Stack direction="row" spacing={1} alignItems="stretch" sx={{ mb: 1 }}>
+                <Stack direction="row" spacing={1} alignItems="stretch" sx={{ mb: { xs: 0.5, sm: 1 } }}>
                   <TextField
                     fullWidth
                     size="small"

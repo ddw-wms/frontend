@@ -255,7 +255,7 @@ export default function BatchManagementTab({
                         py: 0.25,
                         borderRadius: 0.5,
                         display: 'inline-block',
-                        maxWidth: isMobile ? 140 : 220,
+                        maxWidth: isMobile ? 180 : 220,
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
                         whiteSpace: 'nowrap',
@@ -403,18 +403,19 @@ export default function BatchManagementTab({
         }}>
             {/* Header + Search */}
             <Stack
-                direction="row"
+                direction={isMobile ? 'column' : 'row'}
                 justifyContent="space-between"
-                alignItems="center"
+                alignItems={isMobile ? 'stretch' : 'center'}
+                spacing={isMobile ? 0.75 : 0}
                 sx={{
-                    mb: 1,
-                    pb: 1,
+                    mb: { xs: 0.5, sm: 1 },
+                    pb: { xs: 0.5, sm: 1 },
                     borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.08)' : '1px solid #e5e7eb',
                 }}
             >
                 <Stack direction="row" alignItems="center" spacing={1}>
-                    <BatchIcon sx={{ color: isDarkMode ? '#60a5fa' : '#2563eb', fontSize: 20 }} />
-                    <Typography sx={{ fontWeight: 700, color: isDarkMode ? '#f1f5f9' : '#1e293b', fontSize: '0.9rem' }}>
+                    <BatchIcon sx={{ color: isDarkMode ? '#60a5fa' : '#2563eb', fontSize: isMobile ? 18 : 20 }} />
+                    <Typography sx={{ fontWeight: 700, color: isDarkMode ? '#f1f5f9' : '#1e293b', fontSize: isMobile ? '0.82rem' : '0.9rem' }}>
                         {title}
                     </Typography>
                     {batches.length > 0 && (
@@ -454,7 +455,8 @@ export default function BatchManagementTab({
                             } : {}),
                         }}
                         sx={{
-                            width: isMobile ? 140 : 200,
+                            flex: isMobile ? 1 : 'none',
+                            width: isMobile ? 'auto' : 200,
                             '& .MuiOutlinedInput-root': {
                                 height: 28,
                                 fontSize: '0.72rem',
@@ -472,6 +474,7 @@ export default function BatchManagementTab({
                             fontSize: '0.7rem',
                             fontWeight: 600,
                             textTransform: 'none',
+                            flexShrink: 0,
                             color: isDarkMode ? '#60a5fa' : '#2563eb',
                             '&:hover': { bgcolor: isDarkMode ? 'rgba(96, 165, 250, 0.1)' : '#eff6ff' },
                         }}
@@ -603,7 +606,7 @@ export default function BatchManagementTab({
             {filteredBatches.length > 0 && (
                 <Box
                     sx={{
-                        mt: 1,
+                        mt: { xs: 0.5, sm: 1 },
 
                         py: 0.75,
                         px: 1.5,

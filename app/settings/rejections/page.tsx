@@ -723,24 +723,25 @@ export default function RejectionsPage() {
 
     // Summary table columns
     const summaryColumns = useMemo<any[]>(() => [
-        { field: 'batch_id', headerName: 'Batch ID', flex: 1, minWidth: 150 },
-        { field: 'item_count', headerName: 'Items', width: 70 },
+        { field: 'batch_id', headerName: 'Batch ID', flex: 1, minWidth: isSmall ? 120 : 150 },
+        { field: 'item_count', headerName: 'Items', width: isSmall ? 60 : 70 },
         {
             field: 'total_fsp',
             headerName: 'Total FSP',
-            width: 100,
+            width: isSmall ? 90 : 100,
             valueFormatter: (params: any) => `₹${Number(params.value || 0).toLocaleString()}`
         },
         {
             field: 'total_mrp',
             headerName: 'Total MRP',
-            width: 100,
+            width: isSmall ? 90 : 100,
+            hide: isSmall,
             valueFormatter: (params: any) => `₹${Number(params.value || 0).toLocaleString()}`
         },
         {
             field: 'total_yield',
             headerName: 'Total Yield (CN)',
-            width: 120,
+            width: isSmall ? 100 : 120,
             valueFormatter: (params: any) => `₹${Number(params.value || 0).toLocaleString()}`,
             cellStyle: {
                 fontWeight: 600,
@@ -751,12 +752,13 @@ export default function RejectionsPage() {
             field: 'rejection_date',
             headerName: 'Date',
             width: 90,
+            hide: isSmall,
             valueFormatter: (params: any) => formatDateDMY(params.value)
         },
         {
             field: 'cn_pending',
             headerName: 'Pending',
-            width: 80,
+            width: isSmall ? 70 : 80,
             cellRenderer: (params: any) => (
                 <Chip
                     label={params.value}
@@ -768,12 +770,13 @@ export default function RejectionsPage() {
         {
             field: 'cn_received',
             headerName: 'Received',
-            width: 80,
+            width: isSmall ? 70 : 80,
+            hide: isSmall,
             cellRenderer: (params: any) => (
                 <Chip label={params.value} size="small" sx={{ height: 20, fontWeight: 600, bgcolor: '#22c55e', color: '#fff' }} />
             )
         },
-        { field: 'uploaded_by_name', headerName: 'Uploaded By', width: 100 },
+        { field: 'uploaded_by_name', headerName: 'Uploaded By', width: 100, hide: isSmall },
         {
             field: 'actions',
             headerName: 'Action',
@@ -808,7 +811,7 @@ export default function RejectionsPage() {
                 );
             }
         }
-    ], [canUpdateCN]);
+    ], [canUpdateCN, isSmall]);
 
     const defaultColDef = useMemo(() => ({
         sortable: true,
@@ -1345,11 +1348,13 @@ export default function RejectionsPage() {
                     }}>
                         {/* CN Summary Header Bar */}
                         <Box sx={{
-                            px: 2, py: 0.75,
+                            px: { xs: 1, sm: 2 }, py: { xs: 0.5, sm: 0.75 },
                             borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.08)' : '1px solid #e2e8f0',
                             bgcolor: isDarkMode ? '#334155' : '#f8fafc',
                             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                             flexShrink: 0,
+                            flexWrap: 'wrap',
+                            gap: 0.5,
                         }}>
                             <Stack direction="row" alignItems="center" spacing={1}>
                                 <Typography sx={{ fontSize: '0.85rem' }}>📋</Typography>
