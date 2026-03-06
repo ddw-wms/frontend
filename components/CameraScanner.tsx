@@ -72,17 +72,46 @@ export default function CameraScanner({ onScan, onScanCheck, onClose, isOpen, ti
     onScanRef.current = onScan;
     onScanCheckRef.current = onScanCheck;
 
-    // Get the video track from html5-qrcode's video element
+    // Get the video track — tries multiple methods for reliability
     const getVideoTrack = useCallback((): MediaStreamTrack | null => {
+        // Method 1: Direct DOM query inside scanner region
         try {
             const video = document.querySelector(`#${SCANNER_REGION_ID} video`) as HTMLVideoElement;
             if (video?.srcObject) {
-                const stream = video.srcObject as MediaStream;
-                const tracks = stream.getVideoTracks();
+                const tracks = (video.srcObject as MediaStream).getVideoTracks();
                 if (tracks.length > 0 && tracks[0].readyState === 'live') return tracks[0];
             }
         } catch { /* ignore */ }
+        // Method 2: Access html5-qrcode's internal MediaStream (private but reliable)
+        try {
+            const scanner = scannerRef.current as any;
+            const internalStream = scanner?.localMediaStream || scanner?._localMediaStream;
+            if (internalStream) {
+                const tracks = internalStream.getVideoTracks();
+                if (tracks.length > 0 && tracks[0].readyState === 'live') return tracks[0];
+            }
+        } catch { /* ignore */ }
+        // Method 3: Search ALL video elements on page
+        try {
+            const videos = document.querySelectorAll('video');
+            for (let i = 0; i < videos.length; i++) {
+                const v = videos[i];
+                if (v.srcObject) {
+                    const tracks = (v.srcObject as MediaStream).getVideoTracks();
+                    if (tracks.length > 0 && tracks[0].readyState === 'live') return tracks[0];
+                }
+            }
+        } catch { /* ignore */ }
         return null;
+    }, []);
+
+    // Initialize ImageCapture on track — unlocks torch capability on many Android devices
+    const initImageCapture = useCallback((track: MediaStreamTrack) => {
+        try {
+            if (typeof ImageCapture !== 'undefined') {
+                new ImageCapture(track);
+            }
+        } catch { /* not supported */ }
     }, []);
 
     // Check torch capability on the html5-qrcode video track with polling
@@ -93,6 +122,10 @@ export default function CameraScanner({ onScan, onScanCheck, onClose, isOpen, ti
             attempts++;
             const track = getVideoTrack();
             if (track) {
+                // ImageCapture init helps unlock torch on some Android devices
+                initImageCapture(track);
+
+                // Check 1: getCapabilities reports torch
                 try {
                     const caps = track.getCapabilities?.() as any;
                     if (caps?.torch === true) {
@@ -100,41 +133,63 @@ export default function CameraScanner({ onScan, onScanCheck, onClose, isOpen, ti
                         return;
                     }
                 } catch { /* ignore */ }
-                // Some devices don't report torch in capabilities but still support it
-                // Try applying torch constraint to check
+
+                // Check 2: Try actually applying torch constraint (some devices don't report capability)
                 track.applyConstraints({ advanced: [{ torch: true } as any] })
                     .then(() => {
                         track.applyConstraints({ advanced: [{ torch: false } as any] }).catch(() => { });
                         setTorchSupported(true);
                     })
                     .catch(() => {
-                        if (attempts < 5) {
-                            torchCheckTimerRef.current = setTimeout(check, 600);
-                        } else {
-                            setTorchSupported(false);
-                        }
+                        // Check 3: Try flat constraint syntax as fallback
+                        (track.applyConstraints({ torch: true } as any) as Promise<void>)
+                            .then(() => {
+                                (track.applyConstraints({ torch: false } as any) as Promise<void>).catch(() => { });
+                                setTorchSupported(true);
+                            })
+                            .catch(() => {
+                                if (attempts < 10) {
+                                    torchCheckTimerRef.current = setTimeout(check, 500);
+                                } else {
+                                    setTorchSupported(false);
+                                }
+                            });
                     });
-            } else if (attempts < 8) {
-                torchCheckTimerRef.current = setTimeout(check, 500);
+            } else if (attempts < 15) {
+                // Track not ready yet, keep polling
+                torchCheckTimerRef.current = setTimeout(check, 400);
             }
         };
-        // Start checking after scanner has time to initialize
-        torchCheckTimerRef.current = setTimeout(check, 800);
-    }, [getVideoTrack]);
+        // Start checking after short delay for scanner init
+        torchCheckTimerRef.current = setTimeout(check, 500);
+    }, [getVideoTrack, initImageCapture]);
 
     const applyTorch = useCallback(async (on: boolean) => {
         const track = getVideoTrack();
         if (!track || track.readyState !== 'live') return false;
+        // Ensure ImageCapture is initialized (helps some Android devices)
+        initImageCapture(track);
+        // Try advanced constraint syntax first (most common)
         try {
             await track.applyConstraints({ advanced: [{ torch: on } as any] });
             return true;
-        } catch {
-            try {
-                await track.applyConstraints({ torch: on } as any);
+        } catch { /* try next */ }
+        // Fallback: flat constraint syntax
+        try {
+            await track.applyConstraints({ torch: on } as any);
+            return true;
+        } catch { /* try next */ }
+        // Fallback: re-get track and retry once (track reference may be stale)
+        try {
+            const freshTrack = getVideoTrack();
+            if (freshTrack && freshTrack !== track && freshTrack.readyState === 'live') {
+                initImageCapture(freshTrack);
+                await freshTrack.applyConstraints({ advanced: [{ torch: on } as any] });
                 return true;
-            } catch { return false; }
-        }
-    }, [getVideoTrack]);
+            }
+        } catch { /* failed */ }
+        return false;
+    }, [getVideoTrack, initImageCapture]);
 
     const setupZoom = useCallback(() => {
         const track = getVideoTrack();
@@ -311,9 +366,22 @@ export default function CameraScanner({ onScan, onScanCheck, onClose, isOpen, ti
         if (ok) {
             setTorchOn(newState);
         } else {
+            // Last resort: re-run torch support check (re-initializes ImageCapture)
+            // and try one more time after a short delay
+            const track = getVideoTrack();
+            if (track) {
+                initImageCapture(track);
+                await new Promise(r => setTimeout(r, 200));
+                try {
+                    await track.applyConstraints({ advanced: [{ torch: newState } as any] });
+                    setTorchOn(newState);
+                    setTorchSupported(true);
+                    return;
+                } catch { /* truly not supported */ }
+            }
             setTorchSupported(false);
         }
-    }, [torchOn, applyTorch]);
+    }, [torchOn, applyTorch, getVideoTrack, initImageCapture]);
 
     const handleFlipCamera = useCallback(async () => {
         const newFacingBack = !facingBack;
