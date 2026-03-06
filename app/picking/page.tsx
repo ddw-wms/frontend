@@ -4312,6 +4312,7 @@ export default function PickingPage() {
             <Box sx={{
               background: isDarkMode ? '#0f172a' : '#f8fafc',
               mb: { xs: 0, sm: 0.5 },
+              mt: 1,
               minHeight: 0,
               overflow: 'hidden',
               py: { xs: 0, sm: 0.25, md: 0.50 },
@@ -5206,7 +5207,7 @@ export default function PickingPage() {
             ref={multiEntryContainerRef}
             sx={{
               display: 'flex', flexDirection: 'column',
-              flex: 1, minHeight: 0, gap: 1.5, mt: 1.25,
+              flex: 1, minHeight: 0, gap: 1, mt: 0.25,
               overflow: 'hidden', bgcolor: isDarkMode ? '#0f172a' : '#f5f7fa',
               // Paste inside the existing sx object
               '& .MuiOutlinedInput-root': {

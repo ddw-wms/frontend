@@ -5412,6 +5412,7 @@ export default function InboundPage() {
                 <Box sx={{
                   flexShrink: 0,
                   mb: 0,
+                  mt: 1,
                   background: isDarkMode ? '#0f172a' : '#f8fafc',
                   borderBottom: 'transparent',
                   position: 'relative',
