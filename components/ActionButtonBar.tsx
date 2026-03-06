@@ -33,6 +33,7 @@ export default function ActionButtonBar({
 }: ActionButtonBarProps) {
     const visibleButtons = buttons.filter(btn => btn.show !== false);
 
+
     return (
         <>
             {/* Desktop: Show all buttons */}
