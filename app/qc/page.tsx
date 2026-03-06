@@ -5050,26 +5050,6 @@ export default function QCPage() {
                       >Single QC Entry
                       </Typography>
 
-                      <Button
-                        size="small"
-                        variant="outlined"
-                        startIcon={<QrCodeScannerIcon sx={{ fontSize: 16 }} />}
-                        onClick={() => router.push('/mobile-scan?mode=qc')}
-                        sx={{
-                          display: { xs: 'flex', md: 'none' },
-                          mb: 1.5,
-                          textTransform: 'none',
-                          fontWeight: 700,
-                          fontSize: '0.75rem',
-                          borderRadius: 1.5,
-                          borderColor: '#7c3aed',
-                          color: '#7c3aed',
-                          '&:hover': { bgcolor: 'rgba(124,58,237,0.08)', borderColor: '#7c3aed' },
-                        }}
-                      >
-                        📱 Mobile Scan
-                      </Button>
-
                       {duplicateQC && (
                         <Alert
                           severity="warning"
@@ -5763,6 +5743,26 @@ export default function QCPage() {
 
                       {/* RIGHT: Fixed Action Buttons */}
                       <Stack direction="row" spacing={0.5} sx={{ flexShrink: 0, alignItems: 'center' }}>
+                        {/* Mobile Scan Button */}
+                        <Tooltip title="Mobile Scan">
+                          <IconButton
+                            size="small"
+                            onClick={() => router.push('/mobile-scan?mode=qc')}
+                            sx={{
+                              width: 36,
+                              height: 36,
+                              borderRadius: 1,
+                              border: '1.5px solid',
+                              borderColor: '#7c3aed',
+                              color: '#7c3aed',
+                              bgcolor: 'rgba(124,58,237,0.06)',
+                              '&:hover': { borderColor: '#7c3aed', bgcolor: 'rgba(124,58,237,0.15)' }
+                            }}
+                          >
+                            <QrCodeScannerIcon sx={{ fontSize: 18 }} />
+                          </IconButton>
+                        </Tooltip>
+
                         {/* Menu Button */}
                         <Tooltip title="Open Settings">
                           <IconButton

@@ -338,6 +338,8 @@ export default function MobileScanPage() {
     // Auto-save drafts
     const saveDraft = useCallback(async (entries: ScannedEntry[]) => {
         if (!activeWarehouse?.id) return;
+        // Always clear pending timer first to prevent stale closure re-saving old data
+        if (draftSaveTimer.current) { clearTimeout(draftSaveTimer.current); draftSaveTimer.current = null; }
         if (entries.length === 0) {
             // Clear drafts when no entries
             try { localStorage.removeItem(`${DRAFT_LS_KEY}_${mode}`); } catch { /* ignore */ }
@@ -389,7 +391,7 @@ export default function MobileScanPage() {
         // Level 1: Grid duplicate — uses ref (NOT state) to avoid stale closure
         if (scannedWSNsRef.current.has(wsn)) {
             toast.error(`${wsn} already in scan list!`, { duration: 2500 });
-            if (navigator.vibrate) navigator.vibrate([100, 50, 100, 50, 100]);
+            // Vibration/sound already handled by CameraScanner via onScanCheck
             return;
         }
 
@@ -453,6 +455,13 @@ export default function MobileScanPage() {
         setSerialScanEntry(null);
     }, [serialScanEntry]);
 
+    // Synchronous scan check for CameraScanner overlay color (duplicate = red, success = green)
+    const handleScanCheck = useCallback((wsn: string): 'success' | 'duplicate' => {
+        if (scannedWSNsRef.current.has(wsn)) return 'duplicate';
+        if (existingWSNs.has(wsn)) return 'duplicate';
+        return 'success';
+    }, [existingWSNs]);
+
     // Manual add
     const handleManualAdd = useCallback(() => {
         const wsn = manualWSN.trim().toUpperCase();
@@ -479,6 +488,8 @@ export default function MobileScanPage() {
         setClearConfirmOpen(false);
         setScannedEntries([]);
         scannedWSNsRef.current.clear();
+        // Cancel any pending draft save timer
+        if (draftSaveTimer.current) { clearTimeout(draftSaveTimer.current); draftSaveTimer.current = null; }
         // Clear localStorage
         try { localStorage.removeItem(`${DRAFT_LS_KEY}_${mode}`); } catch { /* ignore */ }
         // Clear server draft (mobile source)
@@ -762,6 +773,7 @@ export default function MobileScanPage() {
                         {!serialScanEntry && (
                             <CameraScanner
                                 isOpen={cameraOpen} onScan={handleScan}
+                                onScanCheck={handleScanCheck}
                                 onClose={() => setCameraOpen(false)}
                                 title={`Scan WSN for ${config.title}`}
                             />

@@ -6228,25 +6228,6 @@ export default function OutboundPage() {
                         <Card sx={{ borderRadius: 1.5, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
                             <CardContent sx={{ p: 2 }}>
                                 <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 2, color: '#1a237e', fontSize: '0.9rem' }}>📝 Dispatch Entry Form</Typography>
-                                <Button
-                                    size="small"
-                                    variant="outlined"
-                                    startIcon={<QrCodeScannerIcon sx={{ fontSize: 16 }} />}
-                                    onClick={() => router.push('/mobile-scan?mode=outbound')}
-                                    sx={{
-                                        display: { xs: 'flex', md: 'none' },
-                                        mb: 1.5,
-                                        textTransform: 'none',
-                                        fontWeight: 700,
-                                        fontSize: '0.75rem',
-                                        borderRadius: 1.5,
-                                        borderColor: '#1e40af',
-                                        color: '#1e40af',
-                                        '&:hover': { bgcolor: 'rgba(30,64,175,0.08)', borderColor: '#1e40af' },
-                                    }}
-                                >
-                                    📱 Mobile Scan
-                                </Button>
                                 <Stack spacing={1.5}>
                                     <TextField
                                         fullWidth
@@ -6592,6 +6573,26 @@ export default function OutboundPage() {
 
                                         {/* RIGHT: Fixed Action Buttons */}
                                         <Stack direction="row" spacing={0.5} sx={{ flexShrink: 0, alignItems: 'center' }}>
+                                            {/* Mobile Scan Button */}
+                                            <Tooltip title="Mobile Scan">
+                                                <IconButton
+                                                    size="small"
+                                                    onClick={() => router.push('/mobile-scan?mode=outbound')}
+                                                    sx={{
+                                                        width: 36,
+                                                        height: 36,
+                                                        borderRadius: 1,
+                                                        border: '1.5px solid',
+                                                        borderColor: '#1e40af',
+                                                        color: '#1e40af',
+                                                        bgcolor: 'rgba(30,64,175,0.06)',
+                                                        '&:hover': { borderColor: '#1e40af', bgcolor: 'rgba(30,64,175,0.15)' }
+                                                    }}
+                                                >
+                                                    <QrCodeScannerIcon sx={{ fontSize: 18 }} />
+                                                </IconButton>
+                                            </Tooltip>
+
                                             {/* Menu Button */}
                                             <Tooltip title="Open Settings">
                                                 <IconButton

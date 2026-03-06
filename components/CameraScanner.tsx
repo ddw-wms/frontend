@@ -16,6 +16,8 @@ import { Html5Qrcode, Html5QrcodeScannerState } from 'html5-qrcode';
 
 interface CameraScannerProps {
     onScan: (decodedText: string) => void;
+    /** Synchronous check called BEFORE showing overlay. Return 'duplicate' for red flash. */
+    onScanCheck?: (decodedText: string) => 'success' | 'duplicate';
     onClose: () => void;
     isOpen: boolean;
     title?: string;
@@ -23,20 +25,32 @@ interface CameraScannerProps {
 
 const SCANNER_REGION_ID = 'mobile-camera-scanner-region';
 const ZOOM_STORAGE_KEY = 'mobileScan_cameraZoom';
-const SAME_BARCODE_COOLDOWN = 3000; // 3 seconds before accepting same barcode again
-const SCAN_PAUSE_DURATION = 1200; // 1.2 second pause after successful scan
+const SAME_BARCODE_COOLDOWN = 3000;
+const SCAN_PAUSE_DURATION = 1200;
 
-export default function CameraScanner({ onScan, onClose, isOpen, title = 'Scan Barcode' }: CameraScannerProps) {
+function playErrorBeep() {
+    try {
+        const ctx = new AudioContext();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.frequency.value = 300;
+        gain.gain.value = 0.5;
+        osc.start();
+        osc.stop(ctx.currentTime + 0.3);
+    } catch { /* no audio */ }
+}
+
+export default function CameraScanner({ onScan, onScanCheck, onClose, isOpen, title = 'Scan Barcode' }: CameraScannerProps) {
     const scannerRef = useRef<Html5Qrcode | null>(null);
-    // We keep our OWN MediaStream reference for torch control
-    const ownStreamRef = useRef<MediaStream | null>(null);
-    const torchTrackRef = useRef<MediaStreamTrack | null>(null);
     const [torchOn, setTorchOn] = useState(false);
     const [torchSupported, setTorchSupported] = useState(false);
     const [facingBack, setFacingBack] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [scanning, setScanning] = useState(false);
     const [scanPaused, setScanPaused] = useState(false);
+    const [scanResultType, setScanResultType] = useState<'success' | 'duplicate'>('success');
     const [lastScannedWSN, setLastScannedWSN] = useState('');
     const [zoomLevel, setZoomLevel] = useState<number>(() => {
         if (typeof window !== 'undefined') {
@@ -51,8 +65,14 @@ export default function CameraScanner({ onScan, onClose, isOpen, title = 'Scan B
     const lastScanTimeRef = useRef<number>(0);
     const isPausedRef = useRef(false);
     const pauseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const torchCheckTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    // Store refs for callbacks used inside html5-qrcode scan handler
+    const onScanRef = useRef(onScan);
+    const onScanCheckRef = useRef(onScanCheck);
+    onScanRef.current = onScan;
+    onScanCheckRef.current = onScanCheck;
 
-    // Get the video track from html5-qrcode's video element (for zoom)
+    // Get the video track from html5-qrcode's video element
     const getVideoTrack = useCallback((): MediaStreamTrack | null => {
         try {
             const video = document.querySelector(`#${SCANNER_REGION_ID} video`) as HTMLVideoElement;
@@ -65,55 +85,45 @@ export default function CameraScanner({ onScan, onClose, isOpen, title = 'Scan B
         return null;
     }, []);
 
-    // Acquire our own camera stream JUST for torch control
-    const acquireTorchStream = useCallback(async (deviceId?: string) => {
-        // Release any previous stream
-        if (ownStreamRef.current) {
-            ownStreamRef.current.getTracks().forEach(t => t.stop());
-            ownStreamRef.current = null;
-            torchTrackRef.current = null;
-        }
-        try {
-            const constraints: MediaStreamConstraints = {
-                video: deviceId
-                    ? { deviceId: { exact: deviceId } }
-                    : { facingMode: 'environment' },
-            };
-            const stream = await navigator.mediaDevices.getUserMedia(constraints);
-            ownStreamRef.current = stream;
-            const track = stream.getVideoTracks()[0];
-            torchTrackRef.current = track;
-
-            // Check torch capability
-            const caps = track.getCapabilities?.() as any;
-            if (caps?.torch === true) {
-                setTorchSupported(true);
-                return true;
-            } else {
-                // Try to set torch anyway — some devices don't report capability
+    // Check torch capability on the html5-qrcode video track with polling
+    const checkTorchSupport = useCallback(() => {
+        if (torchCheckTimerRef.current) clearTimeout(torchCheckTimerRef.current);
+        let attempts = 0;
+        const check = () => {
+            attempts++;
+            const track = getVideoTrack();
+            if (track) {
                 try {
-                    await track.applyConstraints({ advanced: [{ torch: true } as any] });
-                    await track.applyConstraints({ advanced: [{ torch: false } as any] });
-                    setTorchSupported(true);
-                    return true;
-                } catch {
-                    // Torch really not supported
-                    setTorchSupported(false);
-                    // Stop this stream since we don't need it
-                    stream.getTracks().forEach(t => t.stop());
-                    ownStreamRef.current = null;
-                    torchTrackRef.current = null;
-                    return false;
-                }
+                    const caps = track.getCapabilities?.() as any;
+                    if (caps?.torch === true) {
+                        setTorchSupported(true);
+                        return;
+                    }
+                } catch { /* ignore */ }
+                // Some devices don't report torch in capabilities but still support it
+                // Try applying torch constraint to check
+                track.applyConstraints({ advanced: [{ torch: true } as any] })
+                    .then(() => {
+                        track.applyConstraints({ advanced: [{ torch: false } as any] }).catch(() => { });
+                        setTorchSupported(true);
+                    })
+                    .catch(() => {
+                        if (attempts < 5) {
+                            torchCheckTimerRef.current = setTimeout(check, 600);
+                        } else {
+                            setTorchSupported(false);
+                        }
+                    });
+            } else if (attempts < 8) {
+                torchCheckTimerRef.current = setTimeout(check, 500);
             }
-        } catch {
-            setTorchSupported(false);
-            return false;
-        }
-    }, []);
+        };
+        // Start checking after scanner has time to initialize
+        torchCheckTimerRef.current = setTimeout(check, 800);
+    }, [getVideoTrack]);
 
     const applyTorch = useCallback(async (on: boolean) => {
-        const track = torchTrackRef.current;
+        const track = getVideoTrack();
         if (!track || track.readyState !== 'live') return false;
         try {
             await track.applyConstraints({ advanced: [{ torch: on } as any] });
@@ -124,7 +134,7 @@ export default function CameraScanner({ onScan, onClose, isOpen, title = 'Scan B
                 return true;
             } catch { return false; }
         }
-    }, []);
+    }, [getVideoTrack]);
 
     const setupZoom = useCallback(() => {
         const track = getVideoTrack();
@@ -143,18 +153,14 @@ export default function CameraScanner({ onScan, onClose, isOpen, title = 'Scan B
     }, [getVideoTrack]);
 
     const stopScanner = useCallback(async () => {
-        // Clear pause
         if (pauseTimerRef.current) clearTimeout(pauseTimerRef.current);
+        if (torchCheckTimerRef.current) clearTimeout(torchCheckTimerRef.current);
         isPausedRef.current = false;
         setScanPaused(false);
         setLastScannedWSN('');
 
-        // Turn off torch via our own stream
-        if (torchTrackRef.current && torchTrackRef.current.readyState === 'live') {
-            try {
-                await torchTrackRef.current.applyConstraints({ advanced: [{ torch: false } as any] });
-            } catch { /* ignore */ }
-        }
+        // Turn off torch using the scanner's own track
+        try { await applyTorch(false); } catch { /* ignore */ }
 
         // Stop html5-qrcode scanner
         try {
@@ -166,17 +172,46 @@ export default function CameraScanner({ onScan, onClose, isOpen, title = 'Scan B
             }
         } catch { /* ignore */ }
 
-        // Stop our torch stream
-        if (ownStreamRef.current) {
-            ownStreamRef.current.getTracks().forEach(t => t.stop());
-            ownStreamRef.current = null;
-            torchTrackRef.current = null;
-        }
-
         setScanning(false);
         setTorchOn(false);
         setTorchSupported(false);
         setZoomRange(null);
+    }, [applyTorch]);
+
+    const makeScanHandler = useCallback(() => {
+        return (decodedText: string) => {
+            if (isPausedRef.current) return;
+
+            const now = Date.now();
+            const text = decodedText.trim().toUpperCase();
+            if (text === lastScanRef.current && now - lastScanTimeRef.current < SAME_BARCODE_COOLDOWN) return;
+
+            lastScanRef.current = text;
+            lastScanTimeRef.current = now;
+
+            // Check if duplicate BEFORE pausing (synchronous)
+            const resultType = onScanCheckRef.current ? onScanCheckRef.current(text) : 'success';
+
+            isPausedRef.current = true;
+            setScanPaused(true);
+            setScanResultType(resultType);
+            setLastScannedWSN(text);
+
+            if (resultType === 'duplicate') {
+                if (navigator.vibrate) navigator.vibrate([100, 50, 100, 50, 100]);
+                playErrorBeep();
+            } else {
+                if (navigator.vibrate) navigator.vibrate(100);
+            }
+
+            onScanRef.current(text);
+
+            pauseTimerRef.current = setTimeout(() => {
+                isPausedRef.current = false;
+                setScanPaused(false);
+                setLastScannedWSN('');
+            }, SCAN_PAUSE_DURATION);
+        };
     }, []);
 
     const startScanner = useCallback(async (useFrontCamera = false) => {
@@ -190,6 +225,7 @@ export default function CameraScanner({ onScan, onClose, isOpen, title = 'Scan B
             }
 
             const facingMode = useFrontCamera ? 'user' : 'environment';
+            const scanHandler = makeScanHandler();
 
             await scannerRef.current.start(
                 { facingMode },
@@ -199,60 +235,17 @@ export default function CameraScanner({ onScan, onClose, isOpen, title = 'Scan B
                     aspectRatio: 1.5,
                     disableFlip: false,
                 },
-                (decodedText) => {
-                    // Check if paused
-                    if (isPausedRef.current) return;
-
-                    const now = Date.now();
-                    const text = decodedText.trim().toUpperCase();
-                    // Same barcode cooldown
-                    if (text === lastScanRef.current && now - lastScanTimeRef.current < SAME_BARCODE_COOLDOWN) return;
-
-                    lastScanRef.current = text;
-                    lastScanTimeRef.current = now;
-
-                    // Pause scanning briefly
-                    isPausedRef.current = true;
-                    setScanPaused(true);
-                    setLastScannedWSN(text);
-                    if (navigator.vibrate) navigator.vibrate(100);
-
-                    onScan(text);
-
-                    // Resume after pause duration
-                    pauseTimerRef.current = setTimeout(() => {
-                        isPausedRef.current = false;
-                        setScanPaused(false);
-                        setLastScannedWSN('');
-                    }, SCAN_PAUSE_DURATION);
-                },
+                scanHandler,
                 () => { }
             );
 
             setScanning(true);
             setFacingBack(!useFrontCamera);
 
-            // After scanner starts, get the camera deviceId and acquire torch stream
+            // Setup torch and zoom using html5-qrcode's own video track
             if (!useFrontCamera) {
-                setTimeout(async () => {
-                    const track = getVideoTrack();
-                    if (track) {
-                        const settings = track.getSettings?.();
-                        const deviceId = settings?.deviceId;
-                        // Acquire our own stream for the same camera for torch control
-                        await acquireTorchStream(deviceId);
-                    } else {
-                        // No track yet, retry
-                        setTimeout(async () => {
-                            const t2 = getVideoTrack();
-                            if (t2) {
-                                const s2 = t2.getSettings?.();
-                                await acquireTorchStream(s2?.deviceId);
-                            }
-                        }, 1000);
-                    }
-                    setupZoom();
-                }, 800);
+                checkTorchSupport();
+                setTimeout(setupZoom, 1000);
             } else {
                 setTimeout(setupZoom, 800);
             }
@@ -267,36 +260,17 @@ export default function CameraScanner({ onScan, onClose, isOpen, title = 'Scan B
             } else if (msg.includes('OverconstrainedError')) {
                 try {
                     if (scannerRef.current) {
+                        const scanHandler = makeScanHandler();
                         await scannerRef.current.start(
                             { facingMode: 'environment' },
                             { fps: 10, qrbox: { width: 240, height: 90 } },
-                            (decodedText) => {
-                                if (isPausedRef.current) return;
-                                const now = Date.now();
-                                const text = decodedText.trim().toUpperCase();
-                                if (text === lastScanRef.current && now - lastScanTimeRef.current < SAME_BARCODE_COOLDOWN) return;
-                                lastScanRef.current = text;
-                                lastScanTimeRef.current = now;
-                                isPausedRef.current = true;
-                                setScanPaused(true);
-                                setLastScannedWSN(text);
-                                if (navigator.vibrate) navigator.vibrate(100);
-                                onScan(text);
-                                pauseTimerRef.current = setTimeout(() => {
-                                    isPausedRef.current = false;
-                                    setScanPaused(false);
-                                    setLastScannedWSN('');
-                                }, SCAN_PAUSE_DURATION);
-                            },
+                            scanHandler,
                             () => { }
                         );
                         setScanning(true);
                         setFacingBack(true);
-                        setTimeout(async () => {
-                            const t = getVideoTrack();
-                            if (t) await acquireTorchStream(t.getSettings?.()?.deviceId);
-                            setupZoom();
-                        }, 800);
+                        checkTorchSupport();
+                        setTimeout(setupZoom, 1000);
                         return;
                     }
                 } catch { /* ignore fallback */ }
@@ -306,7 +280,7 @@ export default function CameraScanner({ onScan, onClose, isOpen, title = 'Scan B
             }
             setScanning(false);
         }
-    }, [onScan, stopScanner, getVideoTrack, setupZoom, acquireTorchStream]);
+    }, [stopScanner, setupZoom, checkTorchSupport, makeScanHandler]);
 
     // Handle page visibility change (phone sleep/wake)
     useEffect(() => {
@@ -337,18 +311,9 @@ export default function CameraScanner({ onScan, onClose, isOpen, title = 'Scan B
         if (ok) {
             setTorchOn(newState);
         } else {
-            // Maybe our torch stream died, try re-acquiring
-            const track = getVideoTrack();
-            if (track) {
-                const ok2 = await acquireTorchStream(track.getSettings?.()?.deviceId);
-                if (ok2) {
-                    const ok3 = await applyTorch(newState);
-                    if (ok3) { setTorchOn(newState); return; }
-                }
-            }
             setTorchSupported(false);
         }
-    }, [torchOn, applyTorch, getVideoTrack, acquireTorchStream]);
+    }, [torchOn, applyTorch]);
 
     const handleFlipCamera = useCallback(async () => {
         const newFacingBack = !facingBack;
@@ -373,6 +338,11 @@ export default function CameraScanner({ onScan, onClose, isOpen, title = 'Scan B
 
     if (!isOpen) return null;
 
+    const isDuplicate = scanResultType === 'duplicate';
+    const overlayColor = isDuplicate ? 'rgba(239,68,68' : 'rgba(34,197,94';
+    const pillColor = isDuplicate ? 'rgba(239,68,68,0.9)' : 'rgba(34,197,94,0.9)';
+    const borderColor = isDuplicate ? '#ef4444 !important' : '#22c55e !important';
+
     return (
         <Box sx={{ position: 'relative', width: '100%', bgcolor: '#000', borderRadius: 2, overflow: 'hidden' }}>
             {/* Header */}
@@ -384,7 +354,7 @@ export default function CameraScanner({ onScan, onClose, isOpen, title = 'Scan B
                     {title}
                 </Typography>
                 <Stack direction="row" spacing={0.5} alignItems="center">
-                    {/* Torch button — large & prominent */}
+                    {/* Torch button */}
                     <IconButton
                         size="small" onClick={handleToggleTorch}
                         sx={{
@@ -418,28 +388,28 @@ export default function CameraScanner({ onScan, onClose, isOpen, title = 'Scan B
             <Box sx={{
                 position: 'relative', width: '100%', minHeight: 200, maxHeight: 240, overflow: 'hidden',
                 '& video': { width: '100% !important', objectFit: 'cover !important', maxHeight: '240px !important' },
-                '& #qr-shaded-region': { borderColor: scanPaused ? '#22c55e !important' : '#60a5fa !important' },
+                '& #qr-shaded-region': { borderColor: scanPaused ? borderColor : '#60a5fa !important' },
             }}>
                 <div id={SCANNER_REGION_ID} style={{ width: '100%' }} />
 
-                {/* Scan success flash overlay */}
+                {/* Scan flash overlay — green for success, red for duplicate */}
                 {scanPaused && (
                     <Box sx={{
                         position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
                         alignItems: 'center', justifyContent: 'center',
-                        bgcolor: 'rgba(34,197,94,0.2)', zIndex: 3,
+                        bgcolor: `${overlayColor},0.2)`, zIndex: 3,
                         animation: 'flashIn 0.15s ease-out',
-                        '@keyframes flashIn': { '0%': { bgcolor: 'rgba(34,197,94,0.5)' }, '100%': { bgcolor: 'rgba(34,197,94,0.15)' } },
+                        '@keyframes flashIn': { '0%': { bgcolor: `${overlayColor},0.5)` }, '100%': { bgcolor: `${overlayColor},0.15)` } },
                     }}>
                         <Box sx={{
                             px: 2, py: 0.8, borderRadius: 2,
-                            bgcolor: 'rgba(34,197,94,0.9)', backdropFilter: 'blur(4px)',
+                            bgcolor: pillColor, backdropFilter: 'blur(4px)',
                         }}>
                             <Typography sx={{
                                 color: '#fff', fontWeight: 800, fontSize: '0.85rem',
                                 fontFamily: 'monospace', textAlign: 'center',
                             }}>
-                                ✓ {lastScannedWSN}
+                                {isDuplicate ? '✗ DUPLICATE' : '✓'} {lastScannedWSN}
                             </Typography>
                         </Box>
                     </Box>

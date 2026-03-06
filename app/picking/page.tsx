@@ -5342,6 +5342,26 @@ export default function PickingPage() {
 
               {/* RIGHT: Fixed Action Buttons */}
               <Stack direction="row" spacing={0.5} sx={{ flexShrink: 0, alignItems: 'center' }}>
+                {/* Mobile Scan Button */}
+                <Tooltip title="Mobile Scan">
+                  <IconButton
+                    size="small"
+                    onClick={() => router.push('/mobile-scan?mode=picking')}
+                    sx={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: 1,
+                      border: '1.5px solid',
+                      borderColor: '#059669',
+                      color: '#059669',
+                      bgcolor: 'rgba(5,150,105,0.06)',
+                      '&:hover': { borderColor: '#059669', bgcolor: 'rgba(5,150,105,0.15)' }
+                    }}
+                  >
+                    <QrCodeScannerIcon sx={{ fontSize: 18 }} />
+                  </IconButton>
+                </Tooltip>
+
                 {/* Menu Button */}
                 <Tooltip title="Open Settings">
                   <IconButton
@@ -5391,27 +5411,6 @@ export default function PickingPage() {
                 />
               </Stack>
             </Box>
-
-            {/* Mobile Scan Button - visible on all screens */}
-            <Button
-              size="small"
-              variant="outlined"
-              startIcon={<QrCodeScannerIcon sx={{ fontSize: 16 }} />}
-              onClick={() => router.push('/mobile-scan?mode=picking')}
-              sx={{
-                display: { xs: 'flex', md: 'none' },
-                mb: 0.5,
-                textTransform: 'none',
-                fontWeight: 700,
-                fontSize: '0.75rem',
-                borderRadius: 1.5,
-                borderColor: '#059669',
-                color: '#059669',
-                '&:hover': { bgcolor: 'rgba(5,150,105,0.08)', borderColor: '#059669' },
-              }}
-            >
-              📱 Mobile Scan
-            </Button>
 
             {/* ===== DESKTOP: Clean Single Row Layout ===== */}
             <Stack
