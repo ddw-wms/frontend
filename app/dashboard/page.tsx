@@ -1836,16 +1836,15 @@ export default function DashboardPage() {
                   </Typography>
                   <Typography
                     sx={{
-                      fontSize: { xs: "0.55rem", sm: "0.65rem", md: "0.7rem" },
+                      fontSize: { xs: "0.45rem", sm: "0.65rem", md: "0.7rem" },
                       fontWeight: 500,
                       color: isDarkMode ? "#64748b" : "#94a3b8",
                       textTransform: "uppercase",
                       letterSpacing: "0.02em",
                       lineHeight: 1.2,
-                      whiteSpace: { xs: "normal", sm: "nowrap" },
-                      overflow: { sm: "hidden" },
-                      textOverflow: { sm: "ellipsis" },
-                      wordBreak: { xs: "break-word", sm: "normal" },
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
                     }}
                   >
                     {m.label}

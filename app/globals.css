@@ -1753,7 +1753,7 @@ select {
 
   /* Compact Form Elements */
   .MuiFormControl-root {
-    margin-bottom: 8px !important;
+    margin-bottom: 0px !important;
   }
 
   .MuiInputBase-root {
