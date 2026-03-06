@@ -3521,7 +3521,7 @@ export default function DashboardPage() {
       {/* ================= WSN PRODUCT LOOKUP DIALOG ================= */}
       <Dialog
         open={lookupCameraOpen || !!lookupResult || !!lookupError}
-        onClose={() => { setLookupCameraOpen(false); setLookupResult(null); setLookupError(''); }}
+        onClose={() => { setLookupCameraOpen(false); setLookupResult(null); setLookupError(''); setLookupWSN(''); }}
         fullWidth maxWidth="sm"
         PaperProps={{
           sx: {
@@ -3530,25 +3530,43 @@ export default function DashboardPage() {
             m: { xs: 0, sm: 2 },
             width: { xs: '100%', sm: undefined },
             height: { xs: '100dvh', sm: 'auto' },
-            bgcolor: isDarkMode ? '#0f172a' : '#f8fafc',
+            bgcolor: isDarkMode ? '#0f172a' : '#ffffff',
+            overflow: 'hidden',
           },
         }}
       >
-        <DialogTitle sx={{
+        {/* Header */}
+        <Box sx={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          py: 1.5, px: 2,
-          bgcolor: isDarkMode ? '#1e293b' : '#fff',
-          borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.08)' : '1px solid #e2e8f0',
+          px: 2, py: 1.5,
+          background: isDarkMode
+            ? 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)'
+            : 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+          borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.06)' : 'none',
         }}>
-          <Typography sx={{ fontWeight: 800, fontSize: '1rem', color: isDarkMode ? '#e2e8f0' : '#1e293b' }}>
-            \uD83D\uDD0D Product Lookup
-          </Typography>
-          <IconButton size="small" onClick={() => { setLookupCameraOpen(false); setLookupResult(null); setLookupError(''); }}>
+          <Stack direction="row" spacing={1} alignItems="center">
+            <Box sx={{
+              width: 32, height: 32, borderRadius: 1.5,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              bgcolor: isDarkMode ? 'rgba(59,130,246,0.2)' : 'rgba(255,255,255,0.2)',
+            }}>
+              <SearchIcon sx={{ fontSize: 18, color: isDarkMode ? '#60a5fa' : '#fff' }} />
+            </Box>
+            <Typography sx={{ fontWeight: 800, fontSize: '1rem', color: '#fff', letterSpacing: '-0.01em' }}>
+              Product Lookup
+            </Typography>
+          </Stack>
+          <IconButton
+            size="small"
+            onClick={() => { setLookupCameraOpen(false); setLookupResult(null); setLookupError(''); setLookupWSN(''); }}
+            sx={{ color: 'rgba(255,255,255,0.7)', '&:hover': { color: '#fff', bgcolor: 'rgba(255,255,255,0.1)' } }}
+          >
             <CloseIcon fontSize="small" />
           </IconButton>
-        </DialogTitle>
+        </Box>
 
-        <DialogContent sx={{ p: 0, display: 'flex', flexDirection: 'column' }}>
+        {/* Content */}
+        <Box sx={{ overflowY: 'auto', flex: 1 }}>
           {/* Camera Scanner */}
           {lookupCameraOpen && (
             <Box sx={{ px: 1.5, pt: 1.5 }}>
@@ -3561,7 +3579,7 @@ export default function DashboardPage() {
             </Box>
           )}
 
-          {/* Manual Input */}
+          {/* Search Input */}
           <Box sx={{ px: 2, py: 1.5 }}>
             <Stack direction="row" spacing={1} alignItems="center">
               <TextField
@@ -3572,8 +3590,13 @@ export default function DashboardPage() {
                 onKeyDown={e => { if (e.key === 'Enter') handleWSNLookup(lookupWSN); }}
                 sx={{
                   '& .MuiOutlinedInput-root': {
-                    height: 42, borderRadius: 2,
-                    bgcolor: isDarkMode ? '#1e293b' : '#fff',
+                    height: 44, borderRadius: 2.5,
+                    bgcolor: isDarkMode ? '#1e293b' : '#f8fafc',
+                    fontSize: '0.9rem', fontWeight: 600, fontFamily: 'monospace',
+                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#3b82f6', borderWidth: 2 },
+                  },
+                  '& .MuiOutlinedInput-notchedOutline': {
+                    borderColor: isDarkMode ? 'rgba(255,255,255,0.1)' : '#e2e8f0',
                   },
                 }}
               />
@@ -3581,14 +3604,15 @@ export default function DashboardPage() {
                 variant="contained" size="small"
                 onClick={() => handleWSNLookup(lookupWSN)}
                 disabled={!lookupWSN.trim() || lookupLoading}
-                startIcon={lookupLoading ? <CircularProgress size={16} color="inherit" /> : <SearchIcon />}
                 sx={{
-                  height: 42, minWidth: 100, borderRadius: 2,
+                  height: 44, minWidth: 44, borderRadius: 2.5, px: 2.5,
                   textTransform: 'none', fontWeight: 700, fontSize: '0.85rem',
                   background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+                  boxShadow: '0 2px 8px rgba(59,130,246,0.3)',
+                  '&:hover': { boxShadow: '0 4px 12px rgba(59,130,246,0.4)' },
                 }}
               >
-                Search
+                {lookupLoading ? <CircularProgress size={20} color="inherit" /> : <SearchIcon />}
               </Button>
             </Stack>
           </Box>
@@ -3597,7 +3621,7 @@ export default function DashboardPage() {
           {lookupError && (
             <Box sx={{ px: 2, pb: 1.5 }}>
               <Alert severity="warning" onClose={() => setLookupError('')}
-                sx={{ borderRadius: 1.5, fontSize: '0.85rem' }}>
+                sx={{ borderRadius: 2, fontSize: '0.85rem', '& .MuiAlert-icon': { fontSize: 20 } }}>
                 {lookupError}
               </Alert>
             </Box>
@@ -3606,97 +3630,207 @@ export default function DashboardPage() {
           {/* Product Details */}
           {lookupResult && (
             <Box sx={{ px: 2, pb: 2 }}>
+              {/* WSN Badge + Product Title */}
               <Box sx={{
-                p: 2, borderRadius: 2.5,
-                bgcolor: isDarkMode ? 'rgba(59,130,246,0.06)' : '#f0f7ff',
-                border: isDarkMode ? '1px solid rgba(59,130,246,0.15)' : '1px solid #dbeafe',
+                mb: 1.5, p: 2, borderRadius: 3,
+                background: isDarkMode
+                  ? 'linear-gradient(135deg, rgba(59,130,246,0.08) 0%, rgba(99,102,241,0.06) 100%)'
+                  : 'linear-gradient(135deg, #eff6ff 0%, #f0f0ff 100%)',
+                border: isDarkMode ? '1px solid rgba(59,130,246,0.12)' : '1px solid #dbeafe',
               }}>
-                {/* WSN */}
-                <Chip label={lookupResult.wsn || lookupWSN} size="small" sx={{
-                  fontWeight: 800, fontSize: '0.8rem', height: 28, mb: 1,
-                  bgcolor: isDarkMode ? '#1e3a5f' : '#dbeafe',
-                  color: isDarkMode ? '#93c5fd' : '#1e40af',
-                  fontFamily: 'monospace',
-                }} />
-
-                {/* Product Title */}
+                <Chip
+                  label={lookupResult.wsn || lookupWSN}
+                  size="small"
+                  sx={{
+                    fontWeight: 800, fontSize: '0.78rem', height: 26, mb: 1,
+                    bgcolor: isDarkMode ? '#1e3a5f' : '#3b82f6',
+                    color: isDarkMode ? '#93c5fd' : '#fff',
+                    fontFamily: 'monospace', letterSpacing: '0.5px',
+                  }}
+                />
                 {lookupResult.product_title && (
                   <Typography sx={{
-                    fontWeight: 700, fontSize: '0.95rem',
+                    fontWeight: 700, fontSize: '0.92rem', lineHeight: 1.45,
                     color: isDarkMode ? '#e2e8f0' : '#1e293b',
-                    lineHeight: 1.4, mb: 1.5,
                   }}>
                     {lookupResult.product_title}
                   </Typography>
                 )}
+              </Box>
 
-                {/* Detail Chips */}
-                <Stack direction="row" flexWrap="wrap" gap={0.75} sx={{ mb: lookupResult.fkt_link ? 1.5 : 0 }}>
-                  {lookupResult.brand && (
-                    <Chip label={`Brand: ${lookupResult.brand}`} size="small" sx={{
-                      fontWeight: 700, fontSize: '0.75rem', height: 28,
-                      bgcolor: isDarkMode ? '#1e3a5f' : '#dbeafe',
-                      color: isDarkMode ? '#93c5fd' : '#1e40af',
-                    }} />
-                  )}
-                  {lookupResult.cms_vertical && (
-                    <Chip label={`Category: ${lookupResult.cms_vertical}`} size="small" sx={{
-                      fontWeight: 700, fontSize: '0.75rem', height: 28,
-                      bgcolor: isDarkMode ? '#3b1764' : '#f3e8ff',
-                      color: isDarkMode ? '#c084fc' : '#7c3aed',
-                    }} />
-                  )}
-                  {lookupResult.mrp && (
-                    <Chip label={`MRP: \u20B9${lookupResult.mrp}`} size="small" sx={{
-                      fontWeight: 700, fontSize: '0.75rem', height: 28,
-                      bgcolor: isDarkMode ? '#14532d' : '#dcfce7',
-                      color: isDarkMode ? '#86efac' : '#166534',
-                    }} />
-                  )}
-                  {lookupResult.fsp && (
-                    <Chip label={`FSP: \u20B9${lookupResult.fsp}`} size="small" sx={{
-                      fontWeight: 700, fontSize: '0.75rem', height: 28,
-                      bgcolor: isDarkMode ? '#422006' : '#fef3c7',
-                      color: isDarkMode ? '#fbbf24' : '#92400e',
-                    }} />
-                  )}
-                  {lookupResult.fsn && (
-                    <Chip label={`FSN: ${lookupResult.fsn}`} size="small" sx={{
-                      fontWeight: 700, fontSize: '0.75rem', height: 28,
-                      bgcolor: isDarkMode ? '#1c1917' : '#f5f5f4',
-                      color: isDarkMode ? '#a8a29e' : '#57534e',
-                    }} />
-                  )}
-                  {lookupResult.rack_no && (
-                    <Chip label={`Rack: ${lookupResult.rack_no}`} size="small" sx={{
-                      fontWeight: 700, fontSize: '0.75rem', height: 28,
-                      bgcolor: isDarkMode ? '#0c4a6e' : '#e0f2fe',
-                      color: isDarkMode ? '#7dd3fc' : '#0369a1',
-                    }} />
-                  )}
-                </Stack>
+              {/* Info Grid */}
+              <Box sx={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: 1,
+                mb: 1.5,
+              }}>
+                {/* Brand */}
+                {lookupResult.brand && (
+                  <Box sx={{
+                    p: 1.25, borderRadius: 2,
+                    bgcolor: isDarkMode ? 'rgba(59,130,246,0.06)' : '#f0f7ff',
+                    border: isDarkMode ? '1px solid rgba(59,130,246,0.1)' : '1px solid #dbeafe',
+                  }}>
+                    <Typography sx={{ fontSize: '0.65rem', fontWeight: 600, color: isDarkMode ? '#64748b' : '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', mb: 0.25 }}>
+                      Brand
+                    </Typography>
+                    <Typography sx={{ fontSize: '0.82rem', fontWeight: 700, color: isDarkMode ? '#93c5fd' : '#1e40af' }}>
+                      {lookupResult.brand}
+                    </Typography>
+                  </Box>
+                )}
 
-                {/* Product Link */}
-                {lookupResult.fkt_link && (
-                  <Button
-                    size="small" variant="outlined"
-                    href={lookupResult.fkt_link}
-                    target="_blank" rel="noopener noreferrer"
-                    startIcon={<OpenInNewIcon sx={{ fontSize: '16px !important' }} />}
-                    sx={{
-                      textTransform: 'none', fontWeight: 700,
-                      fontSize: '0.8rem', color: '#3b82f6',
-                      borderColor: '#3b82f6', borderRadius: 2,
-                      '&:hover': { bgcolor: 'rgba(59,130,246,0.08)', borderColor: '#2563eb' },
-                    }}
-                  >
-                    View Product
-                  </Button>
+                {/* Category */}
+                {lookupResult.cms_vertical && (
+                  <Box sx={{
+                    p: 1.25, borderRadius: 2,
+                    bgcolor: isDarkMode ? 'rgba(139,92,246,0.06)' : '#faf5ff',
+                    border: isDarkMode ? '1px solid rgba(139,92,246,0.1)' : '1px solid #e9d5ff',
+                  }}>
+                    <Typography sx={{ fontSize: '0.65rem', fontWeight: 600, color: isDarkMode ? '#64748b' : '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', mb: 0.25 }}>
+                      Category
+                    </Typography>
+                    <Typography sx={{ fontSize: '0.82rem', fontWeight: 700, color: isDarkMode ? '#c084fc' : '#7c3aed' }}>
+                      {lookupResult.cms_vertical}
+                    </Typography>
+                  </Box>
+                )}
+
+                {/* MRP */}
+                {lookupResult.mrp && (
+                  <Box sx={{
+                    p: 1.25, borderRadius: 2,
+                    bgcolor: isDarkMode ? 'rgba(34,197,94,0.06)' : '#f0fdf4',
+                    border: isDarkMode ? '1px solid rgba(34,197,94,0.1)' : '1px solid #bbf7d0',
+                  }}>
+                    <Typography sx={{ fontSize: '0.65rem', fontWeight: 600, color: isDarkMode ? '#64748b' : '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', mb: 0.25 }}>
+                      MRP
+                    </Typography>
+                    <Typography sx={{ fontSize: '0.88rem', fontWeight: 800, color: isDarkMode ? '#86efac' : '#16a34a' }}>
+                      {'\u20B9'}{lookupResult.mrp}
+                    </Typography>
+                  </Box>
+                )}
+
+                {/* FSP */}
+                {lookupResult.fsp && (
+                  <Box sx={{
+                    p: 1.25, borderRadius: 2,
+                    bgcolor: isDarkMode ? 'rgba(245,158,11,0.06)' : '#fffbeb',
+                    border: isDarkMode ? '1px solid rgba(245,158,11,0.1)' : '1px solid #fde68a',
+                  }}>
+                    <Typography sx={{ fontSize: '0.65rem', fontWeight: 600, color: isDarkMode ? '#64748b' : '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', mb: 0.25 }}>
+                      FSP
+                    </Typography>
+                    <Typography sx={{ fontSize: '0.88rem', fontWeight: 800, color: isDarkMode ? '#fbbf24' : '#d97706' }}>
+                      {'\u20B9'}{lookupResult.fsp}
+                    </Typography>
+                  </Box>
+                )}
+
+                {/* Order ID */}
+                {lookupResult.order_id && (
+                  <Box sx={{
+                    p: 1.25, borderRadius: 2,
+                    bgcolor: isDarkMode ? 'rgba(236,72,153,0.06)' : '#fdf2f8',
+                    border: isDarkMode ? '1px solid rgba(236,72,153,0.1)' : '1px solid #fbcfe8',
+                  }}>
+                    <Typography sx={{ fontSize: '0.65rem', fontWeight: 600, color: isDarkMode ? '#64748b' : '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', mb: 0.25 }}>
+                      Order ID
+                    </Typography>
+                    <Typography sx={{ fontSize: '0.78rem', fontWeight: 700, color: isDarkMode ? '#f9a8d4' : '#db2777', fontFamily: 'monospace' }}>
+                      {lookupResult.order_id}
+                    </Typography>
+                  </Box>
+                )}
+
+                {/* WID */}
+                {lookupResult.wid && (
+                  <Box sx={{
+                    p: 1.25, borderRadius: 2,
+                    bgcolor: isDarkMode ? 'rgba(20,184,166,0.06)' : '#f0fdfa',
+                    border: isDarkMode ? '1px solid rgba(20,184,166,0.1)' : '1px solid #99f6e4',
+                  }}>
+                    <Typography sx={{ fontSize: '0.65rem', fontWeight: 600, color: isDarkMode ? '#64748b' : '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', mb: 0.25 }}>
+                      WID
+                    </Typography>
+                    <Typography sx={{ fontSize: '0.78rem', fontWeight: 700, color: isDarkMode ? '#5eead4' : '#0d9488', fontFamily: 'monospace' }}>
+                      {lookupResult.wid}
+                    </Typography>
+                  </Box>
+                )}
+
+                {/* FSN */}
+                {lookupResult.fsn && (
+                  <Box sx={{
+                    p: 1.25, borderRadius: 2,
+                    bgcolor: isDarkMode ? 'rgba(100,116,139,0.08)' : '#f8fafc',
+                    border: isDarkMode ? '1px solid rgba(100,116,139,0.12)' : '1px solid #e2e8f0',
+                  }}>
+                    <Typography sx={{ fontSize: '0.65rem', fontWeight: 600, color: isDarkMode ? '#64748b' : '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', mb: 0.25 }}>
+                      FSN
+                    </Typography>
+                    <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: isDarkMode ? '#cbd5e1' : '#475569', fontFamily: 'monospace' }}>
+                      {lookupResult.fsn}
+                    </Typography>
+                  </Box>
+                )}
+
+                {/* P Type */}
+                {lookupResult.p_type && (
+                  <Box sx={{
+                    p: 1.25, borderRadius: 2,
+                    bgcolor: isDarkMode ? 'rgba(249,115,22,0.06)' : '#fff7ed',
+                    border: isDarkMode ? '1px solid rgba(249,115,22,0.1)' : '1px solid #fed7aa',
+                  }}>
+                    <Typography sx={{ fontSize: '0.65rem', fontWeight: 600, color: isDarkMode ? '#64748b' : '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', mb: 0.25 }}>
+                      P Type
+                    </Typography>
+                    <Typography sx={{ fontSize: '0.82rem', fontWeight: 700, color: isDarkMode ? '#fb923c' : '#ea580c' }}>
+                      {lookupResult.p_type}
+                    </Typography>
+                  </Box>
                 )}
               </Box>
+
+              {/* FKQC Remarks - Full Width */}
+              {lookupResult.fkqc_remark && (
+                <Box sx={{
+                  p: 1.25, borderRadius: 2, mb: 1.5,
+                  bgcolor: isDarkMode ? 'rgba(239,68,68,0.06)' : '#fef2f2',
+                  border: isDarkMode ? '1px solid rgba(239,68,68,0.12)' : '1px solid #fecaca',
+                }}>
+                  <Typography sx={{ fontSize: '0.65rem', fontWeight: 600, color: isDarkMode ? '#64748b' : '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', mb: 0.25 }}>
+                    FKQC Remarks
+                  </Typography>
+                  <Typography sx={{ fontSize: '0.82rem', fontWeight: 600, color: isDarkMode ? '#fca5a5' : '#dc2626', lineHeight: 1.4 }}>
+                    {lookupResult.fkqc_remark}
+                  </Typography>
+                </Box>
+              )}
+
+              {/* Product Link */}
+              {lookupResult.fkt_link && (
+                <Button
+                  fullWidth size="small" variant="outlined"
+                  href={lookupResult.fkt_link}
+                  target="_blank" rel="noopener noreferrer"
+                  startIcon={<OpenInNewIcon sx={{ fontSize: '16px !important' }} />}
+                  sx={{
+                    textTransform: 'none', fontWeight: 700,
+                    fontSize: '0.85rem', height: 40, borderRadius: 2.5,
+                    color: '#3b82f6', borderColor: isDarkMode ? 'rgba(59,130,246,0.3)' : '#93c5fd',
+                    bgcolor: isDarkMode ? 'rgba(59,130,246,0.06)' : '#f0f7ff',
+                    '&:hover': { bgcolor: isDarkMode ? 'rgba(59,130,246,0.12)' : '#dbeafe', borderColor: '#3b82f6' },
+                  }}
+                >
+                  View on Flipkart
+                </Button>
+              )}
             </Box>
           )}
-        </DialogContent>
+        </Box>
       </Dialog>
 
       {/* Pivot Table Drawer */}
