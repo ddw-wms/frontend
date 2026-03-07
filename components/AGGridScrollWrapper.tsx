@@ -13,30 +13,39 @@ const AGGridScrollWrapper = forwardRef<any, any>(function AGGridScrollWrapper(pr
 
     const [isRapidScrolling, setIsRapidScrolling] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
-    const scrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const scrollCountRef = useRef(0);
-    const scrollWindowRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const isRapidRef = useRef(false);
+    const lastScrollTopRef = useRef(0);
+    const lastScrollTimeRef = useRef(0);
 
-    // Native DOM scroll handler — fires on every scroll tick (not throttled like AG Grid's onBodyScroll)
-    const handleNativeScroll = useCallback(() => {
-        scrollCountRef.current++;
-        if (!scrollWindowRef.current) {
-            scrollWindowRef.current = setTimeout(() => {
-                scrollCountRef.current = 0;
-                scrollWindowRef.current = null;
-            }, 400);
-        }
-        if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current);
-        if (scrollCountRef.current >= 4 && !isRapidRef.current) {
+    // Detect rapid scrolling via scroll velocity (px/ms).
+    // Normal scroll: ~0.5-2 px/ms. Rapid flick/drag: 5+ px/ms.
+    const handleNativeScroll = useCallback((e: Event) => {
+        const target = e.target as HTMLElement;
+        const now = performance.now();
+        const scrollTop = target.scrollTop;
+        const dt = now - lastScrollTimeRef.current;
+        const dp = Math.abs(scrollTop - lastScrollTopRef.current);
+
+        lastScrollTopRef.current = scrollTop;
+        lastScrollTimeRef.current = now;
+
+        // Need at least 16ms gap to measure velocity (avoid division noise)
+        if (dt < 16) return;
+
+        const velocity = dp / dt; // px per ms
+
+        if (velocity > 5 && !isRapidRef.current) {
             isRapidRef.current = true;
             setIsRapidScrolling(true);
         }
-        scrollTimerRef.current = setTimeout(() => {
+
+        // Hide overlay 250ms after scrolling slows/stops
+        if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+        hideTimerRef.current = setTimeout(() => {
             isRapidRef.current = false;
             setIsRapidScrolling(false);
-            scrollCountRef.current = 0;
-        }, 200);
+        }, 250);
     }, []);
 
     // Attach native scroll listener to AG Grid's internal scrollable viewport
@@ -60,8 +69,7 @@ const AGGridScrollWrapper = forwardRef<any, any>(function AGGridScrollWrapper(pr
         return () => {
             if (retryTimer) clearTimeout(retryTimer);
             if (viewport) viewport.removeEventListener('scroll', handleNativeScroll);
-            if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current);
-            if (scrollWindowRef.current) clearTimeout(scrollWindowRef.current);
+            if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
         };
     }, [handleNativeScroll]);
 
