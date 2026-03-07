@@ -3,13 +3,11 @@
 //    to  `import { AgGridReact } from '@/components/AGGridScrollWrapper'`
 // Everything else (props, ref, etc.) stays exactly the same.
 
-import React, { forwardRef, useRef, useState, useCallback, useEffect, type ComponentProps } from 'react';
+import React, { forwardRef, useRef, useState, useCallback, useEffect } from 'react';
 import { AgGridReact as OriginalAgGridReact } from 'ag-grid-react';
 import { Box, CircularProgress, useTheme } from '@mui/material';
 
-type AgGridProps = ComponentProps<typeof OriginalAgGridReact>;
-
-const AGGridScrollWrapper = forwardRef<InstanceType<typeof OriginalAgGridReact>, AgGridProps>(function AGGridScrollWrapper(props, ref) {
+const AGGridScrollWrapper = forwardRef<any, any>(function AGGridScrollWrapper(props, ref) {
     const theme = useTheme();
     const isDarkMode = theme.palette.mode === 'dark';
 
@@ -97,6 +95,6 @@ const AGGridScrollWrapper = forwardRef<InstanceType<typeof OriginalAgGridReact>,
     );
 });
 
-// Re-export as AgGridReact so pages only need to change the import path
-export { AGGridScrollWrapper as AgGridReact };
+// Re-export with the original AgGridReact type so generics (TData) flow through correctly
+export const AgGridReact = AGGridScrollWrapper as any as typeof OriginalAgGridReact;
 export default AGGridScrollWrapper;

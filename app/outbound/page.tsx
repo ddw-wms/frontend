@@ -5621,7 +5621,7 @@ export default function OutboundPage() {
                                         <AgGridReact
                                             ref={listGridRef}
                                             rowData={listData}
-                                            columnDefs={listColumnDefs}
+                                            columnDefs={listColumnDefs as any}
                                             defaultColDef={listDefaultColDef}
                                             context={{ page, limit }}
                                             rowSelection={{ mode: 'singleRow', checkboxes: false, enableClickSelection: true }}
@@ -8629,7 +8629,7 @@ export default function OutboundPage() {
                                 className="ag-theme-quartz"
                                 containerStyle={{ height: '100%', width: '100%', backgroundColor: isDarkMode ? '#1e293b' : '#ffffff' }}
                                 rowData={multiRows}
-                                columnDefs={columnDefs}
+                                columnDefs={columnDefs as any}
                                 rowHeight={tableRowHeight}
                                 headerHeight={32}
                                 defaultColDef={defaultColDef}

@@ -151,7 +151,7 @@ const getCachedQCListData = (): QCItem[] => {
   if (typeof window !== 'undefined' && window.__QC_LIST_CACHE__?.data?.length) {
     // Only use cache if warehouse matches and not stale (2 min TTL)
     if (window.__QC_LIST_CACHE__.warehouseId === currentWarehouseId &&
-        Date.now() - (window.__QC_LIST_CACHE__.timestamp || 0) < 120000) {
+      Date.now() - (window.__QC_LIST_CACHE__.timestamp || 0) < 120000) {
       return window.__QC_LIST_CACHE__.data;
     }
   }
@@ -4549,7 +4549,7 @@ export default function QCPage() {
                     }}>
                       <AgGridReact
                         rowData={qcList}
-                        columnDefs={listColumnDefs}
+                        columnDefs={listColumnDefs as any}
                         defaultColDef={listDefaultColDef}
                         rowSelection={{ mode: 'singleRow', checkboxes: false, enableClickSelection: true }}
                         loading={false}

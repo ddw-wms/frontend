@@ -92,7 +92,7 @@ const getCachedPickingListData = (): any[] => {
   if (typeof window !== 'undefined' && window.__PICKING_LIST_CACHE__?.data?.length) {
     // Only use cache if warehouse matches and not stale (2 min TTL)
     if (window.__PICKING_LIST_CACHE__.warehouseId === currentWarehouseId &&
-        Date.now() - (window.__PICKING_LIST_CACHE__.timestamp || 0) < 120000) {
+      Date.now() - (window.__PICKING_LIST_CACHE__.timestamp || 0) < 120000) {
       return window.__PICKING_LIST_CACHE__.data;
     }
   }
@@ -4618,7 +4618,7 @@ export default function PickingPage() {
                     <AgGridReact
                       ref={gridRef}
                       rowData={pickingList}
-                      columnDefs={listColumnDefs}
+                      columnDefs={listColumnDefs as any}
                       defaultColDef={listDefaultColDef}
                       rowSelection={{ mode: 'singleRow', checkboxes: false, enableClickSelection: true }}
                       loading={false}
@@ -6074,15 +6074,15 @@ export default function PickingPage() {
                   }, 50);
                 }}
                 rowData={multiRows}
-                columnDefs={columnDefs}
+                columnDefs={columnDefs as any}
                 rowHeight={tableRowHeight}
                 headerHeight={32}
-                getRowId={(params) => String(params.data.id)}
+                getRowId={(params: any) => String(params.data.id)}
                 defaultColDef={{
                   sortable: multiGridSettings.sortable,    // ✅ Apply grid settings
                   filter: multiGridSettings.filter,        // ✅ Apply grid settings
                   resizable: multiGridSettings.resizable,  // ✅ Apply grid settings
-                  editable: (params) => {
+                  editable: (params: any) => {
                     // Check grid settings first
                     if (!multiGridSettings.editable) return false;
 
