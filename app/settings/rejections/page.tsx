@@ -55,7 +55,7 @@ import { useWarehouse } from '@/app/context/WarehouseContext';
 import { useResourcePermissions } from '@/hooks/usePermission';
 import { usePermissions } from '@/app/context/PermissionContext';
 
-import { AgGridReact } from 'ag-grid-react';
+import { AgGridReact } from '@/components/AGGridScrollWrapper';
 import { ModuleRegistry, AllCommunityModule, ClientSideRowModelModule } from 'ag-grid-community';
 import 'ag-grid-community/styles/ag-theme-quartz.css';
 

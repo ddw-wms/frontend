@@ -37,7 +37,7 @@ import { printLabel, isAgentRunning } from '@/lib/printAgent';
 
 import FilterListIcon from '@mui/icons-material/FilterList';
 
-import { AgGridReact } from 'ag-grid-react';
+import { AgGridReact } from '@/components/AGGridScrollWrapper';
 import { ModuleRegistry, AllCommunityModule, ClientSideRowModelModule } from 'ag-grid-community';
 import 'ag-grid-community/styles/ag-theme-quartz.css';
 

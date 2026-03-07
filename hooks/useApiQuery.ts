@@ -70,6 +70,7 @@ export function useApiQuery<T>(
     const abortControllerRef = useRef<AbortController | null>(null);
     const timeoutRef = useRef<NodeJS.Timeout | null>(null);
     const retryCountRef = useRef(0);
+    const isLoadingRef = useRef(autoFetch);
 
     const cleanup = useCallback(() => {
         if (abortControllerRef.current) {
@@ -86,6 +87,7 @@ export function useApiQuery<T>(
         cleanup();
 
         setIsLoading(true);
+        isLoadingRef.current = true;
         setError(null);
         setHasTimedOut(false);
         retryCountRef.current = 0;
@@ -96,7 +98,7 @@ export function useApiQuery<T>(
         // Set loading timeout
         if (loadingTimeout > 0) {
             timeoutRef.current = setTimeout(() => {
-                if (isMounted.current && isLoading) {
+                if (isMounted.current && isLoadingRef.current) {
                     setHasTimedOut(true);
                 }
             }, loadingTimeout);
@@ -149,6 +151,7 @@ export function useApiQuery<T>(
         } finally {
             if (isMounted.current) {
                 setIsLoading(false);
+                isLoadingRef.current = false;
                 setIsRetrying(false);
             }
             cleanup();

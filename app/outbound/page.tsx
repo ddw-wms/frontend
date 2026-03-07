@@ -92,7 +92,7 @@ import { useTableRowHeight } from '@/app/context/AppearanceContext';
 import toast, { Toaster } from 'react-hot-toast';
 // ⚡ OPTIMIZED: XLSX not needed here - exports handled server-side
 // import * as XLSX from 'xlsx'; // Removed - unused
-import { AgGridReact } from 'ag-grid-react';
+import { AgGridReact } from '@/components/AGGridScrollWrapper';
 import { ModuleRegistry, AllCommunityModule, ClientSideRowModelModule } from 'ag-grid-community';
 import 'ag-grid-community/styles/ag-theme-quartz.css';
 // Simple localStorage-based grid state (native ag-Grid pattern)
@@ -133,8 +133,9 @@ const getCachedOutboundListData = (): OutboundItem[] => {
 
     // Priority 1: Window cache (fastest, survives navigation)
     if (typeof window !== 'undefined' && window.__OUTBOUND_LIST_CACHE__?.data?.length) {
-        // Only use cache if warehouse matches
-        if (window.__OUTBOUND_LIST_CACHE__.warehouseId === currentWarehouseId) {
+        // Only use cache if warehouse matches and not stale (2 min TTL)
+        if (window.__OUTBOUND_LIST_CACHE__.warehouseId === currentWarehouseId &&
+            Date.now() - (window.__OUTBOUND_LIST_CACHE__.timestamp || 0) < 120000) {
             return window.__OUTBOUND_LIST_CACHE__.data;
         }
     }
@@ -620,7 +621,7 @@ export default function OutboundPage() {
         }
     };
 
-    const [multiRows, setMultiRows] = useState<OutboundItem[]>(generateEmptyRows(500));
+    const [multiRows, setMultiRows] = useState<OutboundItem[]>(() => generateEmptyRows(500));
     const [multiLoading, setMultiLoading] = useState(false);
     //   const [multiResults, setMultiResults] = useState<any[]>([]);
     const [existingOutboundWSNs, setExistingOutboundWSNs] = useState<Set<string>>(new Set());

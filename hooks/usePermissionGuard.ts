@@ -20,8 +20,8 @@ export function usePermissionGuard(requiredPermission: string | string[], redire
             }
 
             const hasAccess = Array.isArray(requiredPermission)
-                ? requiredPermission.some(code => canSee(code))
-                : canSee(requiredPermission);
+                ? requiredPermission.some(code => canAccess(code))
+                : canAccess(requiredPermission);
 
             console.log(`✓ Permission check: ${JSON.stringify(requiredPermission)} = ${hasAccess}`);
 

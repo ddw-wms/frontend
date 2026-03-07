@@ -2,7 +2,7 @@
 "use client";
 
 //import { useState, useEffect } from "react";
-import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from "react";
+import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback, memo } from "react";
 import { useRouter } from "next/navigation";
 import {
   Box,
@@ -82,7 +82,7 @@ import toast, { Toaster } from "react-hot-toast";
 // ⚡ OPTIMIZED: XLSX loaded dynamically on export to reduce bundle size
 // import * as XLSX from "xlsx"; // Removed static import
 
-import { AgGridReact } from 'ag-grid-react';
+import { AgGridReact } from '@/components/AGGridScrollWrapper';
 import { ModuleRegistry, AllCommunityModule, ClientSideRowModelModule } from 'ag-grid-community';
 import 'ag-grid-community/styles/ag-theme-quartz.css';
 
@@ -292,8 +292,9 @@ const getCachedDashboardData = (): InventoryItem[] => {
 
   // Priority 1: Window cache (fastest, survives navigation)
   if (typeof window !== 'undefined' && window.__DASHBOARD_CACHE__?.data?.length) {
-    // Only use cache if warehouse matches
-    if (window.__DASHBOARD_CACHE__.warehouseId === currentWarehouseId) {
+    // Only use cache if warehouse matches and not stale (2 min TTL)
+    if (window.__DASHBOARD_CACHE__.warehouseId === currentWarehouseId &&
+        Date.now() - (window.__DASHBOARD_CACHE__.timestamp || 0) < 120000) {
       return window.__DASHBOARD_CACHE__.data;
     }
   }
@@ -314,6 +315,24 @@ const getCachedDashboardData = (): InventoryItem[] => {
   } catch { /* ignore */ }
   return [];
 };
+
+/** Isolated TimeAgo component — re-renders itself every 10s without triggering parent re-render */
+const TimeAgo = memo(({ date }: { date: Date | null }) => {
+  const [, tick] = useState(0);
+  useEffect(() => {
+    if (!date) return;
+    const id = setInterval(() => tick(p => p + 1), 10000);
+    return () => clearInterval(id);
+  }, [date]);
+  if (!date) return null;
+  const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
+  let label: string;
+  if (seconds < 10) label = 'just now';
+  else if (seconds < 60) label = `${seconds}s ago`;
+  else { const m = Math.floor(seconds / 60); label = m < 60 ? `${m}m ago` : `${Math.floor(m / 60)}h ago`; }
+  return <>{label}</>;
+});
+TimeAgo.displayName = 'TimeAgo';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -1157,28 +1176,6 @@ export default function DashboardPage() {
     }
   }, [pageInputValue, total, limit]);
 
-  // ⚡ TIME AGO: Format last refresh time
-  const getTimeAgo = useCallback((date: Date | null) => {
-    if (!date) return '';
-    const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
-
-    if (seconds < 10) return 'just now';
-    if (seconds < 60) return `${seconds}s ago`;
-    const minutes = Math.floor(seconds / 60);
-    if (minutes < 60) return `${minutes}m ago`;
-    const hours = Math.floor(minutes / 60);
-    return `${hours}h ago`;
-  }, []);
-
-  // ⚡ UPDATE TIME AGO: Update every 10 seconds
-  const [, setTimeUpdate] = useState(0);
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setTimeUpdate(prev => prev + 1);
-    }, 10000);
-    return () => clearInterval(interval);
-  }, []);
-
   const loadFilterOptions = useCallback(async () => {
     // ⚡ SKIP if already loaded
     if (filtersLoaded) return;
@@ -1292,51 +1289,48 @@ export default function DashboardPage() {
     }
   }, [activeWarehouse?.id]);
 
+  // Effect 1: Load inventory data on page/filter changes
   useEffect(() => {
     if (activeWarehouse) {
-      // ⚡ PRIORITY 1: Load main inventory data FIRST (critical path)
-      // Debounce inventory loads to avoid flicker on rapid filter changes
       if (inventoryLoadDebounceRef.current) clearTimeout(inventoryLoadDebounceRef.current);
       inventoryLoadDebounceRef.current = setTimeout(() => {
-        // ⚡ INSTANT NAVIGATION: Mark session as mounted
         try { sessionStorage.setItem('dashboard_mounted_this_session', 'true'); } catch { }
 
-        // ⚡ Check if overlay was requested (e.g., from reset filters)
         const shouldForceRefresh = forceOverlayRef.current;
 
-        // ⚡ BACKGROUND REFRESH: If we have cached data and no force overlay, do silent background refresh
         if (filteredData.length > 0 && !shouldForceRefresh) {
           isBackgroundRefreshRef.current = true;
-          setIsBackgroundRefresh(true); // Show subtle progress bar only
-          // DON'T set loading=true - this prevents blocking overlay
+          setIsBackgroundRefresh(true);
         }
 
         loadInventoryData(shouldForceRefresh, shouldForceRefresh);
         inventoryLoadDebounceRef.current = null;
       }, 50);
 
-      // ⚡ FIX: Load metrics, summary, and stage WSNs IMMEDIATELY on mount (not just in interval)
-      loadMetrics();
-      loadInventorySummary();
-      loadExistingStageWSNs();
-
-      // ⚡ EGRESS OPTIMIZATION: Reduced polling from 5s to 60s (saves ~1.3GB/day)
-      // Manual refresh still available via Refresh button
-      const interval = setInterval(() => {
-        loadMetrics();
-        loadInventorySummary();
-        // refresh existing stage WSNs periodically as well
-        loadExistingStageWSNs();
-      }, 60000);
       return () => {
-        clearInterval(interval);
         if (inventoryLoadDebounceRef.current) {
           clearTimeout(inventoryLoadDebounceRef.current);
           inventoryLoadDebounceRef.current = null;
         }
       };
     }
-  }, [activeWarehouse, page, limit, searchDebounced, stageFilter, availableOnly, brandFilter, categoryFilter, dateFrom, dateTo, loadMetrics, loadInventorySummary, loadExistingStageWSNs, loadInventoryData]);
+  }, [activeWarehouse, page, limit, searchDebounced, stageFilter, availableOnly, brandFilter, categoryFilter, dateFrom, dateTo, loadInventoryData]);
+
+  // Effect 2: Load metrics/summary on warehouse change + 60s interval (NOT on page/filter changes)
+  useEffect(() => {
+    if (activeWarehouse) {
+      loadMetrics();
+      loadInventorySummary();
+      loadExistingStageWSNs();
+
+      const interval = setInterval(() => {
+        loadMetrics();
+        loadInventorySummary();
+        loadExistingStageWSNs();
+      }, 60000);
+      return () => clearInterval(interval);
+    }
+  }, [activeWarehouse, loadMetrics, loadInventorySummary, loadExistingStageWSNs]);
 
   // NOTE: Removed redundant inventoryData → filteredData sync useEffect
   // loadInventoryData already sets both, and having this useEffect caused double render/fluctuation
@@ -2518,7 +2512,7 @@ export default function DashboardPage() {
                           <Stack direction="row" spacing={0.5} alignItems="center" sx={{ ml: 1 }}>
                             <AccessTime sx={{ fontSize: 14, color: isDarkMode ? '#64748b' : '#94a3b8' }} />
                             <Typography sx={{ fontSize: '0.7rem', color: isDarkMode ? '#64748b' : '#94a3b8' }}>
-                              {getTimeAgo(lastRefreshTime)}
+                              <TimeAgo date={lastRefreshTime} />
                             </Typography>
                           </Stack>
                         </Tooltip>

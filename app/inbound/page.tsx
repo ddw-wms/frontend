@@ -39,7 +39,7 @@ import toast, { Toaster } from 'react-hot-toast';
 // ⚡ OPTIMIZED: XLSX loaded dynamically on export to reduce bundle size
 // import * as XLSX from 'xlsx'; // Removed - loaded dynamically when needed
 import Tooltip from '@mui/material/Tooltip';
-import { AgGridReact } from 'ag-grid-react';
+import { AgGridReact } from '@/components/AGGridScrollWrapper';
 import 'ag-grid-community/styles/ag-theme-quartz.css';
 import { printLabel, isAgentRunning } from '@/lib/printAgent';
 
@@ -189,8 +189,9 @@ const getCachedInboundListData = (): any[] => {
 
   // Priority 1: Window cache (fastest, survives navigation)
   if (typeof window !== 'undefined' && window.__INBOUND_LIST_CACHE__?.data?.length) {
-    // Only use cache if warehouse matches
-    if (window.__INBOUND_LIST_CACHE__.warehouseId === currentWarehouseId) {
+    // Only use cache if warehouse matches and not stale (2 min TTL)
+    if (window.__INBOUND_LIST_CACHE__.warehouseId === currentWarehouseId &&
+        Date.now() - (window.__INBOUND_LIST_CACHE__.timestamp || 0) < 120000) {
       return window.__INBOUND_LIST_CACHE__.data;
     }
   }
@@ -350,7 +351,7 @@ export default function InboundPage() {
     });
   };
 
-  const [multiRows, setMultiRows] = useState<any[]>(generateEmptyRows(500));
+  const [multiRows, setMultiRows] = useState<any[]>(() => generateEmptyRows(500));
   const [multiLoading, setMultiLoading] = useState(false);
   const [multiResults, setMultiResults] = useState<any[]>([]);
   const [duplicateWSNs, setDuplicateWSNs] = useState<Set<string>>(new Set());

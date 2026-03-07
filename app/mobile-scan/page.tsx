@@ -68,21 +68,54 @@ const MODE_CONFIG: Record<ScanMode, { title: string; color: string; icon: string
     picking: { title: 'Picking Scan', color: '#059669', icon: '📋' },
 };
 
+let _audioCtx: AudioContext | null = null;
 function playBeep() {
     try {
-        const ctx = new AudioContext();
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
+        if (!_audioCtx) _audioCtx = new AudioContext();
+        const osc = _audioCtx.createOscillator();
+        const gain = _audioCtx.createGain();
         osc.connect(gain);
-        gain.connect(ctx.destination);
+        gain.connect(_audioCtx.destination);
         osc.frequency.value = 1200;
         gain.gain.value = 0.3;
         osc.start();
-        osc.stop(ctx.currentTime + 0.1);
+        osc.stop(_audioCtx.currentTime + 0.1);
     } catch { /* no audio */ }
 }
 
 const DRAFT_LS_KEY = 'mobileScan_draft';
+
+const ProductInfoLine = ({ info, isDark }: { info?: ProductInfo; isDark: boolean }) => {
+    if (!info) return null;
+    const hasAny = info.product_title || info.brand || info.mrp || info.fsn;
+    if (!hasAny) return null;
+    return (
+        <Box sx={{ px: 1.5, pb: 0.8, pt: 0.2 }}>
+            {info.product_title && (
+                <Typography sx={{ fontSize: '0.7rem', color: isDark ? '#cbd5e1' : '#334155', fontWeight: 600, lineHeight: 1.4 }}>
+                    {info.product_title}
+                </Typography>
+            )}
+            <Stack direction="row" flexWrap="wrap" gap={0.5} sx={{ mt: 0.3 }}>
+                {info.brand && (
+                    <Chip label={info.brand} size="small" sx={{ height: 18, fontSize: '0.6rem', fontWeight: 600, bgcolor: isDark ? '#1e3a5f' : '#dbeafe', color: isDark ? '#93c5fd' : '#1e40af' }} />
+                )}
+                {info.mrp && (
+                    <Chip label={`MRP ₹${info.mrp}`} size="small" sx={{ height: 18, fontSize: '0.6rem', fontWeight: 600, bgcolor: isDark ? '#14532d' : '#dcfce7', color: isDark ? '#86efac' : '#166534' }} />
+                )}
+                {info.fsp && (
+                    <Chip label={`FSP ₹${info.fsp}`} size="small" sx={{ height: 18, fontSize: '0.6rem', fontWeight: 600, bgcolor: isDark ? '#3b1764' : '#f3e8ff', color: isDark ? '#c084fc' : '#7c3aed' }} />
+                )}
+                {info.fsn && (
+                    <Chip label={`FSN: ${info.fsn}`} size="small" sx={{ height: 18, fontSize: '0.6rem', fontWeight: 600, bgcolor: isDark ? '#422006' : '#fef3c7', color: isDark ? '#fbbf24' : '#92400e' }} />
+                )}
+                {info.rack_no && (
+                    <Chip label={`📍 ${info.rack_no}`} size="small" sx={{ height: 18, fontSize: '0.6rem', fontWeight: 600, bgcolor: isDark ? '#1c1917' : '#f5f5f4', color: isDark ? '#a8a29e' : '#57534e' }} />
+                )}
+            </Stack>
+        </Box>
+    );
+};
 
 export default function MobileScanPage() {
     const searchParams = useSearchParams();
@@ -605,39 +638,6 @@ export default function MobileScanPage() {
 
     const dupCount = useMemo(() => scannedEntries.filter(e => e.isDuplicate).length, [scannedEntries]);
 
-    // Product info display - comprehensive like multi-entry
-    const ProductInfoLine = ({ info }: { info?: ProductInfo }) => {
-        if (!info) return null;
-        const hasAny = info.product_title || info.brand || info.mrp || info.fsn;
-        if (!hasAny) return null;
-        return (
-            <Box sx={{ px: 1.5, pb: 0.8, pt: 0.2 }}>
-                {info.product_title && (
-                    <Typography sx={{ fontSize: '0.7rem', color: isDark ? '#cbd5e1' : '#334155', fontWeight: 600, lineHeight: 1.4 }}>
-                        {info.product_title}
-                    </Typography>
-                )}
-                <Stack direction="row" flexWrap="wrap" gap={0.5} sx={{ mt: 0.3 }}>
-                    {info.brand && (
-                        <Chip label={info.brand} size="small" sx={{ height: 18, fontSize: '0.6rem', fontWeight: 600, bgcolor: isDark ? '#1e3a5f' : '#dbeafe', color: isDark ? '#93c5fd' : '#1e40af' }} />
-                    )}
-                    {info.mrp && (
-                        <Chip label={`MRP ₹${info.mrp}`} size="small" sx={{ height: 18, fontSize: '0.6rem', fontWeight: 600, bgcolor: isDark ? '#14532d' : '#dcfce7', color: isDark ? '#86efac' : '#166534' }} />
-                    )}
-                    {info.fsp && (
-                        <Chip label={`FSP ₹${info.fsp}`} size="small" sx={{ height: 18, fontSize: '0.6rem', fontWeight: 600, bgcolor: isDark ? '#3b1764' : '#f3e8ff', color: isDark ? '#c084fc' : '#7c3aed' }} />
-                    )}
-                    {info.fsn && (
-                        <Chip label={`FSN: ${info.fsn}`} size="small" sx={{ height: 18, fontSize: '0.6rem', fontWeight: 600, bgcolor: isDark ? '#422006' : '#fef3c7', color: isDark ? '#fbbf24' : '#92400e' }} />
-                    )}
-                    {info.rack_no && (
-                        <Chip label={`📍 ${info.rack_no}`} size="small" sx={{ height: 18, fontSize: '0.6rem', fontWeight: 600, bgcolor: isDark ? '#1c1917' : '#f5f5f4', color: isDark ? '#a8a29e' : '#57534e' }} />
-                    )}
-                </Stack>
-            </Box>
-        );
-    };
-
     return (
         <Box sx={{ minHeight: '100dvh', bgcolor: isDark ? '#0f172a' : '#f5f7fa', display: 'flex', flexDirection: 'column' }}>
             <Toaster position="top-center" />
@@ -952,7 +952,7 @@ export default function MobileScanPage() {
                                             </Box>
 
                                             {/* Compact product info */}
-                                            <ProductInfoLine info={entry.productInfo} />
+                                            <ProductInfoLine info={entry.productInfo} isDark={isDark} />
 
                                             {/* QC expanded fields */}
                                             {mode === 'qc' && (

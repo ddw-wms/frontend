@@ -172,7 +172,7 @@ export default function PrinterSettingsPage() {
 
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
 
       console.log(`🔍 Fetching printers from http://127.0.0.1:${agentPort}/printers`);
 

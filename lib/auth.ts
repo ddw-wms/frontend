@@ -125,7 +125,13 @@ export const logout = () => {
 export const getStoredUser = (): User | null => {
   if (typeof window === 'undefined') return null;
   const user = localStorage.getItem('user');
-  return user ? JSON.parse(user) : null;
+  if (!user) return null;
+  try {
+    return JSON.parse(user);
+  } catch {
+    localStorage.removeItem('user');
+    return null;
+  }
 };
 
 export const getStoredToken = (): string | null => {
@@ -154,13 +160,25 @@ export const isAuthenticated = (): boolean => {
 export const getStoredPermissions = (): Record<string, Permission> | null => {
   if (typeof window === 'undefined') return null;
   const permissions = localStorage.getItem('permissions');
-  return permissions ? JSON.parse(permissions) : null;
+  if (!permissions) return null;
+  try {
+    return JSON.parse(permissions);
+  } catch {
+    localStorage.removeItem('permissions');
+    return null;
+  }
 };
 
 export const getStoredWarehouses = (): WarehouseAccess[] | null => {
   if (typeof window === 'undefined') return null;
   const warehouses = localStorage.getItem('warehouses');
-  return warehouses ? JSON.parse(warehouses) : null;
+  if (!warehouses) return null;
+  try {
+    return JSON.parse(warehouses);
+  } catch {
+    localStorage.removeItem('warehouses');
+    return null;
+  }
 };
 
 /**

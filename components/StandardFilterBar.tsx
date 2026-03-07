@@ -122,6 +122,32 @@ export default function StandardFilterBar({
                             </Box>
                         )}
 
+                        {/* Mobile Filter Toggle */}
+                        {onToggleFilters && filters.length > 0 && (
+                            <IconButton
+                                onClick={onToggleFilters}
+                                size="small"
+                                sx={{
+                                    display: { xs: 'inline-flex', md: 'none' },
+                                    width: 44,
+                                    height: 44,
+                                    bgcolor: filtersExpanded ? 'primary.main' : 'rgba(30, 64, 175, 0.08)',
+                                    color: filtersExpanded ? 'white' : 'primary.main',
+                                    borderRadius: 2.5,
+                                    position: 'relative',
+                                }}
+                            >
+                                <FilterListIcon sx={{ fontSize: 22 }} />
+                                {filtersActive && (
+                                    <Box sx={{
+                                        position: 'absolute', top: -2, right: -2,
+                                        width: 10, height: 10, borderRadius: '50%',
+                                        bgcolor: '#10b981', border: '2px solid white',
+                                    }} />
+                                )}
+                            </IconButton>
+                        )}
+
                         {/* Desktop Filter Toggle */}
                         {onToggleFilters && (
                             <Button
@@ -246,6 +272,56 @@ export default function StandardFilterBar({
                                     )}
                                 </TextField>
                             ))}
+                        </Box>
+
+                        {/* Mobile Filters */}
+                        <Box sx={{
+                            display: { xs: 'flex', md: 'none' },
+                            flexDirection: 'column',
+                            gap: 1,
+                            pt: 1,
+                            pb: 0.5,
+                        }}>
+                            {filters.map((filter, index) => (
+                                <TextField
+                                    key={index}
+                                    select={filter.type === 'select'}
+                                    type={filter.type === 'date' ? 'date' : 'text'}
+                                    size="small"
+                                    label={filter.label}
+                                    value={filter.currentValue}
+                                    onChange={(e) => filter.onChange(e.target.value)}
+                                    fullWidth
+                                    sx={{
+                                        '& .MuiOutlinedInput-root': {
+                                            height: 44,
+                                            bgcolor: isDarkMode ? '#0f172a' : '#f8fafc',
+                                            borderRadius: 2,
+                                        },
+                                        '& .MuiInputLabel-root': { fontWeight: 500 },
+                                    }}
+                                    InputLabelProps={filter.type === 'date' ? { shrink: true } : undefined}
+                                >
+                                    {filter.type === 'select' && filter.options && (
+                                        <>
+                                            <MenuItem value="">All {filter.label}</MenuItem>
+                                            {filter.options.map((opt) => (
+                                                <MenuItem key={opt.value} value={opt.value}>
+                                                    {opt.label}
+                                                </MenuItem>
+                                            ))}
+                                        </>
+                                    )}
+                                </TextField>
+                            ))}
+                            <Button
+                                size="small"
+                                onClick={onReset}
+                                startIcon={<RestartAltIcon />}
+                                sx={{ alignSelf: 'flex-end', textTransform: 'none', fontWeight: 600, color: '#dc2626' }}
+                            >
+                                Reset
+                            </Button>
                         </Box>
                     </Collapse>
                 </Stack>
