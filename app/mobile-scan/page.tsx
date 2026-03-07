@@ -157,6 +157,7 @@ export default function MobileScanPage() {
     const [expandedEntry, setExpandedEntry] = useState<string | null>(null);
     const wsnInputRef = useRef<HTMLInputElement>(null);
     const draftSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const receivingSyncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const draftLoadedRef = useRef(false);
     // Ref-based duplicate check (avoids stale closure in scan callback)
     const scannedWSNsRef = useRef<Set<string>>(new Set());
@@ -538,6 +539,17 @@ export default function MobileScanPage() {
         // Add to ref immediately (synchronous — prevents rapid-fire duplicates)
         scannedWSNsRef.current.add(wsn);
         setScannedEntries(prev => [newEntry, ...prev]);
+
+        // Sync receiving WSNs for inbound mode (debounced — so master data shows receiving status)
+        if (mode === 'inbound' && activeWarehouse?.id) {
+            if (receivingSyncTimer.current) clearTimeout(receivingSyncTimer.current);
+            receivingSyncTimer.current = setTimeout(() => {
+                const allWSNs = Array.from(scannedWSNsRef.current);
+                if (allWSNs.length > 0) {
+                    inboundAPI.syncReceivingWSNs(allWSNs, activeWarehouse.id!).catch(() => { });
+                }
+            }, 500);
+        }
         if (isDuplicate) {
             const dupMsg = dupType === 'cross-wh'
                 ? `⚠️ ${wsn} exists in another warehouse`
@@ -657,6 +669,10 @@ export default function MobileScanPage() {
                 else await pickingAPI.clearDraft(activeWarehouse.id, 'mobile');
             }
         } catch { /* ignore */ }
+        // Clear receiving WSNs for inbound
+        if (mode === 'inbound' && activeWarehouse?.id) {
+            inboundAPI.clearReceivingWSNs(activeWarehouse.id).catch(() => { });
+        }
         toast.success('Draft cleared');
     }, [mode, activeWarehouse?.id]);
 
@@ -753,6 +769,11 @@ export default function MobileScanPage() {
                 validEntries.forEach(e => updated.set(e.wsn, activeWarehouse!.id));
                 return updated;
             });
+
+            // Clear receiving WSNs for inbound after successful submit
+            if (mode === 'inbound' && activeWarehouse?.id) {
+                inboundAPI.clearReceivingWSNs(activeWarehouse.id).catch(() => { });
+            }
 
             setResultDialog({ open: true, batchId, count: validEntries.length });
             setScannedEntries([]);
