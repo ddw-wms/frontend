@@ -113,8 +113,8 @@ export default function RejectionsPage() {
     const { canView, canCreate, canDelete, canExport } = useResourcePermissions('rejections');
     const { canAccess, isAdmin } = usePermissions();
     const canUpdateCN = isAdmin || canAccess('feature:rejections:credit');
-    const gridRef = useRef<AgGridReact>(null);
-    const summaryGridRef = useRef<AgGridReact>(null);
+    const gridRef = useRef<any>(null);
+    const summaryGridRef = useRef<any>(null);
 
     // State
     const [rejections, setRejections] = useState<Rejection[]>([]);
@@ -1251,8 +1251,8 @@ export default function RejectionsPage() {
                             >
                                 <AgGridReact
                                     ref={gridRef}
-                                    rowData={rejections}
-                                    columnDefs={columnDefs}
+                                    rowData={rejections as any}
+                                    columnDefs={columnDefs as any}
                                     defaultColDef={defaultColDef}
                                     animateRows={false}
                                     rowSelection="multiple"
