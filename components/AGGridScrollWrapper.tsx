@@ -3,11 +3,13 @@
 //    to  `import { AgGridReact } from '@/components/AGGridScrollWrapper'`
 // Everything else (props, ref, etc.) stays exactly the same.
 
-import React, { forwardRef, useRef, useState, useCallback, useEffect } from 'react';
+import React, { forwardRef, useRef, useState, useCallback, useEffect, type ComponentProps } from 'react';
 import { AgGridReact as OriginalAgGridReact } from 'ag-grid-react';
 import { Box, CircularProgress, useTheme } from '@mui/material';
 
-const AGGridScrollWrapper = forwardRef<any, any>(function AGGridScrollWrapper(props, ref) {
+type AgGridProps = ComponentProps<typeof OriginalAgGridReact>;
+
+const AGGridScrollWrapper = forwardRef<InstanceType<typeof OriginalAgGridReact>, AgGridProps>(function AGGridScrollWrapper(props, ref) {
     const theme = useTheme();
     const isDarkMode = theme.palette.mode === 'dark';
 

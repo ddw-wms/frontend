@@ -191,7 +191,7 @@ const getCachedInboundListData = (): any[] => {
   if (typeof window !== 'undefined' && window.__INBOUND_LIST_CACHE__?.data?.length) {
     // Only use cache if warehouse matches and not stale (2 min TTL)
     if (window.__INBOUND_LIST_CACHE__.warehouseId === currentWarehouseId &&
-        Date.now() - (window.__INBOUND_LIST_CACHE__.timestamp || 0) < 120000) {
+      Date.now() - (window.__INBOUND_LIST_CACHE__.timestamp || 0) < 120000) {
       return window.__INBOUND_LIST_CACHE__.data;
     }
   }
@@ -7898,7 +7898,7 @@ export default function InboundPage() {
                     className="ag-theme-quartz"
                     containerStyle={{ height: '100%', width: '100%', backgroundColor: isDarkMode ? '#1e293b' : '#ffffff' }}
                     // ⚡ PERFORMANCE: getRowId for efficient row tracking and updates
-                    getRowId={(params) => params.data._rowId}
+                    getRowId={(params: any) => params.data._rowId}
                     onGridReady={(params: any) => {
                       gridRef.current = params.api;
                       columnApiRef.current = params.columnApi;
@@ -7974,7 +7974,7 @@ export default function InboundPage() {
                         return false;
                       },
 
-                      editable: (params) => {
+                      editable: (params: any) => {
                         // ✅ Check multi grid settings first
                         if (!multiGridSettings.editable) return false;
 
@@ -8096,7 +8096,7 @@ export default function InboundPage() {
                     valueCacheNeverExpires={false}
 
                     // ⚡ EXCEL-LIKE: Handle cell mouse down for drag selection start
-                    onCellMouseDown={(event) => {
+                    onCellMouseDown={(event: any) => {
                       const rowIndex = event.rowIndex;
                       const colId = event.column?.getColId();
                       if (rowIndex === null || rowIndex === undefined || !colId) return;
@@ -8107,7 +8107,7 @@ export default function InboundPage() {
                     }}
 
                     // ⚡ EXCEL-LIKE: Handle cell mouse over for drag selection extend
-                    onCellMouseOver={(event) => {
+                    onCellMouseOver={(event: any) => {
                       const rowIndex = event.rowIndex;
                       const colId = event.column?.getColId();
                       if (rowIndex === null || rowIndex === undefined || !colId) return;
@@ -8118,7 +8118,7 @@ export default function InboundPage() {
                     }}
 
                     // ⚡ EXCEL-LIKE: Handle cell click for shift+click selection
-                    onCellClicked={(event) => {
+                    onCellClicked={(event: any) => {
                       const rowIndex = event.rowIndex;
                       const colId = event.column?.getColId();
                       if (rowIndex === null || rowIndex === undefined || !colId) return;
@@ -8128,7 +8128,7 @@ export default function InboundPage() {
                     }}
 
                     // ⚡ SMOOTH SCROLL: Detect user manual scroll to avoid overriding it
-                    onBodyScroll={(event) => {
+                    onBodyScroll={(event: any) => {
                       // If we're auto-scrolling (programmatic), skip — don't flag as user scroll
                       if (isAutoScrollingRef.current) {
                         lastGridScrollTopRef.current = event.top;
@@ -8191,7 +8191,7 @@ export default function InboundPage() {
                     }}
 
                     // ⚡ EXCEL-LIKE: Get row class for highlighting (newly added rows + selected range)
-                    getRowClass={(params) => {
+                    getRowClass={(params: any) => {
                       const classes: string[] = [];
 
                       // Highlight newly added/scanned rows
@@ -8207,7 +8207,7 @@ export default function InboundPage() {
 
                     onCellValueChanged={handleMultiCellValueChanged}
 
-                    onCellKeyDown={(event) => {
+                    onCellKeyDown={(event: any) => {
                       // ✅ FIX: event.event is AG Grid's wrapper - access the native keyboard event
                       const nativeEvent = event.event as KeyboardEvent | undefined;
                       const key = nativeEvent?.key;
