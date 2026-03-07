@@ -197,6 +197,17 @@ export default function MobileScanPage() {
         return true;
     });
     const [agentReady, setAgentReady] = useState(false);
+    const [printAgentIp, setPrintAgentIp] = useState(() => {
+        if (typeof window !== 'undefined') {
+            const saved = localStorage.getItem('mobileScan_printAgentUrl');
+            if (saved) {
+                // Extract IP from stored URL like http://192.168.1.5:9100
+                const match = saved.match(/\/\/([^:]+)/);
+                return match ? match[1] : '';
+            }
+        }
+        return '';
+    });
 
     // Virtualized list: only render visible entries for performance with 500-1500 items
     const [visibleCount, setVisibleCount] = useState(50);
@@ -890,8 +901,21 @@ export default function MobileScanPage() {
                                         onChange={e => setInboundDate(e.target.value)} InputLabelProps={{ shrink: true }} />
                                     <TextField fullWidth size="small" label="Vehicle No" value={inboundVehicleNo}
                                         onChange={e => setInboundVehicleNo(e.target.value.toUpperCase())} placeholder="MH-01-AB-1234 (optional)" />
+                                    <TextField fullWidth size="small" label="Print Agent IP (Laptop)" value={printAgentIp}
+                                        onChange={e => {
+                                            const ip = e.target.value.trim();
+                                            setPrintAgentIp(ip);
+                                            if (ip && /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(ip)) {
+                                                localStorage.setItem('mobileScan_printAgentUrl', `http://${ip}:9100`);
+                                            } else if (!ip) {
+                                                localStorage.removeItem('mobileScan_printAgentUrl');
+                                            }
+                                        }}
+                                        placeholder="e.g. 192.168.1.5"
+                                        helperText={printAgentIp ? `Connecting to http://${printAgentIp}:9100` : 'Enter laptop IP for printing (run ipconfig on laptop)'}
+                                    />
                                     <Alert severity={agentReady ? 'success' : 'warning'} sx={{ py: 0, fontSize: '0.7rem', borderRadius: 1 }}>
-                                        {agentReady ? '🖨️ Print Agent connected — auto-print available' : '⚠️ Print Agent not detected — printing won\'t work'}
+                                        {agentReady ? '🖨️ Print Agent connected — auto-print available' : '⚠️ Print Agent not detected — enter laptop IP above'}
                                     </Alert>
                                     <Typography sx={{ fontSize: '0.7rem', color: isDark ? '#64748b' : '#94a3b8' }}>
                                         Scan WSN barcodes → product details auto-load → label auto-prints (if enabled).

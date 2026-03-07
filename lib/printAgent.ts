@@ -10,14 +10,28 @@ interface PrintPayload {
     copies?: number;
 }
 
-const AGENT_URL = process.env.NEXT_PUBLIC_PRINT_AGENT_URL || 'http://127.0.0.1:9100';
+const _DEFAULT_AGENT_URL = process.env.NEXT_PUBLIC_PRINT_AGENT_URL || 'http://127.0.0.1:9100';
 const TIMEOUT_MS = 65000; // 65 seconds - allows backend 60s + buffer
+
+/**
+ * Get the effective Print Agent URL.
+ * On mobile devices, users can configure a custom LAN IP (e.g. http://192.168.1.5:9100)
+ * stored in localStorage under 'mobileScan_printAgentUrl'.
+ * Falls back to the default (127.0.0.1:9100) for desktop usage.
+ */
+function getAgentUrl(): string {
+    if (typeof window !== 'undefined') {
+        const custom = localStorage.getItem('mobileScan_printAgentUrl');
+        if (custom && custom.trim()) return custom.trim();
+    }
+    return _DEFAULT_AGENT_URL;
+}
 
 // ==================== CHECK AGENT HEALTH ====================
 
 export async function isAgentRunning(): Promise<boolean> {
     try {
-        const response = await fetch(`${AGENT_URL}/health`, {
+        const response = await fetch(`${getAgentUrl()}/health`, {
             method: 'GET',
             signal: AbortSignal.timeout(5000), // Quick health check
         });
@@ -31,7 +45,7 @@ export async function isAgentRunning(): Promise<boolean> {
 
 export async function getAvailablePrinters(): Promise<any[]> {
     try {
-        const response = await fetch(`${AGENT_URL}/printers`, {
+        const response = await fetch(`${getAgentUrl()}/printers`, {
             method: 'GET',
             signal: AbortSignal.timeout(10000),
         });
@@ -48,7 +62,7 @@ export async function getAvailablePrinters(): Promise<any[]> {
 
 export async function setDefaultPrinter(printerName: string): Promise<boolean> {
     try {
-        const response = await fetch(`${AGENT_URL}/set-default-printer`, {
+        const response = await fetch(`${getAgentUrl()}/set-default-printer`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ printerName }),
@@ -88,7 +102,7 @@ export async function printLabel(payload: PrintPayload): Promise<boolean> {
         // Check agent is running
         const agentRunning = await isAgentRunning();
         if (!agentRunning) {
-            console.warn('⚠️ Print Agent not running on http://127.0.0.1:9100');
+            console.warn(`⚠️ Print Agent not running on ${getAgentUrl()}`);
             return false;
         }
 
@@ -109,7 +123,7 @@ export async function printLabel(payload: PrintPayload): Promise<boolean> {
         console.log(`📋 Print payload:`, printBody);
 
         // Send print job with LONG timeout (printer takes time)
-        const response = await fetch(`${AGENT_URL}/print-label`, {
+        const response = await fetch(`${getAgentUrl()}/print-label`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(printBody),
@@ -134,7 +148,7 @@ export async function printLabel(payload: PrintPayload): Promise<boolean> {
 
 export async function testPrint(): Promise<boolean> {
     try {
-        const response = await fetch(`${AGENT_URL}/test-print`, {
+        const response = await fetch(`${getAgentUrl()}/test-print`, {
             method: 'POST',
             signal: AbortSignal.timeout(70000), // Long timeout for test
         });
@@ -151,7 +165,7 @@ export async function testPrint(): Promise<boolean> {
 
 export async function getAgentConfig(): Promise<any> {
     try {
-        const response = await fetch(`${AGENT_URL}/config`, {
+        const response = await fetch(`${getAgentUrl()}/config`, {
             method: 'GET',
             signal: AbortSignal.timeout(10000),
         });
@@ -167,7 +181,7 @@ export async function getAgentConfig(): Promise<any> {
 
 export async function updateAgentConfig(config: any): Promise<boolean> {
     try {
-        const response = await fetch(`${AGENT_URL}/config`, {
+        const response = await fetch(`${getAgentUrl()}/config`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(config),
