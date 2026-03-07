@@ -205,3 +205,62 @@ export default {
     getAgentConfig,
     updateAgentConfig,
 };
+
+// ==================== PROXY MODE (for mobile devices) ====================
+// Instead of connecting directly to the Print Agent (which requires LAN IP),
+// mobile devices can route print requests through the WMS backend.
+// The backend proxies to the Print Agent on localhost.
+
+const API_URL = `${process.env.NEXT_PUBLIC_API_URL}/api`;
+
+function getProxyHeaders(): Record<string, string> {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (typeof window !== 'undefined') {
+        const token = localStorage.getItem('token');
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+    }
+    return headers;
+}
+
+export async function isAgentRunningViaProxy(): Promise<boolean> {
+    try {
+        const response = await fetch(`${API_URL}/inbound/print-proxy/health`, {
+            method: 'GET',
+            headers: getProxyHeaders(),
+            signal: AbortSignal.timeout(8000),
+        });
+        return response.ok;
+    } catch {
+        return false;
+    }
+}
+
+export async function printLabelViaProxy(payload: PrintPayload): Promise<boolean> {
+    try {
+        const response = await fetch(`${API_URL}/inbound/print-proxy/print-label`, {
+            method: 'POST',
+            headers: getProxyHeaders(),
+            body: JSON.stringify({
+                wsn: payload.wsn,
+                product_title: payload.product_title || '',
+                brand: payload.brand || '',
+                mrp: String(payload.mrp || ''),
+                fsp: String(payload.fsp || ''),
+                fsn: payload.fsn || '',
+                wid: payload.wid || '',
+                product_serial_number: payload.product_serial_number || '',
+                copies: Math.max(1, Math.min(payload.copies || 1, 10)),
+            }),
+            signal: AbortSignal.timeout(TIMEOUT_MS),
+        });
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Print failed');
+        }
+        console.log(`✅ Print job (proxy) accepted: ${payload.wsn}`);
+        return true;
+    } catch (err: any) {
+        console.error(`❌ Print proxy error for ${payload.wsn}:`, err.message);
+        return false;
+    }
+}

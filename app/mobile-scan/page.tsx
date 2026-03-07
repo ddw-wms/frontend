@@ -28,7 +28,7 @@ import { useWarehouse } from '@/app/context/WarehouseContext';
 import { getStoredUser } from '@/lib/auth';
 import CameraScanner from '@/components/CameraScanner';
 import CustomerAutocomplete from '@/components/CustomerAutocomplete';
-import { printLabel, isAgentRunning } from '@/lib/printAgent';
+import { printLabel, isAgentRunning, printLabelViaProxy, isAgentRunningViaProxy } from '@/lib/printAgent';
 import toast, { Toaster } from 'react-hot-toast';
 
 type ScanMode = 'qc' | 'outbound' | 'picking' | 'inbound';
@@ -197,17 +197,6 @@ export default function MobileScanPage() {
         return true;
     });
     const [agentReady, setAgentReady] = useState(false);
-    const [printAgentIp, setPrintAgentIp] = useState(() => {
-        if (typeof window !== 'undefined') {
-            const saved = localStorage.getItem('mobileScan_printAgentUrl');
-            if (saved) {
-                // Extract IP from stored URL like http://192.168.1.5:9100
-                const match = saved.match(/\/\/([^:]+)/);
-                return match ? match[1] : '';
-            }
-        }
-        return '';
-    });
 
     // Virtualized list: only render visible entries for performance with 500-1500 items
     const [visibleCount, setVisibleCount] = useState(50);
@@ -227,12 +216,12 @@ export default function MobileScanPage() {
         localStorage.setItem('mobileScan_inbound_autoPrint', String(autoPrintEnabled));
     }, [autoPrintEnabled]);
 
-    // Print Agent health check (inbound mode only)
+    // Print Agent health check (inbound mode only) — uses backend proxy
     useEffect(() => {
         if (mode !== 'inbound') return;
         let mounted = true;
         const check = async () => {
-            const running = await isAgentRunning();
+            const running = await isAgentRunningViaProxy();
             if (mounted) setAgentReady(running);
         };
         check();
@@ -569,9 +558,9 @@ export default function MobileScanPage() {
                     } : e
                 ));
 
-                // Auto-print for inbound mode (non-blocking, background)
+                // Auto-print for inbound mode via backend proxy (non-blocking, background)
                 if (mode === 'inbound' && autoPrintEnabled && !isDuplicate) {
-                    printLabel({
+                    printLabelViaProxy({
                         wsn,
                         product_title: info.product_title || '',
                         brand: info.brand || '',
@@ -630,10 +619,10 @@ export default function MobileScanPage() {
         setScannedEntries(prev => prev.map(e => e.id === id ? { ...e, [field]: value } : e));
     }, []);
 
-    // Manual print for a single entry (inbound mode)
+    // Manual print for a single entry (inbound mode) — via backend proxy
     const handleManualPrint = useCallback(async (entry: ScannedEntry) => {
         if (!entry.productInfo) { toast.error('No product data to print'); return; }
-        const ok = await printLabel({
+        const ok = await printLabelViaProxy({
             wsn: entry.wsn,
             product_title: entry.productInfo.product_title || '',
             brand: entry.productInfo.brand || '',
@@ -646,7 +635,7 @@ export default function MobileScanPage() {
             setScannedEntries(prev => prev.map(e => e.id === entry.id ? { ...e, printed: true } : e));
             toast.success(`Printed: ${entry.wsn}`, { duration: 1500 });
         } else {
-            toast.error('Print failed — check Print Agent');
+            toast.error('Print failed — check Print Agent on laptop');
         }
     }, []);
 
@@ -901,21 +890,8 @@ export default function MobileScanPage() {
                                         onChange={e => setInboundDate(e.target.value)} InputLabelProps={{ shrink: true }} />
                                     <TextField fullWidth size="small" label="Vehicle No" value={inboundVehicleNo}
                                         onChange={e => setInboundVehicleNo(e.target.value.toUpperCase())} placeholder="MH-01-AB-1234 (optional)" />
-                                    <TextField fullWidth size="small" label="Print Agent IP (Laptop)" value={printAgentIp}
-                                        onChange={e => {
-                                            const ip = e.target.value.trim();
-                                            setPrintAgentIp(ip);
-                                            if (ip && /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(ip)) {
-                                                localStorage.setItem('mobileScan_printAgentUrl', `http://${ip}:9100`);
-                                            } else if (!ip) {
-                                                localStorage.removeItem('mobileScan_printAgentUrl');
-                                            }
-                                        }}
-                                        placeholder="e.g. 192.168.1.5"
-                                        helperText={printAgentIp ? `Connecting to http://${printAgentIp}:9100` : 'Enter laptop IP for printing (run ipconfig on laptop)'}
-                                    />
                                     <Alert severity={agentReady ? 'success' : 'warning'} sx={{ py: 0, fontSize: '0.7rem', borderRadius: 1 }}>
-                                        {agentReady ? '🖨️ Print Agent connected — auto-print available' : '⚠️ Print Agent not detected — enter laptop IP above'}
+                                        {agentReady ? '🖨️ Print Agent connected — auto-print available' : '⚠️ Print Agent not detected — make sure Print Agent is running on laptop'}
                                     </Alert>
                                     <Typography sx={{ fontSize: '0.7rem', color: isDark ? '#64748b' : '#94a3b8' }}>
                                         Scan WSN barcodes → product details auto-load → label auto-prints (if enabled).
