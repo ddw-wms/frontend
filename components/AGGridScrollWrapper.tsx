@@ -15,37 +15,47 @@ const AGGridScrollWrapper = forwardRef<any, any>(function AGGridScrollWrapper(pr
     const containerRef = useRef<HTMLDivElement>(null);
     const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const isRapidRef = useRef(false);
-    const lastScrollTopRef = useRef(0);
-    const lastScrollTimeRef = useRef(0);
+    // Rolling window: track scroll distances with timestamps
+    const scrollSamplesRef = useRef<{ time: number; pos: number }[]>([]);
 
-    // Detect rapid scrolling via scroll velocity (px/ms).
-    // Normal scroll: ~0.5-2 px/ms. Rapid flick/drag: 5+ px/ms.
+    // Measure cumulative scroll distance over a 600ms rolling window.
+    // Normal wheel/trackpad: ~200-800px in 600ms.
+    // Rapid scrollbar drag or fast flick: 2500+ px in 600ms (scrolling through 50+ rows).
+    const WINDOW_MS = 600;
+    const DISTANCE_THRESHOLD = 2500;
+
     const handleNativeScroll = useCallback((e: Event) => {
         const target = e.target as HTMLElement;
         const now = performance.now();
         const scrollTop = target.scrollTop;
-        const dt = now - lastScrollTimeRef.current;
-        const dp = Math.abs(scrollTop - lastScrollTopRef.current);
 
-        lastScrollTopRef.current = scrollTop;
-        lastScrollTimeRef.current = now;
+        // Add current sample
+        const samples = scrollSamplesRef.current;
+        samples.push({ time: now, pos: scrollTop });
 
-        // Need at least 16ms gap to measure velocity (avoid division noise)
-        if (dt < 16) return;
+        // Trim samples outside the rolling window
+        while (samples.length > 0 && now - samples[0].time > WINDOW_MS) {
+            samples.shift();
+        }
 
-        const velocity = dp / dt; // px per ms
+        // Calculate total distance traveled in window (handles direction changes)
+        let totalDistance = 0;
+        for (let i = 1; i < samples.length; i++) {
+            totalDistance += Math.abs(samples[i].pos - samples[i - 1].pos);
+        }
 
-        if (velocity > 5 && !isRapidRef.current) {
+        if (totalDistance >= DISTANCE_THRESHOLD && !isRapidRef.current) {
             isRapidRef.current = true;
             setIsRapidScrolling(true);
         }
 
-        // Hide overlay 250ms after scrolling slows/stops
+        // Hide overlay 300ms after scrolling stops
         if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
         hideTimerRef.current = setTimeout(() => {
             isRapidRef.current = false;
             setIsRapidScrolling(false);
-        }, 250);
+            scrollSamplesRef.current = [];
+        }, 300);
     }, []);
 
     // Attach native scroll listener to AG Grid's internal scrollable viewport
