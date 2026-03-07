@@ -25,7 +25,8 @@ import {
   Tune as TuneIcon, KeyboardArrowLeft, KeyboardArrowRight, FirstPage, LastPage, AccessTime,
   Fullscreen as FullscreenIcon, FullscreenExit as FullscreenExitIcon,
   Menu as MenuIcon, ViewColumn as ViewColumnIcon, TableChart as TableChartIcon,
-  Print as PrintIcon, Keyboard as KeyboardIcon, Link as LinkIcon, Inventory as InventoryIcon
+  Print as PrintIcon, Keyboard as KeyboardIcon, Link as LinkIcon, Inventory as InventoryIcon,
+  QrCodeScanner as QrCodeScannerIcon
 } from '@mui/icons-material';
 
 import { inboundAPI } from '@/lib/api';
@@ -7706,6 +7707,26 @@ export default function InboundPage() {
 
                       {/* RIGHT: Fixed Action Buttons */}
                       <Stack direction="row" spacing={0.5} sx={{ flexShrink: 0, alignItems: 'center' }}>
+                        {/* Mobile Scan Button */}
+                        <Tooltip title="Mobile Scan">
+                          <IconButton
+                            size="small"
+                            onClick={() => router.push('/mobile-scan?mode=inbound')}
+                            sx={{
+                              width: 36,
+                              height: 36,
+                              borderRadius: 1,
+                              border: '1.5px solid',
+                              borderColor: '#ea580c',
+                              color: '#ea580c',
+                              bgcolor: 'rgba(234,88,12,0.06)',
+                              '&:hover': { borderColor: '#ea580c', bgcolor: 'rgba(234,88,12,0.15)' }
+                            }}
+                          >
+                            <QrCodeScannerIcon sx={{ fontSize: 18 }} />
+                          </IconButton>
+                        </Tooltip>
+
                         {/* Menu Button */}
                         <Tooltip title="Open Settings">
                           <IconButton

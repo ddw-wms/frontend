@@ -481,12 +481,12 @@ export const inboundAPI = {
     api.get('inbound/receiving-wsns', { params: { warehouse_id } }),
 
   // Multi-entry draft persistence (save/load/clear draft from database)
-  saveDraft: (draft_data: any[], warehouse_id: number, vehicle_no?: string, common_date?: string) =>
-    api.put('inbound/draft', { draft_data, warehouse_id, vehicle_no, common_date }),
-  loadDraft: (warehouse_id: number) =>
-    api.get('inbound/draft', { params: { warehouse_id } }),
-  clearDraft: (warehouse_id: number) =>
-    api.delete('inbound/draft', { params: { warehouse_id } }),
+  saveDraft: (draft_data: any[], warehouse_id: number, vehicle_no?: string, common_date?: string, source?: string) =>
+    api.put('inbound/draft', { draft_data, warehouse_id, vehicle_no, common_date, source }),
+  loadDraft: (warehouse_id: number, source?: string) =>
+    api.get('inbound/draft', { params: { warehouse_id, source } }),
+  clearDraft: (warehouse_id: number, source?: string) =>
+    api.delete('inbound/draft', { params: { warehouse_id, source } }),
 
   // Real-time multi-entry row sync across devices (SSE relay, no DB write)
   syncRows: (rows: Array<{ index: number; data: any }>, warehouseId: number) =>

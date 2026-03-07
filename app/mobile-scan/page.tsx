@@ -23,14 +23,15 @@ import {
     Warning as WarningIcon,
     QrCodeScanner as ScanIcon,
 } from '@mui/icons-material';
-import { qcAPI, outboundAPI, pickingAPI, rackAPI } from '@/lib/api';
+import { qcAPI, outboundAPI, pickingAPI, rackAPI, inboundAPI } from '@/lib/api';
 import { useWarehouse } from '@/app/context/WarehouseContext';
 import { getStoredUser } from '@/lib/auth';
 import CameraScanner from '@/components/CameraScanner';
 import CustomerAutocomplete from '@/components/CustomerAutocomplete';
+import { printLabel, isAgentRunning } from '@/lib/printAgent';
 import toast, { Toaster } from 'react-hot-toast';
 
-type ScanMode = 'qc' | 'outbound' | 'picking';
+type ScanMode = 'qc' | 'outbound' | 'picking' | 'inbound';
 
 interface ProductInfo {
     product_title?: string;
@@ -39,6 +40,9 @@ interface ProductInfo {
     fsp?: string | number;
     rack_no?: string;
     fsn?: string;
+    cms_vertical?: string;
+    fkqc_remark?: string;
+    wid?: string;
 }
 
 interface ScannedEntry {
@@ -55,6 +59,9 @@ interface ScannedEntry {
     dispatchRemarks?: string;
     // Picking per-entry fields
     pickingRemarks?: string;
+    // Inbound per-entry fields
+    unloadRemarks?: string;
+    printed?: boolean;
     // Product info (all modes)
     productInfo?: ProductInfo;
     // Duplicate flags
@@ -66,6 +73,7 @@ const MODE_CONFIG: Record<ScanMode, { title: string; color: string; icon: string
     qc: { title: 'QC Scan', color: '#7c3aed', icon: '🔍' },
     outbound: { title: 'Dispatch Scan', color: '#1e40af', icon: '📦' },
     picking: { title: 'Picking Scan', color: '#059669', icon: '📋' },
+    inbound: { title: 'Inbound Scan', color: '#ea580c', icon: '📥' },
 };
 
 let _audioCtx: AudioContext | null = null;
@@ -111,6 +119,12 @@ const ProductInfoLine = ({ info, isDark }: { info?: ProductInfo; isDark: boolean
                 )}
                 {info.rack_no && (
                     <Chip label={`📍 ${info.rack_no}`} size="small" sx={{ height: 18, fontSize: '0.6rem', fontWeight: 600, bgcolor: isDark ? '#1c1917' : '#f5f5f4', color: isDark ? '#a8a29e' : '#57534e' }} />
+                )}
+                {info.cms_vertical && (
+                    <Chip label={info.cms_vertical} size="small" sx={{ height: 18, fontSize: '0.6rem', fontWeight: 600, bgcolor: isDark ? '#1e3a5f' : '#e0e7ff', color: isDark ? '#a5b4fc' : '#3730a3' }} />
+                )}
+                {info.fkqc_remark && (
+                    <Chip label={`FK: ${info.fkqc_remark}`} size="small" sx={{ height: 18, fontSize: '0.6rem', fontWeight: 600, bgcolor: isDark ? '#431407' : '#ffedd5', color: isDark ? '#fdba74' : '#9a3412' }} />
                 )}
             </Stack>
         </Box>
@@ -170,6 +184,24 @@ export default function MobileScanPage() {
     const [pickingCustomer, setPickingCustomer] = useState('');
     const [pickingCustomers, setPickingCustomers] = useState<string[]>([]);
 
+    // Inbound setup
+    const [inboundDate, setInboundDate] = useState(new Date().toISOString().split('T')[0]);
+    const [inboundVehicleNo, setInboundVehicleNo] = useState('');
+
+    // Auto-print (inbound mode)
+    const [autoPrintEnabled, setAutoPrintEnabled] = useState(() => {
+        if (typeof window !== 'undefined') {
+            const saved = localStorage.getItem('mobileScan_inbound_autoPrint');
+            return saved !== 'false'; // default true
+        }
+        return true;
+    });
+    const [agentReady, setAgentReady] = useState(false);
+
+    // Virtualized list: only render visible entries for performance with 500-1500 items
+    const [visibleCount, setVisibleCount] = useState(50);
+    const listEndRef = useRef<HTMLDivElement>(null);
+
     // Auto-fill user info
     useEffect(() => {
         const user = getStoredUser();
@@ -177,6 +209,24 @@ export default function MobileScanPage() {
             if (mode === 'qc') setQcByName(user.fullName || user.username || '');
             else if (mode === 'picking') setPickerName(user.fullName || user.username || '');
         }
+    }, [mode]);
+
+    // Persist auto-print toggle
+    useEffect(() => {
+        localStorage.setItem('mobileScan_inbound_autoPrint', String(autoPrintEnabled));
+    }, [autoPrintEnabled]);
+
+    // Print Agent health check (inbound mode only)
+    useEffect(() => {
+        if (mode !== 'inbound') return;
+        let mounted = true;
+        const check = async () => {
+            const running = await isAgentRunning();
+            if (mounted) setAgentReady(running);
+        };
+        check();
+        const interval = setInterval(check, 15000);
+        return () => { mounted = false; clearInterval(interval); };
     }, [mode]);
 
     // Load customers
@@ -212,8 +262,14 @@ export default function MobileScanPage() {
                         const wsn = (typeof w === 'string' ? w : '').toUpperCase();
                         if (wsn) map.set(wsn, activeWarehouse!.id);
                     });
-                } else {
+                } else if (mode === 'picking') {
                     const res = await pickingAPI.getExistingWSNs(activeWarehouse.id);
+                    (res.data || []).forEach((w: any) => {
+                        const wsn = (typeof w === 'string' ? w : '').toUpperCase();
+                        if (wsn) map.set(wsn, activeWarehouse!.id);
+                    });
+                } else if (mode === 'inbound') {
+                    const res = await inboundAPI.getAllInboundWSNs();
                     (res.data || []).forEach((w: any) => {
                         const wsn = (typeof w === 'string' ? w : '').toUpperCase();
                         if (wsn) map.set(wsn, activeWarehouse!.id);
@@ -258,6 +314,7 @@ export default function MobileScanPage() {
                 let res: any;
                 if (mode === 'qc') res = await qcAPI.loadDraft(activeWarehouse.id, 'mobile');
                 else if (mode === 'outbound') res = await outboundAPI.loadDraft(activeWarehouse.id, 'mobile');
+                else if (mode === 'inbound') res = await inboundAPI.loadDraft(activeWarehouse.id, 'mobile');
                 else res = await pickingAPI.loadDraft(activeWarehouse.id, 'mobile');
 
                 const draft = res?.data?.draft || res?.data;
@@ -274,6 +331,7 @@ export default function MobileScanPage() {
                         otherRemarks: d.other_remarks || '',
                         dispatchRemarks: d.dispatch_remarks || '',
                         pickingRemarks: d.picking_remarks || '',
+                        unloadRemarks: d.unload_remarks || '',
                         productInfo: d.productInfo || undefined,
                     }));
                     setScannedEntries(entries);
@@ -287,6 +345,10 @@ export default function MobileScanPage() {
                     if (mode === 'picking') {
                         if (draft.customer_name) setPickingCustomer(draft.customer_name);
                         if (draft.common_date) setPickingDate(draft.common_date);
+                    }
+                    if (mode === 'inbound') {
+                        if (draft.vehicle_no) setInboundVehicleNo(draft.vehicle_no);
+                        if (draft.common_date) setInboundDate(draft.common_date);
                     }
                     setPhase('scanning');
                     toast.success(`Restored ${entries.length} draft entries`);
@@ -309,6 +371,8 @@ export default function MobileScanPage() {
                         if (data.pickerName) setPickerName(data.pickerName);
                         if (data.pickingDate) setPickingDate(data.pickingDate);
                         if (data.pickingCustomer) setPickingCustomer(data.pickingCustomer);
+                        if (data.inboundDate) setInboundDate(data.inboundDate);
+                        if (data.inboundVehicleNo) setInboundVehicleNo(data.inboundVehicleNo);
                         setPhase('scanning');
                         toast.success(`Restored ${data.entries.length} draft entries (local)`);
                     }
@@ -350,7 +414,7 @@ export default function MobileScanPage() {
                         fsn: d.fsn || '',
                     };
                 }
-            } else {
+            } else if (mode === 'picking') {
                 const res = await pickingAPI.getSourceByWSN(wsn, activeWarehouse.id);
                 if (res.data) {
                     const d = res.data;
@@ -361,6 +425,22 @@ export default function MobileScanPage() {
                         fsp: d.fsp || '',
                         rack_no: d.rack_no || '',
                         fsn: d.fsn || '',
+                    };
+                }
+            } else if (mode === 'inbound') {
+                const res = await inboundAPI.getMasterDataByWSN(wsn, activeWarehouse.id);
+                const d = res.data?.data || res.data || {};
+                if (d.wsn || d.product_title || d.fsn) {
+                    return {
+                        product_title: d.product_title || '',
+                        brand: d.brand || '',
+                        mrp: d.mrp || '',
+                        fsp: d.fsp || '',
+                        rack_no: d.rack_no || '',
+                        fsn: d.fsn || '',
+                        cms_vertical: d.cms_vertical || d.cmsvertical || '',
+                        fkqc_remark: d.fkqc_remark || d.fkqcremark || '',
+                        wid: d.wid || '',
                     };
                 }
             }
@@ -385,6 +465,7 @@ export default function MobileScanPage() {
             if (mode === 'qc') { localData.qcByName = qcByName; localData.qcDate = qcDate; }
             if (mode === 'outbound') { localData.customerName = customerName; localData.dispatchDate = dispatchDate; localData.vehicleNo = vehicleNo; }
             if (mode === 'picking') { localData.pickerName = pickerName; localData.pickingDate = pickingDate; localData.pickingCustomer = pickingCustomer; }
+            if (mode === 'inbound') { localData.inboundDate = inboundDate; localData.inboundVehicleNo = inboundVehicleNo; }
             localStorage.setItem(`${DRAFT_LS_KEY}_${mode}`, JSON.stringify(localData));
         } catch { /* storage full */ }
 
@@ -401,6 +482,7 @@ export default function MobileScanPage() {
                     other_remarks: e.otherRemarks || '',
                     dispatch_remarks: e.dispatchRemarks || '',
                     picking_remarks: e.pickingRemarks || '',
+                    unload_remarks: e.unloadRemarks || '',
                     productInfo: e.productInfo || undefined,
                 }));
 
@@ -408,12 +490,14 @@ export default function MobileScanPage() {
                     await qcAPI.saveDraft(draftRows, activeWarehouse.id, qcDate, 'mobile');
                 } else if (mode === 'outbound') {
                     await outboundAPI.saveDraft(draftRows, activeWarehouse.id, customerName, '', dispatchDate, 'mobile');
+                } else if (mode === 'inbound') {
+                    await inboundAPI.saveDraft(draftRows, activeWarehouse.id, inboundVehicleNo, inboundDate, 'mobile');
                 } else {
                     await pickingAPI.saveDraft(draftRows, activeWarehouse.id, pickingCustomer, pickingDate, 'mobile');
                 }
             } catch { /* silent */ }
         }, 3000);
-    }, [activeWarehouse?.id, mode, qcByName, qcDate, customerName, dispatchDate, vehicleNo, pickerName, pickingDate, pickingCustomer]);
+    }, [activeWarehouse?.id, mode, qcByName, qcDate, customerName, dispatchDate, vehicleNo, pickerName, pickingDate, pickingCustomer, inboundDate, inboundVehicleNo]);
 
     useEffect(() => {
         saveDraft(scannedEntries);
@@ -473,9 +557,28 @@ export default function MobileScanPage() {
                         rackNo: e.rackNo || info.rack_no || '',
                     } : e
                 ));
+
+                // Auto-print for inbound mode (non-blocking, background)
+                if (mode === 'inbound' && autoPrintEnabled && !isDuplicate) {
+                    printLabel({
+                        wsn,
+                        product_title: info.product_title || '',
+                        brand: info.brand || '',
+                        mrp: String(info.mrp || ''),
+                        fsp: String(info.fsp || ''),
+                        fsn: info.fsn || '',
+                        wid: info.wid || '',
+                    }).then(ok => {
+                        if (ok) {
+                            setScannedEntries(prev => prev.map(e =>
+                                e.id === newEntry.id ? { ...e, printed: true } : e
+                            ));
+                        }
+                    }).catch(() => { /* silent */ });
+                }
             }
         });
-    }, [existingWSNs, soundOn, fetchProductInfo, mode, activeWarehouse?.id]);
+    }, [existingWSNs, soundOn, fetchProductInfo, mode, activeWarehouse?.id, autoPrintEnabled]);
 
     // Handle serial number scan result
     const handleSerialScan = useCallback((serial: string) => {
@@ -516,6 +619,26 @@ export default function MobileScanPage() {
         setScannedEntries(prev => prev.map(e => e.id === id ? { ...e, [field]: value } : e));
     }, []);
 
+    // Manual print for a single entry (inbound mode)
+    const handleManualPrint = useCallback(async (entry: ScannedEntry) => {
+        if (!entry.productInfo) { toast.error('No product data to print'); return; }
+        const ok = await printLabel({
+            wsn: entry.wsn,
+            product_title: entry.productInfo.product_title || '',
+            brand: entry.productInfo.brand || '',
+            mrp: String(entry.productInfo.mrp || ''),
+            fsp: String(entry.productInfo.fsp || ''),
+            fsn: entry.productInfo.fsn || '',
+            wid: entry.productInfo.wid || '',
+        });
+        if (ok) {
+            setScannedEntries(prev => prev.map(e => e.id === entry.id ? { ...e, printed: true } : e));
+            toast.success(`Printed: ${entry.wsn}`, { duration: 1500 });
+        } else {
+            toast.error('Print failed — check Print Agent');
+        }
+    }, []);
+
     // Clear all drafts with confirmation
     const handleClearDraft = useCallback(async () => {
         setClearConfirmOpen(false);
@@ -530,6 +653,7 @@ export default function MobileScanPage() {
             if (activeWarehouse?.id) {
                 if (mode === 'qc') await qcAPI.clearDraft(activeWarehouse.id, 'mobile');
                 else if (mode === 'outbound') await outboundAPI.clearDraft(activeWarehouse.id, 'mobile');
+                else if (mode === 'inbound') await inboundAPI.clearDraft(activeWarehouse.id, 'mobile');
                 else await pickingAPI.clearDraft(activeWarehouse.id, 'mobile');
             }
         } catch { /* ignore */ }
@@ -541,6 +665,7 @@ export default function MobileScanPage() {
         if (mode === 'qc' && !qcByName.trim()) { toast.error('QC By Name is required'); return; }
         if (mode === 'outbound' && !customerName.trim()) { toast.error('Customer name is required'); return; }
         if (mode === 'picking' && !pickerName.trim()) { toast.error('Picker name is required'); return; }
+        // Inbound has no mandatory fields — date defaults to today
         setPhase('scanning');
         setCameraOpen(true);
     }, [mode, qcByName, customerName, pickerName]);
@@ -585,7 +710,7 @@ export default function MobileScanPage() {
                 }));
                 const res = await outboundAPI.multiEntry({ entries, warehouse_id: activeWarehouse.id });
                 batchId = res.data?.batch_id || res.data?.batchId || '';
-            } else {
+            } else if (mode === 'picking') {
                 const entries = validEntries.map(e => ({
                     wsn: e.wsn,
                     picking_date: pickingDate,
@@ -601,12 +726,23 @@ export default function MobileScanPage() {
                 }));
                 const res = await pickingAPI.multiEntry(entries, activeWarehouse.id);
                 batchId = res.data?.batch_id || res.data?.batchId || '';
+            } else if (mode === 'inbound') {
+                const entries = validEntries.map(e => ({
+                    wsn: e.wsn,
+                    inbound_date: inboundDate,
+                    vehicle_no: inboundVehicleNo || '',
+                    unload_remarks: e.unloadRemarks || '',
+                    created_by: user?.id,
+                }));
+                const res = await inboundAPI.multiEntry(entries, activeWarehouse.id);
+                batchId = res.data?.batch_id || res.data?.batchId || '';
             }
 
             // Clear drafts (mobile source)
             try {
                 if (mode === 'qc') await qcAPI.clearDraft(activeWarehouse.id, 'mobile');
                 else if (mode === 'outbound') await outboundAPI.clearDraft(activeWarehouse.id, 'mobile');
+                else if (mode === 'inbound') await inboundAPI.clearDraft(activeWarehouse.id, 'mobile');
                 else await pickingAPI.clearDraft(activeWarehouse.id, 'mobile');
             } catch { /* ignore */ }
             localStorage.removeItem(`${DRAFT_LS_KEY}_${mode}`);
@@ -627,16 +763,26 @@ export default function MobileScanPage() {
         } finally {
             setSubmitting(false);
         }
-    }, [scannedEntries, activeWarehouse, mode, qcByName, qcDate, customerName, dispatchDate, vehicleNo, pickerName, pickingDate, pickingCustomer]);
+    }, [scannedEntries, activeWarehouse, mode, qcByName, qcDate, customerName, dispatchDate, vehicleNo, pickerName, pickingDate, pickingCustomer, inboundDate, inboundVehicleNo]);
 
     const canStart = useMemo(() => {
         if (mode === 'qc') return !!qcByName.trim();
         if (mode === 'outbound') return !!customerName.trim();
         if (mode === 'picking') return !!pickerName.trim();
+        if (mode === 'inbound') return true; // No mandatory fields for inbound
         return false;
     }, [mode, qcByName, customerName, pickerName]);
 
     const dupCount = useMemo(() => scannedEntries.filter(e => e.isDuplicate).length, [scannedEntries]);
+
+    // Virtualized: only render visible entries for performance with large lists
+    const visibleEntries = useMemo(() => scannedEntries.slice(0, visibleCount), [scannedEntries, visibleCount]);
+    const hasMore = scannedEntries.length > visibleCount;
+
+    // Load more entries when user scrolls to bottom
+    const handleLoadMore = useCallback(() => {
+        setVisibleCount(prev => Math.min(prev + 50, scannedEntries.length));
+    }, [scannedEntries.length]);
 
     return (
         <Box sx={{ minHeight: '100dvh', bgcolor: isDark ? '#0f172a' : '#f5f7fa', display: 'flex', flexDirection: 'column' }}>
@@ -738,6 +884,22 @@ export default function MobileScanPage() {
                                 </Stack>
                             )}
 
+                            {mode === 'inbound' && (
+                                <Stack spacing={2}>
+                                    <TextField fullWidth size="small" label="Inbound Date" type="date" value={inboundDate}
+                                        onChange={e => setInboundDate(e.target.value)} InputLabelProps={{ shrink: true }} />
+                                    <TextField fullWidth size="small" label="Vehicle No" value={inboundVehicleNo}
+                                        onChange={e => setInboundVehicleNo(e.target.value.toUpperCase())} placeholder="MH-01-AB-1234 (optional)" />
+                                    <Alert severity={agentReady ? 'success' : 'warning'} sx={{ py: 0, fontSize: '0.7rem', borderRadius: 1 }}>
+                                        {agentReady ? '🖨️ Print Agent connected — auto-print available' : '⚠️ Print Agent not detected — printing won\'t work'}
+                                    </Alert>
+                                    <Typography sx={{ fontSize: '0.7rem', color: isDark ? '#64748b' : '#94a3b8' }}>
+                                        Scan WSN barcodes → product details auto-load → label auto-prints (if enabled).
+                                        Unload remarks can be added per entry.
+                                    </Typography>
+                                </Stack>
+                            )}
+
                             <Button
                                 fullWidth variant="contained" size="large" startIcon={<StartIcon />}
                                 onClick={handleStartSession} disabled={!canStart}
@@ -832,6 +994,7 @@ export default function MobileScanPage() {
                                     {mode === 'qc' && `👤 ${qcByName} • 📅 ${qcDate}`}
                                     {mode === 'outbound' && `🏢 ${customerName} • 🚛 ${vehicleNo || 'N/A'} • 📅 ${dispatchDate}`}
                                     {mode === 'picking' && `👤 ${pickerName}${pickingCustomer ? ` • 🏢 ${pickingCustomer}` : ''} • 📅 ${pickingDate}`}
+                                    {mode === 'inbound' && `📅 ${inboundDate}${inboundVehicleNo ? ` • 🚛 ${inboundVehicleNo}` : ''}`}
                                 </Typography>
                                 <Stack direction="row" spacing={0.5}>
                                     {scannedEntries.length > 0 && (
@@ -873,14 +1036,55 @@ export default function MobileScanPage() {
                             </Alert>
                         )}
 
+                        {/* Inbound: Auto-print toggle + Agent status */}
+                        {mode === 'inbound' && (
+                            <Box sx={{
+                                mt: 0.5, px: 1.5, py: 0.6, borderRadius: 1.5,
+                                bgcolor: isDark ? '#1e293b80' : '#fff8f0',
+                                border: `1px solid ${isDark ? '#431407' : '#fed7aa'}`,
+                                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                            }}>
+                                <Stack direction="row" alignItems="center" spacing={0.5}>
+                                    <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: isDark ? '#fdba74' : '#9a3412' }}>
+                                        🖨️ Auto Print
+                                    </Typography>
+                                    <Chip
+                                        label={agentReady ? 'Agent ✓' : 'Agent ✗'}
+                                        size="small"
+                                        sx={{
+                                            height: 16, fontSize: '0.55rem', fontWeight: 700,
+                                            bgcolor: agentReady ? (isDark ? '#14532d' : '#dcfce7') : (isDark ? '#7f1d1d' : '#fecaca'),
+                                            color: agentReady ? (isDark ? '#86efac' : '#166534') : (isDark ? '#fca5a5' : '#991b1b'),
+                                        }}
+                                    />
+                                </Stack>
+                                <Button
+                                    size="small"
+                                    variant={autoPrintEnabled ? 'contained' : 'outlined'}
+                                    onClick={() => setAutoPrintEnabled(!autoPrintEnabled)}
+                                    sx={{
+                                        minWidth: 50, fontSize: '0.6rem', fontWeight: 800, py: 0, px: 1, height: 22,
+                                        borderRadius: 1, textTransform: 'none',
+                                        ...(autoPrintEnabled ? {
+                                            bgcolor: '#ea580c', '&:hover': { bgcolor: '#c2410c' },
+                                        } : {
+                                            borderColor: '#ea580c', color: '#ea580c',
+                                        }),
+                                    }}
+                                >
+                                    {autoPrintEnabled ? 'ON' : 'OFF'}
+                                </Button>
+                            </Box>
+                        )}
+
                         {/* Scanned Entries */}
                         {scannedEntries.length > 0 && (
                             <Box sx={{ mt: 1 }}>
                                 <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: isDark ? '#94a3b8' : '#64748b', mb: 0.5, px: 0.5 }}>
-                                    Scanned ({scannedEntries.length})
+                                    Scanned ({scannedEntries.length}){scannedEntries.length > visibleCount ? ` — showing ${visibleCount}` : ''}
                                 </Typography>
                                 <Stack spacing={0.5}>
-                                    {scannedEntries.map((entry) => (
+                                    {visibleEntries.map((entry) => (
                                         <Card key={entry.id} sx={{
                                             borderRadius: 1.5, bgcolor: isDark ? '#1e293b' : '#fff',
                                             border: `1px solid ${entry.isDuplicate ? '#f59e0b' : (isDark ? '#334155' : '#e2e8f0')}`,
@@ -929,7 +1133,7 @@ export default function MobileScanPage() {
                                                     </ToggleButtonGroup>
                                                 )}
 
-                                                {(mode === 'qc' || mode === 'outbound' || mode === 'picking') && (
+                                                {(mode === 'qc' || mode === 'outbound' || mode === 'picking' || mode === 'inbound') && (
                                                     <IconButton
                                                         size="small"
                                                         onClick={() => setExpandedEntry(expandedEntry === entry.id ? null : entry.id)}
@@ -949,6 +1153,24 @@ export default function MobileScanPage() {
                                                 >
                                                     <DeleteIcon sx={{ fontSize: 13 }} />
                                                 </IconButton>
+
+                                                {/* Manual print button for inbound */}
+                                                {mode === 'inbound' && !autoPrintEnabled && (
+                                                    <IconButton
+                                                        size="small"
+                                                        onClick={() => handleManualPrint(entry)}
+                                                        disabled={!agentReady}
+                                                        sx={{
+                                                            color: entry.printed ? '#22c55e' : '#ea580c',
+                                                            width: 22, height: 22,
+                                                        }}
+                                                    >
+                                                        <Typography sx={{ fontSize: '0.7rem' }}>{entry.printed ? '✓' : '🖨️'}</Typography>
+                                                    </IconButton>
+                                                )}
+                                                {mode === 'inbound' && autoPrintEnabled && entry.printed && (
+                                                    <Typography sx={{ fontSize: '0.6rem', color: '#22c55e', fontWeight: 700 }}>✓</Typography>
+                                                )}
                                             </Box>
 
                                             {/* Compact product info */}
@@ -1058,9 +1280,53 @@ export default function MobileScanPage() {
                                                     </Box>
                                                 </Collapse>
                                             )}
+
+                                            {/* Inbound expanded fields */}
+                                            {mode === 'inbound' && (
+                                                <Collapse in={expandedEntry === entry.id}>
+                                                    <Box sx={{ px: 1.5, pb: 1, pt: 0.5 }}>
+                                                        <Divider sx={{ mb: 1 }} />
+                                                        <Stack spacing={1}>
+                                                            <TextField
+                                                                fullWidth size="small" label="Unload Remarks"
+                                                                value={entry.unloadRemarks || ''}
+                                                                onChange={e => handleUpdateEntry(entry.id, 'unloadRemarks', e.target.value)}
+                                                                multiline rows={1}
+                                                                placeholder="Add unload remarks..."
+                                                                sx={{ '& .MuiInputBase-root': { fontSize: '0.8rem' } }}
+                                                            />
+                                                            {!autoPrintEnabled && (
+                                                                <Button
+                                                                    fullWidth variant="outlined" size="small"
+                                                                    onClick={() => handleManualPrint(entry)}
+                                                                    disabled={!agentReady || !entry.productInfo}
+                                                                    sx={{
+                                                                        fontSize: '0.75rem', fontWeight: 700, textTransform: 'none',
+                                                                        borderColor: '#ea580c', color: '#ea580c',
+                                                                        borderRadius: 1,
+                                                                    }}
+                                                                >
+                                                                    {entry.printed ? '✓ Printed' : '🖨️ Print Label'}
+                                                                </Button>
+                                                            )}
+                                                        </Stack>
+                                                    </Box>
+                                                </Collapse>
+                                            )}
                                         </Card>
                                     ))}
                                 </Stack>
+
+                                {/* Load More button for large lists */}
+                                {hasMore && (
+                                    <Button
+                                        fullWidth variant="text" size="small"
+                                        onClick={handleLoadMore}
+                                        sx={{ mt: 1, fontSize: '0.75rem', fontWeight: 700, textTransform: 'none', color: config.color }}
+                                    >
+                                        Load More ({scannedEntries.length - visibleCount} remaining)
+                                    </Button>
+                                )}
                             </Box>
                         )}
 
