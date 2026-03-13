@@ -4312,8 +4312,8 @@ export default function PickingPage() {
             {/* FILTERS - REDESIGNED LIKE INBOUND */}
             <Box sx={{
               background: isDarkMode ? '#0f172a' : '#f8fafc',
-              mb: { xs: 0.5, sm: 1 },
-              mt: 1,
+              mb: { xs: 0.5, sm: 0.5 },
+              mt: 0,
               minHeight: 0,
               overflow: 'hidden',
               py: { xs: 0, sm: 0.25, md: 0.50 },

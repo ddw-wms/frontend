@@ -6415,7 +6415,15 @@ export default function OutboundPage() {
 
                 {/* TAB 2 - BULK UPLOAD */}
                 {currentTabCode === 'bulk' && (
-                    <Box sx={{ p: { xs: 1, sm: 1.5, md: 2 } }}>
+                    <Box
+                        sx={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            height: '100%',
+                            p: { xs: 1, sm: 1.5, md: 2 },
+                            overflow: 'auto',
+                        }}
+                    >
                         <BulkUploadCard
                             module="outbound"
                             warehouseId={activeWarehouse?.id || 0}

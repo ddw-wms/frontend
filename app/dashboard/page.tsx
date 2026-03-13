@@ -294,7 +294,7 @@ const getCachedDashboardData = (): InventoryItem[] => {
   if (typeof window !== 'undefined' && window.__DASHBOARD_CACHE__?.data?.length) {
     // Only use cache if warehouse matches and not stale (2 min TTL)
     if (window.__DASHBOARD_CACHE__.warehouseId === currentWarehouseId &&
-        Date.now() - (window.__DASHBOARD_CACHE__.timestamp || 0) < 120000) {
+      Date.now() - (window.__DASHBOARD_CACHE__.timestamp || 0) < 120000) {
       return window.__DASHBOARD_CACHE__.data;
     }
   }
@@ -2548,7 +2548,7 @@ export default function DashboardPage() {
                                 }
                               }}
                               sx={{
-                                width: 60,
+                                width: 70,
                                 px: 1,
                                 py: 0.25,
                                 fontSize: '0.75rem',

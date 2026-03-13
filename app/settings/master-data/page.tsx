@@ -2003,7 +2003,7 @@ export default function MasterDataPage() {
                     {/* SEARCH BAR + OPTIONS BUTTON */}
                     <Box sx={{
                       flexShrink: 0,
-                      mt: 1,
+                      mt: 0.5,
                       mb: { xs: 0.5, sm: 1 }, position: 'relative', zIndex: 95,
                       // Paste inside the existing sx object
                       '& .MuiOutlinedInput-root': {

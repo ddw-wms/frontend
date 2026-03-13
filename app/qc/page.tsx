@@ -4264,7 +4264,7 @@ export default function QCPage() {
               <Box sx={{
                 flexShrink: 0,
                 mb: 0,
-                mt: 1,
+                mt: 0.50,
                 background: isDarkMode ? '#0f172a' : '#f8fafc',
                 borderBottom: 'transparent',
                 position: 'relative',
