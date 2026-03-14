@@ -193,7 +193,7 @@ export default function ErrorLogsPage() {
                 {/* Header */}
                 <StandardPageHeader
                     title="Error Logs"
-                    subtitle="System error logs - Super Admin only"
+                    subtitle="System error logs"
                     icon="⚠️"
                 />
 
