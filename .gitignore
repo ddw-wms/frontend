@@ -36,7 +36,3 @@ Thumbs.db
 # Misc
 .next/cache/
 .env.production
-
-# Optional
-# .env (if you want the base env committed, uncomment)
-# .env
