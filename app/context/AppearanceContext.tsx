@@ -3,7 +3,7 @@
 
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 
-// Default appearance settings
+// Default appearance settings----
 export const DEFAULT_APPEARANCE_SETTINGS = {
     theme: 'light' as 'light' | 'dark',
     fontSize: 12,
