@@ -4511,36 +4511,9 @@ export default function InboundPage() {
     }
   };
 
-  //multi entry column width config - default widths for each column, can be overridden by user resizing (saved in multiColumnWidths)
-  // ⚡ All columns use minWidth (not width) so defaultColDef flex:1 can stretch them to fill the grid.
-  // product_title gets flex:2 for extra space. No empty gap on any screen size.
-  const COLUMN_WIDTHS: Record<string, any> = useMemo(() => ({
-    wsn: { minWidth: 80 },
-    product_serial_number: { minWidth: 120 },
-    rack_no: { minWidth: 30 },
-    unload_remarks: { minWidth: 120 },
-
-    // ---- MASTER / READ ONLY COLUMNS ----
-    wid: { minWidth: 80 },
-    fsn: { minWidth: 100 },
-    order_id: { minWidth: 70 },
-
-    product_title: { flex: 2, minWidth: 220 },
-    brand: { minWidth: 100 },
-    cms_vertical: { minWidth: 100 },
-    mrp: { minWidth: 60 },
-    fsp: { minWidth: 60 },
-    hsn_sac: { minWidth: 80 },
-    igst_rate: { minWidth: 40 },
-    fkqc_remark: { minWidth: 50 },
-    p_type: { minWidth: 100 },
-    p_size: { minWidth: 80 },
-    vrp: { minWidth: 70 },
-    yield_value: { minWidth: 60 },
-    fk_grade: { minWidth: 50 },
-    inbound_date: { minWidth: 90 },
-    fkt_link: { minWidth: 50 },
-  }), []);
+  // Multi entry column width config — removed all minWidth/flex constraints.
+  // Columns auto-size to text content on first render; user-resized widths are saved permanently.
+  const COLUMN_WIDTHS: Record<string, any> = useMemo(() => ({}), []);
 
 
   // ✅  - MULTI ENTRY - COLUMN DEFS
@@ -4619,9 +4592,8 @@ export default function InboundPage() {
         headerName: col.replace(/_/g, ' ').toUpperCase(),
         editable: isEditable,
         resizable: true,
-        minWidth: 50,
-        // ⚡ Saved widths become minWidth (not width) so flex from defaultColDef can still stretch
-        ...(savedWidth ? { minWidth: savedWidth } : {}),
+        // Apply saved width as fixed width (no flex); unsaved columns will be auto-sized on first render
+        ...(savedWidth ? { width: savedWidth, flex: undefined } : {}),
       };
 
       const columnWidthConfig = COLUMN_WIDTHS[col] || {};
@@ -4629,14 +4601,14 @@ export default function InboundPage() {
       if (col === 'rack_no' && isEditable) {
         return {
           ...baseColDef,
-          minWidth: savedWidth || 110,
+          ...(savedWidth ? {} : { width: 110 }),
           cellEditor: 'agSelectCellEditor',
           cellEditorParams: { values: racks.map(r => r.rack_name) }
         };
       } else if (col.includes('date')) {
         return {
           ...baseColDef,
-          minWidth: savedWidth || 130,
+          ...(savedWidth ? {} : { width: 130 }),
           cellDataType: 'date'
         };
       } else {
@@ -7923,8 +7895,6 @@ export default function InboundPage() {
                     onGridReady={(params: any) => {
                       gridRef.current = params.api;
                       columnApiRef.current = params.columnApi;
-                      // ⚡ Ensure grid fills full width immediately
-                      try { params.api.sizeColumnsToFit(); } catch { /* ignore */ }
                     }}
                     onModelUpdated={(params: any) => {
                       try {
@@ -7941,25 +7911,17 @@ export default function InboundPage() {
                           ensureRowVisible(desired, 'bottom', 3, undefined, true);
                         }
                       } catch (e) { /* ignore */ }
-                      // ⚡ Auto-fit columns to fill grid width on first render
+                      // Auto-size columns that don't have user-saved widths (size to text content)
                       try {
-                        const colApi = columnApiRef.current;
-                        const api = gridRef.current;
-                        if (colApi && api) {
-                          const allCols = colApi.getAllColumns ? colApi.getAllColumns().map((c: any) => c.getColId()) : [];
-                          if (allCols.length > 0) {
-                            const hasSavedWidths = Object.keys(multiColumnWidths).length > 0;
-                            if (!hasSavedWidths) {
-                              colApi.autoSizeColumns(allCols, false);
-                            }
-                            let total = 0;
-                            for (const id of allCols) {
-                              const col = colApi.getColumn(id);
-                              total += col?.getActualWidth ? col.getActualWidth() : 0;
-                            }
-                            const dims = api.getSize ? api.getSize() : null;
-                            const gridW = dims?.width || 0;
-                            if (gridW && total < gridW) api.sizeColumnsToFit();
+                        const api = params.api;
+                        if (api) {
+                          const allCols = api.getColumns ? api.getColumns() : (api.getAllGridColumns ? api.getAllGridColumns() : []);
+                          // Only auto-size columns without a saved width
+                          const colsToAutoSize = allCols
+                            .map((c: any) => c.getColId())
+                            .filter((id: string) => id !== 'rowNumber' && id !== 'print_action' && !multiColumnWidths[id]);
+                          if (colsToAutoSize.length > 0) {
+                            api.autoSizeColumns(colsToAutoSize, false);
                           }
                         }
                       } catch { /* ignore */ }
@@ -7976,7 +7938,7 @@ export default function InboundPage() {
                     overlayNoRowsTemplate='<span style="padding: 20px; font-size: 14px; color: #666;">Click on any cell to start entering data</span>'
 
                     defaultColDef={{
-                      flex: 1,  // ⚡ All columns flex to fill grid width — no empty space on any screen
+                      // No flex — columns use explicit width (auto-sized or user-saved)
                       sortable: multiGridSettings.sortable,  // ✅ Multi Entry Settings
                       filter: multiGridSettings.filter,      // ✅ Multi Entry Settings
                       resizable: multiGridSettings.resizable, // ✅ Multi Entry Settings
@@ -8176,9 +8138,9 @@ export default function InboundPage() {
                       lastGridScrollTopRef.current = currentScrollTop;
                     }}
 
-                    // ✅ Save column widths when resized
+                    // ✅ Save column widths when user finishes resizing
                     onColumnResized={(params: any) => {
-                      if (params.finished && params.column) {
+                      if (params.finished && params.column && params.source === 'uiColumnResized') {
                         const colId = params.column.getColId();
                         const newWidth = params.column.getActualWidth();
                         // Don't save special columns
@@ -8192,23 +8154,9 @@ export default function InboundPage() {
                       }
                     }}
 
-                    // ⚡ PERFORMANCE: Auto-fit columns to fill grid width on resize (no empty space)
+                    // Column widths are fixed (auto-sized or user-saved) — no forced re-layout on container resize
                     onGridSizeChanged={() => {
-                      try {
-                        const colApi = columnApiRef.current;
-                        const api = gridRef.current;
-                        if (!colApi || !api) return;
-                        const allCols = colApi.getAllColumns ? colApi.getAllColumns().map((c: any) => c.getColId()) : [];
-                        if (!allCols || allCols.length === 0) return;
-                        let total = 0;
-                        for (const id of allCols) {
-                          const col = colApi.getColumn(id);
-                          total += col?.getActualWidth ? col.getActualWidth() : 0;
-                        }
-                        const dims = api.getSize ? api.getSize() : null;
-                        const gridW = dims?.width || 0;
-                        if (gridW && total < gridW) api.sizeColumnsToFit();
-                      } catch { /* ignore */ }
+                      // Intentionally empty — user-saved and auto-sized widths should not be overridden
                     }}
 
                     // ⚡ EXCEL-LIKE: Get row class for highlighting (newly added rows + selected range)
