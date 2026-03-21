@@ -3708,19 +3708,9 @@ export default function PickingPage() {
     } catch { /* ignore */ }
   }, [enableSorting, enableColumnFilters, enableColumnResize]);
 
-  // Column widths for AG Grid
-  const COLUMN_WIDTHS: Record<string, any> = {
-    sno: { width: 60 },
-    wsn: { width: 80 },
-    product_serial_number: { width: 160 },
-    picking_remarks: { flex: 1, minWidth: 120 },
-    product_title: { flex: 2, minWidth: 220 },
-    brand: { width: 90 },
-    cms_vertical: { width: 100 },
-    mrp: { width: 40 },
-    fsp: { width: 40 },
-    rack_no: { width: 80 },
-  };
+  // Column width config — removed all minWidth/flex constraints.
+  // Columns auto-size to text content on first render; user-resized widths are saved permanently.
+  const COLUMN_WIDTHS: Record<string, any> = {};
 
   // ✅ MULTI ENTRY - COLUMN DEFS (useMemo for stable reference)
   const columnDefs = useMemo(() => {
@@ -3751,11 +3741,9 @@ export default function PickingPage() {
         field,
         headerName: field.replace(/_/g, ' ').toUpperCase(),
         editable: isEditable,
-        suppressSizeToFit: true,
         sortable: multiGridSettings.sortable,
         filter: multiGridSettings.filter,
         resizable: multiGridSettings.resizable,
-        minWidth: 80,
         ...widthConfig,
         cellStyle: (params: any) => {
           const wsn = params.data?.wsn?.trim()?.toUpperCase();
@@ -3860,7 +3848,21 @@ export default function PickingPage() {
       return baseColDef;
     });
 
-    return [rowNumberCol, ...dataCols];
+    // Invisible filler column — absorbs remaining space on wide screens (Excel-style)
+    const fillerCol = {
+      field: '_filler',
+      headerName: '',
+      flex: 1,
+      resizable: false,
+      editable: false,
+      sortable: false,
+      filter: false,
+      suppressNavigable: true,
+      suppressSizeToFit: true,
+      cellStyle: { pointerEvents: 'none' } as any,
+    };
+
+    return [rowNumberCol, ...dataCols, fillerCol];
   }, [visibleColumns, multiColumnWidths, racks, crossWarehouseWSNs, gridDuplicateWSNs, isDarkMode, multiGridSettings]);
 
   // ⚡ EXTRACTED: Multi-entry grid onCellEditingStopped handler
@@ -6053,25 +6055,6 @@ export default function PickingPage() {
                 onGridReady={(params: any) => {
                   gridRef.current = params.api;
                   columnApiRef.current = params.columnApi;
-                  setTimeout(() => {
-                    try {
-                      const colApi = columnApiRef.current;
-                      if (!colApi) return;
-                      const allCols = colApi.getAllColumns ? colApi.getAllColumns().map((c: any) => c.getColId()) : [];
-                      if (allCols.length > 0) {
-                        colApi.autoSizeColumns(allCols, false);
-                        const api = gridRef.current;
-                        let total = 0;
-                        for (const id of allCols) {
-                          const col = colApi.getColumn(id);
-                          total += col?.getActualWidth ? col.getActualWidth() : 0;
-                        }
-                        const dims = api.getSize ? api.getSize() : (api.gridPanel && api.gridPanel.getBodyClientRect && api.gridPanel.getBodyClientRect());
-                        const gridW = dims?.width || 0;
-                        if (gridW && total < gridW) api.sizeColumnsToFit();
-                      }
-                    } catch { /* ignore */ }
-                  }, 50);
                 }}
                 rowData={multiRows}
                 columnDefs={columnDefs as any}
@@ -6218,13 +6201,13 @@ export default function PickingPage() {
                 //theme="legacy"
                 className="ag-theme-quartz"
                 containerStyle={{ height: '100%', width: '100%' }}
-                // ✅ Save column widths when resized
+                // ✅ Save column widths when user finishes resizing
                 onColumnResized={(params: any) => {
-                  if (params.finished && params.column) {
+                  if (params.finished && params.column && params.source === 'uiColumnResized') {
                     const colId = params.column.getColId();
                     const newWidth = params.column.getActualWidth();
                     // Don't save special columns
-                    if (colId === 'sno') return;
+                    if (colId === 'sno' || colId === 'rowNumber' || colId === '_filler') return;
 
                     setMultiColumnWidths(prev => {
                       const updated = { ...prev, [colId]: newWidth };
@@ -6233,51 +6216,26 @@ export default function PickingPage() {
                     });
                   }
                 }}
+                // Column widths are fixed (auto-sized or user-saved) — no forced re-layout on container resize
                 onGridSizeChanged={() => {
-                  // Only sizeColumnsToFit if no saved widths - don't auto-size if user has customized widths
-                  try {
-                    const hasSavedWidths = Object.keys(multiColumnWidths).length > 0;
-                    if (hasSavedWidths) return; // Respect user's saved column widths
-
-                    const colApi = columnApiRef.current;
-                    const api = gridRef.current;
-                    if (!colApi || !api) return;
-                    // Only fit to grid width if columns are narrower than grid
-                    const allCols = colApi.getAllColumns ? colApi.getAllColumns().map((c: any) => c.getColId()) : [];
-                    if (!allCols || allCols.length === 0) return;
-                    let total = 0;
-                    for (const id of allCols) {
-                      const col = colApi.getColumn(id);
-                      total += col?.getActualWidth ? col.getActualWidth() : 0;
-                    }
-                    const dims = api.getSize ? api.getSize() : null;
-                    const gridW = dims?.width || 0;
-                    if (gridW && total < gridW) api.sizeColumnsToFit();
-                  } catch { /* ignore */ }
+                  // Intentionally empty — filler column absorbs remaining space
                 }}
-                onFirstDataRendered={() => {
-                  // Only auto-size columns on first render if no saved widths exist
+                // Auto-size columns that don't have user-saved widths (size to text content)
+                onFirstDataRendered={(params: any) => {
                   if (multiGridInitializedRef.current) return;
                   multiGridInitializedRef.current = true;
 
                   try {
-                    const hasSavedWidths = Object.keys(multiColumnWidths).length > 0;
-                    if (hasSavedWidths) return; // Respect user's saved column widths
-
-                    const colApi = columnApiRef.current;
-                    const api = gridRef.current;
-                    if (!colApi || !api) return;
-                    const allCols = colApi.getAllColumns ? colApi.getAllColumns().map((c: any) => c.getColId()) : [];
-                    if (allCols.length === 0) return;
-                    colApi.autoSizeColumns(allCols, false);
-                    let total = 0;
-                    for (const id of allCols) {
-                      const col = colApi.getColumn(id);
-                      total += col?.getActualWidth ? col.getActualWidth() : 0;
+                    const api = params.api;
+                    if (api) {
+                      const allCols = api.getColumns ? api.getColumns() : (api.getAllGridColumns ? api.getAllGridColumns() : []);
+                      const colsToAutoSize = allCols
+                        .map((c: any) => c.getColId())
+                        .filter((id: string) => id !== 'rowNumber' && id !== '_filler' && !multiColumnWidths[id]);
+                      if (colsToAutoSize.length > 0) {
+                        api.autoSizeColumns(colsToAutoSize, false);
+                      }
                     }
-                    const dims = api.getSize ? api.getSize() : null;
-                    const gridW = dims?.width || 0;
-                    if (gridW && total < gridW) api.sizeColumnsToFit();
                   } catch { /* ignore */ }
                 }}
 

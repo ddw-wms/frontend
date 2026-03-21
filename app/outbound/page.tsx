@@ -4908,7 +4908,6 @@ export default function OutboundPage() {
 
         const cols = visibleColumns.map((col) => {
             const isEditable = EDITABLE_COLUMNS.includes(col);
-            const defaultWidth = col === 'wsn' ? 140 : col === 'dispatch_date' ? 140 : 130;
 
             // Use saved width from ref if available (loaded once from localStorage)
             const savedWidth = multiColumnWidthsRef.current[col];
@@ -4917,7 +4916,8 @@ export default function OutboundPage() {
                 field: col,
                 headerName: col.replace(/_/g, ' ').toUpperCase(),
                 editable: isEditable,
-                ...(savedWidth ? { width: savedWidth } : { flex: 1, minWidth: defaultWidth }),
+                // Apply saved width as fixed width; unsaved columns will be auto-sized on first render
+                ...(savedWidth ? { width: savedWidth } : {}),
                 suppressSizeToFit: false,
                 cellStyle: (params: any) => {
                     const wsn = params.data?.wsn?.trim()?.toUpperCase();
@@ -4939,7 +4939,21 @@ export default function OutboundPage() {
             };
         });
 
-        return [srCol, ...cols];
+        // Invisible filler column — absorbs remaining space on wide screens (Excel-style)
+        const fillerCol = {
+            field: '_filler',
+            headerName: '',
+            flex: 1,
+            resizable: false,
+            editable: false,
+            sortable: false,
+            filter: false,
+            suppressNavigable: true,
+            suppressSizeToFit: true,
+            cellStyle: { pointerEvents: 'none' } as any,
+        };
+
+        return [srCol, ...cols, fillerCol];
     }, [visibleColumns, isDarkMode, crossWarehouseWSNs, gridDuplicateWSNs]);
 
     const defaultColDef = useMemo(
@@ -8714,7 +8728,7 @@ export default function OutboundPage() {
                                         const colId = params.column.getColId();
                                         const newWidth = params.column.getActualWidth();
                                         // Don't save special columns
-                                        if (colId === '__sr') return;
+                                        if (colId === '__sr' || colId === '_filler') return;
 
                                         multiColumnWidthsRef.current = { ...multiColumnWidthsRef.current, [colId]: newWidth };
                                         localStorage.setItem('outboundMultiEntryColumnWidths', JSON.stringify(multiColumnWidthsRef.current));
@@ -8725,32 +8739,23 @@ export default function OutboundPage() {
                                     // Column widths are baked into columnDefs via multiColumnWidths state
                                 }}
 
-                                // ⚡ PERFORMANCE: Columns with flex auto-fill on resize, no manual sizeColumnsToFit needed
+                                // Column widths are fixed (auto-sized or user-saved) — no forced re-layout on container resize
                                 onGridSizeChanged={() => {
-                                    // flex:1 columns auto-expand to fill grid width
-                                    // Only intervene if ALL columns have fixed widths (all saved) and there's empty space
-                                    try {
-                                        const api = gridRef.current?.api;
-                                        if (!api) return;
-                                        const cols = api.getColumns?.() || [];
-                                        const hasFlexCol = cols.some((c: any) => c.getColDef()?.flex);
-                                        if (!hasFlexCol && api.sizeColumnsToFit) {
-                                            api.sizeColumnsToFit();
-                                        }
-                                    } catch { /* ignore */ }
+                                    // Intentionally empty — filler column absorbs remaining space
                                 }}
 
-                                // ⚡ Auto-fit columns on first data render
-                                onFirstDataRendered={() => {
-                                    // flex:1 columns auto-fill the grid width - no sizeColumnsToFit needed
-                                    // If all columns have saved widths (no flex), call sizeColumnsToFit to fill remaining space
+                                // Auto-size columns that don't have user-saved widths (size to text content)
+                                onFirstDataRendered={(params: any) => {
                                     try {
-                                        const api = gridRef.current?.api;
-                                        if (!api) return;
-                                        const cols = api.getColumns?.() || [];
-                                        const hasFlexCol = cols.some((c: any) => c.getColDef()?.flex);
-                                        if (!hasFlexCol && api.sizeColumnsToFit) {
-                                            api.sizeColumnsToFit();
+                                        const api = params.api;
+                                        if (api) {
+                                            const allCols = api.getColumns ? api.getColumns() : (api.getAllGridColumns ? api.getAllGridColumns() : []);
+                                            const colsToAutoSize = allCols
+                                                .map((c: any) => c.getColId())
+                                                .filter((id: string) => id !== '__sr' && id !== '_filler' && !multiColumnWidthsRef.current[id]);
+                                            if (colsToAutoSize.length > 0) {
+                                                api.autoSizeColumns(colsToAutoSize, false);
+                                            }
                                         }
                                     } catch { /* ignore */ }
                                 }}

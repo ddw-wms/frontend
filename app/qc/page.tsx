@@ -3277,37 +3277,9 @@ export default function QCPage() {
     }
   };
 
-  // Column widths matching inbound page
-  const COLUMN_WIDTHS: Record<string, any> = {
-    // Editable columns
-    sno: { width: 50 },
-    wsn: { width: 80 },
-    productserialnumber: { width: 160 },
-    rackno: { width: 80 },
-    qcgrade: { width: 80 },
-    qcremarks: { flex: 1, minWidth: 90 },
-    otherremarks: { flex: 1, minWidth: 100 },
-
-    // Master data columns (read-only)
-    fsn: { width: 100 },
-    producttitle: { flex: 2, minWidth: 220 },
-    brand: { width: 90 },
-    cmsvertical: { width: 100 },
-    hsnsac: { width: 80 },
-    igstrate: { width: 70 },
-    mrp: { width: 60 },
-    fsp: { width: 60 },
-    vrp: { width: 60 },
-    yieldvalue: { width: 70 },
-    ptype: { width: 100 },
-    psize: { width: 80 },
-    fktlink: { width: 80 },
-    whlocation: { width: 100 },
-    orderid: { width: 100 },
-    fkqcremark: { width: 120 },
-    fkgrade: { width: 70 },
-    invoicedate: { width: 90 },
-  };
+  // Column width config — removed all minWidth/flex constraints.
+  // Columns auto-size to text content on first render; user-resized widths are saved permanently.
+  const COLUMN_WIDTHS: Record<string, any> = {};
 
   // ⚡ PERFORMANCE: Memoize multi-entry column definitions to prevent AG Grid full rebuild on every render
   const multiColumnDefs = useMemo(() => {
@@ -3321,9 +3293,8 @@ export default function QCPage() {
       const baseColDef: any = {
         field,
         headerName: field === 'sno' ? 'S.No' : String(field).replace(/_/g, ' ').toUpperCase(),
-        ...widthConfig,
-        // ⚡ Saved widths override defaults
-        ...(savedWidth ? { width: savedWidth, flex: undefined } : {}),
+        // Apply saved width as fixed width; unsaved columns will be auto-sized on first render
+        ...(savedWidth ? { width: savedWidth } : widthConfig),
         cellStyle: (params: any) => {
           const styles: any = {};
           if (field === 'sno') {
@@ -3388,6 +3359,20 @@ export default function QCPage() {
           </span>
         );
       },
+    });
+
+    // Invisible filler column — absorbs remaining space on wide screens (Excel-style)
+    cols.push({
+      field: '_filler',
+      headerName: '',
+      flex: 1,
+      resizable: false,
+      editable: false,
+      sortable: false,
+      filter: false,
+      suppressNavigable: true,
+      suppressSizeToFit: true,
+      cellStyle: { pointerEvents: 'none' } as any,
     });
 
     return cols;
@@ -6587,13 +6572,13 @@ export default function QCPage() {
                     valueCache={true}
                     className="ag-theme-quartz"
                     containerStyle={{ height: '100%', width: '100%' }}
-                    // ✅ Save per-column width when resized
+                    // ✅ Save column widths when user finishes resizing
                     onColumnResized={(params: any) => {
-                      if (params.finished && params.column) {
+                      if (params.finished && params.column && params.source === 'uiColumnResized') {
                         const colId = params.column.getColId();
                         const newWidth = params.column.getActualWidth();
-                        // Don't save sno column
-                        if (colId === 'sno') return;
+                        // Don't save special columns
+                        if (colId === 'sno' || colId === 'print_action' || colId === '_filler') return;
                         setMultiColumnWidths(prev => {
                           const updated = { ...prev, [colId]: newWidth };
                           localStorage.setItem('qcMultiEntryColumnWidths', JSON.stringify(updated));
@@ -6602,47 +6587,24 @@ export default function QCPage() {
                       }
                     }}
 
-                    // ⚡ PERFORMANCE: Auto-fit columns to fill grid width on resize (no empty space)
+                    // Column widths are fixed (auto-sized or user-saved) — no forced re-layout on container resize
                     onGridSizeChanged={() => {
-                      try {
-                        const colApi = columnApiRef.current;
-                        const api = gridRef.current;
-                        if (!colApi || !api) return;
-                        // Skip auto-fit if user has saved custom widths
-                        const hasSavedWidths = Object.keys(multiColumnWidths).length > 0;
-                        if (hasSavedWidths) return;
-                        const allCols = colApi.getAllColumns ? colApi.getAllColumns().map((c: any) => c.getColId()) : [];
-                        if (!allCols || allCols.length === 0) return;
-                        let total = 0;
-                        for (const id of allCols) {
-                          const col = colApi.getColumn(id);
-                          total += col?.getActualWidth ? col.getActualWidth() : 0;
-                        }
-                        const dims = api.getSize ? api.getSize() : null;
-                        const gridW = dims?.width || 0;
-                        if (gridW && total < gridW) api.sizeColumnsToFit();
-                      } catch { /* ignore */ }
+                      // Intentionally empty — filler column absorbs remaining space
                     }}
 
-                    // ⚡ Auto-fit columns on first data render
-                    onFirstDataRendered={() => {
+                    // Auto-size columns that don't have user-saved widths (size to text content)
+                    onFirstDataRendered={(params: any) => {
                       try {
-                        const hasSavedWidths = Object.keys(multiColumnWidths).length > 0;
-                        if (hasSavedWidths) return;
-                        const colApi = columnApiRef.current;
-                        const api = gridRef.current;
-                        if (!colApi || !api) return;
-                        const allCols = colApi.getAllColumns ? colApi.getAllColumns().map((c: any) => c.getColId()) : [];
-                        if (allCols.length === 0) return;
-                        colApi.autoSizeColumns(allCols, false);
-                        let total = 0;
-                        for (const id of allCols) {
-                          const col = colApi.getColumn(id);
-                          total += col?.getActualWidth ? col.getActualWidth() : 0;
+                        const api = params.api;
+                        if (api) {
+                          const allCols = api.getColumns ? api.getColumns() : (api.getAllGridColumns ? api.getAllGridColumns() : []);
+                          const colsToAutoSize = allCols
+                            .map((c: any) => c.getColId())
+                            .filter((id: string) => id !== 'sno' && id !== 'print_action' && id !== '_filler' && !multiColumnWidths[id]);
+                          if (colsToAutoSize.length > 0) {
+                            api.autoSizeColumns(colsToAutoSize, false);
+                          }
                         }
-                        const dims = api.getSize ? api.getSize() : null;
-                        const gridW = dims?.width || 0;
-                        if (gridW && total < gridW) api.sizeColumnsToFit();
                       } catch { /* ignore */ }
                     }}
 
