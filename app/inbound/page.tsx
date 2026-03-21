@@ -4731,7 +4731,21 @@ export default function InboundPage() {
       }
     });
 
-    return [rowNumberCol, ...dataCols, printCol];
+    // Invisible filler column — absorbs remaining space on wide screens (Excel-style)
+    const fillerCol = {
+      field: '_filler',
+      headerName: '',
+      flex: 1,
+      resizable: false,
+      editable: false,
+      sortable: false,
+      filter: false,
+      suppressNavigable: true,
+      suppressSizeToFit: true,
+      cellStyle: { pointerEvents: 'none' } as any,
+    };
+
+    return [rowNumberCol, ...dataCols, printCol, fillerCol];
   },
     [visibleColumns, racks, gridDuplicateWSNs, crossWarehouseWSNs, COLUMN_WIDTHS, multiColumnWidths, printRowWSN]
   );
@@ -7919,7 +7933,7 @@ export default function InboundPage() {
                           // Only auto-size columns without a saved width
                           const colsToAutoSize = allCols
                             .map((c: any) => c.getColId())
-                            .filter((id: string) => id !== 'rowNumber' && id !== 'print_action' && !multiColumnWidths[id]);
+                            .filter((id: string) => id !== 'rowNumber' && id !== 'print_action' && id !== '_filler' && !multiColumnWidths[id]);
                           if (colsToAutoSize.length > 0) {
                             api.autoSizeColumns(colsToAutoSize, false);
                           }
@@ -8144,7 +8158,7 @@ export default function InboundPage() {
                         const colId = params.column.getColId();
                         const newWidth = params.column.getActualWidth();
                         // Don't save special columns
-                        if (colId === 'rowNumber' || colId === 'print_action') return;
+                        if (colId === 'rowNumber' || colId === 'print_action' || colId === '_filler') return;
 
                         setMultiColumnWidths(prev => {
                           const updated = { ...prev, [colId]: newWidth };
