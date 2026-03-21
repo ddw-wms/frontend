@@ -3279,7 +3279,9 @@ export default function QCPage() {
 
   // Column width config — removed all minWidth/flex constraints.
   // Columns auto-size to text content on first render; user-resized widths are saved permanently.
-  const COLUMN_WIDTHS: Record<string, any> = {};
+  const COLUMN_WIDTHS: Record<string, any> = {
+    sno: { width: 80, minWidth: 60, maxWidth: 120 },
+  };
 
   // ⚡ PERFORMANCE: Memoize multi-entry column definitions to prevent AG Grid full rebuild on every render
   const multiColumnDefs = useMemo(() => {
@@ -6578,7 +6580,7 @@ export default function QCPage() {
                         const colId = params.column.getColId();
                         const newWidth = params.column.getActualWidth();
                         // Don't save special columns
-                        if (colId === 'sno' || colId === 'print_action' || colId === '_filler') return;
+                        if (colId === 'print_action' || colId === '_filler') return;
                         setMultiColumnWidths(prev => {
                           const updated = { ...prev, [colId]: newWidth };
                           localStorage.setItem('qcMultiEntryColumnWidths', JSON.stringify(updated));
