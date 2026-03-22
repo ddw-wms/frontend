@@ -28,7 +28,6 @@ export default function Home() {
   //       router.replace('/login');
   //     }
   //   }, 4500); // 4500ms = 4.5 seconds
-
   //   return () => clearTimeout(timer);
   // }, [router]);
 
