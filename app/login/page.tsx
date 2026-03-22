@@ -366,9 +366,9 @@ export default function LoginPage() {
                   sx={{
                     mb: 2,
                     '& input:-webkit-autofill, & input:-webkit-autofill:hover, & input:-webkit-autofill:focus': {
-                      WebkitBoxShadow: '0 0 0 100px #f8fafc inset',
                       WebkitTextFillColor: 'inherit',
-                      transition: 'background-color 5000s ease-in-out 0s',
+                      transition: 'background-color 9999s ease-in-out 0s',
+                      caretColor: 'inherit',
                     },
                     '& .MuiOutlinedInput-root': {
                       height: { xs: 52, sm: 56 },
@@ -405,9 +405,9 @@ export default function LoginPage() {
                   placeholder="Enter your password"
                   sx={{
                     '& input:-webkit-autofill, & input:-webkit-autofill:hover, & input:-webkit-autofill:focus': {
-                      WebkitBoxShadow: '0 0 0 100px #f8fafc inset',
                       WebkitTextFillColor: 'inherit',
-                      transition: 'background-color 5000s ease-in-out 0s',
+                      transition: 'background-color 9999s ease-in-out 0s',
+                      caretColor: 'inherit',
                     },
                     '& .MuiOutlinedInput-root': {
                       height: { xs: 52, sm: 56 },
