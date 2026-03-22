@@ -363,14 +363,8 @@ export default function LoginPage() {
                   disabled={loading}
                   autoFocus
                   placeholder="Enter your username"
-                  sx={(theme) => ({
+                  sx={{
                     mb: 2,
-                    '& input:-webkit-autofill, & input:-webkit-autofill:hover, & input:-webkit-autofill:focus, & input:-webkit-autofill:active': {
-                      WebkitBoxShadow: `0 0 0 1000px ${theme.palette.mode === 'dark' ? '#1e293b' : '#f8fafc'} inset !important`,
-                      WebkitTextFillColor: `${theme.palette.text.primary} !important`,
-                      transition: 'background-color 9999s ease-in-out 0s',
-                      caretColor: theme.palette.text.primary,
-                    },
                     '& .MuiOutlinedInput-root': {
                       height: { xs: 52, sm: 56 },
                       transition: 'all 0.3s ease',
@@ -392,7 +386,7 @@ export default function LoginPage() {
                     '& .MuiInputLabel-root': {
                       fontWeight: 500,
                     },
-                  })}
+                  }}
                 />
 
                 <TextField
@@ -404,13 +398,7 @@ export default function LoginPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   disabled={loading}
                   placeholder="Enter your password"
-                  sx={(theme) => ({
-                    '& input:-webkit-autofill, & input:-webkit-autofill:hover, & input:-webkit-autofill:focus, & input:-webkit-autofill:active': {
-                      WebkitBoxShadow: `0 0 0 1000px ${theme.palette.mode === 'dark' ? '#1e293b' : '#f8fafc'} inset !important`,
-                      WebkitTextFillColor: `${theme.palette.text.primary} !important`,
-                      transition: 'background-color 9999s ease-in-out 0s',
-                      caretColor: theme.palette.text.primary,
-                    },
+                  sx={{
                     '& .MuiOutlinedInput-root': {
                       height: { xs: 52, sm: 56 },
                       transition: 'all 0.3s ease',
@@ -432,7 +420,7 @@ export default function LoginPage() {
                     '& .MuiInputLabel-root': {
                       fontWeight: 500,
                     },
-                  })}
+                  }}
                   InputProps={{
                     endAdornment: (
                       <InputAdornment position="end">
@@ -564,7 +552,7 @@ export default function LoginPage() {
                 },
               }}
             >
-              Divine WMS ©  {new Date().getFullYear()} | Developed by Sr@n
+              Divine WMS ©  {new Date().getFullYear()} | Devolped by Sr@n
             </Typography>
           </Paper>
         </Container>
