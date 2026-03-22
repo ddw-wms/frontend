@@ -365,10 +365,11 @@ export default function LoginPage() {
                   placeholder="Enter your username"
                   sx={{
                     mb: 2,
-                    '& input:-webkit-autofill, & input:-webkit-autofill:hover, & input:-webkit-autofill:focus': {
-                      WebkitTextFillColor: 'inherit',
+                    '& input:-webkit-autofill, & input:-webkit-autofill:hover, & input:-webkit-autofill:focus, & input:-webkit-autofill:active': {
+                      WebkitBoxShadow: '0 0 0 1000px #f8fafc inset !important',
+                      WebkitTextFillColor: '#000 !important',
                       transition: 'background-color 9999s ease-in-out 0s',
-                      caretColor: 'inherit',
+                      caretColor: '#000',
                     },
                     '& .MuiOutlinedInput-root': {
                       height: { xs: 52, sm: 56 },
@@ -404,10 +405,11 @@ export default function LoginPage() {
                   disabled={loading}
                   placeholder="Enter your password"
                   sx={{
-                    '& input:-webkit-autofill, & input:-webkit-autofill:hover, & input:-webkit-autofill:focus': {
-                      WebkitTextFillColor: 'inherit',
+                    '& input:-webkit-autofill, & input:-webkit-autofill:hover, & input:-webkit-autofill:focus, & input:-webkit-autofill:active': {
+                      WebkitBoxShadow: '0 0 0 1000px #f8fafc inset !important',
+                      WebkitTextFillColor: '#000 !important',
                       transition: 'background-color 9999s ease-in-out 0s',
-                      caretColor: 'inherit',
+                      caretColor: '#000',
                     },
                     '& .MuiOutlinedInput-root': {
                       height: { xs: 52, sm: 56 },
