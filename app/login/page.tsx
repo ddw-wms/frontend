@@ -365,6 +365,11 @@ export default function LoginPage() {
                   placeholder="Enter your username"
                   sx={{
                     mb: 2,
+                    '& input:-webkit-autofill, & input:-webkit-autofill:hover, & input:-webkit-autofill:focus': {
+                      WebkitBoxShadow: '0 0 0 100px #f8fafc inset',
+                      WebkitTextFillColor: 'inherit',
+                      transition: 'background-color 5000s ease-in-out 0s',
+                    },
                     '& .MuiOutlinedInput-root': {
                       height: { xs: 52, sm: 56 },
                       transition: 'all 0.3s ease',
@@ -381,14 +386,6 @@ export default function LoginPage() {
                           borderColor: 'primary.main',
                           borderWidth: 2,
                         },
-                      },
-                      '& input:-webkit-autofill': {
-                        WebkitBoxShadow: '0 0 0 1000px white inset',
-                        WebkitTextFillColor: '#000',
-                      },
-                      '& input:-webkit-autofill:focus': {
-                        WebkitBoxShadow: '0 0 0 1000px white inset',
-                        WebkitTextFillColor: '#000',
                       },
                     },
                     '& .MuiInputLabel-root': {
@@ -407,6 +404,11 @@ export default function LoginPage() {
                   disabled={loading}
                   placeholder="Enter your password"
                   sx={{
+                    '& input:-webkit-autofill, & input:-webkit-autofill:hover, & input:-webkit-autofill:focus': {
+                      WebkitBoxShadow: '0 0 0 100px #f8fafc inset',
+                      WebkitTextFillColor: 'inherit',
+                      transition: 'background-color 5000s ease-in-out 0s',
+                    },
                     '& .MuiOutlinedInput-root': {
                       height: { xs: 52, sm: 56 },
                       transition: 'all 0.3s ease',
@@ -424,19 +426,12 @@ export default function LoginPage() {
                           borderWidth: 2,
                         },
                       },
-                      '& input:-webkit-autofill': {
-                        WebkitBoxShadow: '0 0 0 1000px white inset',
-                        WebkitTextFillColor: '#000',
-                      },
-                      '& input:-webkit-autofill:focus': {
-                        WebkitBoxShadow: '0 0 0 1000px white inset',
-                        WebkitTextFillColor: '#000',
-                      },
                     },
                     '& .MuiInputLabel-root': {
                       fontWeight: 500,
                     },
                   }}
+                  InputProps={{
                     endAdornment: (
                       <InputAdornment position="end">
                         <IconButton
@@ -567,7 +562,7 @@ export default function LoginPage() {
                 },
               }}
             >
-              Divine WMS ©  {new Date().getFullYear()} | Devolped by Sr@n
+              Divine WMS ©  {new Date().getFullYear()} | Developed by Sr@n
             </Typography>
           </Paper>
         </Container>
