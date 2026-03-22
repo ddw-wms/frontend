@@ -363,13 +363,13 @@ export default function LoginPage() {
                   disabled={loading}
                   autoFocus
                   placeholder="Enter your username"
-                  sx={{
+                  sx={(theme) => ({
                     mb: 2,
                     '& input:-webkit-autofill, & input:-webkit-autofill:hover, & input:-webkit-autofill:focus, & input:-webkit-autofill:active': {
-                      WebkitBoxShadow: '0 0 0 1000px #f8fafc inset !important',
-                      WebkitTextFillColor: '#000 !important',
+                      WebkitBoxShadow: `0 0 0 1000px ${theme.palette.mode === 'dark' ? '#1e293b' : '#f8fafc'} inset !important`,
+                      WebkitTextFillColor: `${theme.palette.text.primary} !important`,
                       transition: 'background-color 9999s ease-in-out 0s',
-                      caretColor: '#000',
+                      caretColor: theme.palette.text.primary,
                     },
                     '& .MuiOutlinedInput-root': {
                       height: { xs: 52, sm: 56 },
@@ -392,7 +392,7 @@ export default function LoginPage() {
                     '& .MuiInputLabel-root': {
                       fontWeight: 500,
                     },
-                  }}
+                  })}
                 />
 
                 <TextField
@@ -404,12 +404,12 @@ export default function LoginPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   disabled={loading}
                   placeholder="Enter your password"
-                  sx={{
+                  sx={(theme) => ({
                     '& input:-webkit-autofill, & input:-webkit-autofill:hover, & input:-webkit-autofill:focus, & input:-webkit-autofill:active': {
-                      WebkitBoxShadow: '0 0 0 1000px #f8fafc inset !important',
-                      WebkitTextFillColor: '#000 !important',
+                      WebkitBoxShadow: `0 0 0 1000px ${theme.palette.mode === 'dark' ? '#1e293b' : '#f8fafc'} inset !important`,
+                      WebkitTextFillColor: `${theme.palette.text.primary} !important`,
                       transition: 'background-color 9999s ease-in-out 0s',
-                      caretColor: '#000',
+                      caretColor: theme.palette.text.primary,
                     },
                     '& .MuiOutlinedInput-root': {
                       height: { xs: 52, sm: 56 },
@@ -432,7 +432,7 @@ export default function LoginPage() {
                     '& .MuiInputLabel-root': {
                       fontWeight: 500,
                     },
-                  }}
+                  })}
                   InputProps={{
                     endAdornment: (
                       <InputAdornment position="end">
