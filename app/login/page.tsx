@@ -437,24 +437,24 @@ export default function LoginPage() {
                       fontWeight: 500,
                     },
                   }}
-                  endAdornment: (
-                <InputAdornment position="end">
-                  <IconButton
-                    onClick={() => setShowPassword(!showPassword)}
-                    edge="end"
-                    sx={{
-                      width: 44,
-                      height: 44,
-                      transition: 'all 0.2s ease',
-                      '&:hover': {
-                        backgroundColor: 'rgba(30, 64, 175, 0.08)',
-                      },
-                    }}
-                  >
-                    {showPassword ? <VisibilityOff /> : <Visibility />}
-                  </IconButton>
-                </InputAdornment>
-                ),
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <IconButton
+                          onClick={() => setShowPassword(!showPassword)}
+                          edge="end"
+                          sx={{
+                            width: 44,
+                            height: 44,
+                            transition: 'all 0.2s ease',
+                            '&:hover': {
+                              backgroundColor: 'rgba(30, 64, 175, 0.08)',
+                            },
+                          }}
+                        >
+                          {showPassword ? <VisibilityOff /> : <Visibility />}
+                        </IconButton>
+                      </InputAdornment>
+                    ),
                   }}
                 />
               </Box>
