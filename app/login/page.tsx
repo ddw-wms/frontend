@@ -382,6 +382,14 @@ export default function LoginPage() {
                           borderWidth: 2,
                         },
                       },
+                      '& input:-webkit-autofill': {
+                        WebkitBoxShadow: '0 0 0 1000px white inset',
+                        WebkitTextFillColor: '#000',
+                      },
+                      '& input:-webkit-autofill:focus': {
+                        WebkitBoxShadow: '0 0 0 1000px white inset',
+                        WebkitTextFillColor: '#000',
+                      },
                     },
                     '& .MuiInputLabel-root': {
                       fontWeight: 500,
@@ -416,30 +424,37 @@ export default function LoginPage() {
                           borderWidth: 2,
                         },
                       },
+                      '& input:-webkit-autofill': {
+                        WebkitBoxShadow: '0 0 0 1000px white inset',
+                        WebkitTextFillColor: '#000',
+                      },
+                      '& input:-webkit-autofill:focus': {
+                        WebkitBoxShadow: '0 0 0 1000px white inset',
+                        WebkitTextFillColor: '#000',
+                      },
                     },
                     '& .MuiInputLabel-root': {
                       fontWeight: 500,
                     },
                   }}
-                  InputProps={{
-                    endAdornment: (
-                      <InputAdornment position="end">
-                        <IconButton
-                          onClick={() => setShowPassword(!showPassword)}
-                          edge="end"
-                          sx={{
-                            width: 44,
-                            height: 44,
-                            transition: 'all 0.2s ease',
-                            '&:hover': {
-                              backgroundColor: 'rgba(30, 64, 175, 0.08)',
-                            },
-                          }}
-                        >
-                          {showPassword ? <VisibilityOff /> : <Visibility />}
-                        </IconButton>
-                      </InputAdornment>
-                    ),
+                  endAdornment: (
+                <InputAdornment position="end">
+                  <IconButton
+                    onClick={() => setShowPassword(!showPassword)}
+                    edge="end"
+                    sx={{
+                      width: 44,
+                      height: 44,
+                      transition: 'all 0.2s ease',
+                      '&:hover': {
+                        backgroundColor: 'rgba(30, 64, 175, 0.08)',
+                      },
+                    }}
+                  >
+                    {showPassword ? <VisibilityOff /> : <Visibility />}
+                  </IconButton>
+                </InputAdornment>
+                ),
                   }}
                 />
               </Box>
