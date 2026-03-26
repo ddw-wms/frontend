@@ -3706,7 +3706,16 @@ export default function OutboundPage() {
                 setCommonCustomer('');
                 setSelectedCustomer('');
                 setCommonVehicle('');
-                await clearDraft();
+                // Retry clearDraft up to 3 times — prevents orphaned drafts on transient failures
+                for (let attempt = 1; attempt <= 3; attempt++) {
+                    try {
+                        await clearDraft();
+                        break;
+                    } catch (e) {
+                        console.error(`clearDraft attempt ${attempt}/3 failed`, e);
+                        if (attempt < 3) await new Promise(r => setTimeout(r, 2000 * attempt));
+                    }
+                }
 
                 // Clear dispatching WSNs since all entries submitted
                 clearDispatchingWSNs();
@@ -5221,6 +5230,12 @@ export default function OutboundPage() {
                     return updated;
                 });
             }
+            // Clear grid — data was submitted from another device, draft is now empty
+            isSyncingRef.current = true;
+            setMultiRows(generateEmptyRows(500) as OutboundItem[]);
+            setDraftSavedAt(null);
+            setDraftExists(false);
+            setTimeout(() => { isSyncingRef.current = false; }, 300);
             // Refresh list data
             loadOutboundList();
         }, [loadOutboundList]),
@@ -5231,6 +5246,12 @@ export default function OutboundPage() {
         }, []),
         onDraftCleared: useCallback(() => {
             toast('Outbound draft cleared from another device', { duration: 3000, icon: '🗑️' });
+            // Clear grid and reset draft state so stale data doesn't remain
+            isSyncingRef.current = true;
+            setMultiRows(generateEmptyRows(500) as OutboundItem[]);
+            setDraftSavedAt(null);
+            setDraftExists(false);
+            setTimeout(() => { isSyncingRef.current = false; }, 300);
         }, []),
         onEntrySynced: useCallback((data: any) => {
             if (!data?.rows?.length) return;

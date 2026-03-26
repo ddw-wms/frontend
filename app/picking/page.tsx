@@ -2587,8 +2587,16 @@ export default function PickingPage() {
         setMultiRows(generateEmptyRows(500));
         setGridDuplicateWSNs(new Set());
         setCrossWarehouseWSNs(new Set());
-        // Clear draft in background - don't block UI
-        clearDraft().catch(() => { });
+        // Retry clearDraft up to 3 times — prevents orphaned drafts on transient failures
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          try {
+            await clearDraft();
+            break;
+          } catch (e) {
+            console.error(`clearDraft attempt ${attempt}/3 failed`, e);
+            if (attempt < 3) await new Promise(r => setTimeout(r, 2000 * attempt));
+          }
+        }
       } else if (successCount > 0) {
         // Partial success → remove only successful WSNs, keep failed rows
         const failedWSNs = new Set(errorEntries.map(e => e.wsn?.toUpperCase()));
@@ -4223,6 +4231,12 @@ export default function PickingPage() {
     enabled: !!user && !!activeWarehouse,
     onDataSubmitted: useCallback((data: any) => {
       toast.success(`${data.submittedBy} submitted ${data.successCount} picking entries from another device`, { duration: 4000, icon: '📡' });
+      // Clear grid — data was submitted from another device, draft is now empty
+      isSyncingRef.current = true;
+      setMultiRows(generateEmptyRows(500));
+      setDraftSavedAt(null);
+      setDraftExists(false);
+      setTimeout(() => { isSyncingRef.current = false; }, 300);
       // Refresh list data
       loadPickingList();
     }, [loadPickingList]),
@@ -4233,6 +4247,12 @@ export default function PickingPage() {
     }, []),
     onDraftCleared: useCallback(() => {
       toast('Picking draft cleared from another device', { duration: 3000, icon: '🗑️' });
+      // Clear grid and reset draft state so stale data doesn't remain
+      isSyncingRef.current = true;
+      setMultiRows(generateEmptyRows(500));
+      setDraftSavedAt(null);
+      setDraftExists(false);
+      setTimeout(() => { isSyncingRef.current = false; }, 300);
     }, []),
     onEntrySynced: useCallback((data: any) => {
       if (!data?.rows?.length) return;

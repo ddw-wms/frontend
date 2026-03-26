@@ -754,13 +754,19 @@ export default function MobileScanPage() {
                 batchId = res.data?.batch_id || res.data?.batchId || '';
             }
 
-            // Clear drafts (mobile source)
-            try {
-                if (mode === 'qc') await qcAPI.clearDraft(activeWarehouse.id, 'mobile');
-                else if (mode === 'outbound') await outboundAPI.clearDraft(activeWarehouse.id, 'mobile');
-                else if (mode === 'inbound') await inboundAPI.clearDraft(activeWarehouse.id, 'mobile');
-                else await pickingAPI.clearDraft(activeWarehouse.id, 'mobile');
-            } catch { /* ignore */ }
+            // Clear drafts (mobile source) — retry up to 3 times to prevent orphaned drafts
+            for (let attempt = 1; attempt <= 3; attempt++) {
+                try {
+                    if (mode === 'qc') await qcAPI.clearDraft(activeWarehouse.id, 'mobile');
+                    else if (mode === 'outbound') await outboundAPI.clearDraft(activeWarehouse.id, 'mobile');
+                    else if (mode === 'inbound') await inboundAPI.clearDraft(activeWarehouse.id, 'mobile');
+                    else await pickingAPI.clearDraft(activeWarehouse.id, 'mobile');
+                    break;
+                } catch (e) {
+                    console.error(`clearDraft attempt ${attempt}/3 failed`, e);
+                    if (attempt < 3) await new Promise(r => setTimeout(r, 2000 * attempt));
+                }
+            }
             localStorage.removeItem(`${DRAFT_LS_KEY}_${mode}`);
 
             // Add submitted WSNs to existingWSNs so they can't be re-scanned
@@ -770,9 +776,17 @@ export default function MobileScanPage() {
                 return updated;
             });
 
-            // Clear receiving WSNs for inbound after successful submit
+            // Clear receiving WSNs for inbound after successful submit — retry up to 3 times
             if (mode === 'inbound' && activeWarehouse?.id) {
-                inboundAPI.clearReceivingWSNs(activeWarehouse.id).catch(() => { });
+                for (let attempt = 1; attempt <= 3; attempt++) {
+                    try {
+                        await inboundAPI.clearReceivingWSNs(activeWarehouse.id);
+                        break;
+                    } catch (e) {
+                        console.error(`clearReceivingWSNs attempt ${attempt}/3 failed`, e);
+                        if (attempt < 3) await new Promise(r => setTimeout(r, 2000 * attempt));
+                    }
+                }
             }
 
             setResultDialog({ open: true, batchId, count: validEntries.length });
