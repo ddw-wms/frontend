@@ -234,7 +234,7 @@ export default function BackupTimeline({ warehouseId }: Props) {
         setPreviewLoading(true);
         setPreviewOpen(true);
         try {
-            const res = await api.get(`/backups/${backupId}/preview`);
+            const res = await api.get(`/backups/preview/${backupId}`);
             setPreviewData(res.data);
         } catch (error: any) {
             console.error('Failed to fetch preview:', error);
