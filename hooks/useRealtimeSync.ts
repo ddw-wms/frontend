@@ -74,7 +74,7 @@ export function useRealtimeSync({
     useEffect(() => { onEntrySyncedRef.current = onEntrySynced; }, [onEntrySynced]);
     useEffect(() => { onHeaderUpdatedRef.current = onHeaderUpdated; }, [onHeaderUpdated]);
 
-    const connect = useCallback(() => {
+    const connect = useCallback(async () => {
         if (typeof window === 'undefined') return;
         if (!warehouseId || !enabled) return;
 
@@ -89,9 +89,24 @@ export function useRealtimeSync({
             eventSourceRef.current = null;
         }
 
-        // Build SSE URL with auth token as query param (EventSource doesn't support headers)
-        // We pass token as query param since EventSource API doesn't support custom headers
-        const url = `${API_URL}/events/subscribe?warehouseId=${warehouseId}&page=${page}&deviceId=${deviceId}&token=${encodeURIComponent(token)}`;
+        // Try ticket exchange first (keeps JWT out of URL/logs), fall back to token
+        let authParam: string;
+        try {
+            const resp = await fetch(`${API_URL}/events/ticket`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+            });
+            if (resp.ok) {
+                const { ticket } = await resp.json();
+                authParam = `ticket=${encodeURIComponent(ticket)}`;
+            } else {
+                authParam = `token=${encodeURIComponent(token)}`;
+            }
+        } catch {
+            authParam = `token=${encodeURIComponent(token)}`;
+        }
+
+        const url = `${API_URL}/events/subscribe?warehouseId=${warehouseId}&page=${page}&deviceId=${deviceId}&${authParam}`;
 
         try {
             const es = new EventSource(url);
@@ -151,8 +166,10 @@ export function useRealtimeSync({
                 es.close();
                 eventSourceRef.current = null;
 
-                // Exponential backoff: 1s → 2s → 4s → 8s → 16s → 30s max
-                const delay = Math.min(1000 * Math.pow(2, reconnectAttemptRef.current), 30000);
+                // Exponential backoff with jitter: 1s → 2s → 4s → ... → 30s max
+                const base = Math.min(1000 * Math.pow(2, reconnectAttemptRef.current), 30000);
+                const jitter = Math.random() * 1000;
+                const delay = base + jitter;
                 reconnectAttemptRef.current++;
 
 

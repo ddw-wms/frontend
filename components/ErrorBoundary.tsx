@@ -25,10 +25,7 @@ class ErrorBoundary extends Component<Props, State> {
     }
 
     public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-        // Log error only in development
-        if (process.env.NODE_ENV === 'development') {
-            console.error('ErrorBoundary caught an error:', error, errorInfo);
-        }
+        console.error('ErrorBoundary caught an error:', error, errorInfo);
     }
 
     private handleReset = () => {

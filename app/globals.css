@@ -303,8 +303,8 @@ body {
 
 /* Compact chips */
 .MuiChip-root {
-  height: 24px !important;
-  font-size: 0.7rem !important;
+  height: 26px !important;
+  font-size: 0.75rem !important;
 }
 
 .MuiChip-label {
@@ -1906,8 +1906,8 @@ select {
   }
 
   .MuiChip-root {
-    height: 20px !important;
-    font-size: 0.625rem !important;
+    height: 24px !important;
+    font-size: 0.7rem !important;
   }
 
   .MuiListItemButton-root {

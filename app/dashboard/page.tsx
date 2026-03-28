@@ -686,7 +686,7 @@ export default function DashboardPage() {
             const wsn = p.data?.wsn;
             if (col === 'picking_status' && wsn && pickingWSNs.has(wsn)) {
               return (
-                <Chip label="DONE" size="small" sx={{ bgcolor: getStatusColor('DONE'), color: 'white', fontSize: '0.6rem' }} />
+                <Chip label="DONE" size="small" sx={{ bgcolor: getStatusColor('DONE'), color: 'white', fontSize: '0.7rem' }} />
               );
             }
             if (col === 'outbound_status' && wsn && outboundWSNs.has(wsn)) {
@@ -1830,7 +1830,7 @@ export default function DashboardPage() {
                   </Typography>
                   <Typography
                     sx={{
-                      fontSize: { xs: "0.45rem", sm: "0.65rem", md: "0.7rem" },
+                      fontSize: { xs: "0.65rem", sm: "0.7rem", md: "0.75rem" },
                       fontWeight: 500,
                       color: isDarkMode ? "#64748b" : "#94a3b8",
                       textTransform: "uppercase",
@@ -2575,7 +2575,7 @@ export default function DashboardPage() {
                               minWidth: 'auto',
                               px: 1,
                               py: 0.25,
-                              fontSize: '0.65rem',
+                              fontSize: '0.75rem',
                               color: isDarkMode ? '#64748b' : '#94a3b8',
                             }}
                           >
@@ -3666,7 +3666,7 @@ export default function DashboardPage() {
                     bgcolor: isDarkMode ? 'rgba(59,130,246,0.06)' : '#f0f7ff',
                     border: isDarkMode ? '1px solid rgba(59,130,246,0.1)' : '1px solid #dbeafe',
                   }}>
-                    <Typography sx={{ fontSize: '0.65rem', fontWeight: 600, color: isDarkMode ? '#64748b' : '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', mb: 0.25 }}>
+                    <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: isDarkMode ? '#64748b' : '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', mb: 0.25 }}>
                       Brand
                     </Typography>
                     <Typography sx={{ fontSize: '0.82rem', fontWeight: 700, color: isDarkMode ? '#93c5fd' : '#1e40af' }}>
@@ -3682,7 +3682,7 @@ export default function DashboardPage() {
                     bgcolor: isDarkMode ? 'rgba(139,92,246,0.06)' : '#faf5ff',
                     border: isDarkMode ? '1px solid rgba(139,92,246,0.1)' : '1px solid #e9d5ff',
                   }}>
-                    <Typography sx={{ fontSize: '0.65rem', fontWeight: 600, color: isDarkMode ? '#64748b' : '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', mb: 0.25 }}>
+                    <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: isDarkMode ? '#64748b' : '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', mb: 0.25 }}>
                       Category
                     </Typography>
                     <Typography sx={{ fontSize: '0.82rem', fontWeight: 700, color: isDarkMode ? '#c084fc' : '#7c3aed' }}>
@@ -3698,7 +3698,7 @@ export default function DashboardPage() {
                     bgcolor: isDarkMode ? 'rgba(34,197,94,0.06)' : '#f0fdf4',
                     border: isDarkMode ? '1px solid rgba(34,197,94,0.1)' : '1px solid #bbf7d0',
                   }}>
-                    <Typography sx={{ fontSize: '0.65rem', fontWeight: 600, color: isDarkMode ? '#64748b' : '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', mb: 0.25 }}>
+                    <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: isDarkMode ? '#64748b' : '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', mb: 0.25 }}>
                       MRP
                     </Typography>
                     <Typography sx={{ fontSize: '0.88rem', fontWeight: 800, color: isDarkMode ? '#86efac' : '#16a34a' }}>
@@ -3714,7 +3714,7 @@ export default function DashboardPage() {
                     bgcolor: isDarkMode ? 'rgba(245,158,11,0.06)' : '#fffbeb',
                     border: isDarkMode ? '1px solid rgba(245,158,11,0.1)' : '1px solid #fde68a',
                   }}>
-                    <Typography sx={{ fontSize: '0.65rem', fontWeight: 600, color: isDarkMode ? '#64748b' : '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', mb: 0.25 }}>
+                    <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: isDarkMode ? '#64748b' : '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', mb: 0.25 }}>
                       FSP
                     </Typography>
                     <Typography sx={{ fontSize: '0.88rem', fontWeight: 800, color: isDarkMode ? '#fbbf24' : '#d97706' }}>
@@ -3730,7 +3730,7 @@ export default function DashboardPage() {
                     bgcolor: isDarkMode ? 'rgba(236,72,153,0.06)' : '#fdf2f8',
                     border: isDarkMode ? '1px solid rgba(236,72,153,0.1)' : '1px solid #fbcfe8',
                   }}>
-                    <Typography sx={{ fontSize: '0.65rem', fontWeight: 600, color: isDarkMode ? '#64748b' : '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', mb: 0.25 }}>
+                    <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: isDarkMode ? '#64748b' : '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', mb: 0.25 }}>
                       Order ID
                     </Typography>
                     <Typography sx={{ fontSize: '0.78rem', fontWeight: 700, color: isDarkMode ? '#f9a8d4' : '#db2777', fontFamily: 'monospace' }}>
@@ -3746,7 +3746,7 @@ export default function DashboardPage() {
                     bgcolor: isDarkMode ? 'rgba(20,184,166,0.06)' : '#f0fdfa',
                     border: isDarkMode ? '1px solid rgba(20,184,166,0.1)' : '1px solid #99f6e4',
                   }}>
-                    <Typography sx={{ fontSize: '0.65rem', fontWeight: 600, color: isDarkMode ? '#64748b' : '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', mb: 0.25 }}>
+                    <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: isDarkMode ? '#64748b' : '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', mb: 0.25 }}>
                       WID
                     </Typography>
                     <Typography sx={{ fontSize: '0.78rem', fontWeight: 700, color: isDarkMode ? '#5eead4' : '#0d9488', fontFamily: 'monospace' }}>
@@ -3762,7 +3762,7 @@ export default function DashboardPage() {
                     bgcolor: isDarkMode ? 'rgba(100,116,139,0.08)' : '#f8fafc',
                     border: isDarkMode ? '1px solid rgba(100,116,139,0.12)' : '1px solid #e2e8f0',
                   }}>
-                    <Typography sx={{ fontSize: '0.65rem', fontWeight: 600, color: isDarkMode ? '#64748b' : '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', mb: 0.25 }}>
+                    <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: isDarkMode ? '#64748b' : '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', mb: 0.25 }}>
                       FSN
                     </Typography>
                     <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: isDarkMode ? '#cbd5e1' : '#475569', fontFamily: 'monospace' }}>
@@ -3778,7 +3778,7 @@ export default function DashboardPage() {
                     bgcolor: isDarkMode ? 'rgba(249,115,22,0.06)' : '#fff7ed',
                     border: isDarkMode ? '1px solid rgba(249,115,22,0.1)' : '1px solid #fed7aa',
                   }}>
-                    <Typography sx={{ fontSize: '0.65rem', fontWeight: 600, color: isDarkMode ? '#64748b' : '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', mb: 0.25 }}>
+                    <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: isDarkMode ? '#64748b' : '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', mb: 0.25 }}>
                       P Type
                     </Typography>
                     <Typography sx={{ fontSize: '0.82rem', fontWeight: 700, color: isDarkMode ? '#fb923c' : '#ea580c' }}>
@@ -3795,7 +3795,7 @@ export default function DashboardPage() {
                   bgcolor: isDarkMode ? 'rgba(239,68,68,0.06)' : '#fef2f2',
                   border: isDarkMode ? '1px solid rgba(239,68,68,0.12)' : '1px solid #fecaca',
                 }}>
-                  <Typography sx={{ fontSize: '0.65rem', fontWeight: 600, color: isDarkMode ? '#64748b' : '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', mb: 0.25 }}>
+                  <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: isDarkMode ? '#64748b' : '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', mb: 0.25 }}>
                     FKQC Remarks
                   </Typography>
                   <Typography sx={{ fontSize: '0.82rem', fontWeight: 600, color: isDarkMode ? '#fca5a5' : '#dc2626', lineHeight: 1.4 }}>

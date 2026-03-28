@@ -207,6 +207,7 @@ export async function warmupMemoryCache(
     memoryWarehouseId = warehouseId;
 
     warmupPromise = (async () => {
+        const MAX_MEMORY_RECORDS = 500_000; // Safety limit for browser memory
         try {
             const database = getDB();
             const startTime = performance.now();
@@ -220,6 +221,14 @@ export async function warmupMemoryCache(
                 .toArray();
 
             pendingMemoryMap = new Map(pendingRecords.map(r => [r.wsn, r]));
+
+            if (pendingMemoryMap.size > MAX_MEMORY_RECORDS) {
+                console.warn(`⚠️ Pending inventory too large (${pendingMemoryMap.size}) — skipping memory cache`);
+                pendingMemoryMap = null;
+                availableMemoryMap = null;
+                isMemoryWarmedUp = false;
+                return;
+            }
 
             if (onProgress) onProgress('Loading available inventory...', pendingMemoryMap.size, 0);
 
