@@ -745,7 +745,7 @@ export const outboundAPI = {
     startDate?: string;
     endDate?: string;
     batchId?: string;
-  }) => api.get('outbound/export', { params, responseType: 'blob' }),
+  }) => api.get('outbound/export', { params, responseType: 'blob', timeout: 5 * 60 * 1000 }),
 
   // Get brands for filter dropdown
   getBrands: (warehouseId?: number) =>
