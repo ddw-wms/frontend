@@ -4355,22 +4355,47 @@ export default function OutboundPage() {
         if (!activeWarehouse) return;
 
         try {
-            const res = await outboundAPI.exportToExcel({
-                warehouseId: activeWarehouse.id,
-                source: exportSource || sourceFilter,
-                customer: exportCustomer || customerFilter,
-                startDate: exportStartDate || startDateFilter,
-                endDate: exportEndDate || endDateFilter,
-                batchId: exportBatchId || batchFilter,
-            });
+            // Build query string for the export URL
+            const exportParams = new URLSearchParams();
+            exportParams.set('warehouseId', String(activeWarehouse.id));
+            const src = exportSource || sourceFilter;
+            const cust = exportCustomer || customerFilter;
+            const sDate = exportStartDate || startDateFilter;
+            const eDate = exportEndDate || endDateFilter;
+            const batch = exportBatchId || batchFilter;
+            if (src) exportParams.set('source', src);
+            if (cust) exportParams.set('customer', cust);
+            if (sDate) exportParams.set('startDate', sDate);
+            if (eDate) exportParams.set('endDate', eDate);
+            if (batch) exportParams.set('batchId', batch);
 
-            const url = window.URL.createObjectURL(new Blob([res.data]));
+            // Use fetch API instead of Axios/XHR — handles large binary streaming reliably
+            const token = localStorage.getItem('token');
+            const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+            const response = await fetch(
+                `${apiUrl}/api/outbound/export?${exportParams.toString()}`,
+                {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                    },
+                }
+            );
+
+            if (!response.ok) {
+                const errData = await response.json().catch(() => ({}));
+                throw new Error(errData.error || `Export failed (${response.status})`);
+            }
+
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = url;
             link.setAttribute('download', `outbound_export_${new Date().toISOString().split('T')[0]}.xlsx`);
             document.body.appendChild(link);
             link.click();
             link.remove();
+            window.URL.revokeObjectURL(url);
 
             toast.success('✓ Excel exported');
             setExportDialogOpen(false);
@@ -4381,8 +4406,7 @@ export default function OutboundPage() {
             setExportSource('');
         } catch (err: any) {
             console.error('Export error:', err);
-            console.error('Error response:', err.response?.data);
-            toast.error(err.response?.data?.error || 'Failed to export Excel');
+            toast.error(err.message || 'Failed to export Excel');
         }
     };
 
