@@ -1338,8 +1338,18 @@ export default function OutboundPage() {
             return;
         }
 
-        if (!singleForm.dispatch_date || !singleForm.customer_name) {
-            toast.error('Dispatch date and customer name are required');
+        if (!singleForm.dispatch_date?.trim()) {
+            toast.error('Dispatch date is required');
+            return;
+        }
+
+        if (!singleForm.customer_name?.trim()) {
+            toast.error('Customer name is required');
+            return;
+        }
+
+        if (!singleForm.vehicle_no?.trim()) {
+            toast.error('Vehicle number is required');
             return;
         }
 
@@ -3613,11 +3623,21 @@ export default function OutboundPage() {
         }
 
         // Get customer from either selectedCustomer or commonCustomer
-        const customerName = selectedCustomer || commonCustomer;
+        const customerName = selectedCustomer;
 
         // Validate common fields
-        if (!commonDate || !customerName) {
-            toast.error('Please enter dispatch date and customer name');
+        if (!commonDate?.trim()) {
+            toast.error('Dispatch date is required');
+            return;
+        }
+
+        if (!customerName?.trim()) {
+            toast.error('Customer name is required');
+            return;
+        }
+
+        if (!commonVehicle?.trim()) {
+            toast.error('Vehicle number is required');
             return;
         }
 
@@ -3666,6 +3686,13 @@ export default function OutboundPage() {
         });
         const filledRows = rows.filter((r: any) => r.wsn?.trim());
         if (filledRows.length === 0) return;
+
+        const customerName = selectedCustomer;
+        if (!customerName?.trim()) {
+            toast.error('Customer name is required');
+            setMultiLoading(false);
+            return;
+        }
 
         setMultiLoading(true);
 
@@ -6508,7 +6535,7 @@ export default function OutboundPage() {
                                     <TextField
                                         fullWidth
                                         size="small"
-                                        label="Vehicle Number"
+                                        label="Vehicle No. *"
                                         value={singleForm.vehicle_no}
                                         onChange={(e) => setSingleForm({ ...singleForm, vehicle_no: e.target.value.toUpperCase() })}
                                         placeholder="e.g., MH01AB1234"
@@ -6936,7 +6963,7 @@ export default function OutboundPage() {
                                                 />
                                             </Box>
                                             <TextField
-                                                label="Vehicle No"
+                                                label="Vehicle No *"
                                                 value={commonVehicle}
                                                 onChange={(e) => setCommonVehicle(e.target.value.toUpperCase())}
                                                 size="small"
