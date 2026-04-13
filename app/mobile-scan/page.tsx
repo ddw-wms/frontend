@@ -226,7 +226,7 @@ export default function MobileScanPage() {
             if (mounted) setAgentReady(running);
         };
         check();
-        const interval = setInterval(check, 15000);
+        const interval = setInterval(check, 60000);
         return () => { mounted = false; clearInterval(interval); };
     }, [mode]);
 
@@ -505,8 +505,15 @@ export default function MobileScanPage() {
     }, [scannedEntries, saveDraft]);
 
     // Scan handler with proper 3-level duplicate check + product fetch
-    const handleScan = useCallback(async (wsn: string) => {
-        // Level 1: Grid duplicate â€” uses ref (NOT state) to avoid stale closure
+    const handleScan = useCallback(async (rawWsn: string) => {
+        // Normalize and validate WSN - strip invisible/control characters
+        const wsn = rawWsn.normalize('NFC').trim().toUpperCase().replace(/[^\x20-\x7E]/g, '');
+        if (!wsn || wsn.length < 3) {
+            toast.error('Invalid WSN - too short or invalid characters', { duration: 2000 });
+            return;
+        }
+
+        // Level 1: Grid duplicate - uses ref (NOT state) to avoid stale closure
         if (scannedWSNsRef.current.has(wsn)) {
             toast.error(`${wsn} already in scan list!`, { duration: 2500 });
             // Vibration/sound already handled by CameraScanner via onScanCheck
@@ -604,7 +611,9 @@ export default function MobileScanPage() {
     }, [serialScanEntry]);
 
     // Synchronous scan check for CameraScanner overlay color (duplicate = red, success = green)
-    const handleScanCheck = useCallback((wsn: string): 'success' | 'duplicate' => {
+    const handleScanCheck = useCallback((rawWsn: string): 'success' | 'duplicate' => {
+        const wsn = rawWsn.normalize('NFC').trim().toUpperCase().replace(/[^\x20-\x7E]/g, '');
+        if (!wsn || wsn.length < 3) return 'duplicate'; // Treat invalid as duplicate to show red
         if (scannedWSNsRef.current.has(wsn)) return 'duplicate';
         if (existingWSNs.has(wsn)) return 'duplicate';
         return 'success';

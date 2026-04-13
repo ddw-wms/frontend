@@ -304,7 +304,7 @@ export default function WarehousesPage() {
         </TableContainer>
 
         {/* Add/Edit Dialog */}
-        <Dialog open={openDialog} onClose={handleDialogClose} maxWidth="sm" fullWidth>
+        <Dialog open={openDialog} onClose={handleDialogClose} maxWidth="sm" fullWidth fullScreen={isMobile}>
           <DialogTitle fontWeight="bold">
             {editItem ? '✏️ Edit Warehouse' : '➕ Add New Warehouse'}
           </DialogTitle>

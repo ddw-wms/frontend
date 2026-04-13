@@ -25,8 +25,8 @@ const STORAGE_KEYS = {
 };
 
 const DEFAULT_SETTINGS: GridSettings = {
-    enableSorting: true,
-    enableColumnFilters: true,
+    enableSorting: false,
+    enableColumnFilters: false,
     enableColumnResize: true,
 };
 
@@ -43,8 +43,8 @@ export function useGridSettings(storagePrefix: string = 'grid') {
 
         try {
             return {
-                enableSorting: localStorage.getItem(keys.sorting) !== 'false',
-                enableColumnFilters: localStorage.getItem(keys.filters) !== 'false',
+                enableSorting: localStorage.getItem(keys.sorting) === 'true',
+                enableColumnFilters: localStorage.getItem(keys.filters) === 'true',
                 enableColumnResize: localStorage.getItem(keys.resize) !== 'false',
             };
         } catch {

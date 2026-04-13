@@ -536,10 +536,10 @@ export default function DashboardPage() {
   const [showPageInput, setShowPageInput] = useState(false);
 
   const [enableSorting, setEnableSorting] = useState<boolean>(() => {
-    try { return localStorage.getItem('dashboard_enableSorting') !== 'false'; } catch { return true; }
+    try { return localStorage.getItem('dashboard_enableSorting') === 'true'; } catch { return false; }
   });
   const [enableColumnFilters, setEnableColumnFilters] = useState<boolean>(() => {
-    try { return localStorage.getItem('dashboard_enableColumnFilters') !== 'false'; } catch { return true; }
+    try { return localStorage.getItem('dashboard_enableColumnFilters') === 'true'; } catch { return false; }
   });
   const [enableColumnResize, setEnableColumnResize] = useState<boolean>(() => {
     try { return localStorage.getItem('dashboard_enableColumnResize') !== 'false'; } catch { return true; }
@@ -3140,6 +3140,7 @@ export default function DashboardPage() {
         onClose={() => setExportDialogOpen(false)}
         maxWidth="sm"
         fullWidth
+        fullScreen={isMobile}
       >
         <DialogTitle
           sx={{ fontWeight: 700, bgcolor: "#10b981", color: "white" }}
@@ -3306,6 +3307,7 @@ export default function DashboardPage() {
         onClose={() => setDetailsDialogOpen(false)}
         maxWidth="sm"
         fullWidth
+        fullScreen={isMobile}
       >
         <DialogTitle>Item - {selectedItem?.wsn}</DialogTitle>
         <DialogContent>
@@ -3354,6 +3356,7 @@ export default function DashboardPage() {
         onClose={() => setColumnDialogOpen(false)}
         maxWidth="sm"
         fullWidth
+        fullScreen={isMobile}
       >
         <DialogTitle>Select Visible Columns</DialogTitle>
         <DialogContent>

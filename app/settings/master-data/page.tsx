@@ -524,10 +524,10 @@ export default function MasterDataPage() {
 
   // Grid settings
   const [enableSorting, setEnableSorting] = useState<boolean>(() => {
-    try { return localStorage.getItem('masterdata_enableSorting') !== 'false'; } catch { return true; }
+    try { return localStorage.getItem('masterdata_enableSorting') === 'true'; } catch { return false; }
   });
   const [enableColumnFilters, setEnableColumnFilters] = useState<boolean>(() => {
-    try { return localStorage.getItem('masterdata_enableColumnFilters') !== 'false'; } catch { return true; }
+    try { return localStorage.getItem('masterdata_enableColumnFilters') === 'true'; } catch { return false; }
   });
   const [enableColumnResize, setEnableColumnResize] = useState<boolean>(() => {
     try { return localStorage.getItem('masterdata_enableColumnResize') !== 'false'; } catch { return true; }
@@ -3164,6 +3164,7 @@ export default function MasterDataPage() {
           onClose={() => setColumnMenuAnchor(null)}
           maxWidth="sm"
           fullWidth
+          fullScreen={isMobile}
         >
           <DialogTitle>Select Visible Columns</DialogTitle>
           <DialogContent>
@@ -3202,6 +3203,7 @@ export default function MasterDataPage() {
           }}
           maxWidth="sm"
           fullWidth
+          fullScreen={isMobile}
           // ✅ Prevent closing by clicking outside if uploading
           disableEscapeKeyDown={loading || uploadProgress.show}
         >
@@ -3472,6 +3474,7 @@ export default function MasterDataPage() {
           onClose={() => setExportDialogOpen(false)}
           maxWidth="md"
           fullWidth
+          fullScreen={isMobile}
           PaperProps={{
             sx: {
               borderRadius: 3,
@@ -3718,6 +3721,7 @@ export default function MasterDataPage() {
           onClose={() => !formSubmitting && setAddDialogOpen(false)}
           maxWidth="md"
           fullWidth
+          fullScreen={isMobile}
           PaperProps={{ sx: { borderRadius: 2, maxHeight: '90vh' } }}
         >
           <DialogTitle sx={{
@@ -3913,6 +3917,7 @@ export default function MasterDataPage() {
           onClose={() => !formSubmitting && setEditDialogOpen(false)}
           maxWidth="md"
           fullWidth
+          fullScreen={isMobile}
           PaperProps={{ sx: { borderRadius: 2, maxHeight: '90vh' } }}
         >
           <DialogTitle sx={{

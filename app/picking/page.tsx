@@ -833,7 +833,7 @@ export default function PickingPage() {
   // ====== MULTI ENTRY: GRID SETTINGS ======
   const [multiGridSettings, setMultiGridSettings] = useState(() => {
     // Load synchronously from localStorage to prevent double-render/key change
-    const defaults = { sortable: true, filter: true, resizable: true, editable: true };
+    const defaults = { sortable: false, filter: false, resizable: true, editable: true };
     if (typeof window === 'undefined') return defaults;
     try {
       const saved = localStorage.getItem('picking_multi_grid_settings');
@@ -961,10 +961,10 @@ export default function PickingPage() {
 
   // Grid Settings (persisted)
   const [enableSorting, setEnableSorting] = useState<boolean>(() => {
-    try { return localStorage.getItem('picking_enableSorting') !== 'false'; } catch { return true; }
+    try { return localStorage.getItem('picking_enableSorting') === 'true'; } catch { return false; }
   });
   const [enableColumnFilters, setEnableColumnFilters] = useState<boolean>(() => {
-    try { return localStorage.getItem('picking_enableColumnFilters') !== 'false'; } catch { return true; }
+    try { return localStorage.getItem('picking_enableColumnFilters') === 'true'; } catch { return false; }
   });
   const [enableColumnResize, setEnableColumnResize] = useState<boolean>(() => {
     try { return localStorage.getItem('picking_enableColumnResize') !== 'false'; } catch { return true; }
@@ -2314,9 +2314,94 @@ export default function PickingPage() {
     setMultiRows([...multiRows, ...generateEmptyRows(500)]);
   };
 
-  // ⚡ MULTI ENTRY: Export entered data to Excel with ALL columns
+  // ⚡ PICKING EXPORT COLUMNS CONFIG (for column picker dialog)
+  const PICKING_EXPORT_COLUMNS_CONFIG: { key: string; label: string; getValue: (row: any, idx: number) => any }[] = [
+    { key: 'sr_no', label: 'S.No', getValue: (_r, idx) => idx + 1 },
+    { key: 'wsn', label: 'WSN', getValue: (r) => r.wsn || '' },
+    { key: 'product_serial_number', label: 'Product Serial', getValue: (r) => r.product_serial_number || '' },
+    { key: 'rack_no', label: 'Rack No', getValue: (r) => r.rack_no || '' },
+    { key: 'picking_date', label: 'Picking Date', getValue: (r) => r.picking_date || pickingDate || '' },
+    { key: 'customer_name', label: 'Customer', getValue: (r) => r.customer_name || selectedCustomer || '' },
+    { key: 'picker_name', label: 'Picker', getValue: (r) => r.picker_name || pickerName || '' },
+    { key: 'picking_remarks', label: 'Picking Remarks', getValue: (r) => r.picking_remarks || '' },
+    { key: 'product_title', label: 'Product Title', getValue: (r) => r.product_title || '' },
+    { key: 'brand', label: 'Brand', getValue: (r) => r.brand || '' },
+    { key: 'cms_vertical', label: 'Category', getValue: (r) => r.cms_vertical || '' },
+    { key: 'fsp', label: 'FSP', getValue: (r) => r.fsp || '' },
+    { key: 'mrp', label: 'MRP', getValue: (r) => r.mrp || '' },
+    { key: 'vrp', label: 'VRP', getValue: (r) => r.vrp || '' },
+    { key: 'wid', label: 'WID', getValue: (r) => r.wid || '' },
+    { key: 'fsn', label: 'FSN', getValue: (r) => r.fsn || '' },
+    { key: 'order_id', label: 'Order ID', getValue: (r) => r.order_id || '' },
+    { key: 'hsn_sac', label: 'HSN/SAC', getValue: (r) => r.hsn_sac || '' },
+    { key: 'igst_rate', label: 'IGST Rate', getValue: (r) => r.igst_rate || '' },
+    { key: 'p_type', label: 'Product Type', getValue: (r) => r.p_type || '' },
+    { key: 'p_size', label: 'Product Size', getValue: (r) => r.p_size || '' },
+    { key: 'yield_value', label: 'Yield Value', getValue: (r) => r.yield_value || '' },
+    { key: 'wh_location', label: 'WH Location', getValue: (r) => r.wh_location || '' },
+    { key: 'fkqc_remark', label: 'FK QC Remark', getValue: (r) => r.fkqc_remark || '' },
+    { key: 'fk_grade', label: 'FK Grade', getValue: (r) => r.fk_grade || '' },
+    { key: 'invoice_date', label: 'Invoice Date', getValue: (r) => r.invoice_date || '' },
+    { key: 'fkt_link', label: 'FKT Link', getValue: (r) => r.fkt_link || '' },
+    { key: 'source', label: 'Source', getValue: (r) => r.source || '' },
+  ];
+  const PICKING_DEFAULT_EXPORT_COLUMNS = ['sr_no', 'wsn', 'product_serial_number', 'rack_no', 'picking_date', 'customer_name', 'picker_name', 'product_title', 'brand', 'fsp', 'mrp', 'picking_remarks'];
+
+  // Export column picker state
+  const [preSubmitExportDialogOpen, setPreSubmitExportDialogOpen] = useState(false);
+  const [pickingExportDialogOpen, setPickingExportDialogOpen] = useState(false);
+  const exportShouldSubmitRef = useRef(false);
+  const [exportSelectedColumns, setExportSelectedColumns] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('pickingExportColumns');
+      if (saved) return JSON.parse(saved);
+    } catch { /* ignore */ }
+    return PICKING_DEFAULT_EXPORT_COLUMNS;
+  });
+  const [exportRememberColumns, setExportRememberColumns] = useState(() => {
+    try { return localStorage.getItem('pickingExportRemember') === 'true'; } catch { return false; }
+  });
+
+  const handleOpenPickingExportDialog = () => {
+    exportShouldSubmitRef.current = true;
+    if (exportRememberColumns) {
+      try {
+        const saved = localStorage.getItem('pickingExportColumns');
+        if (saved) setExportSelectedColumns(JSON.parse(saved));
+      } catch { /* ignore */ }
+    }
+    setPreSubmitExportDialogOpen(false);
+    setPickingExportDialogOpen(true);
+  };
+
+  const handleSkipExportAndSubmit = () => {
+    setPreSubmitExportDialogOpen(false);
+    executePickingSubmit();
+  };
+
+  const handleToggleExportColumn = (key: string) => {
+    setExportSelectedColumns(prev =>
+      prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]
+    );
+  };
+
+  // ⚡ MULTI ENTRY: Export entered data to Excel with SELECTED columns
   const exportMultiEntryToExcel = async () => {
     try {
+      if (exportSelectedColumns.length === 0) {
+        toast.error('Select at least one column to export');
+        return;
+      }
+
+      // Save column preference if "remember" is checked
+      if (exportRememberColumns) {
+        localStorage.setItem('pickingExportColumns', JSON.stringify(exportSelectedColumns));
+        localStorage.setItem('pickingExportRemember', 'true');
+      } else {
+        localStorage.removeItem('pickingExportColumns');
+        localStorage.setItem('pickingExportRemember', 'false');
+      }
+
       // Filter by customer if selected, otherwise export all
       let dataToExport = multiRows.filter((row: any) => row.wsn?.trim());
 
@@ -2332,43 +2417,45 @@ export default function PickingPage() {
         return;
       }
       const XLSX = await import('xlsx');
-      const exportData = dataToExport.map((row: any, idx: number) => ({
-        'S.No': idx + 1,
-        'WSN': row.wsn || '',
-        'Product Serial': row.product_serial_number || '',
-        'Rack No': row.rack_no || '',
-        'Picking Date': row.picking_date || pickingDate || '',
-        'Customer': row.customer_name || selectedCustomer || '',
-        'Picker': row.picker_name || pickerName || '',
-        'Picking Remarks': row.picking_remarks || '',
-        'Product Title': row.product_title || '',
-        'Brand': row.brand || '',
-        'Category': row.cms_vertical || '',
-        'FSP': row.fsp || '',
-        'MRP': row.mrp || '',
-        'VRP': row.vrp || '',
-        'WID': row.wid || '',
-        'FSN': row.fsn || '',
-        'Order ID': row.order_id || '',
-        'HSN/SAC': row.hsn_sac || '',
-        'IGST Rate': row.igst_rate || '',
-        'Product Type': row.p_type || '',
-        'Product Size': row.p_size || '',
-        'Yield Value': row.yield_value || '',
-        'WH Location': row.wh_location || '',
-        'FK QC Remark': row.fkqc_remark || '',
-        'FK Grade': row.fk_grade || '',
-        'Invoice Date': row.invoice_date || '',
-        'FKT Link': row.fkt_link || '',
-        'Source': row.source || ''
-      }));
+
+      // Build export data with only selected columns (preserve order from config)
+      const selectedConfigs = PICKING_EXPORT_COLUMNS_CONFIG.filter(c => exportSelectedColumns.includes(c.key));
+      const exportData = dataToExport.map((row: any, idx: number) => {
+        const obj: Record<string, any> = {};
+        selectedConfigs.forEach(col => {
+          obj[col.label] = col.getValue(row, idx);
+        });
+        return obj;
+      });
+
       const ws = XLSX.utils.json_to_sheet(exportData);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'Multi Picking');
-      const customerSuffix = selectedCustomer ? `_${selectedCustomer.replace(/\s+/g, '_')}` : '';
-      XLSX.writeFile(wb, `Picking_MultiEntry${customerSuffix}_${new Date().toISOString().split('T')[0]}_${Date.now()}.xlsx`);
-      toast.success(`Exported ${dataToExport.length} rows`);
+
+      // Auto-fit column widths
+      const colWidths = Object.keys(exportData[0]).map(key => ({
+        wch: Math.max(key.length, ...exportData.map(row => String((row as any)[key] || '').length)) + 2
+      }));
+      ws['!cols'] = colWidths;
+
+      const customerSuffix = selectedCustomer ? `_${selectedCustomer.replace(/[^a-zA-Z0-9\s-]/g, '').trim().replace(/\s+/g, '_')}` : '';
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const d = pickingDate ? new Date(pickingDate) : new Date();
+      const dd = String(d.getDate()).padStart(2, '0');
+      const mmm = months[d.getMonth()];
+      const yyyy = d.getFullYear();
+      const filename = `Picking${customerSuffix}_${dd}-${mmm}-${yyyy}.xlsx`;
+
+      XLSX.writeFile(wb, filename);
+      toast.success(`✅ Exported ${dataToExport.length} rows to ${filename}`);
+      setPickingExportDialogOpen(false);
+
+      // Only proceed with submit if export was triggered from the submit flow
+      if (exportShouldSubmitRef.current) {
+        executePickingSubmit();
+      }
     } catch (error) {
+      console.error('Export error:', error);
       toast.error('Export failed');
     }
   };
@@ -2510,7 +2597,7 @@ export default function PickingPage() {
     pendingWSNRef.current = null;
   };
 
-  // Submit multi entry
+  // Submit multi entry — shows pre-submit export dialog after validation
   const handleMultiSubmit = async () => {
     // ⚡ OFFLINE CHECK: Prevent submit when offline
     const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
@@ -2543,6 +2630,14 @@ export default function PickingPage() {
       toast.error('Picker name is required');
       return;
     }
+
+    // All validations passed — ask user if they want to export before submitting
+    setPreSubmitExportDialogOpen(true);
+  };
+
+  // Actual submit logic (called after export dialog decision)
+  const executePickingSubmit = async () => {
+    const validRows = multiRows.filter(r => r.wsn?.trim());
 
     // ⚡ OPTIMIZED: Send only required fields to reduce payload size
     const fixedRows = validRows.map(row => ({
@@ -4091,12 +4186,17 @@ export default function PickingPage() {
         try {
           const nextIndex = (rowIndex ?? 0) + 1;
           if (nextIndex < event.api.getDisplayedRowCount()) {
-            event.api.ensureIndexVisible(nextIndex, 'bottom');
+            // Smart scroll — only scroll if the next row is outside the visible viewport
+            const firstVisible = event.api.getFirstDisplayedRowIndex?.() ?? 0;
+            const lastVisible = event.api.getLastDisplayedRowIndex?.() ?? event.api.getDisplayedRowCount() - 1;
+            if (nextIndex < firstVisible || nextIndex > lastVisible - 2) {
+              event.api.ensureIndexVisible(nextIndex, 'middle');
+            }
             event.api.startEditingCell({ rowIndex: nextIndex, colKey: 'wsn' });
           } else {
             add500Rows();
             setTimeout(() => {
-              event.api.ensureIndexVisible(nextIndex, 'bottom');
+              event.api.ensureIndexVisible(nextIndex, 'middle');
               event.api.startEditingCell({ rowIndex: nextIndex, colKey: 'wsn' });
             }, 50);
           }
@@ -4972,12 +5072,12 @@ export default function PickingPage() {
               </Box>
             </Fade>
 
-            {/* Export Dialog */}
             <Dialog
               open={exportDialogOpen}
               onClose={() => setExportDialogOpen(false)}
               maxWidth="md"
               fullWidth
+              fullScreen={isMobile}
               PaperProps={{
                 sx: {
                   borderRadius: 3,
@@ -5951,7 +6051,17 @@ export default function PickingPage() {
                     fullWidth
                     variant="contained"
                     startIcon={<DownloadIcon />}
-                    onClick={() => { exportMultiEntryToExcel(); setPickingSettingsPanelOpen(false); }}
+                    onClick={() => {
+                      exportShouldSubmitRef.current = false;
+                      setPickingSettingsPanelOpen(false);
+                      if (exportRememberColumns) {
+                        try {
+                          const saved = localStorage.getItem('pickingExportColumns');
+                          if (saved) setExportSelectedColumns(JSON.parse(saved));
+                        } catch { /* ignore */ }
+                      }
+                      setPickingExportDialogOpen(true);
+                    }}
                     disabled={!multiRows.some((r: any) => r.wsn?.trim())}
                     sx={{
                       height: 44,
@@ -5966,6 +6076,121 @@ export default function PickingPage() {
                 </Box>
               </Box>
             </Drawer>
+
+            {/* ⚡ PRE-SUBMIT: Export Confirmation Dialog */}
+            <Dialog open={preSubmitExportDialogOpen} onClose={() => setPreSubmitExportDialogOpen(false)} maxWidth="xs" fullWidth container={isFullscreen ? multiEntryContainerRef.current : undefined}>
+              <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1, pb: 1 }}>
+                <DownloadIcon sx={{ color: '#16a34a' }} />
+                Export Before Submit?
+              </DialogTitle>
+              <DialogContent>
+                <Typography variant="body2" color="text.secondary">
+                  Do you want to export <strong>{multiRows.filter((r) => r.wsn?.trim()).length} rows</strong> to Excel before submitting?
+                </Typography>
+              </DialogContent>
+              <DialogActions sx={{ px: 3, pb: 2, gap: 1 }}>
+                <Button onClick={() => setPreSubmitExportDialogOpen(false)} size="small" sx={{ color: 'text.secondary' }}>Cancel</Button>
+                <Button
+                  variant="outlined"
+                  onClick={handleSkipExportAndSubmit}
+                  startIcon={<CheckCircle sx={{ fontSize: 16 }} />}
+                  sx={{ fontWeight: 600, borderColor: '#3b82f6', color: '#3b82f6' }}
+                >
+                  No, Submit Directly
+                </Button>
+                <Button
+                  variant="contained"
+                  onClick={handleOpenPickingExportDialog}
+                  startIcon={<DownloadIcon sx={{ fontSize: 16 }} />}
+                  sx={{ fontWeight: 700, background: 'linear-gradient(135deg, #16a34a 0%, #22c55e 100%)' }}
+                >
+                  Yes, Export First
+                </Button>
+              </DialogActions>
+            </Dialog>
+
+            {/* ⚡ EXPORT COLUMN PICKER DIALOG */}
+            <Dialog open={pickingExportDialogOpen} onClose={() => setPickingExportDialogOpen(false)} maxWidth="sm" fullWidth fullScreen={isMobile} container={isFullscreen ? multiEntryContainerRef.current : undefined}>
+              <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <DownloadIcon sx={{ color: '#16a34a' }} />
+                Export to Excel — Select Columns
+              </DialogTitle>
+              <DialogContent>
+                <Typography variant="caption" color="text.secondary" sx={{ mb: 1.5, display: 'block' }}>
+                  Choose which columns to include in the exported Excel file.
+                </Typography>
+
+                {/* Select All / Deselect All */}
+                <Stack direction="row" spacing={1} sx={{ mb: 1 }}>
+                  <Button size="small" variant="text" onClick={() => setExportSelectedColumns(PICKING_EXPORT_COLUMNS_CONFIG.map(c => c.key))} sx={{ fontSize: '0.7rem', textTransform: 'none' }}>Select All</Button>
+                  <Button size="small" variant="text" onClick={() => setExportSelectedColumns([])} sx={{ fontSize: '0.7rem', textTransform: 'none' }}>Deselect All</Button>
+                  <Button size="small" variant="text" onClick={() => setExportSelectedColumns([...PICKING_DEFAULT_EXPORT_COLUMNS])} sx={{ fontSize: '0.7rem', textTransform: 'none', color: '#7c3aed' }}>Reset Default</Button>
+                </Stack>
+
+                <Divider sx={{ mb: 1.5 }} />
+
+                {/* Column checkboxes in 2-column grid */}
+                <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0.5 }}>
+                  {PICKING_EXPORT_COLUMNS_CONFIG.map((col) => (
+                    <FormControlLabel
+                      key={col.key}
+                      control={
+                        <Checkbox
+                          size="small"
+                          checked={exportSelectedColumns.includes(col.key)}
+                          onChange={() => handleToggleExportColumn(col.key)}
+                        />
+                      }
+                      label={<Typography variant="body2" sx={{ fontSize: '0.8rem' }}>{col.label}</Typography>}
+                      sx={{ m: 0 }}
+                    />
+                  ))}
+                </Box>
+
+                <Divider sx={{ my: 1.5 }} />
+
+                {/* Remember for future exports */}
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={exportRememberColumns}
+                      onChange={(e) => {
+                        setExportRememberColumns(e.target.checked);
+                        if (e.target.checked) {
+                          localStorage.setItem('pickingExportColumns', JSON.stringify(exportSelectedColumns));
+                          localStorage.setItem('pickingExportRemember', 'true');
+                        } else {
+                          localStorage.removeItem('pickingExportColumns');
+                          localStorage.setItem('pickingExportRemember', 'false');
+                        }
+                      }}
+                      sx={{ color: '#7c3aed', '&.Mui-checked': { color: '#7c3aed' } }}
+                    />
+                  }
+                  label={
+                    <Typography variant="body2" sx={{ fontWeight: 600, fontSize: '0.8rem' }}>
+                      💾 Remember my column selection for future exports
+                    </Typography>
+                  }
+                />
+
+                <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+                  Selected: {exportSelectedColumns.length} / {PICKING_EXPORT_COLUMNS_CONFIG.length} columns • {multiRows.filter((r) => r.wsn?.trim()).length} rows to export
+                </Typography>
+              </DialogContent>
+              <DialogActions sx={{ px: 3, pb: 2 }}>
+                <Button onClick={() => setPickingExportDialogOpen(false)}>Cancel</Button>
+                <Button
+                  variant="contained"
+                  onClick={exportMultiEntryToExcel}
+                  disabled={exportSelectedColumns.length === 0}
+                  startIcon={<DownloadIcon />}
+                  sx={{ background: 'linear-gradient(135deg, #16a34a 0%, #22c55e 100%)', fontWeight: 700 }}
+                >
+                  Export ({multiRows.filter((r) => r.wsn?.trim()).length} rows)
+                </Button>
+              </DialogActions>
+            </Dialog>
 
 
             {/* ERROR */}
@@ -6451,6 +6676,7 @@ export default function PickingPage() {
           onClose={() => setColumnSettingsOpen(false)}
           maxWidth="sm"
           fullWidth
+          fullScreen={isMobile}
           PaperProps={{ sx: { borderRadius: 2 } }}
         >
           <DialogTitle sx={{ fontWeight: 800, background: 'linear-gradient(135deg, #f59e0b 0%, #ea580c 100%)', color: 'white', py: 2 }}>
@@ -6661,6 +6887,7 @@ export default function PickingPage() {
           onClose={() => setCategoryPivotOpen(false)}
           maxWidth={pivotDialogFullscreen ? false : "lg"}
           fullWidth
+          fullScreen={isMobile}
           container={multiEntryContainerRef.current}
           PaperProps={{
             sx: {

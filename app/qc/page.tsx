@@ -79,6 +79,7 @@ import {
   Print as PrintIcon,
   Keyboard as KeyboardIcon,
   Link as LinkIcon,
+  Info as InfoIcon,
   QrCodeScanner as QrCodeScannerIcon,
 } from '@mui/icons-material';
 import { qcAPI } from '@/lib/api';
@@ -619,10 +620,10 @@ export default function QCPage() {
 
   // Grid Settings (persisted)
   const [enableSorting, setEnableSorting] = useState<boolean>(() => {
-    try { return localStorage.getItem('qc_enableSorting') !== 'false'; } catch { return true; }
+    try { return localStorage.getItem('qc_enableSorting') === 'true'; } catch { return false; }
   });
   const [enableColumnFilters, setEnableColumnFilters] = useState<boolean>(() => {
-    try { return localStorage.getItem('qc_enableColumnFilters') !== 'false'; } catch { return true; }
+    try { return localStorage.getItem('qc_enableColumnFilters') === 'true'; } catch { return false; }
   });
   const [enableColumnResize, setEnableColumnResize] = useState<boolean>(() => {
     try { return localStorage.getItem('qc_enableColumnResize') !== 'false'; } catch { return true; }
@@ -1154,6 +1155,9 @@ export default function QCPage() {
   const [exportEndDate, setExportEndDate] = useState('');
   const [exportStatus, setExportStatus] = useState('');
   const [exportGrade, setExportGrade] = useState('');
+  const [exportBrand, setExportBrand] = useState('');
+  const [exportCategory, setExportCategory] = useState('');
+  const [exportBatchIds, setExportBatchIds] = useState<string[]>([]);
 
   // ====== QC LIST OPTIONS PANEL STATE ======
   const [qcOptionsPanelOpen, setQcOptionsPanelOpen] = useState(false);
@@ -2529,6 +2533,7 @@ export default function QCPage() {
     if (currentTabCode === 'list') {
       loadQCList();
       loadStats();
+      loadBatches();
     } else if (currentTabCode === 'single') {
       loadRacks();
     } else if (currentTabCode === 'multi' || currentTabCode === 'bulk') {
@@ -3268,6 +3273,10 @@ export default function QCPage() {
         return obj;
       });
       const ws = XLSX.utils.json_to_sheet(exportData);
+      const colWidths = Object.keys(exportData[0]).map(key => ({
+        wch: Math.max(key.length, ...exportData.map(row => String((row as any)[key] || '').length)) + 2
+      }));
+      ws['!cols'] = colWidths;
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'Multi QC');
       XLSX.writeFile(wb, `QC_MultiEntry_${new Date().toISOString().split('T')[0]}_${Date.now()}.xlsx`);
@@ -3700,9 +3709,12 @@ export default function QCPage() {
 
       const response = await qcAPI.exportData({
         warehouseId: activeWarehouse?.id,
-        dateFrom: exportStartDate,
-        dateTo: exportEndDate,
-        qc_grade: exportGrade,
+        dateFrom: exportStartDate || dateFromFilter,
+        dateTo: exportEndDate || dateToFilter,
+        qc_grade: exportGrade || gradeFilter,
+        brand: exportBrand || brandFilter,
+        category: exportCategory,
+        batchId: exportBatchIds.length > 0 ? exportBatchIds : undefined,
       });
 
 
@@ -3747,14 +3759,24 @@ export default function QCPage() {
         'Product Serial No': item.product_serial_number,
       }));
 
-
       const ws = XLSX.utils.json_to_sheet(exportData);
+      // Auto-fit column widths
+      const colWidths = Object.keys(exportData[0] || {}).map(key => ({
+        wch: Math.max(key.length, ...exportData.map((row: any) => String(row[key] || '').length)) + 2
+      }));
+      ws['!cols'] = colWidths;
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'QC');
-      const filename = `QC_${exportStartDate || 'all'}_${Date.now()}.xlsx`;
+      const filename = `QC_${exportBatchIds.length > 0 ? exportBatchIds.join('_') + '_' : ''}${exportStartDate || 'all'}_${Date.now()}.xlsx`;
       XLSX.writeFile(wb, filename);
       toast.success(`✓ Exported ${exportData.length} records`);
       setExportDialogOpen(false);
+      setExportStartDate('');
+      setExportEndDate('');
+      setExportGrade('');
+      setExportBrand('');
+      setExportCategory('');
+      setExportBatchIds([]);
     } catch (error) {
       toast.error('Export failed');
     }
@@ -6950,6 +6972,7 @@ export default function QCPage() {
                   onClose={() => setColumnSettingsOpen(false)}
                   maxWidth="sm"
                   fullWidth
+                  fullScreen={isMobile}
                   PaperProps={{ sx: { borderRadius: 2 } }}
                 >
                   <DialogTitle
@@ -7129,39 +7152,291 @@ export default function QCPage() {
         </Paper >
 
         {/* EXPORT DIALOG */}
-        < Dialog open={exportDialogOpen} onClose={() => setExportDialogOpen(false)} maxWidth="sm" fullWidth container={isFullscreen ? multiEntryContainerRef.current : undefined} >
-          <DialogTitle>Export QC Data</DialogTitle>
-          <DialogContent>
-            <Stack spacing={2} sx={{ mt: 2 }}>
-              <TextField type="date" label="Start Date" value={exportStartDate} onChange={(e) => setExportStartDate(e.target.value)} InputLabelProps={{ shrink: true }} fullWidth />
-              <TextField type="date" label="End Date" value={exportEndDate} onChange={(e) => setExportEndDate(e.target.value)} InputLabelProps={{ shrink: true }} fullWidth />
-              <FormControl fullWidth size="small">
-                <InputLabel>Grade</InputLabel>
+        <Dialog
+          open={exportDialogOpen}
+          onClose={() => setExportDialogOpen(false)}
+          maxWidth="md"
+          fullWidth
+          fullScreen={isMobile}
+          container={isFullscreen ? multiEntryContainerRef.current : undefined}
+          PaperProps={{
+            sx: {
+              borderRadius: 3,
+              boxShadow: '0 25px 50px rgba(0,0,0,0.25)',
+              overflow: 'hidden',
+              bgcolor: isDarkMode ? '#0f172a' : 'background.paper'
+            }
+          }}
+        >
+          <DialogTitle sx={{
+            fontWeight: 800,
+            background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+            color: 'white',
+            py: 3,
+            px: 3,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1.5
+          }}>
+            <DownloadIcon sx={{ fontSize: '1.5rem' }} />
+            Advanced Export Options
+            <Typography variant="caption" sx={{ ml: 'auto', opacity: 0.8, fontSize: '0.7rem' }}>
+              Filter & Download
+            </Typography>
+          </DialogTitle>
+
+          <DialogContent sx={{
+            py: 4,
+            px: 3,
+            bgcolor: isDarkMode ? '#0f172a' : 'background.paper'
+          }}>
+            <Stack spacing={3}>
+              {/* CURRENT FILTERS PREVIEW */}
+              <Alert
+                severity="info"
+                icon={<InfoIcon />}
+                sx={{
+                  fontSize: '0.85rem',
+                  borderRadius: 2,
+                  bgcolor: isDarkMode ? 'rgba(14, 165, 233, 0.1)' : undefined,
+                  border: isDarkMode ? '1px solid rgba(14, 165, 233, 0.3)' : undefined,
+                  '& .MuiAlert-icon': { color: '#0ea5e9' },
+                  '& .MuiAlert-message': { color: isDarkMode ? '#f1f5f9' : undefined }
+                }}
+              >
+                <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1, color: '#0ea5e9' }}>
+                  📋 Applied Filters Preview:
+                </Typography>
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 1 }}>
+                  {searchFilter && (
+                    <Chip size="small" label={`🔍 "${searchFilter}"`} sx={{ bgcolor: isDarkMode ? 'rgba(59, 130, 246, 0.2)' : '#dbeafe', color: isDarkMode ? '#93c5fd' : '#1e40af' }} />
+                  )}
+                  {(exportGrade || gradeFilter) && (
+                    <Chip size="small" label={`📊 Grade: ${exportGrade || gradeFilter}`} sx={{ bgcolor: isDarkMode ? 'rgba(34, 197, 94, 0.2)' : '#dcfce7', color: isDarkMode ? '#86efac' : '#166534' }} />
+                  )}
+                  {(exportBrand || brandFilter) && (
+                    <Chip size="small" label={`🏷️ ${exportBrand || brandFilter}`} sx={{ bgcolor: isDarkMode ? 'rgba(245, 158, 11, 0.2)' : '#fef3c7', color: isDarkMode ? '#fcd34d' : '#92400e' }} />
+                  )}
+                  {exportCategory && (
+                    <Chip size="small" label={`📂 ${exportCategory}`} sx={{ bgcolor: isDarkMode ? 'rgba(168, 85, 247, 0.2)' : '#f3e8ff', color: isDarkMode ? '#c4b5fd' : '#6b21a8' }} />
+                  )}
+                  {exportBatchIds.length > 0 && (
+                    <Chip size="small" label={`📦 ${exportBatchIds.length} Batch${exportBatchIds.length > 1 ? 'es' : ''}`} sx={{ bgcolor: isDarkMode ? 'rgba(236, 72, 153, 0.2)' : '#fce7f3', color: isDarkMode ? '#f9a8d4' : '#9d174d' }} />
+                  )}
+                  {(exportStartDate || dateFromFilter) && (
+                    <Chip size="small" label={`📅 From: ${exportStartDate || dateFromFilter}`} sx={{ bgcolor: isDarkMode ? 'rgba(99, 102, 241, 0.2)' : '#e0e7ff', color: isDarkMode ? '#a5b4fc' : '#3730a3' }} />
+                  )}
+                  {(exportEndDate || dateToFilter) && (
+                    <Chip size="small" label={`📅 To: ${exportEndDate || dateToFilter}`} sx={{ bgcolor: isDarkMode ? 'rgba(99, 102, 241, 0.2)' : '#e0e7ff', color: isDarkMode ? '#a5b4fc' : '#3730a3' }} />
+                  )}
+                  {!exportStartDate && !exportEndDate && !exportGrade && !exportBrand && !exportCategory && !searchFilter && !gradeFilter && !brandFilter && !dateFromFilter && !dateToFilter && exportBatchIds.length === 0 && (
+                    <Chip size="small" label="🔍 All Data" sx={{ bgcolor: isDarkMode ? 'rgba(239, 68, 68, 0.2)' : '#fee2e2', color: isDarkMode ? '#fca5a5' : '#dc2626' }} />
+                  )}
+                </Box>
+              </Alert>
+
+              {/* DIVIDER WITH ICON */}
+              <Divider sx={{ '&::before, &::after': { borderColor: isDarkMode ? 'rgba(255,255,255,0.1)' : '#e5e7eb' } }}>
+                <Box sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1,
+                  px: 2,
+                  py: 0.5,
+                  bgcolor: isDarkMode ? '#334155' : '#f9fafb',
+                  borderRadius: 2,
+                  border: isDarkMode ? '1px solid rgba(255,255,255,0.15)' : '1px solid #e5e7eb'
+                }}>
+                  <SettingsIcon sx={{ fontSize: '1rem', color: isDarkMode ? '#94a3b8' : '#6b7280' }} />
+                  <Typography variant="body2" sx={{ fontWeight: 600, color: isDarkMode ? '#e2e8f0' : '#6b7280' }}>
+                    Override Filters (Optional)
+                  </Typography>
+                </Box>
+              </Divider>
+
+              {/* OVERRIDE CONTROLS */}
+              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2 }}>
+                <TextField
+                  fullWidth
+                  label="Start Date Override"
+                  type="date"
+                  InputLabelProps={{ shrink: true }}
+                  value={exportStartDate}
+                  onChange={(e) => setExportStartDate(e.target.value)}
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      borderRadius: 2,
+                      '&:hover fieldset': { borderColor: '#10b981' },
+                      '&.Mui-focused fieldset': { borderColor: '#10b981' }
+                    }
+                  }}
+                />
+                <TextField
+                  fullWidth
+                  label="End Date Override"
+                  type="date"
+                  InputLabelProps={{ shrink: true }}
+                  value={exportEndDate}
+                  onChange={(e) => setExportEndDate(e.target.value)}
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      borderRadius: 2,
+                      '&:hover fieldset': { borderColor: '#10b981' },
+                      '&.Mui-focused fieldset': { borderColor: '#10b981' }
+                    }
+                  }}
+                />
+              </Box>
+
+              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr 1fr' }, gap: 2 }}>
+                <FormControl fullWidth>
+                  <InputLabel sx={{ '&.Mui-focused': { color: '#10b981' } }}>Grade</InputLabel>
+                  <Select
+                    value={exportGrade}
+                    label="Grade"
+                    onChange={(e) => setExportGrade(e.target.value)}
+                    sx={{ borderRadius: 2, '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#10b981' }, '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#10b981' } }}
+                  >
+                    <MenuItem value="">All Grades</MenuItem>
+                    {QC_GRADES.map((g) => (
+                      <MenuItem key={g} value={g}>{g}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+                <FormControl fullWidth>
+                  <InputLabel sx={{ '&.Mui-focused': { color: '#10b981' } }}>Brand</InputLabel>
+                  <Select
+                    value={exportBrand}
+                    label="Brand"
+                    onChange={(e) => setExportBrand(e.target.value)}
+                    sx={{ borderRadius: 2, '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#10b981' }, '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#10b981' } }}
+                  >
+                    <MenuItem value="">All Brands</MenuItem>
+                    {brands.map((b) => (
+                      <MenuItem key={b} value={b}>{b}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+                <FormControl fullWidth>
+                  <InputLabel sx={{ '&.Mui-focused': { color: '#10b981' } }}>Category</InputLabel>
+                  <Select
+                    value={exportCategory}
+                    label="Category"
+                    onChange={(e) => setExportCategory(e.target.value)}
+                    sx={{ borderRadius: 2, '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#10b981' }, '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#10b981' } }}
+                  >
+                    <MenuItem value="">All Categories</MenuItem>
+                    {categories.map((c) => (
+                      <MenuItem key={c} value={c}>{c}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Box>
+
+              {/* BATCH MULTI-SELECT */}
+              <FormControl fullWidth>
+                <InputLabel sx={{ '&.Mui-focused': { color: '#10b981' } }}>Batch IDs</InputLabel>
                 <Select
-                  value={exportGrade}
-                  label="Grade"
-                  onChange={(e) => setExportGrade(e.target.value)}
+                  multiple
+                  value={exportBatchIds}
+                  label="Batch IDs"
+                  onChange={(e) => setExportBatchIds(typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value as string[])}
+                  renderValue={(selected) => (
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                      {(selected as string[]).map((value) => (
+                        <Chip
+                          key={value}
+                          label={value}
+                          size="small"
+                          onDelete={() => setExportBatchIds(exportBatchIds.filter(id => id !== value))}
+                          onMouseDown={(e) => e.stopPropagation()}
+                          sx={{
+                            bgcolor: isDarkMode ? 'rgba(236, 72, 153, 0.2)' : '#fce7f3',
+                            color: isDarkMode ? '#f9a8d4' : '#9d174d',
+                            fontWeight: 600,
+                            '& .MuiChip-deleteIcon': { color: isDarkMode ? '#f9a8d4' : '#9d174d' }
+                          }}
+                        />
+                      ))}
+                    </Box>
+                  )}
+                  sx={{ borderRadius: 2, '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#10b981' }, '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#10b981' } }}
                 >
-                  <MenuItem value="">All</MenuItem>
-                  {QC_GRADES.map((g) => (
-                    <MenuItem key={g} value={g}>
-                      {g}
+                  {batches.map((b) => (
+                    <MenuItem key={b.batch_id} value={b.batch_id}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>{b.batch_id}</Typography>
+                        <Chip label={`${b.count} entries`} size="small" sx={{ bgcolor: isDarkMode ? '#334155' : '#e5e7eb', color: isDarkMode ? '#94a3b8' : '#374151', fontSize: '0.7rem', height: '20px', ml: 1 }} />
+                      </Box>
                     </MenuItem>
                   ))}
                 </Select>
               </FormControl>
+
+              {/* EXPORT SUMMARY */}
+              <Card sx={{
+                bgcolor: isDarkMode ? 'rgba(16, 185, 129, 0.1)' : '#f0fdf4',
+                border: isDarkMode ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid #bbf7d0',
+                borderRadius: 2
+              }}>
+                <CardContent sx={{ py: 2, px: 3 }}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 700, color: isDarkMode ? '#34d399' : '#166534', mb: 1 }}>
+                    📊 Export Summary:
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: isDarkMode ? '#a7f3d0' : '#166534' }}>
+                    This will export filtered QC records to Excel with all selected criteria applied.
+                    The file will include QC details, product information, and master data.
+                  </Typography>
+                </CardContent>
+              </Card>
             </Stack>
           </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setExportDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleExport} variant="contained">
-              Export
+
+          <DialogActions sx={{
+            p: 3,
+            bgcolor: isDarkMode ? '#1e293b' : '#f9fafb',
+            borderTop: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e5e7eb',
+            gap: 1
+          }}>
+            <Button
+              onClick={() => setExportDialogOpen(false)}
+              sx={{
+                borderRadius: 2,
+                px: 3,
+                fontWeight: 600,
+                color: isDarkMode ? '#94a3b8' : '#6b7280',
+                '&:hover': { bgcolor: isDarkMode ? '#334155' : '#e5e7eb' }
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="contained"
+              onClick={handleExport}
+              startIcon={<DownloadIcon />}
+              sx={{
+                borderRadius: 2,
+                px: 4,
+                py: 1.5,
+                fontWeight: 700,
+                fontSize: '0.9rem',
+                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                boxShadow: '0 4px 14px rgba(16, 185, 129, 0.3)',
+                '&:hover': {
+                  background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+                  boxShadow: '0 6px 20px rgba(16, 185, 129, 0.4)',
+                  transform: 'translateY(-1px)'
+                },
+                transition: 'all 0.2s ease-in-out'
+              }}
+            >
+              Export Data
             </Button>
           </DialogActions>
-        </Dialog >
+        </Dialog>
 
         {/* GRADE MANAGEMENT DIALOG */}
-        < Dialog open={gradeDialogOpen} onClose={() => { setGradeDialogOpen(false); setNewGrade(''); setEditingGradeIndex(null); }} maxWidth="sm" fullWidth container={isFullscreen ? multiEntryContainerRef.current : undefined} >
+        < Dialog open={gradeDialogOpen} onClose={() => { setGradeDialogOpen(false); setNewGrade(''); setEditingGradeIndex(null); }} maxWidth="sm" fullWidth fullScreen={isMobile} container={isFullscreen ? multiEntryContainerRef.current : undefined} >
           <DialogTitle>Manage QC Grades</DialogTitle>
           <DialogContent>
             <Stack spacing={2} sx={{ mt: 2 }}>
@@ -7201,7 +7476,7 @@ export default function QCPage() {
         </Dialog >
 
         {/* COLUMN SETTINGS - LIST */}
-        < Dialog open={listColumnSettingsOpen} onClose={() => setListColumnSettingsOpen(false)} maxWidth="sm" fullWidth container={isFullscreen ? multiEntryContainerRef.current : undefined} >
+        < Dialog open={listColumnSettingsOpen} onClose={() => setListColumnSettingsOpen(false)} maxWidth="sm" fullWidth fullScreen={isMobile} container={isFullscreen ? multiEntryContainerRef.current : undefined} >
           <DialogTitle>Column Settings</DialogTitle>
           <DialogContent>
             <Stack spacing={1} sx={{ mt: 2 }}>
@@ -7231,6 +7506,7 @@ export default function QCPage() {
           onClose={() => setExportColumnsDialogOpen(false)}
           maxWidth="sm"
           fullWidth
+          fullScreen={isMobile}
           container={isFullscreen ? multiEntryContainerRef.current : undefined}
           PaperProps={{
             sx: {
@@ -7684,6 +7960,10 @@ export default function QCPage() {
                         disabled={!canAccessButton('list:export')}
                         onClick={() => {
                           if (!canAccessButton('list:export')) return;
+                          setExportStartDate(dateFromFilter);
+                          setExportEndDate(dateToFilter);
+                          setExportGrade(gradeFilter);
+                          setExportBrand(brandFilter);
                           setExportDialogOpen(true);
                           setQcOptionsPanelOpen(false);
                         }}

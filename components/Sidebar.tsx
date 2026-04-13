@@ -1,7 +1,7 @@
 // File Path = warehouse-frontend\components\Sidebar.tsx
 'use client';
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import {
   Drawer,
@@ -52,11 +52,19 @@ import {
   UnfoldLess as CollapseIcon,
   TouchApp as HoverIcon,
   Check as CheckMarkIcon,
+  Layers as NLIcon,
+  Description as DescriptionIcon,
+  Warning as WarningIcon,
+  ReceiptLong as BillingIcon,
 } from '@mui/icons-material';
 import { getStoredUser, logout } from '@/lib/auth';
 import { usePermissions } from '@/app/context/PermissionContext';
 import ConfirmDialog from './ConfirmDialog';
 import TypingTitle from './TypingTitle';
+
+// Module-level variable to persist sidebar scroll position across component remounts
+// (Sidebar remounts on every page navigation because AppLayout is inside each page)
+let savedSidebarScrollTop = 0;
 
 interface SidebarProps {
   username?: string;
@@ -213,7 +221,9 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
     pathname.startsWith('/settings')
   );
 
-
+  const [nlOpen, setNlOpen] = useState(() =>
+    pathname.startsWith('/nl-')
+  );
 
   const [flyoutVisible, setFlyoutVisible] = useState(false);
   const [settingsHovered, setSettingsHovered] = useState(false);
@@ -222,6 +232,15 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
   const settingsButtonRef = useRef<HTMLLIElement>(null);
   const flyoutRef = useRef<HTMLDivElement>(null);
   const [flyoutTop, setFlyoutTop] = useState(70);
+
+  // NL flyout state (collapsed mode)
+  const [nlFlyoutVisible, setNlFlyoutVisible] = useState(false);
+  const [nlHovered, setNlHovered] = useState(false);
+  const [nlFlyoutHovered, setNlFlyoutHovered] = useState(false);
+  const [nlFlyoutClicked, setNlFlyoutClicked] = useState(false);
+  const nlButtonRef = useRef<HTMLLIElement>(null);
+  const nlFlyoutRef = useRef<HTMLDivElement>(null);
+  const [nlFlyoutTop, setNlFlyoutTop] = useState(70);
 
   // Calculate flyout position dynamically - ensure it's fully visible
   useEffect(() => {
@@ -270,6 +289,41 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [settingsFlyoutClicked]);
 
+  // NL flyout position + visibility (mirrors Settings flyout)
+  useEffect(() => {
+    if (nlButtonRef.current && collapsed && nlFlyoutVisible) {
+      const btnRect = nlButtonRef.current.getBoundingClientRect();
+      const flyoutHeight = nlFlyoutRef.current?.offsetHeight || 400;
+      const viewportHeight = window.innerHeight;
+      const margin = 12;
+      let top = btnRect.top;
+      if (top + flyoutHeight > viewportHeight - margin) top = viewportHeight - flyoutHeight - margin;
+      if (top < margin) top = margin;
+      setNlFlyoutTop(top);
+    }
+  }, [collapsed, nlFlyoutVisible]);
+
+  useEffect(() => {
+    if (collapsed) {
+      setNlFlyoutVisible(nlHovered || nlFlyoutHovered || nlFlyoutClicked);
+    } else {
+      setNlFlyoutVisible(false);
+      setNlFlyoutClicked(false);
+    }
+  }, [collapsed, nlHovered, nlFlyoutHovered, nlFlyoutClicked]);
+
+  useEffect(() => {
+    if (!nlFlyoutClicked) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('[data-nl-flyout]') && !target.closest('[data-nl-button]')) {
+        setNlFlyoutClicked(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [nlFlyoutClicked]);
+
   useEffect(() => {
     if (typeof window !== 'undefined') {
       localStorage.setItem('sidebar-mode', sidebarMode);
@@ -277,6 +331,48 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
       localStorage.setItem('sidebar-collapsed', collapsed.toString());
     }
   }, [sidebarMode, collapsed]);
+
+  const sidebarDrawerRef = useRef<HTMLDivElement | null>(null);
+  // Track whether this is the initial mount to skip dropdown open animation
+  const isInitialMount = useRef(true);
+
+  // Restore sidebar scroll position synchronously before paint (prevents flicker)
+  useLayoutEffect(() => {
+    const drawer = sidebarDrawerRef.current;
+    if (!drawer) return;
+    const applyScroll = (paper: HTMLDivElement) => {
+      if (savedSidebarScrollTop > 0) {
+        paper.scrollTop = savedSidebarScrollTop;
+      }
+      isInitialMount.current = false;
+    };
+    // Paper may already exist (permanent drawer) or appear later (temporary)
+    const paper = drawer.querySelector('.MuiDrawer-paper') as HTMLDivElement;
+    if (paper) {
+      applyScroll(paper);
+    } else {
+      // MUI Drawer may mount paper asynchronously — watch for it
+      const obs = new MutationObserver(() => {
+        const p = drawer.querySelector('.MuiDrawer-paper') as HTMLDivElement;
+        if (p) { applyScroll(p); obs.disconnect(); }
+      });
+      obs.observe(drawer, { childList: true, subtree: true });
+      return () => obs.disconnect();
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Continuously track scroll position and save to module-level variable
+  useEffect(() => {
+    const drawer = sidebarDrawerRef.current;
+    if (!drawer) return;
+    const paper = drawer.querySelector('.MuiDrawer-paper') as HTMLDivElement;
+    if (!paper) return;
+    const handleScroll = () => {
+      savedSidebarScrollTop = paper.scrollTop;
+    };
+    paper.addEventListener('scroll', handleScroll, { passive: true });
+    return () => paper.removeEventListener('scroll', handleScroll);
+  }, [isMobile, collapsed]);
 
   useEffect(() => {
     setMobileOpen?.(false);
@@ -294,6 +390,18 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
     '/customers': '#38bdf8',       // Sky
     '/reports': '#e879f9',         // Fuchsia
     '/settings/rejections': '#f87171', // Red
+  };
+
+  const nlIconColors: Record<string, string> = {
+    '/nl-fkt-os': '#38bdf8',       // Sky
+    '/nl-inbound': '#22d3ee',      // Cyan
+    '/nl-stacking': '#a3e635',     // Lime
+    '/nl-qc': '#f472b6',          // Pink
+    '/nl-picking': '#3b82f6',     // Blue
+    '/nl-dispatch': '#fb923c',    // Orange
+    '/nl-summary': '#818cf8',     // Indigo
+    '/nl-billing': '#14b8a6',     // Teal
+    '/nl-discrepancy': '#f87171', // Red
   };
 
   const settingsIconColors: Record<string, string> = {
@@ -317,7 +425,20 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
     { label: 'Outbound', icon: ShippingIcon, path: '/outbound', code: 'menu:outbound' },
     { label: 'Customers', icon: GroupIcon, path: '/customers', code: 'menu:customers' },
     { label: 'Analytics', icon: ReportsIcon, path: '/reports', code: 'menu:reports' },
-    { label: 'Rejections', icon: RejectionsIcon, path: '/settings/rejections', code: 'menu:settings:rejections' }
+    { label: 'Rejections', icon: RejectionsIcon, path: '/settings/rejections', code: 'menu:settings:rejections' },
+  ], []);
+
+  // NL (Non-Large) menu items with permission codes
+  const allNLMenuItems = useMemo(() => [
+    { label: 'NL OS Data', icon: DescriptionIcon, path: '/nl-fkt-os', code: 'menu:nl_fkt_os' },
+    { label: 'NL Inbound', icon: InventoryIcon, path: '/nl-inbound', code: 'menu:nl_inbound' },
+    { label: 'NL Stacking', icon: CategoryIcon, path: '/nl-stacking', code: 'menu:nl_stacking' },
+    { label: 'NL QC', icon: CheckIcon, path: '/nl-qc', code: 'menu:nl_qc' },
+    { label: 'NL Picking', icon: AssignmentIcon, path: '/nl-picking', code: 'menu:nl_picking' },
+    { label: 'NL Dispatch', icon: ShippingIcon, path: '/nl-dispatch', code: 'menu:nl_dispatch' },
+    { label: 'NL Summary', icon: ReportsIcon, path: '/nl-summary', code: 'menu:nl_summary' },
+    { label: 'NL Billing', icon: BillingIcon, path: '/nl-billing', code: 'menu:nl_billing' },
+    { label: 'NL Discrepancy', icon: WarningIcon, path: '/nl-discrepancy', code: 'menu:nl_discrepancy' },
   ], []);
 
   // Settings menu items with permission codes
@@ -371,6 +492,14 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
     return allSettingsMenuItems.filter(item => canSeeMenu(item.code));
   }, [allSettingsMenuItems, canSeeMenu, permissionsLoading]);
 
+  const nlMenu = useMemo(() => {
+    const user = getStoredUser();
+    const isSuperAdmin = user?.role === 'super_admin';
+    if (isSuperAdmin) return allNLMenuItems;
+    if (permissionsLoading) return allNLMenuItems;
+    return allNLMenuItems.filter(item => canSeeMenu(item.code));
+  }, [allNLMenuItems, canSeeMenu, permissionsLoading]);
+
   const navigate = (path: string) => {
     // Close mobile drawer IMMEDIATELY for instant feedback (don't wait for navigation)
     if (isMobile && setMobileOpen) setMobileOpen(false);
@@ -378,6 +507,13 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
     if (pathname === path) {
       // already on target path — drawer already closed above
       return;
+    }
+
+    // Save scroll position before navigation (component will remount)
+    const drawer = sidebarDrawerRef.current;
+    if (drawer) {
+      const paper = drawer.querySelector('.MuiDrawer-paper') as HTMLDivElement;
+      if (paper) savedSidebarScrollTop = paper.scrollTop;
     }
 
     // Use startTransition for non-blocking navigation (React 18+)
@@ -575,6 +711,116 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
           ) : buttonContent;
         })}
 
+        {/* NL (Non-Large) Collapsible Section */}
+
+        {/* ======================================== below is non-large menu ============================================ */}
+
+        {/* {nlMenu.length > 0 && (
+          <>
+            <Divider sx={{ my: 1.5, bgcolor: 'rgba(255,255,255,0.08)' }} />
+            <Tooltip
+              title={collapsed && !isMobile ? "Non-Large" : ""}
+              placement="right"
+              arrow
+              slotProps={{
+                tooltip: { sx: { bgcolor: '#1e293b', color: 'white', fontSize: '0.8rem', fontWeight: 500, px: 1.5, py: 0.75, borderRadius: 1, boxShadow: '0 4px 20px rgba(0,0,0,0.3)' } },
+                arrow: { sx: { color: '#1e293b' } }
+              }}
+            >
+              <ListItem
+                disablePadding
+                ref={nlButtonRef}
+                data-nl-button
+                onMouseEnter={() => setNlHovered(true)}
+                onMouseLeave={() => setNlHovered(false)}
+                sx={{ mb: 0.25 }}
+              >
+                <ListItemButton
+                  onClick={() => {
+                    if (collapsed) {
+                      setNlFlyoutClicked(prev => !prev);
+                    } else {
+                      setNlOpen(!nlOpen);
+                    }
+                  }}
+                  sx={{
+                    mx: 0.75, py: { xs: 1.25, sm: 1 }, borderRadius: 2,
+                    color: 'rgba(255,255,255,0.75)',
+                    transition: 'none', touchAction: 'manipulation', cursor: 'pointer', userSelect: 'none', WebkitTapHighlightColor: 'transparent',
+                    '&:hover': { bgcolor: 'rgba(255,255,255,0.08)' },
+                    '&:active': { bgcolor: 'rgba(255,255,255,0.12)' },
+                  }}
+                >
+                  <ListItemIcon
+                    sx={{
+                      color: nlFlyoutVisible || nlOpen ? '#22d3ee' : '#38bdf8',
+                      minWidth: collapsed ? 'auto' : 40,
+                      justifyContent: collapsed ? 'center' : 'flex-start',
+                      pointerEvents: 'none',
+                      transition: 'min-width 0.25s cubic-bezier(0.4, 0, 0.2, 1), color 0.15s ease',
+                    }}
+                  >
+                    <NLIcon sx={{ fontSize: { xs: 22, sm: 24 } }} />
+                  </ListItemIcon>
+                  {!collapsed && (
+                    <>
+                      <ListItemText primary="Non-Large" sx={{ pointerEvents: 'none', opacity: collapsed ? 0 : 1, transition: 'opacity 0.2s ease', whiteSpace: 'nowrap' }} primaryTypographyProps={{ fontSize: { xs: '0.875rem', sm: '0.9rem' }, fontWeight: 500 }} />
+                      {nlOpen ? <ExpandLess sx={{ pointerEvents: 'none' }} /> : <ExpandMore sx={{ pointerEvents: 'none' }} />}
+                    </>
+                  )}
+                </ListItemButton>
+              </ListItem>
+            </Tooltip>
+
+            <AnimatePresence initial={false}>
+              {nlOpen && (!collapsed || isMobile) && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: isInitialMount.current ? 0 : 0.2 }}
+                  style={{ overflow: 'hidden' }}
+                >
+                  <List sx={{ pl: { xs: 2.5, sm: 3 }, pr: 0.5, py: 0.5 }}>
+                    {nlMenu.map((item) => {
+                      const Icon = item.icon;
+                      const active = pathname === item.path || pathname.startsWith(item.path + '/');
+                      return (
+                        <ListItem key={item.path} disablePadding sx={{ mb: 0.25 }}>
+                          <ListItemButton
+                            onClick={() => navigate(item.path)}
+                            sx={{
+                              py: { xs: 1, sm: 0.75 }, borderRadius: 1.5,
+                              color: active ? '#fff' : 'rgba(255,255,255,0.7)',
+                              bgcolor: active ? 'linear-gradient(135deg, rgba(59,130,246,0.3) 0%, rgba(99,102,241,0.2) 100%)' : 'transparent',
+                              background: active ? 'linear-gradient(135deg, rgba(59,130,246,0.3) 0%, rgba(99,102,241,0.2) 100%)' : 'transparent',
+                              boxShadow: active ? '0 0 15px rgba(59,130,246,0.3), inset 0 1px 0 rgba(255,255,255,0.08)' : 'none',
+                              transition: 'all 0.15s ease', touchAction: 'manipulation', cursor: 'pointer', userSelect: 'none', WebkitTapHighlightColor: 'transparent',
+                              '&:hover': {
+                                bgcolor: active ? 'linear-gradient(135deg, rgba(59,130,246,0.4) 0%, rgba(99,102,241,0.3) 100%)' : 'rgba(255,255,255,0.06)',
+                                background: active ? 'linear-gradient(135deg, rgba(59,130,246,0.4) 0%, rgba(99,102,241,0.3) 100%)' : 'rgba(255,255,255,0.06)',
+                                transform: 'translateX(2px)',
+                              },
+                              '&:active': { bgcolor: 'rgba(59,130,246,0.4)', transform: 'scale(0.98)' },
+                              ...(active && { borderLeft: '3px solid #60a5fa', pl: 1 }),
+                            }}
+                          >
+                            <ListItemIcon sx={{ color: active ? '#fff' : (nlIconColors[item.path] || 'rgba(255,255,255,0.7)'), minWidth: 32, pointerEvents: 'none', transition: 'color 0.15s ease' }}>
+                              <Icon sx={{ fontSize: 18 }} />
+                            </ListItemIcon>
+                            <ListItemText primary={item.label} sx={{ pointerEvents: 'none' }} primaryTypographyProps={{ fontSize: { xs: '0.8125rem', sm: '0.85rem' }, fontWeight: active ? 600 : 400 }} />
+                          </ListItemButton>
+                        </ListItem>
+                      );
+                    })}
+                  </List>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </>
+        )} */}
+        {/* ============================= Above is Non-Large Menu ============================================= */}
+
         <Divider sx={{ my: 1.5, bgcolor: 'rgba(255,255,255,0.08)' }} />
 
         {/* Only show Settings if user has settings menu items */}
@@ -682,13 +928,13 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
           </Tooltip>
         )}
 
-        <AnimatePresence>
+        <AnimatePresence initial={false}>
           {settingsOpen && (!collapsed || isMobile) && (
             <motion.div
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.2 }}
+              transition={{ duration: isInitialMount.current ? 0 : 0.2 }}
               style={{ overflow: 'hidden' }}
             >
               <List sx={{ pl: { xs: 2.5, sm: 3 }, pr: 0.5, py: 0.5 }}>
@@ -1031,6 +1277,7 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
             variant="temporary"
             open={mobileOpen}
             onClose={() => setMobileOpen && setMobileOpen(false)}
+            ref={sidebarDrawerRef}
             ModalProps={{
               keepMounted: true,
             }}
@@ -1045,6 +1292,7 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
                 borderRight: 'none',
                 boxShadow: '4px 0 30px rgba(0,0,0,0.3)',
                 paddingBottom: 'env(safe-area-inset-bottom)',
+                overflowAnchor: 'none',
                 scrollbarWidth: 'thin',
                 scrollbarColor: 'rgba(255,255,255,0.2) transparent',
                 '&::-webkit-scrollbar': {
@@ -1070,6 +1318,7 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
       ) : (
         <Drawer
           variant="permanent"
+          ref={sidebarDrawerRef}
           onMouseEnter={handleMouseEnter}
           onMouseLeave={handleMouseLeave}
           sx={{
@@ -1085,6 +1334,7 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
               transition: 'width 0.25s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.25s ease',
               overflowX: 'hidden',
               overflowY: 'auto',
+              overflowAnchor: 'none',
               position: 'relative',
               zIndex: 1200,
               height: '100%',
@@ -1116,6 +1366,93 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
 
           {drawerContent}
         </Drawer>
+      )}
+
+      {/* NL Flyout disabled on mobile */}
+      {nlFlyoutVisible && collapsed && !isMobile && (
+        <Portal>
+          <Paper
+            ref={nlFlyoutRef}
+            data-nl-flyout
+            onMouseEnter={() => setNlFlyoutHovered(true)}
+            onMouseLeave={() => setNlFlyoutHovered(false)}
+            elevation={24}
+            sx={{
+              position: 'fixed',
+              top: nlFlyoutTop,
+              left: drawerWidth + 4,
+              width: 230,
+              maxHeight: 'calc(100vh - 24px)',
+              overflowY: 'auto',
+              background: "linear-gradient(180deg, #0f172a 0%, #1e293b 100%)",
+              color: 'white',
+              py: 1.5,
+              px: 1,
+              borderRadius: 2,
+              zIndex: 99999,
+              boxShadow: '0 10px 40px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.06)',
+              border: '1px solid rgba(255,255,255,0.1)',
+              animation: 'flyoutIn 0.15s ease-out',
+              '@keyframes flyoutIn': {
+                '0%': { opacity: 0, transform: 'translateX(-8px) scale(0.96)' },
+                '100%': { opacity: 1, transform: 'translateX(0) scale(1)' },
+              },
+              scrollbarWidth: 'thin',
+              scrollbarColor: 'rgba(255,255,255,0.2) transparent',
+              '&::-webkit-scrollbar': { width: '4px' },
+              '&::-webkit-scrollbar-thumb': {
+                backgroundColor: 'rgba(255,255,255,0.2)',
+                borderRadius: '10px',
+              },
+            }}
+          >
+            <Typography sx={{ px: 1, pb: 1, pt: 0.5, fontSize: 11, fontWeight: 700, opacity: 0.5, textTransform: 'uppercase', letterSpacing: '0.8px' }}>
+              Non-Large
+            </Typography>
+
+            <List sx={{ py: 0 }}>
+              {nlMenu.map((item) => {
+                const Icon = item.icon;
+                const flyoutActive = pathname === item.path || pathname.startsWith(item.path + '/');
+                return (
+                  <ListItem key={item.path} disablePadding sx={{ mb: 0.15 }}>
+                    <ListItemButton
+                      onClick={() => {
+                        navigate(item.path);
+                        setNlFlyoutClicked(false);
+                      }}
+                      sx={{
+                        borderRadius: 1.5,
+                        color: flyoutActive ? '#fff' : 'rgba(255,255,255,0.8)',
+                        bgcolor: flyoutActive ? 'rgba(59,130,246,0.25)' : 'transparent',
+                        py: 0.625,
+                        px: 1.5,
+                        transition: 'all 0.15s ease',
+                        touchAction: 'manipulation',
+                        cursor: 'pointer',
+                        '&:hover': {
+                          bgcolor: flyoutActive ? 'rgba(59,130,246,0.35)' : 'rgba(255,255,255,0.08)',
+                          transform: 'translateX(2px)',
+                        },
+                        '&:active': { bgcolor: 'rgba(255,255,255,0.15)' },
+                        ...(flyoutActive && { borderLeft: '2px solid #60a5fa' }),
+                      }}
+                    >
+                      <ListItemIcon sx={{ color: flyoutActive ? '#fff' : (nlIconColors[item.path] || 'rgba(255,255,255,0.7)'), minWidth: 32, pointerEvents: 'none', transition: 'color 0.15s ease' }}>
+                        <Icon sx={{ fontSize: 18 }} />
+                      </ListItemIcon>
+                      <ListItemText
+                        primary={item.label}
+                        sx={{ pointerEvents: 'none' }}
+                        primaryTypographyProps={{ fontSize: '0.85rem', fontWeight: flyoutActive ? 600 : 400 }}
+                      />
+                    </ListItemButton>
+                  </ListItem>
+                );
+              })}
+            </List>
+          </Paper>
+        </Portal>
       )}
 
       {/* Flyout disabled on mobile */}

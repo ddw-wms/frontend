@@ -625,7 +625,8 @@ export const qcAPI = {
         qcStatus: filters?.qcStatus,
         qcGrade: filters?.qc_grade,
         brand: filters?.brand,
-        category: filters?.category
+        category: filters?.category,
+        batchId: filters?.batchId
       }
     }),
 

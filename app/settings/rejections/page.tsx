@@ -1907,7 +1907,7 @@ export default function RejectionsPage() {
             </Box>
 
             {/* Upload Dialog */}
-            <Dialog open={uploadDialogOpen} onClose={() => { setUploadDialogOpen(false); setUploadError(''); setFileValidationError(''); setAddingNewPerson(false); setNewPersonName(''); }} maxWidth="sm" fullWidth>
+            <Dialog open={uploadDialogOpen} onClose={() => { setUploadDialogOpen(false); setUploadError(''); setFileValidationError(''); setAddingNewPerson(false); setNewPersonName(''); }} maxWidth="sm" fullWidth fullScreen={isMobile}>
                 <DialogTitle sx={{ pb: 1 }}>
                     Upload Rejection Excel
                     <IconButton onClick={() => { setUploadDialogOpen(false); setUploadError(''); setFileValidationError(''); setAddingNewPerson(false); setNewPersonName(''); }} sx={{ position: 'absolute', right: 8, top: 8 }}>
@@ -2055,7 +2055,7 @@ export default function RejectionsPage() {
             </Dialog>
 
             {/* Credit Note Dialog */}
-            <Dialog open={cnDialogOpen} onClose={() => setCnDialogOpen(false)} maxWidth="sm" fullWidth>
+            <Dialog open={cnDialogOpen} onClose={() => setCnDialogOpen(false)} maxWidth="sm" fullWidth fullScreen={isMobile}>
                 <DialogTitle sx={{ pb: 1 }}>
                     Update Credit Note
                     <IconButton onClick={() => setCnDialogOpen(false)} sx={{ position: 'absolute', right: 8, top: 8 }}>
@@ -2253,6 +2253,7 @@ export default function RejectionsPage() {
                 onClose={() => setLogDetailDialog({ open: false, log: null, tab: 'skipped' })}
                 maxWidth="sm"
                 fullWidth
+                fullScreen={isMobile}
             >
                 <DialogTitle sx={{ pb: 1 }}>
                     <Stack direction="row" alignItems="center" spacing={1}>

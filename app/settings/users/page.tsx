@@ -616,7 +616,7 @@ export default function UsersPage() {
       </Box>
 
       {/* Dialog */}
-      <Dialog open={openDialog} onClose={handleDialogClose} maxWidth="sm" fullWidth>
+      <Dialog open={openDialog} onClose={handleDialogClose} maxWidth="sm" fullWidth fullScreen={isMobile}>
         <DialogTitle fontWeight="bold">
           {editItem ? '✏️ Edit User' : '➕ Add New User'}
         </DialogTitle>

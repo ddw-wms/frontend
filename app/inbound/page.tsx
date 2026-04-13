@@ -106,6 +106,35 @@ const INBOUND_LIST_COLUMNS = [
 
 const EDITABLE_COLUMNS = ['wsn', 'product_serial_number', 'rack_no', 'unload_remarks'];
 
+// ⚡ INBOUND EXPORT COLUMNS CONFIG (for column picker dialog)
+const INBOUND_EXPORT_COLUMNS_CONFIG: { key: string; label: string; field: string }[] = [
+  { key: 'sr_no', label: 'Sr No', field: 'sr_no' },
+  { key: 'wsn', label: 'WSN', field: 'wsn' },
+  { key: 'product_serial_number', label: 'Product Serial Number', field: 'product_serial_number' },
+  { key: 'rack_no', label: 'Rack No', field: 'rack_no' },
+  { key: 'unload_remarks', label: 'Unload Remarks', field: 'unload_remarks' },
+  { key: 'inbound_date', label: 'Inbound Date', field: 'inbound_date' },
+  { key: 'vehicle_no', label: 'Vehicle No', field: 'vehicle_no' },
+  { key: 'wid', label: 'WID', field: 'wid' },
+  { key: 'fsn', label: 'FSN', field: 'fsn' },
+  { key: 'order_id', label: 'Order ID', field: 'order_id' },
+  { key: 'product_title', label: 'Product Title', field: 'product_title' },
+  { key: 'brand', label: 'Brand', field: 'brand' },
+  { key: 'mrp', label: 'MRP', field: 'mrp' },
+  { key: 'fsp', label: 'FSP', field: 'fsp' },
+  { key: 'hsn_sac', label: 'HSN/SAC', field: 'hsn_sac' },
+  { key: 'igst_rate', label: 'IGST Rate', field: 'igst_rate' },
+  { key: 'cms_vertical', label: 'CMS Vertical', field: 'cms_vertical' },
+  { key: 'fkt_link', label: 'FKT Link', field: 'fkt_link' },
+  { key: 'p_type', label: 'Product Type', field: 'p_type' },
+  { key: 'p_size', label: 'Product Size', field: 'p_size' },
+  { key: 'vrp', label: 'VRP', field: 'vrp' },
+  { key: 'yield_value', label: 'Yield Value', field: 'yield_value' },
+  { key: 'fk_grade', label: 'FK Grade', field: 'fk_grade' },
+  { key: 'fkqc_remark', label: 'FKQC Remark', field: 'fkqc_remark' },
+];
+const INBOUND_DEFAULT_EXPORT_COLUMNS = ['sr_no', 'wsn', 'product_serial_number', 'rack_no', 'unload_remarks', 'inbound_date', 'vehicle_no', 'product_title', 'brand', 'mrp', 'fsp', 'fkqc_remark'];
+
 // ⚡ PERF: Module-level constant — avoids creating a new object per cellStyle call (thousands/sec during drag)
 const SELECTION_RESET_STYLE = {
   backgroundColor: undefined as any,
@@ -658,10 +687,24 @@ export default function InboundPage() {
   const [exportBatchIds, setExportBatchIds] = useState<string[]>([]);
   const [existingInboundWSNs, setExistingInboundWSNs] = useState(new Set());
 
+  // Multi-entry export column picker state
+  const [inboundExportDialogOpen, setInboundExportDialogOpen] = useState(false);
+  const [inboundExportSelectedColumns, setInboundExportSelectedColumns] = useState<string[]>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('inboundExportColumns');
+      if (saved) { try { return JSON.parse(saved); } catch { /* ignore */ } }
+    }
+    return INBOUND_DEFAULT_EXPORT_COLUMNS;
+  });
+  const [inboundExportRemember, setInboundExportRemember] = useState(() => {
+    if (typeof window !== 'undefined') return localStorage.getItem('inboundExportRemember') === 'true';
+    return false;
+  });
+
   // Grid settings with localStorage
   const [gridSettings, setGridSettings] = useState({
-    sortable: true,
-    filter: true,
+    sortable: false,
+    filter: false,
     resizable: true,
     editable: true,
   });
@@ -670,8 +713,8 @@ export default function InboundPage() {
 
   // ====== MULTI ENTRY GRID SETTINGS (SEPARATE) ======
   const [multiGridSettings, setMultiGridSettings] = useState({
-    sortable: true,
-    filter: true,
+    sortable: false,
+    filter: false,
     resizable: true,
     editable: true,
   });
@@ -3747,7 +3790,7 @@ export default function InboundPage() {
   };
 
   // Export Multi Entry grid data to Excel
-  const exportMultiEntryToExcel = async () => {
+  const exportMultiEntryToExcel = async (selectedCols: string[]) => {
     // Filter only rows with actual data (WSN entered)
     const dataRows = multiRows.filter(row => row.wsn?.trim());
 
@@ -3756,44 +3799,35 @@ export default function InboundPage() {
       return;
     }
 
+    const columnsToExport = INBOUND_EXPORT_COLUMNS_CONFIG.filter(c => selectedCols.includes(c.key));
+    if (columnsToExport.length === 0) {
+      toast.error('No columns selected for export');
+      return;
+    }
+
     try {
       // Dynamic import to reduce bundle size
       const XLSX = await import('xlsx');
 
-      // Prepare export data with all columns (user input + master data)
-      const exportData = dataRows.map((row, idx) => ({
-        'Sr No': idx + 1,
-        // User Input Columns
-        'WSN': row.wsn || '',
-        'Product Serial Number': row.product_serial_number || '',
-        'Rack No': row.rack_no || '',
-        'Unload Remarks': row.unload_remarks || '',
-        'Inbound Date': row.inbound_date || commonDate || '',
-        'Vehicle No': row.vehicle_no || commonVehicle || '',
-        // Master Data Columns
-        'WID': row.wid || '',
-        'FSN': row.fsn || '',
-        'Order ID': row.order_id || '',
-        'Product Title': row.product_title || '',
-        'Brand': row.brand || '',
-        'MRP': row.mrp || '',
-        'FSP': row.fsp || '',
-        'HSN/SAC': row.hsn_sac || '',
-        'IGST Rate': row.igst_rate || '',
-        'CMS Vertical': row.cms_vertical || '',
-        'FKT Link': row.fkt_link || '',
-        'Product Type': row.p_type || '',
-        'Product Size': row.p_size || '',
-        'VRP': row.vrp || '',
-        'Yield Value': row.yield_value || '',
-        'FK Grade': row.fk_grade || '',
-        'FKQC Remark': row.fkqc_remark || '',
-      }));
+      // Prepare export data with selected columns
+      const exportData = dataRows.map((row, idx) => {
+        const obj: Record<string, any> = {};
+        columnsToExport.forEach(col => {
+          if (col.key === 'sr_no') {
+            obj[col.label] = idx + 1;
+          } else if (col.key === 'inbound_date') {
+            obj[col.label] = row.inbound_date || commonDate || '';
+          } else if (col.key === 'vehicle_no') {
+            obj[col.label] = row.vehicle_no || commonVehicle || '';
+          } else {
+            obj[col.label] = row[col.field] || '';
+          }
+        });
+        return obj;
+      });
 
       // Create workbook and worksheet
       const ws = XLSX.utils.json_to_sheet(exportData);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Multi Entry Data');
 
       // Auto-fit column widths
       const colWidths = Object.keys(exportData[0]).map(key => ({
@@ -3801,13 +3835,26 @@ export default function InboundPage() {
       }));
       ws['!cols'] = colWidths;
 
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Multi Entry Data');
+
       // Generate filename with timestamp
       const timestamp = new Date().toISOString().slice(0, 19).replace(/[:-]/g, '');
       const filename = `Inbound_MultiEntry_${timestamp}.xlsx`;
 
       // Download the file
       XLSX.writeFile(wb, filename);
-      toast.success(`✅ Exported ${dataRows.length} rows to ${filename}`);
+      setInboundExportDialogOpen(false);
+      toast.success(`✅ Exported ${dataRows.length} rows with ${columnsToExport.length} columns to ${filename}`);
+
+      // Save preference if remember is checked
+      if (inboundExportRemember) {
+        localStorage.setItem('inboundExportColumns', JSON.stringify(selectedCols));
+        localStorage.setItem('inboundExportRemember', 'true');
+      } else {
+        localStorage.removeItem('inboundExportColumns');
+        localStorage.removeItem('inboundExportRemember');
+      }
     } catch (error) {
       console.error('Export error:', error);
       toast.error('Failed to export data');
@@ -6050,6 +6097,7 @@ export default function InboundPage() {
                   onClose={() => setExportDialogOpen(false)}
                   maxWidth="md"
                   fullWidth
+                  fullScreen={isMobile}
                   PaperProps={{
                     sx: {
                       borderRadius: 3,
@@ -6294,12 +6342,71 @@ export default function InboundPage() {
                   </DialogActions>
                 </Dialog>
 
+                {/* ⚡ INBOUND MULTI-ENTRY EXPORT COLUMN PICKER DIALOG */}
+                <Dialog
+                  open={inboundExportDialogOpen}
+                  onClose={() => setInboundExportDialogOpen(false)}
+                  maxWidth="sm"
+                  fullWidth
+                  fullScreen={isMobile}
+                  container={isFullscreen ? multiEntryContainerRef.current : undefined}
+                >
+                  <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <DownloadIcon sx={{ color: '#16a34a' }} />
+                    Select Export Columns
+                  </DialogTitle>
+                  <DialogContent dividers>
+                    <Box sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'wrap' }}>
+                      <Button size="small" variant="outlined" onClick={() => setInboundExportSelectedColumns(INBOUND_EXPORT_COLUMNS_CONFIG.map(c => c.key))}>Select All</Button>
+                      <Button size="small" variant="outlined" onClick={() => setInboundExportSelectedColumns([])}>Deselect All</Button>
+                      <Button size="small" variant="outlined" onClick={() => setInboundExportSelectedColumns(INBOUND_DEFAULT_EXPORT_COLUMNS)}>Reset Default</Button>
+                    </Box>
+                    <Stack spacing={0.5}>
+                      {INBOUND_EXPORT_COLUMNS_CONFIG.map(col => (
+                        <FormControlLabel
+                          key={col.key}
+                          control={
+                            <Checkbox
+                              checked={inboundExportSelectedColumns.includes(col.key)}
+                              onChange={() => {
+                                setInboundExportSelectedColumns(prev =>
+                                  prev.includes(col.key) ? prev.filter(k => k !== col.key) : [...prev, col.key]
+                                );
+                              }}
+                              size="small"
+                            />
+                          }
+                          label={<Typography variant="body2">{col.label}</Typography>}
+                        />
+                      ))}
+                    </Stack>
+                    <FormControlLabel
+                      sx={{ mt: 2 }}
+                      control={<Checkbox checked={inboundExportRemember} onChange={(e) => setInboundExportRemember(e.target.checked)} size="small" />}
+                      label={<Typography variant="body2">Remember my selection</Typography>}
+                    />
+                  </DialogContent>
+                  <DialogActions>
+                    <Button onClick={() => setInboundExportDialogOpen(false)}>Cancel</Button>
+                    <Button
+                      variant="contained"
+                      disabled={inboundExportSelectedColumns.length === 0}
+                      onClick={() => exportMultiEntryToExcel(inboundExportSelectedColumns)}
+                      startIcon={<DownloadIcon />}
+                      sx={{ background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)' }}
+                    >
+                      Export ({inboundExportSelectedColumns.length} columns)
+                    </Button>
+                  </DialogActions>
+                </Dialog>
+
                 {/* INBOUND TAB: COLUMN SETTINGS DIALOG */}
                 <Dialog
                   open={listColumnSettingsOpen}
                   onClose={() => setListColumnSettingsOpen(false)}
                   maxWidth="sm"
                   fullWidth
+                  fullScreen={isMobile}
                 >
                   <DialogTitle
                     sx={{
@@ -7546,7 +7653,7 @@ export default function InboundPage() {
                             fullWidth
                             variant="contained"
                             startIcon={<DownloadIcon />}
-                            onClick={() => { exportMultiEntryToExcel(); setMultiSettingsPanelOpen(false); }}
+                            onClick={() => { setInboundExportDialogOpen(true); setMultiSettingsPanelOpen(false); }}
                             sx={{
                               height: 44,
                               background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
@@ -8636,6 +8743,7 @@ export default function InboundPage() {
                   onClose={() => setColumnSettingsOpen(false)}
                   maxWidth="sm"
                   fullWidth
+                  fullScreen={isMobile}
                   PaperProps={{ sx: { borderRadius: 2 } }}
                 >
                   <DialogTitle
@@ -8907,6 +9015,7 @@ export default function InboundPage() {
                   onClose={() => setBatchSelectorOpen(false)}
                   maxWidth="sm"
                   fullWidth
+                  fullScreen={isMobile}
                   PaperProps={{
                     sx: {
                       borderRadius: 2,

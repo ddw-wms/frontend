@@ -1,8 +1,8 @@
 // File Path = warehouse-frontend\app\layout.tsx
 import type { Metadata } from "next";
 import { Providers } from "@/components/Providers";
-import "./globals.css";
 import { Inter } from 'next/font/google';
+import "./globals.css";
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-sans', display: 'swap' });
 

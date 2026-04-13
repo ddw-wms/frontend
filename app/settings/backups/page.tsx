@@ -1749,6 +1749,7 @@ export default function BackupPage() {
                             onClose={() => setBulkDeleteDialogOpen(false)}
                             maxWidth="sm"
                             fullWidth
+                            fullScreen={isMobile}
                         >
                             <DialogTitle sx={{
                                 background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',

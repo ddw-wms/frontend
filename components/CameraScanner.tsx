@@ -26,7 +26,10 @@ const TORCH_CAMERA_KEY = 'mobileScan_torchCameraId';
 const ZOOM_STORAGE_KEY = 'mobileScan_cameraZoom';
 const SAME_BARCODE_COOLDOWN = 3000;
 const SCAN_PAUSE_DURATION = 1200;
-const SCAN_INTERVAL_MS = 100;
+const SCAN_INTERVAL_MS = 250;
+
+const CAMERA_WIDTH = 640;
+const CAMERA_HEIGHT = 480;
 
 const BARCODE_FORMATS = [
     'code_128', 'code_39', 'code_93', 'codabar',
@@ -208,8 +211,8 @@ export default function CameraScanner({ onScan, onScanCheck, onClose, isOpen, ti
                 const barcodes = await detectorRef.current.detect(videoRef.current);
                 if (!barcodes?.length || isPausedRef.current) return;
 
-                const raw = barcodes[0].rawValue?.trim()?.toUpperCase();
-                if (!raw) return;
+                const raw = barcodes[0].rawValue?.normalize('NFC')?.trim()?.toUpperCase()?.replace(/[^\x20-\x7E]/g, '');
+                if (!raw || raw.length < 3) return;
 
                 const now = Date.now();
                 if (raw === lastScanRef.current && now - lastScanTimeRef.current < SAME_BARCODE_COOLDOWN) return;
@@ -288,8 +291,8 @@ export default function CameraScanner({ onScan, onScanCheck, onClose, isOpen, ti
             try {
                 stream = await navigator.mediaDevices.getUserMedia({
                     video: cameraId
-                        ? { deviceId: { exact: cameraId }, width: { ideal: 1280 }, height: { ideal: 720 } }
-                        : { facingMode: useFront ? 'user' : 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
+                        ? { deviceId: { exact: cameraId }, width: { ideal: CAMERA_WIDTH }, height: { ideal: CAMERA_HEIGHT } }
+                        : { facingMode: useFront ? 'user' : 'environment', width: { ideal: CAMERA_WIDTH }, height: { ideal: CAMERA_HEIGHT } },
                     audio: false,
                 });
             } catch (e: any) {
@@ -298,7 +301,7 @@ export default function CameraScanner({ onScan, onScanCheck, onClose, isOpen, ti
                     selectedCameraIdRef.current = null;
                     try { localStorage.removeItem(TORCH_CAMERA_KEY); } catch { /* ignore */ }
                     stream = await navigator.mediaDevices.getUserMedia({
-                        video: { facingMode: useFront ? 'user' : 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
+                        video: { facingMode: useFront ? 'user' : 'environment', width: { ideal: CAMERA_WIDTH }, height: { ideal: CAMERA_HEIGHT } },
                         audio: false,
                     });
                     cameraId = null;
@@ -351,8 +354,8 @@ export default function CameraScanner({ onScan, onScanCheck, onClose, isOpen, ti
                         // Restart with the best camera
                         const newStream = await navigator.mediaDevices.getUserMedia({
                             video: restartId
-                                ? { deviceId: { exact: restartId }, width: { ideal: 1280 }, height: { ideal: 720 } }
-                                : { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
+                                ? { deviceId: { exact: restartId }, width: { ideal: CAMERA_WIDTH }, height: { ideal: CAMERA_HEIGHT } }
+                                : { facingMode: 'environment', width: { ideal: CAMERA_WIDTH }, height: { ideal: CAMERA_HEIGHT } },
                             audio: false,
                         });
                         streamRef.current = newStream;
@@ -451,18 +454,27 @@ export default function CameraScanner({ onScan, onScanCheck, onClose, isOpen, ti
         startCamera(!facingBack ? true : false);
     }, [facingBack, startCamera]);
 
-    // Handle page visibility change (phone sleep/wake)
+    // Handle page visibility change — pause scanning when hidden, resume when visible
     useEffect(() => {
         if (!isOpen) return;
         const handleVis = () => {
-            if (document.visibilityState === 'visible' && isOpen && !scanning) {
-                startCamera(!facingBack ? true : false);
+            if (document.visibilityState === 'hidden') {
+                // Pause scan loop to save battery while app is backgrounded
+                if (scanTimerRef.current) { clearInterval(scanTimerRef.current); scanTimerRef.current = null; }
+            } else if (document.visibilityState === 'visible') {
+                if (isOpen && scanning) {
+                    // Resume scan loop
+                    startDetection();
+                } else if (isOpen && !scanning) {
+                    // Camera was lost during sleep — restart
+                    startCamera(!facingBack ? true : false);
+                }
             }
         };
         document.addEventListener('visibilitychange', handleVis);
         return () => document.removeEventListener('visibilitychange', handleVis);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isOpen, scanning, facingBack]);
+    }, [isOpen, scanning, facingBack, startDetection]);
 
     // Open/close
     useEffect(() => {

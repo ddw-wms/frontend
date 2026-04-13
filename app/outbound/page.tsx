@@ -74,6 +74,7 @@ import {
     ViewColumn as ViewColumnIcon,
     TableChart as TableChartIcon,
     Link as LinkIcon,
+    Info as InfoIcon,
     QrCodeScanner as QrCodeScannerIcon,
 } from '@mui/icons-material';
 import { outboundAPI, customerAPI } from '@/lib/api';
@@ -524,6 +525,7 @@ export default function OutboundPage() {
 
     const handleOpenExportDialog = () => {
         // Load saved columns if "remember" is on, else use defaults
+        exportShouldSubmitRef.current = true; // Export triggered from submit flow
         if (exportRememberColumns) {
             try {
                 const saved = localStorage.getItem('outboundExportColumns');
@@ -613,8 +615,10 @@ export default function OutboundPage() {
             XLSX.writeFile(wb, filename);
             toast.success(`✅ Exported ${dataToExport.length} rows to ${filename}`);
             setMultiExportDialogOpen(false);
-            // After export, proceed with submit
-            executeMultiSubmit();
+            // Only proceed with submit if export was triggered from the submit flow
+            if (exportShouldSubmitRef.current) {
+                executeMultiSubmit();
+            }
         } catch (error) {
             console.error('Export error:', error);
             toast.error('Export failed');
@@ -809,6 +813,8 @@ export default function OutboundPage() {
 
     // ====== EXPORT CONFIRMATION DIALOG ======
     const [exportConfirmOpen, setExportConfirmOpen] = useState(false);
+    // Track whether export was triggered from submit flow (true) or standalone settings panel (false)
+    const exportShouldSubmitRef = useRef(false);
 
     // ====== CATEGORY PIVOT DIALOG ======
     const [categoryPivotOpen, setCategoryPivotOpen] = useState(false);
@@ -886,10 +892,10 @@ export default function OutboundPage() {
 
     // Grid Settings (persisted)
     const [enableSorting, setEnableSorting] = useState<boolean>(() => {
-        try { return localStorage.getItem('outbound_enableSorting') !== 'false'; } catch { return true; }
+        try { return localStorage.getItem('outbound_enableSorting') === 'true'; } catch { return false; }
     });
     const [enableColumnFilters, setEnableColumnFilters] = useState<boolean>(() => {
-        try { return localStorage.getItem('outbound_enableColumnFilters') !== 'false'; } catch { return true; }
+        try { return localStorage.getItem('outbound_enableColumnFilters') === 'true'; } catch { return false; }
     });
     const [enableColumnResize, setEnableColumnResize] = useState<boolean>(() => {
         try { return localStorage.getItem('outbound_enableColumnResize') !== 'false'; } catch { return true; }
@@ -5348,7 +5354,9 @@ export default function OutboundPage() {
                 background: isDarkMode ? 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)' : 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
                 height: '100%', width: '100%',
                 display: 'flex', flexDirection: 'column',
-                overflow: 'hidden'
+                overflowY: 'auto',
+                overflowX: 'hidden',
+                minHeight: 0,
             }}>
                 {/* HEADER */}
                 <StandardPageHeader
@@ -6014,7 +6022,7 @@ export default function OutboundPage() {
                         </Fade>
 
                         {/* List Column Settings Dialog */}
-                        <Dialog open={listColumnSettingsOpen} onClose={() => setListColumnSettingsOpen(false)} maxWidth="sm" fullWidth container={isFullscreen ? multiEntryContainerRef.current : undefined}>
+                        <Dialog open={listColumnSettingsOpen} onClose={() => setListColumnSettingsOpen(false)} maxWidth="sm" fullWidth fullScreen={isMobile} container={isFullscreen ? multiEntryContainerRef.current : undefined}>
                             <DialogTitle>⚙️ Column Settings</DialogTitle>
                             <DialogContent>
                                 <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#6b21a8', mb: 1 }}>EDITABLE FIELDS</Typography>
@@ -6076,28 +6084,136 @@ export default function OutboundPage() {
                         </Dialog>
 
                         {/* Export Dialog */}
-                        <Dialog open={exportDialogOpen} onClose={() => setExportDialogOpen(false)} maxWidth="sm" fullWidth container={isFullscreen ? multiEntryContainerRef.current : undefined}>
-                            <DialogTitle>Export to Excel</DialogTitle>
-                            <DialogContent>
-                                <Stack spacing={2} sx={{ mt: 1 }}>
-                                    <TextField
-                                        label="Start Date"
-                                        type="date"
-                                        value={exportStartDate}
-                                        onChange={(e) => setExportStartDate(e.target.value)}
-                                        InputLabelProps={{ shrink: true }}
-                                        fullWidth
-                                        size="small"
-                                    />
-                                    <TextField
-                                        label="End Date"
-                                        type="date"
-                                        value={exportEndDate}
-                                        onChange={(e) => setExportEndDate(e.target.value)}
-                                        InputLabelProps={{ shrink: true }}
-                                        fullWidth
-                                        size="small"
-                                    />
+                        <Dialog
+                            open={exportDialogOpen}
+                            onClose={() => setExportDialogOpen(false)}
+                            maxWidth="md"
+                            fullWidth
+                            fullScreen={isMobile}
+                            container={isFullscreen ? multiEntryContainerRef.current : undefined}
+                            PaperProps={{
+                                sx: {
+                                    borderRadius: 3,
+                                    boxShadow: '0 25px 50px rgba(0,0,0,0.25)',
+                                    overflow: 'hidden',
+                                    bgcolor: isDarkMode ? '#0f172a' : 'background.paper'
+                                }
+                            }}
+                        >
+                            <DialogTitle sx={{
+                                fontWeight: 800,
+                                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                                color: 'white',
+                                py: 3,
+                                px: 3,
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 1.5
+                            }}>
+                                <DownloadIcon sx={{ fontSize: '1.5rem' }} />
+                                Advanced Export Options
+                                <Typography variant="caption" sx={{ ml: 'auto', opacity: 0.8, fontSize: '0.7rem' }}>
+                                    Filter & Download
+                                </Typography>
+                            </DialogTitle>
+
+                            <DialogContent sx={{
+                                py: 4,
+                                px: 3,
+                                bgcolor: isDarkMode ? '#0f172a' : 'background.paper'
+                            }}>
+                                <Stack spacing={3}>
+                                    {/* CURRENT FILTERS PREVIEW */}
+                                    <Alert
+                                        severity="info"
+                                        icon={<InfoIcon />}
+                                        sx={{
+                                            fontSize: '0.85rem',
+                                            borderRadius: 2,
+                                            bgcolor: isDarkMode ? 'rgba(14, 165, 233, 0.1)' : undefined,
+                                            border: isDarkMode ? '1px solid rgba(14, 165, 233, 0.3)' : undefined,
+                                            '& .MuiAlert-icon': { color: '#0ea5e9' },
+                                            '& .MuiAlert-message': { color: isDarkMode ? '#f1f5f9' : undefined }
+                                        }}
+                                    >
+                                        <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1, color: '#0ea5e9' }}>
+                                            📋 Applied Filters Preview:
+                                        </Typography>
+                                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 1 }}>
+                                            {(exportCustomer || customerFilter) && (
+                                                <Chip size="small" label={`👤 ${exportCustomer || customerFilter}`} sx={{ bgcolor: isDarkMode ? 'rgba(59, 130, 246, 0.2)' : '#dbeafe', color: isDarkMode ? '#93c5fd' : '#1e40af' }} />
+                                            )}
+                                            {(exportSource || sourceFilter) && (
+                                                <Chip size="small" label={`📦 ${exportSource || sourceFilter}`} sx={{ bgcolor: isDarkMode ? 'rgba(34, 197, 94, 0.2)' : '#dcfce7', color: isDarkMode ? '#86efac' : '#166534' }} />
+                                            )}
+                                            {(exportBatchId || batchFilter) && (
+                                                <Chip size="small" label={`🏷️ Batch: ${exportBatchId || batchFilter}`} sx={{ bgcolor: isDarkMode ? 'rgba(168, 85, 247, 0.2)' : '#f3e8ff', color: isDarkMode ? '#c4b5fd' : '#6b21a8' }} />
+                                            )}
+                                            {(exportStartDate || startDateFilter) && (
+                                                <Chip size="small" label={`📅 From: ${exportStartDate || startDateFilter}`} sx={{ bgcolor: isDarkMode ? 'rgba(99, 102, 241, 0.2)' : '#e0e7ff', color: isDarkMode ? '#a5b4fc' : '#3730a3' }} />
+                                            )}
+                                            {(exportEndDate || endDateFilter) && (
+                                                <Chip size="small" label={`📅 To: ${exportEndDate || endDateFilter}`} sx={{ bgcolor: isDarkMode ? 'rgba(99, 102, 241, 0.2)' : '#e0e7ff', color: isDarkMode ? '#a5b4fc' : '#3730a3' }} />
+                                            )}
+                                            {!exportCustomer && !exportSource && !exportBatchId && !exportStartDate && !exportEndDate && !customerFilter && !sourceFilter && !batchFilter && !startDateFilter && !endDateFilter && (
+                                                <Chip size="small" label="🔍 All Data" sx={{ bgcolor: isDarkMode ? 'rgba(239, 68, 68, 0.2)' : '#fee2e2', color: isDarkMode ? '#fca5a5' : '#dc2626' }} />
+                                            )}
+                                        </Box>
+                                    </Alert>
+
+                                    {/* DIVIDER WITH ICON */}
+                                    <Divider sx={{ '&::before, &::after': { borderColor: isDarkMode ? 'rgba(255,255,255,0.1)' : '#e5e7eb' } }}>
+                                        <Box sx={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: 1,
+                                            px: 2,
+                                            py: 0.5,
+                                            bgcolor: isDarkMode ? '#334155' : '#f9fafb',
+                                            borderRadius: 2,
+                                            border: isDarkMode ? '1px solid rgba(255,255,255,0.15)' : '1px solid #e5e7eb'
+                                        }}>
+                                            <SettingsIcon sx={{ fontSize: '1rem', color: isDarkMode ? '#94a3b8' : '#6b7280' }} />
+                                            <Typography variant="body2" sx={{ fontWeight: 600, color: isDarkMode ? '#e2e8f0' : '#6b7280' }}>
+                                                Override Filters (Optional)
+                                            </Typography>
+                                        </Box>
+                                    </Divider>
+
+                                    {/* OVERRIDE CONTROLS */}
+                                    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2 }}>
+                                        <TextField
+                                            fullWidth
+                                            label="Start Date Override"
+                                            type="date"
+                                            InputLabelProps={{ shrink: true }}
+                                            value={exportStartDate}
+                                            onChange={(e) => setExportStartDate(e.target.value)}
+                                            sx={{
+                                                '& .MuiOutlinedInput-root': {
+                                                    borderRadius: 2,
+                                                    '&:hover fieldset': { borderColor: '#10b981' },
+                                                    '&.Mui-focused fieldset': { borderColor: '#10b981' }
+                                                }
+                                            }}
+                                        />
+                                        <TextField
+                                            fullWidth
+                                            label="End Date Override"
+                                            type="date"
+                                            InputLabelProps={{ shrink: true }}
+                                            value={exportEndDate}
+                                            onChange={(e) => setExportEndDate(e.target.value)}
+                                            sx={{
+                                                '& .MuiOutlinedInput-root': {
+                                                    borderRadius: 2,
+                                                    '&:hover fieldset': { borderColor: '#10b981' },
+                                                    '&.Mui-focused fieldset': { borderColor: '#10b981' }
+                                                }
+                                            }}
+                                        />
+                                    </Box>
+
                                     <Autocomplete
                                         freeSolo
                                         options={customers}
@@ -6109,46 +6225,112 @@ export default function OutboundPage() {
                                                 {...params}
                                                 label="Customer"
                                                 placeholder="Select or type customer name..."
-                                                size="small"
+                                                sx={{
+                                                    '& .MuiOutlinedInput-root': {
+                                                        borderRadius: 2,
+                                                        '&:hover fieldset': { borderColor: '#10b981' },
+                                                        '&.Mui-focused fieldset': { borderColor: '#10b981' }
+                                                    }
+                                                }}
                                             />
                                         )}
                                         noOptionsText={customers.length === 0 ? "No customers available" : "No matching customers"}
                                     />
-                                    <TextField
-                                        select
-                                        label="Batch ID"
-                                        value={exportBatchId}
-                                        onChange={(e) => setExportBatchId(e.target.value)}
-                                        fullWidth
-                                        size="small"
-                                    >
-                                        <MenuItem value="">All Batches</MenuItem>
-                                        {batches.map((b: any) => (
-                                            <MenuItem key={b.batch_id} value={b.batch_id}>{b.batch_id} {b.count ? `(${b.count})` : null}</MenuItem>
-                                        ))}
-                                    </TextField>
-                                    <TextField
-                                        select
-                                        label="Source"
-                                        value={exportSource}
-                                        onChange={(e) => setExportSource(e.target.value)}
-                                        fullWidth
-                                        size="small"
-                                    >
-                                        <MenuItem value="">All Sources</MenuItem>
-                                        {sources.map((s) => (
-                                            <MenuItem key={s} value={s}>{s}</MenuItem>
-                                        ))}
-                                    </TextField>
-                                    <Typography variant="caption" color="text.secondary">
-                                        Leave empty to use current list filters
-                                    </Typography>
+
+                                    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2 }}>
+                                        <FormControl fullWidth>
+                                            <InputLabel sx={{ '&.Mui-focused': { color: '#10b981' } }}>Batch ID</InputLabel>
+                                            <Select
+                                                value={exportBatchId}
+                                                label="Batch ID"
+                                                onChange={(e) => setExportBatchId(e.target.value)}
+                                                sx={{ borderRadius: 2, '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#10b981' }, '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#10b981' } }}
+                                            >
+                                                <MenuItem value="">All Batches</MenuItem>
+                                                {batches.map((b: any) => (
+                                                    <MenuItem key={b.batch_id} value={b.batch_id}>
+                                                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                                                            <Typography variant="body2" sx={{ fontWeight: 600 }}>{b.batch_id}</Typography>
+                                                            {b.count && <Chip label={`${b.count} entries`} size="small" sx={{ bgcolor: isDarkMode ? '#334155' : '#e5e7eb', color: isDarkMode ? '#94a3b8' : '#374151', fontSize: '0.7rem', height: '20px' }} />}
+                                                        </Box>
+                                                    </MenuItem>
+                                                ))}
+                                            </Select>
+                                        </FormControl>
+                                        <FormControl fullWidth>
+                                            <InputLabel sx={{ '&.Mui-focused': { color: '#10b981' } }}>Source</InputLabel>
+                                            <Select
+                                                value={exportSource}
+                                                label="Source"
+                                                onChange={(e) => setExportSource(e.target.value)}
+                                                sx={{ borderRadius: 2, '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#10b981' }, '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#10b981' } }}
+                                            >
+                                                <MenuItem value="">All Sources</MenuItem>
+                                                {sources.map((s) => (
+                                                    <MenuItem key={s} value={s}>{s}</MenuItem>
+                                                ))}
+                                            </Select>
+                                        </FormControl>
+                                    </Box>
+
+                                    {/* EXPORT SUMMARY */}
+                                    <Card sx={{
+                                        bgcolor: isDarkMode ? 'rgba(16, 185, 129, 0.1)' : '#f0fdf4',
+                                        border: isDarkMode ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid #bbf7d0',
+                                        borderRadius: 2
+                                    }}>
+                                        <CardContent sx={{ py: 2, px: 3 }}>
+                                            <Typography variant="subtitle2" sx={{ fontWeight: 700, color: isDarkMode ? '#34d399' : '#166534', mb: 1 }}>
+                                                📊 Export Summary:
+                                            </Typography>
+                                            <Typography variant="body2" sx={{ color: isDarkMode ? '#a7f3d0' : '#166534' }}>
+                                                This will export filtered outbound/dispatch records to Excel with all selected criteria applied.
+                                                The file will include dispatch details, product information, and customer data.
+                                            </Typography>
+                                        </CardContent>
+                                    </Card>
                                 </Stack>
                             </DialogContent>
-                            <DialogActions>
-                                <Button onClick={() => setExportDialogOpen(false)}>Cancel</Button>
-                                <Button onClick={handleExportExcel} variant="contained" startIcon={<DownloadIcon />}>
-                                    Export
+
+                            <DialogActions sx={{
+                                p: 3,
+                                bgcolor: isDarkMode ? '#1e293b' : '#f9fafb',
+                                borderTop: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e5e7eb',
+                                gap: 1
+                            }}>
+                                <Button
+                                    onClick={() => setExportDialogOpen(false)}
+                                    sx={{
+                                        borderRadius: 2,
+                                        px: 3,
+                                        fontWeight: 600,
+                                        color: isDarkMode ? '#94a3b8' : '#6b7280',
+                                        '&:hover': { bgcolor: isDarkMode ? '#334155' : '#e5e7eb' }
+                                    }}
+                                >
+                                    Cancel
+                                </Button>
+                                <Button
+                                    variant="contained"
+                                    onClick={handleExportExcel}
+                                    startIcon={<DownloadIcon />}
+                                    sx={{
+                                        borderRadius: 2,
+                                        px: 4,
+                                        py: 1.5,
+                                        fontWeight: 700,
+                                        fontSize: '0.9rem',
+                                        background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                                        boxShadow: '0 4px 14px rgba(16, 185, 129, 0.3)',
+                                        '&:hover': {
+                                            background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+                                            boxShadow: '0 6px 20px rgba(16, 185, 129, 0.4)',
+                                            transform: 'translateY(-1px)'
+                                        },
+                                        transition: 'all 0.2s ease-in-out'
+                                    }}
+                                >
+                                    Export Data
                                 </Button>
                             </DialogActions>
                         </Dialog>
@@ -7188,7 +7370,7 @@ export default function OutboundPage() {
                                                 fullWidth
                                                 variant="contained"
                                                 startIcon={<DownloadIcon />}
-                                                onClick={() => { setExportConfirmOpen(true); setOutboundSettingsPanelOpen(false); }}
+                                                onClick={() => { exportShouldSubmitRef.current = false; setExportConfirmOpen(true); setOutboundSettingsPanelOpen(false); }}
                                                 disabled={!multiRows.some((r: any) => r.wsn?.trim())}
                                                 sx={{
                                                     height: 44,
@@ -7220,6 +7402,7 @@ export default function OutboundPage() {
                             onClose={() => setColumnSettingsOpen(false)}
                             maxWidth="sm"
                             fullWidth
+                            fullScreen={isMobile}
                             container={multiEntryContainerRef.current}
                             PaperProps={{ sx: { borderRadius: 2 } }}
                         >
@@ -7373,7 +7556,14 @@ export default function OutboundPage() {
                                     variant="contained"
                                     onClick={() => {
                                         setExportConfirmOpen(false);
-                                        exportMultiEntryToExcel();
+                                        // Open column picker dialog for standalone export
+                                        if (exportRememberColumns) {
+                                            try {
+                                                const saved = localStorage.getItem('outboundExportColumns');
+                                                if (saved) setExportSelectedColumns(JSON.parse(saved));
+                                            } catch { /* ignore */ }
+                                        }
+                                        setMultiExportDialogOpen(true);
                                     }}
                                     sx={{
                                         background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
@@ -7394,6 +7584,7 @@ export default function OutboundPage() {
                             onClose={() => setCategoryPivotOpen(false)}
                             maxWidth={pivotDialogFullscreen ? false : "lg"}
                             fullWidth
+                            fullScreen={isMobile}
                             container={multiEntryContainerRef.current}
                             PaperProps={{
                                 sx: {
@@ -9009,7 +9200,7 @@ export default function OutboundPage() {
                 </Dialog>
 
                 {/* ⚡ EXPORT COLUMN PICKER DIALOG */}
-                <Dialog open={multiExportDialogOpen} onClose={() => setMultiExportDialogOpen(false)} maxWidth="sm" fullWidth container={isFullscreen ? multiEntryContainerRef.current : undefined}>
+                <Dialog open={multiExportDialogOpen} onClose={() => setMultiExportDialogOpen(false)} maxWidth="sm" fullWidth fullScreen={isMobile} container={isFullscreen ? multiEntryContainerRef.current : undefined}>
                     <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         <DownloadIcon sx={{ color: '#16a34a' }} />
                         Export to Excel — Select Columns
@@ -9093,7 +9284,7 @@ export default function OutboundPage() {
                 </Dialog>
 
                 {/* Column Settings Dialog - Outside flex container */}
-                <Dialog open={columnSettingsOpen} onClose={() => setColumnSettingsOpen(false)} maxWidth="sm" fullWidth container={isFullscreen ? multiEntryContainerRef.current : undefined}>
+                <Dialog open={columnSettingsOpen} onClose={() => setColumnSettingsOpen(false)} maxWidth="sm" fullWidth fullScreen={isMobile} container={isFullscreen ? multiEntryContainerRef.current : undefined}>
                     <DialogTitle>⚙️ Columns View Settings</DialogTitle>
                     <DialogContent>
                         <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>

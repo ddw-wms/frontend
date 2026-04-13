@@ -6,7 +6,39 @@
    PREVENT WHITE FLASH IN DARK MODE
    Applied immediately before JS hydration
    ============================================ */
-/* AG Grid - force dark background on ALL internal elements */
+
+/* Override AG Grid CSS custom properties for dark mode.
+   This is the PRIMARY fix — AG Grid elements use var(--ag-*)
+   internally, so overriding the variables ensures ALL
+   internal elements get dark colors instantly via CSS. */
+html[data-theme="dark"] .ag-theme-quartz {
+  --ag-background-color: #1e293b;
+  --ag-foreground-color: #f1f5f9;
+  --ag-header-background-color: #1e3a5f;
+  --ag-header-foreground-color: #ffffff;
+  --ag-odd-row-background-color: #1a2536;
+  --ag-row-hover-color: rgba(59, 130, 246, 0.15);
+  --ag-border-color: #334155;
+  --ag-secondary-border-color: #475569;
+  --ag-row-border-color: #334155;
+  --ag-modal-overlay-background-color: #1e293b;
+  --ag-selected-row-background-color: rgba(59, 130, 246, 0.2);
+  --ag-range-selection-background-color: rgba(59, 130, 246, 0.2);
+  --ag-column-hover-color: rgba(59, 130, 246, 0.1);
+  --ag-input-focus-border-color: #3b82f6;
+  --ag-control-panel-background-color: #1e293b;
+  --ag-subheader-background-color: #1e293b;
+  --ag-chip-background-color: #334155;
+  --ag-invalid-color: #ef4444;
+  --ag-icon-color: #94a3b8;
+  --ag-input-border-color: #475569;
+  --ag-cell-horizontal-border: 1px solid #334155;
+  background-color: #1e293b !important;
+  color: #f1f5f9 !important;
+  transition: none !important;
+}
+
+/* Fallback: force dark background on ALL internal elements */
 html[data-theme="dark"] .ag-theme-quartz,
 html[data-theme="dark"] .ag-theme-quartz-dark,
 html[data-theme="dark"] .ag-root-wrapper,
@@ -19,15 +51,66 @@ html[data-theme="dark"] .ag-center-cols-container,
 html[data-theme="dark"] .ag-center-cols-clipper,
 html[data-theme="dark"] .ag-pinned-left-cols-container,
 html[data-theme="dark"] .ag-pinned-right-cols-container,
+html[data-theme="dark"] .ag-overlay,
+html[data-theme="dark"] .ag-overlay-wrapper,
+html[data-theme="dark"] .ag-overlay-loading-wrapper,
+html[data-theme="dark"] .ag-overlay-no-rows-wrapper,
 html[data-theme="dark"] [class*="ag-theme-"] {
   background-color: #1e293b !important;
   transition: none !important;
 }
 
-/* AG Grid Dark class - immediate background without data-theme check */
-.ag-theme-quartz-dark,
+/* AG Grid Dark class - CSS custom properties + background overrides */
+.ag-theme-quartz-dark {
+  --ag-background-color: #1e293b;
+  --ag-foreground-color: #f1f5f9;
+  --ag-header-background-color: #1e3a5f;
+  --ag-header-foreground-color: #ffffff;
+  --ag-odd-row-background-color: #1a2536;
+  --ag-row-hover-color: rgba(59, 130, 246, 0.15);
+  --ag-border-color: #334155;
+  --ag-secondary-border-color: #475569;
+  --ag-row-border-color: #334155;
+  --ag-modal-overlay-background-color: #1e293b;
+  --ag-selected-row-background-color: rgba(59, 130, 246, 0.2);
+  --ag-range-selection-background-color: rgba(59, 130, 246, 0.2);
+  --ag-column-hover-color: rgba(59, 130, 246, 0.1);
+  --ag-input-focus-border-color: #3b82f6;
+  --ag-control-panel-background-color: #1e293b;
+  --ag-subheader-background-color: #1e293b;
+  --ag-chip-background-color: #334155;
+  --ag-invalid-color: #ef4444;
+  --ag-icon-color: #94a3b8;
+  --ag-input-border-color: #475569;
+  --ag-cell-horizontal-border: 1px solid #334155;
+  background-color: #1e293b !important;
+  color: #f1f5f9 !important;
+  transition: none !important;
+}
+
 .ag-theme-quartz-dark .ag-root-wrapper,
-.ag-theme-quartz-dark .ag-root,
+.ag-theme-quartz-dark .ag-root {
+  background-color: #1e293b !important;
+  transition: none !important;
+}
+
+.ag-theme-quartz-dark .ag-header {
+  background-color: #1e3a5f !important;
+  border-bottom: 2px solid #10b981;
+}
+
+.ag-theme-quartz-dark .ag-header-cell,
+.ag-theme-quartz-dark .ag-header-row,
+.ag-theme-quartz-dark .ag-header-viewport,
+.ag-theme-quartz-dark .ag-header-container {
+  background-color: #1e3a5f !important;
+}
+
+.ag-theme-quartz-dark .ag-header-cell-label,
+.ag-theme-quartz-dark .ag-header-cell-text {
+  color: #ffffff !important;
+}
+
 .ag-theme-quartz-dark .ag-body,
 .ag-theme-quartz-dark .ag-body-viewport,
 .ag-theme-quartz-dark .ag-body-horizontal-scroll-viewport,
@@ -38,75 +121,98 @@ html[data-theme="dark"] [class*="ag-theme-"] {
 .ag-theme-quartz-dark .ag-pinned-right-cols-container,
 .ag-theme-quartz-dark .ag-full-width-container,
 .ag-theme-quartz-dark .ag-floating-top-container,
-.ag-theme-quartz-dark .ag-floating-bottom-container,
-.ag-theme-quartz-dark .ag-overlay,
-.ag-theme-quartz-dark .ag-overlay-wrapper,
-.ag-theme-quartz-dark>div {
+.ag-theme-quartz-dark .ag-floating-bottom-container {
   background-color: #1e293b !important;
   transition: none !important;
 }
 
-/* Prevent flash on AG Grid mount - target wrapper immediately */
-.ag-theme-quartz.ag-theme-quartz-dark {
-  background-color: #1e293b !important;
+.ag-theme-quartz-dark .ag-row {
+  border-bottom: 1px solid #334155;
+  color: #f1f5f9;
 }
 
-/* AG Grid loading state - prevent white background */
-.ag-theme-quartz-dark .ag-overlay-loading-center {
-  background-color: #1e293b !important;
+.ag-theme-quartz-dark .ag-row-even {
+  background-color: #1e293b;
 }
 
-/* Additional AG Grid containers that may flash white */
-.ag-theme-quartz-dark [ref="eBodyViewport"],
-.ag-theme-quartz-dark [ref="eCenterViewport"],
-.ag-theme-quartz-dark [ref="eCenterColsClipper"] {
+.ag-theme-quartz-dark .ag-row-odd {
+  background-color: #1a2536;
+}
+
+.ag-theme-quartz-dark .ag-row-hover {
+  background-color: rgba(59, 130, 246, 0.15) !important;
+}
+
+.ag-theme-quartz-dark .ag-cell {
+  color: #f1f5f9;
+  border-right: 1px solid #334155;
+}
+
+.ag-theme-quartz-dark .ag-cell:last-child {
+  border-right: none;
+}
+
+.ag-theme-quartz-dark .ag-cell-focus {
+  border: 2px solid #38bdf8 !important;
+  outline: none;
+}
+
+.ag-theme-quartz-dark .ag-icon {
+  color: #94a3b8 !important;
+}
+
+.ag-theme-quartz-dark .ag-overlay,
+.ag-theme-quartz-dark .ag-overlay-wrapper,
+.ag-theme-quartz-dark .ag-overlay-loading-center,
+.ag-theme-quartz-dark .ag-overlay-loading-wrapper,
+.ag-theme-quartz-dark .ag-overlay-no-rows-wrapper {
+  background-color: #1e293b !important;
+  color: #f1f5f9 !important;
+}
+
+.ag-theme-quartz-dark>div {
   background-color: #1e293b !important;
 }
 
 /* ============================================
    AG GRID FAST SCROLLING OPTIMIZATIONS
    Prevents blank rows during rapid scrolling
+   Only for ag-theme-quartz (light theme with manual dark overrides)
+   ag-theme-quartz-dark uses CSS custom properties instead
    ============================================ */
 /* Disable transitions on rows during scroll for performance */
-.ag-theme-quartz .ag-row,
-.ag-theme-quartz-dark .ag-row {
+.ag-theme-quartz .ag-row {
   transition: none !important;
   will-change: transform;
   contain: layout style paint;
 }
 
 /* Optimize body viewport for fast scrolling */
-.ag-theme-quartz .ag-body-viewport,
-.ag-theme-quartz-dark .ag-body-viewport {
+.ag-theme-quartz .ag-body-viewport {
   will-change: scroll-position;
-  contain: strict;
+  contain: layout style paint;
   overflow-anchor: none;
 }
 
 /* Optimize center cols container */
-.ag-theme-quartz .ag-center-cols-container,
-.ag-theme-quartz-dark .ag-center-cols-container {
+.ag-theme-quartz .ag-center-cols-container {
   contain: layout style;
 }
 
 /* Optimize cell rendering */
-.ag-theme-quartz .ag-cell,
-.ag-theme-quartz-dark .ag-cell {
+.ag-theme-quartz .ag-cell {
   contain: layout style paint;
   will-change: contents;
 }
 
 /* Ensure row container has proper containment */
-.ag-theme-quartz .ag-center-cols-clipper,
-.ag-theme-quartz-dark .ag-center-cols-clipper {
-  contain: strict;
+.ag-theme-quartz .ag-center-cols-clipper {
+  contain: layout style paint;
 }
 
 /* Optimize pinned columns */
 .ag-theme-quartz .ag-pinned-left-cols-container,
-.ag-theme-quartz .ag-pinned-right-cols-container,
-.ag-theme-quartz-dark .ag-pinned-left-cols-container,
-.ag-theme-quartz-dark .ag-pinned-right-cols-container {
+.ag-theme-quartz .ag-pinned-right-cols-container {
   contain: layout style paint;
 }
 

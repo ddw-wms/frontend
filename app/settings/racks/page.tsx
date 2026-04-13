@@ -426,7 +426,7 @@ export default function RacksPage() {
       </Box>
 
       {/* Add/Edit Dialog */}
-      <Dialog open={dialogOpen} onClose={handleCloseDialog} maxWidth="sm" fullWidth>
+      <Dialog open={dialogOpen} onClose={handleCloseDialog} maxWidth="sm" fullWidth fullScreen={isMobile}>
         <DialogTitle>{editingRack ? 'Edit Rack' : 'Add New Rack'}</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 2 }}>
@@ -473,7 +473,7 @@ export default function RacksPage() {
       </Dialog>
 
       {/* BULK UPLOAD DIALOG */}
-      <Dialog open={bulkDialogOpen} onClose={() => setBulkDialogOpen(false)} maxWidth="sm" fullWidth>
+      <Dialog open={bulkDialogOpen} onClose={() => setBulkDialogOpen(false)} maxWidth="sm" fullWidth fullScreen={isMobile}>
         <DialogTitle sx={{ fontWeight: 700, bgcolor: isDarkMode ? '#1e293b' : 'background.paper', color: isDarkMode ? '#f1f5f9' : 'inherit' }}>Bulk Upload Racks</DialogTitle>
         <DialogContent sx={{ bgcolor: isDarkMode ? '#0f172a' : 'background.paper' }}>
           <Stack spacing={2} sx={{ mt: 1 }}>

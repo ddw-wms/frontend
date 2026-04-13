@@ -134,5 +134,11 @@ export const useRacksPermissions = () => usePagePermissions('racks');
 export const useUsersPermissions = () => usePagePermissions('users');
 export const useDashboardPermissions = () => usePagePermissions('dashboard');
 export const useBackupsPermissions = () => usePagePermissions('backups');
+export const useNLInboundPermissions = () => usePagePermissions('nl_inbound');
+export const useNLStackingPermissions = () => usePagePermissions('nl_stacking');
+export const useNLQCPermissions = () => usePagePermissions('nl_qc');
+export const useNLDispatchPermissions = () => usePagePermissions('nl_dispatch');
+export const useNLSummaryPermissions = () => usePagePermissions('nl_summary');
+export const useNLBillingPermissions = () => usePagePermissions('nl_billing');
 
 export default usePagePermissions;
