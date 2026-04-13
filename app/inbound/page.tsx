@@ -2456,6 +2456,11 @@ export default function InboundPage() {
       return;
     }
 
+    if (!singleForm.vehicle_no?.trim()) {
+      toast.error('Vehicle number is required');
+      return;
+    }
+
     setSingleLoading(true);
     try {
       const response = await inboundAPI.createSingle({
@@ -4279,6 +4284,11 @@ export default function InboundPage() {
       vehicle_no: row.vehicle_no || commonVehicle,
       rack_no: row.rack_no || 'Staging' // ✅ Auto-fill Staging
     }));
+
+    if (!commonVehicle?.trim()) {
+      toast.error('Vehicle number is required');
+      return;
+    }
 
     const filtered = rowsWithDefaults.filter((r: any) => r.wsn && r.wsn.trim() !== "");
 
@@ -6792,7 +6802,7 @@ export default function InboundPage() {
                       <TextField
                         fullWidth
                         size="small"
-                        label="Vehicle Number"
+                        label="Vehicle Number *"
                         value={singleForm.vehicle_no}
                         onChange={(e) => setSingleForm({ ...singleForm, vehicle_no: e.target.value })}
                         placeholder="Vehicle plate"
@@ -7257,7 +7267,7 @@ export default function InboundPage() {
                           />
                           <TextField
                             size="small"
-                            label="Vehicle No."
+                            label="Vehicle No. *"
                             value={commonVehicle}
                             onChange={(e) => setCommonVehicle(e.target.value)}
                             onBlur={saveMultiVehicleNumber}

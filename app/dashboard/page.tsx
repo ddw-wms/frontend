@@ -2879,7 +2879,7 @@ export default function DashboardPage() {
                   }
                   label={
                     <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', color: isDarkMode ? '#e2e8f0' : '#334155' }}>
-                      Available Only
+                      Available Only Inventory
                     </Typography>
                   }
                 />
