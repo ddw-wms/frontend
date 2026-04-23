@@ -2351,6 +2351,7 @@ export default function PickingPage() {
   const [preSubmitExportDialogOpen, setPreSubmitExportDialogOpen] = useState(false);
   const [pickingExportDialogOpen, setPickingExportDialogOpen] = useState(false);
   const exportShouldSubmitRef = useRef(false);
+  const pickingExportRowsCaptureRef = useRef<any[]>([]); // ⚡ Capture rows when dialog opens
   const [exportSelectedColumns, setExportSelectedColumns] = useState<string[]>(() => {
     try {
       const saved = localStorage.getItem('pickingExportColumns');
@@ -2361,6 +2362,13 @@ export default function PickingPage() {
   const [exportRememberColumns, setExportRememberColumns] = useState(() => {
     try { return localStorage.getItem('pickingExportRemember') === 'true'; } catch { return false; }
   });
+
+  // ⚡ Capture rows data when export dialog opens to prevent stale data issues
+  useEffect(() => {
+    if (pickingExportDialogOpen) {
+      pickingExportRowsCaptureRef.current = multiRows.filter((row: any) => row.wsn?.trim());
+    }
+  }, [pickingExportDialogOpen, multiRows]);
 
   const handleOpenPickingExportDialog = () => {
     exportShouldSubmitRef.current = true;
@@ -2402,17 +2410,10 @@ export default function PickingPage() {
         localStorage.setItem('pickingExportRemember', 'false');
       }
 
-      // Filter by customer if selected, otherwise export all
-      let dataToExport = multiRows.filter((row: any) => row.wsn?.trim());
+      // ⚡ Use captured rows data (captured when dialog opened) to prevent stale multiRows state
+      let dataToExport = pickingExportRowsCaptureRef.current;
 
-      // Apply customer filter if customer is selected in header
-      if (selectedCustomer) {
-        dataToExport = dataToExport.filter((row: any) =>
-          row.customer_name === selectedCustomer || !row.customer_name
-        );
-      }
-
-      if (dataToExport.length === 0) {
+      if (!dataToExport || dataToExport.length === 0) {
         toast.error('No data to export');
         return;
       }
@@ -3497,17 +3498,21 @@ export default function PickingPage() {
 
       let dataToExport = pickingList;
 
-      // Build filter params
+      // Build filter params - use export filters if set, otherwise use current list filters
       const filterParams: any = {
         warehouseId: activeWarehouse.id,
       };
 
-      // Add date filters if provided
-      if (exportStartDate) filterParams.startDate = exportStartDate;
-      if (exportEndDate) filterParams.endDate = exportEndDate;
+      // Add date filters - use export filters if provided, otherwise use current list filters
+      const startDate = exportStartDate || startDateFilter;
+      const endDate = exportEndDate || endDateFilter;
+      const customer = exportCustomer || customerFilter;
+
+      if (startDate) filterParams.startDate = startDate;
+      if (endDate) filterParams.endDate = endDate;
 
       // Add customer filter if provided
-      if (exportCustomer) filterParams.customer = exportCustomer;
+      if (customer) filterParams.customer = customer;
 
       // Add batch filter if provided
       if (exportBatchIds && exportBatchIds.length > 0) filterParams.batchId = exportBatchIds;
@@ -6175,7 +6180,7 @@ export default function PickingPage() {
                 />
 
                 <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
-                  Selected: {exportSelectedColumns.length} / {PICKING_EXPORT_COLUMNS_CONFIG.length} columns • {multiRows.filter((r) => r.wsn?.trim()).length} rows to export
+                  Selected: {exportSelectedColumns.length} / {PICKING_EXPORT_COLUMNS_CONFIG.length} columns • {pickingExportRowsCaptureRef.current.length} rows to export
                 </Typography>
               </DialogContent>
               <DialogActions sx={{ px: 3, pb: 2 }}>
@@ -6187,7 +6192,7 @@ export default function PickingPage() {
                   startIcon={<DownloadIcon />}
                   sx={{ background: 'linear-gradient(135deg, #16a34a 0%, #22c55e 100%)', fontWeight: 700 }}
                 >
-                  Export ({multiRows.filter((r) => r.wsn?.trim()).length} rows)
+                  Export ({pickingExportRowsCaptureRef.current.length} rows)
                 </Button>
               </DialogActions>
             </Dialog>
@@ -8294,6 +8299,10 @@ export default function PickingPage() {
                         disabled={!canAccessButton('list:export')}
                         onClick={() => {
                           if (!canAccessButton('list:export')) return;
+                          // Initialize export filters with current list filters
+                          setExportStartDate(startDateFilter);
+                          setExportEndDate(endDateFilter);
+                          setExportCustomer(customerFilter);
                           loadBatches();
                           setExportDialogOpen(true);
                           setListOptionsPanelOpen(false);
