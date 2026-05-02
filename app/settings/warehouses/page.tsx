@@ -270,11 +270,16 @@ export default function WarehousesPage() {
                             <EditIcon fontSize="small" />
                           </IconButton>
                         )}
-                        {canSeeButton('delete') && (
+
+                      // delete action is sensitive and can cause issues if not handled properly
+                        (like deleting active warehouse, or warehouses linked to orders).
+                        So hiding delete option for now. Can be added later with proper checks and warnings.
+                        {/* {canSeeButton('delete') && (
                           <IconButton size="small" color="error" onClick={() => handleDelete(w.id)} title="Delete">
                             <DeleteIcon fontSize="small" />
                           </IconButton>
-                        )}
+                        )} */}
+
                         {canSeeButton('setactive') && activeWarehouse?.id !== w.id && canAccessWarehouse(w.id) && (
                           <Button
                             size="small"
