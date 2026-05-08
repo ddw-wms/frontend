@@ -1748,11 +1748,11 @@ export default function DashboardPage() {
 
             {[
               { label: "Master Data", value: metrics.total, color: "#3b82f6", icon: <DashboardRounded /> },
-              { label: "Available", value: inventorySummary.available_stock, color: "#10b981", icon: <InventoryRounded /> },
               { label: "Inbounded", value: metrics.inbound, color: "#8b5cf6", icon: <LoginRounded /> },
               { label: "Processed", value: (metrics.qcPassed || 0) + (metrics.qcDone || 0), color: "#06b6d4", icon: <CheckCircleRounded /> },
               { label: "Picked", value: metrics.pickingCompleted, color: "#f59e0b", icon: <LocalShippingRounded /> },
               { label: "Dispatched", value: metrics.outboundDispatched, color: "#ef4444", icon: <SendRounded /> },
+              { label: "Available", value: inventorySummary.available_stock, color: "#10b981", icon: <InventoryRounded /> },
             ].map((m, index) => (
 
               <Card
