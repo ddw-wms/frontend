@@ -1761,13 +1761,13 @@ export default function DashboardPage() {
             sx={{
               display: "grid",
               gridTemplateColumns: {
-                xs: "repeat(2, 1fr)",
-                sm: "repeat(3, 1fr)",
-                md: "repeat(6, 1fr)",
+                xs: "repeat(3, minmax(0, 1fr))",
+                sm: "repeat(3, minmax(0, 1fr))",
+                md: "repeat(6, minmax(0, 1fr))",
               },
-              gap: { xs: 0.85, sm: 1.5, md: 2.25 },
-              py: { xs: 1.25, sm: 1.25, md: 1.5 },
-              px: { xs: 0.5, sm: 0, md: 0 },
+              gap: { xs: 0.6, sm: 1.25, md: 2.25 },
+              py: { xs: 0.75, sm: 1.25, md: 1.5 },
+              px: { xs: 0.25, sm: 0, md: 0 },
               overflowX: "visible",
               bgcolor: isDarkMode ? '#0f172a' : 'transparent',
               flexShrink: 0,
@@ -1788,40 +1788,40 @@ export default function DashboardPage() {
                 elevation={0}
                 onClick={() => handleMetricCardClick(['master-data', 'inbound', 'processed', 'picked', 'dispatched', 'available'][index])}
                 sx={{
-                  px: { xs: 1, sm: 1.25, md: 1.5 },
-                  py: { xs: 0.75, sm: 0.85, md: 1.1 },
-                  height: { xs: 68, sm: 62, md: 72 },
+                  px: { xs: 0.85, sm: 1.25, md: 1.5 },
+                  py: { xs: 0.55, sm: 0.85, md: 1.1 },
+                  height: { xs: 56, sm: 62, md: 72 },
                   width: "100%",
                   display: "flex",
                   flexDirection: "row",
                   alignItems: "center",
-                  gap: { xs: 0.8, sm: 0.85, md: 1.1 },
-                  borderRadius: { xs: 2.5, sm: 2.5, md: 3 },
+                  gap: { xs: 0.65, sm: 0.85, md: 1.1 },
+                  borderRadius: { xs: 2, sm: 2.5, md: 3 },
                   position: "relative",
                   overflow: "hidden",
                   cursor: "pointer",
                   background: isDarkMode
                     ? `linear-gradient(135deg, rgba(${parseInt(m.color.slice(1, 3), 16)}, ${parseInt(m.color.slice(3, 5), 16)}, ${parseInt(m.color.slice(5, 7), 16)}, 0.08) 0%, rgba(${parseInt(m.color.slice(1, 3), 16)}, ${parseInt(m.color.slice(3, 5), 16)}, ${parseInt(m.color.slice(5, 7), 16)}, 0.03) 100%)`
-                    : `linear-gradient(135deg, rgba(255,255,255,0.9) 0%, ${m.color}18 50%, ${m.color}12 100%)`,
+                    : `linear-gradient(135deg, rgba(255,255,255,0.95) 0%, ${m.color}16 55%, ${m.color}10 100%)`,
                   backdropFilter: isDarkMode ? "blur(16px)" : "none",
                   border: isDarkMode
                     ? `1px solid ${m.color}20`
-                    : `2px solid ${m.color}30`,
+                    : `1px solid ${m.color}20`,
                   boxShadow: isDarkMode
                     ? `0 4px 12px ${m.color}15, inset 0 1px 1px rgba(255,255,255,0.05)`
-                    : `0 4px 16px ${m.color}22, inset 0 1px 1px rgba(255,255,255,0.7)`,
+                    : `0 2px 8px ${m.color}18, inset 0 1px 1px rgba(255,255,255,0.8)`,
                   borderLeft: `4px solid ${m.color}`,
                   transition: "all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)",
                   "&:hover": {
                     transform: { xs: "none", md: "translateY(-4px) scale(1.02)" },
                     background: isDarkMode
                       ? `linear-gradient(135deg, rgba(${parseInt(m.color.slice(1, 3), 16)}, ${parseInt(m.color.slice(3, 5), 16)}, ${parseInt(m.color.slice(5, 7), 16)}, 0.12) 0%, rgba(${parseInt(m.color.slice(1, 3), 16)}, ${parseInt(m.color.slice(3, 5), 16)}, ${parseInt(m.color.slice(5, 7), 16)}, 0.05) 100%)`
-                      : `linear-gradient(135deg, rgba(255,255,255,0.95) 0%, ${m.color}22 50%, ${m.color}15 100%)`,
+                      : `linear-gradient(135deg, rgba(255,255,255,0.98) 0%, ${m.color}20 55%, ${m.color}12 100%)`,
                     border: isDarkMode
                       ? `1px solid ${m.color}30`
-                      : `2px solid ${m.color}40`,
+                      : `1px solid ${m.color}30`,
                     boxShadow: {
-                      xs: isDarkMode ? `0 4px 12px ${m.color}15, inset 0 1px 1px rgba(255,255,255,0.05)` : `0 4px 16px ${m.color}22, inset 0 1px 1px rgba(255,255,255,0.7)`,
+                      xs: isDarkMode ? `0 4px 12px ${m.color}15, inset 0 1px 1px rgba(255,255,255,0.05)` : `0 2px 10px ${m.color}20, inset 0 1px 1px rgba(255,255,255,0.85)`,
                       md: isDarkMode ? `0 12px 32px ${m.color}25, inset 0 1px 1px rgba(255,255,255,0.08)` : `0 12px 32px ${m.color}28, inset 0 1px 1px rgba(255,255,255,0.8)`
                     },
                   },
