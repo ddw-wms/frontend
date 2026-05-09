@@ -90,11 +90,12 @@ import 'ag-grid-community/styles/ag-theme-quartz.css';
 ModuleRegistry.registerModules([AllCommunityModule, ClientSideRowModelModule]);
 
 import {
-  DashboardRounded,
-  LoginRounded,
-  CheckCircleRounded,
+  StorageRounded,
+  CallReceivedRounded,
+  DoneAllRounded,
+  ShoppingCartRounded,
   LocalShippingRounded,
-  SendRounded,
+  WarehouseRounded,
 } from "@mui/icons-material";
 
 interface User {
@@ -339,6 +340,32 @@ export default function DashboardPage() {
   const { activeWarehouse } = useWarehouse();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+
+  // ⚡ METRICS CARD NAVIGATION HANDLER
+  const handleMetricCardClick = useCallback((cardType: string) => {
+    switch (cardType) {
+      case 'master-data':
+        router.push('/settings/master-data');
+        break;
+      case 'inbound':
+        router.push('/inbound');
+        break;
+      case 'processed':
+        router.push('/qc');
+        break;
+      case 'picked':
+        router.push('/picking');
+        break;
+      case 'dispatched':
+        router.push('/outbound');
+        break;
+      case 'available':
+        setAvailableOnly(true);
+        break;
+      default:
+        break;
+    }
+  }, [router]);
   const [user, setUser] = useState<User | null>(null);
 
   // ⚡ INSTANT NAVIGATION: Track if dashboard was already mounted in this session
@@ -1738,8 +1765,9 @@ export default function DashboardPage() {
                 sm: "repeat(6, 1fr)",
                 md: "repeat(6, 1fr)",
               },
-              gap: { xs: 0.75, sm: 1.5, md: 2 },
-              py: { xs: 0.75, sm: 0.75, md: 0.75 },
+              gap: { xs: 1, sm: 1.75, md: 2.25 },
+              py: { xs: 1, sm: 1.25, md: 1.5 },
+              px: { xs: 0.25, sm: 0, md: 0 },
               overflowX: "visible",
               bgcolor: isDarkMode ? '#0f172a' : 'transparent',
               flexShrink: 0,
@@ -1747,68 +1775,89 @@ export default function DashboardPage() {
           >
 
             {[
-              { label: "Master Data", value: metrics.total, color: "#3b82f6", icon: <DashboardRounded /> },
-              { label: "Inbounded", value: metrics.inbound, color: "#8b5cf6", icon: <LoginRounded /> },
-              { label: "Processed", value: (metrics.qcPassed || 0) + (metrics.qcDone || 0), color: "#06b6d4", icon: <CheckCircleRounded /> },
-              { label: "Picked", value: metrics.pickingCompleted, color: "#f59e0b", icon: <LocalShippingRounded /> },
-              { label: "Dispatched", value: metrics.outboundDispatched, color: "#ef4444", icon: <SendRounded /> },
-              { label: "Available", value: inventorySummary.available_stock, color: "#10b981", icon: <InventoryRounded /> },
+              { label: "Master Data", value: metrics.total, color: "#3b82f6", icon: <StorageRounded />, gradient: "linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)" },
+              { label: "Inbounded", value: metrics.inbound, color: "#8b5cf6", icon: <CallReceivedRounded />, gradient: "linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)" },
+              { label: "Processed", value: (metrics.qcPassed || 0) + (metrics.qcDone || 0), color: "#06b6d4", icon: <DoneAllRounded />, gradient: "linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)" },
+              { label: "Picked", value: metrics.pickingCompleted, color: "#f59e0b", icon: <ShoppingCartRounded />, gradient: "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)" },
+              { label: "Dispatched", value: metrics.outboundDispatched, color: "#ef4444", icon: <LocalShippingRounded />, gradient: "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)" },
+              { label: "Available", value: inventorySummary.available_stock, color: "#10b981", icon: <WarehouseRounded />, gradient: "linear-gradient(135deg, #10b981 0%, #059669 100%)" },
             ].map((m, index) => (
 
               <Card
                 key={index}
                 elevation={0}
+                onClick={() => handleMetricCardClick(['master-data', 'inbound', 'processed', 'picked', 'dispatched', 'available'][index])}
                 sx={{
                   px: { xs: 0.75, sm: 1.25, md: 1.5 },
-                  py: { xs: 0.5, sm: 0.75, md: 1 },
-                  height: { xs: 52, sm: 58, md: 64 },
+                  py: { xs: 0.6, sm: 0.85, md: 1.1 },
+                  height: { xs: 56, sm: 62, md: 72 },
                   width: "100%",
                   display: "flex",
                   flexDirection: "row",
                   alignItems: "center",
-                  gap: { xs: 0.5, sm: 0.75, md: 1 },
-                  borderRadius: { xs: 1.5, sm: 2, md: 2.5 },
-                  background: isDarkMode
-                    ? "rgba(255,255,255,0.03)"
-                    : "rgba(255,255,255,0.8)",
-                  backdropFilter: "blur(12px)",
-                  border: isDarkMode
-                    ? "1px solid rgba(255,255,255,0.08)"
-                    : "1px solid rgba(0,0,0,0.06)",
-                  boxShadow: isDarkMode
-                    ? "0 2px 8px rgba(0,0,0,0.2)"
-                    : "0 1px 3px rgba(0,0,0,0.04)",
-                  transition: "all 0.2s ease",
+                  gap: { xs: 0.6, sm: 0.85, md: 1.1 },
+                  borderRadius: { xs: 2, sm: 2.5, md: 3 },
+                  position: "relative",
                   overflow: "hidden",
+                  cursor: "pointer",
+                  background: isDarkMode
+                    ? `linear-gradient(135deg, rgba(${parseInt(m.color.slice(1, 3), 16)}, ${parseInt(m.color.slice(3, 5), 16)}, ${parseInt(m.color.slice(5, 7), 16)}, 0.08) 0%, rgba(${parseInt(m.color.slice(1, 3), 16)}, ${parseInt(m.color.slice(3, 5), 16)}, ${parseInt(m.color.slice(5, 7), 16)}, 0.03) 100%)`
+                    : `linear-gradient(135deg, rgba(255,255,255,0.9) 0%, ${m.color}18 50%, ${m.color}12 100%)`,
+                  backdropFilter: isDarkMode ? "blur(16px)" : "none",
+                  border: isDarkMode
+                    ? `1px solid ${m.color}20`
+                    : `2px solid ${m.color}30`,
+                  boxShadow: isDarkMode
+                    ? `0 4px 12px ${m.color}15, inset 0 1px 1px rgba(255,255,255,0.05)`
+                    : `0 4px 16px ${m.color}22, inset 0 1px 1px rgba(255,255,255,0.7)`,
+                  borderLeft: `4px solid ${m.color}`,
+                  transition: "all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)",
                   "&:hover": {
-                    transform: { xs: "none", md: "translateY(-2px)" },
+                    transform: { xs: "none", md: "translateY(-4px) scale(1.02)" },
                     background: isDarkMode
-                      ? "rgba(255,255,255,0.05)"
-                      : "rgba(255,255,255,0.95)",
-                    boxShadow: {
-                      xs: isDarkMode ? "0 2px 8px rgba(0,0,0,0.2)" : "0 1px 3px rgba(0,0,0,0.04)",
-                      md: isDarkMode ? "0 8px 24px rgba(0,0,0,0.3)" : "0 4px 16px rgba(0,0,0,0.08)"
-                    },
+                      ? `linear-gradient(135deg, rgba(${parseInt(m.color.slice(1, 3), 16)}, ${parseInt(m.color.slice(3, 5), 16)}, ${parseInt(m.color.slice(5, 7), 16)}, 0.12) 0%, rgba(${parseInt(m.color.slice(1, 3), 16)}, ${parseInt(m.color.slice(3, 5), 16)}, ${parseInt(m.color.slice(5, 7), 16)}, 0.05) 100%)`
+                      : `linear-gradient(135deg, rgba(255,255,255,0.95) 0%, ${m.color}22 50%, ${m.color}15 100%)`,
                     border: isDarkMode
-                      ? "1px solid rgba(255,255,255,0.12)"
-                      : "1px solid rgba(0,0,0,0.08)",
+                      ? `1px solid ${m.color}30`
+                      : `2px solid ${m.color}40`,
+                    boxShadow: {
+                      xs: isDarkMode ? `0 4px 12px ${m.color}15, inset 0 1px 1px rgba(255,255,255,0.05)` : `0 4px 16px ${m.color}22, inset 0 1px 1px rgba(255,255,255,0.7)`,
+                      md: isDarkMode ? `0 12px 32px ${m.color}25, inset 0 1px 1px rgba(255,255,255,0.08)` : `0 12px 32px ${m.color}28, inset 0 1px 1px rgba(255,255,255,0.8)`
+                    },
                   },
                 }}
               >
                 {/* ICON CONTAINER */}
                 <Box
                   sx={{
-                    width: { xs: 28, sm: 32, md: 36 },
-                    height: { xs: 28, sm: 32, md: 36 },
-                    borderRadius: { xs: 1, sm: 1.25, md: 1.5 },
+                    width: { xs: 32, sm: 38, md: 44 },
+                    height: { xs: 32, sm: 38, md: 44 },
+                    borderRadius: { xs: 1.25, sm: 1.5, md: 2 },
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    background: `${m.color}15`,
+                    background: m.gradient,
                     flexShrink: 0,
+                    boxShadow: isDarkMode
+                      ? `0 4px 12px ${m.color}40, inset 0 1px 2px rgba(255,255,255,0.2)`
+                      : `0 6px 20px ${m.color}35, inset 0 1px 2px rgba(255,255,255,0.8)`,
+                    position: "relative",
+                    overflow: "hidden",
+                    "&::before": {
+                      content: '""',
+                      position: "absolute",
+                      inset: 0,
+                      background: isDarkMode
+                        ? "radial-gradient(circle at 30% 30%, rgba(255,255,255,0.3), transparent 70%)"
+                        : "radial-gradient(circle at 30% 30%, rgba(255,255,255,0.5), transparent 70%)",
+                      pointerEvents: "none",
+                    },
                     "& svg": {
-                      fontSize: { xs: "0.875rem", sm: "1rem", md: "1.125rem" },
-                      color: m.color,
+                      fontSize: { xs: "1.1rem", sm: "1.3rem", md: "1.5rem" },
+                      color: "white",
+                      position: "relative",
+                      zIndex: 1,
+                      filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.2))",
                     },
                   }}
                 >
@@ -1816,29 +1865,33 @@ export default function DashboardPage() {
                 </Box>
 
                 {/* TEXT CONTENT */}
-                <Box sx={{ display: "flex", flexDirection: "column", minWidth: 0, flex: 1 }}>
+                <Box sx={{ display: "flex", flexDirection: "column", minWidth: 0, flex: 1, gap: 0.25 }}>
                   <Typography
                     sx={{
-                      fontWeight: 700,
-                      fontSize: { xs: "0.875rem", sm: "1rem", md: "1.125rem" },
-                      lineHeight: 1.2,
-                      color: isDarkMode ? "#f1f5f9" : "#1e293b",
-                      letterSpacing: "-0.01em",
+                      fontWeight: 800,
+                      fontSize: { xs: "0.95rem", sm: "1.1rem", md: "1.3rem" },
+                      lineHeight: 1.1,
+                      color: isDarkMode ? "#f1f5f9" : m.color,
+                      letterSpacing: "-0.02em",
+                      textShadow: !isDarkMode ? `0 2px 4px rgba(${parseInt(m.color.slice(1, 3), 16)}, ${parseInt(m.color.slice(3, 5), 16)}, ${parseInt(m.color.slice(5, 7), 16)}, 0.1)` : "none",
+                      transition: "all 0.3s ease",
                     }}
                   >
                     {m.value.toLocaleString()}
                   </Typography>
                   <Typography
                     sx={{
-                      fontSize: { xs: "0.65rem", sm: "0.7rem", md: "0.75rem" },
-                      fontWeight: 500,
-                      color: isDarkMode ? "#64748b" : "#94a3b8",
+                      fontSize: { xs: "0.6rem", sm: "0.65rem", md: "0.7rem" },
+                      fontWeight: 600,
+                      color: isDarkMode ? "#94a3b8" : "#475569",
                       textTransform: "uppercase",
-                      letterSpacing: "0.02em",
-                      lineHeight: 1.2,
+                      letterSpacing: "0.04em",
+                      lineHeight: 1,
                       whiteSpace: "nowrap",
                       overflow: "hidden",
                       textOverflow: "ellipsis",
+                      opacity: isDarkMode ? 0.9 : 1,
+                      transition: "all 0.3s ease",
                     }}
                   >
                     {m.label}
@@ -2694,7 +2747,7 @@ export default function DashboardPage() {
             </Box>
           </Box>{/* END STICKY WRAPPER */}
         </Box>{/* END SCROLLABLE CONTENT AREA */}
-      </Box>{/* END MAIN WRAPPER */}
+      </Box > {/* END MAIN WRAPPER */}
 
       {/* ================= SETTINGS PANEL DRAWER ================= */}
       <Drawer
