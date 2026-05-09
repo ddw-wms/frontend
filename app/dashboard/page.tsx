@@ -1830,8 +1830,8 @@ export default function DashboardPage() {
                 {/* ICON CONTAINER */}
                 <Box
                   sx={{
-                    width: { xs: 36, sm: 38, md: 44 },
-                    height: { xs: 36, sm: 38, md: 44 },
+                    width: { xs: 30, sm: 34, md: 44 },
+                    height: { xs: 30, sm: 34, md: 44 },
                     borderRadius: { xs: 1.5, sm: 1.5, md: 2 },
                     display: "flex",
                     alignItems: "center",
@@ -1853,7 +1853,7 @@ export default function DashboardPage() {
                       pointerEvents: "none",
                     },
                     "& svg": {
-                      fontSize: { xs: "1.2rem", sm: "1.3rem", md: "1.5rem" },
+                      fontSize: { xs: "1rem", sm: "1.1rem", md: "1.3rem" },
                       color: "white",
                       position: "relative",
                       zIndex: 1,
@@ -1865,32 +1865,35 @@ export default function DashboardPage() {
                 </Box>
 
                 {/* TEXT CONTENT */}
-                <Box sx={{ display: "flex", flexDirection: "column", minWidth: 0, flex: 1, gap: { xs: 0.1, sm: 0.25 } }}>
+                <Box sx={{ display: "flex", flexDirection: "column", minWidth: 0, flex: 1, gap: { xs: 0.05, sm: 0.2 } }}>
                   <Typography
                     sx={{
                       fontWeight: 800,
-                      fontSize: { xs: "1rem", sm: "1.1rem", md: "1.3rem" },
-                      lineHeight: 1.1,
+                      fontSize: { xs: "0.93rem", sm: "1.05rem", md: "1.25rem" },
+                      lineHeight: 1.05,
                       color: isDarkMode ? "#f1f5f9" : m.color,
                       letterSpacing: "-0.02em",
                       textShadow: !isDarkMode ? `0 2px 4px rgba(${parseInt(m.color.slice(1, 3), 16)}, ${parseInt(m.color.slice(3, 5), 16)}, ${parseInt(m.color.slice(5, 7), 16)}, 0.1)` : "none",
                       transition: "all 0.3s ease",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
                     }}
                   >
                     {m.value.toLocaleString()}
                   </Typography>
                   <Typography
                     sx={{
-                      fontSize: { xs: "0.625rem", sm: "0.65rem", md: "0.7rem" },
+                      fontSize: { xs: "0.55rem", sm: "0.62rem", md: "0.68rem" },
                       fontWeight: 600,
                       color: isDarkMode ? "#94a3b8" : "#475569",
                       textTransform: "uppercase",
-                      letterSpacing: "0.04em",
+                      letterSpacing: "0.05em",
                       lineHeight: 1,
-                      whiteSpace: "normal",
-                      wordBreak: "break-word",
-                      overflow: "visible",
-                      textOverflow: "unset",
+                      whiteSpace: "nowrap",
+                      wordBreak: "normal",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
                       opacity: isDarkMode ? 0.9 : 1,
                       transition: "all 0.3s ease",
                       maxWidth: "100%",
