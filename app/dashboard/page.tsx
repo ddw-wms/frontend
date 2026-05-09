@@ -1761,13 +1761,13 @@ export default function DashboardPage() {
             sx={{
               display: "grid",
               gridTemplateColumns: {
-                xs: "repeat(3, 1fr)",
-                sm: "repeat(6, 1fr)",
+                xs: "repeat(2, 1fr)",
+                sm: "repeat(3, 1fr)",
                 md: "repeat(6, 1fr)",
               },
-              gap: { xs: 1, sm: 1.75, md: 2.25 },
-              py: { xs: 1, sm: 1.25, md: 1.5 },
-              px: { xs: 0.25, sm: 0, md: 0 },
+              gap: { xs: 0.85, sm: 1.5, md: 2.25 },
+              py: { xs: 1.25, sm: 1.25, md: 1.5 },
+              px: { xs: 0.5, sm: 0, md: 0 },
               overflowX: "visible",
               bgcolor: isDarkMode ? '#0f172a' : 'transparent',
               flexShrink: 0,
@@ -1788,15 +1788,15 @@ export default function DashboardPage() {
                 elevation={0}
                 onClick={() => handleMetricCardClick(['master-data', 'inbound', 'processed', 'picked', 'dispatched', 'available'][index])}
                 sx={{
-                  px: { xs: 0.75, sm: 1.25, md: 1.5 },
-                  py: { xs: 0.6, sm: 0.85, md: 1.1 },
-                  height: { xs: 56, sm: 62, md: 72 },
+                  px: { xs: 1, sm: 1.25, md: 1.5 },
+                  py: { xs: 0.75, sm: 0.85, md: 1.1 },
+                  height: { xs: 68, sm: 62, md: 72 },
                   width: "100%",
                   display: "flex",
                   flexDirection: "row",
                   alignItems: "center",
-                  gap: { xs: 0.6, sm: 0.85, md: 1.1 },
-                  borderRadius: { xs: 2, sm: 2.5, md: 3 },
+                  gap: { xs: 0.8, sm: 0.85, md: 1.1 },
+                  borderRadius: { xs: 2.5, sm: 2.5, md: 3 },
                   position: "relative",
                   overflow: "hidden",
                   cursor: "pointer",
@@ -1830,9 +1830,9 @@ export default function DashboardPage() {
                 {/* ICON CONTAINER */}
                 <Box
                   sx={{
-                    width: { xs: 32, sm: 38, md: 44 },
-                    height: { xs: 32, sm: 38, md: 44 },
-                    borderRadius: { xs: 1.25, sm: 1.5, md: 2 },
+                    width: { xs: 36, sm: 38, md: 44 },
+                    height: { xs: 36, sm: 38, md: 44 },
+                    borderRadius: { xs: 1.5, sm: 1.5, md: 2 },
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
@@ -1853,7 +1853,7 @@ export default function DashboardPage() {
                       pointerEvents: "none",
                     },
                     "& svg": {
-                      fontSize: { xs: "1.1rem", sm: "1.3rem", md: "1.5rem" },
+                      fontSize: { xs: "1.2rem", sm: "1.3rem", md: "1.5rem" },
                       color: "white",
                       position: "relative",
                       zIndex: 1,
@@ -1865,11 +1865,11 @@ export default function DashboardPage() {
                 </Box>
 
                 {/* TEXT CONTENT */}
-                <Box sx={{ display: "flex", flexDirection: "column", minWidth: 0, flex: 1, gap: 0.25 }}>
+                <Box sx={{ display: "flex", flexDirection: "column", minWidth: 0, flex: 1, gap: { xs: 0.1, sm: 0.25 } }}>
                   <Typography
                     sx={{
                       fontWeight: 800,
-                      fontSize: { xs: "0.95rem", sm: "1.1rem", md: "1.3rem" },
+                      fontSize: { xs: "1rem", sm: "1.1rem", md: "1.3rem" },
                       lineHeight: 1.1,
                       color: isDarkMode ? "#f1f5f9" : m.color,
                       letterSpacing: "-0.02em",
@@ -1881,17 +1881,19 @@ export default function DashboardPage() {
                   </Typography>
                   <Typography
                     sx={{
-                      fontSize: { xs: "0.6rem", sm: "0.65rem", md: "0.7rem" },
+                      fontSize: { xs: "0.625rem", sm: "0.65rem", md: "0.7rem" },
                       fontWeight: 600,
                       color: isDarkMode ? "#94a3b8" : "#475569",
                       textTransform: "uppercase",
                       letterSpacing: "0.04em",
                       lineHeight: 1,
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
+                      whiteSpace: "normal",
+                      wordBreak: "break-word",
+                      overflow: "visible",
+                      textOverflow: "unset",
                       opacity: isDarkMode ? 0.9 : 1,
                       transition: "all 0.3s ease",
+                      maxWidth: "100%",
                     }}
                   >
                     {m.label}
