@@ -1869,7 +1869,7 @@ export default function DashboardPage() {
                   <Typography
                     sx={{
                       fontWeight: 800,
-                      fontSize: { xs: "0.75rem", sm: "1.05rem", md: "1.25rem" },
+                      fontSize: { xs: "0.15rem", sm: "1.05rem", md: "1.25rem" },
                       lineHeight: 1.05,
                       color: isDarkMode ? "#f1f5f9" : m.color,
                       letterSpacing: "-0.02em",
@@ -1884,7 +1884,7 @@ export default function DashboardPage() {
                   </Typography>
                   <Typography
                     sx={{
-                      fontSize: { xs: "0.45rem", sm: "0.62rem", md: "0.68rem" },
+                      fontSize: { xs: "0.08rem", sm: "0.62rem", md: "0.68rem" },
                       fontWeight: 600,
                       color: isDarkMode ? "#94a3b8" : "#475569",
                       textTransform: "uppercase",
