@@ -1773,7 +1773,6 @@ export default function DashboardPage() {
               flexShrink: 0,
             }}
           >
-
             {[
               { label: "Master Data", value: metrics.total, color: "#3b82f6", icon: <StorageRounded />, gradient: "linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)" },
               { label: "Inbounded", value: metrics.inbound, color: "#8b5cf6", icon: <CallReceivedRounded />, gradient: "linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)" },
@@ -1782,20 +1781,20 @@ export default function DashboardPage() {
               { label: "Dispatched", value: metrics.outboundDispatched, color: "#ef4444", icon: <LocalShippingRounded />, gradient: "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)" },
               { label: "Available", value: inventorySummary.available_stock, color: "#10b981", icon: <WarehouseRounded />, gradient: "linear-gradient(135deg, #10b981 0%, #059669 100%)" },
             ].map((m, index) => (
-
               <Card
                 key={index}
                 elevation={0}
                 onClick={() => handleMetricCardClick(['master-data', 'inbound', 'processed', 'picked', 'dispatched', 'available'][index])}
                 sx={{
-                  px: { xs: 0.5, sm: 1.25, md: 1.5 },
-                  py: { xs: 0.35, sm: 0.85, md: 1.1 },
-                  height: { xs: 44, sm: 62, md: 72 },
+                  px: { xs: 0.3, sm: 1.25, md: 1.5 },
+                  py: { xs: 0.4, sm: 0.85, md: 1.1 },
+                  height: { xs: "auto", sm: 62, md: 72 },
+                  minHeight: { xs: 48, sm: 62, md: 72 },
                   width: "100%",
                   display: "flex",
                   flexDirection: "row",
                   alignItems: "center",
-                  gap: { xs: 0.4, sm: 0.85, md: 1.1 },
+                  gap: { xs: 0.25, sm: 0.85, md: 1.1 },
                   borderRadius: { xs: 2, sm: 2.5, md: 3 },
                   position: "relative",
                   overflow: "hidden",
@@ -1830,14 +1829,15 @@ export default function DashboardPage() {
                 {/* ICON CONTAINER */}
                 <Box
                   sx={{
-                    width: { xs: 24, sm: 34, md: 44 },
-                    height: { xs: 24, sm: 34, md: 44 },
+                    width: { xs: 22, sm: 34, md: 44 },
+                    height: { xs: 22, sm: 34, md: 44 },
                     borderRadius: { xs: 1.5, sm: 1.5, md: 2 },
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
                     background: m.gradient,
                     flexShrink: 0,
+                    paddingTop: { xs: "2px", sm: 0, md: 0 },
                     boxShadow: isDarkMode
                       ? `0 4px 12px ${m.color}40, inset 0 1px 2px rgba(255,255,255,0.2)`
                       : `0 6px 20px ${m.color}35, inset 0 1px 2px rgba(255,255,255,0.8)`,
@@ -1853,7 +1853,7 @@ export default function DashboardPage() {
                       pointerEvents: "none",
                     },
                     "& svg": {
-                      fontSize: { xs: "0.75rem", sm: "1.1rem", md: "1.3rem" },
+                      fontSize: { xs: "0.7rem", sm: "1.1rem", md: "1.3rem" },
                       color: "white",
                       position: "relative",
                       zIndex: 1,
@@ -1865,15 +1865,26 @@ export default function DashboardPage() {
                 </Box>
 
                 {/* TEXT CONTENT */}
-                <Box sx={{ display: "flex", flexDirection: "column", minWidth: 0, flex: 1, gap: { xs: 0.05, sm: 0.2 } }}>
+                <Box
+                  sx={{
+                    display: "flex",
+                    flexDirection: "column",
+                    minWidth: 0,
+                    flex: 1,
+                    gap: { xs: 0.02, sm: 0.2 },
+                    overflow: "hidden",
+                  }}
+                >
                   <Typography
                     sx={{
                       fontWeight: 800,
-                      fontSize: { xs: "0.05rem", sm: "1.05rem", md: "1.25rem" },
+                      fontSize: { xs: "0.60rem", sm: "1.05rem", md: "1.25rem" },
                       lineHeight: 1.05,
                       color: isDarkMode ? "#f1f5f9" : m.color,
                       letterSpacing: "-0.02em",
-                      textShadow: !isDarkMode ? `0 2px 4px rgba(${parseInt(m.color.slice(1, 3), 16)}, ${parseInt(m.color.slice(3, 5), 16)}, ${parseInt(m.color.slice(5, 7), 16)}, 0.1)` : "none",
+                      textShadow: !isDarkMode
+                        ? `0 2px 4px rgba(${parseInt(m.color.slice(1, 3), 16)}, ${parseInt(m.color.slice(3, 5), 16)}, ${parseInt(m.color.slice(5, 7), 16)}, 0.1)`
+                        : "none",
                       transition: "all 0.3s ease",
                       whiteSpace: "nowrap",
                       overflow: "hidden",
@@ -1882,25 +1893,45 @@ export default function DashboardPage() {
                   >
                     {m.value.toLocaleString()}
                   </Typography>
-                  <Typography
+
+                  {/* LABEL WITH MARQUEE ON MOBILE */}
+                  <Box
                     sx={{
-                      fontSize: { xs: "0.025rem", sm: "0.62rem", md: "0.68rem" },
-                      fontWeight: 600,
-                      color: isDarkMode ? "#94a3b8" : "#475569",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.05em",
-                      lineHeight: 1,
-                      whiteSpace: "nowrap",
-                      wordBreak: "normal",
                       overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      opacity: isDarkMode ? 0.9 : 1,
-                      transition: "all 0.3s ease",
-                      maxWidth: "100%",
+                      width: "100%",
+                      maskImage: { xs: "linear-gradient(to right, black 70%, transparent 100%)", sm: "none" },
+                      WebkitMaskImage: { xs: "linear-gradient(to right, black 70%, transparent 100%)", sm: "none" },
                     }}
                   >
-                    {m.label}
-                  </Typography>
+                    <Typography
+                      sx={{
+                        fontSize: { xs: "0.50rem", sm: "0.62rem", md: "0.68rem" },
+                        fontWeight: 600,
+                        color: isDarkMode ? "#94a3b8" : "#475569",
+                        textTransform: "uppercase",
+                        letterSpacing: { xs: "0.01em", sm: "0.05em", md: "0.05em" },
+                        lineHeight: 1,
+                        whiteSpace: "nowrap",
+                        display: "inline-block",
+                        opacity: isDarkMode ? 0.9 : 1,
+                        transition: "all 0.3s ease",
+                        // Marquee animation only on xs
+                        animation: {
+                          xs: "marqueeScroll 3s linear infinite",
+                          sm: "none",
+                          md: "none",
+                        },
+                        "@keyframes marqueeScroll": {
+                          "0%": { transform: "translateX(0%)" },
+                          "30%": { transform: "translateX(0%)" },       // pause at start
+                          "70%": { transform: "translateX(-40%)" },     // scroll left
+                          "100%": { transform: "translateX(-40%)" },     // pause at end
+                        },
+                      }}
+                    >
+                      {m.label}
+                    </Typography>
+                  </Box>
                 </Box>
               </Card>
             ))}
