@@ -1788,14 +1788,14 @@ export default function DashboardPage() {
                 elevation={0}
                 onClick={() => handleMetricCardClick(['master-data', 'inbound', 'processed', 'picked', 'dispatched', 'available'][index])}
                 sx={{
-                  px: { xs: 0.85, sm: 1.25, md: 1.5 },
-                  py: { xs: 0.55, sm: 0.85, md: 1.1 },
-                  height: { xs: 56, sm: 62, md: 72 },
+                  px: { xs: 0.5, sm: 1.25, md: 1.5 },
+                  py: { xs: 0.35, sm: 0.85, md: 1.1 },
+                  height: { xs: 44, sm: 62, md: 72 },
                   width: "100%",
                   display: "flex",
                   flexDirection: "row",
                   alignItems: "center",
-                  gap: { xs: 0.65, sm: 0.85, md: 1.1 },
+                  gap: { xs: 0.4, sm: 0.85, md: 1.1 },
                   borderRadius: { xs: 2, sm: 2.5, md: 3 },
                   position: "relative",
                   overflow: "hidden",
@@ -1830,8 +1830,8 @@ export default function DashboardPage() {
                 {/* ICON CONTAINER */}
                 <Box
                   sx={{
-                    width: { xs: 30, sm: 34, md: 44 },
-                    height: { xs: 30, sm: 34, md: 44 },
+                    width: { xs: 24, sm: 34, md: 44 },
+                    height: { xs: 24, sm: 34, md: 44 },
                     borderRadius: { xs: 1.5, sm: 1.5, md: 2 },
                     display: "flex",
                     alignItems: "center",
@@ -1853,7 +1853,7 @@ export default function DashboardPage() {
                       pointerEvents: "none",
                     },
                     "& svg": {
-                      fontSize: { xs: "1rem", sm: "1.1rem", md: "1.3rem" },
+                      fontSize: { xs: "0.75rem", sm: "1.1rem", md: "1.3rem" },
                       color: "white",
                       position: "relative",
                       zIndex: 1,
@@ -1869,7 +1869,7 @@ export default function DashboardPage() {
                   <Typography
                     sx={{
                       fontWeight: 800,
-                      fontSize: { xs: "0.93rem", sm: "1.05rem", md: "1.25rem" },
+                      fontSize: { xs: "0.75rem", sm: "1.05rem", md: "1.25rem" },
                       lineHeight: 1.05,
                       color: isDarkMode ? "#f1f5f9" : m.color,
                       letterSpacing: "-0.02em",
@@ -1884,7 +1884,7 @@ export default function DashboardPage() {
                   </Typography>
                   <Typography
                     sx={{
-                      fontSize: { xs: "0.55rem", sm: "0.62rem", md: "0.68rem" },
+                      fontSize: { xs: "0.45rem", sm: "0.62rem", md: "0.68rem" },
                       fontWeight: 600,
                       color: isDarkMode ? "#94a3b8" : "#475569",
                       textTransform: "uppercase",
