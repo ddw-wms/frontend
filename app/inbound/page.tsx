@@ -4476,8 +4476,6 @@ export default function InboundPage() {
       // ⚡ OPTIMIZED: Load XLSX dynamically
       const XLSX = await import('xlsx');
 
-      let dataToExport = listData;
-
       // Build filter params
       const filterParams: any = {
         warehouseId: activeWarehouse?.id,
@@ -4498,9 +4496,23 @@ export default function InboundPage() {
       // Add batch filter if provided
       if (exportBatchIds && exportBatchIds.length > 0) filterParams.batchId = exportBatchIds;
 
-      // Fetch data with all filters
-      const response = await inboundAPI.getAll(1, 10000, filterParams);
-      dataToExport = response.data.data;
+      // ✅ Fetch data with pagination - ALL PAGES
+      let dataToExport: any[] = [];
+      let page = 1;
+      let hasMore = true;
+      const pageSize = 10000;
+
+      while (hasMore) {
+        const response = await inboundAPI.getAll(page, pageSize, filterParams);
+        dataToExport = [...dataToExport, ...response.data.data];
+
+        // Check if there are more pages
+        const totalPages = response.data.totalPages || 1;
+        if (page >= totalPages) {
+          hasMore = false;
+        }
+        page++;
+      }
 
       if (dataToExport.length === 0) {
         toast.error('No data to export with selected filters');
@@ -4569,9 +4581,6 @@ export default function InboundPage() {
       toast.error('Export failed');
     }
   };
-
-
-
 
 
   const deleteBatch = async (batchId: string) => {
