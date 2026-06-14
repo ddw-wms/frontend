@@ -70,10 +70,10 @@ interface ScannedEntry {
 }
 
 const MODE_CONFIG: Record<ScanMode, { title: string; color: string; icon: string }> = {
-    qc: { title: 'QC Scan', color: '#7c3aed', icon: 'ðŸ”' },
-    outbound: { title: 'Dispatch Scan', color: '#1e40af', icon: 'ðŸ“¦' },
-    picking: { title: 'Picking Scan', color: '#059669', icon: 'ðŸ“‹' },
-    inbound: { title: 'Inbound Scan', color: '#ea580c', icon: 'ðŸ“¥' },
+    qc: { title: 'QC Scan', color: '#7c3aed', icon: '🔍' },
+    outbound: { title: 'Dispatch Scan', color: '#1e40af', icon: '📦' },
+    picking: { title: 'Picking Scan', color: '#059669', icon: '📋' },
+    inbound: { title: 'Inbound Scan', color: '#ea580c', icon: '📥' },
 };
 
 let _audioCtx: AudioContext | null = null;
@@ -109,16 +109,16 @@ const ProductInfoLine = ({ info, isDark }: { info?: ProductInfo; isDark: boolean
                     <Chip label={info.brand} size="small" sx={{ height: 22, fontSize: '0.7rem', fontWeight: 600, bgcolor: isDark ? '#1e3a5f' : '#dbeafe', color: isDark ? '#93c5fd' : '#1e40af' }} />
                 )}
                 {info.mrp && (
-                    <Chip label={`MRP â‚¹${info.mrp}`} size="small" sx={{ height: 22, fontSize: '0.7rem', fontWeight: 600, bgcolor: isDark ? '#14532d' : '#dcfce7', color: isDark ? '#86efac' : '#166534' }} />
+                    <Chip label={`MRP ₹${info.mrp}`} size="small" sx={{ height: 22, fontSize: '0.7rem', fontWeight: 600, bgcolor: isDark ? '#14532d' : '#dcfce7', color: isDark ? '#86efac' : '#166534' }} />
                 )}
                 {info.fsp && (
-                    <Chip label={`FSP â‚¹${info.fsp}`} size="small" sx={{ height: 22, fontSize: '0.7rem', fontWeight: 600, bgcolor: isDark ? '#3b1764' : '#f3e8ff', color: isDark ? '#c084fc' : '#7c3aed' }} />
+                    <Chip label={`FSP ₹${info.fsp}`} size="small" sx={{ height: 22, fontSize: '0.7rem', fontWeight: 600, bgcolor: isDark ? '#3b1764' : '#f3e8ff', color: isDark ? '#c084fc' : '#7c3aed' }} />
                 )}
                 {info.fsn && (
                     <Chip label={`FSN: ${info.fsn}`} size="small" sx={{ height: 22, fontSize: '0.7rem', fontWeight: 600, bgcolor: isDark ? '#422006' : '#fef3c7', color: isDark ? '#fbbf24' : '#92400e' }} />
                 )}
                 {info.rack_no && (
-                    <Chip label={`ðŸ“ ${info.rack_no}`} size="small" sx={{ height: 22, fontSize: '0.7rem', fontWeight: 600, bgcolor: isDark ? '#1c1917' : '#f5f5f4', color: isDark ? '#a8a29e' : '#57534e' }} />
+                    <Chip label={`📍 ${info.rack_no}`} size="small" sx={{ height: 22, fontSize: '0.7rem', fontWeight: 600, bgcolor: isDark ? '#1c1917' : '#f5f5f4', color: isDark ? '#a8a29e' : '#57534e' }} />
                 )}
                 {info.cms_vertical && (
                     <Chip label={info.cms_vertical} size="small" sx={{ height: 22, fontSize: '0.7rem', fontWeight: 600, bgcolor: isDark ? '#1e3a5f' : '#e0e7ff', color: isDark ? '#a5b4fc' : '#3730a3' }} />
@@ -217,7 +217,7 @@ export default function MobileScanPage() {
         localStorage.setItem('mobileScan_inbound_autoPrint', String(autoPrintEnabled));
     }, [autoPrintEnabled]);
 
-    // Print Agent health check (inbound mode only) â€” uses backend proxy
+    // Print Agent health check (inbound mode only) — uses backend proxy
     useEffect(() => {
         if (mode !== 'inbound') return;
         let mounted = true;
@@ -543,11 +543,11 @@ export default function MobileScanPage() {
             dupType,
         };
 
-        // Add to ref immediately (synchronous â€” prevents rapid-fire duplicates)
+        // Add to ref immediately (synchronous — prevents rapid-fire duplicates)
         scannedWSNsRef.current.add(wsn);
         setScannedEntries(prev => [newEntry, ...prev]);
 
-        // Sync receiving WSNs for inbound mode (debounced â€” so master data shows receiving status)
+        // Sync receiving WSNs for inbound mode (debounced — so master data shows receiving status)
         if (mode === 'inbound' && activeWarehouse?.id) {
             if (receivingSyncTimer.current) clearTimeout(receivingSyncTimer.current);
             receivingSyncTimer.current = setTimeout(() => {
@@ -559,11 +559,11 @@ export default function MobileScanPage() {
         }
         if (isDuplicate) {
             const dupMsg = dupType === 'cross-wh'
-                ? `âš ï¸ ${wsn} exists in another warehouse`
-                : `âš ï¸ ${wsn} already exists in database`;
-            toast(dupMsg, { icon: 'âš ï¸', duration: 3000 });
+                ? `⚠️ ${wsn} exists in another warehouse`
+                : `⚠️ ${wsn} already exists in database`;
+            toast(dupMsg, { icon: '⚠️', duration: 3000 });
         } else {
-            toast.success(`âœ“ ${wsn}`, { duration: 800 });
+            toast.success(`✓ ${wsn}`, { duration: 800 });
         }
 
         // Fetch product info in background
@@ -640,7 +640,7 @@ export default function MobileScanPage() {
         setScannedEntries(prev => prev.map(e => e.id === id ? { ...e, [field]: value } : e));
     }, []);
 
-    // Manual print for a single entry (inbound mode) â€” via backend proxy
+    // Manual print for a single entry (inbound mode) — via backend proxy
     const handleManualPrint = useCallback(async (entry: ScannedEntry) => {
         if (!entry.productInfo) { toast.error('No product data to print'); return; }
         const ok = await printLabelViaProxy({
@@ -656,7 +656,7 @@ export default function MobileScanPage() {
             setScannedEntries(prev => prev.map(e => e.id === entry.id ? { ...e, printed: true } : e));
             toast.success(`Printed: ${entry.wsn}`, { duration: 1500 });
         } else {
-            toast.error('Print failed â€” check Print Agent on laptop');
+            toast.error('Print failed — check Print Agent on laptop');
         }
     }, []);
 
@@ -690,7 +690,7 @@ export default function MobileScanPage() {
         if (mode === 'qc' && !qcByName.trim()) { toast.error('QC By Name is required'); return; }
         if (mode === 'outbound' && !customerName.trim()) { toast.error('Customer name is required'); return; }
         if (mode === 'picking' && !pickerName.trim()) { toast.error('Picker name is required'); return; }
-        // Inbound has no mandatory fields â€” date defaults to today
+        // Inbound has no mandatory fields — date defaults to today
         setPhase('scanning');
         setCameraOpen(true);
     }, [mode, qcByName, customerName, pickerName]);
@@ -763,7 +763,7 @@ export default function MobileScanPage() {
                 batchId = res.data?.batch_id || res.data?.batchId || '';
             }
 
-            // Clear drafts (mobile source) â€” retry up to 3 times to prevent orphaned drafts
+            // Clear drafts (mobile source) — retry up to 3 times to prevent orphaned drafts
             for (let attempt = 1; attempt <= 3; attempt++) {
                 try {
                     if (mode === 'qc') await qcAPI.clearDraft(activeWarehouse.id, 'mobile');
@@ -785,7 +785,7 @@ export default function MobileScanPage() {
                 return updated;
             });
 
-            // Clear receiving WSNs for inbound after successful submit â€” retry up to 3 times
+            // Clear receiving WSNs for inbound after successful submit — retry up to 3 times
             if (mode === 'inbound' && activeWarehouse?.id) {
                 for (let attempt = 1; attempt <= 3; attempt++) {
                     try {
@@ -862,7 +862,7 @@ export default function MobileScanPage() {
             {activeWarehouse && (
                 <Box sx={{ px: 2, py: 0.5, bgcolor: isDark ? '#1e293b' : '#e2e8f0' }}>
                     <Typography sx={{ fontSize: '0.7rem', color: isDark ? '#94a3b8' : '#64748b', fontWeight: 600 }}>
-                        ðŸ“ {activeWarehouse.name || activeWarehouse.warehouse_name || 'Warehouse'}
+                        📍 {activeWarehouse.name || activeWarehouse.warehouse_name || 'Warehouse'}
                     </Typography>
                 </Box>
             )}
@@ -935,10 +935,10 @@ export default function MobileScanPage() {
                                     <TextField fullWidth size="small" label="Vehicle No" value={inboundVehicleNo}
                                         onChange={e => setInboundVehicleNo(e.target.value.toUpperCase())} placeholder="MH-01-AB-1234 (optional)" />
                                     <Alert severity={agentReady ? 'success' : 'warning'} sx={{ py: 0, fontSize: '0.7rem', borderRadius: 1 }}>
-                                        {agentReady ? 'ðŸ–¨ï¸ Print Agent connected â€” auto-print available' : 'âš ï¸ Print Agent not detected â€” make sure Print Agent is running on laptop'}
+                                        {agentReady ? '🖨️ Print Agent connected — auto-print available' : '⚠️ Print Agent not detected — make sure Print Agent is running on laptop'}
                                     </Alert>
                                     <Typography sx={{ fontSize: '0.7rem', color: isDark ? '#64748b' : '#94a3b8' }}>
-                                        Scan WSN barcodes â†’ product details auto-load â†’ label auto-prints (if enabled).
+                                        Scan WSN barcodes → product details auto-load → label auto-prints (if enabled).
                                         Unload remarks can be added per entry.
                                     </Typography>
                                 </Stack>
@@ -1035,10 +1035,10 @@ export default function MobileScanPage() {
                         }}>
                             <Stack direction="row" justifyContent="space-between" alignItems="center">
                                 <Typography sx={{ fontSize: '0.7rem', color: isDark ? '#94a3b8' : '#64748b', flex: 1 }}>
-                                    {mode === 'qc' && `ðŸ‘¤ ${qcByName} â€¢ ðŸ“… ${qcDate}`}
-                                    {mode === 'outbound' && `ðŸ¢ ${customerName} â€¢ ðŸš› ${vehicleNo || 'N/A'} â€¢ ðŸ“… ${dispatchDate}`}
-                                    {mode === 'picking' && `ðŸ‘¤ ${pickerName}${pickingCustomer ? ` â€¢ ðŸ¢ ${pickingCustomer}` : ''} â€¢ ðŸ“… ${pickingDate}`}
-                                    {mode === 'inbound' && `ðŸ“… ${inboundDate}${inboundVehicleNo ? ` â€¢ ðŸš› ${inboundVehicleNo}` : ''}`}
+                                    {mode === 'qc' && `👤 ${qcByName} • 📅 ${qcDate}`}
+                                    {mode === 'outbound' && `🏢 ${customerName} • 🚛 ${vehicleNo || 'N/A'} • 📅 ${dispatchDate}`}
+                                    {mode === 'picking' && `👤 ${pickerName}${pickingCustomer ? ` • 🏢 ${pickingCustomer}` : ''} • 📅 ${pickingDate}`}
+                                    {mode === 'inbound' && `📅 ${inboundDate}${inboundVehicleNo ? ` • 🚛 ${inboundVehicleNo}` : ''}`}
                                 </Typography>
                                 <Stack direction="row" spacing={0.5}>
                                     {scannedEntries.length > 0 && (
@@ -1076,7 +1076,7 @@ export default function MobileScanPage() {
                             <Alert severity="warning" sx={{ mt: 0.5, py: 0, fontSize: '0.7rem', borderRadius: 1 }}
                                 icon={<WarningIcon sx={{ fontSize: 16 }} />}
                             >
-                                {dupCount} WSN(s) already exist in database â€” they will be skipped on submit
+                                {dupCount} WSN(s) already exist in database — they will be skipped on submit
                             </Alert>
                         )}
 
@@ -1090,10 +1090,10 @@ export default function MobileScanPage() {
                             }}>
                                 <Stack direction="row" alignItems="center" spacing={0.5}>
                                     <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: isDark ? '#fdba74' : '#9a3412' }}>
-                                        ðŸ–¨ï¸ Auto Print
+                                        🖨️ Auto Print
                                     </Typography>
                                     <Chip
-                                        label={agentReady ? 'Agent âœ“' : 'Agent âœ—'}
+                                        label={agentReady ? 'Agent ✓' : 'Agent ✗'}
                                         size="small"
                                         sx={{
                                             height: 16, fontSize: '0.55rem', fontWeight: 700,
@@ -1125,7 +1125,7 @@ export default function MobileScanPage() {
                         {scannedEntries.length > 0 && (
                             <Box sx={{ mt: 1 }}>
                                 <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: isDark ? '#94a3b8' : '#64748b', mb: 0.5, px: 0.5 }}>
-                                    Scanned ({scannedEntries.length}){scannedEntries.length > visibleCount ? ` â€” showing ${visibleCount}` : ''}
+                                    Scanned ({scannedEntries.length}){scannedEntries.length > visibleCount ? ` — showing ${visibleCount}` : ''}
                                 </Typography>
                                 <Stack spacing={0.5}>
                                     {visibleEntries.map((entry) => (
@@ -1209,11 +1209,11 @@ export default function MobileScanPage() {
                                                             width: 22, height: 22,
                                                         }}
                                                     >
-                                                        <Typography sx={{ fontSize: '0.7rem' }}>{entry.printed ? 'âœ“' : 'ðŸ–¨ï¸'}</Typography>
+                                                        <Typography sx={{ fontSize: '0.7rem' }}>{entry.printed ? '✓' : '🖨️'}</Typography>
                                                     </IconButton>
                                                 )}
                                                 {mode === 'inbound' && autoPrintEnabled && entry.printed && (
-                                                    <Typography sx={{ fontSize: '0.6rem', color: '#22c55e', fontWeight: 700 }}>âœ“</Typography>
+                                                    <Typography sx={{ fontSize: '0.6rem', color: '#22c55e', fontWeight: 700 }}>✓</Typography>
                                                 )}
                                             </Box>
 
@@ -1350,7 +1350,7 @@ export default function MobileScanPage() {
                                                                         borderRadius: 1,
                                                                     }}
                                                                 >
-                                                                    {entry.printed ? 'âœ“ Printed' : 'ðŸ–¨ï¸ Print Label'}
+                                                                    {entry.printed ? '✓ Printed' : '🖨️ Print Label'}
                                                                 </Button>
                                                             )}
                                                         </Stack>
@@ -1376,7 +1376,7 @@ export default function MobileScanPage() {
 
                         {scannedEntries.length === 0 && (
                             <Box sx={{ mt: 4, textAlign: 'center' }}>
-                                <Typography sx={{ fontSize: '2rem', mb: 0.5 }}>ðŸ“·</Typography>
+                                <Typography sx={{ fontSize: '2rem', mb: 0.5 }}>📷</Typography>
                                 <Typography sx={{ fontSize: '0.8rem', color: isDark ? '#64748b' : '#94a3b8', fontWeight: 600 }}>
                                     Scan barcodes to add entries
                                 </Typography>
