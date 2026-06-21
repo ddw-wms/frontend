@@ -5,7 +5,7 @@ import { createContext, useContext, useState, useEffect, ReactNode, useCallback 
 
 // Default appearance settings----
 export const DEFAULT_APPEARANCE_SETTINGS = {
-    theme: 'light' as 'light' | 'dark',
+    theme: 'light' as 'light' | 'dark' | 'system',
     fontSize: 12,
     fontFamily: 'Inter',
     sidebarCompact: false,
@@ -76,11 +76,16 @@ const applySettingsToDOM = (settings: AppearanceSettings) => {
         root.classList.remove('high-contrast');
     }
 
-    // Theme - apply directly
-    root.setAttribute('data-theme', settings.theme);
+    // Theme - detect system preference if system mode
+    let effectiveTheme = settings.theme;
+    if (settings.theme === 'system') {
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        effectiveTheme = prefersDark ? 'dark' : 'light';
+    }
+    root.setAttribute('data-theme', effectiveTheme);
 
     // Dispatch theme change event
-    window.dispatchEvent(new CustomEvent('themeChanged', { detail: { theme: settings.theme } }));
+    window.dispatchEvent(new CustomEvent('themeChanged', { detail: { theme: effectiveTheme } }));
 
     // Sidebar compact preference
     if (settings.sidebarCompact) {
@@ -136,6 +141,23 @@ export const AppearanceProvider = ({ children }: { children: ReactNode }) => {
         } finally {
             setIsLoading(false);
         }
+        
+        // Listen for system preference changes when system mode is active
+        const handleSystemPrefChange = () => {
+            const stored = localStorage.getItem('app_appearance_settings');
+            if (stored) {
+                try {
+                    const settings = JSON.parse(stored);
+                    if (settings.theme === 'system') {
+                        applySettingsToDOM(settings);
+                    }
+                } catch (e) {}
+            }
+        };
+        
+        const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+        mediaQuery.addEventListener('change', handleSystemPrefChange);
+        return () => mediaQuery.removeEventListener('change', handleSystemPrefChange);
     }, []);
 
     // Track unsaved changes
@@ -227,4 +249,16 @@ export const useTableRowHeight = (): number => {
 export const useAnimationsEnabled = (): boolean => {
     const { settings } = useAppearance();
     return settings.showAnimations;
+};
+
+// Hook to get effective theme (resolves 'system' to actual 'light' or 'dark')
+export const useEffectiveTheme = (): 'light' | 'dark' => {
+    const { settings } = useAppearance();
+    if (settings.theme === 'system') {
+        const prefersDark = typeof window !== 'undefined' 
+            ? window.matchMedia('(prefers-color-scheme: dark)').matches 
+            : false;
+        return prefersDark ? 'dark' : 'light';
+    }
+    return settings.theme as 'light' | 'dark';
 };
