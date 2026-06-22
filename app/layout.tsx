@@ -36,7 +36,7 @@ const appearanceScript = `
       // Apply theme early to prevent flash
       if (s.theme) {
         var effectiveTheme = s.theme;
-        if (s.theme === 'auto') {
+        if (s.theme === 'system' || s.theme === 'auto') {
           effectiveTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
         }
         root.setAttribute('data-theme', effectiveTheme);

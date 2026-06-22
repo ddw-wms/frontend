@@ -9,7 +9,7 @@ import { AppRouterCacheProvider } from '@mui/material-nextjs/v15-appRouter';
 const ThemeModeContext = React.createContext<{
     mode: PaletteMode;
     toggleMode: () => void;
-    setMode: (mode: 'light' | 'dark' | 'auto') => void;
+    setMode: (mode: 'light' | 'dark' | 'auto' | 'system') => void;
 }>({
     mode: 'light',
     toggleMode: () => { },
@@ -654,7 +654,7 @@ export default function ThemeRegistry({ children }: { children: React.ReactNode 
                 const settings = JSON.parse(stored);
                 if (settings.theme === 'dark') {
                     setModeState('dark');
-                } else if (settings.theme === 'auto') {
+                } else if (settings.theme === 'system' || settings.theme === 'auto') {
                     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
                     setModeState(prefersDark ? 'dark' : 'light');
                 } else {
@@ -672,7 +672,7 @@ export default function ThemeRegistry({ children }: { children: React.ReactNode 
             const theme = e.detail?.theme;
             if (theme === 'dark') {
                 setModeState('dark');
-            } else if (theme === 'auto') {
+            } else if (theme === 'system' || theme === 'auto') {
                 const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
                 setModeState(prefersDark ? 'dark' : 'light');
             } else {
@@ -688,14 +688,14 @@ export default function ThemeRegistry({ children }: { children: React.ReactNode 
         };
     }, []);
 
-    // Listen for system preference changes when in auto mode
+    // Listen for system preference changes when in system/auto mode
     React.useEffect(() => {
         const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
         const handleChange = (e: MediaQueryListEvent) => {
             const stored = localStorage.getItem('app_appearance_settings');
             if (stored) {
                 const settings = JSON.parse(stored);
-                if (settings.theme === 'auto') {
+                if (settings.theme === 'system' || settings.theme === 'auto') {
                     setModeState(e.matches ? 'dark' : 'light');
                 }
             }
@@ -709,8 +709,8 @@ export default function ThemeRegistry({ children }: { children: React.ReactNode 
         setModeState((prev) => (prev === 'light' ? 'dark' : 'light'));
     }, []);
 
-    const setMode = React.useCallback((newMode: 'light' | 'dark' | 'auto') => {
-        if (newMode === 'auto') {
+    const setMode = React.useCallback((newMode: 'light' | 'dark' | 'auto' | 'system') => {
+        if (newMode === 'system' || newMode === 'auto') {
             const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
             setModeState(prefersDark ? 'dark' : 'light');
         } else {

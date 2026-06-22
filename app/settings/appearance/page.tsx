@@ -19,6 +19,7 @@ import {
     TextFields as TextFieldsIcon,
     ViewCompact as CompactIcon,
     ViewAgenda as ComfortableIcon,
+    Brightness4 as SystemModeIcon,
 } from '@mui/icons-material';
 import AppLayout from '@/components/AppLayout';
 import { StandardPageHeader } from '@/components';
@@ -57,6 +58,14 @@ function adjustColorBrightness(hex: string, percent: number): string {
     return '#' + (0x1000000 + R * 0x10000 + G * 0x100 + B).toString(16).slice(1);
 }
 
+// Helper to get effective theme (resolves 'system' to 'light' or 'dark')
+function getEffectiveTheme(theme: 'light' | 'dark' | 'system'): 'light' | 'dark' {
+    if (theme === 'system' && typeof window !== 'undefined') {
+        return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    }
+    return theme as 'light' | 'dark';
+}
+
 export default function AppearanceSettingsPage() {
     const { activeWarehouse } = useWarehouse();
     const [user, setUser] = useState<any>(null);
@@ -75,6 +84,7 @@ export default function AppearanceSettingsPage() {
     } = useAppearance();
 
     const [saving, setSaving] = useState(false);
+    const [effectiveTheme, setEffectiveTheme] = useState<'light' | 'dark'>('light');
 
     // Load user on mount
     useEffect(() => {
@@ -85,6 +95,20 @@ export default function AppearanceSettingsPage() {
         }
         setUser(storedUser);
     }, []);
+
+    // Update effective theme and listen for system preference changes
+    useEffect(() => {
+        const updateEffectiveTheme = () => {
+            setEffectiveTheme(getEffectiveTheme(settings.theme));
+        };
+
+        updateEffectiveTheme();
+
+        // Listen for system preference changes
+        const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+        mediaQuery.addEventListener('change', updateEffectiveTheme);
+        return () => mediaQuery.removeEventListener('change', updateEffectiveTheme);
+    }, [settings.theme]);
 
     // Save settings handler
     const handleSave = async () => {
@@ -171,7 +195,7 @@ export default function AppearanceSettingsPage() {
                         boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
                         border: `2px solid ${settings.primaryColor}`,
                         overflow: 'hidden',
-                        bgcolor: settings.theme === 'dark' ? '#1e293b' : 'background.paper',
+                        bgcolor: effectiveTheme === 'dark' ? '#1e293b' : 'background.paper',
                     }}>
                         <Box sx={{
                             bgcolor: settings.primaryColor,
@@ -184,10 +208,10 @@ export default function AppearanceSettingsPage() {
                         }}>
                             <PaletteIcon fontSize="small" />
                             <Typography sx={{ fontWeight: 600, fontFamily: settings.fontFamily, fontSize: `${settings.fontSize}px` }}>
-                                Live Preview ({settings.theme === 'dark' ? 'Dark' : 'Light'} Mode)
+                                Live Preview ({effectiveTheme === 'dark' ? 'Dark' : 'Light'} Mode{settings.theme === 'system' ? ' - System' : ''})
                             </Typography>
                         </Box>
-                        <CardContent sx={{ bgcolor: settings.theme === 'dark' ? '#1e293b' : '#ffffff' }}>
+                        <CardContent sx={{ bgcolor: effectiveTheme === 'dark' ? '#1e293b' : '#ffffff' }}>
                             <Stack spacing={2}>
                                 <Box>
                                     <Typography
@@ -204,7 +228,7 @@ export default function AppearanceSettingsPage() {
                                         sx={{
                                             fontFamily: settings.fontFamily,
                                             fontSize: `${settings.fontSize}px`,
-                                            color: settings.theme === 'dark' ? '#94a3b8' : 'text.secondary'
+                                            color: effectiveTheme === 'dark' ? '#94a3b8' : 'text.secondary'
                                         }}
                                     >
                                         This is body text at {settings.fontSize}px using {settings.fontFamily} font family.
@@ -249,9 +273,9 @@ export default function AppearanceSettingsPage() {
                                     display: 'flex',
                                     gap: 1,
                                     p: 1,
-                                    bgcolor: settings.theme === 'dark' ? '#0f172a' : '#f8fafc',
+                                    bgcolor: effectiveTheme === 'dark' ? '#0f172a' : '#f8fafc',
                                     borderRadius: 1,
-                                    border: settings.theme === 'dark' ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e2e8f0'
+                                    border: effectiveTheme === 'dark' ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e2e8f0'
                                 }}>
                                     <Box sx={{
                                         width: 80,
@@ -270,7 +294,7 @@ export default function AppearanceSettingsPage() {
                                     <Typography variant="caption" sx={{
                                         alignSelf: 'center',
                                         fontFamily: settings.fontFamily,
-                                        color: settings.theme === 'dark' ? '#94a3b8' : 'text.secondary'
+                                        color: effectiveTheme === 'dark' ? '#94a3b8' : 'text.secondary'
                                     }}>
                                         Table row density: {settings.tableRowDensity}
                                     </Typography>
@@ -321,7 +345,16 @@ export default function AppearanceSettingsPage() {
                                         <DarkModeIcon sx={{ mr: 1 }} />
                                         Dark
                                     </ToggleButton>
+                                    <ToggleButton value="system">
+                                        <SystemModeIcon sx={{ mr: 1 }} />
+                                        System
+                                    </ToggleButton>
                                 </ToggleButtonGroup>
+                                {settings.theme === 'system' && (
+                                    <Typography variant="caption" color="text.secondary" sx={{ mt: 1.5, display: 'block' }}>
+                                        📱 Following your device's preference ({effectiveTheme === 'dark' ? 'dark' : 'light'} mode currently active)
+                                    </Typography>
+                                )}
                             </CardContent>
                         </Card>
 
