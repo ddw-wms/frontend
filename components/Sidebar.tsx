@@ -430,13 +430,14 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
 
   // NL (Non-Large) menu items with permission codes
   const allNLMenuItems = useMemo(() => [
+    { label: 'NL Summary', icon: ReportsIcon, path: '/nl-summary', code: 'menu:nl_summary' },
     { label: 'NL OS Data', icon: DescriptionIcon, path: '/nl-fkt-os', code: 'menu:nl_fkt_os' },
     { label: 'NL Inbound', icon: InventoryIcon, path: '/nl-inbound', code: 'menu:nl_inbound' },
     { label: 'NL Stacking', icon: CategoryIcon, path: '/nl-stacking', code: 'menu:nl_stacking' },
     { label: 'NL QC', icon: CheckIcon, path: '/nl-qc', code: 'menu:nl_qc' },
     { label: 'NL Picking', icon: AssignmentIcon, path: '/nl-picking', code: 'menu:nl_picking' },
     { label: 'NL Dispatch', icon: ShippingIcon, path: '/nl-dispatch', code: 'menu:nl_dispatch' },
-    { label: 'NL Summary', icon: ReportsIcon, path: '/nl-summary', code: 'menu:nl_summary' },
+    
     { label: 'NL Billing', icon: BillingIcon, path: '/nl-billing', code: 'menu:nl_billing' },
     { label: 'NL Discrepancy', icon: WarningIcon, path: '/nl-discrepancy', code: 'menu:nl_discrepancy' },
   ], []);
@@ -715,7 +716,7 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
 
         {/* ======================================== below is non-large menu ============================================ */}
 
-        {/* {nlMenu.length > 0 && (
+         {nlMenu.length > 0 && (
           <>
             <Divider sx={{ my: 1.5, bgcolor: 'rgba(255,255,255,0.08)' }} />
             <Tooltip
@@ -818,7 +819,7 @@ export default function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarPr
               )}
             </AnimatePresence>
           </>
-        )} */}
+        )} 
         {/* ============================= Above is Non-Large Menu ============================================= */}
 
         <Divider sx={{ my: 1.5, bgcolor: 'rgba(255,255,255,0.08)' }} />
