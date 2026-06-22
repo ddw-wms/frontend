@@ -93,6 +93,40 @@ export default function NLSummaryPage() {
         );
     }, [summaryData, search]);
 
+    // Calculate totals row
+    const totalRow = useMemo(() => {
+        if (filteredData.length === 0) return null;
+        
+        const totals: any = {
+            inbound_date: 'TOTAL',
+            vrp_id: '---',
+            region: '---',
+            category: '---',
+            lot_type: '---',
+            dispatched_to: '---',
+            remarks: '---',
+            status: '---',
+            declared_boxes: filteredData.reduce((sum: number, r: any) => sum + (Number(r.declared_boxes) || 0), 0),
+            received_boxes: filteredData.reduce((sum: number, r: any) => sum + (Number(r.received_boxes) || 0), 0),
+            short_boxes: filteredData.reduce((sum: number, r: any) => sum + (Number(r.short_boxes) || 0), 0),
+            declared_qty: filteredData.reduce((sum: number, r: any) => sum + (Number(r.declared_qty) || 0), 0),
+            received_qty: filteredData.reduce((sum: number, r: any) => sum + (Number(r.received_qty) || 0), 0),
+            short_qty: filteredData.reduce((sum: number, r: any) => sum + (Number(r.short_qty) || 0), 0),
+            dispatched_boxes: filteredData.reduce((sum: number, r: any) => sum + (Number(r.dispatched_boxes) || 0), 0),
+            available_boxes: filteredData.reduce((sum: number, r: any) => sum + (Number(r.available_boxes) || 0), 0),
+            dispatched_qty: filteredData.reduce((sum: number, r: any) => sum + (Number(r.dispatched_qty) || 0), 0),
+            available_qty: filteredData.reduce((sum: number, r: any) => sum + (Number(r.available_qty) || 0), 0),
+            isTotal: true,
+        };
+        
+        return totals;
+    }, [filteredData]);
+
+    // Prepend total row to the grid data
+    const gridData = useMemo(() => {
+        return totalRow ? [totalRow, ...filteredData] : filteredData;
+    }, [totalRow, filteredData]);
+
     // Export
     const handleExport = async () => {
         try {
@@ -112,30 +146,45 @@ export default function NLSummaryPage() {
 
     // Column defs
     const columnDefs = useMemo(() => [
-        { field: 'inbound_date', headerName: 'Date', width: 110, valueFormatter: (p: any) => formatDate(p.value) },
-        { field: 'vrp_id', headerName: 'VRP ID', flex: 1, minWidth: 110 },
-        { field: 'region', headerName: 'Region', width: 100 },
-        { field: 'category', headerName: 'Category', width: 130 },
-        { field: 'lot_type', headerName: 'Lot', width: 70 },
-        { field: 'declared_boxes', headerName: 'Decl Boxes', width: 100, type: 'numericColumn' },
-        { field: 'received_boxes', headerName: 'Rec Boxes', width: 100, type: 'numericColumn' },
-        {
-            field: 'short_boxes', headerName: 'Short Boxes', width: 100, type: 'numericColumn',
-            cellStyle: (p: any) => p.value > 0 ? { color: '#ef4444', fontWeight: 700 } : null,
+        { 
+            field: 'inbound_date', 
+            headerName: 'Date', 
+            width: 110, 
+            valueFormatter: (p: any) => p.data?.isTotal ? 'TOTAL' : formatDate(p.value),
+            cellStyle: (p: any) => p.data?.isTotal ? { fontWeight: 700, backgroundColor: '#e5e7eb', color: '#000' } : null 
         },
-        { field: 'declared_qty', headerName: 'Decl Qty', width: 90, type: 'numericColumn' },
-        { field: 'received_qty', headerName: 'Rec Qty', width: 90, type: 'numericColumn' },
+        { field: 'vrp_id', headerName: 'VRP ID', flex: 1, minWidth: 110, cellStyle: (p: any) => p.data?.isTotal ? { fontWeight: 700, backgroundColor: '#e5e7eb', color: '#000' } : null },
+        { field: 'region', headerName: 'Region', width: 100, cellStyle: (p: any) => p.data?.isTotal ? { fontWeight: 700, backgroundColor: '#e5e7eb', color: '#000' } : null },
+        { field: 'category', headerName: 'Category', width: 130, cellStyle: (p: any) => p.data?.isTotal ? { fontWeight: 700, backgroundColor: '#e5e7eb', color: '#000' } : null },
+        { field: 'lot_type', headerName: 'Lot', width: 70, cellStyle: (p: any) => p.data?.isTotal ? { fontWeight: 700, backgroundColor: '#e5e7eb', color: '#000' } : null },
+        { field: 'declared_boxes', headerName: 'Decl Boxes', width: 100, type: 'numericColumn', valueFormatter: (p: any) => p.value === 'Invalid Number' ? '0' : p.value, cellStyle: (p: any) => p.data?.isTotal ? { fontWeight: 700, backgroundColor: '#e5e7eb', color: '#000' } : null },
+        { field: 'received_boxes', headerName: 'Rec Boxes', width: 100, type: 'numericColumn', valueFormatter: (p: any) => p.value === 'Invalid Number' ? '0' : p.value, cellStyle: (p: any) => p.data?.isTotal ? { fontWeight: 700, backgroundColor: '#e5e7eb', color: '#000' } : null },
         {
-            field: 'short_qty', headerName: 'Short Qty', width: 90, type: 'numericColumn',
-            cellStyle: (p: any) => p.value > 0 ? { color: '#ef4444', fontWeight: 700 } : null,
+            field: 'short_boxes', headerName: 'Short Boxes', width: 100, type: 'numericColumn', valueFormatter: (p: any) => p.value === 'Invalid Number' ? '0' : p.value,
+            cellStyle: (p: any) => {
+                if (p.data?.isTotal) return { fontWeight: 700, backgroundColor: '#e5e7eb', color: '#000' };
+                return p.value > 0 ? { color: '#ef4444', fontWeight: 700 } : null;
+            },
         },
-        { field: 'dispatched_to', headerName: 'Dispatched To', flex: 1, minWidth: 130 },
-        { field: 'dispatched_boxes', headerName: 'Disp Boxes', width: 100, type: 'numericColumn' },
-        { field: 'available_boxes', headerName: 'Avail Boxes', width: 100, type: 'numericColumn' },
-        { field: 'dispatched_qty', headerName: 'Disp Qty', width: 90, type: 'numericColumn' },
+        { field: 'declared_qty', headerName: 'Decl Qty', width: 90, type: 'numericColumn', valueFormatter: (p: any) => p.value === 'Invalid Number' ? '0' : p.value, cellStyle: (p: any) => p.data?.isTotal ? { fontWeight: 700, backgroundColor: '#e5e7eb', color: '#000' } : null },
+        { field: 'received_qty', headerName: 'Rec Qty', width: 90, type: 'numericColumn', valueFormatter: (p: any) => p.value === 'Invalid Number' ? '0' : p.value, cellStyle: (p: any) => p.data?.isTotal ? { fontWeight: 700, backgroundColor: '#e5e7eb', color: '#000' } : null },
         {
-            field: 'available_qty', headerName: 'Avail Qty', width: 90, type: 'numericColumn',
-            cellStyle: (p: any) => p.value > 0 ? { color: '#10b981', fontWeight: 700 } : null,
+            field: 'short_qty', headerName: 'Short Qty', width: 90, type: 'numericColumn', valueFormatter: (p: any) => p.value === 'Invalid Number' ? '0' : p.value,
+            cellStyle: (p: any) => {
+                if (p.data?.isTotal) return { fontWeight: 700, backgroundColor: '#e5e7eb', color: '#000' };
+                return p.value > 0 ? { color: '#ef4444', fontWeight: 700 } : null;
+            },
+        },
+        { field: 'dispatched_to', headerName: 'Dispatched To', flex: 1, minWidth: 130, cellStyle: (p: any) => p.data?.isTotal ? { fontWeight: 700, backgroundColor: '#e5e7eb', color: '#000' } : null },
+        { field: 'dispatched_boxes', headerName: 'Disp Boxes', width: 100, type: 'numericColumn', valueFormatter: (p: any) => p.value === 'Invalid Number' ? '0' : p.value, cellStyle: (p: any) => p.data?.isTotal ? { fontWeight: 700, backgroundColor: '#e5e7eb', color: '#000' } : null },
+        { field: 'available_boxes', headerName: 'Avail Boxes', width: 100, type: 'numericColumn', valueFormatter: (p: any) => p.value === 'Invalid Number' ? '0' : p.value, cellStyle: (p: any) => p.data?.isTotal ? { fontWeight: 700, backgroundColor: '#e5e7eb', color: '#000' } : null },
+        { field: 'dispatched_qty', headerName: 'Disp Qty', width: 90, type: 'numericColumn', valueFormatter: (p: any) => p.value === 'Invalid Number' ? '0' : p.value, cellStyle: (p: any) => p.data?.isTotal ? { fontWeight: 700, backgroundColor: '#e5e7eb', color: '#000' } : null },
+        {
+            field: 'available_qty', headerName: 'Avail Qty', width: 90, type: 'numericColumn', valueFormatter: (p: any) => p.value === 'Invalid Number' ? '0' : p.value,
+            cellStyle: (p: any) => {
+                if (p.data?.isTotal) return { fontWeight: 700, backgroundColor: '#e5e7eb', color: '#000' };
+                return p.value > 0 ? { color: '#10b981', fontWeight: 700 } : null;
+            },
         },
         {
             field: 'status', headerName: 'Status', width: 140,
@@ -145,8 +194,9 @@ export default function NLSummaryPage() {
                 };
                 return <Chip label={(p.value || '').replace(/_/g, ' ')} size="small" color={colors[p.value] || 'default'} variant="outlined" />;
             },
+            cellStyle: (p: any) => p.data?.isTotal ? { fontWeight: 700, backgroundColor: '#e5e7eb', color: '#000' } : null,
         },
-        { field: 'remarks', headerName: 'Remarks', flex: 1, minWidth: 120 },
+        { field: 'remarks', headerName: 'Remarks', flex: 1, minWidth: 120, cellStyle: (p: any) => p.data?.isTotal ? { fontWeight: 700, backgroundColor: '#e5e7eb', color: '#000' } : null },
     ], []);
 
     const defaultColDef = useMemo(() => ({ sortable: false, filter: false, resizable: true, suppressMovable: true }), []);
@@ -217,7 +267,7 @@ export default function NLSummaryPage() {
                         <Box className="ag-theme-quartz" sx={gridSx}>
                             <AgGridReact
                                 ref={gridRef}
-                                rowData={filteredData}
+                                rowData={gridData}
                                 columnDefs={columnDefs}
                                 defaultColDef={defaultColDef}
                                 rowHeight={tableRowHeight}

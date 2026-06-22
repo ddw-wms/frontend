@@ -41,12 +41,13 @@ ModuleRegistry.registerModules([AllCommunityModule, ClientSideRowModelModule]);
 const formatDate = nlFormatDate;
 
 // User-input columns first, then auto-populated columns
-const USER_INPUT_FIELDS = ['box_id', 'vrp_id', 'actual_qty', 'route', 'remarks'];
+const USER_INPUT_FIELDS = ['box_id', 'vrp_id', 'actual_qty', 'remarks'];
 const AUTO_FIELDS = ['category', 'lot_type', 'region', 'declared_qty', 'short_qty'];
+const WORKFLOW_FIELDS = ['box_id', 'vrp_id', 'actual_qty'];
 const ALL_GRID_COLUMNS = [...USER_INPUT_FIELDS, ...AUTO_FIELDS];
 
-const ALL_TABS = ['Multi Entry', 'Inbound List', 'Batches', 'Bulk Upload'];
-const TAB_CODES = ['multi_entry', 'list', 'batches', 'bulk'];
+const ALL_TABS = ['Inbound List', 'Multi Entry', 'Bulk', 'Batches'];
+const TAB_CODES = ['list', 'multi_entry', 'bulk', 'batches'];
 
 export default function NLInboundPage() {
     const theme = useTheme();
@@ -242,10 +243,10 @@ export default function NLInboundPage() {
                 lastScannedRowRef.current = completeRow;
                 if (autoPrintEnabled && agentReady) printBoxSticker(completeRow);
 
-                // Auto-move to next row
+                // Auto-move to actual_qty column in same row
                 setTimeout(() => {
                     const api = gridRef.current?.api;
-                    if (api) { api.setFocusedCell(rowIndex + 1, 'box_id'); api.startEditingCell({ rowIndex: rowIndex + 1, colKey: 'box_id' }); }
+                    if (api) { api.setFocusedCell(rowIndex, 'actual_qty'); api.startEditingCell({ rowIndex: rowIndex, colKey: 'actual_qty' }); }
                 }, 100);
             } else {
                 setRows(prev => { const u = [...prev]; if (u[rowIndex]) u[rowIndex] = { ...u[rowIndex], _error: 'VRP not found in OS data' }; return u; });
@@ -277,22 +278,68 @@ export default function NLInboundPage() {
 
     // ======================== ENTER KEY ========================
     const suppressKeyboardEvent = useCallback((params: any) => {
-        if (params.editing && params.event.key === 'Enter') {
+        const { colDef, event, editing, node } = params;
+        const field = colDef?.field;
+        const rowIndex = node?.rowIndex;
+        
+        if (editing && event.key === 'Enter') {
             params.api.stopEditing();
-            setTimeout(() => {
-                const rowData = params.node.data;
-                const ri = params.node.rowIndex;
-                if (rowData.box_id?.trim() && rowData.vrp_id?.trim() && !rowData._vrpFound) {
-                    lookupVRP(rowData.vrp_id, ri);
-                } else {
-                    params.api.setFocusedCell(ri + 1, 'box_id');
-                    setTimeout(() => params.api.startEditingCell({ rowIndex: ri + 1, colKey: 'box_id' }), 50);
+            
+            // box_id -> vrp_id
+            if (field === 'box_id') {
+                setTimeout(() => {
+                    params.api.setFocusedCell(rowIndex, 'vrp_id');
+                    setTimeout(() => params.api.startEditingCell({ rowIndex, colKey: 'vrp_id' }), 50);
+                }, 20);
+            }
+            // vrp_id -> move to actual_qty immediately, then trigger lookup in background
+            else if (field === 'vrp_id') {
+                const rowData = node.data;
+                const vrpId = rowData.vrp_id?.trim();
+                
+                // Move focus to actual_qty immediately
+                params.api.setFocusedCell(rowIndex, 'actual_qty');
+                setTimeout(() => params.api.startEditingCell({ rowIndex, colKey: 'actual_qty' }), 50);
+                
+                // Trigger VRP lookup in background if vrp_id exists
+                if (vrpId) {
+                    setTimeout(() => {
+                        lookupVRP(vrpId, rowIndex);
+                    }, 100);
                 }
-            }, 20);
+            }
+            // actual_qty -> next row box_id
+            else if (field === 'actual_qty') {
+                setTimeout(() => {
+                    params.api.setFocusedCell(rowIndex + 1, 'box_id');
+                    setTimeout(() => params.api.startEditingCell({ rowIndex: rowIndex + 1, colKey: 'box_id' }), 50);
+                }, 20);
+            }
             return true;
         }
-        if (params.event.ctrlKey && params.event.key.toLowerCase() === 'p') {
-            params.event.preventDefault();
+        
+        // Allow Tab key for field navigation
+        if (editing && event.key === 'Tab') {
+            params.api.stopEditing();
+            const direction = event.shiftKey ? -1 : 1;
+            const currentIndex = WORKFLOW_FIELDS.indexOf(field);
+            if (currentIndex !== -1 && currentIndex + direction >= 0 && currentIndex + direction < WORKFLOW_FIELDS.length) {
+                const nextField = WORKFLOW_FIELDS[currentIndex + direction];
+                setTimeout(() => {
+                    params.api.setFocusedCell(rowIndex, nextField);
+                    params.api.startEditingCell({ rowIndex, colKey: nextField });
+                }, 50);
+                return true;
+            }
+        }
+        
+        // Allow left/right arrows to navigate between cells (no suppression)
+        if (editing && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) {
+            return false; // Allow default arrow key behavior
+        }
+        
+        if (event.ctrlKey && event.key.toLowerCase() === 'p') {
+            event.preventDefault();
             if (lastScannedRowRef.current) printBoxSticker(lastScannedRowRef.current);
             return true;
         }

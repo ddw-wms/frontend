@@ -82,9 +82,21 @@ export function useNlGridSx(isDarkMode: boolean, theme?: NlGridTheme) {
 
 /**
  * Format a date string to DD-Mon-YY (e.g., "09-Apr-26")
+ * Handles ISO format dates (YYYY-MM-DD) correctly without timezone conversion
  */
 export const nlFormatDate = (dateStr?: string) => {
     if (!dateStr) return '-';
+    
+    // Parse ISO format (YYYY-MM-DD) directly to avoid timezone issues
+    if (typeof dateStr === 'string' && dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        const [year, month, day] = dateStr.split('-').map(Number);
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+            return `${String(day).padStart(2, '0')}-${months[month - 1]}-${String(year).slice(-2)}`;
+        }
+    }
+    
+    // Fallback: try parsing as general date
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) return '-';
     const day = String(d.getDate()).padStart(2, '0');
@@ -94,7 +106,19 @@ export const nlFormatDate = (dateStr?: string) => {
 
 export const nlFormatDateTime = (dateStr?: string) => {
     if (!dateStr) return '-';
-    const d = new Date(dateStr);
+    
+    // Parse ISO format (YYYY-MM-DD or full ISO timestamp) directly
+    let d: Date;
+    
+    if (typeof dateStr === 'string' && dateStr.match(/^\d{4}-\d{2}-\d{2}/)) {
+        // For ISO date format, parse it manually to avoid timezone issues
+        const dateOnly = dateStr.split('T')[0];
+        const [year, month, day] = dateOnly.split('-').map(Number);
+        d = new Date(year, month - 1, day);
+    } else {
+        d = new Date(dateStr);
+    }
+    
     if (isNaN(d.getTime())) return '-';
     const day = String(d.getDate()).padStart(2, '0');
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
