@@ -1,16 +1,16 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import toast, { Toaster } from 'react-hot-toast';
-import { login } from '@/lib/auth';
+import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import toast, { Toaster } from "react-hot-toast";
+import { login } from "@/lib/auth";
 
 export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
@@ -18,7 +18,7 @@ export default function LoginPage() {
   const [pFoc, setPFoc] = useState(false);
 
   useEffect(() => {
-    const savedUsername = localStorage.getItem('rememberedUsername');
+    const savedUsername = localStorage.getItem("rememberedUsername");
     if (savedUsername) {
       setUsername(savedUsername);
       setRememberMe(true);
@@ -30,15 +30,15 @@ export default function LoginPage() {
     e.stopPropagation();
 
     if (!username.trim() || !password.trim()) {
-      toast.error('Please enter username and password');
+      toast.error("Please enter username and password");
       return;
     }
 
     setLoading(true);
 
     const wakeUpTimer = setTimeout(() => {
-      toast.loading('⏳ Server is waking up... please wait (30-60 seconds)', {
-        id: 'wake-msg',
+      toast.loading("⏳ Server is waking up... please wait (30-60 seconds)", {
+        id: "wake-msg",
         duration: 120000,
       });
     }, 3000);
@@ -47,84 +47,94 @@ export default function LoginPage() {
       await login(username, password);
 
       clearTimeout(wakeUpTimer);
-      toast.dismiss('wake-msg');
+      toast.dismiss("wake-msg");
 
       if (rememberMe) {
-        localStorage.setItem('rememberedUsername', username);
+        localStorage.setItem("rememberedUsername", username);
       } else {
-        localStorage.removeItem('rememberedUsername');
+        localStorage.removeItem("rememberedUsername");
       }
 
-      toast.success('✓ Login successful!', {
-        icon: '🎉',
+      toast.success("✓ Login successful!", {
+        icon: "🎉",
         duration: 1500,
       });
 
-      const redirectTo = searchParams.get('redirect') || '/dashboard';
+      const redirectTo = searchParams.get("redirect") || "/home";
       setTimeout(() => {
         router.push(redirectTo);
       }, 500);
     } catch (error: any) {
       clearTimeout(wakeUpTimer);
-      toast.dismiss('wake-msg');
+      toast.dismiss("wake-msg");
 
       const status = error.response?.status;
-      const serverMessage = error.response?.data?.error || error.response?.data?.message;
+      const serverMessage =
+        error.response?.data?.error || error.response?.data?.message;
       const attemptsLeft = error.response?.data?.attemptsLeft;
       const lockedUntil = error.response?.data?.lockedUntil;
 
       let errorMsg: string;
-      let toastType: 'error' | 'warning' = 'error';
+      let toastType: "error" | "warning" = "error";
 
       if (status === 503) {
-        errorMsg = 'Server is still starting up. Please wait a minute and try again.';
+        errorMsg =
+          "Server is still starting up. Please wait a minute and try again.";
       } else if (status === 504) {
-        errorMsg = 'Request timed out. Please try again.';
+        errorMsg = "Request timed out. Please try again.";
       } else if (status === 429) {
         const retryAfter = error.response?.data?.retryAfter || 60;
         errorMsg = `⏳ Too many requests. Please wait ${retryAfter} seconds before trying again.`;
-      } else if (error.code === 'ERR_NETWORK' || error.message === 'Network Error') {
+      } else if (
+        error.code === "ERR_NETWORK" ||
+        error.message === "Network Error"
+      ) {
         errorMsg =
-          'Cannot connect to server. Please check your internet connection or try again in a minute.';
-      } else if (error.code === 'ECONNABORTED') {
-        errorMsg = 'Connection timed out. Please try again.';
+          "Cannot connect to server. Please check your internet connection or try again in a minute.";
+      } else if (error.code === "ECONNABORTED") {
+        errorMsg = "Connection timed out. Please try again.";
       } else if (status === 423) {
         if (lockedUntil) {
           const lockTime = new Date(lockedUntil);
-          const minutesLeft = Math.ceil((lockTime.getTime() - Date.now()) / 60000);
-          errorMsg = `🔒 Account locked. Try again in ${minutesLeft} minute${minutesLeft !== 1 ? 's' : ''
-            }.`;
+          const minutesLeft = Math.ceil(
+            (lockTime.getTime() - Date.now()) / 60000,
+          );
+          errorMsg = `🔒 Account locked. Try again in ${minutesLeft} minute${
+            minutesLeft !== 1 ? "s" : ""
+          }.`;
         } else {
-          errorMsg = serverMessage || 'Account temporarily locked. Please try again later.';
+          errorMsg =
+            serverMessage ||
+            "Account temporarily locked. Please try again later.";
         }
       } else if (status === 401) {
         if (attemptsLeft !== undefined && attemptsLeft !== null) {
           if (attemptsLeft <= 2 && attemptsLeft > 0) {
-            errorMsg = `⚠️ ${serverMessage || 'Invalid credentials'}`;
-            toastType = 'warning';
+            errorMsg = `⚠️ ${serverMessage || "Invalid credentials"}`;
+            toastType = "warning";
           } else if (attemptsLeft === 0) {
-            errorMsg = `🔒 ${serverMessage || 'Account locked due to too many failed attempts'}`;
+            errorMsg = `🔒 ${serverMessage || "Account locked due to too many failed attempts"}`;
           } else {
-            errorMsg = serverMessage || 'Invalid username or password';
+            errorMsg = serverMessage || "Invalid username or password";
           }
         } else {
-          errorMsg = serverMessage || 'Invalid username or password';
+          errorMsg = serverMessage || "Invalid username or password";
         }
       } else {
-        errorMsg = serverMessage || 'Login failed. Please try again.';
+        errorMsg = serverMessage || "Login failed. Please try again.";
       }
 
-      if (toastType === 'warning') {
+      if (toastType === "warning") {
         toast.error(errorMsg, {
           style: {
-            background: '#ff9800',
-            color: '#000',
+            background: "#ff9800",
+            color: "#000",
             fontWeight: 500,
           },
           duration: 4000,
         });
       } else {
-        toast.error('✗ ' + errorMsg, { duration: 4000 });
+        toast.error("✗ " + errorMsg, { duration: 4000 });
       }
     } finally {
       setLoading(false);
@@ -133,33 +143,33 @@ export default function LoginPage() {
 
   const featureItems = [
     {
-      n: '1',
-      title: 'Live Inventory Pipeline',
-      desc: 'Real-time visibility of stock through inbound, QC, picking, and outbound stages.',
+      n: "1",
+      title: "Live Inventory Pipeline",
+      desc: "Real-time visibility of stock through inbound, QC, picking, and outbound stages.",
       active: true,
     },
     {
-      n: '2',
-      title: 'Inbound & Session Management',
-      desc: 'Batch receiving with WSN scanning, session submissions, and declared vs actual tracking.',
+      n: "2",
+      title: "Inbound & Session Management",
+      desc: "Batch receiving with WSN scanning, session submissions, and declared vs actual tracking.",
       active: true,
     },
     {
-      n: '3',
-      title: 'Quality Control & Grading',
-      desc: 'Item-level QC with multi-grade categorization and rejection tracking.',
+      n: "3",
+      title: "Quality Control & Grading",
+      desc: "Item-level QC with multi-grade categorization and rejection tracking.",
       active: true,
     },
     {
-      n: '4',
-      title: 'Picking & Fulfillment',
-      desc: 'Demand-based picklists with box-level tracking and multi-item fulfillment.',
+      n: "4",
+      title: "Picking & Fulfillment",
+      desc: "Demand-based picklists with box-level tracking and multi-item fulfillment.",
       active: false,
     },
     {
-      n: '5',
-      title: 'Barcode Scanning & Mobile',
-      desc: 'On-floor barcode scanning for live inventory updates and accuracy.',
+      n: "5",
+      title: "Barcode Scanning & Mobile",
+      desc: "On-floor barcode scanning for live inventory updates and accuracy.",
       active: false,
     },
   ];
@@ -171,9 +181,9 @@ export default function LoginPage() {
         position="top-right"
         toastOptions={{
           style: {
-            fontFamily: 'Inter, sans-serif',
-            borderRadius: '12px',
-            fontSize: '13px',
+            fontFamily: "Inter, sans-serif",
+            borderRadius: "12px",
+            fontSize: "13px",
           },
         }}
       />
@@ -209,7 +219,12 @@ export default function LoginPage() {
                 <div className="mini-brand-icon-wrap">
                   <div className="mini-brand-ring" />
                   <div className="mini-brand-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.1">
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="white"
+                      strokeWidth="2.1"
+                    >
                       <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
                       <polyline points="9,22 9,12 15,12 15,22" />
                     </svg>
@@ -217,7 +232,9 @@ export default function LoginPage() {
                 </div>
                 <div>
                   <div className="mini-brand-title">Divine WMS</div>
-                  <div className="mini-brand-sub">Warehouse Management System</div>
+                  <div className="mini-brand-sub">
+                    Warehouse Management System
+                  </div>
                 </div>
               </div>
 
@@ -226,10 +243,17 @@ export default function LoginPage() {
                 <p>SIGN IN TO YOUR ACCOUNT</p>
               </div>
 
-              <form onSubmit={handleLogin} noValidate autoComplete="on" className="form-stack">
+              <form
+                onSubmit={handleLogin}
+                noValidate
+                autoComplete="on"
+                className="form-stack"
+              >
                 <div className="field-block">
                   <label>User Name</label>
-                  <div className={`input-wrap ${uFoc || username ? 'is-focused' : ''}`}>
+                  <div
+                    className={`input-wrap ${uFoc || username ? "is-focused" : ""}`}
+                  >
                     <input
                       type="text"
                       value={username}
@@ -259,9 +283,11 @@ export default function LoginPage() {
 
                 <div className="field-block">
                   <label>Password</label>
-                  <div className={`input-wrap ${pFoc || password ? 'is-focused' : ''}`}>
+                  <div
+                    className={`input-wrap ${pFoc || password ? "is-focused" : ""}`}
+                  >
                     <input
-                      type={showPassword ? 'text' : 'password'}
+                      type={showPassword ? "text" : "password"}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       disabled={loading}
@@ -278,13 +304,23 @@ export default function LoginPage() {
                       tabIndex={-1}
                     >
                       {showPassword ? (
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <svg
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                        >
                           <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" />
                           <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" />
                           <line x1="1" y1="1" x2="23" y2="23" />
                         </svg>
                       ) : (
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <svg
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                        >
                           <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
                           <circle cx="12" cy="12" r="3" />
                         </svg>
@@ -296,13 +332,13 @@ export default function LoginPage() {
                 <div className="meta-row">
                   <label className="remember-wrap">
                     <span
-                      className={`toggle ${rememberMe ? 'on' : ''}`}
+                      className={`toggle ${rememberMe ? "on" : ""}`}
                       role="checkbox"
                       aria-checked={rememberMe}
                       tabIndex={0}
                       onClick={() => !loading && setRememberMe((v) => !v)}
                       onKeyDown={(e) => {
-                        if (e.key === ' ' || e.key === 'Enter') {
+                        if (e.key === " " || e.key === "Enter") {
                           e.preventDefault();
                           !loading && setRememberMe((v) => !v);
                         }
@@ -316,7 +352,9 @@ export default function LoginPage() {
                   <button
                     type="button"
                     className="forgot-btn"
-                    onClick={() => toast('Contact admin to reset password', { icon: '🔐' })}
+                    onClick={() =>
+                      toast("Contact admin to reset password", { icon: "🔐" })
+                    }
                   >
                     Forgot password?
                   </button>
@@ -324,7 +362,7 @@ export default function LoginPage() {
 
                 <button
                   type="submit"
-                  className={`submit-btn ${loading ? 'loading' : ''}`}
+                  className={`submit-btn ${loading ? "loading" : ""}`}
                   disabled={loading}
                 >
                   {loading ? (
@@ -353,16 +391,18 @@ export default function LoginPage() {
               </div>
 
               <div className="security-card">
-                <div className="security-title">🔐 Multi-Warehouse &amp; Custom Permissions</div>
+                <div className="security-title">
+                  🔐 Multi-Warehouse &amp; Custom Permissions
+                </div>
                 <div className="security-desc">
-                  Centralized control with granular role-based access and custom permission matrix
-                  per user.
+                  Centralized control with granular role-based access and custom
+                  permission matrix per user.
                 </div>
               </div>
 
               <div className="card-footer">
-                {'©'} {new Date().getFullYear()} Divine WMS. All rights reserved. | Developed by
-                Sr@n
+                {"©"} {new Date().getFullYear()} Divine WMS. All rights
+                reserved. | Developed by Sr@n
               </div>
             </div>
           </section>
@@ -372,15 +412,18 @@ export default function LoginPage() {
               <div className="eyebrow">Enterprise Warehouse Operations</div>
               <h2>Complete Inventory Control From Receiving to Fulfillment</h2>
               <p>
-                Manage dual inventory systems with real-time pipelines, multi-warehouse
-                coordination, session-based batch operations, and enterprise-grade audit
-                compliance.
+                Manage dual inventory systems with real-time pipelines,
+                multi-warehouse coordination, session-based batch operations,
+                and enterprise-grade audit compliance.
               </p>
             </div>
 
             <div className="feature-grid compact-grid">
               {featureItems.map((item) => (
-                <div key={item.n} className={`feature-item ${item.active ? 'active' : ''}`}>
+                <div
+                  key={item.n}
+                  className={`feature-item ${item.active ? "active" : ""}`}
+                >
                   <div className="feature-badge">{item.n}</div>
                   <div>
                     <div className="feature-title">{item.title}</div>
@@ -418,10 +461,38 @@ export default function LoginPage() {
                   <path d="M70 122L180 66L290 122" className="roof" />
                   <path d="M86 128H274V224H86V128Z" className="building" />
                   <path d="M155 170H205V224H155V170Z" className="door" />
-                  <rect x="112" y="146" width="24" height="18" rx="4" className="window" />
-                  <rect x="146" y="146" width="24" height="18" rx="4" className="window" />
-                  <rect x="190" y="146" width="24" height="18" rx="4" className="window" />
-                  <rect x="224" y="146" width="24" height="18" rx="4" className="window" />
+                  <rect
+                    x="112"
+                    y="146"
+                    width="24"
+                    height="18"
+                    rx="4"
+                    className="window"
+                  />
+                  <rect
+                    x="146"
+                    y="146"
+                    width="24"
+                    height="18"
+                    rx="4"
+                    className="window"
+                  />
+                  <rect
+                    x="190"
+                    y="146"
+                    width="24"
+                    height="18"
+                    rx="4"
+                    className="window"
+                  />
+                  <rect
+                    x="224"
+                    y="146"
+                    width="24"
+                    height="18"
+                    rx="4"
+                    className="window"
+                  />
                   <path d="M180 66V44" className="flag-line" />
                   <path d="M180 44L208 54L180 66Z" className="flag" />
                 </svg>

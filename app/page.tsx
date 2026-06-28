@@ -1,9 +1,9 @@
 // File Path = warehouse-frontend\app\page.tsx
-'use client';
+"use client";
 
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { isAuthenticated } from '@/lib/auth';
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { isAuthenticated } from "@/lib/auth";
 
 export default function Home() {
   const router = useRouter();
@@ -11,9 +11,9 @@ export default function Home() {
   useEffect(() => {
     const check = async () => {
       if (isAuthenticated()) {
-        router.replace('/dashboard');
+        router.replace("/home");
       } else {
-        router.replace('/login');
+        router.replace("/login");
       }
     };
 
@@ -29,17 +29,16 @@ export default function Home() {
   //     }
   //   }, 4500); // 4500ms = 4.5 seconds
 
-
   //   return () => clearTimeout(timer);
   // }, [router]);
 
   return (
     <div
       style={{
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
         background: "linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)",
       }}
     >
@@ -52,10 +51,12 @@ export default function Home() {
           <div className="box box-3"></div>
         </div>
 
-        <p className="text-white text-xl font-semibold mt-4 tracking-wide text-center" style={{ color: '#ffffff', textAlign: 'center' }}>
+        <p
+          className="text-white text-xl font-semibold mt-4 tracking-wide text-center"
+          style={{ color: "#ffffff", textAlign: "center" }}
+        >
           Preparing Warehouse...
         </p>
-
       </div>
     </div>
   );
