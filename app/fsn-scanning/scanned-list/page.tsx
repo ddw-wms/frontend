@@ -47,6 +47,7 @@ import { useWarehouse } from "@/app/context/WarehouseContext";
 import AppLayout from "@/components/AppLayout";
 import { StandardPageHeader } from "@/components";
 import { useTableRowHeight } from "@/app/context/AppearanceContext";
+import { usePagePermissions } from "@/hooks/usePagePermissions";
 import toast, { Toaster } from "react-hot-toast";
 import { AgGridReact } from "@/components/AGGridScrollWrapper";
 import {
@@ -72,6 +73,8 @@ export default function FSNScannedListPage() {
   const isDarkMode = theme.palette.mode === "dark";
   const tableRowHeight = useTableRowHeight();
   const { activeWarehouse } = useWarehouse();
+  const { canSeeTab, canSeeButton, isAdmin } =
+    usePagePermissions("fsn_scanning_list");
 
   // ── Tabs ──────────────────────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState<0 | 1>(0); // 0 = Rows, 1 = Sessions
@@ -404,42 +407,46 @@ export default function FSNScannedListPage() {
           }}
         >
           <Stack direction="row" alignItems="center" px={1}>
-            <Button
-              onClick={() => setActiveTab(0)}
-              sx={{
-                borderRadius: 0,
-                py: 1.2,
-                px: 2.5,
-                fontWeight: 600,
-                fontSize: "0.85rem",
-                color: activeTab === 0 ? "#818cf8" : "text.secondary",
-                borderBottom:
-                  activeTab === 0
-                    ? "2px solid #818cf8"
-                    : "2px solid transparent",
-                textTransform: "none",
-              }}
-            >
-              📊 Scanned Rows
-            </Button>
-            <Button
-              onClick={() => setActiveTab(1)}
-              sx={{
-                borderRadius: 0,
-                py: 1.2,
-                px: 2.5,
-                fontWeight: 600,
-                fontSize: "0.85rem",
-                color: activeTab === 1 ? "#818cf8" : "text.secondary",
-                borderBottom:
-                  activeTab === 1
-                    ? "2px solid #818cf8"
-                    : "2px solid transparent",
-                textTransform: "none",
-              }}
-            >
-              📋 Sessions / Batches
-            </Button>
+            {(isAdmin || canSeeTab("rows")) && (
+              <Button
+                onClick={() => setActiveTab(0)}
+                sx={{
+                  borderRadius: 0,
+                  py: 1.2,
+                  px: 2.5,
+                  fontWeight: 600,
+                  fontSize: "0.85rem",
+                  color: activeTab === 0 ? "#818cf8" : "text.secondary",
+                  borderBottom:
+                    activeTab === 0
+                      ? "2px solid #818cf8"
+                      : "2px solid transparent",
+                  textTransform: "none",
+                }}
+              >
+                📊 Scanned Rows
+              </Button>
+            )}
+            {(isAdmin || canSeeTab("sessions")) && (
+              <Button
+                onClick={() => setActiveTab(1)}
+                sx={{
+                  borderRadius: 0,
+                  py: 1.2,
+                  px: 2.5,
+                  fontWeight: 600,
+                  fontSize: "0.85rem",
+                  color: activeTab === 1 ? "#818cf8" : "text.secondary",
+                  borderBottom:
+                    activeTab === 1
+                      ? "2px solid #818cf8"
+                      : "2px solid transparent",
+                  textTransform: "none",
+                }}
+              >
+                📋 Sessions / Batches
+              </Button>
+            )}
           </Stack>
         </Box>
 
@@ -998,15 +1005,17 @@ export default function FSNScannedListPage() {
 
           <Box sx={{ mt: 2 }}>
             <Stack spacing={1.5}>
-              <Button
-                variant="outlined"
-                fullWidth
-                startIcon={<ExportIcon />}
-                onClick={exportToExcel}
-                disabled={data.length === 0}
-              >
-                Export to Excel
-              </Button>
+              {canSeeButton("export") && (
+                <Button
+                  variant="outlined"
+                  fullWidth
+                  startIcon={<ExportIcon />}
+                  onClick={exportToExcel}
+                  disabled={data.length === 0}
+                >
+                  Export to Excel
+                </Button>
+              )}
               <Button
                 variant="outlined"
                 fullWidth

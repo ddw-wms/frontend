@@ -41,6 +41,16 @@ const pathMenuMap: Record<string, string> = {
   "/settings/appearance": "menu:settings:appearance",
   "/settings/error-logs": "menu:settings:errorlogs",
   "/settings/rejections": "menu:settings:rejections",
+  // NL Scanning modules
+  "/nl-inbound": "menu:nl_inbound",
+  "/nl-stacking": "menu:nl_stacking",
+  "/nl-qc": "menu:nl_qc",
+  "/nl-picking": "menu:nl_picking",
+  "/nl-dispatch": "menu:nl_dispatch",
+  "/nl-summary": "menu:nl_summary",
+  "/nl-billing": "menu:nl_billing",
+  "/nl-fkt-os": "menu:nl_fkt_os",
+  "/nl-discrepancy": "menu:nl_discrepancy",
   // FSN Level Scanning
   "/fsn-scanning/master-data": "menu:fsn_scanning:master_data",
   "/fsn-scanning/entry": "menu:fsn_scanning:entry",

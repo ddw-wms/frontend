@@ -60,6 +60,7 @@ import { useWarehouse } from "@/app/context/WarehouseContext";
 import AppLayout from "@/components/AppLayout";
 import { StandardPageHeader } from "@/components";
 import { useTableRowHeight } from "@/app/context/AppearanceContext";
+import { usePagePermissions } from "@/hooks/usePagePermissions";
 import toast, { Toaster } from "react-hot-toast";
 import { AgGridReact } from "@/components/AGGridScrollWrapper";
 import {
@@ -124,6 +125,7 @@ export default function FSNEntryPage() {
   const isDarkMode = theme.palette.mode === "dark";
   const { activeWarehouse } = useWarehouse();
   const tableRowHeight = useTableRowHeight();
+  const { canSeeButton } = usePagePermissions("fsn_scanning_entry");
 
   // ── Customer list (from existing customers table) ────────────────────────
   const [customers, setCustomers] = useState<string[]>([]);
@@ -1109,17 +1111,19 @@ export default function FSNEntryPage() {
                 Clear
               </Button>
             )}
-            <Button
-              variant="contained"
-              color="success"
-              size="small"
-              startIcon={<SendIcon />}
-              onClick={() => setSubmitDialogOpen(true)}
-              disabled={filledRows.length === 0 || submitting || !headerReady}
-              sx={{ textTransform: "none", fontWeight: 600 }}
-            >
-              Submit All
-            </Button>
+            {canSeeButton("submit") && (
+              <Button
+                variant="contained"
+                color="success"
+                size="small"
+                startIcon={<SendIcon />}
+                onClick={() => setSubmitDialogOpen(true)}
+                disabled={filledRows.length === 0 || submitting || !headerReady}
+                sx={{ textTransform: "none", fontWeight: 600 }}
+              >
+                Submit All
+              </Button>
+            )}
           </Stack>
         </Paper>
       </Box>
@@ -1375,15 +1379,17 @@ export default function FSNEntryPage() {
               <Typography sx={{ fontWeight: 600 }}>Actions</Typography>
             </AccordionSummary>
             <AccordionDetails>
-              <Button
-                fullWidth
-                variant="outlined"
-                startIcon={<ExportIcon />}
-                onClick={exportToExcel}
-                disabled={filledRows.length === 0}
-              >
-                Export Grid to Excel
-              </Button>
+              {canSeeButton("export") && (
+                <Button
+                  fullWidth
+                  variant="outlined"
+                  startIcon={<ExportIcon />}
+                  onClick={exportToExcel}
+                  disabled={filledRows.length === 0}
+                >
+                  Export Grid to Excel
+                </Button>
+              )}
             </AccordionDetails>
           </Accordion>
         </Box>

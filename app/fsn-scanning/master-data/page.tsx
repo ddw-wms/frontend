@@ -48,6 +48,7 @@ import { useNlGridSx, nlFormatDate } from "@/lib/nl-utils";
 import AppLayout from "@/components/AppLayout";
 import { StandardPageHeader, StandardTabs } from "@/components";
 import { useTableRowHeight } from "@/app/context/AppearanceContext";
+import { usePagePermissions } from "@/hooks/usePagePermissions";
 import BatchManagementTab from "@/components/BatchManagementTab";
 import type { BatchData } from "@/components/BatchManagementTab";
 import toast, { Toaster } from "react-hot-toast";
@@ -81,9 +82,22 @@ export default function FSNMasterDataPage() {
   const theme = useTheme();
   const isDarkMode = theme.palette.mode === "dark";
   const tableRowHeight = useTableRowHeight();
+  const { filterTabs, canSeeTab, canSeeButton, isAdmin } = usePagePermissions(
+    "fsn_scanning_master",
+  );
 
+  const visibleTabs = isAdmin
+    ? ALL_TABS
+    : filterTabs(ALL_TABS, TAB_CODES).length > 0
+      ? filterTabs(ALL_TABS, TAB_CODES)
+      : ALL_TABS;
+  const visibleTabCodes = isAdmin
+    ? TAB_CODES
+    : TAB_CODES.filter((c) => canSeeTab(c)).length > 0
+      ? TAB_CODES.filter((c) => canSeeTab(c))
+      : TAB_CODES;
   const [tabValue, setTabValue] = useState(0);
-  const currentTabCode = TAB_CODES[tabValue] || "upload";
+  const currentTabCode = visibleTabCodes[tabValue] || "upload";
 
   // ====== UPLOAD STATE ======
   const [uploading, setUploading] = useState(false);
@@ -403,7 +417,7 @@ export default function FSNMasterDataPage() {
         <StandardTabs
           value={tabValue}
           onChange={(_e: any, v: number) => setTabValue(v)}
-          tabs={ALL_TABS}
+          tabs={visibleTabs}
           color="#059669"
         />
 
@@ -547,33 +561,35 @@ export default function FSNMasterDataPage() {
               </Box>
 
               {/* Upload button */}
-              <Button
-                variant="contained"
-                onClick={handleUpload}
-                disabled={!selectedFile || uploading}
-                fullWidth
-                startIcon={
-                  uploading ? (
-                    <CircularProgress size={18} color="inherit" />
-                  ) : (
-                    <UploadIcon />
-                  )
-                }
-                sx={{
-                  py: 1.5,
-                  fontWeight: 700,
-                  background:
-                    !selectedFile || uploading
-                      ? undefined
-                      : "linear-gradient(135deg, #059669, #10b981)",
-                }}
-              >
-                {uploading
-                  ? jobResult
-                    ? `Processing… ${jobResult.processed.toLocaleString()} rows`
-                    : `Uploading… ${uploadXferPct}%`
-                  : "Upload & Import"}
-              </Button>
+              {canSeeButton("upload") && (
+                <Button
+                  variant="contained"
+                  onClick={handleUpload}
+                  disabled={!selectedFile || uploading}
+                  fullWidth
+                  startIcon={
+                    uploading ? (
+                      <CircularProgress size={18} color="inherit" />
+                    ) : (
+                      <UploadIcon />
+                    )
+                  }
+                  sx={{
+                    py: 1.5,
+                    fontWeight: 700,
+                    background:
+                      !selectedFile || uploading
+                        ? undefined
+                        : "linear-gradient(135deg, #059669, #10b981)",
+                  }}
+                >
+                  {uploading
+                    ? jobResult
+                      ? `Processing… ${jobResult.processed.toLocaleString()} rows`
+                      : `Uploading… ${uploadXferPct}%`
+                    : "Upload & Import"}
+                </Button>
+              )}
 
               {/* Progress */}
               {uploading && (
@@ -738,16 +754,18 @@ export default function FSNMasterDataPage() {
               >
                 Refresh
               </Button>
-              <Button
-                variant="outlined"
-                size="small"
-                startIcon={<ExportIcon />}
-                onClick={exportToExcel}
-                disabled={listData.length === 0}
-                sx={{ height: 38 }}
-              >
-                Export
-              </Button>
+              {canSeeButton("export") && (
+                <Button
+                  variant="outlined"
+                  size="small"
+                  startIcon={<ExportIcon />}
+                  onClick={exportToExcel}
+                  disabled={listData.length === 0}
+                  sx={{ height: 38 }}
+                >
+                  Export
+                </Button>
+              )}
 
               <Chip
                 label={`${listTotal} records`}

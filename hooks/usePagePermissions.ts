@@ -156,6 +156,11 @@ export const useNLDispatchPermissions = () => usePagePermissions("nl_dispatch");
 export const useNLSummaryPermissions = () => usePagePermissions("nl_summary");
 export const useNLBillingPermissions = () => usePagePermissions("nl_billing");
 
+export const useNLPickingPermissions = () => usePagePermissions("nl_picking");
+export const useNLFktOsPermissions = () => usePagePermissions("nl_fkt_os");
+export const useNLDiscrepancyPermissions = () =>
+  usePagePermissions("nl_discrepancy");
+
 // FSN Level Scanning
 export const useFSNScanningPermissions = () =>
   usePagePermissions("fsn_scanning");
