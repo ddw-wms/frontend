@@ -158,6 +158,7 @@ export default function FSNEntryPage() {
 
   // ── Grid state ─────────────────────────────────────────────────────────────
   const gridRef = useRef<any>(null);
+  const selectedRangeRef = useRef<any>(null);
   const rowIdCounterRef = useRef(0);
   const [rows, setRows] = useState<any[]>([]);
   const rowsRef = useRef<any[]>([]);
@@ -807,6 +808,73 @@ export default function FSNEntryPage() {
     [gridSettings],
   );
 
+  const handleRangeSelectionChanged = useCallback((event: any) => {
+    const ranges = event.api?.getCellRanges?.() || [];
+    selectedRangeRef.current = ranges[0] || null;
+  }, []);
+
+  useEffect(() => {
+    const handleCopy = (e: ClipboardEvent) => {
+      const activeEl = document.activeElement as HTMLElement | null;
+      const isEditing =
+        activeEl?.tagName === "INPUT" || activeEl?.tagName === "TEXTAREA";
+      if (isEditing) return;
+
+      const api = gridRef.current?.api;
+      if (!api) return;
+
+      const ranges = selectedRangeRef.current ? [selectedRangeRef.current] : [];
+      const allColumns = api.getAllDisplayedColumns?.() || [];
+      const colIds = allColumns.map((col: any) => col.getColId());
+      let text = "";
+
+      if (ranges.length > 0) {
+        const range = ranges[0];
+        const startRow = range.startRow?.rowIndex ?? 0;
+        const endRow = range.endRow?.rowIndex ?? 0;
+        const minRow = Math.min(startRow, endRow);
+        const maxRow = Math.max(startRow, endRow);
+        const rangeCols = range.columns || [];
+        const startCol = colIds.indexOf(rangeCols[0]?.getColId?.());
+        const endCol = colIds.indexOf(rangeCols[rangeCols.length - 1]?.getColId?.());
+        const minCol = Math.min(startCol, endCol);
+        const maxCol = Math.max(startCol, endCol);
+
+        const lines: string[] = [];
+        for (let rowIndex = minRow; rowIndex <= maxRow; rowIndex += 1) {
+          const rowValues: string[] = [];
+          for (let colIndex = minCol; colIndex <= maxCol; colIndex += 1) {
+            const colId = colIds[colIndex];
+            const value = rowsRef.current[rowIndex]?.[colId];
+            rowValues.push(value != null ? String(value) : "");
+          }
+          lines.push(rowValues.join("\t"));
+        }
+        text = lines.join("\n");
+      } else {
+        const focusedCell = api.getFocusedCell();
+        if (!focusedCell) return;
+        const { rowIndex, column } = focusedCell;
+        const colId = column.getColId();
+        const value = rowsRef.current[rowIndex]?.[colId];
+        text = value != null ? String(value) : "";
+      }
+
+      if (!text) return;
+      e.preventDefault();
+      navigator.clipboard.writeText(text).catch(() => {
+        try {
+          e.clipboardData?.setData("text/plain", text);
+        } catch {
+          // ignore fallback failure
+        }
+      });
+    };
+
+    document.addEventListener("copy", handleCopy);
+    return () => document.removeEventListener("copy", handleCopy);
+  }, []);
+
   const toggleColumn = (col: string) => {
     setVisibleColumns((prev) => {
       const next = prev.includes(col)
@@ -1057,6 +1125,8 @@ export default function FSNEntryPage() {
               animateRows={false}
               getRowId={(params: any) => params.data._rowId}
               onCellValueChanged={handleCellValueChanged}
+              onRangeSelectionChanged={handleRangeSelectionChanged}
+              enableRangeSelection
               suppressCellFocus={false}
               singleClickEdit
               stopEditingWhenCellsLoseFocus
