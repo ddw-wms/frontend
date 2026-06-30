@@ -104,7 +104,7 @@ const DEFAULT_INVENTORY_TYPES = ["NEW", "RVP", "Other"];
 const DRAFT_KEY = "fsn_entry_draft";
 
 const HEADER_LABELS: Record<string, string> = {
-  lookup_input: "Scan / Lookup (WID / FSN / EAN / SAP)",
+  lookup_input: "WID / FSN / EAN / SAP",
   mrp: "MRP",
   fsp: "FSP",
   quantity: "Qty",
@@ -116,7 +116,7 @@ const HEADER_LABELS: Record<string, string> = {
   brand: "Brand",
   cms_vertical: "CMS Vertical",
   mega_category: "Mega Category",
-  ean: "EAN/ENA",
+  ean: "EAN",
   sap_sku: "SAP/SKU",
 };
 
