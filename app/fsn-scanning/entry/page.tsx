@@ -678,7 +678,7 @@ export default function FSNEntryPage() {
         pinned: "left",
         sortable: false,
         filter: false,
-        editable: false,
+        editable: true,
         cellStyle: {
           color: "#64748b",
           fontSize: "0.75rem",
