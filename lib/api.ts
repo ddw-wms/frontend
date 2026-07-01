@@ -1,5 +1,5 @@
 // File Path = warehouse-frontend\lib\api.ts
-import axios, { AxiosInstance, AxiosRequestConfig, AxiosError } from 'axios';
+import axios, { AxiosInstance, AxiosRequestConfig, AxiosError } from "axios";
 
 //const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 const API_URL = `${process.env.NEXT_PUBLIC_API_URL}/api`;
@@ -18,10 +18,11 @@ export interface ApiErrorDetails {
 // Parse API errors into user-friendly format
 export const parseApiError = (error: any): ApiErrorDetails => {
   // Network error (no response from server)
-  if (error.code === 'ERR_NETWORK' || error.message === 'Network Error') {
+  if (error.code === "ERR_NETWORK" || error.message === "Network Error") {
     return {
       message: error.message,
-      userMessage: 'Unable to connect to the server. Please check your internet connection or try again later.',
+      userMessage:
+        "Unable to connect to the server. Please check your internet connection or try again later.",
       isRetryable: true,
       isNetworkError: true,
       isServerError: false,
@@ -30,10 +31,11 @@ export const parseApiError = (error: any): ApiErrorDetails => {
   }
 
   // Timeout error
-  if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+  if (error.code === "ECONNABORTED" || error.message?.includes("timeout")) {
     return {
       message: error.message,
-      userMessage: 'The request took too long. The server might be busy. Please try again.',
+      userMessage:
+        "The request took too long. The server might be busy. Please try again.",
       isRetryable: true,
       isNetworkError: false,
       isServerError: false,
@@ -49,8 +51,10 @@ export const parseApiError = (error: any): ApiErrorDetails => {
     // Server starting up (503)
     if (status === 503) {
       return {
-        message: data?.error || 'Service unavailable',
-        userMessage: data?.message || 'The server is starting up. Please wait a moment and try again.',
+        message: data?.error || "Service unavailable",
+        userMessage:
+          data?.message ||
+          "The server is starting up. Please wait a moment and try again.",
         isRetryable: data?.isRetryable ?? true,
         isNetworkError: false,
         isServerError: true,
@@ -62,8 +66,9 @@ export const parseApiError = (error: any): ApiErrorDetails => {
     // Gateway timeout (504)
     if (status === 504) {
       return {
-        message: data?.error || 'Gateway timeout',
-        userMessage: 'The request is taking too long. Please try again or use filters to reduce data.',
+        message: data?.error || "Gateway timeout",
+        userMessage:
+          "The request is taking too long. Please try again or use filters to reduce data.",
         isRetryable: true,
         isNetworkError: false,
         isServerError: true,
@@ -75,8 +80,10 @@ export const parseApiError = (error: any): ApiErrorDetails => {
     // Other server errors (500, 502)
     if (status >= 500) {
       return {
-        message: data?.error || 'Server error',
-        userMessage: data?.message || 'Something went wrong on our end. Please try again later.',
+        message: data?.error || "Server error",
+        userMessage:
+          data?.message ||
+          "Something went wrong on our end. Please try again later.",
         isRetryable: data?.isRetryable ?? true,
         isNetworkError: false,
         isServerError: true,
@@ -88,7 +95,8 @@ export const parseApiError = (error: any): ApiErrorDetails => {
     // Client errors (4xx) - generally not retryable
     return {
       message: data?.error || error.message,
-      userMessage: data?.message || data?.error || 'An error occurred. Please try again.',
+      userMessage:
+        data?.message || data?.error || "An error occurred. Please try again.",
       isRetryable: false,
       isNetworkError: false,
       isServerError: false,
@@ -99,8 +107,8 @@ export const parseApiError = (error: any): ApiErrorDetails => {
 
   // Unknown error
   return {
-    message: error.message || 'Unknown error',
-    userMessage: 'An unexpected error occurred. Please try again.',
+    message: error.message || "Unknown error",
+    userMessage: "An unexpected error occurred. Please try again.",
     isRetryable: true,
     isNetworkError: false,
     isServerError: false,
@@ -122,22 +130,27 @@ const defaultRetryConfig: RetryConfig = {
   useExponentialBackoff: true,
   retryCondition: (error: any) => {
     const parsedError = parseApiError(error);
-    return parsedError.isRetryable && (parsedError.isNetworkError || parsedError.isServerError || parsedError.isTimeout);
+    return (
+      parsedError.isRetryable &&
+      (parsedError.isNetworkError ||
+        parsedError.isServerError ||
+        parsedError.isTimeout)
+    );
   },
 };
 
-const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // Retry wrapper with optional exponential backoff
 export const withRetry = async <T>(
   fn: () => Promise<T>,
-  config: RetryConfig = {}
+  config: RetryConfig = {},
 ): Promise<T> => {
   const {
     maxRetries = 3,
     retryDelay = 1000,
     useExponentialBackoff = true,
-    retryCondition = defaultRetryConfig.retryCondition
+    retryCondition = defaultRetryConfig.retryCondition,
   } = config;
 
   let lastError: any;
@@ -153,7 +166,9 @@ export const withRetry = async <T>(
         const delay = useExponentialBackoff
           ? retryDelay * Math.pow(2, attempt)
           : retryDelay;
-        console.warn(`API request failed (attempt ${attempt + 1}/${maxRetries + 1}), retrying in ${delay}ms...`);
+        console.warn(
+          `API request failed (attempt ${attempt + 1}/${maxRetries + 1}), retrying in ${delay}ms...`,
+        );
         await sleep(delay);
         continue;
       }
@@ -165,11 +180,10 @@ export const withRetry = async <T>(
   throw lastError;
 };
 
-
 const api: AxiosInstance = axios.create({
   baseURL: API_URL,
   headers: {
-    'Content-Type': 'application/json',
+    "Content-Type": "application/json",
   },
   timeout: 60000, // 60 second timeout - allows for database recovery after bulk uploads
 });
@@ -194,39 +208,49 @@ export const wakeUpServer = async (): Promise<boolean> => {
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       try {
         // Try health check with longer timeout
-        const healthResponse = await axios.get(`${API_URL}/health`, { timeout: 15000 });
+        const healthResponse = await axios.get(`${API_URL}/health`, {
+          timeout: 15000,
+        });
 
-        if (healthResponse.data?.status === 'OK' || healthResponse.data?.status === 'DEGRADED') {
-          console.log('Server is awake and ready');
+        if (
+          healthResponse.data?.status === "OK" ||
+          healthResponse.data?.status === "DEGRADED"
+        ) {
+          console.log("Server is awake and ready");
           return true;
         }
 
         // Server responded but not ready yet (CONNECTING state)
-        console.log(`Server is waking up... (attempt ${attempt + 1}/${maxAttempts})`);
-        await new Promise(resolve => setTimeout(resolve, 5000));
-
+        console.log(
+          `Server is waking up... (attempt ${attempt + 1}/${maxAttempts})`,
+        );
+        await new Promise((resolve) => setTimeout(resolve, 5000));
       } catch (error: any) {
         // 503 means server is starting - keep waiting
         if (error.response?.status === 503) {
-          console.log(`Server is starting up... (attempt ${attempt + 1}/${maxAttempts})`);
-          await new Promise(resolve => setTimeout(resolve, 5000));
+          console.log(
+            `Server is starting up... (attempt ${attempt + 1}/${maxAttempts})`,
+          );
+          await new Promise((resolve) => setTimeout(resolve, 5000));
           continue;
         }
 
         // Network error or timeout - server might be cold starting
-        if (error.code === 'ERR_NETWORK' || error.code === 'ECONNABORTED') {
-          console.log(`Waiting for server to start... (attempt ${attempt + 1}/${maxAttempts})`);
-          await new Promise(resolve => setTimeout(resolve, 5000));
+        if (error.code === "ERR_NETWORK" || error.code === "ECONNABORTED") {
+          console.log(
+            `Waiting for server to start... (attempt ${attempt + 1}/${maxAttempts})`,
+          );
+          await new Promise((resolve) => setTimeout(resolve, 5000));
           continue;
         }
 
         // Other errors - might still work, continue trying
-        console.warn('Server wake-up check failed:', error.message);
-        await new Promise(resolve => setTimeout(resolve, 3000));
+        console.warn("Server wake-up check failed:", error.message);
+        await new Promise((resolve) => setTimeout(resolve, 3000));
       }
     }
 
-    console.warn('Server wake-up timed out');
+    console.warn("Server wake-up timed out");
     return false;
   })();
 
@@ -240,7 +264,7 @@ export const wakeUpServer = async (): Promise<boolean> => {
 
 // Check server health
 export const checkServerHealth = async (): Promise<{
-  status: 'OK' | 'DEGRADED' | 'CONNECTING' | 'ERROR' | 'OFFLINE';
+  status: "OK" | "DEGRADED" | "CONNECTING" | "ERROR" | "OFFLINE";
   database?: { ready: boolean; healthy: boolean; latencyMs?: number };
   uptime?: number;
 }> => {
@@ -248,30 +272,31 @@ export const checkServerHealth = async (): Promise<{
     const response = await axios.get(`${API_URL}/health`, { timeout: 10000 });
     return response.data;
   } catch (error: any) {
-    if (error.code === 'ERR_NETWORK' || error.code === 'ECONNABORTED') {
-      return { status: 'OFFLINE' };
+    if (error.code === "ERR_NETWORK" || error.code === "ECONNABORTED") {
+      return { status: "OFFLINE" };
     }
-    return { status: 'ERROR' };
+    return { status: "ERROR" };
   }
 };
 
 // =====================Auth API====================
 export const authAPI = {
-  login: (username: string, password: string) => api.post('auth/login', { username, password }),
-  register: (data: any) => api.post('auth/register', data),
+  login: (username: string, password: string) =>
+    api.post("auth/login", { username, password }),
+  register: (data: any) => api.post("auth/register", data),
 };
 
 // Request interceptor - add token and device ID
 api.interceptors.request.use((config) => {
-  if (typeof window !== 'undefined') {
-    const token = localStorage.getItem('token');
+  if (typeof window !== "undefined") {
+    const token = localStorage.getItem("token");
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
     // SSE device ID for real-time sync (skip broadcast back to sender)
-    const deviceId = sessionStorage.getItem('wms_device_id');
+    const deviceId = sessionStorage.getItem("wms_device_id");
     if (deviceId) {
-      config.headers['x-device-id'] = deviceId;
+      config.headers["x-device-id"] = deviceId;
     }
   }
   return config;
@@ -288,7 +313,8 @@ api.interceptors.response.use(
       const msg = ((error.response?.data as any)?.error || "").toLowerCase();
       // Logout ONLY when token expired or invalid - but NOT on login page
       // Skip redirect if already on login page (login failures shouldn't redirect)
-      const isOnLoginPage = typeof window !== 'undefined' && window.location.pathname === '/login';
+      const isOnLoginPage =
+        typeof window !== "undefined" && window.location.pathname === "/login";
       if (
         !isOnLoginPage &&
         (msg.includes("token") ||
@@ -298,7 +324,7 @@ api.interceptors.response.use(
         localStorage.removeItem("token");
         localStorage.removeItem("user");
         // Also clear auth cookie to keep cookie and localStorage in sync
-        document.cookie = 'wms_auth_token=; path=/; max-age=0; SameSite=Lax';
+        document.cookie = "wms_auth_token=; path=/; max-age=0; SameSite=Lax";
         window.location.href = "/login";
       }
     }
@@ -307,13 +333,13 @@ api.interceptors.response.use(
     (error as any).parsedError = parsedError;
 
     return Promise.reject(error);
-  }
+  },
 );
 
 // ========================Warehouses API========================
 export const warehousesAPI = {
-  getAll: () => api.get('warehouses'),
-  create: (data: any) => api.post('warehouses', data),
+  getAll: () => api.get("warehouses"),
+  create: (data: any) => api.post("warehouses", data),
   update: (id: number, data: any) => api.put(`warehouses/${id}`, data),
   delete: (id: number) => api.delete(`warehouses/${id}`),
   setActive: (id: number) => api.patch(`warehouses/${id}/set-active`, {}),
@@ -321,39 +347,56 @@ export const warehousesAPI = {
 
 // Users API
 export const usersAPI = {
-  getAll: () => api.get('users'),
-  create: (data: any) => api.post('users', data),
+  getAll: () => api.get("users"),
+  create: (data: any) => api.post("users", data),
   update: (id: number, data: any) => api.put(`users/${id}`, data),
   delete: (id: number) => api.delete(`users/${id}`),
-  changePassword: (id: number, newPassword: string) => api.patch(`users/${id}/change-password`, { newPassword }),
+  changePassword: (id: number, newPassword: string) =>
+    api.patch(`users/${id}/change-password`, { newPassword }),
   getWarehouses: (id: number) => api.get(`users/${id}/warehouses`),
-  setWarehouses: (id: number, warehouseIds: number[]) => api.put(`users/${id}/warehouses`, { warehouseIds }),
+  setWarehouses: (id: number, warehouseIds: number[]) =>
+    api.put(`users/${id}/warehouses`, { warehouseIds }),
 };
 
 // ================= Sessions API (Admin only) =======================
 export const sessionsAPI = {
   // Real-time status
-  heartbeat: () => api.post('sessions/heartbeat'),
-  getOnlineUsers: () => api.get('sessions/online-users'),
-  getOnlineCount: () => api.get('sessions/online-count'),
-  getAllSessions: () => api.get('sessions'),
+  heartbeat: () => api.post("sessions/heartbeat"),
+  getOnlineUsers: () => api.get("sessions/online-users"),
+  getOnlineCount: () => api.get("sessions/online-count"),
+  getAllSessions: () => api.get("sessions"),
 
   // Session management
   logoutUser: (userId: number) => api.post(`sessions/logout-user/${userId}`),
-  logoutAll: (excludeSelf: boolean = true) => api.post('sessions/logout-all', { excludeSelf }),
-  cleanup: () => api.delete('sessions/cleanup'),
+  logoutAll: (excludeSelf: boolean = true) =>
+    api.post("sessions/logout-all", { excludeSelf }),
+  cleanup: () => api.delete("sessions/cleanup"),
 
   // User activity & history (Admin only)
-  getUserSession: (userId: number) => api.get(`sessions/user-session/${userId}`),
+  getUserSession: (userId: number) =>
+    api.get(`sessions/user-session/${userId}`),
   getLoginHistory: (userId: number, page: number = 1, limit: number = 50) =>
     api.get(`sessions/login-history/${userId}?page=${page}&limit=${limit}`),
-  getUserActivity: (userId: number, page: number = 1, limit: number = 50, module?: string) =>
-    api.get(`sessions/activity/${userId}?page=${page}&limit=${limit}${module ? `&module=${module}` : ''}`),
-  getUserSummary: (userId: number) => api.get(`sessions/user-summary/${userId}`),
+  getUserActivity: (
+    userId: number,
+    page: number = 1,
+    limit: number = 50,
+    module?: string,
+  ) =>
+    api.get(
+      `sessions/activity/${userId}?page=${page}&limit=${limit}${module ? `&module=${module}` : ""}`,
+    ),
+  getUserSummary: (userId: number) =>
+    api.get(`sessions/user-summary/${userId}`),
 
   // Log activity
-  logActivity: (data: { activityType: string; module: string; action: string; details?: any; warehouseId?: number }) =>
-    api.post('sessions/log-activity', data),
+  logActivity: (data: {
+    activityType: string;
+    module: string;
+    action: string;
+    details?: any;
+    warehouseId?: number;
+  }) => api.post("sessions/log-activity", data),
 };
 
 // ====================Master Data API===================
@@ -380,8 +423,8 @@ export const sessionsAPI = {
 
 export const masterDataAPI = {
   // Supports optional filters: batch_id, status, brand, category, warehouseId
-  getAll: (page = 1, limit = 100, search = '', filters?: any) =>
-    api.get('master-data', {
+  getAll: (page = 1, limit = 100, search = "", filters?: any) =>
+    api.get("master-data", {
       params: {
         page,
         limit,
@@ -390,119 +433,197 @@ export const masterDataAPI = {
         status: filters?.status,
         brand: filters?.brand,
         category: filters?.category,
-        warehouseId: filters?.warehouseId
+        warehouseId: filters?.warehouseId,
       },
     }),
   // Create single product
-  create: (data: any) => api.post('master-data', data),
+  create: (data: any) => api.post("master-data", data),
   // Update product
   update: (id: number, data: any) => api.put(`master-data/${id}`, data),
   upload: (formData: FormData) =>
-    api.post('master-data/upload', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
+    api.post("master-data/upload", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
     }),
-  getUploadProgress: (jobId: string) => api.get(`master-data/upload/progress/${jobId}`),
-  cancelUpload: (jobId: string) => api.delete(`master-data/upload/cancel/${jobId}`),
-  getBatches: (warehouseId?: number) => api.get('master-data/batches', { params: { warehouseId } }),
+  getUploadProgress: (jobId: string) =>
+    api.get(`master-data/upload/progress/${jobId}`),
+  cancelUpload: (jobId: string) =>
+    api.delete(`master-data/upload/cancel/${jobId}`),
+  getBatches: (warehouseId?: number) =>
+    api.get("master-data/batches", { params: { warehouseId } }),
   // Get unique brands for filter dropdown (optionally filtered by category)
-  getBrands: (category?: string, warehouseId?: number) => api.get('master-data/brands', { params: { category, warehouseId } }),
+  getBrands: (category?: string, warehouseId?: number) =>
+    api.get("master-data/brands", { params: { category, warehouseId } }),
   // Get unique categories for filter dropdown (optionally filtered by brand)
-  getCategories: (brand?: string, warehouseId?: number) => api.get('master-data/categories', { params: { brand, warehouseId } }),
+  getCategories: (brand?: string, warehouseId?: number) =>
+    api.get("master-data/categories", { params: { brand, warehouseId } }),
   delete: (id: number) => api.delete(`master-data/${id}`),
   deleteBatch: (batchId: string) => api.delete(`master-data/batch/${batchId}`),
-  getActiveUploads: () => api.get('master-data/upload/active'),
+  getActiveUploads: () => api.get("master-data/upload/active"),
   // Phase 3: Upload history & duplicate details
-  getUploadHistory: (page = 1, limit = 20, filters?: { status?: string; search?: string; dateFrom?: string; dateTo?: string; warehouseId?: number }) =>
-    api.get('master-data/upload/history', {
-      params: { page, limit, status: filters?.status, search: filters?.search, dateFrom: filters?.dateFrom, dateTo: filters?.dateTo, warehouseId: filters?.warehouseId }
+  getUploadHistory: (
+    page = 1,
+    limit = 20,
+    filters?: {
+      status?: string;
+      search?: string;
+      dateFrom?: string;
+      dateTo?: string;
+      warehouseId?: number;
+    },
+  ) =>
+    api.get("master-data/upload/history", {
+      params: {
+        page,
+        limit,
+        status: filters?.status,
+        search: filters?.search,
+        dateFrom: filters?.dateFrom,
+        dateTo: filters?.dateTo,
+        warehouseId: filters?.warehouseId,
+      },
     }),
-  getUploadDuplicates: (jobId: string) => api.get(`master-data/upload/duplicates/${jobId}`),
+  getUploadDuplicates: (jobId: string) =>
+    api.get(`master-data/upload/duplicates/${jobId}`),
   // Phase 5: Advanced features
-  restoreBatch: (batchId: string) => api.post(`master-data/batch/${batchId}/restore`),
-  getSnapshots: (page = 1, limit = 20, filters?: { batchId?: string; includeRestored?: boolean; warehouseId?: number }) =>
-    api.get('master-data/snapshots', {
-      params: { page, limit, batchId: filters?.batchId, includeRestored: filters?.includeRestored, warehouseId: filters?.warehouseId }
+  restoreBatch: (batchId: string) =>
+    api.post(`master-data/batch/${batchId}/restore`),
+  getSnapshots: (
+    page = 1,
+    limit = 20,
+    filters?: {
+      batchId?: string;
+      includeRestored?: boolean;
+      warehouseId?: number;
+    },
+  ) =>
+    api.get("master-data/snapshots", {
+      params: {
+        page,
+        limit,
+        batchId: filters?.batchId,
+        includeRestored: filters?.includeRestored,
+        warehouseId: filters?.warehouseId,
+      },
     }),
-  getDeletedRecords: (page = 1, limit = 50, filters?: { search?: string; batchId?: string; warehouseId?: number }) =>
-    api.get('master-data/deleted', {
-      params: { page, limit, search: filters?.search, batchId: filters?.batchId, warehouseId: filters?.warehouseId }
+  getDeletedRecords: (
+    page = 1,
+    limit = 50,
+    filters?: { search?: string; batchId?: string; warehouseId?: number },
+  ) =>
+    api.get("master-data/deleted", {
+      params: {
+        page,
+        limit,
+        search: filters?.search,
+        batchId: filters?.batchId,
+        warehouseId: filters?.warehouseId,
+      },
     }),
-  purgeDeletedRecord: (id: number) => api.delete(`master-data/deleted/purge/${id}`),
-  purgeAllDeletedRecords: () => api.delete('master-data/deleted/purge-all'),
-  deleteUploadLog: (id: number) => api.delete(`master-data/upload/history/${id}`),
-  cleanupStaleData: () => api.delete('master-data/cleanup/stale'),
+  purgeDeletedRecord: (id: number) =>
+    api.delete(`master-data/deleted/purge/${id}`),
+  purgeAllDeletedRecords: () => api.delete("master-data/deleted/purge-all"),
+  deleteUploadLog: (id: number) =>
+    api.delete(`master-data/upload/history/${id}`),
+  cleanupStaleData: () => api.delete("master-data/cleanup/stale"),
   // Export with warehouse filter
   export: (filters?: any) =>
-    api.get('master-data/export', {
+    api.get("master-data/export", {
       params: {
         ...filters,
-        warehouseId: filters?.warehouseId
-      }
+        warehouseId: filters?.warehouseId,
+      },
     }),
   // Helper to trigger template download in browser
   downloadTemplate: () => {
-    if (typeof window !== 'undefined') {
+    if (typeof window !== "undefined") {
       window.location.href = `${process.env.NEXT_PUBLIC_API_URL}/api/master-data/download-template`;
       return;
     }
     // Fallback (server-side) - returns axios promise
-    return api.get('master-data/download-template');
-  }
+    return api.get("master-data/download-template");
+  },
 };
 
 // ====================Inbound API=======================
 export const inboundAPI = {
-  createSingle: (data: any) => api.post('inbound', data),
-  getMasterDataByWSN: (wsn: string, warehouseId?: number, config?: any) => api.get(`inbound/master-data/${wsn}`, { params: { warehouseId }, ...config }),
+  createSingle: (data: any) => api.post("inbound", data),
+  getMasterDataByWSN: (wsn: string, warehouseId?: number, config?: any) =>
+    api.get(`inbound/master-data/${wsn}`, {
+      params: { warehouseId },
+      ...config,
+    }),
   // Master data cache APIs
-  getMasterDataCount: (warehouseId?: number) => api.get('master-data/count', { params: { warehouseId } }),
+  getMasterDataCount: (warehouseId?: number) =>
+    api.get("master-data/count", { params: { warehouseId } }),
   getMasterDataBatch: (page: number, limit: number, warehouseId?: number) =>
-    api.get('master-data/batch', { params: { page, limit, warehouseId } }),
+    api.get("master-data/batch", { params: { page, limit, warehouseId } }),
   // Batch-specific cache APIs
-  getMasterDataBatchList: (warehouseId?: number) => api.get('master-data/batch-list', { params: { warehouseId } }),
+  getMasterDataBatchList: (warehouseId?: number) =>
+    api.get("master-data/batch-list", { params: { warehouseId } }),
   getMasterDataByBatchIds: (batchIds: string[], warehouseId?: number) =>
-    api.get('master-data/by-batch', { params: { batchIds: batchIds.join(','), warehouseId } }),
-  bulkUpload: (formData: FormData) => api.post('inbound/bulk-upload', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' }
-  }),
-  getAllInboundWSNs: () => api.get('inbound/wsns/all'),
+    api.get("master-data/by-batch", {
+      params: { batchIds: batchIds.join(","), warehouseId },
+    }),
+  bulkUpload: (formData: FormData) =>
+    api.post("inbound/bulk-upload", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    }),
+  getAllInboundWSNs: () => api.get("inbound/wsns/all"),
   bulkCheckWSNs: (wsns: string[], warehouse_id: number) =>
-    api.post('inbound/bulk-check-wsns', { wsns, warehouse_id }),
+    api.post("inbound/bulk-check-wsns", { wsns, warehouse_id }),
   multiEntry: (entries: any[], warehouse_id: number) =>
-    api.post('inbound/multi-entry', { entries, warehouse_id }),
-  getWarehouseRacks: (warehouseId: number) => api.get(`inbound/racks/${warehouseId}`),
+    api.post("inbound/multi-entry", { entries, warehouse_id }),
+  getWarehouseRacks: (warehouseId: number) =>
+    api.get(`inbound/racks/${warehouseId}`),
 
   // Receiving WSNs tracking (for multi-entry scanning status in master data)
   syncReceivingWSNs: (wsns: string[], warehouse_id: number) =>
-    api.post('inbound/receiving-wsns/sync', { wsns, warehouse_id }),
+    api.post("inbound/receiving-wsns/sync", { wsns, warehouse_id }),
   clearReceivingWSNs: (warehouse_id?: number) =>
-    api.post('inbound/receiving-wsns/clear', { warehouse_id }),
+    api.post("inbound/receiving-wsns/clear", { warehouse_id }),
   getReceivingWSNs: (warehouse_id?: number) =>
-    api.get('inbound/receiving-wsns', { params: { warehouse_id } }),
+    api.get("inbound/receiving-wsns", { params: { warehouse_id } }),
 
   // Multi-entry draft persistence (save/load/clear draft from database)
-  saveDraft: (draft_data: any[], warehouse_id: number, vehicle_no?: string, common_date?: string, source?: string) =>
-    api.put('inbound/draft', { draft_data, warehouse_id, vehicle_no, common_date, source }),
+  saveDraft: (
+    draft_data: any[],
+    warehouse_id: number,
+    vehicle_no?: string,
+    common_date?: string,
+    source?: string,
+  ) =>
+    api.put("inbound/draft", {
+      draft_data,
+      warehouse_id,
+      vehicle_no,
+      common_date,
+      source,
+    }),
   loadDraft: (warehouse_id: number, source?: string) =>
-    api.get('inbound/draft', { params: { warehouse_id, source } }),
+    api.get("inbound/draft", { params: { warehouse_id, source } }),
   clearDraft: (warehouse_id: number, source?: string) =>
-    api.delete('inbound/draft', { params: { warehouse_id, source } }),
+    api.delete("inbound/draft", { params: { warehouse_id, source } }),
 
   // Real-time multi-entry row sync across devices (SSE relay, no DB write)
   syncRows: (rows: Array<{ index: number; data: any }>, warehouseId: number) =>
-    api.post('inbound/sync-rows', { rows, warehouseId }),
+    api.post("inbound/sync-rows", { rows, warehouseId }),
 
   getBatches: (warehouseId?: string) => {
-    const params = warehouseId ? `?warehouse_id=${warehouseId}` : '';
+    const params = warehouseId ? `?warehouse_id=${warehouseId}` : "";
     return api.get(`inbound/batches${params}`);
   },
   deleteBatch: (batchId: string) => api.delete(`inbound/batches/${batchId}`),
   getBrands: (warehouseId?: number) =>
-    api.get('inbound/brands', { params: { warehouse_id: warehouseId } }),
+    api.get("inbound/brands", { params: { warehouse_id: warehouseId } }),
   getCategories: (warehouseId?: number) =>
-    api.get('inbound/categories', { params: { warehouse_id: warehouseId } }),
-  getAll: (page: number, limit: number, filters?: any, config?: AxiosRequestConfig) =>
-    api.get('inbound', {
+    api.get("inbound/categories", { params: { warehouse_id: warehouseId } }),
+  getAll: (
+    page: number,
+    limit: number,
+    filters?: any,
+    config?: AxiosRequestConfig,
+  ) =>
+    api.get("inbound", {
       params: {
         page,
         limit,
@@ -513,105 +634,112 @@ export const inboundAPI = {
         dateFrom: filters?.dateFrom,
         dateTo: filters?.dateTo,
         // Send batch IDs as comma-separated string for reliable parsing
-        batchId: Array.isArray(filters?.batchId) ? filters.batchId.join(',') : filters?.batchId,
-        statusFilter: filters?.statusFilter
+        batchId: Array.isArray(filters?.batchId)
+          ? filters.batchId.join(",")
+          : filters?.batchId,
+        statusFilter: filters?.statusFilter,
       },
-      ...(config || {})
+      ...(config || {}),
     }),
 
-  getPrinterSettings: () => api.get('printer-settings'),
-  printBarcode: (wsn: string) =>
-    api.post('print-barcode', { wsn }),
-
+  getPrinterSettings: () => api.get("printer-settings"),
+  printBarcode: (wsn: string) => api.post("print-barcode", { wsn }),
 };
 
 // ====================Inventory/Stock API=======================
 export const inventoryAPI = {
-  getSummary: (warehouseId: number) => api.get(`inventory/summary?warehouseId=${warehouseId}`),
-  getAvailableStock: (warehouseId: number, page = 1, limit = 100, search = '') =>
-    api.get(`inventory/available-stock?warehouseId=${warehouseId}&page=${page}&limit=${limit}&search=${search}`),
+  getSummary: (warehouseId: number) =>
+    api.get(`inventory/summary?warehouseId=${warehouseId}`),
+  getAvailableStock: (
+    warehouseId: number,
+    page = 1,
+    limit = 100,
+    search = "",
+  ) =>
+    api.get(
+      `inventory/available-stock?warehouseId=${warehouseId}&page=${page}&limit=${limit}&search=${search}`,
+    ),
   getStockByStatus: (warehouseId: number, status: string) =>
     api.get(`inventory/by-status?warehouseId=${warehouseId}&status=${status}`),
-  getMovementHistory: (wsn: string) => api.get(`inventory/movement-history?wsn=${wsn}`),
+  getMovementHistory: (wsn: string) =>
+    api.get(`inventory/movement-history?wsn=${wsn}`),
 };
 
 // ======================Racks API======================
 export const rackAPI = {
   getAll: (warehouseId?: number) => {
-    const params = warehouseId ? `?warehouse_id=${warehouseId}` : '';
+    const params = warehouseId ? `?warehouse_id=${warehouseId}` : "";
     return api.get(`racks${params}`);
   },
-  create: (data: any) => api.post('racks', data),
-  bulkUpload: (formData: FormData) => api.post('racks/bulk-upload', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' }
-  }),
+  create: (data: any) => api.post("racks", data),
+  bulkUpload: (formData: FormData) =>
+    api.post("racks/bulk-upload", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    }),
   update: (id: number, data: any) => api.put(`racks/${id}`, data),
   delete: (id: number) => api.delete(`racks/${id}`),
   toggleStatus: (id: number) => api.patch(`racks/${id}/toggle`),
-  getByWarehouse: (warehouseId: number) => api.get('racks/by-warehouse',
-    { params: { warehouse_id: warehouseId } })
+  getByWarehouse: (warehouseId: number) =>
+    api.get("racks/by-warehouse", { params: { warehouse_id: warehouseId } }),
 };
 
 // =====================QC API=========================
 export const qcAPI = {
-  getAllQCWSNs: () => api.get('qc/wsns/all'),
+  getAllQCWSNs: () => api.get("qc/wsns/all"),
 
   getPendingInbound: (warehouseId?: number, search?: string, config?: any) => {
     const params = new URLSearchParams();
-    if (warehouseId) params.append('warehouseId', warehouseId.toString());
-    if (search) params.append('search', search);
+    if (warehouseId) params.append("warehouseId", warehouseId.toString());
+    if (search) params.append("search", search);
     return api.get(`/qc/pending-inbound?${params.toString()}`, config);
   },
 
   getList: (page: number, limit: number, filters?: any, config?: any) => {
     const params = new URLSearchParams();
-    params.append('page', page.toString());
-    params.append('limit', limit.toString());
-    if (filters?.warehouseId) params.append('warehouseId', filters.warehouseId);
-    if (filters?.search) params.append('search', filters.search);
-    if (filters?.qcStatus) params.append('qcStatus', filters.qcStatus);
-    if (filters?.qc_grade) params.append('qcGrade', filters.qc_grade);
-    if (filters?.brand) params.append('brand', filters.brand);
-    if (filters?.category) params.append('category', filters.category);
-    if (filters?.dateFrom) params.append('dateFrom', filters.dateFrom);
-    if (filters?.dateTo) params.append('dateTo', filters.dateTo);
+    params.append("page", page.toString());
+    params.append("limit", limit.toString());
+    if (filters?.warehouseId) params.append("warehouseId", filters.warehouseId);
+    if (filters?.search) params.append("search", filters.search);
+    if (filters?.qcStatus) params.append("qcStatus", filters.qcStatus);
+    if (filters?.qc_grade) params.append("qcGrade", filters.qc_grade);
+    if (filters?.brand) params.append("brand", filters.brand);
+    if (filters?.category) params.append("category", filters.category);
+    if (filters?.dateFrom) params.append("dateFrom", filters.dateFrom);
+    if (filters?.dateTo) params.append("dateTo", filters.dateTo);
     return api.get(`/qc/list?${params.toString()}`, config);
   },
 
-  createEntry: (data: any) =>
-    api.post('/qc/create', data),
+  createEntry: (data: any) => api.post("/qc/create", data),
 
   bulkUpload: (formData: FormData) => {
-    return api.post('/qc/bulk-upload', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' }
+    return api.post("/qc/bulk-upload", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
     });
   },
 
-  multiEntry: (data: any) =>
-    api.post('/qc/multi-entry', data),
+  multiEntry: (data: any) => api.post("/qc/multi-entry", data),
 
-  checkExistingQC: (wsns: string[]) =>
-    api.post('/qc/check-existing', { wsns }),
+  checkExistingQC: (wsns: string[]) => api.post("/qc/check-existing", { wsns }),
 
   getStats: (warehouseId?: number) =>
-    api.get(`/qc/stats${warehouseId ? `?warehouseId=${warehouseId}` : ''}`),
+    api.get(`/qc/stats${warehouseId ? `?warehouseId=${warehouseId}` : ""}`),
 
   getCategories: (warehouseId?: number) =>
-    api.get(`/qc/categories${warehouseId ? `?warehouseId=${warehouseId}` : ''}`),
+    api.get(
+      `/qc/categories${warehouseId ? `?warehouseId=${warehouseId}` : ""}`,
+    ),
 
   getBrands: (warehouseId?: number) =>
-    api.get(`/qc/brands${warehouseId ? `?warehouseId=${warehouseId}` : ''}`),
+    api.get(`/qc/brands${warehouseId ? `?warehouseId=${warehouseId}` : ""}`),
 
   getBatches: (warehouseId?: number) =>
     api.get(`/qc/batches`, {
-      params: { warehouseId }
+      params: { warehouseId },
     }),
 
-  deleteBatch: (batchId: string) =>
-    api.delete(`/qc/batch/${batchId}`),
+  deleteBatch: (batchId: string) => api.delete(`/qc/batch/${batchId}`),
 
-  deleteEntry: (qcId: number) =>
-    api.delete(`/qc/delete/${qcId}`),
+  deleteEntry: (qcId: number) => api.delete(`/qc/delete/${qcId}`),
 
   getWarehouseRacks: (warehouseId?: number) =>
     api.get(`/inbound/racks/${warehouseId}`),
@@ -626,8 +754,8 @@ export const qcAPI = {
         qcGrade: filters?.qc_grade,
         brand: filters?.brand,
         category: filters?.category,
-        batchId: filters?.batchId
-      }
+        batchId: filters?.batchId,
+      },
     }),
 
   downloadTemplate: () => {
@@ -636,107 +764,137 @@ export const qcAPI = {
 
   // Download QC template with Excel dropdown validation for GRADE & RACKNO
   downloadValidatedTemplate: (warehouseId: number) =>
-    api.get('/qc/template', {
+    api.get("/qc/template", {
       params: { warehouse_id: warehouseId },
-      responseType: 'blob',
+      responseType: "blob",
     }),
 
   // Multi-entry draft persistence (save/load/clear draft from database)
-  saveDraft: (draft_data: any[], warehouse_id: number, common_date?: string, draft_source?: string) =>
-    api.put('qc/draft', { draft_data, warehouse_id, common_date, draft_source }),
+  saveDraft: (
+    draft_data: any[],
+    warehouse_id: number,
+    common_date?: string,
+    draft_source?: string,
+  ) =>
+    api.put("qc/draft", {
+      draft_data,
+      warehouse_id,
+      common_date,
+      draft_source,
+    }),
   loadDraft: (warehouse_id: number, draft_source?: string) =>
-    api.get('qc/draft', { params: { warehouse_id, draft_source } }),
+    api.get("qc/draft", { params: { warehouse_id, draft_source } }),
   clearDraft: (warehouse_id: number, draft_source?: string) =>
-    api.delete('qc/draft', { params: { warehouse_id, draft_source } }),
+    api.delete("qc/draft", { params: { warehouse_id, draft_source } }),
 
   // Real-time multi-entry row sync across devices (SSE relay, no DB write)
   syncRows: (rows: Array<{ index: number; data: any }>, warehouseId: number) =>
-    api.post('qc/sync-rows', { rows, warehouseId }),
+    api.post("qc/sync-rows", { rows, warehouseId }),
 };
 
 // ============================ CUSTOMER API ==============================
 export const customerAPI = {
   // Get all customers for warehouse (full details)
   getAll: (warehouseId: number) =>
-    api.get('/customers', { params: { warehouseId } }),
+    api.get("/customers", { params: { warehouseId } }),
   // Get customer names only for dropdown
   getNames: (warehouseId: number) =>
-    api.get('/customers/names', { params: { warehouseId } }),
+    api.get("/customers/names", { params: { warehouseId } }),
   // Get single customer
-  getById: (id: number) =>
-    api.get(`/customers/${id}`),
+  getById: (id: number) => api.get(`/customers/${id}`),
   // Create customer
-  create: (data: any) =>
-    api.post('/customers', data),
+  create: (data: any) => api.post("/customers", data),
   // Update customer
-  update: (id: number, data: any) =>
-    api.put(`/customers/${id}`, data),
+  update: (id: number, data: any) => api.put(`/customers/${id}`, data),
   // Delete customer
-  delete: (id: number) =>
-    api.delete(`/customers/${id}`),
+  delete: (id: number) => api.delete(`/customers/${id}`),
   // Lookup pincode for city/state auto-fill
-  lookupPincode: (pincode: string) =>
-    api.get(`/customers/pincode/${pincode}`),
+  lookupPincode: (pincode: string) => api.get(`/customers/pincode/${pincode}`),
   // Lookup GST number for company details auto-fill
-  lookupGST: (gstin: string) =>
-    api.get(`/customers/gst/${gstin}`)
+  lookupGST: (gstin: string) => api.get(`/customers/gst/${gstin}`),
 };
 
 // ======================= OUTBOUND API ===========================
 export const outboundAPI = {
   // Get all outbound WSNs for duplicate checking
-  getAllOutboundWSNs: (config?: any) => api.get('outbound/all-wsns', config),
+  getAllOutboundWSNs: (config?: any) => api.get("outbound/all-wsns", config),
 
   // Get pending WSNs for outbound (from PICKING/QC)
   getPendingForOutbound: (warehouseId: number, search?: string) =>
-    api.get('outbound/pending', { params: { warehouseId, search } }),
+    api.get("outbound/pending", { params: { warehouseId, search } }),
 
   // Get source data by WSN (PICKING → QC → INBOUND)
-  getSourceByWSN: (wsn: string, warehouseId: number, config?: any) =>
-    api.get('outbound/source-by-wsn', { params: { wsn, warehouseId }, ...config }),
+  // Pass { allowRedispatch: true } to bypass the "already dispatched" block
+  // when the Allow Re-Dispatch toggle is enabled (Multi Entry grid).
+  getSourceByWSN: (wsn: string, warehouseId: number, config?: any) => {
+    const { allowRedispatch, ...axiosConfig } = config || {};
+    return api.get("outbound/source-by-wsn", {
+      params: {
+        wsn,
+        warehouseId,
+        ...(allowRedispatch ? { allowRedispatch: true } : {}),
+      },
+      ...axiosConfig,
+    });
+  },
+
+  // Get previous dispatch details (customer/date/vehicle) for WSNs being
+  // re-dispatched — used to build the "Re-Dispatched" export sheet.
+  getRedispatchInfo: (wsns: string[], warehouseId: number) =>
+    api.get("outbound/redispatch-info", {
+      params: { wsns: wsns.join(","), warehouseId },
+    }),
 
   // Create single outbound entry
-  createSingle: (data: any) => api.post('outbound/single', data),
+  createSingle: (data: any) => api.post("outbound/single", data),
 
   // Multi entry with auto batch ID
   multiEntry: (data: { entries: any[]; warehouse_id: number }) =>
-    api.post('outbound/multi', data),
+    api.post("outbound/multi", data),
 
   // Bulk upload with Excel file - Extended timeout for large files (30 minutes)
   bulkUpload: (formData: FormData) =>
-    api.post('outbound/bulk', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
+    api.post("outbound/bulk", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
       timeout: 30 * 60 * 1000, // 30 minutes for large bulk uploads
     }),
 
   // Get outbound list with filters (accepts optional axios config, e.g., { signal })
-  getList: (page: number, limit: number, params: {
-    warehouseId?: number;
-    search?: string;
-    source?: string;
-    customer?: string;
-    startDate?: string;
-    endDate?: string;
-    batchId?: string;
-    brand?: string;
-    category?: string;
-  }, config?: any) => api.get('outbound/list', { params: { page, limit, ...params }, ...(config || {}) }),
+  getList: (
+    page: number,
+    limit: number,
+    params: {
+      warehouseId?: number;
+      search?: string;
+      source?: string;
+      customer?: string;
+      startDate?: string;
+      endDate?: string;
+      batchId?: string;
+      brand?: string;
+      category?: string;
+    },
+    config?: any,
+  ) =>
+    api.get("outbound/list", {
+      params: { page, limit, ...params },
+      ...(config || {}),
+    }),
 
   // Get customers list for dropdown
   getCustomers: (warehouseId: number) =>
-    api.get('outbound/customers', { params: { warehouseId } }),
+    api.get("outbound/customers", { params: { warehouseId } }),
 
   // Get existing WSNs for duplicate check
   getExistingWSNs: (warehouseId: number) =>
-    api.get('outbound/existing-wsns', { params: { warehouseId } }),
+    api.get("outbound/existing-wsns", { params: { warehouseId } }),
 
   // Get batches for batch management
   getBatches: (warehouseId: number) =>
-    api.get('outbound/batches', { params: { warehouseId } }),
+    api.get("outbound/batches", { params: { warehouseId } }),
 
   // Delete batch
-  deleteBatch: (batchId: string) =>
-    api.delete(`outbound/batch/${batchId}`),
+  deleteBatch: (batchId: string) => api.delete(`outbound/batch/${batchId}`),
 
   // Export to Excel with filters
   exportToExcel: (params: {
@@ -746,61 +904,90 @@ export const outboundAPI = {
     startDate?: string;
     endDate?: string;
     batchId?: string;
-  }) => api.get('outbound/export', { params, responseType: 'blob', timeout: 5 * 60 * 1000 }),
+  }) =>
+    api.get("outbound/export", {
+      params,
+      responseType: "blob",
+      timeout: 5 * 60 * 1000,
+    }),
 
   // Get brands for filter dropdown
   getBrands: (warehouseId?: number) =>
-    api.get('outbound/brands', { params: { warehouse_id: warehouseId } }),
+    api.get("outbound/brands", { params: { warehouse_id: warehouseId } }),
 
   // Get categories for filter dropdown
   getCategories: (warehouseId?: number) =>
-    api.get('outbound/categories', { params: { warehouse_id: warehouseId } }),
+    api.get("outbound/categories", { params: { warehouse_id: warehouseId } }),
   // Get available sources for outbound filter (distinct values from outbound table)
   getSources: (warehouseId?: number) =>
-    api.get('outbound/sources', { params: { warehouse_id: warehouseId } }),
+    api.get("outbound/sources", { params: { warehouse_id: warehouseId } }),
 
   // Get all available inventory for outbound caching (PICKING + QC + INBOUND not yet dispatched)
   getAvailableForOutbound: (warehouseId: number) =>
-    api.get('outbound/available-inventory', { params: { warehouseId } }),
+    api.get("outbound/available-inventory", { params: { warehouseId } }),
 
   // Multi-entry draft persistence (save/load/clear draft from database)
-  saveDraft: (draft_data: any[], warehouse_id: number, customer_name?: string, dispatch_mode?: string, common_date?: string, draft_source?: string) =>
-    api.put('outbound/draft', { draft_data, warehouse_id, customer_name, dispatch_mode, common_date, draft_source }),
+  saveDraft: (
+    draft_data: any[],
+    warehouse_id: number,
+    customer_name?: string,
+    dispatch_mode?: string,
+    common_date?: string,
+    draft_source?: string,
+  ) =>
+    api.put("outbound/draft", {
+      draft_data,
+      warehouse_id,
+      customer_name,
+      dispatch_mode,
+      common_date,
+      draft_source,
+    }),
   loadDraft: (warehouse_id: number, draft_source?: string) =>
-    api.get('outbound/draft', { params: { warehouse_id, draft_source } }),
+    api.get("outbound/draft", { params: { warehouse_id, draft_source } }),
   clearDraft: (warehouse_id: number, draft_source?: string) =>
-    api.delete('outbound/draft', { params: { warehouse_id, draft_source } }),
+    api.delete("outbound/draft", { params: { warehouse_id, draft_source } }),
 
   // Real-time multi-entry row sync across devices (SSE relay, no DB write)
   syncRows: (rows: Array<{ index: number; data: any }>, warehouseId: number) =>
-    api.post('outbound/sync-rows', { rows, warehouseId }),
+    api.post("outbound/sync-rows", { rows, warehouseId }),
 
   // Real-time header field sync across devices (SSE relay, no DB write)
-  syncHeader: (warehouseId: number, commonDate: string, selectedCustomer: string, commonVehicle: string) =>
-    api.post('outbound/sync-header', { warehouseId, commonDate, selectedCustomer, commonVehicle }),
+  syncHeader: (
+    warehouseId: number,
+    commonDate: string,
+    selectedCustomer: string,
+    commonVehicle: string,
+  ) =>
+    api.post("outbound/sync-header", {
+      warehouseId,
+      commonDate,
+      selectedCustomer,
+      commonVehicle,
+    }),
 
   // Dispatching WSNs tracking (for "Outbound in Process" status in inbound list)
   syncDispatchingWSNs: (wsns: string[], warehouseId: number) =>
-    api.post('outbound/dispatching-wsns/sync', { wsns, warehouseId }),
+    api.post("outbound/dispatching-wsns/sync", { wsns, warehouseId }),
   clearDispatchingWSNs: (warehouseId: number) =>
-    api.post('outbound/dispatching-wsns/clear', { warehouseId }),
+    api.post("outbound/dispatching-wsns/clear", { warehouseId }),
   getDispatchingWSNs: (warehouseId: number) =>
-    api.get('outbound/dispatching-wsns', { params: { warehouseId } }),
+    api.get("outbound/dispatching-wsns", { params: { warehouseId } }),
 };
 
 // ==========================PICKING API ==============================
 export const pickingAPI = {
   // Get source data by WSN (QC → INBOUND → MASTER priority)
   getSourceByWSN: (wsn: string, warehouseId: number, config?: any) =>
-    api.get('/picking/source-by-wsn', {
+    api.get("/picking/source-by-wsn", {
       params: { wsn, warehouseId },
-      ...config
+      ...config,
     }),
   // Multi-entry with auto batch ID
   multiEntry: (entries: any[], warehouse_id: number) =>
-    api.post('/picking/multi-entry', {
+    api.post("/picking/multi-entry", {
       entries,
-      warehouse_id
+      warehouse_id,
     }),
   // Get picking list with filters & pagination
   getList: (params: {
@@ -815,63 +1002,72 @@ export const pickingAPI = {
     startDate?: string;
     endDate?: string;
     batchId?: string | string[];
-  }) =>
-    api.get('/picking/list', { params }),
+  }) => api.get("/picking/list", { params }),
   // Get customers from picking table (unique customers who have picking entries)
   getPickingCustomers: (warehouseId: number) =>
-    api.get('/picking/customers', { params: { warehouseId } }),
+    api.get("/picking/customers", { params: { warehouseId } }),
   // Get all customers for Multi Picking entry (from customers table)
-  getCustomers: (warehouseId: number) =>
-    customerAPI.getNames(warehouseId),
+  getCustomers: (warehouseId: number) => customerAPI.getNames(warehouseId),
   // Check if WSN exists
   checkWSNExists: (wsn: string, warehouseId: number, config?: any) =>
-    api.get('/picking/check-wsn', {
+    api.get("/picking/check-wsn", {
       params: { wsn, warehouseId },
-      ...config
+      ...config,
     }),
   // Get all existing WSNs for duplicate check
   getExistingWSNs: (warehouseId: number) =>
-    api.get('/picking/existing-wsns', {
-      params: { warehouseId }
+    api.get("/picking/existing-wsns", {
+      params: { warehouseId },
     }),
   // Get batches
   getBatches: (warehouseId: number) =>
-    api.get('/picking/batches', {
-      params: { warehouseId }
+    api.get("/picking/batches", {
+      params: { warehouseId },
     }),
   // Delete batch
-  deleteBatch: (batchId: string) =>
-    api.delete(`/picking/batch/${batchId}`),
+  deleteBatch: (batchId: string) => api.delete(`/picking/batch/${batchId}`),
   // Get unique brands for filter dropdown
   getBrands: (warehouseId?: number) =>
-    api.get('/picking/brands', { params: { warehouseId } }),
+    api.get("/picking/brands", { params: { warehouseId } }),
   // Get unique categories for filter dropdown
   getCategories: (warehouseId?: number) =>
-    api.get('/picking/categories', { params: { warehouseId } }),
+    api.get("/picking/categories", { params: { warehouseId } }),
 
   // Multi-entry draft persistence (save/load/clear draft from database)
-  saveDraft: (draft_data: any[], warehouse_id: number, customer_name?: string, common_date?: string, draft_source?: string) =>
-    api.put('picking/draft', { draft_data, warehouse_id, customer_name, common_date, draft_source }),
+  saveDraft: (
+    draft_data: any[],
+    warehouse_id: number,
+    customer_name?: string,
+    common_date?: string,
+    draft_source?: string,
+  ) =>
+    api.put("picking/draft", {
+      draft_data,
+      warehouse_id,
+      customer_name,
+      common_date,
+      draft_source,
+    }),
   loadDraft: (warehouse_id: number, draft_source?: string) =>
-    api.get('picking/draft', { params: { warehouse_id, draft_source } }),
+    api.get("picking/draft", { params: { warehouse_id, draft_source } }),
   clearDraft: (warehouse_id: number, draft_source?: string) =>
-    api.delete('picking/draft', { params: { warehouse_id, draft_source } }),
+    api.delete("picking/draft", { params: { warehouse_id, draft_source } }),
 
   // Real-time multi-entry row sync across devices (SSE relay, no DB write)
   syncRows: (rows: Array<{ index: number; data: any }>, warehouseId: number) =>
-    api.post('picking/sync-rows', { rows, warehouseId }),
+    api.post("picking/sync-rows", { rows, warehouseId }),
 };
 
 // ======================== DASHBOARD API ==============================
 export const dashboardAPI = {
   // Get inventory pipeline with all stages
   getInventoryPipeline: (params: any, config: any = {}) =>
-    api.get('/dashboard/inventory-pipeline', { params, ...config }),
+    api.get("/dashboard/inventory-pipeline", { params, ...config }),
 
   // Get inventory metrics
   getInventoryMetrics: (warehouseId: number) =>
-    api.get('/dashboard/inventory-metrics', {
-      params: { warehouseId }
+    api.get("/dashboard/inventory-metrics", {
+      params: { warehouseId },
     }),
 
   // Get activity logs
@@ -879,8 +1075,7 @@ export const dashboardAPI = {
     warehouseId: number;
     page?: number;
     limit?: number;
-  }) =>
-    api.get('/dashboard/activity-logs', { params }),
+  }) => api.get("/dashboard/activity-logs", { params }),
 
   // ✅ FIXED: Get data for export with complete details
   getInventoryDataForExport: (queryString: string) =>
@@ -888,12 +1083,19 @@ export const dashboardAPI = {
 
   // ✅ PIVOT TABLE APIs - Server-side aggregation
   // Get pivot summary (category-wise qty count)
-  getPivotSummary: (params: { warehouseId: number; groupBy?: string; brand?: string; category?: string }) =>
-    api.get('/dashboard/pivot-summary', { params }),
+  getPivotSummary: (params: {
+    warehouseId: number;
+    groupBy?: string;
+    brand?: string;
+    category?: string;
+  }) => api.get("/dashboard/pivot-summary", { params }),
 
   // Get pivot filter options (brands, categories) - dynamic based on selected filters
-  getPivotFilters: (params: { warehouseId: number; brand?: string; category?: string }) =>
-    api.get('/dashboard/pivot-filters', { params }),
+  getPivotFilters: (params: {
+    warehouseId: number;
+    brand?: string;
+    category?: string;
+  }) => api.get("/dashboard/pivot-filters", { params }),
 
   // Get drill-down data for a specific category (with all master_data columns)
   getPivotDrilldown: (params: {
@@ -903,21 +1105,26 @@ export const dashboardAPI = {
     page?: number;
     limit?: number;
     exportAll?: boolean;
-  }) =>
-    api.get('/dashboard/pivot-drilldown', { params }),
+  }) => api.get("/dashboard/pivot-drilldown", { params }),
 
   // Export all available inventory data (pivot export all)
-  getPivotExportAll: (params: { warehouseId: number; brand?: string; category?: string }) =>
-    api.get('/dashboard/pivot-export-all', { params }),
+  getPivotExportAll: (params: {
+    warehouseId: number;
+    brand?: string;
+    category?: string;
+  }) => api.get("/dashboard/pivot-export-all", { params }),
 };
-
 
 // ================= Reports API =======================
 export const reportsAPI = {
-  getTrendAnalysis: (warehouseId: number, startDate?: string, endDate?: string) => {
+  getTrendAnalysis: (
+    warehouseId: number,
+    startDate?: string,
+    endDate?: string,
+  ) => {
     const params = new URLSearchParams({ warehouse_id: String(warehouseId) });
-    if (startDate) params.append('start_date', startDate);
-    if (endDate) params.append('end_date', endDate);
+    if (startDate) params.append("start_date", startDate);
+    if (endDate) params.append("end_date", endDate);
     return api.get(`/reports/trend-analysis?${params.toString()}`);
   },
   getQCAnalysis: (warehouseId: number) =>
@@ -926,71 +1133,132 @@ export const reportsAPI = {
     api.get(`/reports/performance-metrics?warehouse_id=${warehouseId}`),
   getExceptionReports: (warehouseId: number) =>
     api.get(`/reports/exception-reports?warehouse_id=${warehouseId}`),
-  exportReport: (reportType: string, warehouseId: number, startDate?: string, endDate?: string) => {
-    const params = new URLSearchParams({ report_type: reportType, warehouse_id: String(warehouseId) });
-    if (startDate) params.append('start_date', startDate);
-    if (endDate) params.append('end_date', endDate);
-    return api.get(`/reports/export?${params.toString()}`, { responseType: 'blob' });
+  exportReport: (
+    reportType: string,
+    warehouseId: number,
+    startDate?: string,
+    endDate?: string,
+  ) => {
+    const params = new URLSearchParams({
+      report_type: reportType,
+      warehouse_id: String(warehouseId),
+    });
+    if (startDate) params.append("start_date", startDate);
+    if (endDate) params.append("end_date", endDate);
+    return api.get(`/reports/export?${params.toString()}`, {
+      responseType: "blob",
+    });
   },
 };
 
 // ================= Permissions API =======================
 export const permissionsAPI = {
   // Get current user's permissions
-  getMyPermissions: () => api.get('/permissions/me'),
+  getMyPermissions: () => api.get("/permissions/me"),
 
   // Check specific permission
   checkPermission: (code: string) => api.get(`/permissions/check/${code}`),
 
   // Get all permissions (master list)
-  getAll: () => api.get('/permissions'),
+  getAll: () => api.get("/permissions"),
 
   // Roles
-  getRoles: () => api.get('/permissions/roles'),
-  getRolePermissions: (roleId: number) => api.get(`/permissions/roles/${roleId}/permissions`),
-  updateRolePermissions: (roleId: number, permissions: { code: string; is_enabled: boolean; is_visible: boolean }[]) =>
-    api.put(`/permissions/roles/${roleId}/permissions`, { permissions }, { timeout: 30000 }), // Extended timeout for batch update
+  getRoles: () => api.get("/permissions/roles"),
+  getRolePermissions: (roleId: number) =>
+    api.get(`/permissions/roles/${roleId}/permissions`),
+  updateRolePermissions: (
+    roleId: number,
+    permissions: { code: string; is_enabled: boolean; is_visible: boolean }[],
+  ) =>
+    api.put(
+      `/permissions/roles/${roleId}/permissions`,
+      { permissions },
+      { timeout: 30000 },
+    ), // Extended timeout for batch update
 
   // User overrides
-  getUserOverrides: (userId: number) => api.get(`/permissions/users/${userId}/overrides`),
-  updateUserOverrides: (userId: number, overrides: { code: string; is_enabled: boolean | null; is_visible: boolean | null }[]) =>
-    api.put(`/permissions/users/${userId}/overrides`, { overrides }, { timeout: 30000 }), // Extended timeout for batch update
+  getUserOverrides: (userId: number) =>
+    api.get(`/permissions/users/${userId}/overrides`),
+  updateUserOverrides: (
+    userId: number,
+    overrides: {
+      code: string;
+      is_enabled: boolean | null;
+      is_visible: boolean | null;
+    }[],
+  ) =>
+    api.put(
+      `/permissions/users/${userId}/overrides`,
+      { overrides },
+      { timeout: 30000 },
+    ), // Extended timeout for batch update
 
   // User warehouses
-  getUserWarehouses: (userId: number) => api.get(`/permissions/users/${userId}/warehouses`),
-  updateUserWarehouses: (userId: number, warehouse_ids: number[], default_warehouse_id?: number) =>
-    api.put(`/permissions/users/${userId}/warehouses`, { warehouse_ids, default_warehouse_id }),
+  getUserWarehouses: (userId: number) =>
+    api.get(`/permissions/users/${userId}/warehouses`),
+  updateUserWarehouses: (
+    userId: number,
+    warehouse_ids: number[],
+    default_warehouse_id?: number,
+  ) =>
+    api.put(`/permissions/users/${userId}/warehouses`, {
+      warehouse_ids,
+      default_warehouse_id,
+    }),
 
   // ============== Approval Workflow APIs ==============
   // Get pending approval count (for badge)
-  getPendingApprovalCount: () => api.get('/permissions/approval/pending-count'),
+  getPendingApprovalCount: () => api.get("/permissions/approval/pending-count"),
 
   // Get all approval requests (super_admin only)
   getApprovalRequests: (status?: string) =>
-    api.get('/permissions/approval/requests', { params: { status: status || 'all' } }),
+    api.get("/permissions/approval/requests", {
+      params: { status: status || "all" },
+    }),
 
   // Get single request with details
   getApprovalRequestDetails: (requestId: number) =>
     api.get(`/permissions/approval/requests/${requestId}`),
 
   // Get current user's requests
-  getMyApprovalRequests: () => api.get('/permissions/approval/my-requests'),
+  getMyApprovalRequests: () => api.get("/permissions/approval/my-requests"),
 
   // Create role permission change request
-  createRolePermissionRequest: (roleId: number, permissions: { code: string; is_enabled: boolean; is_visible: boolean }[]) =>
-    api.post('/permissions/approval/role-request', { roleId, permissions }),
+  createRolePermissionRequest: (
+    roleId: number,
+    permissions: { code: string; is_enabled: boolean; is_visible: boolean }[],
+  ) => api.post("/permissions/approval/role-request", { roleId, permissions }),
 
   // Create user override change request
-  createUserOverrideRequest: (targetUserId: number, overrides: { code: string; is_enabled: boolean | null; is_visible: boolean | null }[]) =>
-    api.post('/permissions/approval/user-request', { targetUserId, overrides }),
+  createUserOverrideRequest: (
+    targetUserId: number,
+    overrides: {
+      code: string;
+      is_enabled: boolean | null;
+      is_visible: boolean | null;
+    }[],
+  ) =>
+    api.post("/permissions/approval/user-request", { targetUserId, overrides }),
 
   // Update individual change approvals (super_admin)
-  updateChangeApprovals: (requestId: number, changes: { detailId: number; is_approved: boolean }[]) =>
+  updateChangeApprovals: (
+    requestId: number,
+    changes: { detailId: number; is_approved: boolean }[],
+  ) =>
     api.put(`/permissions/approval/requests/${requestId}/changes`, { changes }),
 
   // Finalize request (approve/reject/partial)
-  finalizeRequest: (requestId: number, action: 'approve' | 'reject' | 'partial', note?: string, approveAll?: boolean) =>
-    api.post(`/permissions/approval/requests/${requestId}/finalize`, { action, note, approveAll }),
+  finalizeRequest: (
+    requestId: number,
+    action: "approve" | "reject" | "partial",
+    note?: string,
+    approveAll?: boolean,
+  ) =>
+    api.post(`/permissions/approval/requests/${requestId}/finalize`, {
+      action,
+      note,
+      approveAll,
+    }),
 
   // Cancel request
   cancelRequest: (requestId: number) =>
@@ -999,9 +1267,9 @@ export const permissionsAPI = {
 
 // ================= Error Logs API (Super Admin Only) =======================
 export const errorLogsAPI = {
-  getAll: () => api.get('/error-logs'),
-  getCount: () => api.get('/error-logs/count'),
-  clearAll: () => api.delete('/error-logs/clear'),
+  getAll: () => api.get("/error-logs"),
+  getCount: () => api.get("/error-logs/count"),
+  clearAll: () => api.delete("/error-logs/clear"),
   cleanup: (days: number) => api.delete(`/error-logs/cleanup/${days}`),
 };
 
@@ -1017,29 +1285,29 @@ export const rejectionsAPI = {
     batch_id?: string;
     source_batch_id?: string;
     warehouse_id?: number;
-    cn_status?: 'pending' | 'received' | 'all';
-  }) => api.get('/rejections', { params }),
+    cn_status?: "pending" | "received" | "all";
+  }) => api.get("/rejections", { params }),
 
   // Get summary for credit note tracking
   getSummary: (warehouse_id?: number) =>
-    api.get('/rejections/summary', { params: { warehouse_id } }),
+    api.get("/rejections/summary", { params: { warehouse_id } }),
 
   // Get unique persons for filter dropdown
   getPersons: (warehouse_id?: number) =>
-    api.get('/rejections/persons', { params: { warehouse_id } }),
+    api.get("/rejections/persons", { params: { warehouse_id } }),
 
   // Get upload batches for filter dropdown
   getBatches: (warehouse_id?: number) =>
-    api.get('/rejections/batches', { params: { warehouse_id } }),
+    api.get("/rejections/batches", { params: { warehouse_id } }),
 
   // Download template
   downloadTemplate: () =>
-    api.get('/rejections/template', { responseType: 'blob' }),
+    api.get("/rejections/template", { responseType: "blob" }),
 
   // Upload rejection Excel
   uploadRejections: (formData: FormData) =>
-    api.post('/rejections/upload', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
+    api.post("/rejections/upload", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
     }),
 
   // Update credit note info
@@ -1049,14 +1317,14 @@ export const rejectionsAPI = {
     credit_note_no: string;
     credit_note_date?: string;
     credit_note_amount?: number;
-  }) => api.put('/rejections/credit-note', data),
+  }) => api.put("/rejections/credit-note", data),
 
   // Export to Excel
   exportRejections: (params?: {
     batch_id?: string;
     warehouse_id?: number;
     cn_status?: string;
-  }) => api.get('/rejections/export', { params, responseType: 'blob' }),
+  }) => api.get("/rejections/export", { params, responseType: "blob" }),
 
   // Delete single rejection
   delete: (id: number) => api.delete(`/rejections/${id}`),
@@ -1069,8 +1337,13 @@ export const rejectionsAPI = {
     api.put(`/rejections/batch/${batchId}/rename`, { newBatchId }),
 
   // Upload history
-  getUploadHistory: (params?: { page?: number; limit?: number; warehouse_id?: number; status?: string; search?: string }) =>
-    api.get('/rejections/upload-history', { params }),
+  getUploadHistory: (params?: {
+    page?: number;
+    limit?: number;
+    warehouse_id?: number;
+    status?: string;
+    search?: string;
+  }) => api.get("/rejections/upload-history", { params }),
 
   // Delete upload history log
   deleteUploadLog: (id: number) =>
@@ -1078,17 +1351,17 @@ export const rejectionsAPI = {
 
   // Managed persons
   getManagedPersons: (warehouse_id?: number) =>
-    api.get('/rejections/managed-persons', { params: { warehouse_id } }),
+    api.get("/rejections/managed-persons", { params: { warehouse_id } }),
 
   addManagedPerson: (name: string, warehouse_id: number) =>
-    api.post('/rejections/managed-persons', { name, warehouse_id }),
+    api.post("/rejections/managed-persons", { name, warehouse_id }),
 
   deleteManagedPerson: (id: number) =>
     api.delete(`/rejections/managed-persons/${id}`),
 
   // Soft delete recovery
   getDeletedBatches: (warehouse_id?: number) =>
-    api.get('/rejections/deleted-batches', { params: { warehouse_id } }),
+    api.get("/rejections/deleted-batches", { params: { warehouse_id } }),
 
   restoreBatch: (batchId: string) =>
     api.put(`/rejections/batch/${batchId}/restore`),
@@ -1101,19 +1374,19 @@ export const rejectionsAPI = {
 export const liveViewAPI = {
   // Start a live entry session
   startSession: (warehouse_id: number, page_type: string) =>
-    api.post('/live-view/start', { warehouse_id, page_type }),
+    api.post("/live-view/start", { warehouse_id, page_type }),
 
   // Update entries in current session
   updateEntries: (session_id: string, entries: any[]) =>
-    api.post('/live-view/update', { session_id, entries }),
+    api.post("/live-view/update", { session_id, entries }),
 
   // End a live session
   endSession: (session_id: string) =>
-    api.post('/live-view/end', { session_id }),
+    api.post("/live-view/end", { session_id }),
 
   // Get active sessions for a warehouse/page
   getActiveSessions: (warehouse_id: number, page_type: string) =>
-    api.get('/live-view/sessions', { params: { warehouse_id, page_type } }),
+    api.get("/live-view/sessions", { params: { warehouse_id, page_type } }),
 
   // Get entries for a specific session
   getEntries: (session_id: string) =>
@@ -1124,24 +1397,22 @@ export const liveViewAPI = {
     api.get(`/live-view/export/${session_id}`),
 
   // Cleanup stale sessions (admin)
-  cleanup: () =>
-    api.post('/live-view/cleanup'),
+  cleanup: () => api.post("/live-view/cleanup"),
 };
 
 // ============================ CACHE API ============================
 export const cacheAPI = {
   // Get pending inventory for Inbound (master_data not yet received, not rejected)
   getPending: (warehouseId: number) =>
-    api.get('/cache/pending', { params: { warehouseId } }),
+    api.get("/cache/pending", { params: { warehouseId } }),
 
   // Get available inventory for QC/Picking/Outbound
   getAvailable: (warehouseId: number) =>
-    api.get('/cache/available', { params: { warehouseId } }),
+    api.get("/cache/available", { params: { warehouseId } }),
 
   // Get cache statistics
   getStats: (warehouseId: number) =>
-    api.get('/cache/stats', { params: { warehouseId } }),
+    api.get("/cache/stats", { params: { warehouseId } }),
 };
-
 
 export default api;

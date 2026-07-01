@@ -795,6 +795,68 @@ export default function OutboundPage() {
       }));
       ws["!cols"] = colWidths;
 
+      // ⚡ ALLOW RE-DISPATCH: add a second sheet for WSNs being re-dispatched,
+      // including who/when they were previously dispatched to (best-effort).
+      const redispatchRows = dataToExport.filter((row: any) => {
+        const wsn = row.wsn?.trim()?.toUpperCase();
+        return wsn && reDispatchWSNs.has(wsn);
+      });
+      if (redispatchRows.length > 0) {
+        const previousInfoMap = new Map<string, any>();
+        if (activeWarehouse?.id) {
+          try {
+            const wsnList = redispatchRows.map((r: any) =>
+              r.wsn.trim().toUpperCase(),
+            );
+            const infoResp = await outboundAPI.getRedispatchInfo(
+              wsnList,
+              activeWarehouse.id,
+            );
+            (infoResp.data || []).forEach((row: any) => {
+              previousInfoMap.set(String(row.wsn).toUpperCase(), row);
+            });
+          } catch (err) {
+            console.warn(
+              "Failed to fetch previous dispatch info for re-dispatch sheet:",
+              err,
+            );
+          }
+        }
+
+        const redispatchData = redispatchRows.map((row: any) => {
+          const wsn = row.wsn.trim().toUpperCase();
+          const prev = previousInfoMap.get(wsn);
+          return {
+            WSN: row.wsn,
+            "Product Title": row.product_title || "-",
+            Brand: row.brand || "-",
+            "New Customer": customerForExport || "-",
+            "New Dispatch Date": formatDate(dateForExport),
+            "New Vehicle No": vehicleForExport || "-",
+            "Previously Dispatched To": prev?.customer_name || "-",
+            "Previous Dispatch Date": prev?.dispatch_date
+              ? formatDate(prev.dispatch_date)
+              : "-",
+            "Previous Vehicle No": prev?.vehicle_no || "-",
+          };
+        });
+
+        const wsRedispatch = XLSX.utils.json_to_sheet(redispatchData);
+        const redispatchColWidths = Object.keys(redispatchData[0] || {}).map(
+          (key) => ({
+            wch:
+              Math.max(
+                key.length,
+                ...redispatchData.map(
+                  (row) => String((row as any)[key] || "").length,
+                ),
+              ) + 2,
+          }),
+        );
+        wsRedispatch["!cols"] = redispatchColWidths;
+        XLSX.utils.book_append_sheet(wb, wsRedispatch, "Re-Dispatched");
+      }
+
       // Filename: CustomerName_Dispatch_DD-MMM-YYYY.xlsx
       const months = [
         "Jan",
@@ -821,7 +883,11 @@ export default function OutboundPage() {
       const filename = `${safeCustomerName}_Dispatch_${dd}-${mmm}-${yyyy}.xlsx`;
 
       XLSX.writeFile(wb, filename);
-      toast.success(`✅ Exported ${dataToExport.length} rows to ${filename}`);
+      toast.success(
+        redispatchRows.length > 0
+          ? `✅ Exported ${dataToExport.length} rows to ${filename} (${redispatchRows.length} re-dispatched WSN(s) listed on a separate sheet)`
+          : `✅ Exported ${dataToExport.length} rows to ${filename}`,
+      );
       setMultiExportDialogOpen(false);
       // Only proceed with submit if export was triggered from the submit flow
       if (exportShouldSubmitRef.current) {
@@ -841,6 +907,16 @@ export default function OutboundPage() {
   const [existingOutboundWSNs, setExistingOutboundWSNs] = useState<Set<string>>(
     new Set(),
   );
+  // Sync ref so checkDuplicates sees WSNs added in the same handler (before React re-render)
+  const existingOutboundWSNsRef = useRef<Set<string>>(new Set());
+  const markExistingOutboundWSN = useCallback((wsn: string) => {
+    const normalized = wsn?.trim?.().toUpperCase();
+    if (!normalized || existingOutboundWSNsRef.current.has(normalized)) return;
+    const next = new Set(existingOutboundWSNsRef.current);
+    next.add(normalized);
+    existingOutboundWSNsRef.current = next;
+    setExistingOutboundWSNs(next);
+  }, []);
   const [duplicateWSNs, setDuplicateWSNs] = useState<Set<string>>(new Set());
 
   // ====== LIVE VIEW SESSION ======
@@ -1038,6 +1114,11 @@ export default function OutboundPage() {
   const [crossWarehouseWSNs, setCrossWarehouseWSNs] = useState<Set<string>>(
     new Set(),
   );
+  // ⚡ ALLOW RE-DISPATCH: Lets user re-enter a WSN already dispatched from this
+  // warehouse. Defaults to OFF every load (safety) — not persisted.
+  const [allowReDispatch, setAllowReDispatch] = useState<boolean>(false);
+  // WSNs currently in the grid that are being re-dispatched (amber highlight)
+  const [reDispatchWSNs, setReDispatchWSNs] = useState<Set<string>>(new Set());
   const [visibleColumns, setVisibleColumns] = useState<string[]>(
     DEFAULT_MULTI_COLUMNS,
   );
@@ -1532,11 +1613,18 @@ export default function OutboundPage() {
     try {
       const res = await outboundAPI.getExistingWSNs(activeWarehouse.id);
       const wsnSet = new Set<string>(
-        res.data.map((w: string) => w.toUpperCase()),
+        (res.data || [])
+          .map((w: string) =>
+            String(w || "")
+              .trim()
+              .toUpperCase(),
+          )
+          .filter(Boolean),
       );
+      existingOutboundWSNsRef.current = wsnSet;
       setExistingOutboundWSNs(wsnSet);
     } catch (err: any) {
-      console.error("Failed to load existing WSNs");
+      console.error("Failed to load existing WSNs", err);
     }
   };
 
@@ -2509,6 +2597,7 @@ export default function OutboundPage() {
     async (rows: any[]) => {
       const gridDup = new Set<string>();
       const crossWh = new Set<string>();
+      const reDispatch = new Set<string>();
       const wsnCounts = new Map<string, number>();
 
       rows.forEach((row) => {
@@ -2520,19 +2609,39 @@ export default function OutboundPage() {
           gridDup.add(wsn);
         }
 
-        if (existingOutboundWSNs.has(wsn)) {
-          crossWh.add(wsn);
+        if (existingOutboundWSNsRef.current.has(wsn)) {
+          // ⚡ ALLOW RE-DISPATCH: when enabled, already-dispatched WSNs (this
+          // warehouse) are no longer treated as blocking duplicates — they're
+          // tracked separately for amber highlighting instead.
+          if (allowReDispatch) {
+            reDispatch.add(wsn);
+          } else {
+            crossWh.add(wsn);
+          }
         }
       });
 
       setGridDuplicateWSNs(gridDup);
       setCrossWarehouseWSNs(crossWh);
+      setReDispatchWSNs(reDispatch);
       setDuplicateWSNs(
         new Set([...Array.from(gridDup), ...Array.from(crossWh)]),
       );
     },
-    [existingOutboundWSNs],
+    [allowReDispatch],
   );
+
+  // ⚡ ALLOW RE-DISPATCH: re-run duplicate check whenever the toggle changes
+  // so amber/red highlighting + submit validation update immediately.
+  useEffect(() => {
+    checkDuplicates(multiRowsRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allowReDispatch]);
+
+  // Re-run when outbound WSN list refreshes (async load / cross-device submit)
+  useEffect(() => {
+    checkDuplicates(multiRowsRef.current);
+  }, [existingOutboundWSNs, checkDuplicates]);
 
   // ✅ NAVIGATE TO NEXT CELL (AG GRID) - handles Enter, Tab, and Arrow keys
   const navigateToNextCell = useCallback((params: any) => {
@@ -3065,9 +3174,18 @@ export default function OutboundPage() {
         });
 
         // 2b) ALREADY DISPATCHED: Check against existingOutboundWSNs (already loaded in memory)
+        // ⚡ ALLOW RE-DISPATCH: when enabled, these are not treated as problematic —
+        // they're tracked separately so master data still loads for them.
         const alreadyDispatchedWSNs = new Set<string>();
+        const reDispatchDetected = new Set<string>();
         uniqueWSNs.forEach((wsn) => {
-          if (existingOutboundWSNs.has(wsn)) alreadyDispatchedWSNs.add(wsn);
+          if (existingOutboundWSNsRef.current.has(wsn)) {
+            if (allowReDispatch) {
+              reDispatchDetected.add(wsn);
+            } else {
+              alreadyDispatchedWSNs.add(wsn);
+            }
+          }
         });
 
         // 2c) CROSS-WAREHOUSE: Check against all outbound WSNs if online
@@ -3089,7 +3207,7 @@ export default function OutboundPage() {
               uniqueWSNs.forEach((wsn) => {
                 if (
                   allOutboundWSNs.has(wsn) &&
-                  !existingOutboundWSNs.has(wsn)
+                  !existingOutboundWSNsRef.current.has(wsn)
                 ) {
                   crossWarehouseDetected.add(wsn);
                 }
@@ -3142,9 +3260,32 @@ export default function OutboundPage() {
                   const res = await outboundAPI.getSourceByWSN(
                     wsn,
                     activeWarehouse!.id,
+                    { allowRedispatch: reDispatchDetected.has(wsn) },
                   );
                   return { wsn, data: res.data };
-                } catch {
+                } catch (pasteApiErr: any) {
+                  // ⚡ RESILIENCE: If 409 (already dispatched) fires here it means
+                  // either (a) allowRedispatch wasn’t sent (existingOutboundWSNs
+                  // stale) or (b) old backend running. When Allow Re-Dispatch
+                  // toggle is ON, retry with the flag forced so the user sees
+                  // product data instead of a misleading “not found” error.
+                  if (
+                    pasteApiErr?.response?.status === 409 &&
+                    allowReDispatch
+                  ) {
+                    try {
+                      const retryRes = await outboundAPI.getSourceByWSN(
+                        wsn,
+                        activeWarehouse!.id,
+                        { allowRedispatch: true },
+                      );
+                      // Also refresh the local set so future checks are accurate
+                      markExistingOutboundWSN(wsn);
+                      return { wsn, data: retryRes.data };
+                    } catch {
+                      /* retry also failed — data stays null */
+                    }
+                  }
                   return { wsn, data: null };
                 }
               }),
@@ -3217,6 +3358,25 @@ export default function OutboundPage() {
             duration: 5000,
             style: { fontWeight: 600, fontSize: "14px" },
           });
+        }
+
+        if (reDispatchDetected.size > 0) {
+          toast(
+            `🔁 ${reDispatchDetected.size} WSN${reDispatchDetected.size > 1 ? "s" : ""} will be re-dispatched (already dispatched earlier from this warehouse)`,
+            {
+              duration: 4500,
+              style: {
+                background: "#fff7ed",
+                color: "#c2410c",
+                border: "2px solid #f59e0b",
+                borderRadius: "8px",
+                padding: "12px 16px",
+                fontWeight: 600,
+                fontSize: "14px",
+              },
+              icon: "🔁",
+            },
+          );
         }
 
         if (noMasterDataWSNs.size > 0) {
@@ -3292,7 +3452,8 @@ export default function OutboundPage() {
     activeWarehouse,
     cacheEnabled,
     cacheStats,
-    existingOutboundWSNs,
+    markExistingOutboundWSN,
+    allowReDispatch,
     checkDuplicates,
   ]);
 
@@ -3997,7 +4158,7 @@ export default function OutboundPage() {
         }
 
         // Check existing outbound WSNs in this warehouse (same-warehouse duplicate)
-        if (existingOutboundWSNs.has(wsn)) {
+        if (existingOutboundWSNsRef.current.has(wsn) && !allowReDispatch) {
           toast(`WSN ${wsn} already dispatched in this warehouse`, {
             duration: 2500,
             style: {
@@ -4056,6 +4217,29 @@ export default function OutboundPage() {
           return;
         }
 
+        // ⚡ ALLOW RE-DISPATCH: already dispatched in this warehouse, but user opted in —
+        // don't block/clear, just inform and continue to fetch product data below.
+        const isReDispatchEntry =
+          existingOutboundWSNsRef.current.has(wsn) && allowReDispatch;
+        if (isReDispatchEntry) {
+          toast(
+            `🔁 Re-dispatching WSN ${wsn} (already dispatched earlier from this warehouse)`,
+            {
+              duration: 3000,
+              style: {
+                background: "#fff7ed",
+                color: "#c2410c",
+                border: "2px solid #f59e0b",
+                borderRadius: "8px",
+                padding: "12px 16px",
+                fontWeight: 600,
+                fontSize: "14px",
+              },
+              icon: "🔁",
+            },
+          );
+        }
+
         // Cross-warehouse detection: if WSN exists anywhere but not in this warehouse (skip if offline)
         const isOnline =
           typeof navigator !== "undefined" ? navigator.onLine : true;
@@ -4073,7 +4257,7 @@ export default function OutboundPage() {
               const allWsns: string[] = allWsnsResp.data.map((w: string) =>
                 w.toUpperCase(),
               );
-              if (allWsns.includes(wsn) && !existingOutboundWSNs.has(wsn)) {
+              if (allWsns.includes(wsn) && !existingOutboundWSNsRef.current.has(wsn)) {
                 toast.error(
                   `WSN ${wsn} already dispatched in another warehouse`,
                   {
@@ -4211,32 +4395,83 @@ export default function OutboundPage() {
                 const res = await outboundAPI.getSourceByWSN(
                   wsn,
                   activeWarehouse.id,
-                  { signal: controller.signal },
+                  {
+                    signal: controller.signal,
+                    allowRedispatch: isReDispatchEntry,
+                  },
                 );
                 data = res.data;
               } finally {
                 clearTimeout(timeoutId);
               }
             } catch (apiErr: any) {
-              // If API fails and we have cache enabled, show offline message
-              if (cacheEnabled) {
-                toast.error(
-                  `${wsn}: Not found in cache. Enable cache refresh when online.`,
-                );
-              } else {
-                // If cache is disabled and API fails, show error
-                if (apiErr.response?.status === 409) {
-                  toast.error(`${wsn} already dispatched`);
-                } else if (
-                  apiErr.code === "ERR_NETWORK" ||
-                  apiErr.message?.includes("Network")
-                ) {
-                  toast.error(`Offline - Enable cache for offline mode`);
-                } else {
-                  toast.error(`${wsn}: Not found`);
+              // ⚡ RESILIENCE: 409 = already dispatched from this warehouse.
+              // If Allow Re-Dispatch toggle is ON (but existingOutboundWSNs was
+              // stale so isReDispatchEntry was false), retry with the flag
+              // forced — fixes the “not found in source data” misleading error.
+              if (apiErr?.response?.status === 409 && allowReDispatch) {
+                try {
+                  const retryController = new AbortController();
+                  const retryTimeout = setTimeout(
+                    () => retryController.abort(),
+                    3000,
+                  );
+                  try {
+                    const retryRes = await outboundAPI.getSourceByWSN(
+                      wsn,
+                      activeWarehouse.id,
+                      {
+                        signal: retryController.signal,
+                        allowRedispatch: true,
+                      },
+                    );
+                    data = retryRes.data;
+                    markExistingOutboundWSN(wsn);
+                    toast(
+                      `🔁 Re-dispatching WSN ${wsn} (already dispatched earlier from this warehouse)`,
+                      {
+                        duration: 3000,
+                        style: {
+                          background: "#fff7ed",
+                          color: "#c2410c",
+                          border: "2px solid #f59e0b",
+                          borderRadius: "8px",
+                          padding: "12px 16px",
+                          fontWeight: 600,
+                          fontSize: "14px",
+                        },
+                        icon: "🔁",
+                      },
+                    );
+                  } finally {
+                    clearTimeout(retryTimeout);
+                  }
+                  // data is now set — fall through to product column update below
+                } catch {
+                  // Retry also failed — fall through to outer catch to clear row
+                  throw apiErr;
                 }
+              } else {
+                // If API fails and we have cache enabled, show offline message
+                if (cacheEnabled) {
+                  toast.error(
+                    `${wsn}: Not found in cache. Enable cache refresh when online.`,
+                  );
+                } else {
+                  // If cache is disabled and API fails, show error
+                  if (apiErr.response?.status === 409) {
+                    toast.error(`${wsn} already dispatched`);
+                  } else if (
+                    apiErr.code === "ERR_NETWORK" ||
+                    apiErr.message?.includes("Network")
+                  ) {
+                    toast.error(`Offline - Enable cache for offline mode`);
+                  } else {
+                    toast.error(`${wsn}: Not found`);
+                  }
+                }
+                throw apiErr;
               }
-              throw apiErr;
             }
           }
 
@@ -4340,11 +4575,12 @@ export default function OutboundPage() {
     [
       activeWarehouse,
       checkDuplicates,
-      existingOutboundWSNs,
+      allowReDispatch,
       cacheEnabled,
       cacheStats,
       saveCellUndoAction,
       queueRowSync,
+      markExistingOutboundWSN,
     ],
   );
 
@@ -4366,9 +4602,17 @@ export default function OutboundPage() {
       if (wsn && (gridDuplicateWSNs.has(wsn) || crossWarehouseWSNs.has(wsn))) {
         return { background: "#ffebee" };
       }
+
+      // ⚡ ALLOW RE-DISPATCH: amber tint for WSNs being re-dispatched
+      if (wsn && reDispatchWSNs.has(wsn)) {
+        return {
+          background: "#fff7ed",
+          borderLeft: "3px solid #f59e0b",
+        };
+      }
       return undefined;
     },
-    [gridDuplicateWSNs, crossWarehouseWSNs, highlightedRows],
+    [gridDuplicateWSNs, crossWarehouseWSNs, reDispatchWSNs, highlightedRows],
   );
 
   // ====== WSN OVERWRITE DIALOG HANDLERS ======
@@ -4602,12 +4846,19 @@ export default function OutboundPage() {
 
     try {
       // Add common fields to each row
-      const entriesWithCommonFields = filledRows.map((row: any) => ({
-        ...row,
-        dispatch_date: commonDate,
-        customer_name: selectedCustomer || commonCustomer,
-        vehicle_no: commonVehicle || "",
-      }));
+      const entriesWithCommonFields = filledRows.map((row: any) => {
+        const wsn = row.wsn?.trim?.().toUpperCase();
+        const isExistingSameWarehouse = existingOutboundWSNsRef.current.has(wsn);
+
+        return {
+          ...row,
+          wsn,
+          dispatch_date: commonDate,
+          customer_name: selectedCustomer || commonCustomer,
+          vehicle_no: commonVehicle || "",
+          is_redispatch: !!allowReDispatch && !!isExistingSameWarehouse,
+        };
+      });
 
       const payload = {
         entries: entriesWithCommonFields,
@@ -4619,19 +4870,33 @@ export default function OutboundPage() {
       const results = res.data?.results || [];
       const successCount = res.data?.successCount || 0;
       const totalCount = res.data?.totalCount || entriesWithCommonFields.length;
+      const redispatchedCount = results.filter(
+        (r: any) => r.status === "REDISPATCHED",
+      ).length;
+
+      const failedRows = results.filter(
+        (r: any) => r.status !== "SUCCESS" && r.status !== "REDISPATCHED",
+      );
 
       // --- Toasts ---
       if (successCount === totalCount) {
         toast.success(
-          `✓ ${successCount} entries created (Batch: ${res.data.batchId})`,
+          redispatchedCount > 0
+            ? `${successCount} entries created (${redispatchedCount} re-dispatched). Batch ${res.data.batchId}`
+            : `${successCount} entries created. Batch ${res.data.batchId}`,
         );
       } else if (successCount > 0) {
         const failedCount = totalCount - successCount;
         toast.success(
-          `${successCount}/${totalCount} entries created, ${failedCount} failed — failed rows kept in grid`,
+          `${successCount}/${totalCount} entries created, ${failedCount} failed - failed rows kept in grid`,
         );
       } else {
-        toast.error("No entries were saved. Check data.");
+        const msg = failedRows
+          .slice(0, 4)
+          .map((r: any) => `${r.wsn}: ${r.status}`)
+          .join(" | ");
+
+        toast.error(msg || "No entries were saved. Check data.");
       }
 
       // --- Smart 3-way clearing ---
@@ -4641,6 +4906,7 @@ export default function OutboundPage() {
         setDuplicateWSNs(new Set());
         setGridDuplicateWSNs(new Set());
         setCrossWarehouseWSNs(new Set());
+        setReDispatchWSNs(new Set());
         setCommonDate(new Date().toISOString().split("T")[0]);
         setCommonCustomer("");
         setSelectedCustomer("");
@@ -4667,10 +4933,12 @@ export default function OutboundPage() {
           removeMultipleFromAvailableCache(dispatchedWSNs).catch(() => {});
         }
       } else if (successCount > 0) {
-        // Partial success → remove only successful WSNs, keep failed rows
+        // Partial success → remove only successful/re-dispatched WSNs, keep failed rows
         const failedWSNs = new Set(
           results
-            .filter((r: any) => r.status !== "SUCCESS")
+            .filter(
+              (r: any) => r.status !== "SUCCESS" && r.status !== "REDISPATCHED",
+            )
             .map((r: any) => r.wsn?.toUpperCase()),
         );
         const survivingRows = multiRows.filter((r: any) => {
@@ -4685,10 +4953,12 @@ export default function OutboundPage() {
         setMultiRows(newRows);
         await saveDraftImmediate(newRows);
 
-        // Cache update for successful WSNs only
+        // Cache update for successful/re-dispatched WSNs only
         if (isWMSCacheEnabled()) {
           const successWSNs = results
-            .filter((r: any) => r.status === "SUCCESS")
+            .filter(
+              (r: any) => r.status === "SUCCESS" || r.status === "REDISPATCHED",
+            )
             .map((r: any) => r.wsn?.trim()?.toUpperCase())
             .filter(Boolean);
           removeMultipleFromAvailableCache(successWSNs).catch(() => {});
@@ -6184,6 +6454,9 @@ export default function OutboundPage() {
             } else if (gridDuplicateWSNs.has(wsn)) {
               styles.backgroundColor = isDarkMode ? "#78350f" : "#fef3c7";
               styles.color = isDarkMode ? "#fcd34d" : "#92400e";
+            } else if (reDispatchWSNs.has(wsn)) {
+              styles.backgroundColor = isDarkMode ? "#7c2d12" : "#fff7ed";
+              styles.color = isDarkMode ? "#fdba74" : "#c2410c";
             }
           }
 
@@ -6207,7 +6480,13 @@ export default function OutboundPage() {
     };
 
     return [srCol, ...cols, fillerCol];
-  }, [visibleColumns, isDarkMode, crossWarehouseWSNs, gridDuplicateWSNs]);
+  }, [
+    visibleColumns,
+    isDarkMode,
+    crossWarehouseWSNs,
+    gridDuplicateWSNs,
+    reDispatchWSNs,
+  ]);
 
   const defaultColDef = useMemo(
     () => ({
@@ -6524,11 +6803,12 @@ export default function OutboundPage() {
         );
         // Add submitted WSNs to existing set for duplicate prevention
         if (data.submittedWSNs?.length) {
-          setExistingOutboundWSNs((prev: Set<string>) => {
-            const updated = new Set(prev);
-            data.submittedWSNs!.forEach((wsn: string) => updated.add(wsn));
-            return updated;
-          });
+          const next = new Set(existingOutboundWSNsRef.current);
+          data.submittedWSNs.forEach((wsn: string) =>
+            next.add(String(wsn || "").trim().toUpperCase()),
+          );
+          existingOutboundWSNsRef.current = next;
+          setExistingOutboundWSNs(next);
         }
         // Clear grid — data was submitted from another device, draft is now empty
         isSyncingRef.current = true;
@@ -9852,6 +10132,63 @@ export default function OutboundPage() {
                             />
                           </Box>
 
+                          {/* Allow Re-Dispatch Toggle */}
+                          <Box
+                            sx={{
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              p: 1.5,
+                              borderRadius: 1.5,
+                              bgcolor: allowReDispatch
+                                ? isDarkMode
+                                  ? "rgba(245, 158, 11, 0.15)"
+                                  : "rgba(245, 158, 11, 0.08)"
+                                : isDarkMode
+                                  ? "#0f172a"
+                                  : "#f8fafc",
+                              border: allowReDispatch
+                                ? "1px solid #f59e0b"
+                                : isDarkMode
+                                  ? "1px solid #334155"
+                                  : "1px solid #e2e8f0",
+                            }}
+                          >
+                            <Box>
+                              <Typography
+                                sx={{
+                                  fontWeight: 600,
+                                  fontSize: "0.85rem",
+                                  color: isDarkMode ? "#e2e8f0" : "#334155",
+                                }}
+                              >
+                                🔁 Allow Re-Dispatch
+                              </Typography>
+                              <Typography
+                                sx={{
+                                  fontSize: "0.7rem",
+                                  color: isDarkMode ? "#64748b" : "#94a3b8",
+                                }}
+                              >
+                                Re-enter WSNs already dispatched from this
+                                warehouse
+                              </Typography>
+                            </Box>
+                            <Switch
+                              checked={allowReDispatch}
+                              onChange={(e) =>
+                                setAllowReDispatch(e.target.checked)
+                              }
+                              sx={{
+                                "& .MuiSwitch-switchBase.Mui-checked": {
+                                  color: "#f59e0b",
+                                },
+                                "& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track":
+                                  { backgroundColor: "#f59e0b" },
+                              }}
+                            />
+                          </Box>
+
                           {/* Refresh Cache Button */}
                           {cacheEnabled && (
                             <Button
@@ -9969,6 +10306,50 @@ export default function OutboundPage() {
                   `Duplicate WSNs: ${Array.from(gridDuplicateWSNs).join(", ")}. `}
                 {crossWarehouseWSNs.size > 0 &&
                   `Already dispatched: ${Array.from(crossWarehouseWSNs).join(", ")}`}
+              </Alert>
+            )}
+
+            {/* Re-Dispatch Info */}
+            {reDispatchWSNs.size > 0 && (
+              <Alert
+                severity="warning"
+                sx={{
+                  mb: 0.5,
+                  py: 0.5,
+                  borderRadius: 1,
+                  fontSize: "0.75rem",
+                  fontWeight: 600,
+                  bgcolor: "#fff7ed",
+                  color: "#c2410c",
+                  border: "1px solid #f59e0b",
+                  "& .MuiAlert-icon": { color: "#f59e0b" },
+                  "& .MuiAlert-message": { width: "100%", py: 0 },
+                }}
+              >
+                <Box sx={{ width: "100%" }}>
+                  <Box component="span" sx={{ display: "block", mb: 0.25 }}>
+                    {`🔁 ${reDispatchWSNs.size} WSN${reDispatchWSNs.size > 1 ? "s" : ""} will be re-dispatched (already dispatched earlier from this warehouse):`}
+                  </Box>
+                  <Box
+                    sx={{
+                      maxHeight: 40,
+                      overflowY: "auto",
+                      overflowX: "hidden",
+                      wordBreak: "break-all",
+                      lineHeight: 1.35,
+                      fontSize: "0.7rem",
+                      fontWeight: 500,
+                      pr: 0.5,
+                      "&::-webkit-scrollbar": { width: 4 },
+                      "&::-webkit-scrollbar-thumb": {
+                        backgroundColor: "#f59e0b",
+                        borderRadius: 2,
+                      },
+                    }}
+                  >
+                    {Array.from(reDispatchWSNs).join(", ")}
+                  </Box>
+                </Box>
               </Alert>
             )}
 
