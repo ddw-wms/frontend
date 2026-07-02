@@ -130,8 +130,8 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
     const [groupBy, setGroupBy] = useState<string>('cms_vertical');
 
     // Filters state
-    const [brandFilter, setBrandFilter] = useState<string>('');
-    const [categoryFilter, setCategoryFilter] = useState<string>('');
+    const [brandFilter, setBrandFilter] = useState<string[]>([]);
+    const [categoryFilter, setCategoryFilter] = useState<string[]>([]);
     const [allBrands, setAllBrands] = useState<string[]>([]);
     const [allCategories, setAllCategories] = useState<string[]>([]);
 
@@ -230,6 +230,9 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
         { field: 'current_stage', headerName: 'Stage', width: isMobile ? 75 : 100, minWidth: isMobile ? 65 : 80 },
     ], [isMobile]);
 
+    const toFilterParam = (values: string[]) =>
+        values.length > 0 ? values.join(',') : undefined;
+
     // Fetch pivot filters (brands, categories) when drawer opens or filters change
     useEffect(() => {
         if (open && warehouseId) {
@@ -245,25 +248,29 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
     }, [open, warehouseId, groupBy, brandFilter, categoryFilter]);
 
     // Fetch filter options from API — accepts current brand/category for cross-filtering
-    const fetchPivotFilters = async (brand?: string, category?: string) => {
+    const fetchPivotFilters = async (brands?: string[], categories?: string[]) => {
         if (!warehouseId) return;
         try {
             const response = await dashboardAPI.getPivotFilters({
                 warehouseId,
-                brand: brand || undefined,
-                category: category || undefined,
+                brand: toFilterParam(brands || []),
+                category: toFilterParam(categories || []),
             });
             if (response.data?.success) {
                 const newBrands = response.data.brands || [];
                 const newCategories = response.data.categories || [];
                 setAllBrands(newBrands);
                 setAllCategories(newCategories);
-                // Auto-reset selection if it's no longer in the filtered list
-                if (brandFilter && !newBrands.includes(brandFilter)) {
-                    setBrandFilter('');
+                // Auto-reset selections that are no longer in the filtered list
+                const validBrands = brandFilter.filter((b) => newBrands.includes(b));
+                if (validBrands.length !== brandFilter.length) {
+                    setBrandFilter(validBrands);
                 }
-                if (categoryFilter && !newCategories.includes(categoryFilter)) {
-                    setCategoryFilter('');
+                const validCategories = categoryFilter.filter((c) =>
+                    newCategories.includes(c),
+                );
+                if (validCategories.length !== categoryFilter.length) {
+                    setCategoryFilter(validCategories);
                 }
             }
         } catch (err) {
@@ -281,8 +288,8 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
             const response = await dashboardAPI.getPivotSummary({
                 warehouseId,
                 groupBy,
-                brand: brandFilter || undefined,
-                category: categoryFilter || undefined,
+                brand: toFilterParam(brandFilter),
+                category: toFilterParam(categoryFilter),
             });
 
             if (response.data?.success) {
@@ -478,8 +485,8 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
             // Fetch ALL available inventory data
             const response = await dashboardAPI.getPivotExportAll({
                 warehouseId,
-                brand: brandFilter || undefined,
-                category: categoryFilter || undefined,
+                brand: toFilterParam(brandFilter),
+                category: toFilterParam(categoryFilter),
             });
 
             if (response.data?.success && response.data.data) {
@@ -536,9 +543,13 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
                 const wb = XLSX.utils.book_new();
                 XLSX.utils.book_append_sheet(wb, ws, 'All Inventory Data');
 
-                const filterSuffix = brandFilter || categoryFilter
-                    ? `_${brandFilter || ''}_${categoryFilter || ''}`.replace(/[^a-zA-Z0-9_]/g, '')
-                    : '';
+                const filterSuffix =
+                    brandFilter.length > 0 || categoryFilter.length > 0
+                        ? `_${brandFilter.join('-')}_${categoryFilter.join('-')}`.replace(
+                              /[^a-zA-Z0-9_-]/g,
+                              '',
+                          )
+                        : '';
                 const filename = `All_Inventory_Data${filterSuffix}_${new Date().toISOString().split('T')[0]}.xlsx`;
                 XLSX.writeFile(wb, filename);
             }
@@ -694,15 +705,15 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
                         </Select>
                     </FormControl>
 
-                    {/* Brand Select */}
+                    {/* Brand Filter */}
                     <FormControl
                         size="small"
                         variant="outlined"
                         sx={{
-                            minWidth: { xs: 80, md: 120 },
+                            minWidth: { xs: 100, md: 130 },
                             flex: { xs: '1 1 auto', md: '0 0 auto' },
                             '& .MuiInputBase-root': {
-                                height: { xs: 32, md: 32 },
+                                height: 32,
                                 bgcolor: isDarkMode ? '#0f172a' : 'white',
                                 borderRadius: 1,
                             },
@@ -713,9 +724,6 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
                                 pr: '28px !important',
                                 fontWeight: 500,
                                 color: isDarkMode ? 'white' : 'inherit',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                whiteSpace: 'nowrap',
                             },
                             '& .MuiOutlinedInput-notchedOutline': {
                                 borderColor: isDarkMode ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.15)',
@@ -723,27 +731,49 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
                         }}
                     >
                         <Select
+                            multiple
                             value={brandFilter}
-                            onChange={(e) => setBrandFilter(e.target.value)}
+                            onChange={(e) => {
+                                const val = e.target.value;
+                                setBrandFilter(typeof val === 'string' ? val.split(',') : val);
+                            }}
                             displayEmpty
-                            renderValue={(value) => value || 'Brand'}
+                            renderValue={(selected) => {
+                                const sel = selected as string[];
+                                if (sel.length === 0) return 'Brand';
+                                if (sel.length === 1) return sel[0];
+                                return `${sel.length} selected`;
+                            }}
+                            MenuProps={{
+                                PaperProps: { sx: { maxHeight: 280 } },
+                                autoFocus: false,
+                            }}
                         >
-                            <MenuItem value="" sx={{ fontSize: '0.85rem' }}>All Brands</MenuItem>
                             {allBrands.map(brand => (
-                                <MenuItem key={brand} value={brand} sx={{ fontSize: '0.85rem' }}>{brand}</MenuItem>
+                                <MenuItem key={brand} value={brand} dense sx={{ fontSize: '0.85rem' }}>
+                                    <Checkbox
+                                        checked={brandFilter.includes(brand)}
+                                        size="small"
+                                        sx={{ py: 0, mr: 0.5 }}
+                                    />
+                                    <ListItemText
+                                        primary={brand}
+                                        primaryTypographyProps={{ fontSize: '0.85rem' }}
+                                    />
+                                </MenuItem>
                             ))}
                         </Select>
                     </FormControl>
 
-                    {/* Category Select */}
+                    {/* Category Filter */}
                     <FormControl
                         size="small"
                         variant="outlined"
                         sx={{
-                            minWidth: { xs: 80, md: 120 },
+                            minWidth: { xs: 100, md: 130 },
                             flex: { xs: '1 1 auto', md: '0 0 auto' },
                             '& .MuiInputBase-root': {
-                                height: { xs: 32, md: 32 },
+                                height: 32,
                                 bgcolor: isDarkMode ? '#0f172a' : 'white',
                                 borderRadius: 1,
                             },
@@ -754,9 +784,6 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
                                 pr: '28px !important',
                                 fontWeight: 500,
                                 color: isDarkMode ? 'white' : 'inherit',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                whiteSpace: 'nowrap',
                             },
                             '& .MuiOutlinedInput-notchedOutline': {
                                 borderColor: isDarkMode ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.15)',
@@ -764,14 +791,36 @@ export const PivotTableDrawer: React.FC<PivotTableDrawerProps> = ({
                         }}
                     >
                         <Select
+                            multiple
                             value={categoryFilter}
-                            onChange={(e) => setCategoryFilter(e.target.value)}
+                            onChange={(e) => {
+                                const val = e.target.value;
+                                setCategoryFilter(typeof val === 'string' ? val.split(',') : val);
+                            }}
                             displayEmpty
-                            renderValue={(value) => value || 'Category'}
+                            renderValue={(selected) => {
+                                const sel = selected as string[];
+                                if (sel.length === 0) return 'Category';
+                                if (sel.length === 1) return sel[0];
+                                return `${sel.length} selected`;
+                            }}
+                            MenuProps={{
+                                PaperProps: { sx: { maxHeight: 280 } },
+                                autoFocus: false,
+                            }}
                         >
-                            <MenuItem value="" sx={{ fontSize: '0.85rem' }}>All Categories</MenuItem>
                             {allCategories.map(cat => (
-                                <MenuItem key={cat} value={cat} sx={{ fontSize: '0.85rem' }}>{cat}</MenuItem>
+                                <MenuItem key={cat} value={cat} dense sx={{ fontSize: '0.85rem' }}>
+                                    <Checkbox
+                                        checked={categoryFilter.includes(cat)}
+                                        size="small"
+                                        sx={{ py: 0, mr: 0.5 }}
+                                    />
+                                    <ListItemText
+                                        primary={cat}
+                                        primaryTypographyProps={{ fontSize: '0.85rem' }}
+                                    />
+                                </MenuItem>
                             ))}
                         </Select>
                     </FormControl>

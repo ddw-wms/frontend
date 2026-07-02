@@ -36,6 +36,9 @@ import {
   Tooltip,
   Pagination,
   Autocomplete,
+  FormControl,
+  InputLabel,
+  ListItemText,
   FormControlLabel,
   Checkbox,
   Collapse,
@@ -1064,8 +1067,8 @@ export default function DashboardPage() {
 
   const [stageFilter, setStageFilter] = useState("all");
   const [availableOnly, setAvailableOnly] = useState(false);
-  const [brandFilter, setBrandFilter] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState("");
+  const [brandFilter, setBrandFilter] = useState<string[]>([]);
+  const [categoryFilter, setCategoryFilter] = useState<string[]>([]);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
 
@@ -1081,8 +1084,8 @@ export default function DashboardPage() {
     (searchWSN && searchWSN.trim() !== "") ||
     (stageFilter && stageFilter !== "all") ||
     availableOnly ||
-    (brandFilter && brandFilter !== "") ||
-    (categoryFilter && categoryFilter !== "") ||
+    (brandFilter.length > 0) ||
+    (categoryFilter.length > 0) ||
     (dateFrom && dateFrom !== "") ||
     (dateTo && dateTo !== ""),
   );
@@ -1235,8 +1238,8 @@ export default function DashboardPage() {
       if (searchDebounced) params.search = searchDebounced;
       if (stageFilter && stageFilter !== "all") params.stage = stageFilter;
       if (availableOnly) params.availableOnly = true;
-      if (brandFilter) params.brand = brandFilter;
-      if (categoryFilter) params.category = categoryFilter;
+      if (brandFilter.length > 0) params.brand = brandFilter.join(",");
+      if (categoryFilter.length > 0) params.category = categoryFilter.join(",");
       if (dateFrom) params.dateFrom = dateFrom;
       if (dateTo) params.dateTo = dateTo;
 
@@ -1334,8 +1337,8 @@ export default function DashboardPage() {
         if (searchDebounced) params.search = searchDebounced;
         if (stageFilter && stageFilter !== "all") params.stage = stageFilter;
         if (availableOnly) params.availableOnly = true;
-        if (brandFilter) params.brand = brandFilter;
-        if (categoryFilter) params.category = categoryFilter;
+        if (brandFilter.length > 0) params.brand = brandFilter.join(",");
+        if (categoryFilter.length > 0) params.category = categoryFilter.join(",");
         if (dateFrom) params.dateFrom = dateFrom;
         if (dateTo) params.dateTo = dateTo;
 
@@ -1516,7 +1519,7 @@ export default function DashboardPage() {
   // 🔥 GET FILTERED CATEGORIES - only for selected brand
   // ⚡ OPTIMIZED: Use local inventory data instead of API call
   const getFilteredCategories = useCallback(async () => {
-    if (!brandFilter) {
+    if (brandFilter.length === 0) {
       // No brand selected, show all categories
       return categories;
     }
@@ -1527,7 +1530,7 @@ export default function DashboardPage() {
       const uniqueCategories = Array.from(
         new Set(
           inventoryData
-            .filter((item: any) => item.brand === brandFilter)
+            .filter((item: any) => brandFilter.includes(item.brand))
             .map((item: any) => item.cms_vertical)
             .filter(Boolean),
         ),
@@ -1745,12 +1748,12 @@ export default function DashboardPage() {
   }, [columnDefs, gridDataRendered]);
 
   const memoizedFilteredBrands = useMemo(() => {
-    if (!categoryFilter || inventoryData.length === 0) {
+    if (categoryFilter.length === 0 || inventoryData.length === 0) {
       return brands;
     }
 
-    const filteredByCategory = inventoryData.filter(
-      (item: any) => item.cms_vertical === categoryFilter,
+    const filteredByCategory = inventoryData.filter((item: any) =>
+      categoryFilter.includes(item.cms_vertical),
     );
 
     return Array.from(
@@ -1762,7 +1765,7 @@ export default function DashboardPage() {
 
   // ✅ NEW:
   useEffect(() => {
-    if (!brandFilter) {
+    if (brandFilter.length === 0) {
       setFilteredCategories(categories);
       return;
     }
@@ -1774,11 +1777,14 @@ export default function DashboardPage() {
 
   // When brand changes, update filtered categories
   useEffect(() => {
-    if (brandFilter && inventoryData.length > 0) {
-      // Get unique categories from current inventory data for selected brand
+    if (brandFilter.length > 0 && inventoryData.length > 0) {
+      // Get unique categories from current inventory data for selected brands
       const filtered = Array.from(
         new Set(
-          inventoryData.map((item: any) => item.cms_vertical).filter(Boolean),
+          inventoryData
+            .filter((item: any) => brandFilter.includes(item.brand))
+            .map((item: any) => item.cms_vertical)
+            .filter(Boolean),
         ),
       ) as string[];
       setFilteredCategories(filtered.sort());
@@ -2014,8 +2020,8 @@ export default function DashboardPage() {
     // Clear all filters
     setSearchWSN("");
     setStageFilter("all");
-    setBrandFilter("");
-    setCategoryFilter("");
+    setBrandFilter([]);
+    setCategoryFilter([]);
     setDateFrom("");
     setDateTo("");
     setAvailableOnly(false);
@@ -3609,58 +3615,104 @@ export default function DashboardPage() {
                 </TextField>
 
                 {/* Brand Filter */}
-                <TextField
-                  select
-                  size="small"
-                  label="Brand"
-                  value={brandFilter}
-                  onChange={(e) => {
-                    setBrandFilter(e.target.value);
-                    setPage(1);
-                  }}
-                  fullWidth
-                  sx={{
-                    "& .MuiOutlinedInput-root": {
-                      height: 40,
-                      bgcolor: isDarkMode ? "#0f172a" : "#f8fafc",
-                    },
-                  }}
-                >
-                  <MenuItem value="">All Brands</MenuItem>
-                  {(categoryFilter ? memoizedFilteredBrands : brands).map(
-                    (b) => (
-                      <MenuItem key={b} value={b}>
-                        {b}
+                <FormControl fullWidth size="small">
+                  <InputLabel>Brand</InputLabel>
+                  <Select
+                    multiple
+                    label="Brand"
+                    value={brandFilter}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setBrandFilter(
+                        typeof val === "string" ? val.split(",") : val,
+                      );
+                      setPage(1);
+                    }}
+                    renderValue={(selected) => {
+                      const sel = selected as string[];
+                      if (sel.length === 0) return "All Brands";
+                      if (sel.length === 1) return sel[0];
+                      return `${sel.length} selected`;
+                    }}
+                    MenuProps={{
+                      PaperProps: { sx: { maxHeight: 280 } },
+                      autoFocus: false,
+                    }}
+                    sx={{
+                      "& .MuiOutlinedInput-root": {
+                        height: 40,
+                        bgcolor: isDarkMode ? "#0f172a" : "#f8fafc",
+                      },
+                    }}
+                  >
+                    {(categoryFilter.length > 0
+                      ? memoizedFilteredBrands
+                      : brands
+                    ).map((b) => (
+                      <MenuItem key={b} value={b} dense>
+                        <Checkbox
+                          checked={brandFilter.includes(b)}
+                          size="small"
+                          sx={{ py: 0, mr: 0.5 }}
+                        />
+                        <ListItemText
+                          primary={b}
+                          primaryTypographyProps={{ fontSize: "0.85rem" }}
+                        />
                       </MenuItem>
-                    ),
-                  )}
-                </TextField>
+                    ))}
+                  </Select>
+                </FormControl>
 
                 {/* Category Filter */}
-                <TextField
-                  select
-                  size="small"
-                  label="Category"
-                  value={categoryFilter}
-                  onChange={(e) => {
-                    setCategoryFilter(e.target.value);
-                    setPage(1);
-                  }}
-                  fullWidth
-                  sx={{
-                    "& .MuiOutlinedInput-root": {
-                      height: 40,
-                      bgcolor: isDarkMode ? "#0f172a" : "#f8fafc",
-                    },
-                  }}
-                >
-                  <MenuItem value="">All Categories</MenuItem>
-                  {(brandFilter ? filteredCategories : categories).map((c) => (
-                    <MenuItem key={c} value={c}>
-                      {c}
-                    </MenuItem>
-                  ))}
-                </TextField>
+                <FormControl fullWidth size="small">
+                  <InputLabel>Category</InputLabel>
+                  <Select
+                    multiple
+                    label="Category"
+                    value={categoryFilter}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setCategoryFilter(
+                        typeof val === "string" ? val.split(",") : val,
+                      );
+                      setPage(1);
+                    }}
+                    renderValue={(selected) => {
+                      const sel = selected as string[];
+                      if (sel.length === 0) return "All Categories";
+                      if (sel.length === 1) return sel[0];
+                      return `${sel.length} selected`;
+                    }}
+                    MenuProps={{
+                      PaperProps: { sx: { maxHeight: 280 } },
+                      autoFocus: false,
+                    }}
+                    sx={{
+                      "& .MuiOutlinedInput-root": {
+                        height: 40,
+                        bgcolor: isDarkMode ? "#0f172a" : "#f8fafc",
+                      },
+                    }}
+                  >
+                    {(brandFilter.length > 0
+                      ? filteredCategories
+                      : categories
+                    ).map((c) => (
+                      <MenuItem key={c} value={c} dense>
+                        <Checkbox
+                          checked={categoryFilter.includes(c)}
+                          size="small"
+                          sx={{ py: 0, mr: 0.5 }}
+                        />
+                        <ListItemText
+                          primary={c}
+                          primaryTypographyProps={{ fontSize: "0.85rem" }}
+                        />
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
 
                 {/* Available Only Checkbox */}
                 <FormControlLabel
@@ -3996,8 +4048,8 @@ export default function DashboardPage() {
                           dateFrom,
                           dateTo,
                           stage: stageFilter || "all",
-                          brand: brandFilter,
-                          category: categoryFilter,
+                          brand: brandFilter[0] || "",
+                          category: categoryFilter[0] || "",
                           availableOnly: availableOnly ? "available" : "all",
                         });
                         setExportDialogOpen(true);
